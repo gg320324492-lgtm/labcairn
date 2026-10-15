@@ -128,6 +128,122 @@ These are declared, not assumed:
 | README calls the project "open source" in three places while stating no rights are granted | Nothing technically; it is a positioning judgement | Project lead |
 | Five pnpm commands in the README suite skip rather than fail when Node is absent | Nothing on the current CI, where `web-quality` installs dependencies first | LC-P1-12 |
 
+## Independent cross-review
+
+An agent that had not participated in the implementation reviewed this branch under an
+instruction to assume the work was wrong. It ran the full suite, then attacked it
+with destructive verification in a copy outside the repository. It found **two blocking
+issues, both of the same kind: work declared done that was not done.** Both are fixed
+below. Its other findings are recorded whether fixed or not.
+
+### B-1 — C-5 was not implemented, and the omission was not declared
+
+C-5 is one of the eight binding rulings and requires `.gitattributes`. The file did not
+exist, was not tracked, and was absent from the sdist. Three comments in the repository
+described it as non-existent, and `CONTRIBUTY.md:40` was among them. **This evidence
+document previously concluded "acceptance clauses are met" without mentioning C-5** —
+the exact failure mode the project exists to prevent.
+
+Added `.gitattributes`: `* text=auto eol=lf` with binary declarations, explicit
+`*.ps1`/`*.cmd`/`*.bat` CRLF exceptions with the Windows PowerShell parser as the
+reason, and lockfiles pinned to LF so a Windows checkout cannot manufacture apparent
+`pnpm` or `uv` drift.
+
+### B-2 — `.env.example` is a named Build deliverable and did not exist
+
+`PHASE_1_WORKORDERS.md` LC-P1-01 lists it. The file was absent while `.gitignore`
+carried an explicit `!.env.example` rule anticipating it. Written: it states plainly
+that **Phase 1 reads no environment variable**, so the suite passes with none of them
+set, and documents the names LC-P1-03 will introduce so they are settled before code
+depends on them.
+
+### D-1 — C-1 had only a proxy gate
+
+The existing check flagged `paths-ignore` only when it mentioned a reference family.
+Injecting `paths-ignore: ['**/*.md', 'docs/**']` into `python.yml` passed every test —
+yet that is precisely the deadlock C-1 describes: GitHub reports a filtered check as
+*expected*, not passed, so a documentation-only PR could never merge.
+
+Added `test_no_workflow_filters_pull_request_at_all`, which parses the workflow YAML
+structurally and forbids **any** `paths`/`paths-ignore`/`pull_request_target` filter.
+All six jobs are required checks, so none may filter; a genuinely optional workflow must
+be added to an explicit exemption list rather than relying on a filter looking harmless.
+
+A related defect in the same area: `_lines_outside_exclusion_contexts` tested
+`"exclude" in stripped`, but `"exclude" in "paths-ignore:"` is False, so the branch its
+comment describes never ran.
+
+### D-2 — C-4's negative assertion did not exist
+
+`.gitleaks.toml` states that "the negative assertion lives in
+tests/test_no_reference_leakage.py". It did not: `test_workflows_do_not_use_no_git_secret_scan`
+reads the **workflow files**, never the configuration. Appending
+`disabledRules = ["generic-api-key", "private-key"]` plus a blanket
+`[[allowlists]] paths = ['_references.*', ...]` left **165 tests passing with zero
+warnings** — reference source forced into the index would have been invisible to the
+secret scan *and* to the path assertions. Doubly hidden, which is the one outcome C-4
+exists to prevent.
+
+Added `test_gitleaks_config_declares_no_path_allowlist`, which reads the config and
+rejects any `[[allowlists]]` block or any non-comment line pairing a path key with a
+reference family.
+
+### D-3 — the cross-process determinism test varied nothing
+
+`_replay_in_subprocess` launched the child with `-I`, which implies `-E` and therefore
+ignores every `PYTHON*` variable — including the `PYTHONHASHSEED` the function exists
+to vary and the `PYTHONIOENCODING` that makes byte comparison meaningful. Measured:
+
+```
+-I:  seed 0 -> hash 1472225801280241200   seed 0 again -> hash -3399221637839268906
+     same-seed stable: False          enc: gbk
+-s:  seed 0 -> hash -3368204716105132637  seed 0 again -> identical
+     same-seed stable: True           enc: utf-8
+```
+
+Changed to `-s`, which still drops user site-packages. The conclusion that replay is
+hash-seed independent now rests on a mechanism that actually varies. `SYSTEMROOT` was
+also hardcoded to `C:\Windows` inside a test that runs on Ubuntu; it is now set
+conditionally.
+
+### D-4 — the `UnknownReason` closed set could be bypassed
+
+`Unknown("unpriced")` constructed successfully, compared **equal** to
+`Unknown(UnknownReason.UNPRICED)` with an equal hash, and then raised
+`AttributeError` at serialisation. Every product construction site passes an enum
+member, so nothing can reach it today — which is the argument for closing it now rather
+than after LC-P1-03 builds budgets on top. `__post_init__` validation added, with a
+test that also covers `None`, `0`, `1.0` and `object()`.
+
+### Verified as sound, recorded so it is not re-litigated
+
+- **Unknown cannot be folded to zero.** Attacked directly: `int`, `float`, `iter`, `len`,
+  `json.dumps` all raise; `bool(Unknown)` is True so `u or 0` yields itself; `Known(0) ==
+  Unknown` is False with different hashes; `usage_from_wire({"known": True})` yields
+  Unknown rather than treating the bool as 1; `merge(Known(0), Unknown)` yields Unknown.
+  This is the strongest part of the delivery.
+- **C-2's gate is live.** Destructive checks: `packages` narrowed to
+  `["src/labcairn/core"]` turns four tests red; deleting the `packages` line turns the
+  build-backend test red; deleting either exclude list turns the sdist test red. The
+  recursive-root contract holds and survives new subpackages.
+- **Isolation asserts behaviour, not text** (C-8), and the positive controls are real:
+  when a control file is absent four assertions go inert, and the scanners are
+  self-tested.
+- **The AST gate caught a real regression.** Moving `providers/` under `core/` broke its
+  target path and it refused to pass with "the sweep proved nothing" — the anti-vacuous
+  behaviour it was built for.
+- All six action tags resolve on the GitHub API; the gitleaks SHA256 matches the
+  published checksum for 8.30.1.
+
+## Still open — not fixed, and not claimed as fixed
+
+| Finding | Why it is open |
+|---|---|
+| The T07 overclaim detector has real holes: passive voice ("PDF parsing **is supported by** LabCairn"), "is capable of", "handles", "can", "has a built-in", "comes with", and Chinese "可以 / 能 / 用于 / 现可使用". `_QUALIFIER_RE` exempts a whole sentence when it contains `target`, `intended`, `future`, `目标`, `拟`, `将(?:会\|要)?`, so a qualifier can whitewash a claim. The 6 cases in `test_claim_detector_has_teeth` are all forms the regex already covered | A reliable bilingual capability-claim detector is a project in itself. Recording the holes is more useful than pretending the suite catches overclaims; the README suite is a floor, not a guarantee |
+| `test_wheel_contains_no_reference_path` cannot currently fail: deleting the whole wheel exclude list leaves the suite green | The wheel is built from one package root, so the case is structurally unreachable today. The comment says "defensive only", which is honest |
+| `test_upload_artifact_and_cache_steps_exclude_reference_paths` accepts any narrow path, while the checklist row says the exclusion applies "regardless" | Narrow paths satisfy the intent more strongly; recorded as a deviation, not a silent reinterpretation |
+| `gitleaks git` does not read the index | Tool behaviour, not configuration. Window closes at commit |
+
 ## Verdict
 
 LC-P1-01's acceptance clauses are met, with two real defects found and fixed after the first CI run. The isolation promise is now enforced by tests and by GitHub rather than by a document. No runtime capability, licence grant or scientific validation is claimed by this work.

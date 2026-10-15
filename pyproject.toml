@@ -35,8 +35,15 @@ dependencies = [
 # Installed by `uv sync` by default. Kept minimal on purpose: no pytest-randomly
 # (docs/plans/LC-P1-01-task-breakdown.md §5.2 forbids it — a random-order plugin
 # reintroduces nondeterminism), no coverage plugin, no pytest-xdist.
+# PyYAML is required at test time, not just convenience: the C-1 and C-4 gate
+# tests parse .github/workflows/*.yml structurally. A regex over YAML text is how
+# the earlier "no paths-ignore" check came to miss a benign filter.
 dev = [
     "mypy>=1.13,<2",
+    "pyyaml>=6,<7",
+    # Stubs only: mypy --strict rejects an untyped yaml import, and the C-1/C-4
+    # gate tests parse workflow YAML structurally.
+    "types-pyyaml>=6,<7",
     "pytest>=8.3,<9",
     "ruff>=0.8,<1",
 ]

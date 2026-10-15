@@ -253,3 +253,27 @@ def test_usage_from_wire_treats_unreadable_payloads_as_unknown_not_zero() -> Non
         restored = usage_from_wire(payload)
         assert isinstance(restored, Unknown)
         assert restored == Unknown(UnknownReason.EXTRACTION_FAILED)
+
+
+def test_unknown_rejects_a_free_form_reason_string() -> None:
+    """The closed set must be closed, not merely documented.
+
+    `UnknownReason` claims "no free-form strings" in its docstring, but
+    dataclasses do not coerce: `Unknown("unpriced")` used to construct fine,
+    compared and hashed equal to the real member, and then raised
+    `AttributeError: 'str' object has no attribute 'value'` at serialisation —
+    far from the cause. Unreachable from product code today; cheap to close
+    before LC-P1-03 puts budgets on top of it.
+    """
+    with pytest.raises(TypeError, match="UnknownReason"):
+        Unknown("unpriced")  # type: ignore[arg-type]
+
+    # And the closed set must remain closed to every wrong type, not just str.
+    for wrong in (None, 0, 1.0, object()):
+        with pytest.raises(TypeError):
+            Unknown(wrong)  # type: ignore[arg-type]
+
+    # A real member still constructs and behaves identically.
+    ok = Unknown(UnknownReason.UNPRICED)
+    assert ok == Unknown(UnknownReason.UNPRICED)
+    assert ok.to_wire() == {"unknown": "unpriced"}

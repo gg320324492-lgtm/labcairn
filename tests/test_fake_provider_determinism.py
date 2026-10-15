@@ -32,6 +32,7 @@ transcript mutated mid-run    ``Transcript`` and everything in it are frozen
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -80,23 +81,33 @@ def _replay_in_process() -> str:
 
 
 def _replay_in_subprocess(repo_root: Path, *, hash_seed: str) -> str:
-    """Run the replay program with no inherited environment beyond the essentials."""
+    """Run the replay program with no inherited environment beyond the essentials.
+
+    ``-s`` rather than ``-I``: ``-I`` implies ``-E``, which ignores every
+    ``PYTHON*`` environment variable — including the ``PYTHONHASHSEED`` this
+    function exists to vary and the ``PYTHONIOENCODING`` that keeps a Windows
+    console codepage from making the byte comparison a lie. An earlier version
+    used ``-I`` and therefore varied nothing while appearing to. ``-s`` still
+    drops the user site-packages directory, which is the isolation that matters
+    here.
+    """
+    env = {
+        "PYTHONHASHSEED": hash_seed,
+        "PYTHONIOENCODING": "utf-8",
+        # Python resolves the venv from ``sys.executable``, not from PATH, so
+        # nothing else has to be present — which is the point: no HOME, no
+        # locale, no API key, no proxy, no network configuration. SYSTEMROOT is
+        # the one variable CPython itself will not start without on Windows.
+    }
+    if os.name == "nt":
+        env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
     completed = subprocess.run(
-        [sys.executable, "-I", "-c", _REPLAY_PROGRAM],
+        [sys.executable, "-s", "-c", _REPLAY_PROGRAM],
         capture_output=True,
         text=True,
         encoding="utf-8",
         cwd=repo_root,
-        env={
-            "PYTHONHASHSEED": hash_seed,
-            # Without this the child's stdout encoding follows the host locale,
-            # and a Windows console codepage would make the byte comparison a lie.
-            "PYTHONIOENCODING": "utf-8",
-            # Python resolves the venv from ``sys.executable``, not from PATH,
-            # so nothing else has to be present — which is the point: no HOME,
-            # no locale, no API key, no proxy, no network configuration.
-            "SYSTEMROOT": "C:\\Windows",
-        },
+        env=env,
         check=False,
         timeout=120,
     )

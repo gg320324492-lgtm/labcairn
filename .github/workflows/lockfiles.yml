@@ -21,7 +21,7 @@
 # TOOLCHAIN PINS
 # ============================================================================
 # uv is pinned to the version that produced uv.lock. The repository carries no
-# uv version file (no uv.toml, no required-version field in pyproject.toml), so
+# uv version file (no uv.toml, the pin is recorded as [tool.uv] required-version in pyproject.toml), so
 # an unpinned "latest" would make this gate depend on when it ran.
 #
 # Node and pnpm match web/package.json exactly: "packageManager": "pnpm@9.15.9"

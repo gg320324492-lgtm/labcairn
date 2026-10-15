@@ -86,6 +86,7 @@ from pathlib import Path, PurePosixPath
 from typing import Final
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.reference_exclusion
 
@@ -1203,4 +1204,79 @@ def test_workflows_do_not_use_no_git_secret_scan(workflows_dir: Path) -> None:
     assert not offenders, (
         "secret scan must stay in git mode; whole-disk scanning would sweep the "
         "sibling reference clones:\n" + "\n".join(offenders)
+    )
+
+
+def test_no_workflow_filters_pull_request_at_all(workflows_dir: Path) -> None:
+    """C-1, stated without the reference-family loophole.
+
+    An earlier version of this file only flagged ``paths-ignore`` when it
+    mentioned a reference family. That is too narrow: GitHub reports a
+    filtered check as *expected* rather than passed whatever the filter said,
+    so a benign-looking ``paths: ['docs/**']`` on a required job deadlocks any
+    documentation-only pull request exactly as badly as a reference filter
+    would. All six jobs here are required status checks, so none may filter
+    pull_request. A future workflow that is genuinely optional must be added
+    to an explicit exemption list rather than relying on the filter looking
+    harmless.
+    """
+    offenders: list[str] = []
+    for path in _workflow_files(workflows_dir):
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        triggers = doc.get("on", doc.get(True))
+        if not isinstance(triggers, dict):
+            continue
+        for trigger in ("pull_request", "pull_request_target"):
+            cfg = triggers.get(trigger)
+            if not isinstance(cfg, dict):
+                continue
+            for key in ("paths", "paths-ignore"):
+                if key in cfg:
+                    offenders.append(f"{path.name}: on.{trigger}.{key} = {cfg[key]!r}")
+    assert not offenders, (
+        "a required status check must not filter pull_request — a filtered "
+        "check is reported as expected, not passed, and can never merge:\n" + "\n".join(offenders)
+    )
+
+
+def test_gitleaks_config_declares_no_path_allowlist(repo_root: Path) -> None:
+    """C-4: no blanket path allowlist may be introduced into the config itself.
+
+    ``test_workflows_do_not_use_no_git_secret_scan`` only reads the workflow
+    files. This reads the configuration, because C-4's failure mode is an
+    allowlist added to ``.gitleaks.toml``: reference source that reached the
+    index via ``git add -f`` would then be invisible to the secret scan as
+    well as to the path assertions — doubly hidden, which is the one outcome
+    the ruling exists to prevent.
+    """
+    config = repo_root / ".gitleaks.toml"
+    assert config.exists(), ".gitleaks.toml is missing; C-4 has no configuration"
+    text = config.read_text(encoding="utf-8")
+
+    offenders: list[str] = []
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if stripped.startswith("#"):
+            continue
+        for forbidden in ("[[allowlists]]", "[allowlist]", "[allowlists]"):
+            if stripped.startswith(forbidden):
+                offenders.append(f"line {lineno}: {stripped}")
+
+    # A blanket exemption of the reference families can also be smuggled in as
+    # a path allowlist under a different key, so check for the family names
+    # appearing in any non-comment, non-documentation assignment.
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if stripped.startswith("#"):
+            continue
+        low = stripped.lower()
+        if "path" in low and any(
+            stem in low for stem in ("_references", ".upstreams", "labcairn-upstreams")
+        ):
+            offenders.append(f"line {lineno}: {stripped}")
+
+    assert not offenders, (
+        "C-4 forbids allowlisting the reference families out of the secret "
+        "scan; they should be untracked, and a mistaken `git add -f` must stay "
+        "visible to it:\n" + "\n".join(offenders)
     )

@@ -168,6 +168,21 @@ class Unknown:
 
     reason: UnknownReason
 
+    def __post_init__(self) -> None:
+        # Dataclasses do not coerce, so `Unknown("unpriced")` would otherwise be
+        # a well-formed instance that compares and hashes equal to
+        # `Unknown(UnknownReason.UNPRICED)` while `to_wire()` explodes on
+        # `.value`. Product code constructs these from enum members only, so
+        # nothing can reach that today — which is exactly why it is cheap to
+        # close now and expensive to debug after LC-P1-03 builds budgets on it.
+        if not isinstance(self.reason, UnknownReason):
+            raise TypeError(
+                f"Unknown.reason must be an UnknownReason member, got "
+                f"{type(self.reason).__name__}. A free-form string would bypass "
+                f"the closed set and fail later, at serialisation, far from the "
+                f"cause. Got: {self.reason!r}"
+            )
+
     def to_wire(self) -> Mapping[str, object]:
         return {"unknown": self.reason.value}
 
