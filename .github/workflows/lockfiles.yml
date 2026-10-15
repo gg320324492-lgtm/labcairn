@@ -1,0 +1,89 @@
+# LC-P1-01 T06 — Lockfile consistency. Candidate REQUIRED status check.
+#
+# The work order's acceptance clause: *"fresh clone and documented setup on a
+# CI-supported OS … secret scan and lockfile consistency check included."*
+#
+# A lockfile is the reproducibility claim. It is only worth anything if it is
+# checked: an out-of-date lockfile is what turns "the CI passed" into "the CI
+# passed last Thursday". This job therefore verifies rather than regenerates,
+# and fails rather than repairs.
+#
+#   * `uv lock --check` re-resolves and fails if the result differs from the
+#     committed uv.lock. It never writes.
+#   * `pnpm install --frozen-lockfile` installs from web/pnpm-lock.yaml only,
+#     and errors if that file does not satisfy web/package.json. It never
+#     rewrites.
+#
+# C-1 (binding): no `paths-ignore`. See python.yml for why filtering a required
+# check deadlocks the merge rather than skipping a job.
+# ============================================================================
+#
+# TOOLCHAIN PINS
+# ============================================================================
+# uv is pinned to the version that produced uv.lock. The repository carries no
+# uv version file (no uv.toml, no required-version field in pyproject.toml), so
+# an unpinned "latest" would make this gate depend on when it ran.
+#
+# Node and pnpm match web/package.json exactly: "packageManager": "pnpm@9.15.9"
+# and "engines": { "node": ">=24.16.0 <25", "pnpm": ">=9.15.9 <10" }.
+# `package_json_file` is explicit because pnpm/action-setup otherwise looks for
+# a repository-root package.json, and LabCairn has none.
+name: lockfiles
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lockfiles-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-consistency:
+    name: lockfile-consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # ---------------------------------------------------------------------
+      # Python: uv.lock
+      # ---------------------------------------------------------------------
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.11.21"
+          # The built-in cache covers the uv cache directory and the managed
+          # Python directory, never the working tree, so there is no cache
+          # step here whose `path:` could name a reference-study directory.
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: uv.lock is consistent with pyproject.toml
+        run: uv lock --check
+
+      # ---------------------------------------------------------------------
+      # Web: web/pnpm-lock.yaml
+      # ---------------------------------------------------------------------
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+          package_json_file: web/package.json
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.16.0
+          # Caches the pnpm store, which lives outside the working tree. This
+          # is the only cache-backed path in this workflow.
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: web/pnpm-lock.yaml is consistent with web/package.json
+        working-directory: web
+        run: pnpm install --frozen-lockfile

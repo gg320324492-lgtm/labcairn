@@ -1,0 +1,83 @@
+# LC-P1-01 T06 — Secret scan. Candidate REQUIRED status check.
+#
+# ============================================================================
+# C-4 (binding) — git mode, and why
+# ============================================================================
+# `gitleaks git` reads git history, which by construction contains only files
+# that were actually committed — files LabCairn is responsible for. Its whole-
+# disk sibling, the `gitleaks dir` subcommand (the 8.x spelling of the old
+# `--no-git` flag), has no concept of "tracked": give it a path above the
+# repository and it reads every reference clone on the machine — five
+# third-party source trees, roughly 700 MB, carrying their own token-shaped
+# strings and 139 instruction-shaped AGENTS.md / CLAUDE.md / SKILL.md files.
+# That is thousands of unfixable findings and an unattended code-ingestion path
+# over exactly the material LC-P1-00 ruled untrusted.
+#
+# So: `gitleaks git`, never `gitleaks dir`, never `--no-git`.
+#
+# There is deliberately NO path allowlist. In git mode the reference clones are
+# not in the object store at all, so an allowlist protects nothing — while
+# suppressing the one failure that should surface: reference source force-added
+# with `git add -f` landing in the index and in history. The narrow,
+# per-finding allowlists .gitleaks.toml sanctions would name a Rule ID and match
+# content; a blanket path exemption is forbidden. Nothing is added here.
+#
+# C-1 (binding): no `paths-ignore`. See python.yml for why filtering a required
+# check deadlocks the merge rather than skipping a job.
+# ============================================================================
+#
+# The gitleaks binary is downloaded from the official release and checked
+# against a pinned SHA-256 before it is executed — no `curl | sh`. The version
+# and the checksum are the ones published in that release's checksums file.
+name: security
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # gitleaks git walks history. A shallow clone would scan exactly one
+          # commit and report a clean result that means nothing — the same
+          # false-green shape this whole task exists to prevent.
+          fetch-depth: 0
+          # Nothing downstream shells out with the token, so the checkout
+          # credential is dropped as soon as the clone is made.
+          persist-credentials: false
+
+      - name: install gitleaks (pinned release, checksum verified)
+        shell: bash
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          # From gitleaks_8.30.1_checksums.txt in that release.
+          GITLEAKS_SHA256_LINUX_X64: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/${archive}" "${url}"
+          echo "${GITLEAKS_SHA256_LINUX_X64}  ${RUNNER_TEMP}/${archive}" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "${RUNNER_TEMP}/${archive}" \
+            --directory "${RUNNER_TEMP}" gitleaks
+          chmod +x "${RUNNER_TEMP}/gitleaks"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      # The invocation .gitleaks.toml mandates, verbatim. `--redact` is not
+      # cosmetic: a CI log is not a safe place to print a secret in full, and a
+      # redacted report still carries File / Line / Rule ID.
+      - name: scan tracked history
+        run: gitleaks git --config .gitleaks.toml --redact --exit-code 1 .

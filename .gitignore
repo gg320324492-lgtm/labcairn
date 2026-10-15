@@ -35,3 +35,14 @@ __pycache__/
 node_modules/
 web/dist/
 .DS_Store
+
+# Build and packaging output. These are reproducible from source at any time,
+# and shipping them would defeat the clean-venv install check in LC-P1-01.
+# `git add -A` must never be able to stage a wheel.
+dist/
+build/
+*.egg-info/
+archive/
+.wheel-check/
+coverage/
+web/coverage/

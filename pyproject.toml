@@ -168,6 +168,10 @@ docstring-code-format = true
 # ---------------------------------------------------------------------------
 # mypy
 # ---------------------------------------------------------------------------
+# uv produced uv.lock; a different resolver can produce a different lock.
+[tool.uv]
+required-version = ">=0.11.21,<0.12"
+
 [tool.mypy]
 python_version = "3.12"
 files = ["src", "conftest.py", "tests"]

@@ -1180,3 +1180,27 @@ def test_no_module_level_dependency_on_the_sibling_reference_directory(repo_root
         + "\n  ".join(offenders)
         + "\nProduct code must not require reference clones to exist."
     )
+
+
+def test_workflows_do_not_use_no_git_secret_scan(workflows_dir: Path) -> None:
+    """Referenced by .gitleaks.toml, which claims a sibling assertion guards this.
+
+    A whole-disk scan (``gitleaks dir`` / ``--no-git``) would sweep the sibling
+    reference clones — third-party source trees carrying their own token-shaped
+    strings — producing findings LabCairn cannot act on and cannot distinguish
+    from its own. The scan must stay in git mode so it sees tracked files only.
+    """
+    offenders: list[str] = []
+    for path in _workflow_files(workflows_dir):
+        text = path.read_text(encoding="utf-8")
+        for lineno, raw in enumerate(text.splitlines(), 1):
+            stripped = raw.strip()
+            if stripped.startswith("#"):
+                continue
+            lowered = stripped.lower()
+            if "--no-git" in lowered or "gitleaks dir" in lowered:
+                offenders.append(f"{path.name}:{lineno}: {stripped}")
+    assert not offenders, (
+        "secret scan must stay in git mode; whole-disk scanning would sweep the "
+        "sibling reference clones:\n" + "\n".join(offenders)
+    )
