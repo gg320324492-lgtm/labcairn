@@ -29,7 +29,11 @@ If local IDE constraints require it, use `labcairn/_references/` as an *ignored*
 
 For the five repositories that are cloned, the license column below was **verified by opening the LICENSE files at the pinned commit**, not by reading GitHub repository metadata. Subdirectories were walked separately — see [Verified license boundaries](#verified-license-boundaries-measured-2026-10-15). These labels are still not a legal assessment, and transitive dependencies may carry other licenses.
 
-The commit SHA column records the local shallow-clone snapshot taken on **2026-10-15**. Because the clones were made with `--depth 1 --single-branch`, these SHAs exist **only in the local object store**: GitHub may force-push or garbage-collect the commits at any time, and a fresh `git clone` may not reproduce them. Treat each SHA as valid only for the snapshot still on this machine. The source of record is the local `snapshot.json` written beside the clones, which also keys its license field `license_hint_not_verified` — the pin was automatic, the license was not.
+The commit SHA column records the local shallow-clone snapshot taken on **2026-10-15**. Because the clones were made with `--depth 1 --single-branch`, each SHA was read from a **local** object store rather than resolved from the remote — so a fresh `git clone` of the default branch is not guaranteed to reproduce it, and upstream force-push or garbage collection can invalidate it at any time. Treat each SHA as valid for the snapshot on this machine.
+
+This is a statement about **how the pin was obtained**, not a claim that the commits are unreachable. The LC-P1-00 independent review resolved all five commits against GitHub at review time and found them present upstream. Neither guarantee is permanent: the local snapshot can be deleted, and the upstream commits can disappear independently. Re-verify with `git ls-remote <url>` before relying on a pin for anything load-bearing.
+
+The source of record is the local `snapshot.json` written beside the clones, which also keys its license field `license_hint_not_verified` — the pin was automatic, the license was not.
 
 | ID | GitHub | Study areas | Root license (verified) | Commit SHA (local shallow snapshot) | Priority |
 |---|---|---|---|---|---|

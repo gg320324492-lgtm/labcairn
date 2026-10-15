@@ -6,11 +6,11 @@
 
 ## Current position
 
-**Phase:** P1 — Foundation & MVP · **Gate:** G0 closed · **Latest commit:** see [`handoff/CURRENT.md`](handoff/CURRENT.md)
+**Phase:** P1 — Foundation & MVP · **Gate:** G0 closed · **`main` at time of writing:** `b526749` — see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
 | | |
 |---|---|
-| Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES` at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3), merged as PR #1 (`9b445cd`). |
+| Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3) and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
 | Authorized, not started | **LC-P1-01** — reproducible engineering baseline. Plan and binding amendments exist; no `pyproject.toml`, `src/`, `web/`, `tests/` or `.github/` has been created. |
 | Next direction | LC-P1-01 → LC-P1-02…04 close **G1 (Trusted core)**. The immediate goal is not more design: it is a Python package that builds, a Web app that builds, and CI that runs on two operating systems **without** the sibling reference clones present. |
 
