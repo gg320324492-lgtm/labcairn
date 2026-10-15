@@ -14,6 +14,42 @@
 
 P0/P1 expresses ordering and risk inside Phase 1. It does not mean "required / optional", and it never overrides a gate exit test: where a gate names a capability, that capability must exist and pass regardless of its priority label.
 
+## Phase 1 status board
+
+**This board is the completion record.** It is updated in the same commit that changes a work order's state, and every non-`NOT STARTED` row cites the commit or report that is the evidence. A row is never marked done because something looks finished — it is marked done when an independent review at a named commit says so.
+
+Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES` · `BLOCKED` · `FAIL`
+
+| Work order | Pri | Gate | Status | Evidence |
+|---|---|---|---|---|
+| LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
+| LC-P1-01 | P0 | G1 | NOT STARTED | [plan](plans/LC-P1-01-task-breakdown.md), [amendments](plans/LC-P1-01-approved-amendments.md) — authorized, not begun |
+| LC-P1-02 | P0 | G1 | NOT STARTED | depends on LC-P1-01 |
+| LC-P1-03 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md) |
+| LC-P1-04 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
+| LC-P1-05 | P0 | G2 | NOT STARTED | |
+| LC-P1-06 | P0 | G2 | NOT STARTED | |
+| LC-P1-07 | P0 | G2 | NOT STARTED | |
+| LC-P1-08 | P0 | G3 | NOT STARTED | **blocked on a licensing decision** — PyMuPDF is AGPL/commercial dual-licensed |
+| LC-P1-09 | P0 | G3 | NOT STARTED | contract pre-decided in [ADR-0004](adr/ADR-0004-scientific-provenance-and-evidence-model.md) |
+| LC-P1-10 | P1 | G3 | NOT STARTED | see the priority legend above — still required for G3 |
+| LC-P1-11 | P0 | G4 | NOT STARTED | |
+| LC-P1-12 | P0 | G4 | NOT STARTED | |
+| LC-P1-13 | P0 | G5 | NOT STARTED | |
+| LC-P1-14 | P0 | G5 | NOT STARTED | |
+
+**Gate status:** G0 closed. G1–G5 not started.
+
+**Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
+
+| Issue | Owner work order | Note |
+|---|---|---|
+| Copyright ownership / no `LICENSE` file | LC-P1-14 (release) | A placeholder such as `LICENSE.PENDING.md` grants no rights. Blocks any claim of open-source licensing. |
+| PyMuPDF AGPL vs commercial | LC-P1-08 | Constrains a future MIT release. Decision needed before LC-P1-08 starts. |
+| `tests/test_no_reference_leakage.py` absent | LC-P1-01 | Reference isolation is prose until this exists; LC-P1-00's acceptance item is `PASS WITH NOTES` partly because of it. |
+| Upstream pin SHAs are local-only | LC-P1-00 (recurring) | Shallow single-branch clones pin commits that exist only in the local object store; upstream force-push or GC invalidates them. |
+| ADR length vs "concise" | — | Disputed and deliberately unresolved; ~1,270 lines across three ADRs. |
+
 ## P1 deliverable
 
 An unrelated researcher installs LabCairn, configures an eligible LLM provider, binds a research folder containing a text PDF, CSV/XLSX and Markdown, creates a task, receives a report and deterministic scientific plot with source locators and an evidence ledger, requests a revision, and reopens that same task following a simulated restart. CLI and local Web use the same application services. The original materials remain unchanged.

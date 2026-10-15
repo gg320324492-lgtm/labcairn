@@ -2,7 +2,26 @@
 
 **Version:** LCR-PLAN-1.1  
 **Synchronized with:** `LC-P1-v1.1`, the Phase 1 work orders and gates in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md). Phase plan and work orders are revised together; they must never drift apart.
-**Status:** Phase 1 dispatched; later phases are strategic targets, not approved implementation work orders.
+**Status:** Phase 1 in progress; later phases are strategic targets, not approved implementation work orders.
+
+## Current position
+
+**Phase:** P1 — Foundation & MVP · **Gate:** G0 closed · **Latest commit:** see [`handoff/CURRENT.md`](handoff/CURRENT.md)
+
+| | |
+|---|---|
+| Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES` at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3), merged as PR #1 (`9b445cd`). |
+| Authorized, not started | **LC-P1-01** — reproducible engineering baseline. Plan and binding amendments exist; no `pyproject.toml`, `src/`, `web/`, `tests/` or `.github/` has been created. |
+| Next direction | LC-P1-01 → LC-P1-02…04 close **G1 (Trusted core)**. The immediate goal is not more design: it is a Python package that builds, a Web app that builds, and CI that runs on two operating systems **without** the sibling reference clones present. |
+
+**Open issues carried into LC-P1-01** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
+
+- Copyright ownership is unresolved and the repository deliberately has **no `LICENSE` file**. No open-source rights have been granted.
+- **PyMuPDF** is AGPL/commercial dual-licensed and is named by LC-P1-08; it constrains a future MIT release and needs a decision before that work order.
+- Reference isolation is **prose, not enforcement**, until `tests/test_no_reference_leakage.py` exists.
+- The five upstream pin SHAs exist only in local shallow clones; remote retention is not guaranteed.
+
+**What is not yet true of this project:** it has no product code, no tests, no CI, and no installed package. Every capability described below is planned, not shipped. Do not read this roadmap as a status report on working software.
 
 | Phase | Focus | Exit gate |
 |---|---|---|

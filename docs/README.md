@@ -2,6 +2,24 @@
 
 The GitHub repository at a fixed commit is the project's authoritative record. Conversations are advisory, not proof of implementation.
 
+## Working principle
+
+**GitHub holds project facts. An AI assistant does analysis, design and review.**
+
+Every review is conducted against the actual code and documents at a **named commit SHA** — never against a chat transcript as the only memory. If a fact is not in this repository, it is not established, no matter how confidently it was discussed. When an assistant's recollection and the repository disagree, the repository wins and the document is corrected.
+
+This applies to this index too: the principle is only worth anything if the repository is where the state actually lives.
+
+| Document class | Directory | Holds |
+|---|---|---|
+| Work orders | [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md) | Per-batch goals, implementation requirements, acceptance criteria, and a **status board** updated in the same commit as any state change |
+| Architecture decisions | [`adr/`](adr/) | Technical choices, upstream reference, trade-off rationale, and later supersession |
+| Acceptance reports | [`acceptance/`](acceptance/) | Subject commit SHA, inspected evidence, findings, verdict. One per reviewed commit |
+| Roadmap & progress | [`ROADMAP.md`](ROADMAP.md) | Current phase, what is done, open issues, next direction |
+| Handoff | [`handoff/CURRENT.md`](handoff/CURRENT.md) | Short current-state summary so a new session or another agent can resume |
+
+## Index
+
 - [Roadmap](ROADMAP.md)
 - [Phase 1 work orders](PHASE_1_WORKORDERS.md)
 - [Architecture](ARCHITECTURE.md)
