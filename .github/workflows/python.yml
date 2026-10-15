@@ -67,8 +67,8 @@ jobs:
           python-version-file: .python-version
 
       # uv is pinned to the version that produced and last validated uv.lock.
-      # The repository carries no uv version file yet, so "whatever is newest"
-      # would make this gate non-reproducible across weeks.
+      # Pinned rather than "whatever is newest" so this gate stays reproducible
+      # across weeks; [tool.uv] required-version in pyproject.toml carries the same pin.
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: "0.11.21"
