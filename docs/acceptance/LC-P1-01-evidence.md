@@ -1,8 +1,7 @@
 # LC-P1-01 — Acceptance evidence
 
 **Verdict requested:** `PASS` / `PASS WITH NOTES` / `BLOCKED` / `FAIL`  
-**Branch:** `feat/lc-p1-01-baseline` · **Head:** `05ccc58` · **PR:** [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2)  
-**Head note:** abbreviated; this file ships inside that same commit, so the SHA is self-referential — the reviewer's subject and the reviewed tree are the same commit.
+**Branch:** `feat/lc-p1-01-baseline` · **PR:** [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2) — read the subject SHA from the PR itself  
 **Base:** `main` @ `b526749` · **Date:** 2026-10-15  
 **Scope:** LC-P1-01 as written in `docs/PHASE_1_WORKORDERS.md`, with the eight binding rulings in `docs/plans/LC-P1-01-approved-amendments.md`.
 
