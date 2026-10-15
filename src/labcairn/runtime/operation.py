@@ -18,7 +18,7 @@ import json
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, model_validator
 
 from labcairn.core.ids import ApprovalId, CheckpointId, OperationId, RunId, StageId, TaskId, new_id
 from labcairn.core.primitives import StrictPosInt
@@ -167,12 +167,34 @@ class Approval(LabCairnModel):
     granted_at: datetime | None = None
     consumed_at: datetime | None = None
 
-    @field_validator("expires_at")
-    @classmethod
-    def _pending_must_not_be_expired(cls, value: datetime, info: ValidationInfo) -> datetime:
-        if info.data.get("state") is ApprovalState.PENDING and value <= datetime.now(UTC):
-            raise ValueError("a pending approval must expire in the future")
-        return value
+    @model_validator(mode="after")
+    def _timestamps_are_internally_consistent(self) -> Approval:
+        """Clock-free consistency, deliberately.
+
+        An earlier draft rejected a PENDING approval whose ``expires_at`` was
+        already in the past, by calling ``datetime.now()`` inside the
+        validator. That made expiry **untestable**: conftest fixes the test
+        clock at FROZEN_NOW, and a validator reaching for the wall clock
+        cannot be exercised from a frozen test at all. LC-P1-04 hit this and
+        had to route around it with an expiry year of 2099, which is a test
+        shaped around a defect rather than a test of behaviour.
+
+        Expiry is a property of *use*, not of construction, and is enforced
+        where the time is supplied: :meth:`refusal_reason` takes ``now`` and
+        checks it twice — once against a recorded EXPIRED state, once against
+        the timestamp itself, so a GRANTED row that aged out is expired even
+        though nothing wrote that down. What remains here is the check a
+        validator can honestly make.
+        """
+        if self.granted_at is not None and self.expires_at <= self.granted_at:
+            raise ValueError("expires_at must be later than granted_at")
+        if (
+            self.consumed_at is not None
+            and self.granted_at is not None
+            and self.consumed_at < self.granted_at
+        ):
+            raise ValueError("consumed_at must not precede granted_at")
+        return self
 
     def refusal_reason(
         self,
