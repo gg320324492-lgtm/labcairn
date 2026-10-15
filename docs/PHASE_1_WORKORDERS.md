@@ -24,9 +24,9 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 |---|---|---|---|---|
 | LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
 | LC-P1-01 | P0 | G1 | **PASS WITH NOTES** | reviewed at `c23ef775` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) [review comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033) · **merged to `main` at `89c16d4`** · [evidence](acceptance/LC-P1-01-evidence.md) |
-| LC-P1-02 | P0 | G1 | NOT STARTED | depends on LC-P1-01 |
-| LC-P1-03 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md) |
-| LC-P1-04 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
+| LC-P1-02 | P0 | G1 | **IMPLEMENTED — awaiting acceptance** | `feat/g1-trusted-core` · [G1 evidence](acceptance/G1-evidence.md) · cross-review blockers closed |
+| LC-P1-03 | P0 | G1 | **IMPLEMENTED — acceptance blocked** | `feat/g1-trusted-core` · **real-provider smoke not run** (needs authorisation) · [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md), [ADR-0006](adr/ADR-0006-capability-namespaces.md) |
+| LC-P1-04 | P0 | G1 | **IMPLEMENTED — awaiting acceptance** | `feat/g1-trusted-core` · case-bypass blocker found by cross-review and fixed · [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
 | LC-P1-05 | P0 | G2 | NOT STARTED | |
 | LC-P1-06 | P0 | G2 | NOT STARTED | |
 | LC-P1-07 | P0 | G2 | NOT STARTED | |
@@ -38,7 +38,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-13 | P0 | G5 | NOT STARTED | |
 | LC-P1-14 | P0 | G5 | NOT STARTED | |
 
-**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 is `PASS WITH NOTES` (reviewed `c23ef775`, merged `89c16d4`); LC-P1-02, LC-P1-03 and LC-P1-04 are `NOT STARTED`, so **G1 is not passed**. G2–G5 not started.
+**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 `PASS WITH NOTES` (merged `89c16d4`); LC-P1-02/03/04 implemented on `feat/g1-trusted-core` and awaiting acceptance. **G1 is not passed**: LC-P1-03's real-provider smoke has not run. G2–G5 not started.
 
 A work order being accepted is not a gate being closed. G1 closes when all four of its work orders are accepted.
 
