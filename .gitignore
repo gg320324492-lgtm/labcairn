@@ -1,0 +1,18 @@
+# Local source-study clones are development references only (not product code)
+_references/
+.upstreams/
+labcairn-upstreams/
+
+# Basics for the planned Python and frontend projects
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+web/dist/
+.DS_Store
