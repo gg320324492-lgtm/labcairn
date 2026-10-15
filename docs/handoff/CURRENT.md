@@ -1,10 +1,15 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-15  
-**G0:** LC-P1-00 PASS WITH NOTES; subject SHA `623e3ca31caba327d2f8b1af40ab67c35c7a61d3`.  
+**Date:** 2026-10-15 (updated after the second project-lead review of PR #2)  
+**Current `main`:** `b526749` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.  
+**G0:** LC-P1-00 PASS WITH NOTES; subject SHA `623e3ca31caba327d2f8b1af40ab67c35c7a61d3` (review subject, not the current tip).  
 **Review:** [LC-P1-00 report](../acceptance/LC-P1-00-review-623e3ca.md).  
-**Current authorized work order:** LC-P1-01 (NOT YET IMPLEMENTED).  
+**Current authorized work order:** LC-P1-01 — **PASS WITH NOTES**, reviewed at `c23ef775` (fourth independent review, [PR #2 comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033)). **PR #2 is still open and unmerged.** The authorised next step is the merge decision, not new work.
 **Binding decisions:** [LC-P1-01 amendments](../plans/LC-P1-01-approved-amendments.md).  
 **PR #1 re-review:** [Independent technical re-review](../acceptance/PR-1-independent-review.md) — C-1, C-2, R-01 and R-02 were reproduced from primary evidence rather than accepted on assertion; all four confirmed. Two further script defects (R-05) were reproduced and fixed. Conflicting instructions in `UPSTREAM_REFERENCES.md`, `PHASE_1_WORKORDERS.md`, `LC-P1-01-task-breakdown.md`, `ADR-0002` and `README.md` were synchronized.
 
-Next: the amendment synchronization is **done** — do not redo it. Build the Python/Web baseline, implement real Ubuntu/Windows CI, ensure reference-free packaging and offline FakeProvider tests, then submit a new fixed commit for independent review. Open items carried into LC-P1-01: PyMuPDF's AGPL/commercial duality is unresolved (constrains MIT before LC-P1-08); no `LICENSE` file exists and none may be implied; `tests/test_no_reference_leakage.py` does not yet exist. Do not begin LC-P1-02 early.
+Next: **LC-P1-01 is accepted (`PASS WITH NOTES` at `c23ef775`) and awaiting merge.** Do not rebuild it. Before merging, confirm the six required status checks in the repository's branch-protection settings with an account holding repo-admin — the reviewer session reads 403 on that endpoint, so the configuration is recorded but not independently proven. **LC-P1-02 remains NOT STARTED and must not begin until LC-P1-01 is merged.**
+
+Notes carried forward from the review, none blocking: the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness (structural parsing is a tracked follow-up); the README capability-claim detector has known holes and is a floor, not a truth-checker; no real-browser or Windows-app smoke exists, and the dedicated packaging job is Linux-only. Copyright ownership is unresolved and there is still **no `LICENSE` file**; PyMuPDF's AGPL/commercial duality gates LC-P1-08.
+
+Open items carried forward: copyright ownership is unresolved and there is still **no `LICENSE` file**, so the project describes itself as in development with open-source licensing pending; PyMuPDF's AGPL/commercial duality is unresolved and gates LC-P1-08. The README overclaim detector has known holes and is a floor, not a guarantee.

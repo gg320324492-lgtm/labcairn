@@ -1,0 +1,104 @@
+# LC-P1-01 T06 — Web baseline quality gate. Candidate REQUIRED status check.
+#
+# C-1 (binding): no `paths-ignore`. See python.yml for the full reasoning — a
+# filtered required check is reported as *expected*, not *passed*, and branch
+# protection then blocks the merge permanently. This workflow therefore runs on
+# every push and every pull request with no path filter.
+#
+# C-6 (binding): "Web initially can run on Ubuntu." This job is ubuntu-latest
+# only. That is a scope decision about *where* the web baseline is checked, not
+# a claim that the web baseline is Windows-ready or platform-neutral.
+#
+# ============================================================================
+# TOOLCHAIN PINS
+# ============================================================================
+# web/package.json declares:
+#     "packageManager": "pnpm@9.15.9"
+#     "engines": { "node": ">=24.16.0 <25", "pnpm": ">=9.15.9 <10" }
+# Both are pinned literally below rather than re-read from `engines`, because a
+# CI runner is exactly the place where an unpinned major silently advances and
+# turns a green run into an unreproducible one. The values match
+# web/package.json exactly:
+#     node 24.16.0   pnpm 9.15.9
+# If either changes there, it must change here in the same commit.
+name: web
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-quality:
+    name: web-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm must be on PATH before actions/setup-node runs, because
+      # setup-node's `cache: pnpm` shells out to `pnpm store path` to find the
+      # store directory it will cache.
+      #
+      # `package_json_file` is set explicitly because the action defaults to a
+      # repository-root `package.json`, and LabCairn has none — the manifest is
+      # web/package.json. Without this the action would not find the
+      # `packageManager` field at all. `version` is still pinned literally so
+      # the fallback is the pinned value rather than "whatever is newest".
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+          package_json_file: web/package.json
+          # Installation is an explicit, separate step below so a lockfile
+          # mismatch is its own visible failure rather than a side effect of
+          # the setup action.
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.16.0
+          # Caches the pnpm *store* (a directory outside the working tree),
+          # keyed on the committed lockfile. This is the one place a
+          # cache-backed path exists in this workflow; it is the store, not the
+          # repository, so no reference-study tree can be captured by it.
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      # Every script name below was read out of web/package.json "scripts"
+      # and exists there: typecheck, lint, test, build.
+      - name: install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        run: pnpm run typecheck
+
+      - name: lint
+        run: pnpm run lint
+
+      - name: test
+        run: pnpm run test
+
+      - name: build
+        run: pnpm run build
+
+      # `web/dist/` is a narrow, build-output-only directory produced by the
+      # step directly above. It is not a wildcard, not `.`, and not `**`, so
+      # it cannot capture the working tree — and therefore cannot capture the
+      # `_references*`, `.upstreams*` or `labcairn-upstreams*` families even if
+      # one of them existed. The build input is src/ + config files, and
+      # reference-study trees are excluded from the repository by
+      # `reference-exclusion` on every run of this branch.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist/
+          if-no-files-found: error
+          retention-days: 7

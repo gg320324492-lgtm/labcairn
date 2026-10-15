@@ -1,0 +1,105 @@
+# LC-P1-01 T06 — Python quality gate. Candidate REQUIRED status check.
+#
+# ============================================================================
+# WHY THERE IS NO `paths-ignore` HERE — approved amendment C-1, binding
+# ============================================================================
+# GitHub reports a check that a `paths-ignore` filter removed as *expected*,
+# not as *passed*. Branch protection waits for `expected` forever. So a
+# reference-only pull request against a filtered required check leaves that
+# check permanently unable to satisfy itself, and the pull request can never
+# merge. Filtering does not make a job "optional"; it manufactures a deadlock.
+#
+# C-1 therefore requires every required `pull_request` status workflow to run
+# unconditionally, and permits filtering only on optional or push-triggered
+# workflows. This file is a required-check candidate on `pull_request`, so it
+# declares `push` and `pull_request` with no path filter of any kind.
+#
+# This is also not a cost problem in practice: reference-study trees cannot be
+# in the repository in the first place, so a path filter here would never fire
+# anyway. `reference-exclusion` is the job that proves that, every run.
+#
+# ============================================================================
+# WHAT THE OS MATRIX DOES AND DOES NOT MEAN — approved amendment C-6
+# ============================================================================
+# C-6: "Python lint/type/test CI on Ubuntu and Windows; Web initially can run
+# on Ubuntu. This is not a real Windows application smoke test."
+#
+# Running the quality gates on `windows-latest` proves the lint, type and test
+# commands behave on a Windows runner. It does NOT exercise a Windows build of
+# a LabCairn application, because LC-P1-01 ships no executable, no CLI and no
+# server (those belong to LC-P1-12). Do not describe this matrix as a Windows
+# smoke test, and do not let a green run here stand in for one.
+name: python
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-quality:
+    name: python-quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Both operating systems report independently. C-6 wants an early
+      # cross-platform signal, not a red Ubuntu run that hides a green Windows
+      # one (or the reverse).
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The interpreter comes from the committed `.python-version` rather than
+      # a literal, so CI cannot drift away from the pin that
+      # `requires-python = ">=3.12,<3.13"` in pyproject.toml declares
+      # (approved amendment C-2, task-breakdown D-4).
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      # uv is pinned to the version that produced and last validated uv.lock.
+      # Pinned rather than "whatever is newest" so this gate stays reproducible
+      # across weeks; [tool.uv] required-version in pyproject.toml carries the same pin.
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          # setup-uv's built-in cache covers the uv cache directory and the
+          # managed-Python directory only — never the working tree — so there
+          # is no artifact/cache step here whose `path:` could name a
+          # reference-study directory.
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # `--frozen` fails if uv.lock disagrees with pyproject.toml, instead of
+      # silently rewriting it. Lockfile drift is reported by `lockfiles.yml`.
+      - run: uv sync --frozen
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      # `strict = true` is set in pyproject.toml, and `files` is set there too,
+      # so no path argument is needed or wanted here.
+      - name: mypy --strict
+        run: uv run mypy
+
+      # The full suite, including tests/test_no_reference_leakage.py. That file
+      # builds real artifacts and needs `uv` on PATH; `uv run` provides it.
+      - name: pytest
+        run: uv run pytest
+
+      # No artifact is uploaded from this workflow, so there is no
+      # `actions/upload-artifact` step whose `path:` could sweep the working
+      # tree into a downloadable bundle. Reference material cannot leave CI
+      # from here because CI never produces a bundle here.

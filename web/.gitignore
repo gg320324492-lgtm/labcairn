@@ -1,0 +1,8 @@
+# Local web-app build artifacts.
+# The repository-root .gitignore already covers node_modules/ and web/dist/; these are
+# repeated here so the web app is also safe to copy out of the repository on its own.
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/

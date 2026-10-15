@@ -1,0 +1,59 @@
+# Line-ending and binary normalisation — approved amendment C-5.
+#
+# Why this file exists: the task breakdown's byte-identity assertions and
+# LC-P1-10's reproducibility manifest both assume a checkout produces the same
+# bytes on Windows and Linux. Without this, `git add -A` on Windows recorded
+# CRLF for text files and the two platforms produced different hashes for
+# identical content. That was observed in this repository: a scripted edit
+# turned one markdown file entirely to CRLF and made a 25-line change appear
+# as a 2088-line diff.
+#
+# `* text=auto eol=lf` is the load-bearing rule: git detects text vs binary,
+# stores LF in the object store, and checks LF out on every platform. The
+# `eol=` half is what stops Windows from converting back on checkout.
+
+* text=auto eol=lf
+
+# Binary declarations. Declared explicitly rather than left to `text=auto`
+# detection so that adding a binary asset cannot silently get line-ending
+# mangled by a heuristic that guessed wrong.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.whl   binary
+*.tar   binary
+*.xlsx  binary
+*.xls   binary
+*.docx  binary
+*.pptx  binary
+*.so    binary
+*.dll   binary
+*.exe   binary
+
+# Windows script exceptions — CRLF is CORRECT here, not a defect.
+#
+# `*.ps1` must ship CRLF: PowerShell's parser has historically mishandled
+# UTF-8 without a BOM, and a `.sh` run under Git Bash on Windows needs LF.
+# These two are deliberately exempt from the LF normalisation above because a
+# LF .ps1 is a known source of Windows-only breakage.
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+# Lockfiles are generated. Treat them as text so a CRLF checkout cannot make
+# `pnpm install --frozen-lockfile` or `uv lock --check` report spurious drift
+# on Windows.
+pnpm-lock.yaml      text eol=lf
+uv.lock             text eol=lf
+
+# Keep diffs honest for the two files that carry the project's binding
+# decisions: the amendments are consumed across platforms and a line-ending
+# diff would bury a real change.
+docs/plans/LC-P1-01-approved-amendments.md   text eol=lf
+docs/PHASE_1_WORKORDERS.md                  text eol=lf

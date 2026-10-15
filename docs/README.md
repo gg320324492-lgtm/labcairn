@@ -10,6 +10,19 @@ Every review is conducted against the actual code and documents at a **named com
 
 This applies to this index too: the principle is only worth anything if the repository is where the state actually lives.
 
+### Change-control rule
+
+**Any modification that changes a task's status, a technical decision, an acceptance result, or an implementation standard goes through a pull request.**
+
+Rationale: those four are the facts the rest of the project is built on. A direct commit to `main` can make the repository assert something no one reviewed — which is exactly the failure mode this project's own principle exists to prevent.
+
+Exempt are changes that cannot alter project facts — typos, formatting, broken-link fixes, whitespace. **These still require a commit**, never an uncommitted edit.
+
+Two consequences worth stating explicitly:
+
+- A status-board update ships **in the same PR as the work it reports**, so the board can never drift from the code it describes.
+- A PR is opened for review and is **not** merged by the party that produced it. See the division of responsibility below.
+
 ### Division of responsibility
 
 | Role | Owns |
@@ -55,6 +68,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
 | LC-P1-01 | **Not started.** [Plan](plans/LC-P1-01-task-breakdown.md) is partially superseded by the amendments |
-| License | **Not granted.** No `LICENSE` file exists; see the README |
+| License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
+| LC-P1-01 | **In review.** [Evidence](acceptance/LC-P1-01-evidence.md), [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). No verdict issued. |
 
 All reviews must identify subject commit SHA, actual inspected evidence, tests run (or not run), open issues and next action.

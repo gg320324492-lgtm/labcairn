@@ -17,9 +17,17 @@ CATALOG = {
     "paper-qa": ("https://github.com/Future-House/paper-qa.git", "Apache-2.0", "essential"),
     "paperspine": ("https://github.com/WUBING2023/PaperSpine.git", "MIT", "essential"),
     "opencode": ("https://github.com/anomalyco/opencode.git", "MIT", "targeted"),
-    "gpt-researcher": ("https://github.com/assafelovic/gpt-researcher.git", "Apache-2.0", "optional"),
+    "gpt-researcher": (
+        "https://github.com/assafelovic/gpt-researcher.git",
+        "Apache-2.0",
+        "optional",
+    ),
     "storm": ("https://github.com/stanford-oval/storm.git", "MIT", "optional"),
-    "ai-scientist-v2": ("https://github.com/SakanaAI/AI-Scientist-v2.git", "custom; inspect LICENSE", "research-only"),
+    "ai-scientist-v2": (
+        "https://github.com/SakanaAI/AI-Scientist-v2.git",
+        "custom; inspect LICENSE",
+        "research-only",
+    ),
 }
 
 
@@ -28,6 +36,10 @@ def cmd(*args: str) -> str:
 
 
 def now_iso() -> str:
+    # timezone.utc rather than the datetime.UTC alias (ruff UP017): the alias needs
+    # Python 3.11+, and this script is standalone developer tooling that should keep
+    # working under whatever `python` is first on PATH. The project's own 3.12 pin
+    # does not apply to a tool people run by hand.
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -44,24 +56,45 @@ def load_snapshot(out: Path) -> dict:
     try:
         previous = json.loads(out.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"ERROR: {out} exists but cannot be parsed ({exc}). Move it aside; do not delete it.")
+        raise SystemExit(
+            f"ERROR: {out} exists but cannot be parsed ({exc}). "
+            "Move it aside; do not delete it."
+        ) from exc
     if not isinstance(previous, dict) or previous.get("manifest_version") != MANIFEST_VERSION:
         declared = previous.get("manifest_version") if isinstance(previous, dict) else None
         raise SystemExit(
-            f"ERROR: {out} declares manifest_version {declared!r} but this script "
-            f"writes {MANIFEST_VERSION}. Refusing to overwrite; move it aside or migrate it first."
+            f"ERROR: {out} declares manifest_version {declared!r} but this script writes "
+            f"{MANIFEST_VERSION}. Refusing to overwrite; move it aside or migrate it first."
         )
     if not isinstance(previous.get("repos"), dict):
-        raise SystemExit(f"ERROR: {out} has no usable 'repos' object; move it aside before retrying.")
+        raise SystemExit(
+            f"ERROR: {out} has no usable 'repos' object; move it aside before retrying."
+        )
     return previous
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--list", action="store_true", help="show reference catalog without cloning")
-    parser.add_argument("--group", choices=["essential", "all"], help="clone must-study or all candidates")
-    parser.add_argument("--repo", action="append", choices=list(CATALOG), help="clone selected repository; repeatable")
-    parser.add_argument("--dest", type=Path, default=ROOT.parent / "labcairn-upstreams", help="default sibling reference directory")
+    parser.add_argument(
+        "--list", action="store_true", help="show reference catalog without cloning"
+    )
+    parser.add_argument(
+        "--group",
+        choices=["essential", "all"],
+        help="clone must-study or all candidates",
+    )
+    parser.add_argument(
+        "--repo",
+        action="append",
+        choices=list(CATALOG),
+        help="clone selected repository; repeatable",
+    )
+    parser.add_argument(
+        "--dest",
+        type=Path,
+        default=ROOT.parent / "labcairn-upstreams",
+        help="default sibling reference directory",
+    )
     args = parser.parse_args()
     if args.list:
         for k, (url, license_hint, group) in CATALOG.items():
@@ -69,7 +102,10 @@ def main() -> int:
         return 0
     chosen = set(args.repo or [])
     if args.group:
-        chosen.update(k for k, (_, _, group) in CATALOG.items() if args.group == "all" or group == "essential")
+        chosen.update(
+            k for k, (_, _, group) in CATALOG.items()
+            if args.group == "all" or group == "essential"
+        )
     if not chosen:
         parser.error("choose --group essential or one or more --repo NAME; see --list")
     dest = args.dest.resolve()
@@ -88,9 +124,16 @@ def main() -> int:
         if not path.exists():
             print(f"Cloning {key} (study only)...", flush=True)
             try:
-                subprocess.run(["git", "clone", "--depth", "1", "--filter=blob:none", "--single-branch", url, str(path)], check=True)
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", "--filter=blob:none",
+                     "--single-branch", url, str(path)],
+                    check=True,
+                )
             except subprocess.CalledProcessError:
-                print(f"ERROR: clone failed for {key}. Inspect and retry manually; partial directory may remain.")
+                print(
+                    f"ERROR: clone failed for {key}. "
+                    "Inspect and retry manually; partial directory may remain."
+                )
                 return 1
         else:
             print(f"Keeping existing checkout {path} unchanged")

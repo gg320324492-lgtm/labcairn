@@ -1,0 +1,209 @@
+# LC-P1-01 T06 — Reference-exclusion gate. THE required status check for the
+# whole binding exclusion checklist.
+#
+# ============================================================================
+# C-1 (binding) — this job must never be filtered
+# ============================================================================
+# This workflow is the one that turns "reference clones are not committed and
+# not packaged" from prose into an executable gate. GitHub reports a check that
+# a `paths-ignore` filter removed as *expected*, not *passed*, so a filtered
+# required check blocks every merge forever. There is no path filter here, on
+# any trigger.
+#
+# The irony is exact: a `paths-ignore` covering the reference families would
+# make this job *never run* for a pull request that added one — which is
+# precisely the pull request that must not be able to merge.
+#
+# ============================================================================
+# Independence from the reference clones (amendment gate 6)
+# ============================================================================
+# Nothing in this file reads, clones, mounts or requires a reference clone.
+# The job runs from a fresh `actions/checkout` of the public repository, which
+# an external contributor can produce with no sibling directory present. That
+# is the property "an external contributor can build without them", exercised
+# by every run of this job rather than asserted in a document.
+#
+# tests/test_no_reference_leakage.py reinforces it from the other side: it
+# plants its own synthetic probe files in a throwaway copy of the project and
+# never looks at `../labcairn-upstreams`.
+#
+# ============================================================================
+# Frozen inter-task contract (task-breakdown §3.1)
+# ============================================================================
+#   * sdist and wheel land in `dist/` at the repository root
+#   * the job id is `reference-exclusion`
+#   * artifacts are uploaded under the names `sdist` and `wheel`
+# The `source-archive` artifact below is an addition, not a change to those
+# three facts; it discharges checklist row 9 (release archives come from
+# `git archive`, never `zip -r` over the working tree).
+name: reference-exclusion
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-exclusion-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reference-exclusion:
+    name: reference-exclusion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Task-breakdown §3.3 item 3: assert the checkout root IS the workspace.
+      # `.gitignore` says nothing about a directory above the repository, so a
+      # `git init` rooted too high is an operating-procedure incident that no
+      # in-repo rule can prevent. This step *detects* it; it does not stop it.
+      - name: assert the checkout root is the workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(git rev-parse --show-toplevel)"
+          if [ "${root}" != "${GITHUB_WORKSPACE}" ]; then
+            echo "::error::checkout root ${root} is not the workspace ${GITHUB_WORKSPACE}"
+            exit 1
+          fi
+          echo "checkout root confirmed: ${root}"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # Build first: the packaging half of tests/test_no_reference_leakage.py
+      # reads real `uv build` output, so the job would be meaningless without
+      # a build in it.
+      - name: uv build
+        run: uv build
+
+      # The gate itself. This runs the whole file, not a hand-picked subset of
+      # it: the tracked-set, ignore-behaviour, sdist/wheel member-list,
+      # git-archive, .vscode and CI-workflow assertions all live here.
+      - name: reference-exclusion acceptance gate
+        run: uv run pytest tests/test_no_reference_leakage.py
+
+      # =========================================================================
+      # Clean-room install verification (task breakdown, "build" deliverables)
+      # =========================================================================
+      # A wheel that excludes every subpackage still builds successfully and
+      # still installs. Importing it is the only thing that proves the artifact
+      # is usable, and importing it *from the wheel* is the only thing that
+      # proves the artifact — not the source tree — is what works. The
+      # assertion that the import resolved inside the fresh environment, rather
+      # than falling back to the checkout, is the load-bearing part.
+      - name: install the built wheel into a fresh environment and import it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_version="$(tr -d '[:space:]' < .python-version)"
+          uv venv --python "${python_version}" .wheel-check
+          uv pip install --python .wheel-check/bin/python --no-deps dist/*.whl
+          .wheel-check/bin/python - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          import labcairn
+          import labcairn.core
+
+          env = pathlib.Path(".wheel-check").resolve()
+          pkg = pathlib.Path(labcairn.__file__).resolve()
+          core = pathlib.Path(labcairn.core.__file__).resolve()
+          report = {
+              "python": sys.version.split()[0],
+              "version": labcairn.__version__,
+              "pkg": str(pkg),
+              "core": str(core),
+              "inside_fresh_env": pkg.is_relative_to(env) and core.is_relative_to(env),
+          }
+          print(json.dumps(report, indent=2))
+          if not report["inside_fresh_env"]:
+              raise SystemExit(
+                  f"labcairn resolved to {pkg}, outside {env}: the checkout shadowed "
+                  "the wheel, so this verification proved nothing"
+              )
+          if report["version"] != "0.1.0":
+              raise SystemExit(f"unexpected labcairn.__version__ {report['version']!r}")
+          PY
+
+      # =========================================================================
+      # Release archive (checklist row 9)
+      # =========================================================================
+      # `git archive HEAD`, never `zip -r` over the working tree. The archive a
+      # tag or a release download produces must mirror the committed tree and
+      # nothing else; `zip -r .` would sweep in `dist/`, `.venv/`,
+      # `node_modules/`, `.pytest_cache/` and anything else that merely happens
+      # to be sitting in the working tree.
+      #
+      # The assertion is that the archive's member list equals `git ls-tree -r`
+      # of the same commit, which is exactly the property `zip -r` breaks. The
+      # stronger statement — that no member belongs to a reference-study family
+      # — is asserted from inside the test suite, by `is_reference_path()` in
+      # tests/test_no_reference_leakage.py. That matcher is case-insensitive,
+      # segment-anchored and covers all eleven case variants, which is strictly
+      # more than a shell grep written here would be. Duplicating it as a shell
+      # pattern would add a weaker second copy of a rule that already has a
+      # tested implementation.
+      - name: build the release source archive with git archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p archive
+          git archive --format=tar --output=archive/labcairn-source.tar HEAD
+          # Directory entries are dropped so the two listings are comparable;
+          # tar emits CRLF on some shells, so normalise before sorting.
+          tar -tf archive/labcairn-source.tar | grep -v '/$' | LC_ALL=C sort \
+            | tr -d '\r' > archive/archive.members
+          git ls-tree -r --name-only HEAD | LC_ALL=C sort \
+            | tr -d '\r' > archive/tree.members
+          echo "archive members: $(wc -l < archive/archive.members)"
+          echo "committed tree:  $(wc -l < archive/tree.members)"
+          if ! diff --unified archive/tree.members archive/archive.members; then
+            echo "::error::the release archive does not mirror the committed tree"
+            exit 1
+          fi
+          gzip --force archive/labcairn-source.tar
+          echo "release archive mirrors the committed tree"
+
+      # =========================================================================
+      # Artifacts
+      # =========================================================================
+      # Every `path:` below is a narrow, named build-output directory or a
+      # single named file — never `.`, `./`, `*` or `**`. An artifact is a source
+      # bundle and carries whatever it was handed, so these paths are chosen so
+      # that reference-study material has nowhere to be in them:
+      #   * `dist/*.tar.gz` / `dist/*.whl` are hatchling build output, which
+      #     already excludes the three reference families by declaration in
+      #     pyproject.toml (asserted from the archive member list, not from the
+      #     config text, by tests/test_no_reference_leakage.py).
+      #   * `archive/labcairn-source.tar.gz` is a single file produced by
+      #     `git archive HEAD` in the step above, whose member list was just
+      #     asserted to be exactly the committed tree.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: source-archive
+          path: archive/labcairn-source.tar.gz
+          if-no-files-found: error

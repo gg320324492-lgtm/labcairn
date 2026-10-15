@@ -1,0 +1,224 @@
+[project]
+name = "labcairn"
+version = "0.1.0"
+description = "LabCairn — evidence-first research assistant (Phase 1 baseline)"
+readme = "README.md"
+# D-4 in docs/plans/LC-P1-01-task-breakdown.md: a floor, not a preference.
+# ADR-0002's `type UsageValue = Known[int] | Unknown` is PEP-695 and needs 3.12+.
+# The upper bound keeps the LC-P1-01 CI matrix to exactly one interpreter.
+# Must stay in step with `.python-version` (currently `3.12`).
+requires-python = ">=3.12,<3.13"
+# NOTE: no `license` field. Licensing is NOT cleared — docs/plans/§8 requires
+# LICENSE.PENDING.md rather than a LICENSE file, and a placeholder grants nothing.
+# Adding `license = "MIT"` here would be an unowned legal claim.
+
+# Runtime dependencies. Declared from docs/ARCHITECTURE.md "Stack choices" so the
+# Phase 1 stack is pinned by the lockfile from LC-P1-01 onward.
+#
+# HONEST CAVEAT: as of this commit none of these is imported by any module under
+# src/. They are declared because the architecture commits to them and the
+# lockfile is the point of T02, not because a line of code needs them yet.
+# A dependency that nothing imports is an unverified claim; LC-P1-03/05/12 are
+# where each becomes real. See the T02 delivery report.
+dependencies = [
+    # Pydantic v2 typed contracts + versioned JSON serialization.
+    "pydantic>=2.9,<3",
+    # Model/tool interaction layer. Explicitly NOT the task data authority —
+    # SQLite is. See docs/ARCHITECTURE.md and ADR-0002.
+    "pydantic-ai>=1,<2",
+    # Application-owned task authority (LC-P1-05).
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.13,<2",
+]
+
+[dependency-groups]
+# Installed by `uv sync` by default. Kept minimal on purpose: no pytest-randomly
+# (docs/plans/LC-P1-01-task-breakdown.md §5.2 forbids it — a random-order plugin
+# reintroduces nondeterminism), no coverage plugin, no pytest-xdist.
+# PyYAML is required at test time, not just convenience: the C-1 and C-4 gate
+# tests parse .github/workflows/*.yml structurally. A regex over YAML text is how
+# the earlier "no paths-ignore" check came to miss a benign filter.
+dev = [
+    "mypy>=1.13,<2",
+    "pyyaml>=6,<7",
+    # Stubs only: mypy --strict rejects an untyped yaml import, and the C-1/C-4
+    # gate tests parse workflow YAML structurally.
+    "types-pyyaml>=6,<7",
+    "pytest>=8.3,<9",
+    "ruff>=0.8,<1",
+]
+
+# ---------------------------------------------------------------------------
+# Build backend
+# ---------------------------------------------------------------------------
+# LC-P1-01 approved amendment C-2. Hatchling, NOT setuptools.
+#
+# `packages = ["src/labcairn"]` is an explicit RECURSIVE PACKAGE ROOT under
+# hatchling: everything under src/labcairn ships, now and as LC-P1-02..12 add
+# subpackages, without this file being touched again.
+#
+# The same literal under setuptools means "a leaf package list", and it was
+# reproduced there building a wheel that silently omitted labcairn.core and every
+# other subpackage while reporting success. That is why this section is spelled
+# out rather than left to defaults.
+#
+# There is deliberately NO MANIFEST.in — it is a setuptools mechanism and would be
+# silently ignored here. Reference-path exclusions use hatch's `exclude` below.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/labcairn"]
+exclude = [
+    # See the case-variant note below. Defensive only: the wheel target is already
+    # scoped to src/labcairn, so these can only fire on a stray reference directory
+    # inside the package.
+    "_references*", "_references*/**",
+    "_References*", "_References*/**",
+    "_REFERENCES*", "_REFERENCES*/**",
+    ".upstreams*", ".upstreams*/**",
+    ".Upstreams*", ".Upstreams*/**",
+    ".UPSTREAMS*", ".UPSTREAMS*/**",
+    "labcairn-upstreams*", "labcairn-upstreams*/**",
+    "LabCairn-Upstreams*", "LabCairn-Upstreams*/**",
+    "LabCairn-upstreams*", "LabCairn-upstreams*/**",
+    "labcairn-Upstreams*", "labcairn-Upstreams*/**",
+    "LABCAIRN-UPSTREAMS*", "LABCAIRN-UPSTREAMS*/**",
+]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    # Reference-study paths (docs/UPSTREAM_REFERENCES.md). These are excluded from
+    # BOTH artifacts and asserted behaviourally by
+    # tests/test_no_reference_leakage.py (T05), never by reading this file.
+    #
+    # Three properties, each load-bearing:
+    #   1. Unanchored (no leading `/`) — must match at any depth, not only at the
+    #      repository root. T05 creates reference-shaped paths in subdirectories.
+    #   2. Case-variant-complete — `.gitignore` matching is case-sensitive on Linux
+    #      runners, so lowercase-only patterns would pass on this Windows box and
+    #      fail in CI. Lowercase / Titlecase / UPPERCASE per family.
+    #   3. Both `X*` and `X*/**` — `X*` matches the directory itself under gitignore
+    #      semantics, `X*/**` matches its contents under flat path matching. Emitting
+    #      both is correct under either interpretation of the matcher.
+    #      Verified empirically in the T02 delivery report, not assumed.
+    "_references*", "_references*/**",
+    "_References*", "_References*/**",
+    "_REFERENCES*", "_REFERENCES*/**",
+    ".upstreams*", ".upstreams*/**",
+    ".Upstreams*", ".Upstreams*/**",
+    ".UPSTREAMS*", ".UPSTREAMS*/**",
+    "labcairn-upstreams*", "labcairn-upstreams*/**",
+    "LabCairn-Upstreams*", "LabCairn-Upstreams*/**",
+    "LabCairn-upstreams*", "LabCairn-upstreams*/**",
+    "labcairn-Upstreams*", "labcairn-Upstreams*/**",
+    "LABCAIRN-UPSTREAMS*", "LABCAIRN-UPSTREAMS*/**",
+]
+
+# ---------------------------------------------------------------------------
+# ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Fixed by this file's ownership; no other task may add a ruff override.
+extend-exclude = [
+    # Markdown. Verified with ruff 0.17.0: `ruff format` reformats fenced ```python
+    # blocks *inside* .md files, and docs/ is owned by other LC-P1-01 tasks.
+    # Reformatting another task's ADR or acceptance report is an unowned edit, so
+    # the docs stay out of scope. Code blocks there are illustrative, not shipped.
+    "*.md",
+    # docs/plans/LC-P1-01-task-breakdown.md §2 assigns scripts/checkout_upstreams.py
+    # to "nobody — read-only". T02 does not own it and must not edit it, so it is
+    # also kept out of the gate rather than left permanently red. It carries 22
+    # findings today (mostly T201 prints — correct for a CLI helper) and a
+    # formatting delta. Whoever owns it should either adopt the project's ruff
+    # config or record an exclusion; until then this entry is the honest state.
+    "scripts/checkout_upstreams.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez — bans naive datetime.now(); ARCHITECTURE.md §5.2
+            # of the task breakdown requires the frozen-clock rule to be lintable.
+    "T20",  # flake8-print — product code logs, it does not print.
+    "RUF",  # ruff-specific
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+    "PIE",  # flake8-pie
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Scoped to the developer CLI in scripts/, never to product code.
+#
+# T201 — a command-line tool writes its output to the terminal. `print` is the
+# correct mechanism here, not a smell. Product code under src/ is still held
+# to the T20 rule: it logs, it does not print.
+#
+# UP017 — `datetime.UTC` requires Python 3.11+. scripts/ is standalone tooling
+# that people run by hand with whatever `python` is first on PATH, so it must
+# not break on 3.10 for a style rule. src/ targets the pinned 3.12 and is not
+# exempt.
+"scripts/*" = ["T201", "UP017"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["labcairn"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
+# uv produced uv.lock; a different resolver can produce a different lock.
+[tool.uv]
+required-version = ">=0.11.21,<0.12"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "conftest.py", "tests"]
+# Stated as a floor, not a target (docs/plans/§6.3). Raising it later is cheap.
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+show_error_codes = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+# Marker set declared complete up front (docs/plans T02). Adding a marker later
+# means editing this file — deliberately, so the vocabulary is reviewed.
+markers = [
+    "unit: fast, isolated, no I/O beyond the tmp dir",
+    "integration: touches more than one component, still no network",
+    "e2e: whole-path tests; slower",
+    "reference_exclusion: asserts reference-study paths never leak into tracked files or artifacts",
+    "requires_network: needs outbound network; excluded from the default offline run",
+    "requires_provider: needs a real paid provider credential; never runs in CI",
+]
+# NOTE: `testpaths` is intentionally NOT set. tests/ does not exist yet (owned by a
+# later task) and pinning testpaths to a missing directory makes a bare `pytest`
+# exit 5 ("no tests collected"). Without it, pytest recurses from the rootdir and
+# picks up tests/ automatically once it appears.
+norecursedirs = [
+    ".*",            # .venv, .git, .mypy_cache, .pytest_cache, .ruff_cache
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "web",           # frontend agent's tree; never collected by pytest
+    "benchmarks",
+    "examples",
+]
