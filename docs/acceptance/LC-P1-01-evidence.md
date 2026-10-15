@@ -354,9 +354,22 @@ known holes, listed above.
 
 ## Verdict
 
-No verdict is claimed here. The work order's acceptance clauses are met against the
-evidence above, and the independent reviews that have run returned findings which are
-all recorded and addressed or declared open. The decision to accept LC-P1-01 is the
-project lead's, and the status board continues to read IN PROGRESS until they make it.
+**PASS WITH NOTES**, issued by the project lead on the fourth independent review of the
+subject commit `c23ef775`
+([review comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033)).
+It confirms all five earlier blocking groups resolved, re-verified 5 workflows / 6 distinct
+jobs green on GitHub Actions, and states **no further correction request for that reviewed
+SHA**. Notes carried forward are listed above and none is an acceptance blocker.
+
+The verdict is tied to `c23ef775`. The bookkeeping commit that records it in the status
+board is a later SHA and changes only acceptance and status documentation; it carries no
+code change and is not itself a fresh technical review.
+
+**The PR is not merged.** Branch protection is configured but was not independently
+readable from the reviewing session (403 without repo-admin), so it is recorded rather
+than proven; confirm it with an account holding admin before merging.
+
+**G1 is not closed.** LC-P1-01 is one of four G1 work orders; LC-P1-02, LC-P1-03 and
+LC-P1-04 remain NOT STARTED. LC-P1-02 must not begin until LC-P1-01 is merged.
 
 No runtime capability, licence grant or scientific validation is claimed by this work.
