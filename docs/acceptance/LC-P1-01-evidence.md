@@ -27,8 +27,8 @@ Run locally on Windows 11, Python 3.12.13, uv 0.11.21, Node 24.16.0, pnpm 9.15.9
 ```
 uv sync --frozen              Checked 160 packages
 uv run ruff check .           All checks passed!
-uv run ruff format --check .  16 files already formatted
-uv run mypy                   Success: no issues found in 16 source files
+uv run ruff format --check .  18 files already formatted
+uv run mypy                   Success: no issues found in 17 source files
 uv run pytest                 174 passed in 11.57s      (0 skipped)
 uv lock --check               Resolved 163 packages
 uv build                      wheel 11 members, sdist clean of reference paths
@@ -42,7 +42,10 @@ pnpm run test                     Test Files 2 passed, Tests 7 passed
 pnpm run build                    built in 77ms
 
 gitleaks git --config .gitleaks.toml --redact
-  11 commits scanned, ~436 KB, no leaks, exit 0
+  24 commits scanned, ~1.14 MB, no leaks, exit 0
+  (run locally at HEAD ce15692; an earlier commit scanned 11 commits / 436 KB.
+  The scan covers the whole history, so the figure grows with the branch —
+  stated as a past measurement at a named commit rather than as "current".)
 ```
 
 The two `skip`s that existed after T05 are **gone**: `test_no_workflow_requires_an_upstream_checkout` and `test_upload_artifact_and_cache_steps_exclude_reference_paths` both pass now that `.github/workflows/` exists. They previously reported the CI half of the gate as *inert*, not passing.
@@ -53,17 +56,21 @@ Six distinct jobs, all green. **Correction to an earlier statement in this docum
 
 **Only `python-quality` is cross-platform.** It is the sole workflow with a matrix; `web-quality`, `reference-exclusion`, `secret-scan` and `lockfile-consistency` all run on `ubuntu-latest` only.
 
+**Each workflow is dispatched separately, so a single push produces one run per workflow, not one shared run.** The five workflows below therefore carry five distinct run ids; only the two `python-quality` legs share a run id, because they are two jobs of a single matrix run. Each link below points at the individual job page for HEAD `ce15692`.
+
 | Job | Run |
 |---|---|
-| *(all six from the same push run; per-job URLs appear in the Actions tab)* | [38727513778](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `python-quality (ubuntu-latest)` | [python-quality ubuntu](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `python-quality (windows-latest)` | [python-quality windows](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `web-quality` | [web-quality](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `reference-exclusion` | [reference-exclusion](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `secret-scan` | [secret-scan](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
-| `lockfile-consistency` | [lockfile-consistency](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| ~~all six from the same push run~~ | ~~[38727513778](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778)~~ |
+| `python-quality (ubuntu-latest)` | [python-quality ubuntu](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992065/job/116405118826) |
+| `python-quality (windows-latest)` | [python-quality windows](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992065/job/116405119494) |
+| `web-quality` | [web-quality](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992050/job/116405118499) |
+| `reference-exclusion` | [reference-exclusion](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992014/job/116405118739) |
+| `secret-scan` | [secret-scan](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992056/job/116405118937) |
+| `lockfile-consistency` | [lockfile-consistency](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38729992018/job/116405118723) |
 
-**Build artifacts** produced by `reference-exclusion`: `sdist` 350,472 B · `wheel` 27,243 B · `source-archive` 350,651 B (from the current `reference-exclusion` run).
+**Build artifacts** produced by the `reference-exclusion` run for HEAD `ce15692`: `sdist` 354,565 B · `wheel` 27,243 B · `source-archive` 354,425 B.
+
+Artifact sizes move on every commit, so they are recorded against the SHA that produced them rather than described as "current" — ~~`350,472 / 27,243 / 350,651`~~ was the previous commit's `reference-exclusion` run, not this one.
 
 ## Platform matrix — verified, not assumed
 
@@ -176,9 +183,21 @@ This is the exact failure C-8 and the exclusion checklist both predict will only
 These are declared, not assumed:
 
 - **gitleaks' non-zero exit on a real leak.** No canary was planted, because that needs a branch. The configuration and its parsing are verified; the failure path is not.
-- ~~The Linux gitleaks binary was never executed.~~ **RESOLVED since the first CI run.** `secret-scan` runs on `ubuntu-latest` and the log shows the Linux binary executing: `23 commits scanned, ~1.12 MB, no leaks found`. The SHA256 is still verified before execution. It remains true that the binary cannot run on the Windows developer machine.
-- **Real browser rendering.** jsdom assertions are not a screenshot.
-- **Any platform other than Windows for the web baseline.**
+- ~~The Linux gitleaks binary was never executed.~~ **RESOLVED since the first CI run.** `secret-scan` runs on `ubuntu-latest` and the log shows the Linux binary executing: `24 commits scanned, ~1.14 MB, no leaks found` on the `secret-scan` run for HEAD `ce15692`. (The previous commit's run scanned `23 commits, ~1.12 MB` — the scan covers the whole history, so these figures grow as the branch grows.) The SHA256 is still verified before execution. It remains true that the binary cannot run on the Windows developer machine.
+- **Real browser rendering.** jsdom assertions are not a screenshot. Two distinct
+  claims are often collapsed here, and they do not stand or fall together:
+  - **The web quality gate on Ubuntu** — **verified.** `web-quality` runs on
+    `ubuntu-latest`, installs dependencies, and passes typecheck, lint, test and build.
+  - **Real browser rendering** — **still not verified.** No screenshot-level visual
+    check has been performed; the suite asserts against jsdom, which is not a browser.
+  - **A real browser smoke test on Windows** — **still not verified.** C-6 explicitly
+    places this outside the scope of this work order.
+
+  ~~Any platform other than Windows for the web baseline.~~ **Superseded as written.**
+  The blanket statement was inaccurate once `web-quality` went green on Ubuntu: the
+  web baseline *is* exercised on a non-Windows platform today. What remains unverified
+  is narrower and is listed above — rendering fidelity, and the Windows browser smoke
+  test — not "every non-Windows platform".
 - **`gitleaks git` does not read the index**, so an uncommitted `git add -f` is not scanned. The window closes at commit; `--staged` closes it locally. Recorded in `CONTRIBUTING.md` §5.
 
 ## Open items carried forward
@@ -320,11 +339,12 @@ package root, deleting exclude lists, injecting a blanket gitleaks allowlist, in
 gates fire.
 
 **Verified independently.** The project-lead review read the repository and the CI runs
-directly and returned CHANGES REQUESTED. It independently confirmed 169 pytest on both
-platforms, 7 web tests, the artifact sizes, and the absence of a `LICENSE` file. It found
-two blocking omissions and four stale documents that the implementer had missed. A second
-cross-review agent, which had not implemented the branch, found two further blocking
-omissions. Those are recorded above with what was done about them.
+directly and returned CHANGES REQUESTED. At the commit it reviewed (`4658041`) it
+independently confirmed 169 pytest on both platforms, 7 web tests, the artifact sizes and
+the absence of a `LICENSE` file — that count is what was true then, not a current figure.
+It found two blocking omissions and four stale documents the implementer had missed. Two
+further review rounds followed, the second of which also found blocking omissions and
+stale evidence links. All are recorded above with what was done about them.
 
 **Not established by either.** That the isolation gate cannot be defeated by a future
 edit — only that it is live today. That branch protection is enforced — the API

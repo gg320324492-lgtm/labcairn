@@ -18,10 +18,10 @@
 
 - Copyright ownership is unresolved and the repository deliberately has **no `LICENSE` file**. No open-source rights have been granted.
 - **PyMuPDF** is AGPL/commercial dual-licensed and is named by LC-P1-08; it constrains a future MIT release and needs a decision before that work order.
-- Reference isolation is **prose, not enforcement**, until `tests/test_no_reference_leakage.py` exists.
-- The five upstream pin SHAs exist only in local shallow clones; remote retention is not guaranteed.
+- Reference isolation is **prose, not enforcement** on `main`. On `feat/lc-p1-01-baseline` it is enforced: `tests/test_no_reference_leakage.py` exists with 99 tests and `reference-exclusion` is a required status check. It becomes a property of the project when LC-P1-01 is accepted and merged.
+- The five upstream pin SHAs were **verified present on GitHub at LC-P1-00 review time**. The standing risk is upstream force-push or garbage collection, which no local practice prevents; re-verify with `git ls-remote <url>` before relying on a pin.
 
-**What is not yet true of this project:** it has no product code, no tests, no CI, and no installed package. Every capability described below is planned, not shipped. Do not read this roadmap as a status report on working software.
+**What is not yet true of this project:** `main` holds documentation only — no product code, no test suite, no CI, no installable package. The engineering baseline (Hatchling package, web baseline, five CI workflows, 174 tests) exists on `feat/lc-p1-01-baseline` and is **not merged**. Every capability described below is planned, not shipped. Do not read this roadmap as a status report on working software.
 
 | Phase | Focus | Exit gate |
 |---|---|---|
@@ -30,7 +30,7 @@
 | P3 — Production & Ecosystem | Stronger isolation, packaging, plugin/MCP trust, Windows/macOS/Linux distribution, robustness, observability, docs, benchmark expansion | Secure, maintainable, multi-platform public release and documented operational limits |
 | P4 — Continuous Improvement | User feedback, targeted refinements, provider/format coverage, incremental UX/performance improvements | Small reviewable releases with regression tests and clear changelogs |
 
-Phase 2 items listed against scientific plots and research Skills are **upgrades** of Phase 1 capabilities, not their first delivery. Phase 1 already ships a deterministic plot (`LC-P1-10`) and a first-party `research-report` Skill (`LC-P1-07`); Phase 2 raises their fidelity and breadth.
+Phase 2 items listed against scientific plots and research Skills are **upgrades** of Phase 1 capabilities, not their first delivery. Phase 1 **will deliver** a deterministic plot (`LC-P1-10`) and a first-party `research-report` Skill (`LC-P1-07`) — both are `NOT STARTED` on the status board; Phase 2 raises their fidelity and breadth.
 
 ## Phase 1 upstream research
 
