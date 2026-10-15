@@ -56,7 +56,7 @@ import hashlib
 import json
 import os
 import unicodedata
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import lru_cache
@@ -337,8 +337,30 @@ def validate_rule_pattern(pattern: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+#: Severity order for combining two decisions. DENY wins over ASK wins over
+#: ALLOW, matching ADR-0003 C5's "a deny on either blocks".
+_SEVERITY = {Permission.DENY: 2, Permission.ASK: 1, Permission.ALLOW: 0}
+
+
+def _worst_of(decisions: Sequence[PermissionDecision]) -> PermissionDecision:
+    """The most restrictive of several decisions, ties broken toward declared."""
+    return max(
+        decisions,
+        key=lambda d: (_SEVERITY[d.permission], d.matched_spelling == "declared"),
+    )
+
+
 def _split(key: str) -> tuple[str, ...]:
     return PurePosixPath(key).parts
+
+
+#: Windows and macOS filesystems resolve ``SECRETS.TXT`` and ``secrets.txt`` to
+#: the same file. ``fnmatchcase`` would let a request bypass ``deny
+#: private/secrets.txt`` purely by changing the case, which cross-review
+#: reproduced: the same file returned *allow* and *deny* on the same policy.
+#: Rule matching therefore follows the filesystem, not the spelling the
+#: caller happened to use.
+_FOLD = str.casefold if os.name == "nt" else (lambda value: value)
 
 
 @lru_cache(maxsize=4096)
@@ -353,7 +375,7 @@ def _match_from(pattern: tuple[str, ...], parts: tuple[str, ...]) -> bool:
         return any(_match_from(pattern[1:], parts[i:]) for i in range(len(parts) + 1))
     if not parts:
         return False
-    if not fnmatch.fnmatchcase(parts[0], head):
+    if not fnmatch.fnmatchcase(_FOLD(parts[0]), _FOLD(head)):
         return False
     return _match_from(pattern[1:], parts[1:])
 
@@ -493,6 +515,16 @@ class PermissionPolicy:
                 effect=known.effect,
             )
 
+        # Both spellings are evaluated and the worst outcome wins.
+        #
+        # Returning on the first spelling that matched anything was a real
+        # bypass: a request whose declared spelling matched ``ALLOW **`` was
+        # granted without the resolved spelling ever being considered, so a
+        # ``DENY`` on the resolved key did not fire — which is precisely what
+        # ADR-0003 C5 forbids ("a deny on either blocks"). ADR-0003's "declared
+        # spelling first" means the declared spelling is *reported* first for
+        # the audit trail, not that it decides alone.
+        outcomes: list[PermissionDecision] = []
         for spelling, key in (
             ("declared", resource.declared_key),
             ("resolved", resource.resolved_key),
@@ -505,7 +537,10 @@ class PermissionPolicy:
                 task_id=task_id,
             )
             if outcome is not None:
-                return outcome
+                outcomes.append(outcome)
+
+        if outcomes:
+            return _worst_of(outcomes)
 
         # §C5's last line. Reached only when nothing matched at all.
         return PermissionDecision(

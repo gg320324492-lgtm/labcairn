@@ -18,6 +18,7 @@ than refused, and rule patterns validated at load.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,7 @@ from labcairn.security.policy import (
     pattern_matches,
     validate_rule_pattern,
 )
+from labcairn.workspace import Workspace
 
 
 @pytest.fixture
@@ -661,3 +663,61 @@ def test_roots_are_bound_with_a_resolvable_directory(tmp_path: Path) -> None:
     """Smoke: the fixture path used by the workspace tests is bindable."""
     bound = bind_root("out", tmp_path, RootKind.OUTPUT)
     assert bound.path == tmp_path.resolve()
+
+
+def test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one(
+    tmp_path: Path,
+) -> None:
+    """ADR-0003 C5: "a deny on **either** blocks".
+
+    Cross-review found this reachable. ``evaluate`` returned on the first
+    spelling that matched anything, so a request whose *declared* spelling hit
+    ``ALLOW **`` was granted and the *resolved* spelling — the one carrying the
+    deny — was never evaluated. On a case-insensitive filesystem that turned a
+    deny rule into one that changing the case of a filename bypasses.
+    """
+    root = tmp_path / "ws"
+    (root / "private").mkdir(parents=True)
+    (root / "private" / "secrets.txt").write_text("salary data", encoding="utf-8")
+
+    workspace = Workspace.bind(root, task_id=TaskId(new_id()))
+    policy = PermissionPolicy.from_rules(
+        [
+            Rule(effect=Permission.DENY, pattern="private/secrets.txt"),
+            Rule(effect=Permission.ALLOW, pattern="**"),
+        ]
+    )
+
+    # Both spellings resolve to one real file on Windows. ResourceRef carries
+    # them separately, which is exactly the shape evaluate() has to reconcile.
+    direct = make_ref(
+        key="private/secrets.txt",
+        declared="private/secrets.txt",
+        root_kind=RootKind.SOURCE,
+        real_path=root / "private" / "secrets.txt",
+    )
+    assert (
+        policy.evaluate(
+            task_id=workspace.task_id, capability=CapabilityId.FS_READ, resource=direct
+        ).permission
+        is Permission.DENY
+    )
+
+    if os.name != "nt":
+        # The bypass needed a case-insensitive filesystem; elsewhere the two
+        # spellings are genuinely different files and there is nothing to prove.
+        return
+
+    # On Windows these are the same file. Before the fix this returned ALLOW.
+    same_file_other_case = make_ref(
+        key="private/secrets.txt",  # the resolved spelling, lower case
+        declared="private/SECRETS.TXT",  # what the caller actually asked for
+        root_kind=RootKind.SOURCE,
+        real_path=root / "private" / "secrets.txt",
+    )
+    decision = policy.evaluate(
+        task_id=workspace.task_id,
+        capability=CapabilityId.FS_READ,
+        resource=same_file_other_case,
+    )
+    assert decision.permission is Permission.DENY, f"case alone bypassed a deny rule: {decision}"
