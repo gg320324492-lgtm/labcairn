@@ -10,6 +10,21 @@ Every review is conducted against the actual code and documents at a **named com
 
 This applies to this index too: the principle is only worth anything if the repository is where the state actually lives.
 
+### Division of responsibility
+
+| Role | Owns |
+|---|---|
+| **Project lead / reviewer** (AI assistant) | Phase architecture, technology-selection analysis, task constraints, acceptance criteria, GitHub code review, and the next phase's work orders |
+| **Implementer** | Development, testing, commits, and actual runtime evidence |
+
+At the end of each phase the reviewer inspects a **named GitHub commit or PR** — architecture, code, tests, scientific behaviour and security boundaries — and issues a verdict of `PASS`, `PASS WITH NOTES`, `BLOCKED` or `FAIL`. Only after a pass does the next phase receive detailed work orders; blocking findings are fixed first.
+
+This deliberately does not lock four phases of technical detail on day one. Strong open-source projects move quickly, so LabCairn's later route should be adjusted on evidence and measured results rather than on a frozen plan.
+
+## Reconciliation note
+
+This index reflects a strategic plan that originally specified **14 work orders and 5 gates (G1–G5)**. The repository is now at **15 work orders and 6 gates (G0–G5)**: LC-P1-00 (upstream source study) and gate G0 were added after that plan was written, on the grounds that architecture decisions must be grounded in inspected upstream code before product code exists. The plan document was **not** pasted in wholesale, which would have regressed the repository; its genuinely new content — name rationale, positioning, repository topics, Rich/pybtex/OpenTelemetry stack entries, the framework-selection rationale and this protocol — was distributed to the documents where it belongs.
+
 | Document class | Directory | Holds |
 |---|---|---|
 | Work orders | [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md) | Per-batch goals, implementation requirements, acceptance criteria, and a **status board** updated in the same commit as any state change |

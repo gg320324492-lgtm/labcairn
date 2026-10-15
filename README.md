@@ -8,6 +8,24 @@
 
 LabCairn is not intended to replace scientific judgment or claim autonomous scientific discovery. It aims to make AI-assisted research **inspectable, reproducible where the underlying data and methods permit it, and easier to revise**.
 
+### Why this name
+
+*Lab* + *cairn*. A cairn is the pile of stones a hiker leaves to mark a route that has already been walked. It is the right image for a research agent: the work is not the answer, it is the **path that a later reader can follow back to the source**. A cairn does not tell you where the mountain is; it tells you someone came this way, and here is how.
+
+This is also why the project is deliberately **not** named `PaperAgent` or `AutoScientist`. The first would suggest paper writing software; the second would suggest autonomous scientific discovery. Both are narrower than the intent, which spans material, data, code and output.
+
+### Positioning
+
+> An open-source, local-first AI research workspace for evidence-grounded analysis, reproducible workflows, and verifiable research artifacts.
+
+**Core principles:** Evidence-grounded · Reproducible · Local-first · Extensible · Human-controlled
+
+**独立于 MicroBubble Agent。** The predecessor project is engineering experience only; it imposes no architectural constraint here, no code is imported from it, and none of its runtime assumptions carry over.
+
+## Repository topics
+
+`ai-agent` · `research-agent` · `scientific-research` · `local-first` · `reproducibility` · `research-tools` · `llm` · `python` · `open-source`
+
 ## Why LabCairn?
 
 Many AI tools can draft an answer. In research, the harder questions are: *Where did that number come from? Which dataset, sheet or paper passage supports a claim? How was the figure generated? What changed between versions? What remains unverified?*
