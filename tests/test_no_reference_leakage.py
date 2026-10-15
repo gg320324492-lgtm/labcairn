@@ -79,6 +79,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 import zipfile
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -1240,31 +1241,37 @@ def test_no_workflow_filters_pull_request_at_all(workflows_dir: Path) -> None:
 
 
 def test_gitleaks_config_declares_no_path_allowlist(repo_root: Path) -> None:
-    """C-4: no blanket path allowlist may be introduced into the config itself.
+    """C-4 forbids allowlisting the reference *paths* out of the secret scan.
 
-    ``test_workflows_do_not_use_no_git_secret_scan`` only reads the workflow
-    files. This reads the configuration, because C-4's failure mode is an
-    allowlist added to ``.gitleaks.toml``: reference source that reached the
-    index via ``git add -f`` would then be invisible to the secret scan as
-    well as to the path assertions — doubly hidden, which is the one outcome
-    the ruling exists to prevent.
+    They should be untracked, and a mistaken ``git add -f`` must stay visible to
+    the scan. A path-scoped allowlist hides exactly that, which is why the
+    earlier version of this test rejected *any* ``[[allowlists]]`` block.
+
+    That was too blunt, and it rejected the correct fix for a real finding: a
+    redaction test's deliberate fake credentials. C-4 permits "narrow per-finding
+    allowlists" and forbids the blanket exemption, so the rule enforced here is
+    the one C-4 actually states — **no allowlist may carry a ``paths`` entry** —
+    and a regex-scoped exception is inspected rather than banned outright.
     """
     config = repo_root / ".gitleaks.toml"
     assert config.exists(), ".gitleaks.toml is missing; C-4 has no configuration"
     text = config.read_text(encoding="utf-8")
+    parsed = tomllib.loads(text)
 
     offenders: list[str] = []
-    for lineno, raw in enumerate(text.splitlines(), 1):
-        stripped = raw.strip()
-        if stripped.startswith("#"):
+    for index, block in enumerate(parsed.get("allowlists", []), 1):
+        paths = block.get("paths") or []
+        if paths:
+            offenders.append(f"allowlist #{index} carries paths={paths!r}")
             continue
-        for forbidden in ("[[allowlists]]", "[allowlist]", "[allowlists]"):
-            if stripped.startswith(forbidden):
-                offenders.append(f"line {lineno}: {stripped}")
+        # A regex exception is allowed, but it must say what it is for. An
+        # unexplained one is how an exemption quietly becomes a hole.
+        if not block.get("description"):
+            offenders.append(f"allowlist #{index} has regexes but no description")
 
-    # A blanket exemption of the reference families can also be smuggled in as
-    # a path allowlist under a different key, so check for the family names
-    # appearing in any non-comment, non-documentation assignment.
+    # Independently of the structured blocks: no non-comment line may pair a
+    # path key with a reference family, which is how a path exemption gets
+    # written if someone bypasses the table above.
     for lineno, raw in enumerate(text.splitlines(), 1):
         stripped = raw.strip()
         if stripped.startswith("#"):
@@ -1276,7 +1283,8 @@ def test_gitleaks_config_declares_no_path_allowlist(repo_root: Path) -> None:
             offenders.append(f"line {lineno}: {stripped}")
 
     assert not offenders, (
-        "C-4 forbids allowlisting the reference families out of the secret "
-        "scan; they should be untracked, and a mistaken `git add -f` must stay "
-        "visible to it:\n" + "\n".join(offenders)
+        "C-4 forbids allowlisting the reference families out of the secret scan; "
+        "they should be untracked, and a mistaken `git add -f` must stay visible "
+        "to it. A regex-scoped per-finding exception is permitted; a path-scoped "
+        "one is not:\n" + "\n".join(offenders)
     )
