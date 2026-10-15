@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from labcairn.core.ids import TaskId, new_id
+from labcairn.core.ids import ApprovalId, OperationId, TaskId, new_id
 from labcairn.runtime.operation import ApprovalRefusal, ApprovalState
 from labcairn.security.approval import (
     ApprovalGrant,
@@ -71,7 +71,7 @@ def workspace(tmp_path: Path) -> Workspace:
     root = tmp_path / "ws"
     sources = root / "sources"
     sources.mkdir(parents=True)
-    return Workspace.bind(root, task_id=new_id(), source_dirs=(sources,))
+    return Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
 
 
 def granted(
@@ -94,7 +94,7 @@ def granted(
 
     pending = make_approval(
         task_id=effective_task,
-        operation_id=new_id(),
+        operation_id=OperationId(new_id()),
         capability=capability,
         resource=path,
         args=effective_args,
@@ -168,7 +168,7 @@ def test_approval_rejected_on_task_scope_mismatch(workspace: Workspace) -> None:
     grant, _ = granted(ledger, workspace, policy_digest=policy.digest())
 
     with pytest.raises(AuthorizationRefusedError) as caught:
-        consume(ledger, grant, workspace, policy_digest=policy.digest(), task_id=new_id())
+        consume(ledger, grant, workspace, policy_digest=policy.digest(), task_id=TaskId(new_id()))
     assert caught.value.refusal is ApprovalRefusal.TASK_SCOPE_MISMATCH
 
 
@@ -262,7 +262,7 @@ def test_a_pending_approval_cannot_be_issued(workspace: Workspace) -> None:
     path = workspace.path_in("report.md", workspace.output_root.root_id)
     pending = make_approval(
         task_id=workspace.task_id,
-        operation_id=new_id(),
+        operation_id=OperationId(new_id()),
         capability="fs.write",
         resource=path,
         args={"path": "report.md"},
@@ -279,7 +279,7 @@ def test_an_unknown_approval_id_is_not_a_refusal(workspace: Workspace) -> None:
     path = workspace.path_in("report.md", workspace.output_root.root_id)
     with pytest.raises(NoSuchApprovalError):
         ledger.consume(
-            new_id(),
+            ApprovalId(new_id()),
             now=NOW,
             task_id=workspace.task_id,
             capability="fs.write",
@@ -435,7 +435,7 @@ def test_every_refusal_reason_is_reachable_from_this_ledger(workspace: Workspace
     grant, _ = granted(ledger, workspace, policy_digest=policy.digest())
     seen.add(
         AuthorizationRefusedError(
-            _capture(ledger, grant, workspace, policy, task_id=new_id())
+            _capture(ledger, grant, workspace, policy, task_id=TaskId(new_id()))
         ).refusal
     )
 

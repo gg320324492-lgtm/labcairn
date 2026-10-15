@@ -169,6 +169,10 @@ select = [
 # not break on 3.10 for a style rule. src/ targets the pinned 3.12 and is not
 # exempt.
 "scripts/*" = ["T201", "UP017"]
+# Same reasoning for the runnable demonstrations: an example that prints its
+# evidence to a terminal is doing its job. Neither path may be relaxed for
+# src/, and neither is exempt from anything except T201/UP017.
+"examples/*" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["labcairn"]

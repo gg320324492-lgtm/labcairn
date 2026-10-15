@@ -29,7 +29,7 @@ from typing import get_type_hints
 
 import pytest
 
-from labcairn.core.ids import new_id
+from labcairn.core.ids import TaskId, new_id
 from labcairn.security import capabilities as capabilities_module
 from labcairn.security import paths as paths_module
 from labcairn.security import policy as policy_module
@@ -77,7 +77,7 @@ def workspace(tmp_path: Path) -> Workspace:
     root = tmp_path / "ws"
     sources = root / "sources"
     sources.mkdir(parents=True)
-    return Workspace.bind(root, task_id=new_id(), source_dirs=(sources,))
+    return Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
 
 
 def decisions_for(workspace: Workspace) -> list[tuple[str, str]]:

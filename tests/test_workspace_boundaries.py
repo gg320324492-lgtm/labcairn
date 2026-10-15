@@ -23,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from labcairn.core.ids import new_id
+from labcairn.core.ids import TaskId, new_id
 from labcairn.security.paths import PathRefusedError, RootKind
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.workspace.outputs import (
@@ -42,7 +42,7 @@ def workspace(tmp_path: Path) -> Workspace:
     sources = root / "sources"
     (sources / "papers").mkdir(parents=True)
     (sources / "papers" / "a.pdf").write_bytes(b"%PDF-1.4 a")
-    return Workspace.bind(root, task_id=new_id(), source_dirs=(sources,))
+    return Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
 
 
 @pytest.fixture
@@ -134,8 +134,8 @@ def test_two_tasks_do_not_share_an_output_directory(tmp_path: Path) -> None:
     """One task's artifacts must not be another task's to overwrite."""
     root = tmp_path / "ws"
     root.mkdir()
-    first = Workspace.bind(root, task_id=new_id())
-    second = Workspace.bind(root, task_id=new_id())
+    first = Workspace.bind(root, task_id=TaskId(new_id()))
+    second = Workspace.bind(root, task_id=TaskId(new_id()))
     assert first.output_root.path != second.output_root.path
 
 
@@ -146,13 +146,13 @@ def test_a_source_root_outside_the_selected_root_is_refused(tmp_path: Path) -> N
     ws.mkdir()
     elsewhere.mkdir()
     with pytest.raises(WorkspaceError, match="outside the selected workspace"):
-        Workspace.bind(ws, task_id=new_id(), source_dirs=(elsewhere,))
+        Workspace.bind(ws, task_id=TaskId(new_id()), source_dirs=(elsewhere,))
 
 
 def test_binding_requires_an_existing_selected_root(tmp_path: Path) -> None:
     """No "create it and carry on": a root that had to be invented is not selected."""
     with pytest.raises(PathRefusedError):
-        Workspace.bind(tmp_path / "never-created", task_id=new_id())
+        Workspace.bind(tmp_path / "never-created", task_id=TaskId(new_id()))
 
 
 def test_an_output_write_needs_a_named_root(workspace: Workspace) -> None:

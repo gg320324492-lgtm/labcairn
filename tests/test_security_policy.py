@@ -540,8 +540,8 @@ def test_pattern_matching_semantics(pattern: str, key: str, expected: bool) -> N
 
 
 def test_a_rule_scoped_to_one_task_does_not_apply_to_another() -> None:
-    only_this: TaskId = new_id()
-    other: TaskId = new_id()
+    only_this = TaskId(new_id())
+    other = TaskId(new_id())
     policy = PermissionPolicy.from_rules(
         [Rule(effect=Permission.ALLOW, pattern="**", task_ids=frozenset({str(only_this)}))]
     )
