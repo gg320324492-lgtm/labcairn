@@ -67,6 +67,34 @@ The project is currently at **Phase 1 / Foundation & MVP**. Installation instruc
 - [Evaluation protocol](docs/EVALUATION.md)
 - [Upstream source-study strategy, pinned references and license policy](docs/UPSTREAM_REFERENCES.md)
 
+## Developer setup (what exists today)
+
+This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application — there is no CLI, no server, no database and no research feature to use yet. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
+
+Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) and, for the web baseline only, Node ≥ 24.16 with pnpm ≥ 9.15.9.
+
+Python side, from the repository root:
+
+```bash
+uv sync
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+```
+
+Web side, from `web/`:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm format:check
+```
+
+`uv run pytest` runs the Python suite and `pnpm test` runs the Vitest suite. Neither needs an API key, a network call or a paid provider: the only executable product code today is the deterministic `FakeProvider` under `src/labcairn/core/providers/`, and it is exercised entirely from tests.
+
 ## Principles
 
 1. Evidence is not the same as truth: record locators and verification state; show uncertainty.
