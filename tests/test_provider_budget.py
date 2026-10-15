@@ -258,7 +258,7 @@ def test_a_measured_value_past_the_ceiling_raises_and_is_terminal() -> None:
 @pytest.mark.unit
 def test_every_countable_ceiling_raises_once_it_is_passed() -> None:
     clock = FakeClock()
-    ledger = RunLedger(clock=clock, capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=clock, capabilities=_OK_USAGE, priced=True)
     ledger.record_request()
     ledger.record_request()
     ledger.record_tool_attempt()
@@ -283,7 +283,7 @@ def test_tool_calls_are_counted_as_attempts_not_successes() -> None:
     consumes no ``tool_calls`` budget — so a loop of failing-but-retryable calls
     is bounded by nothing but the request ceiling.
     """
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     for _ in range(5):
         ledger.record_tool_attempt()
 
@@ -306,7 +306,7 @@ def test_provider_retry_does_not_consume_model_request_budget() -> None:
     ``RunUsage.requests`` *"isn't counted"* for transport retries
     (``usage.py:377-387``).
     """
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     ledger.record_request(provider_attempts=1)
     ledger.record_transport_attempt()
 
@@ -321,7 +321,7 @@ def test_provider_retry_does_not_consume_model_request_budget() -> None:
 
 @pytest.mark.unit
 def test_the_ledger_reports_both_counters_so_a_report_can_show_the_gap() -> None:
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     ledger.record_request(provider_attempts=1)
     ledger.record_transport_attempt()
     ledger.record_transport_attempt()
@@ -340,7 +340,7 @@ def test_usage_accumulates_across_responses_and_stays_unknown_once_unknown() -> 
     A later measured response must not "repair" an earlier gap, because a total
     that silently dropped one response's cost under-reports the run.
     """
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     ledger.record_usage(input_tokens=Known(100), output_tokens=Known(20))
     ledger.record_usage(
         input_tokens=Unknown(reason=UnknownReason.PROVIDER_OMITTED),
@@ -362,7 +362,7 @@ def test_a_priced_cost_cannot_be_recorded_onto_a_run_that_failed_closed() -> Non
     budget halts, and then a later step happens to know a price. Accepting that
     would make the halt depend on which step ran next.
     """
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     ledger.record_cost(Unknown(reason=UnknownReason.UNPRICED))
 
     with pytest.raises(ValueError, match="earlier Unknown"):
@@ -385,7 +385,7 @@ def test_cost_is_integral_micro_usd_so_a_ceiling_is_comparable_exactly() -> None
 
 @pytest.mark.unit
 def test_a_cost_ceiling_is_enforced_in_micros_not_floats() -> None:
-    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE)
+    ledger = RunLedger(clock=FakeClock(), capabilities=_OK_USAGE, priced=True)
     ledger.record_price_known(input_micros=usd_to_micros(Decimal("2.00")))
     guard = BudgetGuard(RunBudget(max_cost_usd=Decimal("1.00")), capabilities=_OK_USAGE)
 

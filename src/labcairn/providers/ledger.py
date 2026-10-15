@@ -66,6 +66,11 @@ from labcairn.providers.capabilities import Capability, ProviderCapabilities
 COST_SCALE: int = 1_000_000
 
 
+def _unpriced() -> Unknown:
+    """The cost a run starts at when no price table entry exists."""
+    return Unknown(reason=UnknownReason.UNPRICED)
+
+
 def _zero() -> Known:
     """A fresh, measured zero. The default of a run that has spent nothing.
 
@@ -114,7 +119,10 @@ class LedgerSnapshot:
     output_tokens: UsageValue = field(default_factory=_zero)
     #: Micro-USD. ``Known(0)`` is "this really was free"; ``Unknown`` is
     #: "no price for this model", which ADR-0002 says must fail closed.
-    cost_micros: UsageValue = field(default_factory=_zero)
+    # A snapshot with no cost stated is unpriced, not free. Defaulting to
+    # Known(0) would make an unreported cost indistinguishable from a measured
+    # zero, which is the exact conflation ADR-0002 exists to prevent.
+    cost_micros: UsageValue = field(default_factory=_unpriced)
     elapsed_s: float = 0.0
     #: The probe result this run was gated on, if any. Carried so a budget
     #: decision can consult ``USAGE_REPORTING`` without a second lookup.
@@ -148,18 +156,21 @@ class RunLedger:
         *,
         clock: Callable[[], float],
         capabilities: ProviderCapabilities | None = None,
-        priced: bool = True,
+        priced: bool,
     ) -> None:
         self._clock = clock
         self._start = clock()
-        # `priced=False` starts the run's cost as `Unknown(UNPRICED)` rather than
-        # `Known(0)`. That distinction is the whole of ADR-0002's cost rule: a
-        # run against a model with no entry in the LabCairn price table has *not*
-        # spent zero, it has an amount it cannot compute. Starting at `Known(0)`
-        # would let a `max_cost_usd` ceiling sit satisfied until the first priced
-        # response arrived — which for Phase 1 is never, because there is no
-        # price table yet. Phase 1 therefore constructs every ledger with
-        # `priced=False`; see `PydanticAiModelProvider(priced=...)`.
+        # ``priced`` is a **required** keyword, deliberately. It defaulted to
+        # True while this very docstring argued that Phase 1 has no price table
+        # and every ledger should therefore be constructed with False — so a
+        # caller who forgot the argument silently got `Known(0)` and a
+        # `max_cost_usd` ceiling that never tripped. A boolean whose wrong value
+        # disables a budget guard does not get a default; it gets to be stated.
+        #
+        # `priced=False` starts the run's cost as `Unknown(UNPRICED)` rather
+        # than `Known(0)`. That distinction is the whole of ADR-0002's cost rule:
+        # a run against a model with no entry in the price table has *not* spent
+        # zero, it has an amount it cannot compute.
         self._state = LedgerSnapshot(
             capabilities=capabilities,
             cost_micros=Known(0) if priced else Unknown(reason=UnknownReason.UNPRICED),
