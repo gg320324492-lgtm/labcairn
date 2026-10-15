@@ -11,8 +11,8 @@
 | | |
 |---|---|
 | Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3) and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
-| Authorized, not started | **LC-P1-01** — reproducible engineering baseline. Plan and binding amendments exist; no `pyproject.toml`, `src/`, `web/`, `tests/` or `.github/` has been created. |
-| Next direction | LC-P1-01 → LC-P1-02…04 close **G1 (Trusted core)**. The immediate goal is not more design: it is a Python package that builds, a Web app that builds, and CI that runs on two operating systems **without** the sibling reference clones present. |
+| Implemented, awaiting acceptance | **LC-P1-01** — reproducible engineering baseline. On branch `feat/lc-p1-01-baseline`, [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2): Hatchling package, web baseline, five CI workflows green on Ubuntu and Windows, 174 tests, reference-isolation gate enforced as a required status check. Evidence in [`acceptance/LC-P1-01-evidence.md`](acceptance/LC-P1-01-evidence.md). Still `IN PROGRESS` — acceptance is the project lead's decision. |
+| Next direction | Once LC-P1-01 is accepted, **LC-P1-02…04** close **G1 (Trusted core)**: versioned contracts and module boundaries, model providers with truthful capability detection, and the workspace/tool permission boundary. LC-P1-02 must not start before LC-P1-01 is accepted. |
 
 **Open issues carried into LC-P1-01** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
 

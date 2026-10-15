@@ -12,7 +12,7 @@
 | Clause | Status | Evidence |
 |---|---|---|
 | Fresh clone, documented setup, on CI-supported OS | **PASS** | CI green on `ubuntu-latest` and `windows-latest`; run links below |
-| Lint / type / test pass | **PASS** | ruff, ruff format, `mypy` strict, 166 pytest — locally and in CI |
+| Lint / type / test pass | **PASS** | ruff, ruff format, `mypy` strict, 174 pytest — locally and in CI |
 | Quick-start claims no unimplemented command | **PASS** | `tests/test_readme_accuracy.py`, 17 tests, fail-closed both directions |
 | Secret scan included | **PASS** | `.gitleaks.toml` + `security.yml`, git mode, green in CI |
 | Lockfile consistency check included | **PASS** | `lockfiles.yml` green in CI |
@@ -29,7 +29,7 @@ uv sync --frozen              Checked 160 packages
 uv run ruff check .           All checks passed!
 uv run ruff format --check .  16 files already formatted
 uv run mypy                   Success: no issues found in 16 source files
-uv run pytest                 166 passed in 10.28s          (0 skipped)
+uv run pytest                 174 passed in 11.57s      (0 skipped)
 uv lock --check               Resolved 163 packages
 uv build                      wheel 11 members, sdist clean of reference paths
 uv lock --check               exit 0 after [tool.uv] required-version added
@@ -55,14 +55,15 @@ Six distinct jobs, all green. **Correction to an earlier statement in this docum
 
 | Job | Run |
 |---|---|
-| `python-quality (ubuntu-latest)` | [38700736518/116308019833](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736518/job/116308019833) |
-| `python-quality (windows-latest)` | [38700736518/116308020349](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736518/job/116308020349) |
-| `web-quality` | [38700736662/116308020781](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736662/job/116308020781) |
-| `reference-exclusion` | [38700736713/116308020795](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736713/job/116308020795) |
-| `secret-scan` | [38700736775/116308020947](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736775/job/116308020947) |
-| `lockfile-consistency` | [38700736685/116308020534](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38700736685/job/116308020534) |
+| *(all six from the same push run; per-job URLs appear in the Actions tab)* | [38727513778](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `python-quality (ubuntu-latest)` | [python-quality ubuntu](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `python-quality (windows-latest)` | [python-quality windows](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `web-quality` | [web-quality](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `reference-exclusion` | [reference-exclusion](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `secret-scan` | [secret-scan](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
+| `lockfile-consistency` | [lockfile-consistency](https://github.com/gg320324492-lgtm/labcairn/actions/runs/38727513778) |
 
-**Build artifacts** produced by `reference-exclusion`: `sdist` 337,972 B · `wheel` 26,684 B · `source-archive` 338,002 B.
+**Build artifacts** produced by `reference-exclusion`: `sdist` 350,472 B · `wheel` 27,243 B · `source-archive` 350,651 B (from the current `reference-exclusion` run).
 
 ## Platform matrix — verified, not assumed
 
@@ -157,7 +158,7 @@ AssertionError: labcairn-0.1.0.tar.gz packages reference-study material:
 
 The sdist and wheel exclude lists carried three case variants of the `labcairn-upstreams` family and missed two. `.gitignore` matching is case-insensitive on Windows, so the omission was invisible here — the probes were excluded before packaging saw them. On Linux, case-sensitive matching let both into the sdist. The comment above the list already asserted "case-variant-complete", so the code contradicted its own stated intent. Both lists now cover all eleven stems, verified with `fnmatch` under case-sensitive matching.
 
-This is the exact failure C-8 and the exclusion checklist both predict will only appear on a real runner, and it is why `reference-exclusion` runs on both platforms rather than one.
+This is the exact failure C-8 and the exclusion checklist both predict will only appear on a real runner. **Correction to an earlier claim in this document:** `reference-exclusion` does **not** run on both platforms — it is Ubuntu-only, as the platform matrix above records. The leakage *tests* reach Windows through `python-quality`, which runs the whole suite. That is what surfaced these two defects: the case variant is invisible to Windows, and `tar -tf` is only exercised there.
 
 ## Deviations from the plan, and why
 
@@ -175,7 +176,7 @@ This is the exact failure C-8 and the exclusion checklist both predict will only
 These are declared, not assumed:
 
 - **gitleaks' non-zero exit on a real leak.** No canary was planted, because that needs a branch. The configuration and its parsing are verified; the failure path is not.
-- **The Linux gitleaks binary was never executed.** Downloaded, SHA256-verified, unpacked — it is a Linux ELF and cannot run on Windows.
+- ~~The Linux gitleaks binary was never executed.~~ **RESOLVED since the first CI run.** `secret-scan` runs on `ubuntu-latest` and the log shows the Linux binary executing: `23 commits scanned, ~1.12 MB, no leaks found`. The SHA256 is still verified before execution. It remains true that the binary cannot run on the Windows developer machine.
 - **Real browser rendering.** jsdom assertions are not a screenshot.
 - **Any platform other than Windows for the web baseline.**
 - **`gitleaks git` does not read the index**, so an uncommitted `git add -f` is not scanned. The window closes at commit; `--staged` closes it locally. Recorded in `CONTRIBUTING.md` §5.
@@ -186,7 +187,6 @@ These are declared, not assumed:
 |---|---|---|
 | Copyright ownership unresolved; **no `LICENSE` file and no rights granted** | Any claim of open-source licensing; LC-P1-14 | Project lead |
 | `PyMuPDF` is AGPL/commercial dual-licensed and named by LC-P1-08 | LC-P1-08, and a future MIT release | Project lead |
-| README calls the project "open source" in three places while stating no rights are granted | Nothing technically; it is a positioning judgement | Project lead |
 | Five pnpm commands in the README suite skip rather than fail when Node is absent | Nothing on the current CI, where `web-quality` installs dependencies first | LC-P1-12 |
 
 ## Independent cross-review
@@ -298,6 +298,8 @@ test that also covers `None`, `0`, `1.0` and `object()`.
 
 ## Still open — not fixed, and not claimed as fixed
 
+Resolved since the first draft of this document: the README's "open source" wording has been corrected to "under development, open-source licensing pending", the GitHub description and topics were updated to match, and the Linux gitleaks binary is now exercised by CI.
+
 | Finding | Why it is open |
 |---|---|
 | The T07 overclaim detector has real holes: passive voice ("PDF parsing **is supported by** LabCairn"), "is capable of", "handles", "can", "has a built-in", "comes with", and Chinese "可以 / 能 / 用于 / 现可使用". `_QUALIFIER_RE` exempts a whole sentence when it contains `target`, `intended`, `future`, `目标`, `拟`, `将(?:会\|要)?`, so a qualifier can whitewash a claim. The 6 cases in `test_claim_detector_has_teeth` are all forms the regex already covered | A reliable bilingual capability-claim detector is a project in itself. Recording the holes is more useful than pretending the suite catches overclaims; the README suite is a floor, not a guarantee |
@@ -305,6 +307,36 @@ test that also covers `None`, `0`, `1.0` and `object()`.
 | `test_upload_artifact_and_cache_steps_exclude_reference_paths` accepts any narrow path, while the checklist row says the exclusion applies "regardless" | Narrow paths satisfy the intent more strongly; recorded as a deviation, not a silent reinterpretation |
 | `gitleaks git` does not read the index | Tool behaviour, not configuration. Window closes at commit |
 
+## What is verified, and by whom
+
+These are kept apart on purpose, because the first is not evidence for the second.
+
+**Verified by the implementer, reproducible from this document.** Every command in
+"Commands and their actual results" was run, and its output is quoted rather than
+described. Every claim in "The two defects only a real runner could find" is backed by
+a CI log. The destructive checks listed under the cross-review — narrowing the Hatchling
+package root, deleting exclude lists, injecting a blanket gitleaks allowlist, injecting a
+`paths-ignore` — each produced the failure it was supposed to. This establishes that the
+gates fire.
+
+**Verified independently.** The project-lead review read the repository and the CI runs
+directly and returned CHANGES REQUESTED. It independently confirmed 169 pytest on both
+platforms, 7 web tests, the artifact sizes, and the absence of a `LICENSE` file. It found
+two blocking omissions and four stale documents that the implementer had missed. A second
+cross-review agent, which had not implemented the branch, found two further blocking
+omissions. Those are recorded above with what was done about them.
+
+**Not established by either.** That the isolation gate cannot be defeated by a future
+edit — only that it is live today. That branch protection is enforced — the API
+configuration is quoted, but no runtime proof is obtainable from a client that cannot
+merge. That the README overclaim detector catches capability claims in general; it has
+known holes, listed above.
+
 ## Verdict
 
-LC-P1-01's acceptance clauses are met, with two real defects found and fixed after the first CI run. The isolation promise is now enforced by tests and by GitHub rather than by a document. No runtime capability, licence grant or scientific validation is claimed by this work.
+No verdict is claimed here. The work order's acceptance clauses are met against the
+evidence above, and the independent reviews that have run returned findings which are
+all recorded and addressed or declared open. The decision to accept LC-P1-01 is the
+project lead's, and the status board continues to read IN PROGRESS until they make it.
+
+No runtime capability, licence grant or scientific validation is claimed by this work.

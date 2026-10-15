@@ -248,6 +248,7 @@ would then be reported. If you want that window closed locally, use
 Produce archives with **`git archive`**, or from build artifacts only.
 
 ```bash
+mkdir -p release                       # git archive will not create the directory
 git archive --format=tar.gz --output=release/LabCairn.tar.gz HEAD
 ```
 

@@ -38,7 +38,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-13 | P0 | G5 | NOT STARTED | |
 | LC-P1-14 | P0 | G5 | NOT STARTED | |
 
-**Gate status:** G0 closed. G1–G5 not started.
+**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 is implemented and awaiting acceptance (PR [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2)); G1 is not passed. G2–G5 not started.
 
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 
@@ -47,7 +47,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | Copyright ownership / no `LICENSE` file | LC-P1-14 (release) | A placeholder such as `LICENSE.PENDING.md` grants no rights. Blocks any claim of open-source licensing. |
 | PyMuPDF AGPL vs commercial | LC-P1-08 | Constrains a future MIT release. Decision needed before LC-P1-08 starts. |
 | ~~`tests/test_no_reference_leakage.py` absent~~ | LC-P1-01 | **RESOLVED** — the file exists with 99 tests and `reference-exclusion` is a required status check. LC-P1-00's acceptance item can drop this caveat once LC-P1-01 is accepted. |
-| Upstream pin SHAs are local-only | LC-P1-00 (recurring) | Shallow single-branch clones pin commits that exist only in the local object store; upstream force-push or GC invalidates them. |
+| Upstream pin SHAs were obtained locally | LC-P1-00 (recurring) | Shallow single-branch clones read the SHA from the local object store, so a fresh `git clone` does not reproduce it. **All five were verified present on GitHub at LC-P1-00 review time**; the standing risk is upstream force-push or GC, which no local practice prevents. Re-verify with `git ls-remote` before relying on a pin. |
 | ADR length vs "concise" | — | Disputed and deliberately unresolved; ~1,270 lines across three ADRs. |
 
 ## P1 deliverable
