@@ -11,7 +11,7 @@
 | | |
 |---|---|
 | Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3) and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
-| Accepted, not merged | **LC-P1-01** — reproducible engineering baseline. **PASS WITH NOTES** at [`c23ef775`](https://github.com/gg320324492-lgtm/labcairn/pull/2), fourth independent review, across four review rounds. Hatchling package, web baseline, five CI workflows green on Ubuntu and Windows, 174 tests, reference isolation enforced as a required status check. Evidence in [`acceptance/LC-P1-01-evidence.md`](acceptance/LC-P1-01-evidence.md). **PR #2 remains open; nothing from this branch is on `main` yet.** G1 stays open — LC-P1-02, 03, 04 are not started. |
+| Accepted and merged | **LC-P1-01** — reproducible engineering baseline. **PASS WITH NOTES** at [`c23ef775`](https://github.com/gg320324492-lgtm/labcairn/pull/2), fourth independent review, across four review rounds. Hatchling package, web baseline, five CI workflows green on Ubuntu and Windows, 174 tests, reference isolation enforced as a required status check. Evidence in [`acceptance/LC-P1-01-evidence.md`](acceptance/LC-P1-01-evidence.md). **Merged to `main` at [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via PR #2.** G1 stays open — LC-P1-02, 03, 04 are not started. |
 | Next direction | Merge the accepted LC-P1-01, then **LC-P1-02…04** close **G1 (Trusted core)**: versioned contracts and module boundaries, model providers with truthful capability detection, and the workspace/tool permission boundary. LC-P1-02 must not start before LC-P1-01 is merged. |
 
 **Open issues carried into LC-P1-01** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
@@ -21,7 +21,7 @@
 - Reference isolation is **prose, not enforcement** on `main`. On `feat/lc-p1-01-baseline` it is enforced: `tests/test_no_reference_leakage.py` exists with 99 tests and `reference-exclusion` is a required status check. It becomes a property of the project when LC-P1-01 is accepted and merged.
 - The five upstream pin SHAs were **verified present on GitHub at LC-P1-00 review time**. The standing risk is upstream force-push or garbage collection, which no local practice prevents; re-verify with `git ls-remote <url>` before relying on a pin.
 
-**What is not yet true of this project:** `main` holds documentation only — no product code, no test suite, no CI, no installable package. The engineering baseline (Hatchling package, web baseline, five CI workflows, 174 tests) exists on `feat/lc-p1-01-baseline` and is **not merged**. Every capability described below is planned, not shipped. Do not read this roadmap as a status report on working software.
+**What is not yet true of this project:** `main` now holds the engineering baseline — a Hatchling package, a web baseline, five CI workflows and 174 tests — and **still no product**: no CLI, no server, no database, no research capability. Every scientific feature described below is planned, not shipped. Do not read this roadmap as a status report on working software; the honest summary is that the floor is real and nothing on it is a research tool yet.
 
 | Phase | Focus | Exit gate |
 |---|---|---|

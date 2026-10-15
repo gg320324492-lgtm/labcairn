@@ -23,7 +23,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | Work order | Pri | Gate | Status | Evidence |
 |---|---|---|---|---|
 | LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
-| LC-P1-01 | P0 | G1 | **PASS WITH NOTES** | reviewed at `c23ef775` (PR [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2) · [review comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033), fourth independent review) · [evidence](acceptance/LC-P1-01-evidence.md) · start `78050bc` · **PR still open and unmerged**; notes carried below |
+| LC-P1-01 | P0 | G1 | **PASS WITH NOTES** | reviewed at `c23ef775` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) [review comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033) · **merged to `main` at `89c16d4`** · [evidence](acceptance/LC-P1-01-evidence.md) |
 | LC-P1-02 | P0 | G1 | NOT STARTED | depends on LC-P1-01 |
 | LC-P1-03 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md) |
 | LC-P1-04 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
@@ -38,9 +38,11 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-13 | P0 | G5 | NOT STARTED | |
 | LC-P1-14 | P0 | G5 | NOT STARTED | |
 
-**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 is `PASS WITH NOTES` as reviewed at `c23ef775`; LC-P1-02, LC-P1-03 and LC-P1-04 are `NOT STARTED`, so **G1 is not passed**. G2–G5 not started.
+**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 is `PASS WITH NOTES` (reviewed `c23ef775`, merged `89c16d4`); LC-P1-02, LC-P1-03 and LC-P1-04 are `NOT STARTED`, so **G1 is not passed**. G2–G5 not started.
 
 A work order being accepted is not a gate being closed. G1 closes when all four of its work orders are accepted.
+
+**Verification basis for Phase 1 onwards.** Verification basis: internal double review — the implementing agent and a reviewer who was not the implementer. This is **not** an external independent audit. Branch protection was read by an admin-capable session belonging to the **implementing agent**, so the six required checks are implementer-confirmed, not independently proven.
 
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 

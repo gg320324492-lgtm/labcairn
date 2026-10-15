@@ -27,12 +27,36 @@ Two consequences worth stating explicitly:
 
 | Role | Owns |
 |---|---|
-| **Project lead / reviewer** (AI assistant) | Phase architecture, technology-selection analysis, task constraints, acceptance criteria, GitHub code review, and the next phase's work orders |
-| **Implementer** | Development, testing, commits, and actual runtime evidence |
+| **Executing agent** | Work-order decomposition, dependency ordering, task assignment, integration, CI, scope control, and the GitHub status record |
+| **Cross-review agent** | Reviews work it did not implement: contract conformance, malformed-input handling, permission/privacy/path/network checks, **adversarial attempts to prove a claimed guard is ineffective**, cross-module integration and regression, and doc claims against actual behaviour |
+| **Project lead** | Architecture and phase decisions, licence obligations, scope expansions, anything touching original data, outbound transmission, or model-generated code execution |
 
-At the end of each phase the reviewer inspects a **named GitHub commit or PR** — architecture, code, tests, scientific behaviour and security boundaries — and issues a verdict of `PASS`, `PASS WITH NOTES`, `BLOCKED` or `FAIL`. Only after a pass does the next phase receive detailed work orders; blocking findings are fixed first.
+**Two-layer review is internal cross-verification, not external independent audit.** Every
+work order is reviewed by a sub-agent that did not write it, and the executing agent then
+independently re-checks that agent's findings, runs the key tests, and inspects the final
+commit. Neither layer substitutes for an outside auditor, and no document may describe this
+as one.
 
-This deliberately does not lock four phases of technical detail on day one. Strong open-source projects move quickly, so LabCairn's later route should be adjusted on evidence and measured results rather than on a frozen plan.
+**Merge authority.** From LC-P1-01 onward the executing agent merges its own pull requests
+once both layers have signed off, all required CI checks pass, and the status board matches
+the merged commit. The authorisation comes from the project plan, not from an external
+reviewer.
+
+**Auto-advance to the next work order** requires: acceptance evidence that is executable
+rather than asserted, both layers concluding, no open blockers, required CI green without
+skipped tests or lowered thresholds, and the status board consistent with the merge.
+
+**Always escalate to the project lead**, regardless of how routine it looks: widening data
+access, write access to original material, unapproved outbound transmission, any
+model-generated code execution, major architecture change, and unresolved licence
+obligations — PyMuPDF's AGPL/commercial duality gates LC-P1-08.
+
+**Report at gate boundaries, not per commit.** Concentrated reports when a gate closes, when a
+decision is genuinely blocked, or on a security event. Ordinary bugs, test failures, lint and
+type errors are fixed without escalation.
+
+**Three states are kept distinct**: implemented · internally reviewed · merged into the
+baseline. Never conflate them.
 
 ## Reconciliation note
 
@@ -67,8 +91,9 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | Independent re-review | [PR #1 re-review](acceptance/PR-1-independent-review.md) — C-1/C-2/R-01/R-02 reproduced, not assumed |
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
-| LC-P1-01 | **Not started.** [Plan](plans/LC-P1-01-task-breakdown.md) is partially superseded by the amendments |
 | License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
-| LC-P1-01 | **In review.** [Evidence](acceptance/LC-P1-01-evidence.md), [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). No verdict issued. |
+| LC-P1-01 | **Accepted and merged.** `PASS WITH NOTES` at `c23ef775`, merged [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). [Evidence](acceptance/LC-P1-01-evidence.md) |
+| LC-P1-02 | **Not started.** Next: versioned data contracts (Task, Run, Stage, Approval, Evidence) |
+| Gate G1 | **IN PROGRESS** — spans LC-P1-01…04. One of four accepted |
 
 All reviews must identify subject commit SHA, actual inspected evidence, tests run (or not run), open issues and next action.
