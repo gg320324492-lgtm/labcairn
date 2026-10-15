@@ -60,7 +60,7 @@ The project is currently at **Phase 1 / Foundation & MVP**. Installation instruc
 
 ## Open source and attribution
 
-**License plan:** MIT for original LabCairn code, subject to final ownership and dependency review. When creating the GitHub repository, add the actual LICENSE file using GitHub's MIT template; this README is not a substitute for a license. Third-party adaptations must retain required notices and comply with their own licenses. LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
+**License status: not yet granted.** The repository exists (`gg320324492-lgtm/labcairn`) but deliberately carries **no `LICENSE` file**: copyright ownership has not been cleared, so no open-source rights have been granted to anyone. A placeholder such as `LICENSE.PENDING.md` **does not** grant rights and must not be read as an MIT grant. Planned licensing remains MIT for original LabCairn code, subject to a dependency review that is still open — `PyMuPDF` is AGPL/commercial dual-licensed and is named by LC-P1-08, so that decision is unresolved. This README is not a substitute for a license. Third-party adaptations must retain required notices and comply with their own licenses. LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
 
 ## 中文简介
 

@@ -1,10 +1,24 @@
 # LC-P1-01 — Public repository and reproducible engineering baseline
 
-**Plan ID:** LC-P1-01-TB-v1.0
+> ## ⚠️ PARTIALLY SUPERSEDED — read before using this plan
+>
+> [`LC-P1-01-approved-amendments.md`](LC-P1-01-approved-amendments.md) **overrides this document** wherever the two conflict. The conflicts were found by independent review on 2026-10-15 and are listed below; every other section of this plan stands as written.
+>
+> | This plan says | Amendment says | Affected tasks |
+> |---|---|---|
+> | Filter `pull_request` with `paths-ignore` (C-1) | **Required status workflows must never be filtered.** A filtered required check leaves a PR permanently unable to merge. Only optional/push workflows may filter. | T06 |
+> | "explicit package list `["src/labcairn"]`, disable auto-discovery", `MANIFEST.in` if setuptools (C-2) | **Hatchling** with `[tool.hatch.build.targets.wheel] packages = ["src/labcairn"]` as a *recursive root*, **no `MANIFEST.in`**. Under setuptools the same literal silently drops all subpackages from the wheel while the build reports success — reproduced. | T02, T05 |
+> | Secret scan allowlists reference paths (C-4) | **No broad allowlist.** If reference source is ever force-added, it must still be scanned. | T04 |
+> | T01 performs the initial commit | The initial commit already exists (`623e3ca`). Do not repeat it. | T01 |
+> | Text-match `.gitignore` to assert exclusions (C-8) | Assert **behaviour** via `git check-ignore`, `git ls-files`, archive member lists and installed imports. | T05 |
+>
+> The "eight conflicts" list in §3 of this plan predates these rulings; where it disagrees, the amendment table above wins.
+
+**Plan ID:** LC-P1-01-TB-v1.0 → **v1.1 (amendments applied at the document level; task bodies unchanged)**
 **Work order:** `docs/PHASE_1_WORKORDERS.md` → `LC-P1-01` (Block A, P0, gate G1 first item)
 **Date:** 2026-10-15
 **Status:** Plan only. Nothing in this document has been implemented.
-**Precondition:** LC-P1-00 review passes (G0). This plan is not authorization to start.
+**Precondition:** LC-P1-00 review passed as PASS WITH NOTES (G0 closed). This plan is not authorization to start; LC-P1-01 has not begun.
 
 ---
 
@@ -154,10 +168,12 @@ still own that scratch space.
 ### T02 — Python baseline: packaging, toolchain pin, lockfile, test scaffolding
 
 **Deliverables**
-- `pyproject.toml`: build backend, explicit package list, **auto-discovery disabled**,
+- ⚠ **SUPERSEDED (C-2) — do not implement this bullet as written.** `pyproject.toml`: build backend, explicit package list, **auto-discovery disabled**,
   `requires-python` pinned to 3.12, ruff / mypy / pytest configuration, dev dependency group.
-- `MANIFEST.in` with `prune` for each of `_references*`, `.upstreams*`, `labcairn-upstreams*`
+  *Instead:* Hatchling, `[tool.hatch.build.targets.wheel] packages = ["src/labcairn"]` as a **recursive package root**. Reproduced: under setuptools the identical `packages = ["labcairn"]` builds a wheel that silently omits `labcairn.core` and every other subpackage while reporting success.
+- ⚠ **SUPERSEDED (C-2) — do not implement this bullet.** `MANIFEST.in` with `prune` for each of `_references*`, `.upstreams*`, `labcairn-upstreams*`
   **if and only if** the setuptools backend is chosen (see D-2).
+  *Instead:* no `MANIFEST.in` at all. Use `tool.hatch.build.targets.sdist.exclude`.
 - `.python-version` containing `3.12`.
 - `uv.lock`, generated on this machine.
 - `src/labcairn/__init__.py`, `src/labcairn/core/__init__.py`. No domain models.
@@ -323,7 +339,7 @@ uv run pytest tests/test_no_reference_leakage.py -v
 | `security.yml` | `secret-scan` (gitleaks, **git mode**, `fetch-depth: 0`) | `ubuntu-latest` |
 | `lockfiles.yml` | `lockfile-consistency` — `uv lock --check`; `pnpm install --frozen-lockfile` | `ubuntu-latest` |
 
-Every workflow: `on.push.paths-ignore` and `on.pull_request.paths-ignore` for the three
+⚠ **SUPERSEDED (C-1)** — the next line is no longer implementable as written. Every workflow: `on.push.paths-ignore` and `on.pull_request.paths-ignore` for the three
 reference glob families (see §11 conflict **C-1** before implementing), and every
 `actions/upload-artifact` / `actions/cache` `path:` excludes them.
 
@@ -553,10 +569,10 @@ LC-P1-01)". Reference paths are, per that document, the globs `_references*`, `.
 |---|---|---|---|---|
 | 1 | `pyproject.toml`: explicit `["src/labcairn"]`, **auto-discovery disabled**, sdist+wheel exclusions | `pyproject.toml` (`[tool.setuptools]`, `[tool.setuptools.packages]`, `exclude`/`MANIFEST.in`) | T02 | `tests/test_no_reference_leakage.py::test_built_{sdist,wheel}_contains_no_reference_path`; `test_wheel_contains_all_subpackages` |
 | 2 | `MANIFEST.in` `prune` (if setuptools) | `MANIFEST.in` | T02 | T05 asserts its presence iff the backend is setuptools |
-| 3 | workflows `paths-ignore` on push **and** pull_request | `.github/workflows/*.yml` | T06 | `test_workflows_declare_paths_ignore_for_reference_paths` |
+| 3 | ⚠ **SUPERSEDED (C-1)** workflows `paths-ignore` on push **and** pull_request — required status workflows must NOT be filtered | `.github/workflows/*.yml` | T06 | `test_workflows_declare_paths_ignore_for_reference_paths` |
 | 4 | same exclusion on every `upload-artifact` and `cache` `path:` | same | T06 | `test_upload_artifact_and_cache_paths_exclude_reference_paths` |
 | 5 | dedicated CI job asserting `git ls-files` has no reference path | `reference-exclusion.yml` | T06 | required status check; T05's first test |
-| 6 | secret scan, **git mode**, never `--no-git`, reference allowlist | `.gitleaks.toml` + `security.yml` | T04 → T06 | `test_workflows_do_not_use_no_git_secret_scan`; a planted-canary run on a scratch branch |
+| 6 | ⚠ **SUPERSEDED (C-4)** secret scan, **git mode**, never `--no-git`, ~~reference allowlist~~ — no broad path allowlist | `.gitleaks.toml` + `security.yml` | T04 → T06 | `test_workflows_do_not_use_no_git_secret_scan`; a planted-canary run on a scratch branch |
 | 7 | `tests/test_no_reference_leakage.py` — `git ls-files` **and** sdist/wheel member names | `tests/test_no_reference_leakage.py` | T05 | the file itself |
 | 8 | `.vscode/settings.json` `search.exclude` / `files.exclude`; indexer ingestion root = `src/` + `docs/` only | `.vscode/settings.json` + `CONTRIBUTING.md` | T03 → T11 | `test_vscode_excludes_reference_paths`; ingestion-root rule asserted in `CONTRIBUTING.md` prose and reviewed by a human |
 | 9 | release archiving via `git archive` or build artifacts only; `zip -r` over the working tree prohibited | `CONTRIBUTING.md` §Release | T11 | `reference-exclusion.yml` produces an archive with `git archive` and asserts its member list contains no reference path; no workflow step contains `zip -r` |

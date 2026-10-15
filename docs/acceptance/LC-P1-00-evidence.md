@@ -862,7 +862,7 @@ sed -n '221p' libs/deepagents/CHANGELOG.md
 Actual output (truncated at the commit link for width):
 
 ```
-* `create_deep_agent` no longer includes `TodoListMiddleware` by default, the `write_todos` tool, `todos` state channel, and todo-planning prompt are now absent. ... ([9340518](.../commit/9340518a26c4287f9ad0c543edc9b69106c15154))
+* `create_deep_agent` no longer includes `TodoListMiddleware` by default, the `write_todos` tool, `todos` state channel, and todo-planning prompt are now absent. ... ([9340518](https://github.com/langchain-ai/deepagents/commit/9340518a26c4287f9ad0c543edc9b69106c15154))
 ```
 
 So commit `9340518` **deliberately removed** it in v0.7.0, the repo's own test suite

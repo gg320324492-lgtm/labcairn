@@ -311,9 +311,10 @@ Events are append-only, immutable, and closed. `events` rows carry:
 
 | Column | Notes |
 |---|---|
-| `seq` | `INTEGER PRIMARY KEY AUTOINCREMENT`-style gapless allocation **inside** the transaction; `UNIQUE(task_id, seq)` |
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` — table-wide row identity only. Never used for ordering and never exposed as a Task-local number. |
+| `seq` | `INTEGER NOT NULL` — **per-Task** gapless sequence, allocated inside the same transaction from `tasks.last_event_seq`; `UNIQUE(task_id, seq)` is the backstop. |
 | `event_id` | `TEXT`, UUIDv7, `UNIQUE` |
-| `task_id`, `run_id` | always non-null; an event belongs to exactly one attempt |
+| `task_id`, `run_id` | `task_id` always non-null. `run_id` is **nullable** and required only for `run.*`, `stage.*`, `operation.*`, `approval.*` and `checkpoint.*` events; Task-level events (`task_created`, `task_revised`) legitimately carry `run_id = NULL`, because a Task exists before its first Run and can be revised between Runs. Validate per event type, not per column. |
 | `stage_id`, `operation_id` | nullable, but **both set** for any `operation.*` event |
 | `type` | one of the closed enum below; unknown values are rejected, not coerced |
 | `schema_version` | `INTEGER NOT NULL` |
@@ -328,6 +329,8 @@ approval_requested, approval_granted, approval_denied, approval_expired, approva
 checkpoint_created, artifact_recorded, source_changed, outbound_consent_requested }`
 
 **Ordering invariant.** `seq` is the *only* order. `occurred_at` is never used to order anything — wall-clock is not monotonic and OpenHands' index is a better example of an ordering mechanism than its timestamps are.
+
+**Why `seq` cannot be the rowid.** An earlier draft of this table specified `seq` as `INTEGER PRIMARY KEY AUTOINCREMENT` *and* `UNIQUE(task_id, seq)`. Those two clauses are not compatible. In SQLite an `INTEGER PRIMARY KEY` column **is** the rowid: it is unique across the whole table by construction, so consecutive values are distributed across Tasks rather than restarted per Task — Task A would hold `1, 2, 5` while Task B holds `3, 4`. No client resuming with `after_seq=<last_seen>` can then reason about one Task's contiguous tail, and the gaplessness this ADR exists to guarantee would be lost. Per-Task gaplessness requires a plain counter column allocated under the Task's own row, which is why `id` and `seq` are now separate: `id` is table-wide identity, `seq` is per-Task position. Corrected by [R-01](../acceptance/LC-P1-00-review-623e3ca.md); do not reintroduce `INTEGER PRIMARY KEY` on `seq`.
 
 **State-transition invariant.** Every event that describes a change carries the state it moved *from* and *to*. Events without a transition (`artifact_recorded`, `source_changed`) are annotations that must not be used to reconstruct state.
 
