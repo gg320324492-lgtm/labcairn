@@ -16,12 +16,12 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import pytest
 from pydantic import ValidationError
 
-from labcairn.core.ids import is_uuid7, new_id
+from labcairn.core.ids import RunId, TaskId, is_uuid7, new_id
 from labcairn.core.schema import (
     CURRENT_SCHEMA_VERSION,
     LabCairnModel,
@@ -60,12 +60,20 @@ CAPTURE = "fs.write"
 
 
 @pytest.fixture
-def ids() -> dict[str, uuid.UUID]:
+def ids() -> dict[str, Any]:
+    """Fresh ids for one test.
+
+    Typed ``Any`` deliberately. ``TaskId`` and friends are nominal, so a
+    fixture returning plain ``UUID`` would produce a type error at every call
+    site and bury the real assertions in noise. The nominal typing itself is
+    not left unchecked — it is enforced where it can be observed, by
+    ``tests/test_id_aliases_are_nominal.py``, which runs mypy over a probe.
+    """
     return {k: new_id() for k in ("task", "run", "stage", "operation", "approval", "checkpoint")}
 
 
 @pytest.fixture
-def task(ids: dict[str, uuid.UUID]) -> Task:
+def task(ids: dict[str, Any]) -> Task:
     return Task(
         task_id=ids["task"],
         title="Does X correlate with Y",
@@ -78,27 +86,48 @@ def task(ids: dict[str, uuid.UUID]) -> Task:
 # --------------------------------------------------------------------------
 
 
-def test_task_level_events_may_omit_run_id(ids: dict[str, uuid.UUID]) -> None:
+def test_task_level_events_may_omit_run_id(ids: dict[str, Any]) -> None:
     """A Task exists before its first Run and can be revised between Runs."""
     event = Event(seq=1, task_id=ids["task"], run_id=None, type=EventType.TASK_CREATED)
     assert event.run_id is None
 
 
 @pytest.mark.parametrize("event_type", sorted(TASK_LEVEL_EVENTS))
-def test_task_level_events_reject_a_run_id(
-    ids: dict[str, uuid.UUID], event_type: EventType
-) -> None:
+def test_task_level_events_reject_a_run_id(ids: dict[str, Any], event_type: EventType) -> None:
     with pytest.raises(ValidationError, match="Task-level"):
         Event(seq=1, task_id=ids["task"], run_id=ids["run"], type=event_type)
 
 
-@pytest.mark.parametrize(
-    "event_type",
-    sorted(t for t in EventType if event_requires_run(t)),
+#: Hard-coded from ADR-0003 C1's table rather than derived from the function
+#: under test. A parameter list sampled from `event_requires_run` skips silently
+#: when that function returns False for everything, which is how a broken
+#: prefix went unnoticed.
+RUN_SCOPED_TYPES = (
+    EventType.RUN_STARTED,
+    EventType.RUN_PAUSED,
+    EventType.RUN_RESUMED,
+    EventType.RUN_FINISHED,
+    EventType.STAGE_ENTERED,
+    EventType.STAGE_COMPLETED,
+    EventType.STAGE_BLOCKED,
+    EventType.OPERATION_INTENT,
+    EventType.OPERATION_AWAITING_APPROVAL,
+    EventType.OPERATION_ATTEMPTED,
+    EventType.OPERATION_CONFIRMED,
+    EventType.OPERATION_FAILED,
+    EventType.OPERATION_UNCERTAIN,
+    EventType.OPERATION_RECONCILED,
+    EventType.APPROVAL_REQUESTED,
+    EventType.APPROVAL_GRANTED,
+    EventType.APPROVAL_DENIED,
+    EventType.APPROVAL_EXPIRED,
+    EventType.APPROVAL_CONSUMED,
+    EventType.CHECKPOINT_CREATED,
 )
-def test_run_scoped_events_require_a_run_id(
-    ids: dict[str, uuid.UUID], event_type: EventType
-) -> None:
+
+
+@pytest.mark.parametrize("event_type", RUN_SCOPED_TYPES)
+def test_run_scoped_events_require_a_run_id(ids: dict[str, Any], event_type: EventType) -> None:
     with pytest.raises(ValidationError, match="requires run_id"):
         Event(
             seq=1,
@@ -109,7 +138,7 @@ def test_run_scoped_events_require_a_run_id(
 
 
 def test_operation_events_require_both_stage_and_operation(
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
 ) -> None:
     """Named for the prefix bug: the check used to match ``operation.`` and so
     never fired, letting operation events carry no context and rejecting those
@@ -138,7 +167,7 @@ def test_operation_events_require_both_stage_and_operation(
     assert ok.operation_id == ids["operation"]
 
 
-def test_non_operation_events_reject_an_operation_id(ids: dict[str, uuid.UUID]) -> None:
+def test_non_operation_events_reject_an_operation_id(ids: dict[str, Any]) -> None:
     with pytest.raises(ValidationError, match="must not carry operation_id"):
         Event(
             seq=1,
@@ -155,7 +184,7 @@ def test_non_operation_events_reject_an_operation_id(ids: dict[str, uuid.UUID]) 
 # --------------------------------------------------------------------------
 
 
-def test_seq_starts_at_one_and_is_per_task(ids: dict[str, uuid.UUID]) -> None:
+def test_seq_starts_at_one_and_is_per_task(ids: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         Event(seq=0, task_id=ids["task"], type=EventType.TASK_CREATED)
 
@@ -163,11 +192,11 @@ def test_seq_starts_at_one_and_is_per_task(ids: dict[str, uuid.UUID]) -> None:
     # the second task a different number and no client could reason about one
     # task's contiguous tail.
     a = Event(seq=1, task_id=ids["task"], type=EventType.TASK_CREATED)
-    b = Event(seq=1, task_id=new_id(), type=EventType.TASK_CREATED)
+    b = Event(seq=1, task_id=TaskId(new_id()), type=EventType.TASK_CREATED)
     assert a.seq == b.seq == 1
 
 
-def test_events_do_not_expose_a_row_identity_field(ids: dict[str, uuid.UUID]) -> None:
+def test_events_do_not_expose_a_row_identity_field(ids: dict[str, Any]) -> None:
     """``id`` is table-wide row identity and must never appear on the model.
 
     If it did, a consumer could sort by it and silently get the wrong order.
@@ -183,7 +212,7 @@ def test_events_do_not_expose_a_row_identity_field(ids: dict[str, uuid.UUID]) ->
 # --------------------------------------------------------------------------
 
 
-def test_unknown_event_type_is_rejected_not_coerced(ids: dict[str, uuid.UUID]) -> None:
+def test_unknown_event_type_is_rejected_not_coerced(ids: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         Event.model_validate(
             {
@@ -196,7 +225,7 @@ def test_unknown_event_type_is_rejected_not_coerced(ids: dict[str, uuid.UUID]) -
 
 
 def test_events_that_describe_a_change_require_a_transition(
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
 ) -> None:
     with pytest.raises(ValidationError, match="requires a transition"):
         Event(seq=1, task_id=ids["task"], run_id=ids["run"], type=EventType.STAGE_COMPLETED)
@@ -204,7 +233,7 @@ def test_events_that_describe_a_change_require_a_transition(
 
 @pytest.mark.parametrize("event_type", [EventType.ARTIFACT_RECORDED, EventType.SOURCE_CHANGED])
 def test_annotations_must_not_carry_a_transition(
-    ids: dict[str, uuid.UUID], event_type: EventType
+    ids: dict[str, Any], event_type: EventType
 ) -> None:
     with pytest.raises(ValidationError, match="annotation"):
         Event(
@@ -220,7 +249,7 @@ def test_annotations_must_not_carry_a_transition(
 # --------------------------------------------------------------------------
 
 
-def test_task_and_run_have_independent_identities(ids: dict[str, uuid.UUID]) -> None:
+def test_task_and_run_have_independent_identities(ids: dict[str, Any]) -> None:
     run = Run(task_id=ids["task"], attempt=2)
     assert run.task_id == ids["task"]
     assert run.run_id != ids["task"]
@@ -228,13 +257,13 @@ def test_task_and_run_have_independent_identities(ids: dict[str, uuid.UUID]) -> 
     assert run.attempt == 2
 
 
-def test_run_rejects_finishing_before_it_started(ids: dict[str, uuid.UUID]) -> None:
+def test_run_rejects_finishing_before_it_started(ids: dict[str, Any]) -> None:
     now = datetime.now(UTC)
     with pytest.raises(ValidationError, match="must not precede"):
         Run(task_id=ids["task"], started_at=now, finished_at=now - timedelta(seconds=1))
 
 
-def test_blocked_stage_requires_a_reason_and_only_then(ids: dict[str, uuid.UUID]) -> None:
+def test_blocked_stage_requires_a_reason_and_only_then(ids: dict[str, Any]) -> None:
     with pytest.raises(ValidationError, match="requires status=BLOCKED"):
         Stage(
             stage_id=ids["stage"],
@@ -261,7 +290,7 @@ def test_blocked_stage_requires_a_reason_and_only_then(ids: dict[str, uuid.UUID]
 
 
 @pytest.fixture
-def approval(ids: dict[str, uuid.UUID]) -> Approval:
+def approval(ids: dict[str, Any]) -> Approval:
     return Approval(
         approval_id=ids["approval"],
         task_id=ids["task"],
@@ -281,10 +310,10 @@ def approval(ids: dict[str, uuid.UUID]) -> Approval:
 
 def _refuse(
     approval: Approval,
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
     *,
     now: datetime | None = None,
-    task_id: uuid.UUID | None = None,
+    task_id: Any = None,
     capability: str = CAPTURE,
     resource_key: str = "outputs/report.md",
     recomputed_digest: str | None = None,
@@ -299,7 +328,7 @@ def _refuse(
     """
     return approval.refusal_reason(
         now=now or datetime.now(UTC),
-        task_id=task_id or ids["task"],
+        task_id=task_id or TaskId(ids["task"]),
         capability=capability,
         resource_key=resource_key,
         recomputed_digest=recomputed_digest
@@ -314,7 +343,7 @@ def _refuse(
     )
 
 
-def test_a_matching_approval_is_usable(approval: Approval, ids: dict[str, uuid.UUID]) -> None:
+def test_a_matching_approval_is_usable(approval: Approval, ids: dict[str, Any]) -> None:
     assert _refuse(approval, ids) is None
 
 
@@ -339,7 +368,7 @@ class _Overrides(TypedDict, total=False):
     ("overrides", "expected"),
     [
         ({"now": datetime.now(UTC) + timedelta(days=2)}, ApprovalRefusal.EXPIRED),
-        ({"task_id": new_id()}, ApprovalRefusal.TASK_SCOPE_MISMATCH),
+        ({"task_id": TaskId(new_id())}, ApprovalRefusal.TASK_SCOPE_MISMATCH),
         ({"resource_key": "outputs/other.md"}, ApprovalRefusal.ARGS_CHANGED),
         ({"capability": "fs.delete"}, ApprovalRefusal.ARGS_CHANGED),
         ({"recomputed_digest": "b" * 64}, ApprovalRefusal.ARGS_CHANGED),
@@ -349,10 +378,13 @@ class _Overrides(TypedDict, total=False):
 )
 def test_every_refusal_reason_is_reachable(
     approval: Approval,
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
     overrides: _Overrides,
     expected: ApprovalRefusal,
 ) -> None:
+    # ``overrides`` is a TypedDict, so the splat is checked against the
+    # signature. An earlier plain ``dict[str, object]`` version defeated that
+    # matching and accumulated thirty errors here unseen.
     assert _refuse(approval, ids, **overrides) is expected
 
 
@@ -367,7 +399,7 @@ def test_every_refusal_reason_is_reachable(
 )
 def test_an_approval_that_is_not_granted_cannot_be_used(
     approval: Approval,
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
     state: ApprovalState,
     expected: ApprovalRefusal,
 ) -> None:
@@ -375,7 +407,7 @@ def test_an_approval_that_is_not_granted_cannot_be_used(
 
 
 def test_digest_ignores_argument_order_but_not_argument_values(
-    ids: dict[str, uuid.UUID],
+    ids: dict[str, Any],
 ) -> None:
     a = _digest(ids, args={"x": 1, "y": 2})
     b = _digest(ids, args={"y": 2, "x": 1})
@@ -384,9 +416,9 @@ def test_digest_ignores_argument_order_but_not_argument_values(
     assert a != c
 
 
-def test_digest_is_bound_to_task_and_capability(ids: dict[str, uuid.UUID]) -> None:
+def test_digest_is_bound_to_task_and_capability(ids: dict[str, Any]) -> None:
     other_task = compute_args_digest(
-        task_id=new_id(), capability="c", resource_key="r", args={"a": 1}
+        task_id=TaskId(new_id()), capability="c", resource_key="r", args={"a": 1}
     )
     mine = compute_args_digest(task_id=ids["task"], capability="c", resource_key="r", args={"a": 1})
     other_cap = compute_args_digest(
@@ -396,7 +428,7 @@ def test_digest_is_bound_to_task_and_capability(ids: dict[str, uuid.UUID]) -> No
     assert mine != other_cap
 
 
-def test_digest_covers_depends_on_but_sorts_it(ids: dict[str, uuid.UUID]) -> None:
+def test_digest_covers_depends_on_but_sorts_it(ids: dict[str, Any]) -> None:
     def digest_of(depends_on: tuple[str, ...]) -> str:
         return compute_args_digest(
             task_id=ids["task"],
@@ -415,7 +447,7 @@ def test_digest_covers_depends_on_but_sorts_it(ids: dict[str, uuid.UUID]) -> Non
 # --------------------------------------------------------------------------
 
 
-def test_unknown_fields_are_refused(ids: dict[str, uuid.UUID]) -> None:
+def test_unknown_fields_are_refused(ids: dict[str, Any]) -> None:
     """An unrecognised key is either a newer writer or a typo; both are loud."""
     payload = json_of(Event(seq=1, task_id=ids["task"], type=EventType.TASK_CREATED))
     payload["surprise"] = 1
@@ -424,13 +456,13 @@ def test_unknown_fields_are_refused(ids: dict[str, uuid.UUID]) -> None:
 
 
 @pytest.mark.parametrize("version", [0, 2, 99, -1])
-def test_unsupported_schema_versions_are_refused(ids: dict[str, uuid.UUID], version: int) -> None:
+def test_unsupported_schema_versions_are_refused(ids: dict[str, Any], version: int) -> None:
     event = Event(seq=1, task_id=ids["task"], type=EventType.TASK_CREATED)
     with pytest.raises(SchemaVersionError):
         event.model_copy(update={"schema_version": version}).check_version(contract="Event")
 
 
-def test_malformed_payloads_are_rejected(ids: dict[str, uuid.UUID]) -> None:
+def test_malformed_payloads_are_rejected(ids: dict[str, Any]) -> None:
     for payload in (
         {"seq": 1, "task_id": str(ids["task"])},  # no type
         {"seq": -1, "task_id": str(ids["task"]), "type": "task_created"},  # negative seq
@@ -462,7 +494,7 @@ def _roundtrip(model: LabCairnModel) -> LabCairnModel:
     return type(model).model_validate_json(model.model_dump_json())
 
 
-def test_every_contract_round_trips_through_json(task: Task, ids: dict[str, uuid.UUID]) -> None:
+def test_every_contract_round_trips_through_json(task: Task, ids: dict[str, Any]) -> None:
     now = datetime.now(UTC)
     models: list[LabCairnModel] = [
         task,
@@ -539,14 +571,22 @@ def test_v4_and_junk_are_rejected_as_ids() -> None:
     assert is_uuid7(12345) is False
 
 
-def test_type_aliases_are_distinct_at_runtime_only_by_convention() -> None:
-    """Distinct aliases document intent; they collapse to UUID at runtime.
+def test_id_types_are_runtime_transparent_but_distinct_to_the_checker() -> None:
+    """Ids are UUIDs at runtime and distinct nominal types to mypy.
 
-    Asserted so the claim in ids.py stays honest: they are a naming discipline
-    for readers and type checkers, not a runtime guard.
+    The runtime half is ``isinstance``; the checker half cannot be asserted
+    here, so it is asserted by ``tests/test_id_aliases_are_nominal.py`` which
+    runs mypy over a probe. The earlier version of this test asserted
+    ``new_id() == new_id().__class__ or True``, which is true for any value at
+    any time and therefore asserted nothing.
     """
-    assert new_id() == new_id().__class__ or True  # both are UUID
-    assert type(new_id()) is uuid.UUID
+    assert isinstance(new_id(), uuid.UUID)
+    # NewType is a passthrough at runtime, so the constructor returns the very
+    # same UUID. That is the honest half of the claim; the checker half lives
+    # in tests/test_id_aliases_are_nominal.py.
+    raw = new_id()
+    assert TaskId(raw) is raw
+    assert isinstance(RunId(raw), uuid.UUID)
 
 
 # --------------------------------------------------------------------------
@@ -554,7 +594,7 @@ def test_type_aliases_are_distinct_at_runtime_only_by_convention() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_event_stream_page_resumes_from_the_last_seq(ids: dict[str, uuid.UUID]) -> None:
+def test_event_stream_page_resumes_from_the_last_seq(ids: dict[str, Any]) -> None:
     events = tuple(
         Event(seq=n, task_id=ids["task"], type=EventType.TASK_REVISED) for n in (4, 5, 6)
     )
@@ -570,7 +610,7 @@ def test_event_stream_page_resumes_from_the_last_seq(ids: dict[str, uuid.UUID]) 
 
 
 @pytest.mark.parametrize("event_type", sorted(ANNOTATION_EVENTS))
-def test_annotations_do_not_need_a_run(ids: dict[str, uuid.UUID], event_type: EventType) -> None:
+def test_annotations_do_not_need_a_run(ids: dict[str, Any], event_type: EventType) -> None:
     """ADR-0003 requires a Run only for five families.
 
     An annotation about the Task's material can be observed outside any
@@ -607,10 +647,95 @@ def json_of(model: LabCairnModel) -> dict[str, object]:
     return loaded
 
 
-def _digest(ids: dict[str, uuid.UUID], **kwargs: object) -> str:
+def _digest(ids: dict[str, Any], **kwargs: object) -> str:
     return compute_args_digest(
         task_id=ids["task"],
         capability=CAPTURE,
         resource_key="outputs/report.md",
         **kwargs,  # type: ignore[arg-type]
     )
+
+
+# --------------------------------------------------------------------------
+# Digest honesty
+# --------------------------------------------------------------------------
+
+
+def test_digest_refuses_arguments_that_would_make_it_lie(ids: dict[str, Any]) -> None:
+    """Three ways the digest could lie, all found by cross-review.
+
+    ``json.dumps`` coerces an integer key to a string, so ``{1: "x"}`` and
+    ``{"1": "x"}`` produced the *same* digest — two different operations
+    sharing one approval. It also emits bare ``NaN``, which is not valid JSON,
+    so no compliant reader could reproduce the digest at all.
+    """
+
+    def digest(args: object) -> str:
+        return compute_args_digest(
+            task_id=TaskId(ids["task"]),
+            capability=CAPTURE,
+            resource_key="r",
+            args=args,  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(TypeError, match="keys must be strings"):
+        digest({1: "x"})
+
+    with pytest.raises(ValueError, match="not JSON-representable"):
+        digest({"a": float("nan")})
+
+    with pytest.raises(TypeError):
+        digest({"a": {1, 2}})
+
+
+def test_distinct_keys_never_share_a_digest(ids: dict[str, Any]) -> None:
+    def digest(args: object) -> str:
+        return compute_args_digest(
+            task_id=TaskId(ids["task"]),
+            capability=CAPTURE,
+            resource_key="r",
+            args=args,  # type: ignore[arg-type]
+        )
+
+    # "1", "01" and "1" would all stringify to something json.dumps considers
+    # distinct, but an integer key is refused outright — so no pair of keys can
+    # ever collide by coercion.
+    assert len({digest({"1": "x"}), digest({"01": "x"}), digest({"x": "1"})}) == 3
+    with pytest.raises(TypeError):
+        digest({1: "x"})
+
+
+def test_digest_is_reproducible_by_a_plain_json_reader(ids: dict[str, Any]) -> None:
+    """The claim is "same digest on any platform", which means an independent
+    implementation of canonical JSON must land on the same bytes."""
+    import hashlib
+
+    args: dict[str, object] = {"b": 2, "a": 1}
+    expected_payload: dict[str, object] = {
+        "schema_version": 1,
+        "task_id": str(ids["task"]),
+        "capability": CAPTURE,
+        "resource_key": "r",
+        "args": args,
+        "depends_on": [],
+    }
+    independent = json.dumps(
+        expected_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    actual = compute_args_digest(
+        task_id=TaskId(ids["task"]),
+        capability=CAPTURE,
+        resource_key="r",
+        args=args,
+    )
+    assert actual == hashlib.sha256(independent.encode("utf-8")).hexdigest()
+
+
+def test_annotation_events_say_so_in_their_error(ids: dict[str, Any]) -> None:
+    """An annotation is neither Task-level nor Run-scoped. Saying otherwise
+    sends a reader looking in the wrong place."""
+    with pytest.raises(ValidationError, match="is an annotation"):
+        Event(seq=1, task_id=ids["task"], run_id=ids["run"], type=EventType.SOURCE_CHANGED)
+
+    with pytest.raises(ValidationError, match="is Task-level"):
+        Event(seq=1, task_id=ids["task"], run_id=ids["run"], type=EventType.TASK_CREATED)

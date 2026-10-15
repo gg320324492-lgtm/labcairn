@@ -37,11 +37,32 @@ Each package therefore keeps its own constant and its own one-line wrapper; only
 the comparison logic is shared.
 """
 
+# Strict numeric primitives live in ``core`` because the rule they encode is
+# project-wide: a malformed payload is rejected, never silently corrected. They
+# are re-exported here because sources is their first consumer and callers
+# already import them from this path; the definition has exactly one home.
 from __future__ import annotations
+
+from labcairn.core.primitives import (
+    StrictFloat,
+    StrictNonNegFloat,
+    StrictNonNegInt,
+    StrictPosFloat,
+    StrictPosInt,
+)
+
+__all__ = [
+    "StrictFloat",
+    "StrictNonNegFloat",
+    "StrictNonNegInt",
+    "StrictPosFloat",
+    "StrictPosInt",
+]
+
 
 from typing import Annotated, Final
 
-from pydantic import AfterValidator, Field, StringConstraints
+from pydantic import AfterValidator, StringConstraints
 
 #: Lowercase hexadecimal sha256. Uppercase is rejected, not normalised.
 _CONTENT_HASH_PATTERN: Final[str] = r"^[0-9a-f]{64}$"
@@ -170,13 +191,10 @@ WorkspaceRelativePath = Annotated[str, AfterValidator(require_workspace_relative
 
 
 #: A 1-based count: page, line, row, ``size_bytes`` is not one of these.
-StrictPosInt = Annotated[int, Field(strict=True, ge=1)]
 
 #: A 0-based offset into something: character positions, line ends.
-StrictNonNegInt = Annotated[int, Field(strict=True, ge=0)]
 
 #: A float that must arrive as a number. Negative is allowed; a quoted number is not.
-StrictFloat = Annotated[float, Field(strict=True)]
 
 #: A non-negative float that must arrive as a number — a comparison tolerance.
 #:
@@ -185,4 +203,3 @@ StrictFloat = Annotated[float, Field(strict=True)]
 #: exact-match requirement. That is a default-value decision on
 #: :attr:`~labcairn.evidence.record.EvidenceRecord.tolerance`, not a range rule,
 #: and both are asserted separately in the tests.
-StrictNonNegFloat = Annotated[float, Field(strict=True, ge=0.0)]

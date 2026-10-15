@@ -21,6 +21,7 @@ from enum import StrEnum
 from pydantic import Field, ValidationInfo, field_validator
 
 from labcairn.core.ids import ApprovalId, CheckpointId, OperationId, RunId, StageId, TaskId, new_id
+from labcairn.core.primitives import StrictPosInt
 from labcairn.core.schema import LabCairnModel
 
 
@@ -66,7 +67,7 @@ class ApprovalRefusal(StrEnum):
 class Operation(LabCairnModel):
     """One attempt at one side effect."""
 
-    operation_id: OperationId = Field(default_factory=new_id)
+    operation_id: OperationId = Field(default_factory=lambda: OperationId(new_id()))
     task_id: TaskId
     run_id: RunId
     stage_id: StageId
@@ -102,6 +103,7 @@ def compute_args_digest(
     incidental whitespace, so the same logical call yields the same digest on
     any platform.
     """
+    _reject_undigestible_args(args)
     payload = {
         "schema_version": 1,
         "task_id": str(task_id),
@@ -110,8 +112,41 @@ def compute_args_digest(
         "args": args,
         "depends_on": sorted(depends_on),
     }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    canonical = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _reject_undigestible_args(args: dict[str, object]) -> None:
+    """Refuse arguments that would make the digest lie.
+
+    Two failures were found by review and are cheap to prevent:
+
+    - ``json.dumps`` coerces an integer key to a string, so ``{1: "x"}`` and
+      ``{"1": "x"}`` produced the **same** digest. Two different operations
+      would then share one approval.
+    - ``json.dumps`` emits bare ``NaN``, which is not valid JSON, so no
+      compliant reader could reproduce the digest — directly contradicting the
+      "same digest on any platform" claim. It also raises a bare
+      ``TypeError``, which a caller's ``except ValueError`` would not catch.
+    """
+    for key in args:
+        if not isinstance(key, str):
+            raise TypeError(
+                f"args keys must be strings: {key!r} ({type(key).__name__}). "
+                f"An integer key would be silently stringified by json.dumps and "
+                f"collide with the equivalent string key."
+            )
+    try:
+        json.dumps(args, allow_nan=False)
+    except ValueError as exc:
+        raise ValueError(
+            f"args are not JSON-representable: {exc}. A NaN or Infinity would "
+            f"produce a digest no compliant reader could reproduce."
+        ) from exc
+    except TypeError as exc:
+        raise TypeError(f"args are not JSON-serialisable: {exc}") from exc
 
 
 class Approval(LabCairnModel):
@@ -121,7 +156,7 @@ class Approval(LabCairnModel):
     writes.
     """
 
-    approval_id: ApprovalId = Field(default_factory=new_id)
+    approval_id: ApprovalId = Field(default_factory=lambda: ApprovalId(new_id()))
     task_id: TaskId
     operation_id: OperationId
     capability: str = Field(min_length=1, max_length=200)
@@ -182,12 +217,12 @@ class Approval(LabCairnModel):
 class Checkpoint(LabCairnModel):
     """Immutable, versioned evidence that a stage boundary was crossed."""
 
-    checkpoint_id: CheckpointId = Field(default_factory=new_id)
+    checkpoint_id: CheckpointId = Field(default_factory=lambda: CheckpointId(new_id()))
     task_id: TaskId
     run_id: RunId
     stage_id: StageId
     #: Highest per-Task ``seq`` included. Per ADR-0003 C1 this is the only
     #: ordering; a wall-clock time is never used to order anything.
-    through_seq: int = Field(ge=1)
+    through_seq: StrictPosInt
     material_hashes: tuple[str, ...] = ()
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

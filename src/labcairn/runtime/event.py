@@ -31,6 +31,7 @@ from typing import Annotated
 from pydantic import Field, model_validator
 
 from labcairn.core.ids import EventId, OperationId, RunId, StageId, TaskId, new_id
+from labcairn.core.primitives import StrictNonNegInt, StrictPosInt
 from labcairn.core.schema import LabCairnModel
 
 
@@ -145,10 +146,13 @@ class EventTransition(LabCairnModel):
 class Event(LabCairnModel):
     """One immutable, append-only fact about a Task."""
 
-    event_id: EventId = Field(default_factory=new_id)
+    event_id: EventId = Field(default_factory=lambda: EventId(new_id()))
     #: Per-Task, gapless from 1. Allocated inside the same transaction that
     #: writes the rows this event describes. Never a rowid.
-    seq: int = Field(ge=1)
+    #: Per-Task, gapless from 1. Strictly parsed: ADR-0003 calls this
+    #: "the only order", and lax coercion would let a value the caller never
+    #: wrote become the order of an event log.
+    seq: StrictPosInt
     task_id: TaskId
     #: None for Task-level events; required otherwise. See the module docstring.
     run_id: RunId | None = None
@@ -166,7 +170,12 @@ class Event(LabCairnModel):
             if self.run_id is None:
                 raise ValueError(f"{self.type.value} requires run_id")
         elif self.run_id is not None:
-            raise ValueError(f"{self.type.value} is Task-level and must not carry run_id")
+            # Three distinct reasons a type may not carry a run_id, and they
+            # are not interchangeable. Calling an annotation "Task-level" was
+            # wrong: it is neither Task-level nor Run-scoped, and a reader
+            # chasing the message would look in the wrong place.
+            kind = "Task-level" if self.type in TASK_LEVEL_EVENTS else "an annotation"
+            raise ValueError(f"{self.type.value} is {kind} and must not carry run_id")
 
         if event_requires_operation_context(self.type):
             if self.stage_id is None or self.operation_id is None:
@@ -190,8 +199,8 @@ class EventStreamRequest(LabCairnModel):
     """
 
     task_id: TaskId
-    after_seq: int = Field(default=0, ge=0)
-    limit: int = Field(default=500, ge=1, le=5000)
+    after_seq: StrictNonNegInt = 0
+    limit: Annotated[int, Field(strict=True, ge=1, le=5000)] = 500
 
 
 class EventStreamPage(LabCairnModel):
@@ -201,7 +210,7 @@ class EventStreamPage(LabCairnModel):
     events: Annotated[tuple[Event, ...], Field(max_length=5000)]
     #: Resume from here. Equals the last event's ``seq``, or the request's
     #: ``after_seq`` when the page is empty.
-    next_after_seq: int = Field(ge=0)
+    next_after_seq: StrictNonNegInt
     #: True only when the caller knows there is nothing after this page.
     #: **Defaults to False on purpose.** A caller who forgets to set it must not
     #: tell a client it is caught up when more events may be waiting — the

@@ -19,9 +19,9 @@ codebase branches on a version number.
 from __future__ import annotations
 
 import json
-from typing import Final
+from typing import Annotated, Final
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 #: The version every contract currently writes.
 CURRENT_SCHEMA_VERSION: Final = 1
@@ -75,7 +75,22 @@ class LabCairnModel(BaseModel):
         allow_inf_nan=False,
     )
 
-    schema_version: int = CURRENT_SCHEMA_VERSION
+    #: Strictly parsed for the same reason as every other numeric: a version
+    #: arriving as "1" is not a version.
+    schema_version: Annotated[int, Field(strict=True, ge=0)] = CURRENT_SCHEMA_VERSION
+
+    @model_validator(mode="after")
+    def _enforce_version(self) -> LabCairnModel:
+        """Refuse an out-of-range version at construction, not on request.
+
+        This was previously a method nothing called: ``Event(...,
+        schema_version=999)`` built, round-tripped and reported ``999``, while
+        the module docstring promised the opposite. Enforcement belongs on the
+        base so no contract can forget it — the evidence packages had already
+        hand-rolled their own gate, which is exactly the drift this removes.
+        """
+        self.check_version()
+        return self
 
     def check_version(self, *, contract: str | None = None) -> None:
         """Raise if this payload's version is outside the readable range."""

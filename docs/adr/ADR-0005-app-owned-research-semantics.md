@@ -96,16 +96,21 @@ Three consequences that are *not* optional consequences of the split:
 
 ## Contracts and acceptance tests
 
-`src/labcairn/core/schema.py`, `src/labcairn/core/ids.py`,
-`src/labcairn/runtime/`, `src/labcairn/evidence/` with
-`tests/test_runtime_contracts.py` and the evidence contract tests.
+`src/labcairn/core/{schema,ids,primitives}.py`, `src/labcairn/runtime/`,
+`src/labcairn/sources/`, `src/labcairn/evidence/`, `src/labcairn/reports/`
+with `tests/test_runtime_contracts.py`, `tests/test_id_aliases_are_nominal.py`,
+`tests/test_source_contracts.py` and `tests/test_evidence_contracts.py`.
 
-- `test_unknown_and_known_are_not_interchangeable` — no path folds one into the
-  other; verified by attempting `int()`, `float()`, `or`, `json.dumps`.
-- `test_every_run_scoped_event_type_requires_a_run_id` /
-  `test_annotations_do_not_need_a_run` — event scope matches ADR-0003's five
-  families, asserted against the real enum values so a dot/underscore prefix
-  mistake fails loudly instead of silently never matching.
+- `test_digest_refuses_arguments_that_would_make_it_lie` — an integer key
+  would collide with its string form under `json.dumps`, and `NaN` would
+  produce a digest no compliant reader could reproduce.
+- `test_digest_is_reproducible_by_a_plain_json_reader` — an independent
+  canonicalisation lands on the same digest, which is what "same on any
+  platform" has to mean if it means anything.
+- `test_run_scoped_events_require_a_run_id` (parameterised over a list typed
+  out from ADR-0003's table, not sampled from the function under test) /
+  `test_annotations_do_not_need_a_run` — event scope matches the five
+  families.
 - `test_seq_starts_at_one_and_is_per_task` — two Tasks both start at `seq == 1`.
   A rowid would give them different numbers.
 - `test_events_do_not_expose_a_row_identity_field` — `id` cannot leak onto the
@@ -113,7 +118,12 @@ Three consequences that are *not* optional consequences of the split:
 - `test_every_refusal_reason_is_reachable` — all seven approval refusals from
   ADR-0003 C4 are produced by real inputs.
 - `test_unsupported_schema_versions_are_refused` — a payload from a newer
-  writer is refused rather than partially understood.
+  writer is refused **at construction**, by the base model, not by a method
+  nothing calls.
+- `test_task_id_is_not_assignable_to_run_id` — the ID aliases are nominal.
+  It shells out to mypy because the guarantee cannot be asserted from Python,
+  and is paired with a control probe that must type-check cleanly, so a failure
+  for the wrong reason does not read as a pass.
 
 ## Risks, tradeoffs and reversibility
 
@@ -125,6 +135,12 @@ anything definite about a research claim afterwards.
 **The boundary can erode.** The first time someone reaches into framework state
 to avoid a translation, the split quietly ends. The tests above are the guard,
 and this ADR is the reference to point at when that happens.
+
+**Known limit, stated because it is easy to assume otherwise.** The ID types are
+nominal to a type checker but transparent at runtime — `TaskId(x)` returns the
+same UUID. That is what `NewType` is; enforcing them at runtime would mean
+`isinstance` checks on every boundary. The tests assert the half that is
+assertable and say so.
 
 **Reversible.** `ModelProvider` is a Protocol with one method. A different
 framework, or a hand-rolled adapter, replaces the import behind it. The

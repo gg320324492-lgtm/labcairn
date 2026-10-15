@@ -10,9 +10,16 @@ Identifiers are UUIDv7. The choice is load-bearing rather than cosmetic:
 - **Monotonic integers would not survive export.** They leak volume and
   collide when two workspaces are merged.
 
-Ids are distinct types rather than bare strings so a ``SourceAnchor`` cannot be
-passed where a ``TaskId`` is expected. That is a type error at the boundary
-rather than a lookup failure at runtime, and it is the cheapest place to catch.
+Ids are distinct types rather than bare strings, so a ``SourceAnchor`` cannot be
+passed where a ``TaskId`` is expected: a type error at the boundary rather than
+a lookup failure at runtime.
+
+**That claim requires ``NewType``.** An earlier version used PEP 695
+``type TaskId = RawId``, which is an *alias*: mypy accepted ``def f(t: TaskId)
+-> RunId: return t`` with no complaint, because aliasing a type does not make a
+new one. ``NewType`` does, and the difference was verified rather than
+assumed -- a docstring asserting a guarantee the checker does not provide is
+worse than no docstring at all.
 """
 
 from __future__ import annotations
@@ -21,7 +28,7 @@ import re
 import threading
 import time
 import uuid
-from typing import Annotated, Final
+from typing import Annotated, Final, NewType
 
 from pydantic import AfterValidator
 
@@ -104,20 +111,22 @@ def _validate_uuid7(value: object) -> uuid.UUID:
     return parsed
 
 
-#: An unvalidated string that must parse as UUIDv7.
+#: A UUID that must be version 7. Validated at runtime wherever an id is
+#: parsed from outside.
 type RawId = Annotated[uuid.UUID, AfterValidator(_validate_uuid7)]
 
-# Distinct aliases so the type checker rejects a TaskId used as a RunId.
-type TaskId = RawId
-type RunId = RawId
-type StageId = RawId
-type OperationId = RawId
-type ApprovalId = RawId
-type CheckpointId = RawId
-type SourceId = RawId
-type EvidenceId = RawId
-type ArtifactId = RawId
-type EventId = RawId
+# ``NewType``, not ``type X = RawId``: a distinct nominal type the checker
+# actually enforces. Each carries the same runtime validation.
+TaskId = NewType("TaskId", RawId)
+RunId = NewType("RunId", RawId)
+StageId = NewType("StageId", RawId)
+OperationId = NewType("OperationId", RawId)
+ApprovalId = NewType("ApprovalId", RawId)
+CheckpointId = NewType("CheckpointId", RawId)
+SourceId = NewType("SourceId", RawId)
+EvidenceId = NewType("EvidenceId", RawId)
+ArtifactId = NewType("ArtifactId", RawId)
+EventId = NewType("EventId", RawId)
 
 
 def is_uuid7(value: object) -> bool:

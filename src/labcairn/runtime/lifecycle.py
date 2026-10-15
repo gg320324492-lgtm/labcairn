@@ -26,6 +26,7 @@ from enum import StrEnum
 from pydantic import Field, ValidationInfo, field_validator
 
 from labcairn.core.ids import RunId, SourceId, StageId, TaskId, new_id
+from labcairn.core.primitives import StrictPosInt
 from labcairn.core.schema import LabCairnModel
 
 
@@ -76,14 +77,14 @@ class TaskGoal(LabCairnModel):
 class Task(LabCairnModel):
     """A continuing research objective. The unit identity survives everything."""
 
-    task_id: TaskId = Field(default_factory=new_id)
+    task_id: TaskId = Field(default_factory=lambda: TaskId(new_id()))
     title: str = Field(min_length=1, max_length=300)
     goal: TaskGoal
     #: Materials this Task is bound to. Hashes, not paths: a path moves, a
     #: content hash does not, and binding by path is how a Task silently ends
     #: up describing a different file than it started with.
     bound_source_ids: tuple[SourceId, ...] = ()
-    revision: int = Field(default=1, ge=1)
+    revision: StrictPosInt = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -95,10 +96,10 @@ class Task(LabCairnModel):
 class Run(LabCairnModel):
     """One execution attempt against a Task. A resume creates a new Run."""
 
-    run_id: RunId = Field(default_factory=new_id)
+    run_id: RunId = Field(default_factory=lambda: RunId(new_id()))
     task_id: TaskId
     status: RunStatus = RunStatus.PENDING
-    attempt: int = Field(default=1, ge=1)
+    attempt: StrictPosInt = 1
     started_at: datetime | None = None
     finished_at: datetime | None = None
 
@@ -114,7 +115,7 @@ class Run(LabCairnModel):
 class Stage(LabCairnModel):
     """A bounded unit of work with declared inputs and outputs."""
 
-    stage_id: StageId = Field(default_factory=new_id)
+    stage_id: StageId = Field(default_factory=lambda: StageId(new_id()))
     task_id: TaskId
     run_id: RunId
     name: str = Field(min_length=1, max_length=200)
