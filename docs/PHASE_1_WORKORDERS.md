@@ -23,7 +23,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | Work order | Pri | Gate | Status | Evidence |
 |---|---|---|---|---|
 | LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
-| LC-P1-01 | P0 | G1 | **IN PROGRESS** | branch `feat/lc-p1-01-baseline`, start commit `78050bc` · [plan](plans/LC-P1-01-task-breakdown.md), [amendments](plans/LC-P1-01-approved-amendments.md) |
+| LC-P1-01 | P0 | G1 | **IN PROGRESS** | start `78050bc` · branch `feat/lc-p1-01-baseline` head `7408720` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) · [evidence](acceptance/LC-P1-01-evidence.md) — awaiting independent review, not yet a verdict |
 | LC-P1-02 | P0 | G1 | NOT STARTED | depends on LC-P1-01 |
 | LC-P1-03 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md) |
 | LC-P1-04 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
