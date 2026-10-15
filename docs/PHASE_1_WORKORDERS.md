@@ -50,7 +50,7 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
 |---|---|---|
 | Copyright ownership / no `LICENSE` file | LC-P1-14 (release) | A placeholder such as `LICENSE.PENDING.md` grants no rights. Blocks any claim of open-source licensing. |
 | PyMuPDF AGPL vs commercial | LC-P1-08 | Constrains a future MIT release. Decision needed before LC-P1-08 starts. |
-| ~~`tests/test_no_reference_leakage.py` absent~~ | LC-P1-01 | **RESOLVED** — the file exists with 99 tests and `reference-exclusion` is a required status check. LC-P1-00's acceptance item can drop this caveat once LC-P1-01 is accepted. |
+| ~~`tests/test_no_reference_leakage.py` absent~~ | LC-P1-01 | **RESOLVED** — merged to `main` at `89c16d4`: the file exists with 99 tests and `reference-exclusion` is a required status check. LC-P1-00's acceptance item can drop this caveat now that LC-P1-01 is accepted and merged. |
 | Upstream pin SHAs were obtained locally | LC-P1-00 (recurring) | Shallow single-branch clones read the SHA from the local object store, so a fresh `git clone` does not reproduce it. **All five were verified present on GitHub at LC-P1-00 review time**; the standing risk is upstream force-push or GC, which no local practice prevents. Re-verify with `git ls-remote` before relying on a pin. |
 | ADR length vs "concise" | — | Disputed and deliberately unresolved; ~1,270 lines across three ADRs. |
 

@@ -31,7 +31,7 @@ Two consequences worth stating explicitly:
 | **Cross-review agent** | Reviews work it did not implement: contract conformance, malformed-input handling, permission/privacy/path/network checks, **adversarial attempts to prove a claimed guard is ineffective**, cross-module integration and regression, and doc claims against actual behaviour |
 | **Project lead** | Architecture and phase decisions, licence obligations, scope expansions, anything touching original data, outbound transmission, or model-generated code execution |
 
-**Two-layer review is internal cross-verification, not external independent audit.** Every
+**Two-layer review is internal cross-verification, not external independent audit.** Where older acceptance records say "independent review", they mean *a reviewer who did not implement the work* — independent of the implementation, not of the project. The two senses must not be confused: an internal reviewer is not an external auditor. Every
 work order is reviewed by a sub-agent that did not write it, and the executing agent then
 independently re-checks that agent's findings, runs the key tests, and inspects the final
 commit. Neither layer substitutes for an outside auditor, and no document may describe this
