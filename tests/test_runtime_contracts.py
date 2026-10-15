@@ -13,8 +13,10 @@ made explicit.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
 import pytest
 from pydantic import ValidationError
@@ -277,32 +279,60 @@ def approval(ids: dict[str, uuid.UUID]) -> Approval:
     )
 
 
-def _refuse(approval: Approval, ids: dict[str, uuid.UUID], **overrides: object):
-    now = overrides.pop("now", datetime.now(UTC))
-    digest = overrides.pop(
-        "recomputed_digest",
-        compute_args_digest(
+def _refuse(
+    approval: Approval,
+    ids: dict[str, uuid.UUID],
+    *,
+    now: datetime | None = None,
+    task_id: uuid.UUID | None = None,
+    capability: str = CAPTURE,
+    resource_key: str = "outputs/report.md",
+    recomputed_digest: str | None = None,
+    depends_on_intact: bool = True,
+    policy_unchanged: bool = True,
+) -> ApprovalRefusal | None:
+    """Exercise the refusal path with every condition explicitly named.
+
+    Written with explicit keywords rather than a ``**kwargs`` splat: the splat
+    reads shorter but defeats the type checker's keyword matching, which is how
+    thirty type errors accumulated here unnoticed.
+    """
+    return approval.refusal_reason(
+        now=now or datetime.now(UTC),
+        task_id=task_id or ids["task"],
+        capability=capability,
+        resource_key=resource_key,
+        recomputed_digest=recomputed_digest
+        or compute_args_digest(
             task_id=ids["task"],
             capability=CAPTURE,
             resource_key="outputs/report.md",
             args={"content": "x", "mode": "w"},
         ),
+        depends_on_intact=depends_on_intact,
+        policy_unchanged=policy_unchanged,
     )
-    kwargs: dict[str, object] = {
-        "now": now,
-        "task_id": ids["task"],
-        "capability": CAPTURE,
-        "resource_key": "outputs/report.md",
-        "recomputed_digest": digest,
-        "depends_on_intact": True,
-        "policy_unchanged": True,
-    }
-    kwargs.update(overrides)
-    return approval.refusal_reason(**kwargs)  # type: ignore[arg-type]
 
 
 def test_a_matching_approval_is_usable(approval: Approval, ids: dict[str, uuid.UUID]) -> None:
     assert _refuse(approval, ids) is None
+
+
+class _Overrides(TypedDict, total=False):
+    """The conditions :func:`_refuse` can override.
+
+    A ``TypedDict`` rather than ``dict[str, object]``: a splat of the latter
+    defeats the type checker's keyword matching, which is how thirty errors
+    accumulated here without anyone noticing them.
+    """
+
+    now: datetime
+    task_id: uuid.UUID
+    capability: str
+    resource_key: str
+    recomputed_digest: str
+    depends_on_intact: bool
+    policy_unchanged: bool
 
 
 @pytest.mark.parametrize(
@@ -318,7 +348,10 @@ def test_a_matching_approval_is_usable(approval: Approval, ids: dict[str, uuid.U
     ],
 )
 def test_every_refusal_reason_is_reachable(
-    approval: Approval, ids: dict[str, uuid.UUID], overrides: dict, expected: ApprovalRefusal
+    approval: Approval,
+    ids: dict[str, uuid.UUID],
+    overrides: _Overrides,
+    expected: ApprovalRefusal,
 ) -> None:
     assert _refuse(approval, ids, **overrides) is expected
 
@@ -344,40 +377,37 @@ def test_an_approval_that_is_not_granted_cannot_be_used(
 def test_digest_ignores_argument_order_but_not_argument_values(
     ids: dict[str, uuid.UUID],
 ) -> None:
-    kwargs: dict[str, object] = {
-        "task_id": ids["task"],
-        "capability": CAPTURE,
-        "resource_key": "outputs/report.md",
-    }
-    a = compute_args_digest(**kwargs, args={"x": 1, "y": 2})
-    b = compute_args_digest(**kwargs, args={"y": 2, "x": 1})
-    c = compute_args_digest(**kwargs, args={"x": 1, "y": 3})
+    a = _digest(ids, args={"x": 1, "y": 2})
+    b = _digest(ids, args={"y": 2, "x": 1})
+    c = _digest(ids, args={"x": 1, "y": 3})
     assert a == b
     assert a != c
 
 
 def test_digest_is_bound_to_task_and_capability(ids: dict[str, uuid.UUID]) -> None:
-    base: dict[str, object] = {"resource_key": "r", "args": {"a": 1}}
-    other_task = compute_args_digest(task_id=new_id(), capability="c", **base)
-    mine = compute_args_digest(task_id=ids["task"], capability="c", **base)
-    other_cap = compute_args_digest(task_id=ids["task"], capability="d", **base)
+    other_task = compute_args_digest(
+        task_id=new_id(), capability="c", resource_key="r", args={"a": 1}
+    )
+    mine = compute_args_digest(task_id=ids["task"], capability="c", resource_key="r", args={"a": 1})
+    other_cap = compute_args_digest(
+        task_id=ids["task"], capability="d", resource_key="r", args={"a": 1}
+    )
     assert mine != other_task
     assert mine != other_cap
 
 
 def test_digest_covers_depends_on_but_sorts_it(ids: dict[str, uuid.UUID]) -> None:
-    kwargs: dict[str, object] = {
-        "task_id": ids["task"],
-        "capability": CAPTURE,
-        "resource_key": "r",
-        "args": {},
-    }
-    assert compute_args_digest(**kwargs, depends_on=("b", "a")) == compute_args_digest(
-        **kwargs, depends_on=("a", "b")
-    )
-    assert compute_args_digest(**kwargs, depends_on=("a",)) != compute_args_digest(
-        **kwargs, depends_on=("a", "b")
-    )
+    def digest_of(depends_on: tuple[str, ...]) -> str:
+        return compute_args_digest(
+            task_id=ids["task"],
+            capability=CAPTURE,
+            resource_key="r",
+            args={},
+            depends_on=depends_on,
+        )
+
+    assert digest_of(("b", "a")) == digest_of(("a", "b"))
+    assert digest_of(("a",)) != digest_of(("a", "b"))
 
 
 # --------------------------------------------------------------------------
@@ -473,14 +503,14 @@ def test_every_contract_round_trips_through_json(task: Task, ids: dict[str, uuid
 
 def test_round_trip_is_byte_stable(task: Task) -> None:
     once = task.model_dump_json()
-    twice = _roundtrip(task).model_dump_json()  # type: ignore[union-attr]
+    twice = _roundtrip(task).model_dump_json()
     assert once == twice
 
 
 def test_canonical_json_is_key_sorted_and_stable(task: Task) -> None:
     canonical = task.json_canonical()
-    assert canonical == _roundtrip(task).json_canonical()  # type: ignore[union-attr]
-    keys = list(__import__("json").loads(canonical))
+    assert canonical == _roundtrip(task).json_canonical()
+    keys = list(json.loads(canonical))
     assert keys == sorted(keys)
 
 
@@ -571,5 +601,16 @@ def test_run_scoping_matches_the_five_adr_families() -> None:
     assert actual == expected
 
 
-def json_of(model: LabCairnModel) -> dict:
-    return __import__("json").loads(model.model_dump_json())
+def json_of(model: LabCairnModel) -> dict[str, object]:
+    loaded: object = json.loads(model.model_dump_json())
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _digest(ids: dict[str, uuid.UUID], **kwargs: object) -> str:
+    return compute_args_digest(
+        task_id=ids["task"],
+        capability=CAPTURE,
+        resource_key="outputs/report.md",
+        **kwargs,  # type: ignore[arg-type]
+    )
