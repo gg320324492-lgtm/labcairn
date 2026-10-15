@@ -1,7 +1,26 @@
-# Local source-study clones are development references only (not product code)
-_references/
-.upstreams/
-labcairn-upstreams/
+# Local source-study clones are development references only (not product code).
+#
+# These are the glob families named in the binding exclusion checklist
+# (docs/UPSTREAM_REFERENCES.md): _references*, .upstreams*, labcairn-upstreams*.
+# An earlier version listed the bare directory names, which left _references_old/
+# and labcairn-upstreams-cache/ untracked-but-visible, and therefore packable.
+#
+# Case variants are spelled out deliberately. The development machine runs
+# core.ignorecase=true; a Linux CI runner does not. A lowercase-only pattern
+# silently stops matching there, so the exclusion would hold on the laptop and
+# fail in the build that actually publishes. Verified with
+# `git -c core.ignorecase=false check-ignore`.
+_references*
+.upstreams*
+labcairn-upstreams*
+_REFERENCES*
+.UPSTREAMS*
+LABCAIRN-UPSTREAMS*
+_References*
+.Upstreams*
+LabCairn-upstreams*
+labcairn-Upstreams*
+LabCairn-Upstreams*
 
 # Basics for the planned Python and frontend projects
 .env

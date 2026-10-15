@@ -1,0 +1,95 @@
+# LabCairn — secret scan configuration (T04 / LC-P1-01)
+#
+# ============================================================================
+# HOW TO RUN IT — git mode only. Copy this line verbatim into the CI job body.
+# ============================================================================
+#
+#     gitleaks git --config .gitleaks.toml --redact --exit-code 1 .
+#
+# `--redact` is required, not cosmetic: a CI log is not a safe place to print a
+# secret in full, and a redacted report still carries File / Line / Rule ID.
+#
+# gitleaks auto-discovers `.gitleaks.toml` at the target path, so the
+# `--config` flag is belt-and-braces; keep it so the invocation is unambiguous.
+#
+# ============================================================================
+# WHY `--no-git` IS PROHIBITED (binding ruling C-4 / review finding R-07)
+# ============================================================================
+#
+# In gitleaks 8.x the old `--no-git` flag is gone; the equivalent mode is the
+# `gitleaks dir` subcommand, which walks the filesystem and reads EVERY file it
+# finds under the target path. It is forbidden for two independent reasons:
+#
+#   1. It does not stop at the repository. `--no-git`/`dir` has no concept of
+#      "tracked". Given a path above LabCairn it will read the sibling
+#      `labcairn-upstreams/` clones — 5 third-party source trees, ~700 MB,
+#      which carry their own token-shaped strings (CI config samples, test
+#      fixtures, `.env` examples). That produces thousands of findings that are
+#      all noise and all unfixable from here.
+#
+#   2. Those same clones are where the prompt-injection corpus lives: 139 files
+#      named AGENTS.md / CLAUDE.md / SKILL.md across the five clones. A scan that
+#      reads them is an unattended code-ingestion path over exactly the material
+#      LC-P1-00 ruled untrusted.
+#
+# `gitleaks git` reads git history, which by construction contains only files
+# that are actually committed — i.e. files LabCairn is responsible for.
+#
+# ============================================================================
+# WHY THERE IS NO REFERENCE-PATH ALLOWLIST HERE (this is deliberate — do not
+# "helpfully" add one)
+# ============================================================================
+#
+# Ruling C-4 supersedes the earlier instruction to allowlist the reference paths
+# out of the scan. The earlier instruction was wrong, and it is wrong for a
+# reason that only shows up in the failure case:
+#
+# In git mode the reference clones are not in the repository at all — they live
+# in the sibling directory `../labcairn-upstreams/`, outside the object store.
+# A path allowlist therefore protects nothing in the normal case: it is inert.
+#
+# What it DOES do is suppress the one failure it should have surfaced. If
+# someone runs `git add -f _references/...` (or `git init ..` from the repo
+# root), reference source lands in the index and in history. With a path
+# allowlist in place, the scanner would silently wave it through. Without one,
+# the scanner reports it — which is precisely the signal that the operating
+# procedure in CONTRIBUTING.md (repo-root discipline) has been violated.
+#
+# So: an allowlist here would buy zero legitimate benefit and would hide the
+# exact failure it exists to detect.
+#
+# The only sanctioned exemption is a NARROW, PER-FINDING allowlist — a specific
+# `regexTarget`/`regex` pair, or a `commit`-scoped entry, that suppresses one
+# known false positive. If one is ever needed it must:
+#   * name the Rule ID it applies to, and
+#   * match the finding's content (a regex or commit SHA), not merely its path.
+# A blanket path exemption is forbidden. If you find yourself wanting to add
+# one, the correct response is to untrack the reference source, not to exempt it.
+#
+# ============================================================================
+# CASE NOTE
+# ============================================================================
+# This file contains no paths, so case-sensitivity does not affect it. It is
+# called out here only because every *path-based* exclusion in this repository
+# (.gitignore, .vscode/settings.json, pyproject sdist excludes, workflow globs)
+# must be spelled with its case variants — the development machine runs
+# `core.ignorecase=true` and a Linux CI runner does not, so a lowercase-only
+# pattern passes locally and fails in CI.
+# ============================================================================
+
+title = "LabCairn secret scan — tracked files only, git mode"
+
+[extend]
+# Inherit the full upstream default rule set. Anything not disabled here is on.
+useDefault = true
+# Explicitly empty, and meant to stay empty. This file disables no default rule.
+# Deleting the key would be a silent weakening; keeping it at [] makes any future
+# removal a visible diff that has to be argued for in review.
+disabledRules = []
+
+# No [[allowlists]] / [allowlist] block is present, on purpose. See the
+# "WHY THERE IS NO REFERENCE-PATH ALLOWLIST HERE" section above. T06, when
+# authoring .github/workflows/security.yml, must not add one either; the
+# negative assertion lives in tests/test_no_reference_leakage.py as
+# test_workflows_do_not_use_no_git_secret_scan (a sibling assertion that no
+# workflow uses `dir` mode is warranted in the same test).
