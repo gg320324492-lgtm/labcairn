@@ -1,7 +1,8 @@
 # LC-P1-01 — Acceptance evidence
 
 **Verdict requested:** `PASS` / `PASS WITH NOTES` / `BLOCKED` / `FAIL`  
-**Branch:** `feat/lc-p1-01-baseline` · **Head:** `7408720` · **PR:** [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2)  
+**Branch:** `feat/lc-p1-01-baseline` · **Head:** `05ccc58` · **PR:** [#2](https://github.com/gg320324492-lgtm/labcairn/pull/2)  
+**Head note:** abbreviated; this file ships inside that same commit, so the SHA is self-referential — the reviewer's subject and the reviewed tree are the same commit.
 **Base:** `main` @ `b526749` · **Date:** 2026-10-15  
 **Scope:** LC-P1-01 as written in `docs/PHASE_1_WORKORDERS.md`, with the eight binding rulings in `docs/plans/LC-P1-01-approved-amendments.md`.
 
@@ -17,7 +18,7 @@
 | Secret scan included | **PASS** | `.gitleaks.toml` + `security.yml`, git mode, green in CI |
 | Lockfile consistency check included | **PASS** | `lockfiles.yml` green in CI |
 | FakeProvider and fixtures run without paid APIs | **PASS** | 48 tests; socket and httpx patched to raise; suite passes under `env -u` with credential-shaped variables removed |
-| Reference exclusion **verified, not asserted** | **PASS** | 97 tests; CI job `reference-exclusion` green on both platforms |
+| Reference exclusion **verified, not asserted** | **PASS** | 99 tests. They run on **both** platforms via `python-quality` (which runs the whole pytest suite), but the dedicated `reference-exclusion` job — build, clean-venv install, archive validation — is **Ubuntu-only**. See the platform matrix below. |
 | No third-party source committed | **PASS** | 0 submodules; the sibling `labcairn-upstreams` is outside the tree and never referenced by CI |
 
 ## Commands and their actual results
@@ -49,7 +50,9 @@ The two `skip`s that existed after T05 are **gone**: `test_no_workflow_requires_
 
 ## CI runs
 
-All six required checks green. Six runs exist because each workflow triggers on both `push` and `pull_request`.
+Six distinct jobs, all green. **Correction to an earlier statement in this document: the count is 6 jobs, not 8.** Each workflow triggers on both `push` and `pull_request`, so each job appears twice in `gh pr checks`; an earlier draft deduplicated them inconsistently and reported eight. The correct basis is **6 distinct jobs, 12 check entries across two triggers**.
+
+**Only `python-quality` is cross-platform.** It is the sole workflow with a matrix; `web-quality`, `reference-exclusion`, `secret-scan` and `lockfile-consistency` all run on `ubuntu-latest` only.
 
 | Job | Run |
 |---|---|
@@ -62,7 +65,66 @@ All six required checks green. Six runs exist because each workflow triggers on 
 
 **Build artifacts** produced by `reference-exclusion`: `sdist` 337,972 B · `wheel` 26,684 B · `source-archive` 338,002 B.
 
+## Platform matrix — verified, not assumed
+
+Read directly from the workflow YAML rather than inferred from the check list:
+
+| Workflow | Job | `runs-on` | Matrix |
+|---|---|---|---|
+| `python.yml` | `python-quality` | `${{ matrix.os }}` | `ubuntu-latest`, `windows-latest` |
+| `web.yml` | `web-quality` | `ubuntu-latest` | none |
+| `reference-exclusion.yml` | `reference-exclusion` | `ubuntu-latest` | none |
+| `security.yml` | `secret-scan` | `ubuntu-latest` | none |
+| `lockfiles.yml` | `lockfile-consistency` | `ubuntu-latest` | none |
+
+**What this means for the isolation gate.** The leakage tests themselves are
+platform-independent and do run on Windows, because `python-quality` executes the whole
+pytest suite. That is how the two Linux-only defects in this phase were caught: the case
+variant that Windows could not reveal, and the `tar -tf` path handling that only Windows
+exercises. But the **dedicated** `reference-exclusion` job — the one that builds the
+wheel and sdist, installs into a clean environment, imports, and validates the release
+archive — runs on **Ubuntu only**. On Windows, `python-quality` would still fail if a
+leak were tracked, because `test_no_reference_leakage.py` is part of that suite; but the
+packaging half of the gate is single-platform. Recorded here rather than presented as
+two-platform coverage.
+
 ## Required status checks — the C-1 verification
+
+The branch-protection configuration, verbatim from the API:
+
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "python-quality (ubuntu-latest)",
+      "python-quality (windows-latest)",
+      "web-quality",
+      "reference-exclusion",
+      "secret-scan",
+      "lockfile-consistency"
+    ]
+  },
+  "enforce_admins": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
+
+`strict: true` means a required check that never reports — the state a `paths-ignore`
+filter produces — blocks the merge rather than being skipped. That is the mechanism C-1
+describes, and it is configured.
+
+**How a reviewer can read this.** `GET /repos/{owner}/{repo}/branches/main/protection`.
+It requires admin on the repository; a session or token without that scope returns 403,
+which is the likeliest reason the check could not be read independently.
+
+**A runtime demonstration was attempted and is reported as inconclusive.** `git push
+--dry-run origin HEAD:main` returned exit 0. That is not evidence the protection is
+absent: GitHub cannot evaluate required status checks for a commit that has not been
+pushed, because the checks have not run. No honest live proof is available from a client
+that cannot merge, so the API configuration above is offered as the evidence rather than
+a demonstration that would prove nothing. `gh pr merge --dry-run` does not exist.
 
 C-1's claim that a required check cannot be skipped by `paths-ignore` depends on a repository setting, not a file, so it could not be verified from the tree. It was verified here by applying branch protection:
 

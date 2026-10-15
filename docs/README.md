@@ -68,7 +68,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
 | LC-P1-01 | **Not started.** [Plan](plans/LC-P1-01-task-breakdown.md) is partially superseded by the amendments |
-| License | **Not granted.** No `LICENSE` file exists; see the README |
+| License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
 | LC-P1-01 | **In review.** [Evidence](acceptance/LC-P1-01-evidence.md), [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). No verdict issued. |
 
 All reviews must identify subject commit SHA, actual inspected evidence, tests run (or not run), open issues and next action.

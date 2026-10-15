@@ -23,7 +23,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | Work order | Pri | Gate | Status | Evidence |
 |---|---|---|---|---|
 | LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
-| LC-P1-01 | P0 | G1 | **IN PROGRESS** | start `78050bc` · branch `feat/lc-p1-01-baseline` head `7408720` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) · [evidence](acceptance/LC-P1-01-evidence.md) — awaiting independent review, not yet a verdict |
+| LC-P1-01 | P0 | G1 | **IN PROGRESS** | start `78050bc` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) · [evidence](acceptance/LC-P1-01-evidence.md) — **implemented and awaiting final acceptance**. Independent cross-review done (2 blocking omissions found and fixed); project-lead review returned CHANGES REQUESTED, addressed in the PR head |
 | LC-P1-02 | P0 | G1 | NOT STARTED | depends on LC-P1-01 |
 | LC-P1-03 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md) |
 | LC-P1-04 | P0 | G1 | NOT STARTED | contract pre-decided in [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
@@ -46,7 +46,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 |---|---|---|
 | Copyright ownership / no `LICENSE` file | LC-P1-14 (release) | A placeholder such as `LICENSE.PENDING.md` grants no rights. Blocks any claim of open-source licensing. |
 | PyMuPDF AGPL vs commercial | LC-P1-08 | Constrains a future MIT release. Decision needed before LC-P1-08 starts. |
-| `tests/test_no_reference_leakage.py` absent | LC-P1-01 | Reference isolation is prose until this exists; LC-P1-00's acceptance item is `PASS WITH NOTES` partly because of it. |
+| ~~`tests/test_no_reference_leakage.py` absent~~ | LC-P1-01 | **RESOLVED** — the file exists with 99 tests and `reference-exclusion` is a required status check. LC-P1-00's acceptance item can drop this caveat once LC-P1-01 is accepted. |
 | Upstream pin SHAs are local-only | LC-P1-00 (recurring) | Shallow single-branch clones pin commits that exist only in the local object store; upstream force-push or GC invalidates them. |
 | ADR length vs "concise" | — | Disputed and deliberately unresolved; ~1,270 lines across three ADRs. |
 

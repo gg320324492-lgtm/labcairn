@@ -4,7 +4,9 @@
 
 > **Status: Design / Phase 1 under construction.** This repository is a new project. Features listed below are planned, not yet shipped. Do not use the current code for unsupported scientific or safety-critical decisions.
 
-**LabCairn** is an open-source, local-first AI research workspace designed to help researchers work across papers, data, analysis and reports while keeping a traceable link between sources, claims, methods and outputs.
+**LabCairn** is a local-first AI research workspace **under development, intended to be released as open source once copyright ownership is settled**. It is designed to help researchers work across papers, data, analysis and reports while keeping a traceable link between sources, claims, methods and outputs.
+
+**It is not open source yet.** No licence has been granted, so no rights to use, study, modify or redistribute it have been conveyed. See [Licence status](#licence-status--not-yet-granted).
 
 LabCairn is not intended to replace scientific judgment or claim autonomous scientific discovery. It aims to make AI-assisted research **inspectable, reproducible where the underlying data and methods permit it, and easier to revise**.
 
@@ -16,7 +18,7 @@ This is also why the project is deliberately **not** named `PaperAgent` or `Auto
 
 ### Positioning
 
-> An open-source, local-first AI research workspace for evidence-grounded analysis, reproducible workflows, and verifiable research artifacts.
+> A local-first AI research workspace for evidence-grounded analysis, reproducible workflows, and verifiable research artifacts. **In development; open-source licensing pending.**
 
 **Core principles:** Evidence-grounded · Reproducible · Local-first · Extensible · Human-controlled
 
@@ -24,7 +26,7 @@ This is also why the project is deliberately **not** named `PaperAgent` or `Auto
 
 ## Repository topics
 
-`ai-agent` · `research-agent` · `scientific-research` · `local-first` · `reproducibility` · `research-tools` · `llm` · `python` · `open-source`
+`ai-agent` · `research-agent` · `scientific-research` · `local-first` · `reproducibility` · `research-tools` · `llm` · `python` · `in-development`
 
 ## Why LabCairn?
 
@@ -104,10 +106,17 @@ pnpm format:check
 5. Network disclosure, code execution and external actions require explicit, inspectable authorization.
 6. Every milestone must include a reproducible demonstration and an honest limitations section.
 
-## Open source and attribution
+## Licence status — not yet granted
 
-**License status: not yet granted.** The repository exists (`gg320324492-lgtm/labcairn`) but deliberately carries **no `LICENSE` file**: copyright ownership has not been cleared, so no open-source rights have been granted to anyone. A placeholder such as `LICENSE.PENDING.md` **does not** grant rights and must not be read as an MIT grant. Planned licensing remains MIT for original LabCairn code, subject to a dependency review that is still open — `PyMuPDF` is AGPL/commercial dual-licensed and is named by LC-P1-08, so that decision is unresolved. This README is not a substitute for a license. Third-party adaptations must retain required notices and comply with their own licenses. LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
+**License status: not yet granted.** The repository is public and readable, but it deliberately carries **no `LICENSE` file**: copyright ownership has not been cleared, so no open-source rights have been conveyed to anyone. Nothing here grants permission to use, study, modify or redistribute this code.
+
+- `LICENSE.PENDING.md` **does not** grant rights and must not be read as an MIT grant.
+- The absence of a restrictive `LICENSE` file is **not** permissiveness. Silence is not permission.
+- Planned licensing remains MIT for original LabCairn code, subject to a dependency review that is still open — `PyMuPDF` is AGPL/commercial dual-licensed and is named by LC-P1-08, so that decision is unresolved.
+- Third-party adaptations must retain required notices and comply with their own licences.
+
+This README is not a substitute for a licence. LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
 
 ## 中文简介
 
-LabCairn（研迹）是一个面向科研人员的开源、本地优先 AI 研究工作台。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程能够定位来源、保留修改历史并在必要时重新核验。项目目前处于第一阶段建设中；尚未发布的能力均为规划目标。
+LabCairn（研迹）是一个面向科研人员的本地优先 AI 研究工作台，正在建设中，**计划在版权归属明确后以开源许可证发布；目前尚未授予任何开源权利**。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程能够定位来源、保留修改历史并在必要时重新核验。项目目前处于第一阶段建设中；尚未发布的能力均为规划目标。
