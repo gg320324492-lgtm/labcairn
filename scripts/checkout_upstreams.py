@@ -46,8 +46,9 @@ def load_snapshot(out: Path) -> dict:
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"ERROR: {out} exists but cannot be parsed ({exc}). Move it aside; do not delete it.")
     if not isinstance(previous, dict) or previous.get("manifest_version") != MANIFEST_VERSION:
+        declared = previous.get("manifest_version") if isinstance(previous, dict) else None
         raise SystemExit(
-            f"ERROR: {out} declares manifest_version {previous.get('manifest_version')!r} but this script "
+            f"ERROR: {out} declares manifest_version {declared!r} but this script "
             f"writes {MANIFEST_VERSION}. Refusing to overwrite; move it aside or migrate it first."
         )
     if not isinstance(previous.get("repos"), dict):
@@ -95,8 +96,18 @@ def main() -> int:
             print(f"Keeping existing checkout {path} unchanged")
         try:
             sha = cmd("git", "-C", str(path), "rev-parse", "HEAD")
+            toplevel = cmd("git", "-C", str(path), "rev-parse", "--show-toplevel")
         except (subprocess.CalledProcessError, FileNotFoundError):
             print(f"ERROR: {path} is not a valid Git checkout")
+            return 1
+        # rev-parse walks upward, so a plain directory nested inside an unrelated
+        # repository would report that repository's HEAD as this clone's commit.
+        if Path(toplevel).resolve() != path.resolve():
+            print(
+                f"ERROR: {path} is not its own Git checkout — it is inside the unrelated "
+                f"repository at {toplevel}. Move it aside; recording that HEAD would pin a "
+                f"commit that has nothing to do with {key}."
+            )
             return 1
         records[key] = {
             **records.get(key, {}),

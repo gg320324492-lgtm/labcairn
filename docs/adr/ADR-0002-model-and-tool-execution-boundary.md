@@ -1,8 +1,10 @@
 # ADR-0002: Model and tool execution boundary
 
 **Status:** Proposed
-**Work order:** LC-P1-02 (module boundaries), LC-P1-03 (providers, budgets, capability detection)
+**Work order:** LC-P1-01 (minimum `Known` / `Unknown` / `UsageValue` / `UnknownReason` value types only, for the FakeProvider), LC-P1-02 (module boundaries), LC-P1-03 (providers, budgets, capability detection)
 **Date:** 2026-10-15
+
+> **Scope correction (C-3).** This ADR originally assigned every contract below to LC-P1-03, but LC-P1-01 already requires a FakeProvider and deterministic fixtures that run without paid APIs. LC-P1-01 therefore introduces the four *value types* below — enough to represent a measured cost and an unavailable one — and no more. Provider probes, adapters, budget ceilings and cancel/timeout behaviour remain LC-P1-03. The risk C-3 guards against is that the trivial types get written in a shape LC-P1-03 cannot build on; the [amendments](../plans/LC-P1-01-approved-amendments.md) are binding on that point.
 
 ## Context and concrete problem
 
