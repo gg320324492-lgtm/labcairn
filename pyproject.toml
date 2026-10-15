@@ -75,6 +75,8 @@ exclude = [
     ".UPSTREAMS*", ".UPSTREAMS*/**",
     "labcairn-upstreams*", "labcairn-upstreams*/**",
     "LabCairn-Upstreams*", "LabCairn-Upstreams*/**",
+    "LabCairn-upstreams*", "LabCairn-upstreams*/**",
+    "labcairn-Upstreams*", "labcairn-Upstreams*/**",
     "LABCAIRN-UPSTREAMS*", "LABCAIRN-UPSTREAMS*/**",
 ]
 
@@ -102,6 +104,8 @@ exclude = [
     ".UPSTREAMS*", ".UPSTREAMS*/**",
     "labcairn-upstreams*", "labcairn-upstreams*/**",
     "LabCairn-Upstreams*", "LabCairn-Upstreams*/**",
+    "LabCairn-upstreams*", "LabCairn-upstreams*/**",
+    "labcairn-Upstreams*", "labcairn-Upstreams*/**",
     "LABCAIRN-UPSTREAMS*", "LABCAIRN-UPSTREAMS*/**",
 ]
 
