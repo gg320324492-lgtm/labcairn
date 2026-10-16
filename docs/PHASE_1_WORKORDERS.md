@@ -30,7 +30,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-05 | P0 | G2 | **PASS WITH NOTES** | merged `917f844` · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-06 | P0 | G2 | **PASS WITH NOTES** | merged `3c2269e` · three crash points injected; no blind replay · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-07 | P0 | G2 | **PASS WITH NOTES** | merged `a6c6671` · forged-input and placeholder tests · [acceptance](acceptance/G2-acceptance.md) |
-| LC-P1-08 | P0 | G3 | NOT STARTED | licensing **resolved** — pdfplumber/pdfminer.six (MIT), not PyMuPDF · [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md) |
+| LC-P1-08 | P0 | G3 | NOT STARTED | licensing **resolved** — pdfplumber/pdfminer.six (MIT), not PyMuPDF · [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md) · real CC BY fixture corpus landed (single-column only — **no two-column material obtained**, see fixture manifest) |
 | LC-P1-09 | P0 | G3 | NOT STARTED | contract pre-decided in [ADR-0004](adr/ADR-0004-scientific-provenance-and-evidence-model.md) |
 | LC-P1-10 | P1 | G3 | NOT STARTED | see the priority legend above — still required for G3 |
 | LC-P1-11 | P0 | G4 | NOT STARTED | |
