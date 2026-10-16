@@ -215,6 +215,37 @@ def test_no_unexpected_fixture_is_present() -> None:
     assert found == set(EXPECTED), f"unexpected fixtures: {sorted(found - set(EXPECTED))}"
 
 
+def test_no_pdf_is_tracked_outside_the_fixture_directory() -> None:
+    """Catches a generated PDF committed at the repository root.
+
+    One was: a development script wrote its control to the working
+    directory, `git add -A` swept it up, and Hatch's sdist target
+    includes tracked files that are not excluded -- so it would have
+    shipped in the distribution. Nothing referenced it, and the fixture
+    guard did not see it, because that guard globs one directory.
+    """
+    import subprocess
+
+    repo_root = PAPERS.parents[2]
+    result = subprocess.run(
+        ["git", "ls-files", "*.pdf"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    tracked = {
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip() and not line.strip().startswith("tests/fixtures/papers/")
+    }
+    assert not tracked, (
+        f"PDFs are tracked outside the fixture directory: {sorted(tracked)}. "
+        f"Third-party material needs a manifest entry; generated material "
+        f"needs a temporary directory."
+    )
+
+
 def test_manifest_records_the_digest_of_every_fixture() -> None:
     text = MANIFEST.read_text(encoding="utf-8")
     for name, (digest, _, _) in EXPECTED.items():

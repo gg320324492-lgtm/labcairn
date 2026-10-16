@@ -82,6 +82,12 @@ modification-indication requirement is not engaged. None of the three PDFs
 carries a copyright notice on its pages, so §3(a)(1)(C) and (E) are not
 engaged either.
 
+One name was worth checking rather than trusting: arXiv's metadata gives
+`Yan, He` for this paper's ninth creator, which reads like an inversion.
+The byline on page 1 reads `HEYAN`, i.e. given name first and surname last,
+which is the same person and the same `surname, given` order as every other
+entry here. It was checked against the document rather than assumed.
+
 The SHA-256 values are re-checked by `tests/test_paper_fixtures.py`, so a
 fixture cannot be silently replaced — which is the failure mode this
 project cares most about, since a swapped fixture would make a test pass
@@ -114,7 +120,7 @@ Measured, not assumed:
   than the conclusion it was attached to. The distribution is not flat: it
   falls from 26 buckets at 6pt to around 10 at 45pt. What it does instead
   is **decay continuously with no break**, which is the property that
-  matters. Buckets 6–45pt run 26, 26, 21, 32, 36, 51, 26, 30, 17, 36, 16,
+  matters. Buckets 6–44pt run 26, 26, 21, 32, 36, 51, 26, 30, 17, 36, 16,
   27, 19, 19, 8, 8, 13, 12, 7, 9 … 8, 11, 7 — every integer value in the
   range is populated, and **4% of all gaps fall in 15–30pt**, which is
   where a real gutter lives. They grade into the word gaps below them with
@@ -134,18 +140,29 @@ Measured, not assumed:
 ## Open item — these cannot test column detection
 
 **There is no two-column material here, and the reason is not an oversight.**
-Eleven CC BY arXiv papers were downloaded and classified by line-start
-peaks. **All eleven are single-column.** Recent arXiv uses single-column
-submission format; the only pages showing two line-start clusters were
-**tables**, verified by reading the text.
+Eleven CC BY arXiv papers were downloaded and classified as single-column;
+three were kept. The remaining eight were discarded and **are retained nowhere**,
+so that count is *not independently checkable* — it rests on this repository's
+author's record alone, and should be read that way.
 
-So the false-positive direction is covered — a segmenter must not split
-these — and the **false-negative direction is untested**: nothing here
-establishes that a segmenter will find two columns in a two-column paper.
-Until such material is obtained, ADR-0008's line-support hypothesis stays
-**unproven**, and any test asserting two-column detection must be written
-against synthetic fixtures with that limitation stated in its name.
+The classification also needs a caveat that a review surfaced. It was done by
+recurring **line-start x**, and that method has a failure mode: grouping
+characters by baseline across the full page merges the two columns of a
+two-column page, because the columns share baselines, so it reports one column
+for material that plainly has two. On the three kept fixtures the conclusion
+was re-established by two independent methods — recurring line-start x *after*
+splitting each baseline into column-local runs, and right-edge occupancy
+against a two-column control. On the eight discarded papers it was not, and
+they were single-column by inspection of the same kind that caught the earlier
+error.
 
-Sourcing two-column CC-licensed material is an open task. Older arXiv
-papers are predominantly two-column, but CC BY adoption there is rarer, so
-the intersection is narrow.
+So the corpus verifies one direction — a segmenter must not split these — and
+leaves the other untested: **nothing here establishes that a segmenter will
+find two columns in a two-column paper.** Until such material is obtained,
+ADR-0008's line-support hypothesis stays **unproven**, and any test asserting
+two-column detection must be written against synthetic fixtures with that
+limitation stated in its name.
+
+Sourcing two-column CC-licensed material is an open task. Older arXiv papers
+are predominantly two-column, but CC BY adoption there is rarer, so the
+intersection is narrow.
