@@ -5,6 +5,10 @@
 **Date:** 2026-10-17
 
 > **Scope note, added after review.** This ADR decides the **library** and nothing else. An earlier draft also prescribed how to build a span anchor from it. That prescription was wrong four separate times when measured, and it does not belong in a licensing decision. What replaces it is a list of **measured constraints** — every one reproducible via the probe scripts in `scripts/probes/` — which LC-P1-08 must satisfy without this ADR dictating the algorithm.
+>
+> **Correction, added on reading the contract.** An earlier draft of this ADR described a span anchor as a group of character records with a **bounding box**. That is not what LabCairn anchors. `PdfLocator` in `src/labcairn/sources/locators.py` addresses a page and a half-open **character range within the page's extracted text**, and no geometry field exists anywhere in `SourceAnchor` or any of the five locator types. This ADR was describing a locator the project does not have.
+>
+> The constraints below are therefore restated against what LC-P1-08 actually has to produce: **a canonical, reproducible text for each page**, such that a character range into it resolves to the same characters every time. Every measured finding still applies, but to a different target — not "where is this span on the page" but "what does this page read as".
 
 ## Context and concrete problem
 
@@ -69,7 +73,14 @@ The scripts are **not** wired into CI: they need `pdfplumber`, which is not yet 
 
 **LC-P1-08 will depend on `pdfplumber` (MIT), which pulls `pdfminer.six` (MIT).**
 
-**This ADR does not decide how a span is built from it.** That algorithm is LC-P1-08's design work, and the measurements below show why prescribing it here was wrong: four candidate rules were tried and each failed on material LabCairn actually ingests.
+**This ADR does not decide how page text is produced from it.** That is LC-P1-08's design work, and the measurements below show why prescribing it here was wrong: four candidate rules were tried and each failed on material LabCairn actually ingests.
+
+What LC-P1-08 must deliver is narrower and harder than it first looks. Because a `PdfLocator` is a character range into the page's extracted text, and a `SourceAnchor` binds that text by `excerpt_sha256`, the library is not asked "can you find this span" but **"does the same file always produce the same string, and does that string contain the characters a reader would quote"**. Both halves of that sentence are load-bearing:
+
+- A character range is meaningless unless the string it indexes is fixed for that file. Anything non-deterministic — an unordered container leaking into the text, a locale-dependent sort — silently re-points every anchor in the database.
+- The string must contain the author's words *with their spaces*. This is constraint 3 below, and on the real corpus it is not a refinement: joining character records returns `Theorem1revealsthatpairwisecontrastivelearning` for a sentence any reader would quote as `Theorem 1 reveals that pairwise contrastive learning`.
+
+A further consequence deserves stating because it is not obvious and it constrains dependency management: **a library upgrade can invalidate every anchor ever written.** If a pdfplumber or pdfminer.six release changes extraction, the page text changes, `excerpt_sha256` no longer matches, and ADR-0004's C1 fails — correctly, and for every record at once. The failure is loud, which is the right direction, but it means the extraction version is part of the data contract rather than an implementation detail. Pinning is not enough on its own; LC-P1-08 needs to record which extraction produced a given page text, and that is a design decision it inherits.
 
 ## Measured constraints on any ingestion implementation
 
@@ -129,15 +140,15 @@ The status of that idea is narrower than it was and narrower than it should be. 
 
 ## Constraints LC-P1-08 must satisfy
 
-Each traces to a measurement above, so none can be satisfied by a test that was written to match whatever the code happened to do.
+Each traces to a measurement above, so none can be satisfied by a test that was written to match whatever the code happened to do. They are written against **page text**, because that is what a `PdfLocator` indexes — an earlier revision of this list spoke of "span geometry", which the anchor contract does not have.
 
 1. Every anchor resolves against the ingested material. A page 99 anchor in a 3-page PDF fails rather than falling back.
-2. Span anchors are **exact** against fixtures — not "the text is somewhere on the page".
-3. Span geometry uses **one** coordinate convention, asserted by a test that fails if a second origin convention appears.
-4. **No span spans a gutter or a line break** (constraints 1, 2).
-5. **Span text preserves synthesised whitespace** — `'Efficacy of Widgets in Field Trials'`, never `'EfficacyofWidgetsinFieldTrials'` (constraint 3).
-6. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (constraint 4).
-7. **Rotated text is either handled correctly or excluded and reported** — never silently shredded into spans (constraint 5).
+2. **Page text is deterministic.** The same file yields byte-identical text every time, so a character range cannot silently re-point. Asserted by extracting the same fixture repeatedly and across repeated runs, not once.
+3. **The page text is the author's words, with spaces.** `'Theorem 1 reveals that pairwise contrastive learning'`, never `'Theorem1revealsthatpairwisecontrastivelearning'` (constraint 3). This is the constraint most likely to be quietly weakened, because a test written against the lossy output will pass on it.
+4. **Reading order is column-aware.** A character range must not land in interleaved text. On a two-column page, `'Left column line one. Right column line one.'` is not a sentence anyone wrote and must never appear (constraints 1, 2).
+5. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (constraint 4).
+6. **Rotated text is either read correctly or excluded and reported** — never silently reversed, which is what `extract_text()` does to it (constraint 5).
+7. **The extraction version is recorded** with the page text, so a library upgrade that changes extraction is attributable rather than mysterious.
 8. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
 9. Unreadable, empty, duplicate and modified inputs are handled without fabrication, and unreadable stays distinct from "no results".
 

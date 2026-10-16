@@ -8,6 +8,8 @@ Deliberately not wired into CI: it needs pdfplumber, which is not yet a
 dependency. LC-P1-08 turns each measurement into a real test when it
 adopts the library.
 
+Note on naming: "spans" here means how glyphs assemble into page text.
+
 Every PDF here is built by hand -- computed xref, no library -- because a
 fixture from a PDF generator would bring its own layout decisions into
 the measurement. Each check prints its numbers and the script exits
@@ -22,6 +24,12 @@ Five constraints are measured, matching the five numbered constraints in
   4. no single gutter threshold satisfies both a two-column page and a
      column containing one wide intra-column gap
   5. (fontname, size) is not a valid key for rotated text
+
+These describe how a page's glyphs fail to assemble into the text a reader
+would quote. They are the mechanism behind LC-P1-08's page-text
+constraints, not the constraints themselves: ``PdfLocator`` indexes a
+character range into that text, and no locator in this project carries
+geometry.
 """
 
 from __future__ import annotations
