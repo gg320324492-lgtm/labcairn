@@ -69,6 +69,7 @@ not as free.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
@@ -191,7 +192,7 @@ class HttpxUsageSniffer:
     async def handle_async_request(self, request: Any) -> Any:
         """Forward, then keep the ``usage`` key. Never raise from the sniffing."""
         response = await self._inner.handle_async_request(request)
-        self._observe_response(response)
+        await self._observe_response(response)
         return response
 
     async def aclose(self) -> None:
@@ -219,7 +220,26 @@ class HttpxUsageSniffer:
         raw = body.get("usage")
         self._block = raw if isinstance(raw, Mapping) else None
 
-    def _observe_response(self, response: Any) -> None:
+    async def _observe_response(self, response: Any) -> None:
+        """Read the body if the transport has not, then keep its ``usage`` key.
+
+        A transport-level response is a *streaming* response: httpx has not read
+        the body, so ``response.content`` raises ``ResponseNotRead``. The first
+        version of this method called ``json.loads(response.content)`` inside a
+        bare ``except``, swallowed it, and reported "no usage" for every
+        endpoint.
+
+        That failure direction is safe — token ceilings fail closed — and it is
+        exactly how the real smoke hid it: the endpoint returned
+        ``usage: {input_tokens: 83, output_tokens: 9}`` and the probe recorded
+        ``usage_reporting: unsupported``. A guard that is safe when broken is
+        still broken, because it also makes every provider unusable.
+
+        ``aread()`` loads the body without consuming it, so the client still
+        reads the same response afterwards.
+        """
+        with contextlib.suppress(Exception):
+            await response.aread()
         try:
             body = json.loads(response.content)
         except Exception:
