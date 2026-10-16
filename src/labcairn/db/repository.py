@@ -264,6 +264,21 @@ class TaskStore:
         self._session = session
         self._clock = clock
 
+    @property
+    def session(self) -> Session:
+        """The session this store reads and writes through.
+
+        Exposed because the recovery layer needs it. ``ResumeCoordinator``
+        walks checkpoints and reconciles operations in its own reads, and
+        without this it reached into ``_session`` — a private attribute — which
+        the G2 exit demonstration did while wiring the two layers together.
+
+        Read-only accessor, not a transfer of ownership: :meth:`unit` still
+        scopes every transaction on this store, and callers must not commit or
+        roll back through the returned session while a unit is open.
+        """
+        return self._session
+
     @contextmanager
     def unit(self, task_id: TaskId) -> Iterator[UnitOfWork]:
         """One transaction: the events emitted inside, plus their state rows.
