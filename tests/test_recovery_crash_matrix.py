@@ -668,4 +668,11 @@ def _hard_kill(child: subprocess.Popen[bytes]) -> None:
         return
     import signal
 
-    os.kill(child.pid, signal.SIGKILL)  # type: ignore[attr-defined]  # POSIX only
+    # `getattr` rather than a `type: ignore`. The ignore was needed on Windows
+    # (where `signal.SIGKILL` is absent) and reported as *unused* on Ubuntu,
+    # where the stub has it — so the same line could not satisfy mypy on both
+    # platforms at once. A platform-conditional ignore is not a fix; removing
+    # the dependency on the stub is.
+    sigkill = getattr(signal, "SIGKILL", None)
+    assert sigkill is not None, "SIGKILL is always defined on POSIX"
+    os.kill(child.pid, sigkill)
