@@ -30,7 +30,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-05 | P0 | G2 | **PASS WITH NOTES** | merged `917f844` · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-06 | P0 | G2 | **PASS WITH NOTES** | merged `3c2269e` · three crash points injected; no blind replay · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-07 | P0 | G2 | **PASS WITH NOTES** | merged `a6c6671` · forged-input and placeholder tests · [acceptance](acceptance/G2-acceptance.md) |
-| LC-P1-08 | P0 | G3 | NOT STARTED | **blocked on a licensing decision** — PyMuPDF is AGPL/commercial dual-licensed |
+| LC-P1-08 | P0 | G3 | NOT STARTED | licensing **resolved** — pdfplumber/pdfminer.six (MIT), not PyMuPDF · [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md) |
 | LC-P1-09 | P0 | G3 | NOT STARTED | contract pre-decided in [ADR-0004](adr/ADR-0004-scientific-provenance-and-evidence-model.md) |
 | LC-P1-10 | P1 | G3 | NOT STARTED | see the priority legend above — still required for G3 |
 | LC-P1-11 | P0 | G4 | NOT STARTED | |
@@ -53,7 +53,7 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
 | Issue | Owner work order | Note |
 |---|---|---|
 | Copyright ownership / no `LICENSE` file | LC-P1-14 (release) | A placeholder such as `LICENSE.PENDING.md` grants no rights. Blocks any claim of open-source licensing. |
-| PyMuPDF AGPL vs commercial | LC-P1-08 | Constrains a future MIT release. Decision needed before LC-P1-08 starts. |
+| ~~PyMuPDF AGPL vs commercial~~ | LC-P1-08 | **RESOLVED** — [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md): LC-P1-08 uses pdfplumber + pdfminer.six (MIT). PyMuPDF's AGPL branch would have constrained the project's own MIT release, and the commercial branch cannot be contracted while copyright ownership is unsettled. Nothing needed undoing — ADR-0004's locator contract was already independent of PyMuPDF, and no PDF dependency was ever added. |
 | ~~`tests/test_no_reference_leakage.py` absent~~ | LC-P1-01 | **RESOLVED** — merged to `main` at `89c16d4`: the file exists with 99 tests and `reference-exclusion` is a required status check. LC-P1-00's acceptance item can drop this caveat now that LC-P1-01 is accepted and merged. |
 | Upstream pin SHAs were obtained locally | LC-P1-00 (recurring) | Shallow single-branch clones read the SHA from the local object store, so a fresh `git clone` does not reproduce it. **All five were verified present on GitHub at LC-P1-00 review time**; the standing risk is upstream force-push or GC, which no local practice prevents. Re-verify with `git ls-remote` before relying on a pin. |
 | ADR length vs "concise" | — | Disputed and deliberately unresolved; ~1,270 lines across three ADRs. |
@@ -131,7 +131,7 @@ An unrelated researcher installs LabCairn, configures an eligible LLM provider, 
 
 ### LC-P1-08 — Material inventory and source locators (P0)
 
-**Build:** ingestion from text PDFs (PyMuPDF, page and span), MD/TXT (line/section), CSV (row/column), XLSX (sheet+cell); file metadata, bytes/hash, warnings. Detect scanned PDF and disclose OCR not yet available; distinguish unreadable assets from no results. Keep source paths workspace-relative when exported.
+**Build:** ingestion from text PDFs (pdfplumber/pdfminer.six, page and span — see [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md) for why not the originally named PyMuPDF), MD/TXT (line/section), CSV (row/column), XLSX (sheet+cell); file metadata, bytes/hash, warnings. Detect scanned PDF and disclose OCR not yet available; distinguish unreadable assets from no results. Keep source paths workspace-relative when exported.
 
 **Acceptance:** fixtures validate page, row, column and spreadsheet cell anchors exactly; unreadable, empty, duplicate and modified files handled without fabrication.
 
