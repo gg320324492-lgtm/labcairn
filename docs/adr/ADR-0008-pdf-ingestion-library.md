@@ -4,9 +4,11 @@
 **Work order:** LC-P1-08 (material inventory and source locators)
 **Date:** 2026-10-17
 
+> **Scope note, added after review.** This ADR decides the **library** and nothing else. An earlier draft also prescribed how to build a span anchor from it. That prescription was wrong four separate times when measured, and it does not belong in a licensing decision. What replaces it is a list of **measured constraints** — every one reproducible via the probe scripts in `scripts/probes/` — which LC-P1-08 must satisfy without this ADR dictating the algorithm.
+
 ## Context and concrete problem
 
-`docs/PHASE_1_WORKORDERS.md` names the library:
+`docs/PHASE_1_WORKORDERS.md` named the library:
 
 > **Build:** ingestion from text PDFs (PyMuPDF, page and span), MD/TXT (line/section), CSV (row/column), XLSX (sheet+cell)
 
@@ -18,120 +20,108 @@ Dual Licensed - GNU AFFERO GPL 3.0 or Artifex Commercial License
 
 Both branches cost something this project cannot currently pay.
 
-- **AGPL-3.0.** LabCairn is being built toward an MIT release. AGPL §13 reaches beyond distribution to network use, and Artifex has enforced the point in writing to at least one MIT-licensed project. Choosing the AGPL branch would constrain the licence LabCairn itself ships under — a decision that belongs to the project owner, not to a dependency's default.
+- **AGPL-3.0.** LabCairn is being built toward an MIT release. Under AGPL §§4–6 a combined work must itself be AGPL, and the FSF's position is that linking a copyleft library into an application makes that application subject to the copyleft — there is no independent-work claim for mere linking. The obligation that would bite here is ordinary linking and distribution, **not** §13.
 - **Commercial.** No public price list; reported to run from the low four figures, typically recurring. Copyright ownership in this repository is **still unresolved** and there is still no `LICENSE` file, so there is no settled legal person to contract with. Buying a licence before ownership is settled buys it for somebody we cannot yet name.
 
-This has been carried since G1 as "deferred, decide before LC-P1-08." LC-P1-08 is now the next work order, so the deferral has run out.
+**AGPL §13 is not the hook, and this ADR previously cited it wrongly.** §13 is conditioned on *"if you modify the Program"*. LabCairn would not modify PyMuPDF, and it is local-first with no network interaction — the one situation §13 addresses. A reader who opened §13 and found it conditioned on modification would have been right to conclude the argument did not hold. The conclusion survives on §§4–6; the citation did not.
 
-**What is actually at stake is narrower than it looks.** ADR-0004 already decided the locator contract — page, span, line, section, row, column, sheet, cell — and its §120 records that no design conclusion was drawn from PaperQA's AGPL subpackage, deliberately: *"The AGPL subpackage was opened only to read its license header."* The design is already independent of PyMuPDF. **Nothing needs undoing.** The question is only which library produces the anchors the existing contract asks for.
+This was carried since G1 as "deferred, decide before LC-P1-08." LC-P1-08 is now the next work order, so the deferral has run out.
+
+**What is at stake is narrower than it looks.** ADR-0004 already decided the locator contract — page, span, line, section, row, column, sheet, cell — and its §120 records that no design conclusion was drawn from PaperQA's AGPL subpackage, deliberately. **Nothing needs undoing.** The question is only which library produces the anchors the existing contract asks for.
 
 No PDF dependency has been added to the repository. PyMuPDF appears in documentation only.
 
-## Alternatives, including simpler/no-dependency option
+## Alternatives
 
-| Option | Licence (verified) | Verdict |
-|---|---|---|
-| **PyMuPDF 1.28.2** | AGPL-3.0 **or** Artifex commercial | Rejected. Both branches constrain the project's own licence posture, and the commercial branch cannot be contracted before copyright is settled. |
-| **pdfplumber 0.11.10** | MIT | **Chosen.** Character-level geometry (`x0`, `x1`, `top`, `bottom`, `fontname`, `size`) makes a span a groupable object rather than an approximation. |
-| pdfminer.six 20260107 | MIT | Chosen *as pdfplumber's engine*, not as a direct dependency. It is the component that does the layout analysis. |
-| pypdf 6.21.0 | BSD-3-Clause | Rejected. Lighter, but weaker layout analysis; text reading order is the property ADR-0004's C2 cannot tolerate being wrong about, and grouping spans from raw character matrices would be work this project would own. |
-| pypdfium2 5.14.0 | BSD-3-Clause / Apache-2.0 | Not a substitute — a rendering engine. It arrives as a pdfplumber dependency anyway. |
-| **No dependency; shell out** | — | Rejected. Would add a process boundary and a subprocess to a library whose whole advantage is being an in-process layout analyser. |
+| Package | Licence | Role | Verdict |
+|---|---|---|---|
+| **pdfplumber 0.11.10** | MIT | proposed direct dependency | **Chosen** |
+| pdfminer.six 20260107 | MIT | pdfplumber's engine | transitive |
+| pypdfium2 5.14.0 | Apache-2.0 OR BSD-3-Clause, **plus bundled third-party licences** | pdfplumber's renderer | transitive — see obligation note |
+| Pillow 12.3.0 | **MIT-CMU** (HPND, attribution required) | pdfplumber's imaging | transitive — see obligation note |
+| charset-normalizer | MIT | pdfminer.six dependency | transitive |
+| cryptography | Apache-2.0 OR BSD-3-Clause | pdfminer.six dependency | transitive |
+| pypdf 6.21.0 | BSD-3-Clause | *rejected alternative* | Rejected: weaker layout analysis; C2 cannot tolerate a wrong reading order |
+| **PyMuPDF 1.28.2** | **AGPL-3.0 OR Artifex commercial** | *named by the work order* | **Rejected** — both branches constrain the project's own licence posture |
 
-The "no dependency" option is real here and was not skipped: PDF parsing is the one part of LC-P1-08 that could plausibly be done with stdlib plus hand-rolled parsing. It is rejected on maintenance, not on principle.
+The full runtime tree was resolved in a clean environment rather than inferred. **No strong copyleft ships.** Two attribution obligations do, and they are real: Pillow's MIT-CMU carries the PIL/HPND notice requirement, and pypdfium2's wheel bundles components under their own licences — Apache-2.0, BSD-3-Clause and **CC-BY-4.0**, alongside icu, freetype, libopenjpeg, libpng, zlib, lcms, abseil, simdutf, pdfium and llvm-libc. An earlier draft of this ADR said "no licence obligations anticipated"; that was wrong and is corrected here. Both obligations are satisfiable by shipping the notices, and neither reaches LabCairn's own licence.
+
+**The "no dependency" option is real and was not skipped.** PDF parsing is the one part of LC-P1-08 that could plausibly be done with stdlib plus hand-rolled parsing. Rejected on maintenance, not on principle.
 
 ## Upstream evidence (reference only)
 
-Licences were read from the upstream `LICENSE` files themselves, not from a package index summary or a search result.
+Licences were read from upstream `LICENSE` files and PyPI metadata, not from a package index summary or a search result, and independently re-derived by a reviewer who was not the author.
 
-- **pdfminer.six** — `https://raw.githubusercontent.com/pdfminer/pdfminer.six/master/LICENSE` @ `a18de2a9c479b4c847538500017b449ddaec177e`. MIT text, "Copyright (c) 2004-2016 Yusuke Shinyama".
-- **pdfplumber** — PyPI classifier `License :: OSI Approved :: MIT License` @ version 0.11.10; repository `LICENSE.txt` MIT @ `4c64b92d5caccd71c645e98e0fabb0c4dba7ff45`.
-- **pypdf** — `https://raw.githubusercontent.com/py-pdf/pypdf/main/LICENSE` @ `main`. BSD-3-Clause text verified clause by clause ("Redistributions of source code must retain the above copyright notice…").
-- **pypdfium2** — PyPI metadata "BSD-3-Clause, Apache-2.0, dependency licenses".
+- **pdfminer.six** — `LICENSE` @ `a18de2a9c479b4c847538500017b449ddaec177e`. MIT, "Copyright (c) 2004-2016 Yusuke Shinyama".
+- **pdfplumber** — `LICENSE.txt` @ `4c64b92d5caccd71c645e98e0fabb0c4dba7ff45`. MIT, "Copyright (c) 2015, Jeremy Singer-Vine". PyPI classifier `License :: OSI Approved :: MIT License`.
+- **pypdf** — `LICENSE` on `main`. BSD-3-Clause, verified clause by clause.
 - **PyMuPDF** — PyPI metadata, quoted above. Not re-derived from its source tree.
 
-**Scope of inspection, stated plainly:** licence files, package metadata, **and four behavioural probes.** They were run because this ADR asserts a mechanism — how a span anchor is produced — and an asserted mechanism is not evidence. Each built a PDF by hand (computed xref, no library) and read it back with pdfplumber 0.11.10 / pdfminer.six 20260107: a single-column page, a two-column page, a threshold sweep across both plus an intra-column gap, and the corrected rule re-measured. Parsing source was not studied and **this is not a benchmark** — no timing, no large document, no claim about speed that has not been measured.
+**Behavioural probes.** Five, run because this ADR's predecessor asserted a mechanism and an asserted mechanism is not evidence. Each builds a PDF by hand — computed xref, no library — and reads it back with pdfplumber 0.11.10 / pdfminer.six 20260107. Reproduce with:
 
-**What the probe measured, and what it corrected.** Every key the mechanism depends on is present on a character record — `text`, `x0`, `x1`, `top`, `bottom`, `fontname`, `size` — so the claim is sound. But the first version of the grouping rule was **wrong**, and the probe is why it was caught before LC-P1-08 was built on it:
-
-```
-spans recovered by grouping on (fontname, size): 2
-  Helvetica   12.0pt  bbox=(72.0, 62.48, 194.72, 114.48)  'Group A mean was 3.0Group B mean was 5.0'
-  Times-Roman  8.0pt  bbox=(72.0, 85.74, 138.22,  93.74)  'smaller footnote text'
+```bash
+uv run --with pdfplumber python scripts/probes/pdf_spans.py
 ```
 
-Two text runs 40 points apart on separate lines collapsed into **one** span, and the bounding box covered both. Grouping on font and size alone is therefore **not** a span — it is a style class, and it silently spans line breaks. Left uncorrected this would have let ADR-0004's C2 accept a quotation that matches text the author never presented as contiguous.
+The scripts are **not** wired into CI: they need `pdfplumber`, which is not yet a project dependency, and LC-P1-08 turns them into real tests when it adopts it. Parsing source was not studied, and **none of this is a benchmark** — no timing, no large document, no speed claim.
 
-**The single-column probe was not enough, and saying so is the point.** It passed a narrow page. Two further probes were run against the material LabCairn actually ingests, and the rule changed twice.
-
-**Probe two — two columns.** Papers are two-column. `extract_text_lines()` clusters by baseline alone, so on a page with a left and a right column sharing baselines it returned:
-
-```
-top=124.86 x0=72.00 x1=409.04  'Left column line one. Right column line one.'
-top=134.86 x0=72.00 x1=408.03  'Left column line two. Right column line two.'
-```
-
-Both columns in one line, spanning a 337-point gutter. The paper contains no such contiguous string. Every span built this way would join two unrelated sentences — so C2 would reject correct citations and accept quotations matching text the author never presented as continuous.
-
-**Probe three — whitespace.** Probe one grouped `page.chars` directly and kept its spaces. Probe two went through `extract_text_lines()`, and the spans it built came out as `'EfficacyofWidgetsinFieldTrials'` — every space gone. Cause, measured rather than guessed: `extract_text_lines()[0]['chars']` holds **30** characters for a 32-character line, because pdfplumber synthesises whitespace from glyph gaps and those synthetic spaces are not carried into the line's `chars`. The page-level `page.chars` **does** contain them (40 of 295 in the fixture). So span text must come from a source that preserves synthesised whitespace; joining a line's `chars` cannot be it, and a span that drops a space is a different string from the one the author wrote.
-
-**The corrected rule, verified.** Derive everything from `page.chars` geometry: project glyphs onto x to find vertical gutters, cluster each column by baseline into lines, then group each line by `(fontname, size)`. On the two-column fixture that yields 12 spans with the columns separate, every span keeping its whitespace, and each line its own span:
-
-```
-col=0 Helvetica 9.0  x0= 72.00 x1=155.04 top=124.86  'Left column line one.'
-col=1 Helvetica 9.0  x0=320.00 x1=409.04 top=124.86  'Right column line one.'
-```
-
-None of this makes the library wrong. `page.chars` carries every field the corrected rule needs. What was wrong was the rule, and it was wrong twice, in ways only a second and third probe exposed.
-
-Licence obligations if code or text is copied or adapted: none anticipated. These are consumed as ordinary dependencies, not vendored.
-
-## Decision and why this fits LabCairn
+## Decision
 
 **LC-P1-08 will depend on `pdfplumber` (MIT), which pulls `pdfminer.six` (MIT).**
 
-A span anchor is produced in three stages, all from `page.chars`:
+**This ADR does not decide how a span is built from it.** That algorithm is LC-P1-08's design work, and the measurements below show why prescribing it here was wrong: four candidate rules were tried and each failed on material LabCairn actually ingests.
 
-1. **Columns.** Project glyph extents onto x and find vertical gaps wider than a threshold. Each gap is a gutter; the bands between them are columns.
-2. **Lines.** Within a column, cluster characters by baseline (`doctop`).
-3. **Spans.** Within a line, group by `(fontname, size)` and take the bounding box of each group.
+## Measured constraints on any ingestion implementation
 
-Every stage is deterministic and re-derivable from the source file, which is what ADR-0004's C1 requires of a locator, and what its §36 explicitly rejects as insufficient:
+Every item below is a property of real material, reproduced by the probe scripts, and each one is a trap rather than a starting point.
 
-> **Locators are display strings, not addresses.** … There is no structured, re-derivable, schema-bound locator. LC-P1-08's "fixtures validate page, row, column and spreadsheet cell anchors **exactly**" cannot be built on a prose label.
+1. **Grouping page-wide on `(fontname, size)` merges lines.** Two runs 40 points apart produced one span spanning both:
+   `'Group A mean was 3.0Group B mean was 5.0'`, bbox `(72.0, 62.48, 194.72, 114.48)`. Font and size identify a *style class*, not a span.
 
-pdfminer.six reaches the same objects a layer lower (`LTTextBox` → `LTTextLine` → `LTChar`, each with a `bbox`). pdfplumber is chosen over it directly because it normalises coordinates to a top-left origin, which removes a class of sign error from span geometry, and because table extraction comes with it — LC-P1-10 plots and LC-P1-09's C3 numeric checks both want it.
+2. **Baseline clustering merges columns.** `extract_text_lines()` on a two-column page returned `'Left column line one. Right column line one.'` — a 41.8-point gutter swallowed and two unrelated sentences joined. The paper contains no such contiguous string, so a verifier built this way rejects correct citations and accepts quotations matching text no author wrote.
 
-**Known cost: pure Python is slower than MuPDF on large documents.** Accepted. Phase 1 processes a researcher's working set, not a scanned archive, and the acceptance criterion is that anchors resolve exactly, not that parsing is fast.
+3. **`page.chars` contains no synthesised whitespace.** This corrects an earlier claim in this ADR, which said `page.chars` carried spaces. It does — *only when the PDF emits a space glyph.* Measured on the same string both ways:
+
+   | Built as | chars | of which `' '` | joining chars yields |
+   |---|---|---|---|
+   | literal `0x20` bytes in the string | 35 | 5 | `'Efficacy of Widgets in Field Trials'` |
+   | `TJ` positioning offsets, no glyph | 30 | **0** | `'EfficacyofWidgetsinFieldTrials'` |
+
+   The second row is the dominant real-world case — LaTeX and Word space words by positioning, not by glyph. **Span text cannot be produced by joining character records**; whitespace must be reconstructed from inter-glyph gaps, or taken from an extraction that does it. An earlier draft of this ADR generalised a property of its own fixture into a property of pdfplumber, and was wrong.
+
+4. **A single gutter threshold cannot work.** Sweeping `min_gap` over a two-column page and a single column containing one wide intra-column gap: the first segments correctly only below **41.8**, the second only above **70**. The overlap is empty. The reason is instructive — projecting the two-column page onto x yields bands `[(72.0, 278.2), (320.0, 414.5)]`, a 41.8-point gap, not the 160 the columns leave between them, because the **full-width title** reaches `x1 = 278.16` and bridges the left column. Every real paper has a full-width title, and often a figure or table spanning both columns.
+
+5. **`(fontname, size)` is not a valid key for rotated text.** One 10pt run reported sizes `[2.22, 2.78, 5.56, 7.22]` and fragmented into `'oaedabe'`, `'tt '`, `'ll'`, `'R'`. `size` is a per-glyph transformed height when `upright` is False. Worse, `extract_text()` on the same page returns `'lebal\ndetatoR'` — reversed and split — so the failure is not confined to glyph joining. Rotated text is common: figure axis labels, sideways stamps, scanned pages.
+
+**The signal most likely to replace a global threshold is line support** — a real column is occupied by many lines at the same x-range, whereas an intra-column word gap appears on one line, so a split proposed by a single line is not a gutter. This is **unproven**. It is reasoned from two hand-built fixtures and has never seen a real paper.
 
 ## Risks, tradeoffs and reversibility
 
-- **Version coupling.** pdfplumber pins an exact `pdfminer.six` version per release; upgrading `pdfminer.six` independently can silently change extraction. This must be respected — the pin is part of the contract, not an accident of the lockfile.
-- **Coordinate normalisation is a real difference from the ecosystem norm.** pdfminer's bottom-left PDF origin is what most PDF examples use. Anchors must not mix the two conventions. The acceptance test below exists for this reason.
-- **Neither `extract_text_lines()` nor raw glyph joining is a span.** The first is baseline-clustered, so it merges columns; the second drops synthesised whitespace. Both failure modes are in the probe output above. LC-P1-08 must derive columns and lines from `page.chars` geometry itself, and must take span text from a source that preserves synthesised whitespace. Tests must fail if a span spans a gutter or loses an interior space — otherwise C2 quietly becomes a checker that passes on text no author wrote.
-- **A single gutter threshold is provably insufficient, not merely fragile.** This was measured rather than assumed. Two fixtures: a page with two columns sharing baselines, and a single column containing one 120-point intra-column gap. Sweeping the threshold, the first is segmented correctly only at `min_gap < 42` and the second only at `min_gap > 70`. **The overlap is empty** — no constant satisfies both.
-
-  The reason is the useful part. Projecting the two-column page onto x gives bands `[(72.0, 278.2), (320.0, 414.5)]` — a gap of **41.8 points**, not the 160 the columns actually leave between them. The full-width title reaches `x1 = 278.16`, so it bridges the left column and collapses the effective gutter to the narrowest gap between *any* two bands on the page. Every real paper has a full-width title, and often a figure or table that spans both columns, so this is the common case and not an artefact of the fixture.
-
-  Consequently **column detection cannot be a global x-projection with one constant.** The signal LC-P1-08 should use instead is *support*: a genuine column is occupied by many lines at the same x-range, whereas an intra-column word gap appears on one line. A split proposed by a single line is not a gutter. That is a design requirement handed to the work order, stated here because it follows directly from the measurement — and it is **unproven** until real fixtures exist, which is what the re-evaluation trigger below is for.
+- **Version coupling.** pdfplumber pins an exact `pdfminer.six` version per release; upgrading `pdfminer.six` independently can silently change extraction. The pin is part of the contract, not an accident of the lockfile.
+- **Coordinate normalisation differs from the ecosystem norm.** pdfplumber uses a top-left origin where most PDF examples use pdfminer's bottom-left. Anchors must not mix the two. Accepted as the cost of removing a class of sign error.
+- **Column segmentation is the hard part, not PDF reading.** Constraint 4 shows a global threshold provably fails and constraint 5 shows a key assumption does not hold for non-upright text. An estimate treating LC-P1-08 as a thin wrapper over a parsing library is wrong.
+- **Pure Python is slower than MuPDF on large documents.** Accepted. Phase 1 processes a researcher's working set, and the acceptance criterion is that anchors resolve exactly, not that parsing is fast.
 - **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` contract ADR-0004 already froze. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
 
-## Contracts and acceptance tests
+## Constraints LC-P1-08 must satisfy
 
-1. Every anchor resolves: a `SourceAnchor` naming a page, span, row, column, sheet or cell re-resolves against the ingested material. A page 99 anchor in a 3-page PDF fails rather than falling back.
-2. Span anchors are **exact**, asserted against fixtures — not "the text is somewhere on the page."
-3. Span geometry is expressed in **one** coordinate convention, asserted by a test that fails if a second origin convention appears.
-4. **A span never spans a gutter or a line break.** Given a two-column fixture with identical styling in both columns, it yields two spans per row, not one — the regression probes two and three caught. Asserted against exact expected span text and bounding boxes.
-5. **A span keeps its interior whitespace.** `'Efficacy of Widgets in Field Trials'`, not `'EfficacyofWidgetsinFieldTrials'`. A span that loses a space is a different string, and C2 compares verbatim.
-7. **A full-width element does not create a gutter.** A fixture with a title or figure spanning both columns must still segment into two columns — the regression the threshold sweep found, where a full-width title collapsed the effective gutter from 160 points to 41.8.
-8. **An intra-column gap is not a gutter.** A fixture with one line containing a wide intra-column gap keeps that line whole.
-9. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
-10. Unreadable, empty, duplicate and modified inputs are handled without fabrication — and unreadable stays distinct from "no results".
+Each traces to a measurement above, so none can be satisfied by a test that was written to match whatever the code happened to do.
+
+1. Every anchor resolves against the ingested material. A page 99 anchor in a 3-page PDF fails rather than falling back.
+2. Span anchors are **exact** against fixtures — not "the text is somewhere on the page".
+3. Span geometry uses **one** coordinate convention, asserted by a test that fails if a second origin convention appears.
+4. **No span spans a gutter or a line break** (constraints 1, 2).
+5. **Span text preserves synthesised whitespace** — `'Efficacy of Widgets in Field Trials'`, never `'EfficacyofWidgetsinFieldTrials'` (constraint 3).
+6. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (constraint 4).
+7. **Rotated text is either handled correctly or excluded and reported** — never silently shredded into spans (constraint 5).
+8. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
+9. Unreadable, empty, duplicate and modified inputs are handled without fabrication, and unreadable stays distinct from "no results".
 
 ## Re-evaluation trigger
 
-Re-open this decision if **any** of these becomes true:
+Re-open the **library** decision if any of these holds:
 
-- LC-P1-13 evaluation shows ingestion is the binding constraint rather than retrieval recall — i.e. parsing cost actually matters at scale. Then the speed trade-off above stops being acceptable and the commercial option is worth pricing properly.
-- A span-level requirement appears that pdfplumber cannot satisfy — for example a true graphical/textual distinction requiring a rendering pass rather than glyph geometry.
-- The gutter threshold is already known to be insufficient, so what LC-P1-08 must prove is that **line support** is a sufficient replacement signal: a real fixture corpus — actual papers, tables and figures — must segment correctly under a support-based rule where the global-threshold rule provably fails. If line support does not hold either, column segmentation is a research problem rather than an engineering one, and the effort estimate for this work order is wrong.
+- LC-P1-13 evaluation shows ingestion is the binding constraint rather than retrieval recall. Then parsing cost matters at scale, the speed trade stops being acceptable, and the commercial option is worth pricing properly.
+- A span-level requirement appears that glyph geometry cannot satisfy — for example a true graphical/textual distinction requiring a rendering pass.
+
+Re-open the **segmentation** work, independent of the library, if line support turns out not to be a sufficient replacement signal for a global gutter threshold. Two hand-built fixtures are not evidence, and real papers — with figures, tables, footnotes and multi-region layouts — are the first real test of it. If line support fails too, column segmentation is a research problem rather than an engineering one, and the LC-P1-08 effort estimate is wrong.
