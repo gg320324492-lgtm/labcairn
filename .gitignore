@@ -46,3 +46,11 @@ archive/
 .wheel-check/
 coverage/
 web/coverage/
+
+# Local SQLite task store (LC-P1-05). The store is the user's data, never
+# source, and a committed .db would make every test run dirty the tree.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3

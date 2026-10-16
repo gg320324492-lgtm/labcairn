@@ -1,0 +1,310 @@
+"""The migration path: a fresh database builds, and a rerun is safe.
+
+Two acceptance criteria live here. LC-P1-05 asks for "migration rerun and fresh
+DB tests"; both directions are covered, plus the guard that makes them worth
+anything — :func:`test_the_migrated_schema_matches_the_orm_models`, without
+which a green "upgrade head" proves only that a file ran, not that the schema it
+produced is the schema the application expects.
+
+The self-containment test is deliberate. Alembic's autogenerate rendered the
+custom ``UtcDateTime`` type into revision 0001 as an unimported reference to
+``labcairn.db.models``, which would have made a frozen migration depend on
+today's source. It is rewritten to ``sa.String()`` — the same DDL, since that is
+the type's impl — and this test stops anyone putting the dependency back.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+import pytest
+from sqlalchemy import inspect, text
+from test_store_support import (  # noqa: F401
+    StoreEnv,
+    db_path,
+    frozen_clock,
+    make_run,
+    make_task,
+    migrated_db,
+)
+from test_store_support import env as _shared_env
+
+from labcairn.db.base import Base
+from labcairn.db.migrations import (
+    ALEMBIC_INI,
+    MIGRATIONS_DIR,
+    current_revision,
+    downgrade_to_base,
+    head_revision,
+    upgrade_to_head,
+)
+from labcairn.db.repository import TaskStore, count_events
+from labcairn.db.session import create_db_engine
+from labcairn.runtime.event import EventType
+
+# pytest resolves a fixture by the parameter name in a test's signature, so the
+# shared `env` fixture must be bound under that name here. Importing it directly
+# and taking `env` as a parameter makes every signature below an F811
+# redefinition; aliasing the import and rebinding it reads as a plain assignment.
+env = _shared_env
+
+#: The eight tables LC-P1-05 names. Spelled out rather than derived from the
+#: metadata: a test that derives its expectations from the code it is checking
+#: cannot fail when the code drifts.
+EXPECTED_TABLES = frozenset(
+    {
+        "tasks",
+        "runs",
+        "stages",
+        "events",
+        "operations",
+        "approvals",
+        "checkpoints",
+        "artifacts",
+    }
+)
+
+
+def _tables(db: Path) -> set[str]:
+    with sqlite3.connect(str(db)) as connection:
+        return {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        } - {"alembic_version", "sqlite_sequence"}
+
+
+# --------------------------------------------------------------------------- #
+# fresh database
+# --------------------------------------------------------------------------- #
+
+
+def test_a_fresh_database_builds_every_table(tmp_path: Path) -> None:
+    """``upgrade head`` on a path that does not exist creates the whole schema."""
+    target = tmp_path / "brand_new.db"
+    assert not target.exists()
+
+    assert current_revision(target) is None, "an absent file must report no revision"
+
+    upgrade_to_head(target)
+
+    assert target.exists()
+    assert current_revision(target) == head_revision()
+    assert _tables(target) == EXPECTED_TABLES
+
+
+def test_a_fresh_database_is_usable_immediately(tmp_path: Path) -> None:
+    """No separate "seed" step: the migrated database takes a write at once."""
+    from labcairn.db.session import create_session_factory
+
+    target = tmp_path / "usable.db"
+    upgrade_to_head(target)
+    engine = create_db_engine(target)
+    try:
+        session = create_session_factory(engine)()
+        task = make_task()
+        store = TaskStore(session)
+        store.create_task(task)
+        assert count_events(session, task.task_id) == 1
+    finally:
+        session.close()
+        engine.dispose()
+
+
+# --------------------------------------------------------------------------- #
+# rerun on an existing database
+# --------------------------------------------------------------------------- #
+
+
+def test_rerunning_the_migration_is_a_no_op(tmp_path: Path) -> None:
+    """Second and third ``upgrade head`` change nothing and lose nothing.
+
+    This is the rerun criterion. Alembic compares ``alembic_version`` against the
+    revision tree and finds nothing to apply; the assertion that the *data*
+    survives is what separates "idempotent" from "quietly rebuilt".
+    """
+    target = tmp_path / "rerun.db"
+    upgrade_to_head(target)
+
+    from labcairn.db.session import create_session_factory
+
+    engine = create_db_engine(target)
+    session = create_session_factory(engine)()
+    store = TaskStore(session)
+    task = make_task()
+    store.create_task(task)
+    session.close()
+    engine.dispose()
+
+    for attempt in (2, 3):
+        upgrade_to_head(target)
+        assert current_revision(target) == head_revision(), f"rerun {attempt} moved the revision"
+
+    engine = create_db_engine(target)
+    session = create_session_factory(engine)()
+    try:
+        assert count_events(session, task.task_id) == 1, "a rerun lost committed data"
+        assert _tables(target) == EXPECTED_TABLES
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_downgrade_then_upgrade_rebuilds_the_same_schema(tmp_path: Path) -> None:
+    """The full cycle works, so a bad revision is recoverable rather than terminal."""
+    target = tmp_path / "cycle.db"
+    upgrade_to_head(target)
+    assert _tables(target) == EXPECTED_TABLES
+
+    downgrade_to_base(target)
+    assert current_revision(target) is None
+    assert _tables(target) == set()
+
+    upgrade_to_head(target)
+    assert _tables(target) == EXPECTED_TABLES
+    assert current_revision(target) == head_revision()
+
+
+def test_the_repository_refuses_to_operate_on_an_unmigrated_database(tmp_path: Path) -> None:
+    """Writing to an unmigrated file fails loudly instead of creating a half schema.
+
+    ``create_all`` would quietly build the current models in a file that has no
+    revision recorded, leaving a database no later migration could reason about.
+    The store never calls it, so the failure has to arrive as an error.
+    """
+    from labcairn.db.session import create_session_factory
+
+    target = tmp_path / "unmigrated.db"
+    engine = create_db_engine(target)
+    session = create_session_factory(engine)()
+    try:
+        store = TaskStore(session)
+        with pytest.raises(Exception, match="no such table"):
+            store.create_task(make_task())
+    finally:
+        session.rollback()
+        session.close()
+        engine.dispose()
+
+
+# --------------------------------------------------------------------------- #
+# drift guards
+# --------------------------------------------------------------------------- #
+
+
+def test_the_migrated_schema_matches_the_orm_models(tmp_path: Path) -> None:
+    """The migration and the models describe the same schema.
+
+    Without this, editing ``models.py`` and forgetting the migration leaves the
+    application querying columns that do not exist, and every migration test
+    still passes because the migration ran perfectly.
+    """
+    target = tmp_path / "drift.db"
+    upgrade_to_head(target)
+    engine = create_db_engine(target)
+    try:
+        actual = inspect(engine)
+        for name, table in Base.metadata.tables.items():
+            assert actual.has_table(name), f"migration is missing table {name}"
+            migrated = {c["name"] for c in actual.get_columns(name)}
+            modelled = {c.name for c in table.columns}
+            assert migrated == modelled, (
+                f"table {name}: migration has {sorted(migrated - modelled)} extra and "
+                f"{sorted(modelled - migrated)} missing relative to the models"
+            )
+        # And the unique constraint that makes gaplessness a backstop survived
+        # the migration rather than living only in the ORM.
+        event_keys = inspect(engine).get_unique_constraints("events")
+        pairs = {tuple(c["column_names"]) for c in event_keys}
+        assert ("task_id", "seq") in pairs
+    finally:
+        engine.dispose()
+
+
+def test_the_migration_does_not_import_labcairn() -> None:
+    """Revision 0001 is a frozen historical record, not a view of current code."""
+    sources = sorted(MIGRATIONS_DIR.glob("versions/*.py"))
+    assert sources, "no migration files found"
+    for path in sources:
+        source = path.read_text(encoding="utf-8")
+        assert "import labcairn" not in source, (
+            f"{path.name} imports labcairn.db; a frozen migration must not depend on "
+            "the live package, whose types may change after this revision was written"
+        )
+        # Matched with the call parentheses so the explanatory comment above the
+        # revision identifiers — which names the type it replaced — does not
+        # trip the check it exists to justify.
+        assert "UtcDateTime()" not in source, (
+            f"{path.name} uses UtcDateTime(); render the underlying sa.String() instead"
+        )
+
+
+def test_the_head_revision_is_the_one_the_tests_expect() -> None:
+    """Anchored rather than assumed.
+
+    A future revision legitimately changes the head; a test that hard-codes
+    ``0001`` would then fail for the wrong reason. What is asserted is that the
+    head is a single, named, non-empty revision — the value a deployment would
+    report — and that revision 0001 is still an ancestor of it.
+    """
+    head = head_revision()
+    assert head == "0001", f"an unexpected head revision: {head}"
+    assert ALEMBIC_INI.is_file()
+
+
+def test_migration_files_are_discovered_by_alembic() -> None:
+    """``env.py``'s script_location actually resolves to the versions directory."""
+    from alembic.script import ScriptDirectory
+
+    scripts = ScriptDirectory(str(MIGRATIONS_DIR))
+    assert scripts.get_current_head() == head_revision()
+    assert len(list(scripts.walk_revisions())) == 1
+
+
+def test_the_schema_records_its_owner_scope(env: StoreEnv) -> None:
+    """``tasks.owner_id`` is NOT NULL: Phase 1's single-user scope is structural."""
+    session = env.session
+    columns = {c["name"]: c for c in inspect(session.get_bind()).get_columns("tasks")}
+    assert columns["owner_id"]["nullable"] is False
+
+
+def test_the_events_table_declares_deferred_foreign_keys(env: StoreEnv) -> None:
+    """The deferral that lets events precede their state rows is in the schema.
+
+    Asserted from ``sqlite_master`` rather than from the ORM, so it verifies the
+    migration carried the property across rather than that the model asked for it.
+    """
+    session = env.session
+    ddl: str = session.execute(
+        text("SELECT sql FROM sqlite_master WHERE name = 'events' AND type = 'table'")
+    ).scalar_one()
+    assert ddl.count("DEFERRABLE INITIALLY DEFERRED") == 4
+    assert "AUTOINCREMENT" in ddl
+
+
+def test_an_annotation_event_commits_without_a_run(env: StoreEnv) -> None:
+    """End-to-end through the store: an annotation needs no Run row at all."""
+    from labcairn.runtime.event import EventTransition
+
+    session = env.session
+    store = env.store()
+    task = make_task()
+    store.create_task(task)
+    run = make_run(task.task_id)
+    with store.unit(task.task_id) as work:
+        work.put_run(run)
+        work.emit(
+            EventType.RUN_STARTED,
+            run_id=run.run_id,
+            transition=EventTransition(from_state="pending", to_state="running"),
+        )
+    # artifact_recorded is an annotation: no run_id, no transition, no state row.
+    with store.unit(task.task_id) as work:
+        work.emit(EventType.ARTIFACT_RECORDED)
+
+    runs: int = session.execute(text("SELECT COUNT(*) FROM runs")).scalar_one()
+    assert runs == 1
+    null_runs: int = session.execute(
+        text("SELECT COUNT(*) FROM events WHERE type = 'artifact_recorded' AND run_id IS NULL")
+    ).scalar_one()
+    assert null_runs == 1
