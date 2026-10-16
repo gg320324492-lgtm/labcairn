@@ -153,12 +153,42 @@ def test_absolute_path_inside_the_root_is_admitted(
     assert canonical.resolved_key == "ok.txt"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the Windows drive form is meaningless on POSIX")
+def test_windows_drive_path_is_refused_on_posix(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """A Windows drive path is not absolute on POSIX.
+
+    ``C:/Windows/...`` is a *relative* name on Linux — it has no leading
+    separator — so the refusal has to be whatever the right answer is there,
+    which today is the alternate-data-stream rule firing on the drive colon.
+
+    The safety property under test is **refused**, not *which rule refused*:
+    a segment containing ``:`` is refused everywhere, and the drive form is
+    refused as a path outside the roots on Windows. Asserting a single
+    rejection reason across both platforms would be asserting a platform
+    accident.
+    """
+    _, bound = roots
+    with pytest.raises(PathRefusedError):
+        canonicalize("C:/Windows/System32/drivers/etc/hosts", bound)
+
+
 def test_absolute_path_outside_every_root_is_refused(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
+    """An absolute path naming a real location outside every root.
+
+    The path is platform-appropriate: a POSIX absolute path on POSIX, a drive
+    path on Windows. Using one form on both was how this test passed locally on
+    Windows and failed on Ubuntu — ``C:/...`` is relative there, so the drive
+    colon tripped the ADS rule instead of the containment rule, and the test
+    asserted a reason that was correct for the wrong platform.
+    """
     _, bound = roots
+    absolute = "C:/Windows/System32/drivers/etc/hosts" if os.name == "nt" else "/etc/passwd"
     with pytest.raises(PathRefusedError) as caught:
-        canonicalize("C:/Windows/System32/drivers/etc/hosts", bound)
+        canonicalize(absolute, bound)
     assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT
 
 
