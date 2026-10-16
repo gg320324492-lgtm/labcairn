@@ -663,8 +663,12 @@ class SourceTextRow(Base):
             "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
             name="source_texts_pdf_shape",
         ),
+        # A text locator is defined by its line, and nothing else kind is
+        # allowed to carry one. Written as an equivalence rather than an
+        # implication: an earlier draft had this the other way round, and
+        # rejected every PDF, CSV and XLSX row for lacking a line number.
         CheckConstraint(
-            "locator_kind = 'text' OR line_start IS NOT NULL",
+            "(locator_kind = 'text') = (line_start IS NOT NULL)",
             name="source_texts_text_shape",
         ),
         CheckConstraint(
