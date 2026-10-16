@@ -31,7 +31,7 @@ Both branches cost something this project cannot currently pay.
 
 This was carried since G1 as "deferred, decide before LC-P1-08." LC-P1-08 is now the next work order, so the deferral has run out.
 
-**What is at stake is narrower than it looks.** ADR-0004 already decided the locator contract — page, span, line, section, row, column, sheet, cell — and its §120 records that no design conclusion was drawn from PaperQA's AGPL subpackage, deliberately. **Nothing needs undoing.** The question is only which library produces the anchors the existing contract asks for.
+**What is at stake is narrower than it looks.** The locator contract is already fixed — `LocatorKind` in `src/labcairn/sources/locators.py:65` names the five addressable materials: page-and-span for PDF, line-and-section for text, row-and-column for CSV, sheet-and-cell for XLSX, operator-and-inputs for a computation. (An earlier draft of this ADR attributed that list to ADR-0004, which does not contain it. ADR-0004 does say something that matters here — §36, that locators must be structured addresses rather than prose labels like `"pages 1-3"` — and §120, that LC-P1-08's page/span design is future work. The design is therefore independent of PyMuPDF, and **nothing needs undoing.** The question is only which library produces the page text the existing contract indexes.)
 
 No PDF dependency has been added to the repository. PyMuPDF appears in documentation only.
 
@@ -78,9 +78,15 @@ The scripts are **not** wired into CI: they need `pdfplumber`, which is not yet 
 What LC-P1-08 must deliver is narrower and harder than it first looks. Because a `PdfLocator` is a character range into the page's extracted text, and a `SourceAnchor` binds that text by `excerpt_sha256`, the library is not asked "can you find this span" but **"does the same file always produce the same string, and does that string contain the characters a reader would quote"**. Both halves of that sentence are load-bearing:
 
 - A character range is meaningless unless the string it indexes is fixed for that file. Anything non-deterministic — an unordered container leaking into the text, a locale-dependent sort — silently re-points every anchor in the database.
-- The string must contain the author's words *with their spaces*. This is constraint 3 below, and on the real corpus it is not a refinement: joining character records returns `Theorem1revealsthatpairwisecontrastivelearning` for a sentence any reader would quote as `Theorem 1 reveals that pairwise contrastive learning`.
+- The string must contain the author's words *with their spaces*. This is measurement 3 below, and on the real corpus it is not a refinement: joining character records returns `Theorem1revealsthatpairwisecontrastivelearning` for a sentence any reader would quote as `Theorem 1 reveals that pairwise contrastive learning`.
 
-A further consequence deserves stating because it is not obvious and it constrains dependency management: **a library upgrade can invalidate every anchor ever written.** If a pdfplumber or pdfminer.six release changes extraction, the page text changes, `excerpt_sha256` no longer matches, and ADR-0004's C1 fails — correctly, and for every record at once. The failure is loud, which is the right direction, but it means the extraction version is part of the data contract rather than an implementation detail. Pinning is not enough on its own; LC-P1-08 needs to record which extraction produced a given page text, and that is a design decision it inherits.
+A further consequence deserves stating because it is not obvious and it constrains dependency management: **a library upgrade can invalidate every anchor ever written.** If a pdfplumber or pdfminer.six release changes extraction, the page text changes and every character range that indexed the old text now indexes something else.
+
+An earlier draft of this ADR got the *mechanism* wrong in a way worth correcting rather than quietly dropping. It claimed the page-text change would make `excerpt_sha256` stop matching and C1 fail. Both halves are false. `excerpt_sha256` has **no consumer anywhere** — it is declared at `sources/source.py:266` and described in the adjacent docstring, and nothing compares it, so it cannot stop matching anything. And C1 compares the *source file's* content hash, via `LocatedContent.observed_content_sha256`, against `bound_source_sha256`; a library upgrade does not change the PDF's bytes, so C1 would pass.
+
+What actually breaks is two things. The character range **silently re-points**, which is the determinism problem above. And by C2's contract — match `record.extracted_span` against the text at each anchor's located span — the located span would no longer contain what was quoted, so a quotation check would return `fail` rather than `pass`. Neither C1, C2 nor C3 is implemented in Phase 1; all three raise `CiteSupportNotImplementedError`. So this is a statement about the contract, not about observed behaviour, and it is the kind of claim that is easy to make sound stronger than it is.
+
+Either way the extraction version is part of the data contract rather than an implementation detail. Pinning is not enough on its own; LC-P1-08 needs to record which extraction produced a given page text, and that is a design decision it inherits.
 
 ## Measured constraints on any ingestion implementation
 
@@ -116,7 +122,7 @@ Every item below is a property of real material, reproduced by the probe scripts
 
 A corpus of CC BY papers was obtained to test this rather than reason about it — [`tests/fixtures/papers/MANIFEST.md`](../../tests/fixtures/papers/MANIFEST.md), three papers, licence and attribution recorded, digests asserted by `tests/test_paper_fixtures.py` so a fixture cannot be silently swapped.
 
-It settled two things. Constraint 3 is confirmed on real material at the figures above. And **every magnitude-based segmentation rule tried against these papers underperformed**, which is what forced constraint 4's rewrite from a threshold to a positional argument.
+It settled two things. Measurement 3 is confirmed on real material at the figures above. And **every magnitude-based segmentation rule tried against these papers underperformed**, which is what forced measurement 4's rewrite from a threshold to a positional argument.
 
 It could not settle the main question. **Eleven CC BY arXiv papers were downloaded and all eleven classified as single-column.** Recent arXiv uses single-column submission format, and the only pages showing two line-start clusters were tables, confirmed by reading them. Three are kept in the repository; the other eight were discarded, so that count is **not independently checkable** and rests on the author's record alone. The three that were kept are verified single-column by two independent methods — recurring line-start x, and right-edge occupancy against a two-column control — because the first method on its own has a failure mode that was found during review: grouping characters by baseline across the full page width merges the two columns of a two-column page, so it reports one column for material that plainly has two. The classification of the eight discarded papers used that weaker method and should be treated with corresponding caution.
 
@@ -133,24 +139,25 @@ The status of that idea is narrower than it was and narrower than it should be. 
 ## Risks, tradeoffs and reversibility
 
 - **Version coupling.** pdfplumber pins an exact `pdfminer.six` version per release; upgrading `pdfminer.six` independently can silently change extraction. The pin is part of the contract, not an accident of the lockfile.
-- **Coordinate normalisation differs from the ecosystem norm.** pdfplumber uses a top-left origin where most PDF examples use pdfminer's bottom-left. Anchors must not mix the two. Accepted as the cost of removing a class of sign error.
-- **Column segmentation is the hard part, not PDF reading.** Constraint 4 shows a global threshold provably fails and constraint 5 shows a key assumption does not hold for non-upright text. An estimate treating LC-P1-08 as a thin wrapper over a parsing library is wrong.
+- **Coordinate normalisation binds the extraction adapter, not the anchor.** pdfplumber uses a top-left origin where most PDF examples use pdfminer's bottom-left. A sign error inside LC-P1-08's extraction code would reverse reading order and invent gutters. This is a live risk **inside the adapter**; it is not a constraint on the persisted locator, which carries no coordinates, and an earlier revision of this ADR said "anchors must not mix the two", which required a constraint this document has since dropped as moot.
+- **Column segmentation is the hard part, not PDF reading.** Measurement 4 shows a magnitude threshold provably fails and measurement 5 shows a key assumption does not hold for non-upright text. An estimate treating LC-P1-08 as a thin wrapper over a parsing library is wrong.
 - **Pure Python is slower than MuPDF on large documents.** Accepted. Phase 1 processes a researcher's working set, and the acceptance criterion is that anchors resolve exactly, not that parsing is fast.
-- **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` contract ADR-0004 already froze. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
+- **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` and `LocatorKind` contracts. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
 
 ## Constraints LC-P1-08 must satisfy
 
-Each traces to a measurement above, so none can be satisfied by a test that was written to match whatever the code happened to do. They are written against **page text**, because that is what a `PdfLocator` indexes — an earlier revision of this list spoke of "span geometry", which the anchor contract does not have.
+Each traces to a **measurement** above, numbered 1–5, so none can be satisfied by a test that was written to match whatever the code happened to do. They are written against **page text**, because that is what a `PdfLocator` indexes — an earlier revision of this list spoke of "span geometry", which the anchor contract does not have. A rewrite of this list dropped the exactness constraint without replacing it; that is restored below, and the omission mattered, because exactness is the property the whole correction is about.
 
 1. Every anchor resolves against the ingested material. A page 99 anchor in a 3-page PDF fails rather than falling back.
-2. **Page text is deterministic.** The same file yields byte-identical text every time, so a character range cannot silently re-point. Asserted by extracting the same fixture repeatedly and across repeated runs, not once.
-3. **The page text is the author's words, with spaces.** `'Theorem 1 reveals that pairwise contrastive learning'`, never `'Theorem1revealsthatpairwisecontrastivelearning'` (constraint 3). This is the constraint most likely to be quietly weakened, because a test written against the lossy output will pass on it.
-4. **Reading order is column-aware.** A character range must not land in interleaved text. On a two-column page, `'Left column line one. Right column line one.'` is not a sentence anyone wrote and must never appear (constraints 1, 2).
-5. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (constraint 4).
-6. **Rotated text is either read correctly or excluded and reported** — never silently reversed, which is what `extract_text()` does to it (constraint 5).
-7. **The extraction version is recorded** with the page text, so a library upgrade that changes extraction is attributable rather than mysterious.
-8. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
-9. Unreadable, empty, duplicate and modified inputs are handled without fabrication, and unreadable stays distinct from "no results".
+2. **A character range resolves to exactly the characters that were quoted** — the same ones, in the same order, with the same spacing. Not "text from this page that resembles it". This is the property C2 exists to check, and it is the one thing the corrected scope is about.
+3. **Page text is deterministic.** The same file yields byte-identical text every time, so a character range cannot silently re-point. Asserted by extracting the same fixture repeatedly and across repeated runs, not once.
+4. **The page text is the author's words, with spaces.** `'Theorem 1 reveals that pairwise contrastive learning'`, never `'Theorem1revealsthatpairwisecontrastivelearning'` (measurement 3). This is the constraint most likely to be quietly weakened, because a test written against the lossy output will pass on it.
+5. **Reading order is column-aware.** A character range must not land in interleaved text. On a two-column page, `'Left column line one. Right column line one.'` is not a sentence anyone wrote and must never appear (measurements 1, 2).
+6. **A full-width element creates no gutter**, and **an intra-column gap is not a gutter** (measurement 4).
+7. **Rotated text is either read correctly or excluded and reported** — never silently reversed, which is what `extract_text()` does to it (measurement 5).
+8. **The extraction version is recorded** with the page text, so a library upgrade that changes extraction is attributable rather than mysterious. **No field for this exists today** — `Source` carries none, and `SOURCE_SCHEMA_VERSION` is bumped only with a migration — so satisfying this is a schema addition, not an implementation detail.
+9. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
+10. Unreadable, empty, duplicate and modified inputs are handled without fabrication, and unreadable stays distinct from "no results".
 
 ## Re-evaluation trigger
 
