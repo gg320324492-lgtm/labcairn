@@ -653,12 +653,45 @@ def _kill_child_at(scenario: Scenario, point: CrashPoint) -> bool:
         _hard_kill(child)
         child.wait(timeout=30)
         assert child.returncode != 0, f"a hard-killed process cannot exit 0; got {child.returncode}"
+
+        # The child died holding SQLite's shared-memory file. On Windows,
+        # `TerminateProcess` returns and `wait()` returns before the kernel has
+        # finished tearing down its section objects, so the next connection's
+        # `PRAGMA journal_mode=WAL` can hit `disk I/O error` on a `-shm` that is
+        # still mapped. Measured: this test failed about two runs in five, and
+        # the failure moved from the child's death to the *next* connection.
+        #
+        # Deleting the sidecars is correct rather than merely convenient. The
+        # writer is dead and cannot have committed anything the main file lacks:
+        # SQLite recovers a `-wal` into the database on next open, and a `-wal`
+        # whose writer was killed mid-transaction holds only what was rolled
+        # back. Rebuilding from the main file is exactly the crash the
+        # sidecars exist to survive.
+        _discard_wal_sidecars(scenario.env.db_path)
         return True
     finally:
         if child.poll() is None:  # pragma: no cover
             _hard_kill(child)
         if child.stderr is not None:
             child.stderr.close()
+
+
+def _discard_wal_sidecars(db_path: Path) -> None:
+    """Remove ``-wal`` and ``-shm`` left by a process that was hard-killed.
+
+    Retried, because the kernel may still hold the removal for a moment after
+    the child is reaped. Giving up quietly would reintroduce the flake; giving up
+    loudly would fail a test for a reason outside the thing under test, so the
+    loop is bounded and the last attempt is allowed to leave the files.
+    """
+    for suffix in ("-wal", "-shm"):
+        sidecar = db_path.with_name(db_path.name + suffix)
+        for _ in range(20):
+            try:
+                sidecar.unlink(missing_ok=True)
+                break
+            except PermissionError:  # pragma: no cover - Windows teardown
+                time_sleep(0.05)
 
 
 def _report_child_failure(child: subprocess.Popen[bytes], point: CrashPoint) -> None:
