@@ -148,6 +148,28 @@ def _list_of(values: Iterable[str]) -> str:
     return sql_string_list(list(values))
 
 
+def _a1_glob_check(column: str) -> str:
+    """Render ``XlsxCellRef``'s pattern as a SQLite GLOB disjunction.
+
+    ``XlsxCellRef`` in :mod:`labcairn.sources.locators` is
+    ``^[A-Z]{1,3}[1-9][0-9]{0,6}$``, and GLOB has no bounded repetition, so
+    the pattern is expanded into one alternative per (letters, digits) pair
+    — 3 x 7 = 21 terms. GLOB matches the whole string, so each alternative
+    is an exact shape rather than a prefix.
+
+    Generated rather than hand-written because a hand-written approximation
+    is how ``b12`` and ``B12`` end up as two rows in the same ledger, which
+    is the failure ``locators.py`` names when it explains why lowercase is
+    rejected rather than upcased.
+    """
+    alternatives = [
+        f"{column} GLOB '{'[A-Z]' * letters}{'[1-9]' + '[0-9]' * (digits - 1)}'"
+        for letters in range(1, 4)
+        for digits in range(1, 8)
+    ]
+    return " OR ".join(alternatives)
+
+
 # --------------------------------------------------------------------------- #
 # tasks
 # --------------------------------------------------------------------------- #
@@ -621,11 +643,30 @@ class SourceRow(Base):
             "AND length(trim(relative_path)) > 0",
             name="source_relative_path_workspace_relative",
         ),
+        # The four shapes above are not the whole set. Also refused: a Windows
+        # drive letter written with forward slashes (`C:win/path` has no
+        # backslash to catch), an empty path segment (`papers/`, `papers//p.pdf`
+        # both split to `''`), and surrounding whitespace — every one of which
+        # require_workspace_relative rejects.
+        CheckConstraint(
+            "relative_path NOT GLOB '[A-Za-z]:*' "
+            "AND relative_path NOT LIKE '%/' AND relative_path NOT LIKE '%//%' "
+            "AND relative_path = trim(relative_path)",
+            name="source_relative_path_no_empty_segment",
+        ),
         CheckConstraint(
             "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_content_sha256_shape",
         ),
         CheckConstraint("length(trim(display_name)) > 0", name="source_display_name_non_empty"),
+        CheckConstraint("length(trim(source_id)) > 0", name="source_id_non_empty"),
+        CheckConstraint("length(trim(owner_id)) > 0", name="source_owner_id_non_empty"),
+        # ``size_bytes`` is declared INTEGER, and SQLite will happily store the
+        # string 'abc' in it, or convert '1e3' to 1000 without a trace. The
+        # latter is what ``primitives.py`` calls the thing this project exists
+        # to prevent: a payload written where a string belonged is accepted,
+        # silently rewritten, and nothing downstream can tell.
+        CheckConstraint("typeof(size_bytes) = 'integer'", name="source_size_bytes_is_integer"),
     )
 
 
@@ -739,6 +780,11 @@ class SourceTextRow(Base):
         ),
         # Every kind pins line_end and section to its own columns. text may
         # carry them; nothing else may.
+        # NOTE: these two became wholly implied once the shape checks above
+        # were made exhaustive. They are kept as belt and braces for
+        # readability, not because they constrain anything a shape check does
+        # not — a test cannot distinguish them, which is why this says so
+        # rather than leaving two constraints looking load-bearing.
         CheckConstraint(
             "line_end IS NULL OR locator_kind = 'text'",
             name="source_texts_line_end_is_text",
@@ -747,6 +793,51 @@ class SourceTextRow(Base):
             "section IS NULL OR locator_kind = 'text'",
             name="source_texts_section_is_text",
         ),
+        CheckConstraint(
+            "section IS NULL OR length(trim(section)) > 0",
+            name="source_texts_section_non_empty",
+        ),
+        CheckConstraint(
+            "column_name IS NULL OR length(trim(column_name)) > 0",
+            name="source_texts_column_name_non_empty",
+        ),
+        CheckConstraint(
+            "sheet_name IS NULL OR length(trim(sheet_name)) > 0",
+            name="source_texts_sheet_name_non_empty",
+        ),
+        # The key column of the key table. It had no shape constraint at all,
+        # so '', 'not-a-hash' and '../../etc/passwd' were storable -- and since
+        # the UNIQUE is (sha, version, locator_key), two rows with '' and
+        # different versions coexist as "the same content", which is the exact
+        # guarantee this design rests on.
+        CheckConstraint(
+            "length(source_content_sha256) = 64 AND source_content_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_texts_content_sha256_shape",
+        ),
+        # Declared INTEGER, but SQLite stores 'abc' and silently converts
+        # '1e3' to 1000. Comparisons do not help: INTEGER sorts before TEXT,
+        # so 'abc' >= 1 is TRUE and every `>= 1` check above is bypassable
+        # with a string. typeof() is the only thing that distinguishes them.
+        CheckConstraint(
+            "(page IS NULL) OR typeof(page) = 'integer'",
+            name="source_texts_page_is_integer",
+        ),
+        CheckConstraint(
+            "(line_start IS NULL) OR typeof(line_start) = 'integer'",
+            name="source_texts_line_start_is_integer",
+        ),
+        CheckConstraint(
+            "(line_end IS NULL) OR typeof(line_end) = 'integer'",
+            name="source_texts_line_end_is_integer",
+        ),
+        CheckConstraint(
+            "(row_number IS NULL) OR typeof(row_number) = 'integer'",
+            name="source_texts_row_number_is_integer",
+        ),
+        # XlsxCellRef's pattern, expanded into GLOB alternatives. Without it
+        # 'b2', '$B$2', 'B0', 'Sheet1!A1' and 'BB2' are all storable, and this
+        # table *is* the ledger locators.py warns would make seen_cells() lie.
+        CheckConstraint(_a1_glob_check("cell_ref"), name="source_texts_cell_ref_a1"),
         CheckConstraint(
             "length(trim(locator_key)) > 0 AND length(trim(extraction_version)) > 0",
             name="source_texts_key_non_empty",

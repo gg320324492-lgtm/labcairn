@@ -31,9 +31,24 @@ a UNIQUE index, so a unique constraint spanning the nullable typed locator
 columns would not constrain a single row — the constraint would look present
 and enforce nothing. ``locator_key`` is a canonical NOT NULL rendering of
 those columns and is what makes the key enforceable. It is derived, never the
-source of truth: ADR-0004 rejects prose locators because they cannot be
-re-derived from anything, and this one is re-derivable from typed columns that
-can be.
+source of truth: ADR-0004 rejects prose locators precisely because they cannot
+be re-derived from anything, and this one is re-derivable from typed columns
+that can be.
+
+**Closed vocabularies.** ``locator_kind``, ``sources.kind`` and
+``sources.readability`` are all constrained. Every shape check below is an
+implication keyed on ``locator_kind``, so without a vocabulary an unrecognised
+kind satisfies all of them vacuously with every typed column NULL — and the
+readability pairing would be one-sided, letting ``'unreadable'`` through with
+no disclosure and leaving ADR-0004 A7 unenforced by the database.
+
+**``typeof()`` checks on the INTEGER columns.** SQLite will store the string
+``'abc'`` in a declared INTEGER column and silently convert ``'1e3'`` to
+1000. Comparisons do not catch it: INTEGER sorts before TEXT, so ``'abc' >= 1``
+is TRUE and every ``>= 1`` constraint here is bypassable with a string.
+``primitives.py`` names the conversion as exactly what this project exists to
+prevent — a payload written where a string belonged is accepted, silently
+rewritten, and nothing downstream can tell.
 
 Stated because it is a real consequence: **this table holds text extracted
 from the user's research material.** It is derived content, not the original
@@ -45,6 +60,13 @@ problem.
 Direct DDL, not ``batch_alter_table``, for the reason 0002 records: batch mode
 reflects the live schema and silently did nothing there. These are plain
 CREATE TABLE statements, so there is nothing to reflect.
+
+Every constraint here is mirrored in ``src/labcairn/db/models.py``, and
+``test_the_migrated_schema_matches_the_orm_models`` compares the two on
+column types, nullability, unique constraints and CHECK bodies — not just
+column names. An earlier draft of this revision used ``sa.Text`` where the
+models use ``sa.String`` for two ``UtcDateTime`` columns; SQLite treats them
+alike so nothing failed, and the name-only guard could not see it.
 """
 
 from __future__ import annotations
@@ -58,6 +80,21 @@ revision: str = "0003"
 down_revision: str | None = "0002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+def _a1_glob_check(column: str) -> str:
+    """XlsxCellRef's ``^[A-Z]{1,3}[1-9][0-9]{0,6}$`` as GLOB alternatives.
+
+    GLOB has no bounded repetition, so this expands to one alternative per
+    (letters, digits) pair. Kept local rather than imported: a frozen
+    migration must not depend on the live package.
+    """
+    alternatives = [
+        f"{column} GLOB '{'[A-Z]' * letters}{'[1-9]' + '[0-9]' * (digits - 1)}'"
+        for letters in range(1, 4)
+        for digits in range(1, 8)
+    ]
+    return " OR ".join(alternatives)
 
 
 def upgrade() -> None:
@@ -75,20 +112,13 @@ def upgrade() -> None:
         sa.Column("readability_disclosure", sa.Text(), nullable=True),
         sa.Column("identifiers", sa.JSON(), nullable=False),
         # sa.String, not sa.Text: UtcDateTime's impl is String, and 0001 used
-        # sa.String for the same columns. An earlier draft of this revision
-        # used sa.Text, which SQLite treats identically but which the project's
-        # own migration test docstring says to render as the underlying
-        # sa.String. The parity test now compares types, so the drift is caught
-        # rather than invisible.
+        # sa.String for the same columns.
         sa.Column("ingested_at", sa.String(), nullable=False),
         sa.Column("schema_version", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("relative_path", name="uq_sources_relative_path"),
         sa.UniqueConstraint("source_id", name="uq_sources_source_id"),
         sa.CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
-        # Closed vocabulary, mirroring events.type. Without it the pairing
-        # below is one-sided: 'unreadable' with no disclosure would sail
-        # through and ADR-0004 A7 would not be enforced by the database.
         sa.CheckConstraint(
             "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
             name="source_kind_vocabulary",
@@ -97,18 +127,16 @@ def upgrade() -> None:
             "readability IN ('readable', 'unreadable_no_ocr')",
             name="source_readability_vocabulary",
         ),
+        # ADR-0004 A7: "we could not look" is not "there was nothing there".
         sa.CheckConstraint(
             "(readability = 'unreadable_no_ocr') = (readability_disclosure IS NOT NULL)",
             name="source_disclosure_paired",
         ),
-        # Paired is not the same as meaningful.
         sa.CheckConstraint(
             "readability_disclosure IS NULL OR length(trim(readability_disclosure)) > 0",
             name="source_disclosure_non_empty",
         ),
-        # Defence in depth behind require_workspace_relative, not a second
-        # implementation of it: refuses absolute, parent-escaping, Windows
-        # separator and '.' segment shapes if a row bypasses the validator.
+        # Defence in depth behind require_workspace_relative, not a copy of it.
         sa.CheckConstraint(
             "relative_path NOT GLOB '/*' AND relative_path NOT GLOB '*\\*' "
             "AND relative_path NOT GLOB '../*' AND relative_path NOT GLOB '*/../*' "
@@ -118,11 +146,22 @@ def upgrade() -> None:
             "AND length(trim(relative_path)) > 0",
             name="source_relative_path_workspace_relative",
         ),
+        # Also refused: a drive letter written with forward slashes, an empty
+        # path segment, and surrounding whitespace.
+        sa.CheckConstraint(
+            "relative_path NOT GLOB '[A-Za-z]:*' "
+            "AND relative_path NOT LIKE '%/' AND relative_path NOT LIKE '%//%' "
+            "AND relative_path = trim(relative_path)",
+            name="source_relative_path_no_empty_segment",
+        ),
         sa.CheckConstraint(
             "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_content_sha256_shape",
         ),
         sa.CheckConstraint("length(trim(display_name)) > 0", name="source_display_name_non_empty"),
+        sa.CheckConstraint("length(trim(source_id)) > 0", name="source_id_non_empty"),
+        sa.CheckConstraint("length(trim(owner_id)) > 0", name="source_owner_id_non_empty"),
+        sa.CheckConstraint("typeof(size_bytes) = 'integer'", name="source_size_bytes_is_integer"),
     )
     op.create_index("ix_sources_content_sha256", "sources", ["content_sha256"])
 
@@ -151,9 +190,6 @@ def upgrade() -> None:
             "locator_key",
             name="uq_source_texts_address",
         ),
-        # Closed vocabulary. Every shape check below is an implication keyed on
-        # locator_kind, so an unrecognised kind satisfies all of them
-        # vacuously with every typed column NULL.
         sa.CheckConstraint(
             "locator_kind IN ('pdf', 'text', 'csv', 'xlsx')",
             name="source_texts_kind_vocabulary",
@@ -185,7 +221,8 @@ def upgrade() -> None:
             "AND section IS NULL AND row_number IS NULL AND column_name IS NULL)",
             name="source_texts_xlsx_shape",
         ),
-        # Only text may carry a line range or a section.
+        # Implied by the exhaustive shape checks above; kept for readability,
+        # not because they constrain anything a shape check does not.
         sa.CheckConstraint(
             "line_end IS NULL OR locator_kind = 'text'",
             name="source_texts_line_end_is_text",
@@ -194,6 +231,45 @@ def upgrade() -> None:
             "section IS NULL OR locator_kind = 'text'",
             name="source_texts_section_is_text",
         ),
+        sa.CheckConstraint(
+            "section IS NULL OR length(trim(section)) > 0",
+            name="source_texts_section_non_empty",
+        ),
+        sa.CheckConstraint(
+            "column_name IS NULL OR length(trim(column_name)) > 0",
+            name="source_texts_column_name_non_empty",
+        ),
+        sa.CheckConstraint(
+            "sheet_name IS NULL OR length(trim(sheet_name)) > 0",
+            name="source_texts_sheet_name_non_empty",
+        ),
+        # The key column of the key table. It had no shape constraint at all,
+        # so '', 'not-a-hash' and '../../etc/passwd' were storable -- and since
+        # the UNIQUE is (sha, version, locator_key), two rows with '' and
+        # different versions coexist as "the same content".
+        sa.CheckConstraint(
+            "length(source_content_sha256) = 64 AND source_content_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_texts_content_sha256_shape",
+        ),
+        # SQLite stores 'abc' in a declared INTEGER column and converts '1e3'
+        # to 1000 silently; INTEGER sorts before TEXT so 'abc' >= 1 is TRUE.
+        sa.CheckConstraint(
+            "(page IS NULL) OR typeof(page) = 'integer'",
+            name="source_texts_page_is_integer",
+        ),
+        sa.CheckConstraint(
+            "(line_start IS NULL) OR typeof(line_start) = 'integer'",
+            name="source_texts_line_start_is_integer",
+        ),
+        sa.CheckConstraint(
+            "(line_end IS NULL) OR typeof(line_end) = 'integer'",
+            name="source_texts_line_end_is_integer",
+        ),
+        sa.CheckConstraint(
+            "(row_number IS NULL) OR typeof(row_number) = 'integer'",
+            name="source_texts_row_number_is_integer",
+        ),
+        sa.CheckConstraint(_a1_glob_check("cell_ref"), name="source_texts_cell_ref_a1"),
         sa.CheckConstraint(
             "length(trim(locator_key)) > 0 AND length(trim(extraction_version)) > 0",
             name="source_texts_key_non_empty",
