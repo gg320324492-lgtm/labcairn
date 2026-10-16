@@ -50,7 +50,25 @@ Licences were read from the upstream `LICENSE` files themselves, not from a pack
 - **pypdfium2** — PyPI metadata "BSD-3-Clause, Apache-2.0, dependency licenses".
 - **PyMuPDF** — PyPI metadata, quoted above. Not re-derived from its source tree.
 
-**Scope of inspection, stated plainly:** this ADR inspected **licence files and package metadata**. It did not study parsing source or run a benchmark. That is the correct scope for a licensing decision, and it is deliberately not dressed up as a mechanism comparison the way ADR-0004 is.
+**Scope of inspection, stated plainly:** licence files, package metadata, **and one behavioural probe.** The probe was run because this ADR asserts a mechanism — how a span anchor is produced — and an asserted mechanism is not evidence. It built a one-page PDF by hand (computed xref, two fonts, three text runs) and read it back with pdfplumber 0.11.10 / pdfminer.six 20260107. It did not study parsing source and it is not a benchmark.
+
+**What the probe measured, and what it corrected.** Every key the mechanism depends on is present on a character record — `text`, `x0`, `x1`, `top`, `bottom`, `fontname`, `size` — so the claim is sound. But the first version of the grouping rule was **wrong**, and the probe is why it was caught before LC-P1-08 was built on it:
+
+```
+spans recovered by grouping on (fontname, size): 2
+  Helvetica   12.0pt  bbox=(72.0, 62.48, 194.72, 114.48)  'Group A mean was 3.0Group B mean was 5.0'
+  Times-Roman  8.0pt  bbox=(72.0, 85.74, 138.22,  93.74)  'smaller footnote text'
+```
+
+Two text runs 40 points apart on separate lines collapsed into **one** span, and the bounding box covered both. Grouping on font and size alone is therefore **not** a span — it is a style class, and it silently spans line breaks. Left uncorrected this would have let ADR-0004's C2 accept a quotation that matches text the author never presented as contiguous.
+
+pdfplumber's `extract_text_lines()` separates them correctly:
+
+```
+'Group A mean was 3.0'    top=62.48  bottom=74.48
+'smaller footnote text'   top=85.74  bottom=93.74
+'Group B mean was 5.0'    top=102.48 bottom=114.48
+```
 
 Licence obligations if code or text is copied or adapted: none anticipated. These are consumed as ordinary dependencies, not vendored.
 
@@ -58,7 +76,9 @@ Licence obligations if code or text is copied or adapted: none anticipated. Thes
 
 **LC-P1-08 will depend on `pdfplumber` (MIT), which pulls `pdfminer.six` (MIT).**
 
-A span anchor is produced by grouping pdfplumber's character records by `(fontname, size)` and taking the bounding box of each group. That is a few lines, it is deterministic, and it is re-derivable from the source file — which is what ADR-0004's C1 requires of a locator, and what its §36 explicitly rejects as insufficient:
+A span anchor is produced by grouping character records **within one line** by `(fontname, size)` and taking the bounding box of each group. "Within one line" is load-bearing and was not in the first draft of this ADR — see the probe above, where dropping it merges two lines into one span.
+
+The grouping is deterministic and re-derivable from the source file, which is what ADR-0004's C1 requires of a locator, and what its §36 explicitly rejects as insufficient:
 
 > **Locators are display strings, not addresses.** … There is no structured, re-derivable, schema-bound locator. LC-P1-08's "fixtures validate page, row, column and spreadsheet cell anchors **exactly**" cannot be built on a prose label.
 
@@ -70,6 +90,7 @@ pdfminer.six reaches the same objects a layer lower (`LTTextBox` → `LTTextLine
 
 - **Version coupling.** pdfplumber pins an exact `pdfminer.six` version per release; upgrading `pdfminer.six` independently can silently change extraction. This must be respected — the pin is part of the contract, not an accident of the lockfile.
 - **Coordinate normalisation is a real difference from the ecosystem norm.** pdfminer's bottom-left PDF origin is what most PDF examples use. Anchors must not mix the two conventions. The acceptance test below exists for this reason.
+- **A style class is not a span.** Grouping on font and size alone yields a *style class*, which may cover several lines. The probe output above is the worked counter-example. LC-P1-08 must derive line identity first (`extract_text_lines`) and group within it, and a test must fail if two lines of identical style merge — otherwise C2 silently accepts quotations spanning a line break.
 - **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` contract ADR-0004 already froze. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
 
 ## Contracts and acceptance tests
@@ -77,8 +98,9 @@ pdfminer.six reaches the same objects a layer lower (`LTTextBox` → `LTTextLine
 1. Every anchor resolves: a `SourceAnchor` naming a page, span, row, column, sheet or cell re-resolves against the ingested material. A page 99 anchor in a 3-page PDF fails rather than falling back.
 2. Span anchors are **exact**, asserted against fixtures — not "the text is somewhere on the page."
 3. Span geometry is expressed in **one** coordinate convention, asserted by a test that fails if a second origin convention appears.
-4. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
-5. Unreadable, empty, duplicate and modified inputs are handled without fabrication — and unreadable stays distinct from "no results".
+4. **A span never spans a line break.** Given a fixture with two same-style lines, they yield two spans, not one — the regression the probe above caught. Asserted against the exact expected span text and bounding boxes.
+5. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
+6. Unreadable, empty, duplicate and modified inputs are handled without fabrication — and unreadable stays distinct from "no results".
 
 ## Re-evaluation trigger
 
