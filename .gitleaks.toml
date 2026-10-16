@@ -87,6 +87,23 @@ useDefault = true
 # removal a visible diff that has to be argued for in review.
 disabledRules = []
 
+# --- Narrow, per-finding exceptions -----------------------------------------
+#
+# Two findings, both in tests/test_provider_redaction.py, both deliberate: the
+# redaction test needs values that *look* like credentials, or it proves
+# nothing. The scan caught them, which is the behaviour C-4 asks for, and the
+# fix is not a path exemption.
+#
+# The exceptions are the literal fixture strings, not the file. A real key
+# committed to that file would still trip the rule, and a reference-path
+# exemption would have hidden both of these from the build that publishes.
+[[allowlists]]
+description = "Deliberate fake credentials used as redaction fixtures"
+regexes = [
+  'sk-proj-abc123def456ghi',
+  'qwertyuiop123456',
+]
+
 # No [[allowlists]] / [allowlist] block is present, on purpose. See the
 # "WHY THERE IS NO REFERENCE-PATH ALLOWLIST HERE" section above. T06, when
 # authoring .github/workflows/security.yml, must not add one either; the
