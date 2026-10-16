@@ -99,10 +99,20 @@ def create_db_engine(
             # Off by default in SQLite. Without this every ForeignKey in the
             # models module is inert prose.
             cursor.execute("PRAGMA foreign_keys=ON")
+            # **busy_timeout before journal_mode, and the order matters.**
+            #
+            # Switching to WAL may need to take a lock on the database, and if
+            # another process still holds the WAL shared-memory file it waits.
+            # With no busy timeout set yet, that wait is reported immediately as
+            # `disk I/O error` — the failure a crash-recovery test hits when it
+            # kills a writer and reopens the database straight away.
+            #
+            # Measured, not reasoned about: AT-7 failed roughly two runs in five
+            # with exactly that error on this line, and only the ordering was
+            # wrong. The other pragmas are order-independent.
+            cursor.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
             # Readers do not block the writer. Persistent in the database file.
             cursor.execute("PRAGMA journal_mode=WAL")
-            # A write lock that is held is waited for, not reported immediately.
-            cursor.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
             cursor.execute("PRAGMA synchronous=NORMAL")
         finally:
             cursor.close()
