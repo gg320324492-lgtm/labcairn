@@ -19,6 +19,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from test_store_support import (  # noqa: F401
     StoreEnv,
@@ -248,17 +249,28 @@ def test_the_head_revision_is_the_one_the_tests_expect() -> None:
     report — and that revision 0001 is still an ancestor of it.
     """
     head = head_revision()
-    assert head == "0001", f"an unexpected head revision: {head}"
+    assert head, "the head revision must be named"
+    scripts = ScriptDirectory(str(MIGRATIONS_DIR))
+    revisions = {r.revision for r in scripts.walk_revisions()}
+    assert head in revisions, f"head {head} is not among {sorted(revisions)}"
+    # 0001 stays an ancestor: the original schema must remain reachable, or a
+    # database built under it could not be migrated forward.
+    ancestors = {r.revision for r in scripts.iterate_revisions(head, "base")}
+    assert "0001" in ancestors, f"0001 is no longer reachable from head {head}"
     assert ALEMBIC_INI.is_file()
 
 
 def test_migration_files_are_discovered_by_alembic() -> None:
     """``env.py``'s script_location actually resolves to the versions directory."""
-    from alembic.script import ScriptDirectory
-
     scripts = ScriptDirectory(str(MIGRATIONS_DIR))
     assert scripts.get_current_head() == head_revision()
-    assert len(list(scripts.walk_revisions())) == 1
+    # A count of one was true when there was a single revision; what matters is
+    # that every file on disk is reachable from head, so a migration that was
+    # written and never wired into the chain is caught.
+    versions = MIGRATIONS_DIR / "versions"
+    on_disk = {p.stem.split("_", 1)[0] for p in versions.glob("*.py")} - {"__init__"}
+    reachable = {r.revision for r in scripts.walk_revisions()}
+    assert on_disk == reachable, f"on disk {sorted(on_disk)} vs reachable {sorted(reachable)}"
 
 
 def test_the_schema_records_its_owner_scope(env: StoreEnv) -> None:

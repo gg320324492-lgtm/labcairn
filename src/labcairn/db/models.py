@@ -477,7 +477,17 @@ class EventRow(Base):
     occurred_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
     #: The frozen ``Event`` document, so the whole contract round-trips and a
     #: field added to it later is not lost by the columns above.
-    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    #:
+    #: Named ``document`` rather than ``payload`` deliberately. ADR-0003 C1
+    #: reserves ``payload`` for the **type-specific** content an event carries,
+    #: and this column holds the entire event. Two different things sharing one
+    #: name is how a reader comes to believe the store keeps the C1 payload when
+    #: it keeps something else.
+    document: Mapped[str] = mapped_column(Text, nullable=False)
+
+    #: ADR-0003 C1's ``payload``: JSON, validated against the type's model.
+    #: Empty for every event type with no registered schema (ADR-0007).
+    payload: Mapped[str] = mapped_column(Text, nullable=False, server_default="{}")
 
     __table_args__ = (
         # The gapless backstop. Allocation under BEGIN IMMEDIATE should make this

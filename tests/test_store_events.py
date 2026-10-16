@@ -38,6 +38,7 @@ from test_store_support import (  # noqa: F401
 from test_store_support import env as _shared_env
 
 from labcairn.core.ids import TaskId
+from labcairn.core.schema import LabCairnModel
 from labcairn.db.models import EventRow, TaskRow
 from labcairn.db.repository import (
     TaskStore,
@@ -205,10 +206,13 @@ def test_duplicate_seq_is_refused_by_the_index(env: StoreEnv) -> None:
     ):
         session.execute(
             text(
+                # Two columns since ADR-0007: `document` holds the whole event,
+                # `payload` the type-specific part. These tests drive raw SQL to
+                # exercise the table's own constraints, so they must satisfy both.
                 "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, operation_id,"
-                " type, from_state, to_state, schema_version, occurred_at, payload)"
+                " type, from_state, to_state, schema_version, occurred_at, document, payload)"
                 " VALUES (1, :eid, :t, NULL, NULL, NULL, 'source_changed', NULL, NULL, 1,"
-                " '2026-01-01T00:00:00+00:00', '{}')"
+                " '2026-01-01T00:00:00+00:00', '{}', '{}')"
             ),
             {"eid": "0193b0a0-0000-7000-8000-0000000000ff", "t": str(task.task_id)},
         )
@@ -351,10 +355,13 @@ def test_the_database_refuses_a_mislabelled_run_id(env: StoreEnv) -> None:
     with pytest.raises(IntegrityError, match="ck_events_run_id_matches_event_type"):
         session.execute(
             text(
+                # Two columns since ADR-0007: `document` holds the whole event,
+                # `payload` the type-specific part. These tests drive raw SQL to
+                # exercise the table's own constraints, so they must satisfy both.
                 "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, operation_id,"
-                " type, from_state, to_state, schema_version, occurred_at, payload)"
+                " type, from_state, to_state, schema_version, occurred_at, document, payload)"
                 " VALUES (99, :eid, :t, :r, NULL, NULL, 'task_created', NULL, NULL, 1,"
-                " '2026-01-01T00:00:00+00:00', '{}')"
+                " '2026-01-01T00:00:00+00:00', '{}', '{}')"
             ),
             {
                 "eid": "0193b0a0-0000-7000-8000-0000000000aa",
@@ -382,10 +389,13 @@ def test_unknown_event_type_is_refused_not_coerced(env: StoreEnv) -> None:
     with pytest.raises(IntegrityError, match="ck_events_"):
         session.execute(
             text(
+                # Two columns since ADR-0007: `document` holds the whole event,
+                # `payload` the type-specific part. These tests drive raw SQL to
+                # exercise the table's own constraints, so they must satisfy both.
                 "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, operation_id,"
-                " type, from_state, to_state, schema_version, occurred_at, payload)"
+                " type, from_state, to_state, schema_version, occurred_at, document, payload)"
                 " VALUES (50, :eid, :t, NULL, NULL, NULL, 'task_vaporised', NULL, NULL, 1,"
-                " '2026-01-01T00:00:00+00:00', '{}')"
+                " '2026-01-01T00:00:00+00:00', '{}', '{}')"
             ),
             {"eid": "0193b0a0-0000-7000-8000-0000000000bb", "t": str(task.task_id)},
         )
@@ -414,6 +424,19 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     assert len(members) == 25
 
 
+def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
+    """The smallest mapping that satisfies *schema*.
+
+    Offsets the sweep's job: it proves every type can reach the database, and a
+    schema is now part of what "can reach" means.
+    """
+    payload: dict[str, object] = {}
+    for name, field in schema.model_fields.items():
+        if field.is_required():
+            payload[name] = "x" if field.annotation is str else 0
+    return payload
+
+
 @pytest.mark.parametrize("event_type", list(EventType), ids=lambda t: t.value)
 def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type: EventType) -> None:
     """Each of the 25 types can be inserted with the context the ADR assigns it.
@@ -423,6 +446,7 @@ def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type:
     rather than at some later task's first real insert.
     """
     from labcairn.runtime.event import (
+        EVENT_PAYLOAD_SCHEMAS,
         TASK_LEVEL_EVENTS,
         event_requires_operation_context,
         event_requires_run,
@@ -443,6 +467,13 @@ def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type:
     if event_type.name.startswith(("RUN_", "STAGE_", "OPERATION_", "APPROVAL_")):
         transition = EventTransition(from_state="before", to_state="after")
 
+    # ADR-0007's anti-bag rule: a type with a registered schema must carry a
+    # payload satisfying it, and a type without one must carry none. This sweep
+    # is what makes that rule visible per type — a newly registered schema that
+    # no caller populates fails here rather than at some later real insert.
+    schema = EVENT_PAYLOAD_SCHEMAS.get(event_type)
+    payload = _minimal_payload(schema) if schema is not None else None
+
     with store.unit(task.task_id) as work:
         if event_type not in TASK_LEVEL_EVENTS and event_requires_run(event_type):
             work.put_run(run)
@@ -458,6 +489,7 @@ def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type:
                 operation.operation_id if event_requires_operation_context(event_type) else None
             ),
             transition=transition,
+            payload=payload,
         )
 
     stored = events_after(session, task.task_id, after_seq=1)
@@ -474,10 +506,13 @@ def test_annotations_carry_neither_transition_nor_operation(env: StoreEnv) -> No
     with pytest.raises(IntegrityError, match="ck_events_transition_matches_event_type"):
         session.execute(
             text(
+                # Two columns since ADR-0007: `document` holds the whole event,
+                # `payload` the type-specific part. These tests drive raw SQL to
+                # exercise the table's own constraints, so they must satisfy both.
                 "INSERT INTO events (seq, event_id, task_id, run_id, stage_id, operation_id,"
-                " type, from_state, to_state, schema_version, occurred_at, payload)"
+                " type, from_state, to_state, schema_version, occurred_at, document, payload)"
                 " VALUES (60, :eid, :t, NULL, NULL, NULL, 'artifact_recorded', 'a', 'b', 1,"
-                " '2026-01-01T00:00:00+00:00', '{}')"
+                " '2026-01-01T00:00:00+00:00', '{}', '{}')"
             ),
             {"eid": "0193b0a0-0000-7000-8000-0000000000cc", "t": str(task.task_id)},
         )
