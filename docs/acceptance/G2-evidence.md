@@ -13,7 +13,7 @@
 | LC-P1-07 `research-report` Skill contract and stages | `skills/` | 213 |
 | exit demonstration | `examples/g2_exit_demo.py` | 14 checks |
 
-**993 passed, 2 skipped.** ruff, ruff format and mypy `--strict` clean across 112 source files. LC-P1-06 and LC-P1-07 were built by two agents that never read each other's work, which is why the integration seam below exists.
+**998 passed, 2 skipped.** ruff, ruff format and mypy `--strict` clean across 114 source files. LC-P1-06 and LC-P1-07 were built by two agents that never read each other's work, which is why the integration seam below exists.
 
 ## The exit demonstration
 
@@ -72,7 +72,7 @@ The kill is genuine. The child writes a sentinel, prints ready, and sleeps; the 
 | 75 Alembic `DeprecationWarning`s | running the suite |
 | `.gitignore` did not cover `*.db` | the default config leaving files in the tree |
 | `ResumeCoordinator` needed a session `TaskStore` did not expose | wiring the exit demonstration |
-| A concurrency test that measured nothing | mutation testing: deleting the guard left 32 tests green |
+| A concurrency test that measured nothing | mutation testing: downgrading `BEGIN IMMEDIATE` to `BEGIN` leaves all six concurrency **behaviour** tests green — only the emitted-SQL assertion catches it. Reproducible in one command: `sed -i 's/BEGIN IMMEDIATE/BEGIN/' src/labcairn/db/session.py && uv run pytest tests/test_store_concurrency.py` |
 
 ## Cross-line integration seams
 

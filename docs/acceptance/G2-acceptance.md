@@ -39,7 +39,7 @@ The two skips are declared, not silent: one is the real-provider smoke needing a
 | Event order | **PASS** | `seq` is per-Task, gapless, allocated inside the transaction. Verified from outside the suite: two interleaved Tasks each get 1..5 while their rowids interleave `1,3,5,7,9` / `2,4,6,8,10` — impossible if `seq` were the rowid |
 | Rollback on failure | **PASS** | Failure injected between the events and the state rows rolls back **both**, asserted through a new connection so a partially committed state cannot pass. A mutation that commits events alone turns exactly that test red |
 | Race handling | **PASS** | 8 threads × 6 units, one session each, producing `seq` 1..49 with no duplicate and no gap |
-| Same-task identity across restarts | **PASS** | Connection pool disposed, reopened from the file alone; the next event takes `seq` 6, not 1 |
+| Same-task identity across restarts | **PASS** | Connection pool disposed, reopened from the file alone; the next event takes `seq` 4, not 1 (`test_a_resumed_task_continues_its_sequence` asserts the whole run `[1, 2, 3, 4]`) |
 
 **Recorded limitation.** Downgrading `BEGIN IMMEDIATE` to `BEGIN` leaves every concurrency *behaviour* test green, because this implementation's first statement is a write and no lock upgrade is needed. The assertion on the emitted SQL is what holds that line. This is stated because a reader should know which of the two is load-bearing.
 
@@ -53,7 +53,7 @@ The two skips are declared, not silent: one is the real-provider smoke needing a
 | Crash **after** write, before commit | **PASS** | `AT-2` and `examples/g2_uncertain_demo.py` end to end: file present with the intended bytes, confirmation rolled back, state `ATTEMPTING` |
 | Crash **after** commit, before UI receipt | **PASS** | `AT-3`: zero reconciliation — nothing enters `UNCERTAIN`, no reconciliation events, `replay()` raises with a zero call count, mtime and hash unchanged. `AT-3b`: a reconnecting client reads exactly the missed tail by `after_seq` |
 | No blind replay | **PASS** | Refused by `RecoveryCoordinator.assert_replayable` **and** by `SideEffectExecutor.replay` independently, while the outcome is unresolved |
-| Changed source invalidates downstream | **PASS** | The test rewrites the file and **restores mtime with `os.utime`**, so an implementation keyed on modification time cannot pass. Invalidation follows `derived_from` |
+| Changed source invalidates downstream | **PASS** | The material is rewritten **and its mtime restored with `os.utime`**, so an implementation keyed on modification time cannot pass: `plan_resume` re-snapshots through `MaterialResolver.snapshot` (`test_resume_refuses_to_skip_a_stage_whose_material_moved`). Its sibling `invalidate_on_source_change` test does **not** prove this — that one is handed the previous hash by the caller and never touches the filesystem. Invalidation follows `derived_from` |
 | No reuse of an expired approval | **PASS** | All seven refusal reasons from ADR-0003 C4, each reached by real input; single use is a conditional `UPDATE` whose affected-row count is the guarantee |
 
 **Design point worth naming.** `UNCERTAIN` is a state recovery *enters*, not one it assumes away. Probing is over bytes: absent and a matching SHA256 are decidable; a different hash, a directory, or an unreadable target are not. **Unreadable is deliberately CONFLICT, not REPLAY_SAFE** — it is not evidence that nothing landed, it is evidence that we cannot tell. CONFLICT falls back to `UNCERTAIN` rather than `FAILED`, because `FAILED` would read as retryable to a later round and this one needs a human.
@@ -92,6 +92,21 @@ Two agents built LC-P1-06 and LC-P1-07 without reading each other. Three seams r
 | The head-revision test hardcoded `0001` after its own docstring said that would fail for the wrong reason | Reading the test against its claim |
 | `test_at7_crash_matrix_subprocess` flaked at two runs in five | Chased to `TerminateProcess` outliving the child's SQLite shared-memory teardown on Windows; the fix discards the orphaned sidecars |
 | My own first two flake diagnoses were wrong — basetemp reuse, then pragma order | The second was disproved by the failure rate not moving, which is why it is recorded |
+
+## Independent cross-review
+
+A reviewer who did not implement any of this ran this document against the code. **This is internal cross-validation by two agents, not an external independent audit**, and is not evidence of one.
+
+It worked from `a361a7c`, re-ran all four gates itself, and mutated code in a scratch copy rather than in the tree.
+
+- **All 17 clauses CONFIRMED.** No clause's named test was found to pass vacuously, and no PASS row was contradicted by the code.
+- **All three disclosures above verified TRUE** — two of them by applying the mutation and re-running the suite.
+- **No implementation defect and no test defect was found.** Six issues were raised and all six were in documentation.
+- One of the six could not be fixed because it is not a defect: on Windows pytest exits 0 while an `atexit` cleanup callback prints a `PermissionError`.
+
+Five were corrected in this document's branch: two misattributed citations (the `seq` figure and which test actually constrains timestamp-keyed invalidation), a stale test count in `G2-evidence.md` that contradicted this file, an unreproducible "32 tests green" figure replaced with the mutation a reader can run in one command, and a demonstration that told the reader a capability was absent from the very next file.
+
+**The reviewer's own summary was wrong once, and that was caught by re-measuring.** It reported that all seven tests in `test_store_concurrency.py` pass with `BEGIN IMMEDIATE` downgraded. Six do; the seventh — `test_the_write_lock_is_taken_before_the_first_read` — is the SQL assertion the disclosure says is load-bearing, and it fails, as it must. Its own docstring anticipates exactly this: *"If this assertion ever fails, the concurrency tests above are passing for a reason that has nothing to do with the design."* A review is evidence only after someone has checked it, which is the same standard applied to the work it reviews.
 
 ## Gate verdict
 
