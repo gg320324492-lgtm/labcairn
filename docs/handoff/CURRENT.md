@@ -1,19 +1,53 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-15 (updated after the second project-lead review of PR #2)  
-**Current `main`:** `9f9c4f0` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.  
-**G0:** LC-P1-00 PASS WITH NOTES; subject SHA `623e3ca31caba327d2f8b1af40ab67c35c7a61d3` (review subject, not the current tip).  
-**Review:** [LC-P1-00 report](../acceptance/LC-P1-00-review-623e3ca.md).  
-**Current authorized work order:** G1 — LC-P1-02, LC-P1-03 and LC-P1-04 are **implemented on `feat/g1-trusted-core` and awaiting acceptance**; see [G1 evidence](../acceptance/G1-evidence.md). **G1 cannot close** until LC-P1-03's real-provider smoke runs, which needs the project owner's spending authorisation and a credential issued for that purpose. LC-P1-05 has **not** started.
-**Binding decisions:** [LC-P1-01 amendments](../plans/LC-P1-01-approved-amendments.md).  
-**PR #1 re-review:** [Independent technical re-review](../acceptance/PR-1-independent-review.md) — C-1, C-2, R-01 and R-02 were reproduced from primary evidence rather than accepted on assertion; all four confirmed. Two further script defects (R-05) were reproduced and fixed. Conflicting instructions in `UPSTREAM_REFERENCES.md`, `PHASE_1_WORKORDERS.md`, `LC-P1-01-task-breakdown.md`, `ADR-0002` and `README.md` were synchronized.
+**Date:** 2026-10-16
+**Current `main`:** `a361a7c` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.
 
-Next: **do not rebuild G1.** LC-P1-02/03/04 are implemented and awaiting acceptance. The only thing standing between them and a G1 close is the real-provider smoke, which needs the project owner's spending authorisation and a credential issued for that purpose — the flow is `pydantic_models.smoke_test()` and removing the skip is the whole change. After acceptance, LC-P1-05 owns persistence; ADR-0006's outbound-consent bridge belongs there.
+## Gates
 
-**Merge authority.** From this point the implementing agent merges its own PRs after both the parent and a non-implementing reviewer have signed off and all required CI checks pass. Merge authorisation comes from the project plan, not from an external auditor.
+| Gate | Status |
+|---|---|
+| G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
+| G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
+| **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| G3 | **next** — LC-P1-08 material parsing, LC-P1-09 retrieval and evidence ledger, LC-P1-10 bounded analysis and plots |
 
-Paused pending a project-lead decision, because they are not the implementing agent's to make: expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, major architecture change, and the unresolved PyMuPDF licence obligation before LC-P1-08.
+## What exists now
 
-Notes carried forward from the review, none blocking: the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness (structural parsing is a tracked follow-up); the README capability-claim detector has known holes and is a floor, not a truth-checker; no real-browser or Windows-app smoke exists, and the dedicated packaging job is Linux-only. Copyright ownership is unresolved and there is still **no `LICENSE` file**; PyMuPDF's AGPL/commercial duality gates LC-P1-08.
+The engineering floor: versioned contracts, provider adapters with fail-closed budgets, workspace permissions, a SQLite task store with transactional events, crash recovery that enters UNCERTAIN rather than guessing, and the `research-report` Skill contract.
 
-Open items carried forward: copyright ownership is unresolved and there is still **no `LICENSE` file**, so the project describes itself as in development with open-source licensing pending; PyMuPDF's AGPL/commercial duality is unresolved and gates LC-P1-08. The README overclaim detector has known holes and is a floor, not a guarantee.
+Both exit demonstrations run green:
+
+```bash
+uv run python examples/g2_exit_demo.py      # persist, crash, restart, resume — 14 checks
+uv run python examples/g2_uncertain_demo.py # the uncertain path end to end — 18 checks
+```
+
+## What does not exist yet
+
+**No research capability.** No material parsing, no retrieval, no evidence ledger, no analysis, no plots. No CLI, no server, no web UI, and no model call that leaves the machine. G2 is a durable, recoverable floor, not a product.
+
+## Next: G3
+
+LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
+
+**A decision is required before LC-P1-08 starts: PyMuPDF is AGPL/commercial dual-licensed.** It is named by LC-P1-08 and constrains a future MIT release. This has been deferred since G1 and stops being deferrable at G3.
+
+## Carried limitations, none blocking
+
+- **G1:** `ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first. The ordering constraint belongs in an ADR.
+- **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
+- **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
+- **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.
+- **G2:** `ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.
+- **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
+- **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
+- **Cross-gate:** copyright ownership is unresolved and there is still **no `LICENSE` file**. The project describes itself as in development with open-source licensing pending.
+
+## Merge authority
+
+The implementing agent merges its own PRs after both the parent and a non-implementing reviewer have signed off and all required CI checks pass. Merge authorisation comes from the project plan, not from an external auditor.
+
+## Escalate to the project lead
+
+Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, major architecture change, and the unresolved PyMuPDF licence obligation.

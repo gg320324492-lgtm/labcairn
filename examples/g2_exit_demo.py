@@ -255,8 +255,9 @@ def main() -> int:
     print(f"{len(PASSED)} checks passed.")
     print("Not shown here: a genuinely unresolved side effect. The crash landed")
     print("after the confirmation committed, which is the case ADR-0003 says must")
-    print("cost zero reconciliation. The UNCERTAIN path is covered by the suite's")
-    print("fault matrix, which is where it belongs.")
+    print("cost zero reconciliation. The other case — a crash *between* the write")
+    print("and its confirmation, where the database cannot say which happened — is")
+    print("g2_uncertain_demo.py, which drives it to UNCERTAIN and back.")
     return 0
 
 

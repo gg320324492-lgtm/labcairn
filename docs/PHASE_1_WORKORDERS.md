@@ -24,12 +24,12 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 |---|---|---|---|---|
 | LC-P1-00 | P0 | G0 | **PASS WITH NOTES** | `623e3ca` · [review](acceptance/LC-P1-00-review-623e3ca.md) · [re-review](acceptance/PR-1-independent-review.md) · [evidence](acceptance/LC-P1-00-evidence.md) |
 | LC-P1-01 | P0 | G1 | **PASS WITH NOTES** | reviewed at `c23ef775` · [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2) [review comment](https://github.com/gg320324492-lgtm/labcairn/pull/2#issuecomment-6191612033) · **merged to `main` at `89c16d4`** · [evidence](acceptance/LC-P1-01-evidence.md) |
-| LC-P1-02 | P0 | G1 | **IMPLEMENTED — awaiting acceptance** | `feat/g1-trusted-core` · [G1 evidence](acceptance/G1-evidence.md) · cross-review blockers closed |
-| LC-P1-03 | P0 | G1 | **IMPLEMENTED — acceptance blocked** | `feat/g1-trusted-core` · **real-provider smoke not run** (needs authorisation) · [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md), [ADR-0006](adr/ADR-0006-capability-namespaces.md) |
-| LC-P1-04 | P0 | G1 | **IMPLEMENTED — awaiting acceptance** | `feat/g1-trusted-core` · case-bypass blocker found by cross-review and fixed · [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
-| LC-P1-05 | P0 | G2 | NOT STARTED | |
-| LC-P1-06 | P0 | G2 | NOT STARTED | |
-| LC-P1-07 | P0 | G2 | NOT STARTED | |
+| LC-P1-02 | P0 | G1 | **PASS** | merged `a79181b` · [G1 evidence](acceptance/G1-evidence.md) |
+| LC-P1-03 | P0 | G1 | **PASS WITH NOTES** | merged `a79181b`, smoke fix `b237751` · real smoke run against a live Anthropic-protocol endpoint: `tool_calls` ok, `usage_reporting` ok, structured output **inconclusive** (client-layer, not endpoint) · [ADR-0002](adr/ADR-0002-model-and-tool-execution-boundary.md), [ADR-0006](adr/ADR-0006-capability-namespaces.md) |
+| LC-P1-04 | P0 | G1 | **PASS** | merged `a79181b` · case-bypass blocker found by cross-review and fixed · [ADR-0003](adr/ADR-0003-event-and-permission-model.md) |
+| LC-P1-05 | P0 | G2 | **PASS WITH NOTES** | merged `917f844` · [acceptance](acceptance/G2-acceptance.md) |
+| LC-P1-06 | P0 | G2 | **PASS WITH NOTES** | merged `3c2269e` · three crash points injected; no blind replay · [acceptance](acceptance/G2-acceptance.md) |
+| LC-P1-07 | P0 | G2 | **PASS WITH NOTES** | merged `a6c6671` · forged-input and placeholder tests · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-08 | P0 | G3 | NOT STARTED | **blocked on a licensing decision** — PyMuPDF is AGPL/commercial dual-licensed |
 | LC-P1-09 | P0 | G3 | NOT STARTED | contract pre-decided in [ADR-0004](adr/ADR-0004-scientific-provenance-and-evidence-model.md) |
 | LC-P1-10 | P1 | G3 | NOT STARTED | see the priority legend above — still required for G3 |
@@ -38,7 +38,11 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-13 | P0 | G5 | NOT STARTED | |
 | LC-P1-14 | P0 | G5 | NOT STARTED | |
 
-**Gate status:** G0 closed. G1 **in progress** — LC-P1-01 `PASS WITH NOTES` (merged `89c16d4`); LC-P1-02/03/04 implemented on `feat/g1-trusted-core` and awaiting acceptance. **G1 is not passed**: LC-P1-03's real-provider smoke has not run. G2–G5 not started.
+**Gate status:** G0, G1 and **G2 closed**. **G3 next** — LC-P1-08, 09, 10. G4–G5 not started.
+
+G2 closed with notes, all carried rather than dropped: the concurrency *behaviour* tests pass with `BEGIN IMMEDIATE` downgraded, so the SQL assertion is the load-bearing element rather than the behaviour suite; three of LC-P1-07's four placeholder conditions are textual heuristics; and `ArtifactLedger` is in memory. Full list in the acceptance document.
+
+G1 was accepted with three limitations recorded rather than closed silently: structured-output capability is **unmeasured** (both probes fail in pydantic-ai's client layer before a request is sent, so they say nothing about the endpoint); `ApprovalLedger.consume()` does not resolve the capability against the registry, which is a defence-in-depth gap whose ordering constraint belongs in an ADR; and path-guard tests ran on Windows only, leaving POSIX ADS and case semantics unverified.
 
 A work order being accepted is not a gate being closed. G1 closes when all four of its work orders are accepted.
 
