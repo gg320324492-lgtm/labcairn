@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-16
-**Current `main`:** `a361a7c` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.
+**Date:** 2026-10-17
+**Current `main`:** `310bdd0` (merge of PR #16, the G2 acceptance and its independent cross-review). ADR-0008 sits on top of this and is not yet merged at the time of writing. **This line rots on every merge** — check `git log origin/main` rather than trusting it, and refresh it in the PR that reports the change.
 
 ## Gates
 
@@ -31,7 +31,7 @@ uv run python examples/g2_uncertain_demo.py # the uncertain path end to end — 
 
 LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
 
-**A decision is required before LC-P1-08 starts: PyMuPDF is AGPL/commercial dual-licensed.** It is named by LC-P1-08 and constrains a future MIT release. This has been deferred since G1 and stops being deferrable at G3.
+**LC-P1-08 is unblocked.** Its PDF library was PyMuPDF, which is AGPL/commercial dual-licensed — the AGPL branch would have constrained LabCairn's own future MIT release, and the commercial branch cannot be contracted while copyright ownership is unsettled. [ADR-0008](../adr/ADR-0008-pdf-ingestion-library.md) settles it on pdfplumber + pdfminer.six, both MIT. Nothing needed undoing: ADR-0004's locator contract was already independent of PyMuPDF, and no PDF dependency had been added.
 
 ## Carried limitations, none blocking
 
@@ -50,4 +50,4 @@ The implementing agent merges its own PRs after both the parent and a non-implem
 
 ## Escalate to the project lead
 
-Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, major architecture change, and the unresolved PyMuPDF licence obligation.
+Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, and major architecture change. The PyMuPDF licence obligation is now **resolved** (ADR-0008) and no longer needs escalating; **copyright ownership remains unresolved** and still does.
