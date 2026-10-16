@@ -579,6 +579,20 @@ class SourceRow(Base):
     __table_args__ = (
         Index("ix_sources_content_sha256", "content_sha256"),
         CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
+        # Closed vocabulary, mirroring ``events.type``. Without it the pairing
+        # check below is one-sided: a typo like 'unreadable' would sail through
+        # with no disclosure, and ADR-0004 A7 would not be enforced by the
+        # database at all. An event type this build has never heard of is a
+        # newer writer or a bug, and a raw INSERT bypassing the ORM is refused
+        # too; the same standard applies here.
+        CheckConstraint(
+            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
+            name="source_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "readability IN ('readable', 'unreadable_no_ocr')",
+            name="source_readability_vocabulary",
+        ),
         # ADR-0004 A7: "we could not look" is not "there was nothing there".
         # A disclosure attached to something we did read is a claim about
         # something that did not happen.
@@ -586,6 +600,32 @@ class SourceRow(Base):
             "(readability = 'unreadable_no_ocr') = (readability_disclosure IS NOT NULL)",
             name="source_disclosure_paired",
         ),
+        # Paired is not the same as meaningful. A disclosure nobody can read is
+        # the same failure the pairing exists to prevent, wearing a string.
+        CheckConstraint(
+            "readability_disclosure IS NULL OR length(trim(readability_disclosure)) > 0",
+            name="source_disclosure_non_empty",
+        ),
+        # Defence in depth, not a second implementation of
+        # ``require_workspace_relative``. The application validator is the
+        # contract; this refuses the shapes that make a stored path dangerous
+        # if a row is ever written by something that skipped it -- absolute,
+        # parent-escaping, a Windows separator, or a redundant '.' segment.
+        # A stored ``..`` is precisely what that validator refuses.
+        CheckConstraint(
+            "relative_path NOT GLOB '/*' AND relative_path NOT GLOB '*\\*' "
+            "AND relative_path NOT GLOB '../*' AND relative_path NOT GLOB '*/../*' "
+            "AND relative_path NOT GLOB '*/..' AND relative_path <> '..' "
+            "AND relative_path NOT GLOB './*' AND relative_path NOT GLOB '*/./*' "
+            "AND relative_path NOT GLOB '*/.' AND relative_path <> '.' "
+            "AND length(trim(relative_path)) > 0",
+            name="source_relative_path_workspace_relative",
+        ),
+        CheckConstraint(
+            "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_content_sha256_shape",
+        ),
+        CheckConstraint("length(trim(display_name)) > 0", name="source_display_name_non_empty"),
     )
 
 
@@ -654,32 +694,73 @@ class SourceTextRow(Base):
             name="uq_source_texts_address",
         ),
         Index("ix_source_texts_sha", "source_content_sha256"),
+        # Closed vocabulary, same standard as ``events.type``. Every shape
+        # CHECK below is an implication keyed on ``locator_kind``, so an
+        # unrecognised kind satisfies all of them vacuously and every typed
+        # column can be NULL. 'banana', 'PDF' and '' must not be storable.
+        # COMPUTATION is a real LocatorKind but has no extracted text -- a
+        # derived number is addressed by the operator that produced it, so it
+        # belongs in no row of this table.
+        CheckConstraint(
+            "locator_kind IN ('pdf', 'text', 'csv', 'xlsx')",
+            name="source_texts_kind_vocabulary",
+        ),
         # Exactly the typed columns each locator kind defines, and no others.
         # A half-populated locator resolves to the wrong thing silently, which
         # is the failure this table exists to make impossible.
+        #
+        # These must be **exhaustive**: an earlier draft constrained only the
+        # columns a kind *uses*, so a row could claim to be a text locator and
+        # a PDF page and a CSV cell at once -- a row no conforming code can
+        # produce and none can consume. Each check now names every column.
         CheckConstraint(
             "locator_kind <> 'pdf' OR (page IS NOT NULL AND line_start IS NULL "
             "AND line_end IS NULL AND section IS NULL AND row_number IS NULL "
             "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
             name="source_texts_pdf_shape",
         ),
-        # A text locator is defined by its line, and nothing else kind is
-        # allowed to carry one. Written as an equivalence rather than an
-        # implication: an earlier draft had this the other way round, and
-        # rejected every PDF, CSV and XLSX row for lacking a line number.
         CheckConstraint(
-            "(locator_kind = 'text') = (line_start IS NOT NULL)",
+            "locator_kind <> 'text' OR (line_start IS NOT NULL AND page IS NULL "
+            "AND row_number IS NULL AND column_name IS NULL AND sheet_name IS NULL "
+            "AND cell_ref IS NULL)",
             name="source_texts_text_shape",
         ),
         CheckConstraint(
             "locator_kind <> 'csv' OR (row_number IS NOT NULL AND column_name IS NOT NULL "
-            "AND page IS NULL AND line_start IS NULL AND sheet_name IS NULL)",
+            "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
+            "AND section IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
             name="source_texts_csv_shape",
         ),
         CheckConstraint(
             "locator_kind <> 'xlsx' OR (sheet_name IS NOT NULL AND cell_ref IS NOT NULL "
-            "AND page IS NULL AND line_start IS NULL AND row_number IS NULL)",
+            "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
+            "AND section IS NULL AND row_number IS NULL AND column_name IS NULL)",
             name="source_texts_xlsx_shape",
+        ),
+        # Every kind pins line_end and section to its own columns. text may
+        # carry them; nothing else may.
+        CheckConstraint(
+            "line_end IS NULL OR locator_kind = 'text'",
+            name="source_texts_line_end_is_text",
+        ),
+        CheckConstraint(
+            "section IS NULL OR locator_kind = 'text'",
+            name="source_texts_section_is_text",
+        ),
+        CheckConstraint(
+            "length(trim(locator_key)) > 0 AND length(trim(extraction_version)) > 0",
+            name="source_texts_key_non_empty",
+        ),
+        CheckConstraint(
+            "length(text_sha256) = 64 AND text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_texts_text_sha256_shape",
+        ),
+        # Bounded by what a consumer can accept: UntrustedText refuses above
+        # two million characters, so a longer row could be written and then
+        # never read back through the only sanctioned path.
+        CheckConstraint(
+            "length(text) <= 2000000",
+            name="source_texts_text_length",
         ),
         CheckConstraint("page IS NULL OR page >= 1", name="source_texts_page_positive"),
         CheckConstraint("row_number IS NULL OR row_number >= 1", name="source_texts_row_positive"),

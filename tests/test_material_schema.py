@@ -289,3 +289,214 @@ def test_an_xlsx_row_with_sheet_and_cell_is_accepted(db: Path) -> None:
         sheet_name="Sheet1",
         cell_ref="B2",
     )
+
+
+# --------------------------------------------------------------------------
+# Everything review found the schema wrongly accepting
+# --------------------------------------------------------------------------
+
+
+def test_a_row_cannot_claim_every_locator_kind_at_once(db: Path) -> None:
+    """A row claiming to be a text locator *and* a page *and* a CSV cell.
+
+    The shape constraints originally pinned only the columns each kind
+    *uses*, so this passed: it satisfies no constraint at all, because
+    every constraint is an implication keyed on locator_kind and this row
+    is 'text'. No conforming code can produce such a row -- TextLocator is
+    extra="forbid" and has none of those fields -- and none can consume
+    it. Each shape check now names every column.
+    """
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="text",
+            locator_key="text:line=1",
+            page=7,
+            line_start=1,
+            line_end=2,
+            section="Intro",
+            row_number=3,
+            column_name="yield_pct",
+            sheet_name="Sheet1",
+            cell_ref="B2",
+        )
+
+
+def test_a_csv_row_may_not_carry_a_cell_ref(db: Path) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="csv",
+            locator_key="csv:row=1,column=mean",
+            page=None,
+            row_number=1,
+            column_name="mean",
+            cell_ref="B2",
+        )
+
+
+def test_a_csv_row_may_not_carry_a_section(db: Path) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="csv",
+            locator_key="csv:row=1,column=mean",
+            page=None,
+            row_number=1,
+            column_name="mean",
+            section="Methods",
+        )
+
+
+def test_an_xlsx_row_may_not_carry_a_column_name(db: Path) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="xlsx",
+            locator_key="xlsx:Sheet1!B2",
+            page=None,
+            sheet_name="Sheet1",
+            cell_ref="B2",
+            column_name="mean",
+        )
+
+
+def test_only_a_text_row_may_carry_a_line_end(db: Path) -> None:
+    """TextLocator.line_end is optional and legitimate; no other kind has one."""
+    _insert_text(
+        db, locator_kind="text", locator_key="text:1-2", page=None, line_start=1, line_end=2
+    )
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="csv",
+            locator_key="csv:row=1,column=mean",
+            page=None,
+            row_number=1,
+            column_name="mean",
+            line_end=10,
+        )
+
+
+@pytest.mark.parametrize("kind", ["banana", "PDF", "", "docx", "computation"])
+def test_locator_kind_is_a_closed_vocabulary(db: Path, kind: str) -> None:
+    """Every shape check is an implication keyed on locator_kind.
+
+    An unrecognised kind therefore satisfies all of them vacuously with
+    every typed column NULL. The same standard ``events.type`` is held to.
+    """
+    with pytest.raises(IntegrityError):
+        _insert_text(db, locator_kind=kind, locator_key=f"k:{kind}", page=None)
+
+
+@pytest.mark.parametrize("kind", ["banana", "DOCX", ""])
+def test_source_kind_is_a_closed_vocabulary(db: Path, kind: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_source(db, kind=kind)
+
+
+@pytest.mark.parametrize("readability", ["unreadable", "UNREADABLE_NO_OCR", "banana", ""])
+def test_source_readability_is_a_closed_vocabulary(db: Path, readability: str) -> None:
+    """The pairing check is keyed on one literal.
+
+    Without the vocabulary, ``'unreadable'`` with no disclosure sails
+    through and ADR-0004 A7 is not enforced by the database at all.
+    """
+    with pytest.raises(IntegrityError):
+        _insert_source(db, readability=readability, readability_disclosure=None)
+
+
+def test_an_unreadable_source_may_not_carry_an_empty_disclosure(db: Path) -> None:
+    """Paired is not the same as meaningful."""
+    with pytest.raises(IntegrityError):
+        _insert_source(db, readability="unreadable_no_ocr", readability_disclosure="   ")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../../etc/passwd",
+        "papers/../../etc/passwd",
+        "papers/..",
+        "..",
+        "/absolute/path",
+        "papers/./paper.pdf",
+        "papers/sub/.",
+        ".",
+        r"C:\Users\x\paper.pdf",
+        r"papers\paper.pdf",
+        "",
+    ],
+)
+def test_relative_path_must_stay_inside_the_workspace(db: Path, path: str) -> None:
+    """Defence in depth behind require_workspace_relative, not a copy of it.
+
+    The application validator is the contract. This refuses the shapes that
+    make a stored path dangerous if a row is written by something that
+    skipped it -- and a stored ``..`` is exactly what that validator exists
+    to reject.
+    """
+    with pytest.raises(IntegrityError):
+        _insert_source(db, relative_path=path)
+
+
+def test_a_legitimate_nested_path_is_accepted(db: Path) -> None:
+    _insert_source(db, relative_path="papers/2026/widget-trial.pdf")
+
+
+@pytest.mark.parametrize("value", ["not-a-hash", "A" * 64, "a" * 63, ""])
+def test_content_sha256_must_look_like_one(db: Path, value: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_source(db, content_sha256=value)
+
+
+def test_an_empty_display_name_is_refused(db: Path) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_source(db, display_name="   ")
+
+
+def test_an_empty_locator_key_is_refused(db: Path) -> None:
+    """Four spellings of one page can otherwise coexist and fork the key."""
+    with pytest.raises(IntegrityError):
+        _insert_text(db, locator_key="   ")
+
+
+def test_an_empty_extraction_version_is_refused(db: Path) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(db, extraction_version="")
+
+
+@pytest.mark.parametrize("value", ["not-a-hash", "z" * 64, "b" * 10])
+def test_text_sha256_must_look_like_one(db: Path, value: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(db, text_sha256=value)
+
+
+def test_a_text_row_too_long_for_its_only_consumer_is_refused(db: Path) -> None:
+    """UntrustedText refuses above two million characters.
+
+    A longer row could be written and then never read back through the
+    only sanctioned path, which is a row that exists for no purpose.
+    """
+    _insert_text(db, text="x" * 1_000, text_sha256="b" * 64)
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_key="pdf:page=2",
+            page=2,
+            text="x" * 2_000_001,
+            text_sha256="b" * 64,
+        )
+
+
+def test_row_number_below_one_is_refused(db: Path) -> None:
+    """The positive-row constraint had no test at all."""
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="csv",
+            locator_key="csv:row=0,column=mean",
+            page=None,
+            row_number=0,
+            column_name="mean",
+        )
