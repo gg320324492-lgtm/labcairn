@@ -63,6 +63,12 @@ EXPECTED_TABLES = frozenset(
         "approvals",
         "checkpoints",
         "artifacts",
+        # ADR-0009 / LC-P1-08. `sources` persists the material a report
+        # cites; `source_texts` holds extracted text keyed by content hash,
+        # extraction version and locator. The store held outputs and nothing
+        # held inputs until this revision.
+        "sources",
+        "source_texts",
     }
 )
 

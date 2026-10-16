@@ -533,3 +533,155 @@ class EventRow(Base):
         # silently handed to a different event.
         {"sqlite_autoincrement": True},
     )
+
+
+# --------------------------------------------------------------------------- #
+# sources
+# --------------------------------------------------------------------------- #
+
+
+class SourceRow(Base):
+    """One ingested material file.
+
+    Persists :class:`labcairn.sources.source.Source`, whose contract LC-P1-02
+    froze and which LC-P1-05 left unstored -- the store held outputs
+    (``artifacts``) but nothing held the inputs a report cites. There is no
+    ``task_id``: a material belongs to the workspace, not to a Task, and it
+    must outlive the Tasks that cite it.
+
+    ``content_sha256`` is stored, never refreshed. ADR-0004 I4 says drift
+    invalidates downstream rather than silently re-reading, and a hash that
+    updated itself would make drift undetectable.
+    """
+
+    __tablename__ = "sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    #: See :data:`LOCAL_USER_ID`. Not authentication; the question it answers
+    #: is whose material this is, so a future multi-user migration has a
+    #: column to populate.
+    owner_id: Mapped[str] = mapped_column(Text, nullable=False, default=LOCAL_USER_ID)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(2000), nullable=False)
+    relative_path: Mapped[str] = mapped_column(String(2000), nullable=False, unique=True)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    readability: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Required non-empty when unreadable, absent otherwise. A disclosure
+    #: nobody has to write is a disclosure nobody writes, so its absence is a
+    #: schema error rather than a default.
+    readability_disclosure: Mapped[str | None] = mapped_column(Text, nullable=True)
+    identifiers: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    __table_args__ = (
+        Index("ix_sources_content_sha256", "content_sha256"),
+        CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
+        # ADR-0004 A7: "we could not look" is not "there was nothing there".
+        # A disclosure attached to something we did read is a claim about
+        # something that did not happen.
+        CheckConstraint(
+            "(readability = 'unreadable_no_ocr') = (readability_disclosure IS NOT NULL)",
+            name="source_disclosure_paired",
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# source_texts
+# --------------------------------------------------------------------------- #
+
+
+class SourceTextRow(Base):
+    """Extracted text for one addressable place in one material.
+
+    ADR-0009. The key is ``(source_content_sha256, extraction_version,
+    locator)``, and every part of it is load-bearing:
+
+    * the **content hash** binds the text to the exact bytes it came from, so
+      a modified file cannot inherit old text and ADR-0004's A2 fires;
+    * the **extraction version** keeps a new extraction beside an old one
+      rather than overwriting it, so an anchor written under the old version
+      still resolves and the divergence becomes detectable rather than silent;
+    * the **locator** separates the many addresses of one material.
+
+    ``locator_key`` is a canonical, NOT NULL, indexable rendering of the typed
+    locator columns beside it. SQLite treats NULLs as distinct inside a UNIQUE
+    index, so a unique constraint over the nullable locator columns would not
+    constrain even one row; this column is what makes the key enforceable. It
+    is derived, never the source of truth -- ADR-0004 rejects prose locators
+    precisely because they cannot be re-derived from anything, and this one is
+    re-derivable from typed columns that can be.
+    """
+
+    __tablename__ = "source_texts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The material's content hash at extraction time. Deliberately *not* a
+    #: foreign key to ``sources.content_sha256``: text outlives the row it was
+    #: extracted from, because a replaced file must not orphan the text that
+    #: existing anchors still resolve against.
+    source_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Which extraction produced this. Derived from the library version and an
+    #: adapter revision, not a constant somebody has to remember to bump.
+    extraction_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    locator_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Canonical rendering of the typed columns below. See the class docstring.
+    locator_key: Mapped[str] = mapped_column(String(2000), nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    section: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    row_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    column_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    sheet_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    cell_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: The extracted text. Wrapped in
+    #: :class:`labcairn.security.untrusted.UntrustedText` on the way *out*, not
+    #: on the way in: storage is not what makes material untrusted, and
+    #: dropping the wrapper at the database boundary would defeat ADR-0003 C6.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_content_sha256",
+            "extraction_version",
+            "locator_key",
+            name="uq_source_texts_address",
+        ),
+        Index("ix_source_texts_sha", "source_content_sha256"),
+        # Exactly the typed columns each locator kind defines, and no others.
+        # A half-populated locator resolves to the wrong thing silently, which
+        # is the failure this table exists to make impossible.
+        CheckConstraint(
+            "locator_kind <> 'pdf' OR (page IS NOT NULL AND line_start IS NULL "
+            "AND line_end IS NULL AND section IS NULL AND row_number IS NULL "
+            "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
+            name="source_texts_pdf_shape",
+        ),
+        CheckConstraint(
+            "locator_kind = 'text' OR line_start IS NOT NULL",
+            name="source_texts_text_shape",
+        ),
+        CheckConstraint(
+            "locator_kind <> 'csv' OR (row_number IS NOT NULL AND column_name IS NOT NULL "
+            "AND page IS NULL AND line_start IS NULL AND sheet_name IS NULL)",
+            name="source_texts_csv_shape",
+        ),
+        CheckConstraint(
+            "locator_kind <> 'xlsx' OR (sheet_name IS NOT NULL AND cell_ref IS NOT NULL "
+            "AND page IS NULL AND line_start IS NULL AND row_number IS NULL)",
+            name="source_texts_xlsx_shape",
+        ),
+        CheckConstraint("page IS NULL OR page >= 1", name="source_texts_page_positive"),
+        CheckConstraint("row_number IS NULL OR row_number >= 1", name="source_texts_row_positive"),
+        CheckConstraint(
+            "line_start IS NULL OR (line_start >= 1 "
+            "AND (line_end IS NULL OR line_end >= line_start))",
+            name="source_texts_line_range",
+        ),
+    )
