@@ -1,7 +1,7 @@
 # G2 — Acceptance evidence (LC-P1-05, LC-P1-06, LC-P1-07)
 
-**Status:** implemented and merged; **G2 not proposed as closed** — see "The clause that is not met".
-**Merged:** LC-P1-05 `917f844` · LC-P1-06 `3c2269e` · LC-P1-07 `a6c6671` · demo PR open
+**Status:** implemented and merged; **the blocking clause is now met** — see "The clause that was not met".
+**Merged:** LC-P1-05 `917f844` · LC-P1-06 `3c2269e` · LC-P1-07 `a6c6671` · demo `f944767` · integration `10f26e4`
 **Date:** 2026-10-16
 
 ## What was built
@@ -85,21 +85,48 @@ skills.StageCheckpoint : ... status, attempt, input_digests, output_digests ...
 
 **Neither is a superset of the other.** `StageCheckpoint` has no `through_seq`, which ADR-0003 C1 names as the only ordering and which `ResumeCoordinator.plan_resume` works from; `Checkpoint` cannot express a failed or blocked stage. Both exist in the tree and import cleanly, and the conversion between them is not written.
 
-## The clause that is not met
+## The clause that was not met, and now is
 
-**The demonstration proves recovery after a *confirmed* side effect. It does not prove recovery from an *unresolved* one** — the `UNCERTAIN` path, where the process died between writing and confirming and the system genuinely cannot tell whether the effect landed.
+**Recovery after a *confirmed* side effect is demonstrated by `g2_exit_demo.py`. Recovery from an *unresolved* one is demonstrated by `g2_uncertain_demo.py`**, which was the gap this document originally recorded.
 
-That path is covered by `tests/test_recovery_crash_matrix.py` (AT-2, AT-2b, AT-6, AT-7), which injects faults at `AFTER_WRITE_BEFORE_CONFIRM` and asserts that the operation enters `UNCERTAIN`, that replay is refused, and that a probe resolves it. The suite's coverage is real; the **end-to-end demonstration of it is missing**, because driving it needs a side effect whose probe outcome the demo can control.
+`uv run python examples/g2_uncertain_demo.py` — 18 checks, exit 0:
 
-I am not proposing G2 closed on the strength of a suite the demonstration does not exercise. Closing it needs either that demonstration or an explicit decision that the fault matrix is sufficient evidence.
+```
+1. The process dies between writing and confirming
+   [ok] the process died inside the write-then-confirm window
+   [ok] the file is on disk
+   [ok] its bytes are exactly what was intended
+   [ok] the confirmation rolled back, so the database has no receipt — state=attempting
+
+2. The system records what it cannot tell
+   [ok] the in-flight operation entered UNCERTAIN
+   [ok] its state is UNCERTAIN, not a guess — state=uncertain
+   [ok] the stage was blocked with a reason a reader can act on
+
+3. Replay is refused until a probe resolves it
+   [ok] replay is refused while the outcome is unknown — ReconciliationRequired
+   [ok] the executor refuses to replay it too — ReconciliationRequired
+   [ok] the file was not written a second time
+
+4. A probe over the actual bytes resolves it
+   [ok] the probe found the intended bytes — resolution=confirmed
+   [ok] reached by a probe, not by re-running the write
+   [ok] the resolution is stored, not inferred
+   [ok] and the mechanism is stored beside it
+   [ok] replay is permitted once the outcome is settled
+```
+
+The injection is a real `FaultInjector` point inside the executor, not a flag the demonstration sets. The state after the crash is `ATTEMPTING` — the database rolled the confirmation back and **cannot say whether the file was written**, which is the whole reason `UNCERTAIN` exists.
+
+The last two checks read the resolution **from the log**, which is what ADR-0007's `payload` field was added for: `confirmed_by_probe` is mechanism plus state, stored as `resolution: confirmed` beside `reached_by: probe`.
 
 ## Open items carried forward
 
 | Item | Severity | Note |
 |---|---|---|
-| `UNCERTAIN` recovery not in the exit demonstration | **blocks close** | Covered by the fault matrix; needs an end-to-end demo or a decision that the suite suffices |
-| `StageCheckpoint` cannot convert to `runtime.Checkpoint` | integration | The two lines were built in parallel; conversion is the next piece of work |
-| The frozen `Event` has no `payload` field | technical debt | ADR-0003 C1 requires it. Has blocked real work twice: LC-P1-05 stores the whole document as JSON, LC-P1-06 cannot persist `confirmed_by_probe` literally |
+| ~~`UNCERTAIN` recovery not in the exit demonstration~~ | **closed** | Demonstrated end to end by `examples/g2_uncertain_demo.py` |
+| ~~`StageCheckpoint` cannot convert to `runtime.Checkpoint`~~ | **closed** | `recovery/stages.py` bridges by looking the name up; `through_seq` comes from the caller because only the store knows how far the log got |
+| ~~The frozen `Event` has no `payload` field~~ | **closed** | [ADR-0007](../adr/ADR-0007-event-payload.md); the store's old `payload` column was renamed `document` and a real one added beside it |
 | `ArtifactLedger` is in-memory | persistence | LC-P1-07's ledger does not survive a restart; the store does |
 | `ApprovalLedger.consume()` does not resolve the capability | defence in depth | Carried from G1 |
 | Path-guard tests ran on Windows only | coverage | Carried from G1; one test of this class was already fixed when CI found it on Ubuntu |
