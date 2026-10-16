@@ -50,7 +50,7 @@ Licences were read from the upstream `LICENSE` files themselves, not from a pack
 - **pypdfium2** — PyPI metadata "BSD-3-Clause, Apache-2.0, dependency licenses".
 - **PyMuPDF** — PyPI metadata, quoted above. Not re-derived from its source tree.
 
-**Scope of inspection, stated plainly:** licence files, package metadata, **and three behavioural probes.** They were run because this ADR asserts a mechanism — how a span anchor is produced — and an asserted mechanism is not evidence. Each built a PDF by hand (computed xref, no library) and read it back with pdfplumber 0.11.10 / pdfminer.six 20260107: one single-column page, one two-column page, and the corrected rule re-measured against both. Parsing source was not studied and **this is not a benchmark** — no timing, no large document, no claim about speed that has not been measured.
+**Scope of inspection, stated plainly:** licence files, package metadata, **and four behavioural probes.** They were run because this ADR asserts a mechanism — how a span anchor is produced — and an asserted mechanism is not evidence. Each built a PDF by hand (computed xref, no library) and read it back with pdfplumber 0.11.10 / pdfminer.six 20260107: a single-column page, a two-column page, a threshold sweep across both plus an intra-column gap, and the corrected rule re-measured. Parsing source was not studied and **this is not a benchmark** — no timing, no large document, no claim about speed that has not been measured.
 
 **What the probe measured, and what it corrected.** Every key the mechanism depends on is present on a character record — `text`, `x0`, `x1`, `top`, `bottom`, `fontname`, `size` — so the claim is sound. But the first version of the grouping rule was **wrong**, and the probe is why it was caught before LC-P1-08 was built on it:
 
@@ -109,7 +109,11 @@ pdfminer.six reaches the same objects a layer lower (`LTTextBox` → `LTTextLine
 - **Version coupling.** pdfplumber pins an exact `pdfminer.six` version per release; upgrading `pdfminer.six` independently can silently change extraction. This must be respected — the pin is part of the contract, not an accident of the lockfile.
 - **Coordinate normalisation is a real difference from the ecosystem norm.** pdfminer's bottom-left PDF origin is what most PDF examples use. Anchors must not mix the two conventions. The acceptance test below exists for this reason.
 - **Neither `extract_text_lines()` nor raw glyph joining is a span.** The first is baseline-clustered, so it merges columns; the second drops synthesised whitespace. Both failure modes are in the probe output above. LC-P1-08 must derive columns and lines from `page.chars` geometry itself, and must take span text from a source that preserves synthesised whitespace. Tests must fail if a span spans a gutter or loses an interior space — otherwise C2 quietly becomes a checker that passes on text no author wrote.
-- **Gutter detection is a heuristic with a threshold.** `min_gap` trades two failure modes: too small and a column splits on an unusually wide word gap; too large and two genuinely separate columns merge. Real papers will not respect a single constant. The threshold is a declared parameter of the anchor contract, not a hidden default, and a page whose segmentation is ambiguous is reported as such rather than silently mis-anchored.
+- **A single gutter threshold is provably insufficient, not merely fragile.** This was measured rather than assumed. Two fixtures: a page with two columns sharing baselines, and a single column containing one 120-point intra-column gap. Sweeping the threshold, the first is segmented correctly only at `min_gap < 42` and the second only at `min_gap > 70`. **The overlap is empty** — no constant satisfies both.
+
+  The reason is the useful part. Projecting the two-column page onto x gives bands `[(72.0, 278.2), (320.0, 414.5)]` — a gap of **41.8 points**, not the 160 the columns actually leave between them. The full-width title reaches `x1 = 278.16`, so it bridges the left column and collapses the effective gutter to the narrowest gap between *any* two bands on the page. Every real paper has a full-width title, and often a figure or table that spans both columns, so this is the common case and not an artefact of the fixture.
+
+  Consequently **column detection cannot be a global x-projection with one constant.** The signal LC-P1-08 should use instead is *support*: a genuine column is occupied by many lines at the same x-range, whereas an intra-column word gap appears on one line. A split proposed by a single line is not a gutter. That is a design requirement handed to the work order, stated here because it follows directly from the measurement — and it is **unproven** until real fixtures exist, which is what the re-evaluation trigger below is for.
 - **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` contract ADR-0004 already froze. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
 
 ## Contracts and acceptance tests
@@ -119,8 +123,10 @@ pdfminer.six reaches the same objects a layer lower (`LTTextBox` → `LTTextLine
 3. Span geometry is expressed in **one** coordinate convention, asserted by a test that fails if a second origin convention appears.
 4. **A span never spans a gutter or a line break.** Given a two-column fixture with identical styling in both columns, it yields two spans per row, not one — the regression probes two and three caught. Asserted against exact expected span text and bounding boxes.
 5. **A span keeps its interior whitespace.** `'Efficacy of Widgets in Field Trials'`, not `'EfficacyofWidgetsinFieldTrials'`. A span that loses a space is a different string, and C2 compares verbatim.
-6. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
-7. Unreadable, empty, duplicate and modified inputs are handled without fabrication — and unreadable stays distinct from "no results".
+7. **A full-width element does not create a gutter.** A fixture with a title or figure spanning both columns must still segment into two columns — the regression the threshold sweep found, where a full-width title collapsed the effective gutter from 160 points to 41.8.
+8. **An intra-column gap is not a gutter.** A fixture with one line containing a wide intra-column gap keeps that line whole.
+9. Hash drift is detected: modify a fixture after extraction and the anchor is invalidated.
+10. Unreadable, empty, duplicate and modified inputs are handled without fabrication — and unreadable stays distinct from "no results".
 
 ## Re-evaluation trigger
 
@@ -128,4 +134,4 @@ Re-open this decision if **any** of these becomes true:
 
 - LC-P1-13 evaluation shows ingestion is the binding constraint rather than retrieval recall — i.e. parsing cost actually matters at scale. Then the speed trade-off above stops being acceptable and the commercial option is worth pricing properly.
 - A span-level requirement appears that pdfplumber cannot satisfy — for example a true graphical/textual distinction requiring a rendering pass rather than glyph geometry.
-- The three probes here were built by hand to exercise one layout each. If LC-P1-08's real fixture corpus — real papers, real tables, real figures — shows the gutter threshold in the risks section is not survivable, **column segmentation becomes LC-P1-08's hardest problem rather than its easiest**, and the effort estimate for this work order is wrong.
+- The gutter threshold is already known to be insufficient, so what LC-P1-08 must prove is that **line support** is a sufficient replacement signal: a real fixture corpus — actual papers, tables and figures — must segment correctly under a support-based rule where the global-threshold rule provably fails. If line support does not hold either, column segmentation is a research problem rather than an engineering one, and the effort estimate for this work order is wrong.
