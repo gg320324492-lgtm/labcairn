@@ -74,10 +74,34 @@ def _capabilities() -> ProviderCapabilities:
 
 
 class _Response:
-    """The minimum an httpx response exposes to the sniffer."""
+    """The minimum an httpx response exposes to the sniffer.
+
+    Models httpx's actual transport-level behaviour rather than a convenient
+    approximation: at this point the body has **not** been read, and
+    ``content`` raises until ``aread()`` loads it.
+
+    This fake used to hand over an already-read body, which is why the real
+    provider smoke could report ``usage_reporting: unsupported`` for an endpoint
+    that returns ``usage: {input_tokens: 83, output_tokens: 9}``. The sniffer
+    called ``json.loads(response.content)``, got ``ResponseNotRead``, swallowed
+    it, and every endpoint looked like it reported nothing. The failure direction
+    is safe — token ceilings fail closed — and that is precisely how it stayed
+    hidden.
+    """
 
     def __init__(self, content: bytes) -> None:
-        self.content = content
+        self._content = content
+        self._read = False
+
+    @property
+    def content(self) -> bytes:
+        if not self._read:
+            raise RuntimeError("ResponseNotRead")
+        return self._content
+
+    async def aread(self) -> bytes:
+        self._read = True
+        return self._content
 
 
 class _FakeTransport:
