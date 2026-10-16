@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-16
-**Current `main`:** `a361a7c` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.
+**Date:** 2026-10-17
+**Current `main`:** `310bdd0` (merge of PR #16, the G2 acceptance and its independent cross-review). ADR-0008 sits on top of this and is not yet merged at the time of writing. **This line rots on every merge** — check `git log origin/main` rather than trusting it, and refresh it in the PR that reports the change.
 
 ## Gates
 

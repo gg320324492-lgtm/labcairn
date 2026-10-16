@@ -174,7 +174,10 @@ def constraint_3_whitespace(pdfplumber: Any) -> bool:
     )
     kerned = _pdf(b"BT /F1 14 Tf 72 720 Td " + array + b" TJ ET\n")
 
-    print(f"  source string: {TITLE!r}  ({len(TITLE)} chars, {len(words)} spaces)")
+    print(
+        f"  source string: {TITLE!r}  "
+        f"({len(TITLE)} chars, {TITLE.count(' ')} spaces, {len(words)} words)"
+    )
     print(f"  {'built as':<28} {'chars':>6} {'space glyphs':>14}  joining chars yields")
     for label, data in (("literal 0x20 bytes", literal), ("TJ offsets, no glyph", kerned)):
         with _open(pdfplumber, data, "probe_c3.pdf") as pdf:
@@ -232,9 +235,11 @@ def constraint_4_threshold(pdfplumber: Any) -> bool:
 def constraint_5_rotated(pdfplumber: Any) -> bool:
     content = b"BT /F1 10 Tf 0 1 -1 0 200 400 Tm (Rotated label) Tj ET\n"
     with _open(pdfplumber, _pdf(content), "probe_c5.pdf") as pdf:
-        chars = pdf.pages[0].chars
+        page = pdf.pages[0]
+        chars = page.chars
         upright = {c["upright"] for c in chars}
         sizes = sorted({round(c["size"], 2) for c in chars})
+        extracted = page.extract_text()
 
     print("    source: 'Rotated label' (13 chars, one 10pt run)")
     print(f"    chars: {len(chars)}   upright flags: {upright}   distinct sizes: {sizes}")
@@ -243,6 +248,10 @@ def constraint_5_rotated(pdfplumber: Any) -> bool:
         text = "".join(m["text"] for m in members)
         print(f"      size={size:>5}  n={len(members):>2}  {text!r}")
 
+    # Not just glyph joining: pdfplumber's own page-level extraction is
+    # wrong here too, reversed and split. So this is not fixable by
+    # reassembling character records after all.
+    print(f"    page.extract_text(): {extracted!r}   <- reversed and split, not just lossy")
     shredded = len(groups) > 1
     print(f"  one run fragmented into {len(groups)} groups: {shredded}")
     return shredded
