@@ -4,11 +4,11 @@
 **Current `main`:** `9f9c4f0` — the commit this handoff describes. Anything newer is work in progress on a branch; check `git log origin/main` before trusting a higher SHA.  
 **G0:** LC-P1-00 PASS WITH NOTES; subject SHA `623e3ca31caba327d2f8b1af40ab67c35c7a61d3` (review subject, not the current tip).  
 **Review:** [LC-P1-00 report](../acceptance/LC-P1-00-review-623e3ca.md).  
-**Current authorized work order:** G1 — LC-P1-02, LC-P1-03 and LC-P1-04 are **implemented on `feat/g1-trusted-core` and awaiting acceptance**; see [G1 evidence](../acceptance/G1-evidence.md). **G1 cannot close** until LC-P1-03's real-provider smoke runs, which needs the project owner's spending authorisation and a credential issued for that purpose. LC-P1-05 has **not** started.
+**Current authorized work order:** **G1 is closed** (project lead's decision, recorded in the status board). **LC-P1-05** — SQLite task store and transactional events — is next and has started. G1's three accepted limitations are listed in the status board rather than dropped.
 **Binding decisions:** [LC-P1-01 amendments](../plans/LC-P1-01-approved-amendments.md).  
 **PR #1 re-review:** [Independent technical re-review](../acceptance/PR-1-independent-review.md) — C-1, C-2, R-01 and R-02 were reproduced from primary evidence rather than accepted on assertion; all four confirmed. Two further script defects (R-05) were reproduced and fixed. Conflicting instructions in `UPSTREAM_REFERENCES.md`, `PHASE_1_WORKORDERS.md`, `LC-P1-01-task-breakdown.md`, `ADR-0002` and `README.md` were synchronized.
 
-Next: **do not rebuild G1.** LC-P1-02/03/04 are implemented and awaiting acceptance. The only thing standing between them and a G1 close is the real-provider smoke, which needs the project owner's spending authorisation and a credential issued for that purpose — the flow is `pydantic_models.smoke_test()` and removing the skip is the whole change. After acceptance, LC-P1-05 owns persistence; ADR-0006's outbound-consent bridge belongs there.
+Next: **LC-P1-05.** Alembic migrations, the eight tables, per-Task gapless `seq` allocated inside the transaction, and event/state committed together per ADR-0003 C3. ADR-0006's outbound-consent bridge belongs here too — it is the first place a model capability and a permitted `CapabilityId` have to be reconciled.
 
 **Merge authority.** From this point the implementing agent merges its own PRs after both the parent and a non-implementing reviewer have signed off and all required CI checks pass. Merge authorisation comes from the project plan, not from an external auditor.
 
