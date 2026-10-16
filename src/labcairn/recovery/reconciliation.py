@@ -55,9 +55,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
+from pydantic import Field
 from sqlalchemy.orm import Session
 
 from labcairn.core.ids import OperationId, TaskId
+from labcairn.core.schema import LabCairnModel
 from labcairn.db.repository import Clock, TaskStore, utc_now
 from labcairn.recovery.contracts import (
     RESOLUTION_TO_STATE,
@@ -75,9 +77,40 @@ from labcairn.recovery.persistence import (
     find_stage,
     load_operation,
 )
-from labcairn.runtime.event import EventTransition, EventType
+from labcairn.runtime.event import (
+    EventTransition,
+    EventType,
+    register_payload_schema,
+)
 from labcairn.runtime.lifecycle import Stage, StageStatus
 from labcairn.runtime.operation import Operation, OperationState
+
+
+class ReconciliationPayload(LabCairnModel):
+    """What an ``operation_reconciled`` event carries beyond its transition.
+
+    ADR-0007 added the ``payload`` field the event contract always specified.
+    Before it, ``confirmed_by_probe`` was **re-derivable but not stored**: the
+    resolution had to be inferred from the fact that an operation reached
+    ``CONFIRMED`` while carrying ``operation_reconciled`` and no receipt, which
+    is sound only for as long as C2's vocabulary has exactly those two paths. A
+    reader should not have to reconstruct provenance the log could simply state.
+    """
+
+    #: The C2 vocabulary word for how this was resolved.
+    resolution: str = Field(min_length=1)
+    #: What the probe actually observed, so a human can judge the answer rather
+    #: than only the conclusion.
+    verdict: str = Field(min_length=1)
+    #: Which mechanism reached it. ``probe`` means bytes were read; a future
+    #: ``policy`` would mean a human decided. Recording the source separately
+    #: from the resolution keeps "what was concluded" and "on what basis"
+    #: distinguishable, which is the distinction ADR-0004's evidence states exist
+    #: for.
+    reached_by: str = Field(min_length=1)
+
+
+register_payload_schema(EventType.OPERATION_RECONCILED, ReconciliationPayload)
 
 #: Why a stage is blocked, recorded verbatim on the stage row. A reader seeing
 #: ``BLOCKED`` must be able to tell "a human is being asked" from "the system
@@ -230,6 +263,11 @@ class RecoveryCoordinator:
                 transition=EventTransition(
                     from_state=OperationState.UNCERTAIN.value, to_state=resolution.value
                 ),
+                payload=ReconciliationPayload(
+                    resolution=resolution.value,
+                    verdict=verdict.kind.value if hasattr(verdict, "kind") else str(verdict),
+                    reached_by=ResolutionSource.PROBE.value,
+                ).model_dump(mode="json"),
             )
             work.put_operation(updated)
             stage = find_stage(self._session, operation.stage_id)

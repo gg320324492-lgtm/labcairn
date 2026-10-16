@@ -24,6 +24,7 @@ than one already recorded.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated
@@ -131,6 +132,32 @@ def event_requires_operation_context(type_: EventType) -> bool:
     return type_.value.startswith("operation_")
 
 
+#: Per-type payload schemas, empty until an event type has content to carry.
+#:
+#: ADR-0003 C1 lists a ``payload`` column "validated against the type's Pydantic
+#: model". Writing 25 models up front would be 25 empty classes; instead a type
+#: gets a schema when some work order has content for it, and this table is the
+#: only place that knows which types carry content.
+#:
+#: The rule that makes this safe is in :class:`Event`: a type with **no**
+#: registered schema must carry an **empty** payload. Without it ``payload``
+#: becomes a free-form bag, which is the state ``extra="forbid"`` exists to
+#: prevent, reintroduced through the back door.
+EVENT_PAYLOAD_SCHEMAS: dict[EventType, type[LabCairnModel]] = {}
+
+
+def register_payload_schema(event_type: EventType, schema: type[LabCairnModel]) -> None:
+    """Declare the model an event type's payload must satisfy.
+
+    Called at import by whichever module owns the content. Kept as a function
+    rather than a dict literal so the registration site is greppable and so a
+    duplicate registration is an error rather than a silent overwrite.
+    """
+    if event_type in EVENT_PAYLOAD_SCHEMAS:
+        raise ValueError(f"{event_type.value} already has a registered payload schema")
+    EVENT_PAYLOAD_SCHEMAS[event_type] = schema
+
+
 class EventTransition(LabCairnModel):
     """The state a change moved *from* and *to*.
 
@@ -161,6 +188,9 @@ class Event(LabCairnModel):
     type: EventType
     #: Present and required on events that describe a change.
     transition: EventTransition | None = None
+    #: Type-specific content. Empty for every type that has no registered
+    #: schema, which is enforced below rather than assumed.
+    payload: Mapping[str, object] = Field(default_factory=dict)
     #: Informational only. Never used to order anything.
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -187,6 +217,19 @@ class Event(LabCairnModel):
             raise ValueError(f"{self.type.value} describes a change and requires a transition")
         if self.type not in _TRANSITION_TYPES and self.transition is not None:
             raise ValueError(f"{self.type.value} is an annotation and must not carry a transition")
+
+        schema = EVENT_PAYLOAD_SCHEMAS.get(self.type)
+        if schema is None:
+            # The anti-bag rule. A type with no declared content must carry none,
+            # or ``payload`` is a hole in ``extra="forbid"``.
+            if self.payload:
+                raise ValueError(
+                    f"{self.type.value} has no registered payload schema, so its "
+                    f"payload must be empty; got {sorted(self.payload)}. Register a "
+                    f"schema with register_payload_schema() if this content is real."
+                )
+        else:
+            schema.model_validate(dict(self.payload))
         return self
 
 

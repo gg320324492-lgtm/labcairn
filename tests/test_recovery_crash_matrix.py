@@ -27,6 +27,7 @@ Nothing here is simulated by setting a flag and asserting on it.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -232,6 +233,35 @@ def test_at2b_the_write_counter_proves_no_second_write_during_reconciliation(env
     assert outcome.reached_by is ResolutionSource.PROBE, (
         "the only way an operation reaches CONFIRMED here is a probe finding the "
         "bytes; this is what AT-4 calls resolution='confirmed_by_probe'"
+    )
+
+    # Read it back from the log rather than from the return value. Before
+    # ADR-0007 this string was **derivable but not stored**: a reader had to
+    # notice that a CONFIRMED operation carried `operation_reconciled` and no
+    # receipt, which holds only while C2's vocabulary has exactly those two
+    # paths to CONFIRMED. The point of the payload field is that a reader gets
+    # the provenance stated instead of reconstructing it.
+    reconciled = list(
+        after.session.execute(
+            select(EventRow).where(EventRow.type == "operation_reconciled")
+        ).scalars()
+    )
+    assert len(reconciled) == 1, "expected exactly one reconciliation event"
+    stored = json.loads(reconciled[0].payload)
+    # `confirmed_by_probe` is the **mechanism**, not a state. The two are stored
+    # separately on purpose: `resolution` uses C2's own state vocabulary
+    # (`confirmed`), and `reached_by` says how it was decided (`probe`).
+    # Collapsing them into one word would lose the distinction a reader needs
+    # most — whether the system observed the bytes or a human decided.
+    assert stored["resolution"] == "confirmed", (
+        f"the resolution must be stored in C2's vocabulary; got {stored!r}"
+    )
+    assert stored["reached_by"] == "probe", (
+        "confirmed_by_probe is mechanism plus state, and the mechanism is here"
+    )
+    assert stored["verdict"], "the verdict a human would judge the answer by"
+    assert json.loads(reconciled[0].document)["payload"] == stored, (
+        "the whole document and the payload column must agree"
     )
 
     # One write total, from the original counter: reconciliation rewrote nothing.

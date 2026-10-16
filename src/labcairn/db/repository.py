@@ -33,7 +33,8 @@ than a convention someone might follow loosely.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+import json
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -131,6 +132,7 @@ class UnitOfWork:
         stage_id: StageId | None = None,
         operation_id: OperationId | None = None,
         transition: EventTransition | None = None,
+        payload: Mapping[str, object] | None = None,
         occurred_at: datetime | None = None,
     ) -> Event:
         """Record an event, validated by the frozen contract.
@@ -147,6 +149,7 @@ class UnitOfWork:
             operation_id=operation_id,
             type=event_type,
             transition=transition,
+            payload=dict(payload) if payload else {},
             occurred_at=occurred_at if occurred_at is not None else self.clock(),
         )
         self._events.append(_PendingEvent(provisional))
@@ -350,7 +353,8 @@ def _event_row(event: Event) -> EventRow:
         to_state=transition.to_state if transition is not None else None,
         schema_version=event.schema_version,
         occurred_at=event.occurred_at,
-        payload=event.model_dump_json(),
+        document=event.model_dump_json(),
+        payload=json.dumps(dict(event.payload), sort_keys=True),
     )
 
 
@@ -534,7 +538,7 @@ def events_after(
 ) -> tuple[Event, ...]:
     """A Task's event tail as frozen contracts, excluding ``after_seq`` itself."""
     rows = session.execute(select_events(task_id, after_seq=after_seq, limit=limit)).scalars()
-    return tuple(Event.model_validate_json(row.payload) for row in rows)
+    return tuple(Event.model_validate_json(row.document) for row in rows)
 
 
 def count_events(session: Session, task_id: TaskId) -> int:
