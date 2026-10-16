@@ -8,12 +8,14 @@ Deliberately not wired into CI: it needs pdfplumber, which is not yet a
 dependency. LC-P1-08 turns each measurement into a real test when it
 adopts the library.
 
+Note on naming: "spans" here means how glyphs assemble into page text.
+
 Every PDF here is built by hand -- computed xref, no library -- because a
 fixture from a PDF generator would bring its own layout decisions into
 the measurement. Each check prints its numbers and the script exits
 non-zero if any expectation fails, so this is a check and not a printout.
 
-Five constraints are measured, matching the five numbered constraints in
+Five measurements are made here, matching measurements 1-5 in
 ``docs/adr/ADR-0008-pdf-ingestion-library.md``:
 
   1. page-wide grouping on (fontname, size) merges separate lines
@@ -22,6 +24,12 @@ Five constraints are measured, matching the five numbered constraints in
   4. no single gutter threshold satisfies both a two-column page and a
      column containing one wide intra-column gap
   5. (fontname, size) is not a valid key for rotated text
+
+These describe how a page's glyphs fail to assemble into the text a reader
+would quote. They are the mechanism behind LC-P1-08's page-text
+constraints, not the constraints themselves: ``PdfLocator`` indexes a
+character range into that text, and no locator in this project carries
+geometry.
 """
 
 from __future__ import annotations
@@ -298,7 +306,7 @@ def main() -> int:
         print("the ADR is wrong, not the probe.")
         return 1
 
-    print(f"All {len(CHECKS)} constraints reproduced.")
+    print(f"All {len(CHECKS)} measurements reproduced.")
     print("ADR-0008's measurements stand.")
     return 0
 
