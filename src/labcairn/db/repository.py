@@ -1,0 +1,561 @@
+"""The transaction boundary: one unit of work, one SQLite transaction.
+
+ADR-0003 C3 says a transaction contains *one or more events with contiguous
+``seq``, and all state-row updates those events describe, **and nothing else**,
+and that a crash before COMMIT rolls back both. This module is where that is
+enforced rather than described.
+
+The ordering inside a flush is the ADR's, not SQLite's:
+
+1. **Allocate.** ``UPDATE tasks SET last_event_seq = last_event_seq + n ...
+   RETURNING last_event_seq`` reads a committed row and hands back a contiguous
+   block in one statement. Under ``BEGIN IMMEDIATE`` the write lock is already
+   held, so two connections cannot interleave their allocations; the
+   ``UNIQUE(task_id, seq)`` index is the backstop if this ever stops being true.
+2. **Insert events.** Before the state rows, because an ``operation_intent``
+   names an operation whose row does not exist yet. The foreign keys on
+   ``events`` are deferred, so this ordering is legal *and* still checked at
+   COMMIT.
+3. **Update state rows.** Only those the caller asked for, by the explicit
+   ``put_*`` methods on :class:`UnitOfWork`. There is no "save everything" call
+   and no attribute scanning, which is what keeps "and nothing else" true by
+   construction rather than by review.
+
+Any exception at any point — including one raised after the events are in but
+before the state rows are written — rolls the whole unit back. That is not a
+claim this module makes; ``tests/test_store_atomicity.py`` injects a failure
+*between* steps 2 and 3 and asserts both halves are gone.
+
+``events`` is append-only here: this module contains no UPDATE and no DELETE
+against that table, so immutability is a property of the only writer rather
+than a convention someone might follow loosely.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from functools import partial
+from typing import Any
+
+from sqlalchemy import Select, func, select, update
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session
+
+from labcairn.core.ids import OperationId, RunId, StageId, TaskId
+from labcairn.db.models import (
+    LOCAL_USER_ID,
+    ApprovalRow,
+    ArtifactRow,
+    CheckpointRow,
+    EventRow,
+    OperationRow,
+    RunRow,
+    StageRow,
+    TaskRow,
+)
+from labcairn.reports.receipt import ArtifactReceipt
+from labcairn.runtime.event import Event, EventTransition, EventType
+from labcairn.runtime.lifecycle import Run, Stage, Task
+from labcairn.runtime.operation import Approval, Checkpoint, Operation
+
+#: A clock returning an aware UTC datetime. Injected so tests can freeze time
+#: instead of asserting against a wall clock that moves.
+type Clock = Callable[[], datetime]
+
+
+def utc_now() -> datetime:
+    """The default clock.
+
+    ``datetime.now(UTC)`` rather than ``utcnow()``: the latter is deprecated
+    precisely because it returns a *naive* value, and a naive timestamp written
+    into ``occurred_at`` is the ambiguity
+    :class:`~labcairn.db.models.UtcDateTime` refuses on the way in.
+    """
+    return datetime.now(UTC)
+
+
+class StoreError(RuntimeError):
+    """Base for the store's own refusals."""
+
+
+class UnknownTaskError(StoreError):
+    """A unit of work named a Task that has no row.
+
+    Raised rather than surfacing as ``NoResultFound`` from the RETURNING clause,
+    because the caller who hits it is holding a Task id that was never created —
+    a different bug from an empty query, and worth a different message.
+    """
+
+
+@dataclass
+class _PendingEvent:
+    """An event whose ``seq`` has not been allocated yet.
+
+    The frozen ``Event`` contract requires a positive ``seq`` at construction,
+    so validation happens against a provisional value and the real one is
+    substituted at flush. Nothing observes the provisional value: it never
+    leaves this object, and only ``flush`` reads it.
+    """
+
+    provisional: Event
+
+
+@dataclass
+class UnitOfWork:
+    """Events and the state rows they describe, pending inside one transaction.
+
+    Obtain one from :meth:`TaskStore.unit`. Every ``put_*`` and ``emit`` call
+    records intent; nothing is written until the context manager exits cleanly.
+    """
+
+    session: Session
+    task_id: TaskId
+    clock: Clock
+    _events: list[_PendingEvent] = field(default_factory=list)
+    #: Each entry writes one state row. The return value (the row) is ignored
+    #: by the flush; ``object`` rather than ``None`` because the upserts are
+    #: written as lambdas over functions that hand the row back.
+    _state_writes: list[Callable[[Session], object]] = field(default_factory=list)
+    _committed: list[Event] = field(default_factory=list)
+
+    # -- recording ---------------------------------------------------------- #
+
+    def emit(
+        self,
+        event_type: EventType,
+        *,
+        run_id: RunId | None = None,
+        stage_id: StageId | None = None,
+        operation_id: OperationId | None = None,
+        transition: EventTransition | None = None,
+        occurred_at: datetime | None = None,
+    ) -> Event:
+        """Record an event, validated by the frozen contract.
+
+        Returns the provisional event. The returned value's ``seq`` is **not**
+        final — it is replaced during the flush. Read :attr:`events` after the
+        context manager exits for the committed values.
+        """
+        provisional = Event(
+            seq=1,  # replaced at flush; validated here, discarded there
+            task_id=self.task_id,
+            run_id=run_id,
+            stage_id=stage_id,
+            operation_id=operation_id,
+            type=event_type,
+            transition=transition,
+            occurred_at=occurred_at if occurred_at is not None else self.clock(),
+        )
+        self._events.append(_PendingEvent(provisional))
+        return provisional
+
+    def put_run(self, run: Run) -> None:
+        """Include a Run row in this unit."""
+        self._state_writes.append(partial(_upsert_run, run=run))
+
+    def put_stage(self, stage: Stage) -> None:
+        """Include a Stage row in this unit."""
+        self._state_writes.append(partial(_upsert_stage, stage=stage))
+
+    def put_operation(self, operation: Operation) -> None:
+        """Include an Operation row in this unit."""
+        self._state_writes.append(partial(_upsert_operation, operation=operation))
+
+    def put_approval(self, approval: Approval) -> None:
+        """Include an Approval row in this unit."""
+        self._state_writes.append(partial(_upsert_approval, approval=approval))
+
+    def put_checkpoint(self, checkpoint: Checkpoint) -> None:
+        """Include a Checkpoint row in this unit."""
+        self._state_writes.append(partial(_upsert_checkpoint, checkpoint=checkpoint))
+
+    def put_artifact(self, receipt: ArtifactReceipt, *, run_id: RunId | None = None) -> None:
+        """Include an Artifact row in this unit.
+
+        *run_id* is optional because ``artifact_recorded`` is an annotation
+        event: an artifact may be recorded against the Task outside any Run.
+        """
+        self._state_writes.append(partial(_upsert_artifact, receipt=receipt, run_id=run_id))
+
+    # -- reading back ------------------------------------------------------- #
+
+    @property
+    def events(self) -> tuple[Event, ...]:
+        """This unit's events with their final ``seq``. Valid after the context
+        manager exits."""
+        return tuple(self._committed)
+
+    def task_row(self) -> TaskRow:
+        """The Task row this unit belongs to.
+
+        Selected by the ``task_id`` column, not ``session.get``: the table's
+        primary key is the integer surrogate ``id``, and ``session.get`` looks up
+        by primary key — passing a Task id string there silently misses. Raises
+        :class:`UnknownTaskError` rather than returning ``None``, because a unit
+        of work without a Task is a caller bug and ``None`` would push that
+        check into every call site where nobody writes it.
+        """
+        row = self.session.execute(
+            select(TaskRow).where(TaskRow.task_id == str(self.task_id))
+        ).scalar_one_or_none()
+        if row is None:
+            raise UnknownTaskError(f"no Task row for {self.task_id}")
+        return row
+
+    # -- the flush ---------------------------------------------------------- #
+
+    def flush(self) -> None:
+        """Allocate, insert events, then write state rows. ADR-0003 C3's order."""
+        if not self._events and not self._state_writes:
+            # An empty unit commits an empty transaction. Allowed and cheap; the
+            # alternative is a special case in every caller.
+            return
+
+        # --- 1. allocate ----------------------------------------------------- #
+        block_start = self._allocate_seq(len(self._events)) if self._events else 0
+
+        # --- 2. events before state, so deferred FKs are satisfied at COMMIT -- #
+        for offset, pending in enumerate(self._events):
+            final = pending.provisional.model_copy(update={"seq": block_start + offset})
+            self.session.add(_event_row(final))
+            self._committed.append(final)
+        if self._events:
+            # Put the INSERTs on the wire before the state writes, so the
+            # ordering above is real and not merely the order of the session's
+            # unit-of-work queue.
+            self.session.flush()
+
+        # --- 3. state rows ---------------------------------------------------- #
+        for write in self._state_writes:
+            write(self.session)
+
+    def _allocate_seq(self, count: int) -> int:
+        """Reserve *count* contiguous ``seq`` values; return the first.
+
+        Reads and advances ``tasks.last_event_seq`` in a single statement
+        against a committed row. That row's write lock is already held by
+        ``BEGIN IMMEDIATE``, so this read-modify-write cannot interleave with
+        another connection's allocation for the same Task.
+        """
+        statement = (
+            update(TaskRow)
+            .where(TaskRow.task_id == str(self.task_id))
+            .values(last_event_seq=TaskRow.last_event_seq + count)
+            .returning(TaskRow.last_event_seq)
+        )
+        try:
+            new_last = self.session.execute(statement).scalar_one()
+        except NoResultFound as exc:
+            raise UnknownTaskError(f"no Task row for {self.task_id}") from exc
+        return new_last - count + 1
+
+
+class TaskStore:
+    """Read/write access to the task authority.
+
+    One instance per :class:`~sqlalchemy.orm.Session`. The session, not this
+    object, owns the transaction; :meth:`unit` scopes exactly one.
+    """
+
+    def __init__(self, session: Session, *, clock: Clock = utc_now) -> None:
+        self._session = session
+        self._clock = clock
+
+    @contextmanager
+    def unit(self, task_id: TaskId) -> Iterator[UnitOfWork]:
+        """One transaction: the events emitted inside, plus their state rows.
+
+        Commits on clean exit. On any exception — including one raised while
+        the flush is applying state rows, after the events are already on the
+        wire — both halves roll back.
+        """
+        work = UnitOfWork(self._session, task_id, clock=self._clock)
+        try:
+            yield work
+            # The flush is *inside* the guard on purpose. Moving it out means a
+            # failure while writing state rows escapes without a rollback and
+            # leaves a half-applied unit pending on the session.
+            work.flush()
+            self._session.commit()
+        except BaseException:
+            self._session.rollback()
+            raise
+
+    def create_task(self, task: Task) -> Event:
+        """Create a Task and its first event in one transaction.
+
+        The Task row is written first because it *is* the counter the first
+        ``seq`` is allocated from; there is no row to increment otherwise. This
+        is the one ordering exception in the module, and it is not a violation
+        of C3: that row is not a state change an event describes, it is the
+        thing the event log hangs off.
+
+        Returns the committed ``task_created`` event.
+        """
+        self._session.add(
+            TaskRow(
+                task_id=str(task.task_id),
+                owner_id=LOCAL_USER_ID,
+                title=task.title,
+                objective=task.goal.objective,
+                success_criterion=task.goal.success_criterion,
+                bound_source_ids=[str(s) for s in task.bound_source_ids],
+                revision=task.revision,
+                last_event_seq=0,
+                created_at=task.created_at,
+                updated_at=task.updated_at,
+                schema_version=task.schema_version,
+            )
+        )
+        self._session.flush()
+        with self.unit(task.task_id) as work:
+            work.emit(EventType.TASK_CREATED, occurred_at=task.created_at)
+        return work.events[0]
+
+
+# --------------------------------------------------------------------------- #
+# contract -> row projections
+# --------------------------------------------------------------------------- #
+
+
+def _event_row(event: Event) -> EventRow:
+    transition = event.transition
+    return EventRow(
+        seq=event.seq,
+        event_id=str(event.event_id),
+        task_id=str(event.task_id),
+        run_id=str(event.run_id) if event.run_id is not None else None,
+        stage_id=str(event.stage_id) if event.stage_id is not None else None,
+        operation_id=str(event.operation_id) if event.operation_id is not None else None,
+        type=event.type.value,
+        from_state=transition.from_state if transition is not None else None,
+        to_state=transition.to_state if transition is not None else None,
+        schema_version=event.schema_version,
+        occurred_at=event.occurred_at,
+        payload=event.model_dump_json(),
+    )
+
+
+def _upsert[RowT](
+    session: Session,
+    model: type[RowT],
+    key_column: Any,
+    key_value: str,
+    values: dict[str, Any],
+) -> RowT:
+    """Update the row with this natural key, or insert it.
+
+    ``session.merge`` was rejected: it SELECTs unconditionally and treats a
+    missing row as an insert carrying a default primary key, which turns a typo
+    in a Task id into a *new* row rather than an error. The lookup here is on
+    the natural key column, which is also what the unique index guarantees.
+    """
+    existing: RowT | None = session.execute(
+        select(model).where(key_column == key_value)
+    ).scalar_one_or_none()
+    if existing is None:
+        row = model(**values)
+        session.add(row)
+        return row
+    for name, value in values.items():
+        setattr(existing, name, value)
+    return existing
+
+
+def _upsert_run(session: Session, run: Run) -> RunRow:
+    return _upsert(
+        session,
+        RunRow,
+        RunRow.run_id,
+        str(run.run_id),
+        {
+            "run_id": str(run.run_id),
+            "task_id": str(run.task_id),
+            "status": run.status.value,
+            "attempt": run.attempt,
+            "started_at": run.started_at,
+            "finished_at": run.finished_at,
+            "schema_version": run.schema_version,
+        },
+    )
+
+
+def _upsert_stage(session: Session, stage: Stage) -> StageRow:
+    return _upsert(
+        session,
+        StageRow,
+        StageRow.stage_id,
+        str(stage.stage_id),
+        {
+            "stage_id": str(stage.stage_id),
+            "task_id": str(stage.task_id),
+            "run_id": str(stage.run_id),
+            "name": stage.name,
+            "status": stage.status.value,
+            "input_hashes": list(stage.input_hashes),
+            "output_hashes": list(stage.output_hashes),
+            "blocked_reason": stage.blocked_reason,
+            "schema_version": stage.schema_version,
+        },
+    )
+
+
+def _upsert_operation(session: Session, operation: Operation) -> OperationRow:
+    return _upsert(
+        session,
+        OperationRow,
+        OperationRow.operation_id,
+        str(operation.operation_id),
+        {
+            "operation_id": str(operation.operation_id),
+            "task_id": str(operation.task_id),
+            "run_id": str(operation.run_id),
+            "stage_id": str(operation.stage_id),
+            "state": operation.state.value,
+            "capability": operation.capability,
+            "resource_key": operation.resource_key,
+            "depends_on": list(operation.depends_on),
+            "args_digest": operation.args_digest,
+            "schema_version": operation.schema_version,
+        },
+    )
+
+
+def _upsert_approval(session: Session, approval: Approval) -> ApprovalRow:
+    return _upsert(
+        session,
+        ApprovalRow,
+        ApprovalRow.approval_id,
+        str(approval.approval_id),
+        {
+            "approval_id": str(approval.approval_id),
+            "task_id": str(approval.task_id),
+            "operation_id": str(approval.operation_id),
+            "capability": approval.capability,
+            "resource_key": approval.resource_key,
+            "args_digest": approval.args_digest,
+            "state": approval.state.value,
+            "expires_at": approval.expires_at,
+            "granted_at": approval.granted_at,
+            "consumed_at": approval.consumed_at,
+            "schema_version": approval.schema_version,
+        },
+    )
+
+
+def _upsert_checkpoint(session: Session, checkpoint: Checkpoint) -> CheckpointRow:
+    return _upsert(
+        session,
+        CheckpointRow,
+        CheckpointRow.checkpoint_id,
+        str(checkpoint.checkpoint_id),
+        {
+            "checkpoint_id": str(checkpoint.checkpoint_id),
+            "task_id": str(checkpoint.task_id),
+            "run_id": str(checkpoint.run_id),
+            "stage_id": str(checkpoint.stage_id),
+            "through_seq": checkpoint.through_seq,
+            "material_hashes": list(checkpoint.material_hashes),
+            "created_at": checkpoint.created_at,
+            "schema_version": checkpoint.schema_version,
+        },
+    )
+
+
+def _upsert_artifact(
+    session: Session, receipt: ArtifactReceipt, run_id: RunId | None
+) -> ArtifactRow:
+    return _upsert(
+        session,
+        ArtifactRow,
+        ArtifactRow.artifact_id,
+        receipt.receipt_id,
+        {
+            "artifact_id": receipt.receipt_id,
+            "task_id": receipt.task_id,
+            "run_id": str(run_id) if run_id is not None else None,
+            "kind": receipt.kind.value,
+            "relative_path": receipt.relative_path,
+            "content_sha256": receipt.content_sha256,
+            "size_bytes": receipt.size_bytes,
+            "revision": receipt.revision,
+            "produced_by": receipt.produced_by.value,
+            "producer_id": receipt.producer_id,
+            "derived_from": [ref.model_dump(mode="json") for ref in receipt.derived_from],
+            "staleness": receipt.staleness.value,
+            "staleness_reason": receipt.staleness_reason,
+            "media_type": receipt.media_type,
+            "created_at": receipt.created_at,
+            "schema_version": receipt.schema_version,
+        },
+    )
+
+
+# --------------------------------------------------------------------------- #
+# reading
+# --------------------------------------------------------------------------- #
+
+
+def select_events(task_id: TaskId, *, after_seq: int = 0, limit: int = 500) -> Select[EventRow]:
+    """The resume query ADR-0003 C1's ``after_seq`` exists to make possible.
+
+    Ordering is by ``seq`` and nothing else. ``occurred_at`` is not a sort key
+    and not a tiebreak: wall-clock is not monotonic, and a resumed process can
+    emit a timestamp earlier than one already recorded.
+    """
+    return (
+        select(EventRow)
+        .where(EventRow.task_id == str(task_id), EventRow.seq > after_seq)
+        .order_by(EventRow.seq.asc())
+        .limit(limit)
+    )
+
+
+def events_after(
+    session: Session, task_id: TaskId, *, after_seq: int = 0, limit: int = 500
+) -> tuple[Event, ...]:
+    """A Task's event tail as frozen contracts, excluding ``after_seq`` itself."""
+    rows = session.execute(select_events(task_id, after_seq=after_seq, limit=limit)).scalars()
+    return tuple(Event.model_validate_json(row.payload) for row in rows)
+
+
+def count_events(session: Session, task_id: TaskId) -> int:
+    """How many events a Task has."""
+    return int(
+        session.execute(
+            select(func.count()).select_from(EventRow).where(EventRow.task_id == str(task_id))
+        ).scalar_one()
+    )
+
+
+def last_seq(session: Session, task_id: TaskId) -> int:
+    """The Task's counter, i.e. the ``seq`` of its newest event.
+
+    A column select rather than ``session.get(TaskRow, ...)``. ``get`` answers
+    from the session's identity map when the row is already loaded there, and
+    with ``expire_on_commit=False`` that cached object is *not* refreshed by a
+    later commit — so a caller reading the counter after writing would be told
+    the value it already knew. Selecting the single column bypasses the map and
+    always goes to the database.
+    """
+    found = session.execute(
+        select(TaskRow.last_event_seq).where(TaskRow.task_id == str(task_id))
+    ).scalar_one_or_none()
+    return 0 if found is None else int(found)
+
+
+__all__ = [
+    "Clock",
+    "StoreError",
+    "TaskStore",
+    "UnitOfWork",
+    "UnknownTaskError",
+    "count_events",
+    "events_after",
+    "last_seq",
+    "select_events",
+    "utc_now",
+]
