@@ -58,19 +58,29 @@ def _substantive(result: ExtractionResult) -> set[str]:
 # --------------------------------------------------------------------------
 
 
-def test_the_standard_library_adapters_register_on_import() -> None:
+def test_every_supported_adapter_registers_on_import() -> None:
     kinds = registered_kinds()
-    assert SourceKind.TEXT in kinds
-    assert SourceKind.MARKDOWN in kinds
-    assert SourceKind.CSV in kinds
-    assert SourceKind.PDF not in kinds, "the PDF adapter is not written yet"
+    for kind in (
+        SourceKind.TEXT,
+        SourceKind.MARKDOWN,
+        SourceKind.CSV,
+        SourceKind.XLSX,
+        SourceKind.PDF,
+    ):
+        assert kind in kinds, f"{kind.value} has no adapter"
 
 
-def test_pdf_has_no_adapter_yet_and_says_so() -> None:
+def test_a_format_with_no_adapter_is_refused_and_says_so() -> None:
+    """The rule still holds; OTHER is now the kind with no adapter.
+
+    It used to be PDF, back when the PDF adapter did not exist. A format the
+    project cannot read must still be inventoried and hashed with a
+    disclosure rather than silently omitted.
+    """
     from labcairn.material.units import UnknownAdapterError
 
     with pytest.raises(UnknownAdapterError, match="recorded and hashed"):
-        adapter_for(SourceKind.PDF)
+        adapter_for(SourceKind.OTHER)
 
 
 # --------------------------------------------------------------------------
