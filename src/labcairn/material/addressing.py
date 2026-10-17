@@ -127,21 +127,45 @@ def split_locator_key(key: str) -> dict[str, str]:
     """Parse a key back into its components. The inverse of rendering.
 
     Exists so a key can be read without guessing the format, and so a test
-    can assert :func:`render_locator_key` is genuinely invertible. This is
+    can assert :func:`render_locator_key` is genuinely invertible -- which is
     what makes the key *re-derivable* in ADR-0004's sense.
+
+    Parsed by **reading the length prefixes**, not by splitting on ``|``.
+    An earlier version split first and validated after, which is the same
+    non-injective assumption the module exists to reject: a Markdown heading
+    like ``# Task | Model`` produced a key that would not parse back, failing
+    on 12.7% of real keys. The separators are read where the lengths say
+    they are, so a value may contain any of them.
     """
-    parts = key.split("|")
-    if len(parts) < 2:
-        raise LocatorKeyError(f"key has no fields: {key!r}")
-    out: dict[str, str] = {}
-    for part in parts:
-        name, _, rest = part.partition("=")
-        length, sep, value = rest.partition(":")
-        if not sep or not length.isdigit():
-            raise LocatorKeyError(f"component is not length-prefixed: {part!r}")
-        if len(value) != int(length):
+    fields: dict[str, str] = {}
+    position = 0
+    while position < len(key):
+        equals = key.find("=", position)
+        if equals == -1:
+            raise LocatorKeyError(f"component has no name at offset {position}: {key!r}")
+        name = key[position:equals]
+        colon = key.find(":", equals + 1)
+        if colon == -1:
+            raise LocatorKeyError(f"component {name!r} is not length-prefixed")
+        length_text = key[equals + 1 : colon]
+        if not length_text.isdigit():
+            raise LocatorKeyError(f"component {name!r} has a non-numeric length")
+        length = int(length_text)
+        start = colon + 1
+        end = start + length
+        if end > len(key):
             raise LocatorKeyError(
-                f"component {part!r} declares {length} characters and carries {len(value)}"
+                f"component {name!r} declares {length} characters and the key ends first"
             )
-        out[name] = value
-    return out
+        fields[name] = key[start:end]
+        position = end
+        if position < len(key):
+            if key[position] != "|":
+                raise LocatorKeyError(
+                    f"expected a separator after {name!r} at offset {position}, "
+                    f"found {key[position]!r}"
+                )
+            position += 1
+    if not fields:
+        raise LocatorKeyError(f"key has no fields: {key!r}")
+    return fields

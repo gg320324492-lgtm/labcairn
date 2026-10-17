@@ -50,8 +50,8 @@ class ExtractionVersionError(RuntimeError):
     """The adapter's source could not be read, so the version cannot track it."""
 
 
-def _adapter_source(module: ModuleType) -> bytes:
-    """The adapter module's own bytes.
+def _module_source(module: ModuleType) -> bytes:
+    """One module's own bytes.
 
     Read from disk rather than from ``inspect.getsource`` because a frozen
     or zipped install has no source object to introspect, and a version that
@@ -75,8 +75,13 @@ def _adapter_source(module: ModuleType) -> bytes:
         ) from exc
 
 
-def derive_extraction_version(adapter: ModuleType, libraries: Mapping[str, str]) -> str:
+def derive_extraction_version(modules: tuple[ModuleType, ...], libraries: Mapping[str, str]) -> str:
     """A short digest binding an extraction to the code and libraries that made it.
+
+    ``modules`` is every module whose source can change this adapter's
+    output, in a fixed order. Passing only the adapter's own module leaves a
+    real hole -- an adapter that calls a shared helper lives or dies by that
+    helper, and the version would not notice.
 
     ``libraries`` is passed in rather than imported here so this module has
     no optional dependencies: a caller that has no pdfplumber installed
@@ -84,8 +89,14 @@ def derive_extraction_version(adapter: ModuleType, libraries: Mapping[str, str])
     """
     digest = hashlib.sha256()
     digest.update(_DOMAIN)
-    digest.update(b"\0adapter\0")
-    digest.update(_adapter_source(adapter))
+    for module in modules:
+        # The module's qualified name goes in as well as its bytes: two files
+        # with identical content are the same behaviour, but reordering the
+        # tuple must still change the digest.
+        digest.update(b"\0module\0")
+        digest.update(module.__name__.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_module_source(module))
     for name in sorted(libraries):
         digest.update(b"\0lib\0")
         digest.update(name.encode("utf-8"))
@@ -111,7 +122,7 @@ def library_versions(*modules: ModuleType) -> dict[str, str]:
 
 
 def assert_version_tracks_source(
-    adapter: ModuleType,
+    modules: tuple[ModuleType, ...],
     libraries: Mapping[str, str],
     recorded: str,
 ) -> None:
@@ -121,7 +132,7 @@ def assert_version_tracks_source(
     version the current code cannot produce is how an address silently starts
     describing extraction behaviour that no longer exists.
     """
-    current = derive_extraction_version(adapter, libraries)
+    current = derive_extraction_version(modules, libraries)
     if current != recorded:
         raise ExtractionVersionError(
             f"recorded extraction_version {recorded!r} does not match what this build "

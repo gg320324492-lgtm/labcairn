@@ -85,10 +85,15 @@ class ExtractionResult:
 
     units: tuple[ExtractedUnit, ...] = ()
     problems: tuple[ExtractionProblem, ...] = ()
-    #: Set when the material is readable in principle but carries no text
-    #: layer -- a scanned PDF. ``SourceReadability.UNREADABLE_NO_OCR`` is the
-    #: file-level expression of the same fact; this is the adapter-level one,
-    #: and both are set rather than either.
+    #: File-level readability, mirroring ``Source.readability``. **No adapter
+    #: in this package sets it yet** -- the three standard-library adapters
+    #: either extract or report why they cannot, and a material with no text
+    #: layer is a PDF fact, which the PDF adapter will be the one to express.
+    #:
+    #: An earlier version of this comment claimed "both are set rather than
+    #: either", which was a description of behaviour that did not exist. The
+    #: field stays because the PDF adapter needs it; until one sets it, it is
+    #: a declared seam and not a promise.
     readability: SourceReadability = SourceReadability.READABLE
 
     def __iter__(self) -> Iterator[ExtractedUnit]:
@@ -121,11 +126,22 @@ class Adapter(Protocol):
         """
         ...
 
-    def source(self) -> ModuleType:
-        """The module whose source defines this adapter's behaviour.
+    def source_modules(self) -> tuple[ModuleType, ...]:
+        """Every module whose source affects this adapter's output.
 
-        The extraction version hashes it, so that editing an adapter changes
-        every key it produces without anyone remembering to bump anything.
+        **The adapter's own module first, then the ones it calls into.** The
+        second part is not optional: `CsvAdapter` gets its decoding from
+        `text.py`, so hashing only the adapter's own file left a real
+        behaviour change -- edit `decode_text` and the CSV output changes
+        while the version does not, which is exactly the key lying that
+        ADR-0009 forbids.
+
+        Return `sys.modules[__name__]`, never ``__import__(__name__)``: with
+        no ``fromlist`` the latter returns the *top-level package*, so three
+        adapters in three modules all hashed ``labcairn/__init__.py`` and
+        shared one version. That bug survived because every version test used
+        a synthetic module in ``tmp_path`` and none called this on a real
+        adapter.
         """
         ...
 
@@ -159,13 +175,33 @@ def register[AdapterT: Adapter | type[Adapter]](adapter: AdapterT) -> AdapterT:
     ``adapter.extract(data)`` would fail for want of ``self``.
     """
     instance = adapter() if isinstance(adapter, type) else adapter
+    # Checked here rather than left to the first extract() call: an object
+    # without `extract` registers fine and then fails deep inside an ingest,
+    # which is the worst place to discover the adapter was never one.
+    for required in ("extract", "libraries", "source_modules"):
+        if not callable(getattr(instance, required, None)):
+            raise TypeError(
+                f"{type(instance).__name__} is not an Adapter: {required!r} is "
+                f"missing or not callable."
+            )
+
     existing = _REGISTRY._adapters.get(instance.kind)
-    if existing is not None and type(existing) is not type(instance):
-        raise ValueError(
-            f"{instance.kind.value!r} already has an adapter "
-            f"({type(existing).__module__}.{type(existing).__qualname__}); "
-            f"two adapters for one kind means one of them is unreachable."
+    if existing is not None:
+        same = type(existing) is type(instance)
+        # A reload produces a *new* class object with the same qualified name.
+        # That is the same adapter, not a rival one, and refusing it makes
+        # importlib.reload -- and any pytest run using importlib import mode --
+        # crash at import time for no reason.
+        reloaded = (
+            f"{type(existing).__module__}.{type(existing).__qualname__}"
+            == f"{type(instance).__module__}.{type(instance).__qualname__}"
         )
+        if not (same or reloaded):
+            raise ValueError(
+                f"{instance.kind.value!r} already has an adapter "
+                f"({type(existing).__module__}.{type(existing).__qualname__}); "
+                f"two adapters for one kind means one of them is unreachable."
+            )
     _REGISTRY._adapters[instance.kind] = instance
     return adapter
 

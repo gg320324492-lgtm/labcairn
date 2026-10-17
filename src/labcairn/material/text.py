@@ -26,6 +26,8 @@ the line count for no gain.
 from __future__ import annotations
 
 import codecs
+import re
+import sys
 from types import ModuleType
 
 from labcairn.material.units import (
@@ -48,11 +50,39 @@ _BOMS: tuple[tuple[bytes, str], ...] = (
 )
 
 
+#: Encodings tried when the bytes decode as UTF-8 but contain NULs, which is
+#: what a BOM-less UTF-16 or UTF-32 file looks like after a UTF-8 decode.
+_NUL_SUSPECTS: tuple[str, ...] = ("utf-32-le", "utf-32-be", "utf-16-le", "utf-16-be")
+
+#: Line terminators this project recognises. Deliberately *not*
+#: ``str.splitlines``, which also breaks on vertical tab, form feed, the
+#: Unicode record separators, NEL, LINE SEPARATOR and PARAGRAPH SEPARATOR.
+#: A form feed is a page separator in every format that has one, and turning
+#: one into a phantom ``line=N`` invents an address no author wrote.
+_LINE_RE = re.compile(r"\r\n|\r|\n")
+
+#: Characters ``splitlines`` would have broken on. Their presence is reported
+#: rather than acted on, because silently merging lines that a reader counts
+#: differently is the other half of the same mistake.
+_EXOTIC_BREAKS = "".join(chr(code) for code in (0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029))
+
+
 def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]:
     """Decode ``data`` as text, or explain why not.
 
     Returns ``(text, ())`` on success and ``(None, problems)`` on failure.
-    UTF-32 is checked before UTF-16 because the UTF-32-LE BOM starts with the
+
+    Three passes, because strict UTF-8 alone is not strict enough. UTF-16 and
+    UTF-32 without a BOM are *valid UTF-8* -- every ASCII character followed
+    by a NUL -- so a plain strict decode succeeds and returns text with NUL
+    characters wedged between the letters. That is the one input class that
+    defeats "decode strictly or disclose": the decode does not fail, and the
+    output is a string no author wrote. So a NUL in a successful decode is
+    itself the evidence, and the file is re-read as UTF-16 or UTF-32 -- with
+    the missing BOM reported, because a file whose encoding had to be
+    inferred is a file a reader should know about.
+
+    UTF-32 is tried before UTF-16 because the UTF-32-LE BOM starts with the
     UTF-16-LE BOM, and checking in the other order decodes every UTF-32 file
     as UTF-16 with a NUL wedged in front.
     """
@@ -64,7 +94,7 @@ def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]
             break
 
     try:
-        return body.decode(encoding), ()
+        text = body.decode(encoding)
     except UnicodeDecodeError as exc:
         return None, (
             ExtractionProblem(
@@ -77,6 +107,76 @@ def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]
                 ),
             ),
         )
+
+    if "\x00" not in text:
+        return text, ()
+
+    # Valid UTF-8 containing NULs: almost certainly UTF-16 or UTF-32 without
+    # its BOM. Try, and say so either way.
+    for candidate in _NUL_SUSPECTS:
+        try:
+            redecoded = body.decode(candidate)
+        except UnicodeDecodeError:
+            continue
+        if "\x00" in redecoded:
+            continue
+        return redecoded, (
+            ExtractionProblem(
+                code="bom_missing_encoding_inferred",
+                detail=(
+                    f"the bytes decode as UTF-8 but contain NUL characters, which is "
+                    f"what UTF-16 or UTF-32 without a byte-order mark looks like. Read "
+                    f"as {candidate} instead. Confirm from the text below that this is "
+                    f"the right reading."
+                ),
+            ),
+        )
+
+    return None, (
+        ExtractionProblem(
+            code="text_contains_nul",
+            detail=(
+                "the bytes decode as UTF-8 and contain NUL characters, but no UTF-16 "
+                "or UTF-32 reading of them is clean either. The text is not extracted, "
+                "because NUL-separated letters are not what the file says."
+            ),
+        ),
+    )
+
+
+def split_lines(text: str) -> tuple[list[str], tuple[ExtractionProblem, ...]]:
+    """Split on CRLF, CR and LF only, and report the characters left inside a line.
+
+    Returns ``(lines, problems)``.
+
+    The trailing element is dropped when the text ends with a terminator,
+    matching ``str.splitlines``: ``"a\\n"`` is one line, not two, and ``""`` is
+    no lines at all rather than one empty one. Getting that wrong would make
+    every file one line longer than a reader counts it, and would turn an
+    empty file into a citation pointing at line 1 of nothing.
+    """
+    if not text:
+        return [], ()
+    lines = _LINE_RE.split(text)
+    if lines and lines[-1] == "" and text[-1:] in ("\n", "\r"):
+        lines.pop()
+
+    found = sorted({char for char in text if char in _EXOTIC_BREAKS})
+    problems: tuple[ExtractionProblem, ...] = ()
+    if found:
+        shown = ", ".join(f"U+{ord(c):04X}" for c in found)
+        problems = (
+            ExtractionProblem(
+                code="exotic_line_break_present",
+                detail=(
+                    f"the text contains {shown}, which some tools treat as a line "
+                    f"break and this extractor does not. They are kept inside the line "
+                    f"they were found in, so a line number here may not match a line "
+                    f"number in a viewer that splits on them."
+                ),
+            ),
+        )
+    return lines, problems
 
 
 def _markdown_section(line: str, current: str | None) -> str | None:
@@ -109,19 +209,20 @@ class PlainTextAdapter:
         text, problems = decode_text(data)
         if text is None:
             return ExtractionResult(problems=problems)
+        lines, split_problems = split_lines(text)
         return ExtractionResult(
             units=tuple(
                 ExtractedUnit(locator=TextLocator(line=number), text=line)
-                for number, line in enumerate(text.splitlines(), start=1)
+                for number, line in enumerate(lines, start=1)
             ),
-            problems=problems,
+            problems=problems + split_problems,
         )
 
     def libraries(self) -> dict[str, str]:
         return {}
 
-    def source(self) -> ModuleType:
-        return __import__(__name__)
+    def source_modules(self) -> tuple[ModuleType, ...]:
+        return (sys.modules[__name__],)
 
 
 @register
@@ -139,12 +240,13 @@ class MarkdownAdapter(PlainTextAdapter):
         text, problems = decode_text(data)
         if text is None:
             return ExtractionResult(problems=problems)
+        lines, split_problems = split_lines(text)
 
         units: list[ExtractedUnit] = []
         section: str | None = None
-        for number, line in enumerate(text.splitlines(), start=1):
+        for number, line in enumerate(lines, start=1):
             section = _markdown_section(line, section)
             units.append(
                 ExtractedUnit(locator=TextLocator(line=number, section=section), text=line)
             )
-        return ExtractionResult(units=tuple(units), problems=problems)
+        return ExtractionResult(units=tuple(units), problems=problems + split_problems)

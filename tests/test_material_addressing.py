@@ -160,34 +160,40 @@ def test_the_version_is_derived_from_the_adapter_source(tmp_path: Path) -> None:
     before = _module_from(tmp_path, "adapter_before", "VALUE = 1\n")
     after = _module_from(tmp_path, "adapter_after", "VALUE = 2\n")
     libs = {"pdfplumber": "0.11.10"}
-    assert derive_extraction_version(before, libs) != derive_extraction_version(after, libs)
+    assert derive_extraction_version((before,), libs) != derive_extraction_version((after,), libs)
 
 
 def test_the_same_code_and_libraries_give_the_same_version(tmp_path: Path) -> None:
     """Idempotence: re-ingesting an unchanged file must not fork the key."""
     module = _module_from(tmp_path, "adapter", "VALUE = 1\n")
     libs = {"pdfplumber": "0.11.10"}
-    assert derive_extraction_version(module, libs) == derive_extraction_version(module, libs)
+    assert derive_extraction_version((module,), libs) == derive_extraction_version((module,), libs)
 
 
-def test_the_version_is_stable_across_identical_source_in_two_places(tmp_path: Path) -> None:
+def test_two_modules_with_identical_content_get_different_versions(tmp_path: Path) -> None:
+    """The qualified name is hashed too, so a rename counts as a change.
+
+    Two adapters in different files are different code even when the bytes
+    match, and erring toward a distinct version is the safe direction: a
+    spurious fork costs one re-extraction, a spurious match loses one.
+    """
     one = _module_from(tmp_path, "one", "VALUE = 1\n")
     two = _module_from(tmp_path, "two", "VALUE = 1\n")
     libs = {"pdfplumber": "0.11.10"}
-    assert derive_extraction_version(one, libs) == derive_extraction_version(two, libs)
+    assert derive_extraction_version((one,), libs) != derive_extraction_version((two,), libs)
 
 
 def test_a_library_upgrade_changes_the_version(tmp_path: Path) -> None:
     module = _module_from(tmp_path, "adapter", "VALUE = 1\n")
     assert derive_extraction_version(
-        module, {"pdfplumber": "0.11.10"}
-    ) != derive_extraction_version(module, {"pdfplumber": "0.12.0"})
+        (module,), {"pdfplumber": "0.11.10"}
+    ) != derive_extraction_version((module,), {"pdfplumber": "0.12.0"})
 
 
 def test_library_versions_are_ordered_so_the_digest_is_stable(tmp_path: Path) -> None:
     module = _module_from(tmp_path, "adapter", "VALUE = 1\n")
-    assert derive_extraction_version(module, {"a": "1", "b": "2"}) == derive_extraction_version(
-        module, {"b": "2", "a": "1"}
+    assert derive_extraction_version((module,), {"a": "1", "b": "2"}) == derive_extraction_version(
+        (module,), {"b": "2", "a": "1"}
     )
 
 
@@ -196,7 +202,7 @@ def test_a_module_with_no_source_refuses_to_produce_a_version() -> None:
     module = ModuleType("sourceless")
     module.__file__ = None
     with pytest.raises(ExtractionVersionError, match="no source file"):
-        derive_extraction_version(module, {})
+        derive_extraction_version((module,), {})
 
 
 def test_library_versions_skips_absent_and_versionless_modules() -> None:
@@ -208,10 +214,10 @@ def test_library_versions_skips_absent_and_versionless_modules() -> None:
 def test_a_stale_recorded_version_is_caught(tmp_path: Path) -> None:
     module = _module_from(tmp_path, "adapter", "VALUE = 1\n")
     libs: dict[str, str] = {}
-    current = derive_extraction_version(module, libs)
-    assert_version_tracks_source(module, libs, current)
+    current = derive_extraction_version((module,), libs)
+    assert_version_tracks_source((module,), libs, current)
     with pytest.raises(ExtractionVersionError, match="does not match"):
-        assert_version_tracks_source(module, libs, "0" * 32)
+        assert_version_tracks_source((module,), libs, "0" * 32)
 
 
 def test_the_version_is_a_short_domain_separated_digest(tmp_path: Path) -> None:
@@ -223,6 +229,6 @@ def test_the_version_is_a_short_domain_separated_digest(tmp_path: Path) -> None:
     catches elsewhere.
     """
     module = _module_from(tmp_path, "domain_probe", "VALUE = 1\n")
-    version = derive_extraction_version(module, {})
+    version = derive_extraction_version((module,), {})
     assert len(version) == 32
     assert all(c in "0123456789abcdef" for c in version)

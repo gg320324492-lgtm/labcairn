@@ -48,6 +48,11 @@ def _codes(result: ExtractionResult) -> set[str]:
     return {p.code for p in result.problems}
 
 
+def _substantive(result: ExtractionResult) -> set[str]:
+    """Codes other than the always-present delimiter announcement."""
+    return _codes(result) - {"delimiter_used"}
+
+
 # --------------------------------------------------------------------------
 # registration
 # --------------------------------------------------------------------------
@@ -174,7 +179,7 @@ def test_the_header_is_row_one_and_data_starts_at_two() -> None:
     by_key = {(_cell_of(u).row, _cell_of(u).column): u.text for u in result.units}
     assert by_key[(2, "mean")] == "3.0"
     assert by_key[(2, "n")] == "10"
-    assert result.problems == ()
+    assert _substantive(result) == set()
 
 
 def test_an_empty_cell_is_a_value_not_a_gap() -> None:
@@ -222,7 +227,7 @@ def test_an_empty_file_is_empty_and_says_so() -> None:
 def test_a_header_only_file_has_no_data_rows() -> None:
     result = _csv_result(b"trial,mean\n")
     assert result.units == ()
-    assert result.problems == ()
+    assert _substantive(result) == set()
 
 
 def test_undecodable_bytes_never_become_cells() -> None:
@@ -254,7 +259,7 @@ def test_the_delimiter_is_chosen_deterministically(text: str, expected: str) -> 
 
 def test_a_non_comma_delimiter_is_disclosed() -> None:
     result = _csv_result(b"trial;mean\nalpha;3.0\n")
-    assert "delimiter_inferred" in _codes(result)
+    assert "delimiter_used" in _codes(result)
     by_key = {(_cell_of(u).row, _cell_of(u).column): u.text for u in result.units}
     assert by_key[(2, "mean")] == "3.0"
 

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 from types import ModuleType
 
 from labcairn.material.text import decode_text
@@ -44,7 +45,13 @@ from labcairn.material.units import (
 from labcairn.sources.locators import CsvLocator
 from labcairn.sources.source import SourceKind
 
-__all__ = ["CsvAdapter", "sniff_delimiter"]
+__all__ = ["CsvAdapter", "decode_text", "sniff_delimiter"]
+
+
+def _fold(name: str) -> str:
+    """Whitespace- and case-insensitive form, for the ambiguity report only."""
+    return " ".join(name.split()).casefold()
+
 
 #: Ordered so a tie goes to the first, and the first is the ordinary one.
 _CANDIDATES = (",", ";", "\t", "|")
@@ -87,21 +94,30 @@ class CsvAdapter:
 
         delimiter = sniff_delimiter(text)
         extra_problems: list[ExtractionProblem] = list(problems)
-        if delimiter != ",":
-            extra_problems.append(
-                ExtractionProblem(
-                    code="delimiter_inferred",
-                    detail=(
-                        f"read with {delimiter!r} rather than a comma, because that "
-                        f"is what splits this file into the most columns. If that is "
-                        f"wrong the header below will show it."
-                    ),
-                    location="row 1",
-                )
+        # Always announced, not only when it is off comma. Announcing only
+        # the non-default case means *every wrong guess at comma* is silent by
+        # construction -- and a file with a stray semicolon in a header still
+        # splits into plausible columns, which is the case the announcement
+        # exists to catch.
+        extra_problems.append(
+            ExtractionProblem(
+                code="delimiter_used",
+                detail=(
+                    f"read with {delimiter!r}, chosen because that is what splits the "
+                    f"first populated line into the most columns. The header below is "
+                    f"the check: if it looks wrong, this is where it went wrong."
+                ),
+                location="row 1",
             )
+        )
 
         try:
-            records = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+            # newline='' so csv sees the file's own line terminators. Without
+            # it, a file with classic-Mac CR endings raises "new-line character
+            # seen in unquoted field" and an ordinary file gets reported as
+            # unparseable. It also leaves a CR *inside* a quoted field alone,
+            # so nothing needs normalising and nothing can be corrupted.
+            records = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter))
         except csv.Error as exc:
             extra_problems.append(
                 ExtractionProblem(
@@ -123,10 +139,53 @@ class CsvAdapter:
             )
 
         header = records[0]
+        # A header field with no name has no address, and building one --
+        # "column_2", or an empty string -- would be inventing a name the file
+        # does not contain. It is reported and its column is left unextracted.
+        for position, name in enumerate(header):
+            if not name.strip():
+                extra_problems.append(
+                    ExtractionProblem(
+                        code="csv_blank_header",
+                        detail=(
+                            f"field {position} of the header is blank, so the cells under "
+                            f"it have no address and cannot be cited. They are not "
+                            f"extracted, because a made-up column name is a name the "
+                            f"file does not contain."
+                        ),
+                        location=f"row 1 field {position}",
+                    )
+                )
+
         seen: dict[str, int] = {}
         for name in header:
-            seen[name] = seen.get(name, 0) + 1
+            if name.strip():
+                seen[name] = seen.get(name, 0) + 1
         duplicates = sorted(name for name, count in seen.items() if count > 1)
+
+        # Names differing only in whitespace or case are *not* collisions:
+        # NonEmptyText does not strip, so they remain distinct addresses and
+        # each resolves to exactly one cell. Reported anyway, because a reader
+        # cannot tell "mean" from " mean" in a spreadsheet either and one of
+        # them is almost always a mistake in the file.
+        folded: dict[str, list[str]] = {}
+        for name in header:
+            if name.strip():
+                folded.setdefault(_fold(name), []).append(name)
+        for group in sorted(folded.values()):
+            if len(group) > 1:
+                shown = ", ".join(repr(n) for n in group)
+                extra_problems.append(
+                    ExtractionProblem(
+                        code="csv_ambiguous_header",
+                        detail=(
+                            f"the header names {shown} differ only in whitespace or case. "
+                            f"They stay distinct addresses, so nothing is misrouted, but a "
+                            f"reader cannot tell them apart either."
+                        ),
+                        location="row 1",
+                    )
+                )
 
         units: list[ExtractedUnit] = []
         for row_number, record in enumerate(records[1:], start=2):
@@ -159,7 +218,7 @@ class CsvAdapter:
                     )
                     continue
                 name = header[position]
-                if name in duplicates:
+                if not name.strip() or name in duplicates:
                     # Recorded once per duplicate rather than per cell, so a
                     # wide file does not repeat the same sentence 500 times.
                     continue
@@ -185,5 +244,9 @@ class CsvAdapter:
     def libraries(self) -> dict[str, str]:
         return {}
 
-    def source(self) -> ModuleType:
-        return __import__(__name__)
+    def source_modules(self) -> tuple[ModuleType, ...]:
+        # text.py is here because decode_text lives there and CSV extraction
+        # runs through it. Hashing only this file left a real hole: editing
+        # decode_text changed the CSV output while the version stayed put --
+        # the key lying ADR-0009 forbids.
+        return (sys.modules[__name__], sys.modules[decode_text.__module__])
