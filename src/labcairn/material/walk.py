@@ -45,8 +45,13 @@ from labcairn.workspace.readonly import SourceMaterial
 __all__ = ["WalkReport", "ingest_workspace"]
 
 #: Bound on directory depth, so a symlink loop or a pathological tree cannot
-#: make the walk unbounded. A research folder does not nest this deep; hitting
-#: the bound is reported rather than silently truncating.
+#: make the walk unbounded.
+#:
+#: Hitting it **truncates silently** -- ``_walk`` returns what it has and
+#: ``WalkReport`` has no field for "there was more". An earlier comment here
+#: claimed the bound was "reported rather than silently truncating", which was
+#: false in the same file that needed it to be true. Fixing it properly means a
+#: `truncated` field on the report; until then the comment says what happens.
 _MAX_DEPTH = 16
 
 
@@ -143,9 +148,12 @@ def _walk(
 ) -> list[str]:
     """Depth-first list of file keys, directories recursed, seen-keys deduped.
 
-    ``seen`` is shared across roots so a material reachable from two roots is
-    ingested once -- two rows for one file would make the inventory lie about
-    how much material there is.
+    ``seen`` is **per root**, which is what the caller passes. It was
+    previously shared across roots on the reasoning that a material reachable
+    from two roots should be ingested once -- but ``list_dir`` keys are
+    root-relative, so two roots each holding ``notes.md`` produce the same
+    string and the shared set silently swallowed one. Cross-root dedup
+    happens instead through the workspace's own ``cross_root`` refusal.
     """
     if max_files is not None and len(seen) >= max_files:
         return []

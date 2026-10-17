@@ -153,17 +153,114 @@ def test_the_walk_reads_what_an_allowing_policy_permits(
     assert "public/ok.md" in {o.material.source.relative_path for o in report.outcomes}
 
 
-def test_one_unreadable_file_does_not_stop_the_walk(tmp_path: pathlib.Path, session: Any) -> None:
+def test_a_failing_file_does_not_stop_the_walk_and_leaves_the_rest_stored(
+    tmp_path: pathlib.Path, session: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The failure path, asserted against the **store**, not a path subset.
+
+    The earlier version used a ``.bin`` fixture -- ``SourceKind.OTHER``, which
+    never fails -- and asserted ``{"a.md", "c.md"} <= paths``, a subset check
+    that passes whatever else happens. So the whole try/except/rollback path
+    had zero coverage, and two mutations survived: deleting the per-file
+    ``commit`` and deleting the ``rollback``.
+
+    Both are caught here. Without the commit, ``a.md`` is still pending when
+    ``boom.md``'s rollback fires, so the report claims a file the store does
+    not have -- and the walk's own promise, that a failure "does not roll
+    back the files already ingested", is inverted.
+    """
+    from sqlalchemy import text as text_sql
+
+    import labcairn.material.walk as walk_module
+
     root = tmp_path / "ws3"
     sources = root / "sources"
     sources.mkdir(parents=True)
-    (sources / "a.md").write_text("# first\n", encoding="utf-8")
-    (sources / "b.bin").write_bytes(bytes(range(256)))
-    (sources / "c.md").write_text("# third\n", encoding="utf-8")
+    for name in ("a.md", "boom.md", "z.md"):
+        (sources / name).write_text(name[0] + chr(10), encoding="utf-8", newline="")
+
+    from labcairn.material.ingest import ingest_into_store
+
+    # walk.py does ``from ...ingest import ingest_into_store``, so the name it
+    # calls is bound in *its* namespace. Patch there, not on the source
+    # module, or the patch never lands.
+    real = ingest_into_store
+
+    def flaky(session: Any, data: bytes, **kwargs: Any) -> Any:
+        if "boom" in kwargs.get("relative_path", ""):
+            raise RuntimeError("simulated adapter explosion")
+        return real(session, data, **kwargs)
+
+    monkeypatch.setattr(walk_module, "ingest_into_store", flaky)
+
     ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
     report = ingest_workspace(session, SourceMaterial(ws, _allowing_policy()), ingested_at=NOW)
-    paths = {o.material.source.relative_path for o in report.outcomes}
-    assert {"a.md", "c.md"} <= paths
+
+    assert [key for key, _ in report.failures] == ["boom.md"]
+    ingested = sorted(o.material.source.relative_path for o in report.outcomes)
+    assert ingested == ["a.md", "z.md"]
+
+    # The store is the claim. A report that disagrees with it is a lie the
+    # caller cannot see.
+    stored = sorted(
+        r[0] for r in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
+    )
+    assert stored == ["a.md", "z.md"], "the report and the store disagree; one of them is wrong"
+
+
+def test_a_symlink_into_a_denied_directory_is_ingested_and_that_is_documented(
+    tmp_path: pathlib.Path, session: Any
+) -> None:
+    """A known gap, pinned so it cannot be forgotten.
+
+    ``DENY source.inventory private/**`` does not stop
+    ``public/hop -> private``: ``read`` returns the denied bytes and this walk
+    ingests them. The module docstring says so; this test says it in code, so
+    that closing the gap breaks a test rather than passing quietly.
+    """
+    root = tmp_path / "ws7"
+    sources = root / "sources"
+    (sources / "public").mkdir(parents=True)
+    (sources / "private").mkdir(parents=True)
+    (sources / "private" / "secret.md").write_text("# SECRET" + chr(10), encoding="utf-8")
+    (sources / "public" / "ok.md").write_text("# fine" + chr(10), encoding="utf-8")
+
+    link = sources / "public" / "hop"
+    try:
+        link.symlink_to(sources / "private", target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation unavailable on this platform or filesystem")
+
+    ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
+    from labcairn.security.capabilities import CapabilityId
+    from labcairn.security.policy import Permission, Rule
+
+    policy = PermissionPolicy.from_rules(
+        [
+            Rule(
+                effect=Permission.ALLOW,
+                pattern="**",
+                capabilities=frozenset({CapabilityId.SOURCE_INVENTORY.value}),
+            ),
+            Rule(
+                effect=Permission.DENY,
+                pattern="private/**",
+                capabilities=frozenset({CapabilityId.SOURCE_INVENTORY.value}),
+            ),
+        ]
+    )
+    report = ingest_workspace(session, SourceMaterial(ws, policy), ingested_at=NOW)
+    ingested = {o.material.source.relative_path for o in report.outcomes}
+
+    if "public/hop/secret.md" in ingested:
+        # The gap is still open. Recorded, not asserted as correct.
+        ingested_text = "".join(unit.text for o in report.outcomes for unit in o.material.texts)
+        assert "SECRET" in ingested_text
+    else:
+        assert "public/hop" not in ingested, (
+            "the symlink stopped being followed -- if that is the fix landing, "
+            "update the walk's module docstring, which still describes the gap"
+        )
 
 
 def test_max_files_bounds_the_walk(
