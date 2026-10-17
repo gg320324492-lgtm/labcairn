@@ -23,6 +23,7 @@ rather than a registry somebody has to remember to populate.
 """
 
 from labcairn.material import delimited as _delimited  # noqa: F401 - registration
+from labcairn.material import pdf as _pdf  # noqa: F401 - registration
 from labcairn.material import spreadsheet as _spreadsheet  # noqa: F401 - registration
 from labcairn.material import text as _text  # noqa: F401 - registration
 from labcairn.material.addressing import (
@@ -31,6 +32,7 @@ from labcairn.material.addressing import (
     split_locator_key,
 )
 from labcairn.material.delimited import CsvAdapter, sniff_delimiter
+from labcairn.material.pdf import PdfAdapter
 from labcairn.material.spreadsheet import SpreadsheetAdapter, render_cell
 from labcairn.material.text import MarkdownAdapter, PlainTextAdapter, decode_text
 from labcairn.material.units import (
@@ -59,6 +61,7 @@ __all__ = [
     "ExtractionVersionError",
     "LocatorKeyError",
     "MarkdownAdapter",
+    "PdfAdapter",
     "PlainTextAdapter",
     "SpreadsheetAdapter",
     "UnknownAdapterError",
