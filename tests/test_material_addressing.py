@@ -214,9 +214,15 @@ def test_a_stale_recorded_version_is_caught(tmp_path: Path) -> None:
         assert_version_tracks_source(module, libs, "0" * 32)
 
 
-def test_the_version_is_a_short_domain_separated_digest() -> None:
-    """Domain-separated, so it can never be mistaken for a sha256 of content."""
-    module = _module_from(Path(__file__).parent, "domain_probe", "VALUE = 1\n")
+def test_the_version_is_a_short_domain_separated_digest(tmp_path: Path) -> None:
+    """Domain-separated, so it can never be mistaken for a sha256 of content.
+
+    The throwaway module goes in ``tmp_path``. An earlier version passed
+    ``Path(__file__).parent``, which wrote ``tests/domain_probe.py`` -- and
+    committed it, which is the same stray-file failure the fixture guard
+    catches elsewhere.
+    """
+    module = _module_from(tmp_path, "domain_probe", "VALUE = 1\n")
     version = derive_extraction_version(module, {})
     assert len(version) == 32
     assert all(c in "0123456789abcdef" for c in version)
