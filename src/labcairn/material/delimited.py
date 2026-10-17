@@ -62,6 +62,26 @@ def _fold(name: str) -> str:
 _CANDIDATES = (",", ";", "\t", "|")
 
 
+def _first_record_width(text: str, delimiter: str) -> int:
+    """Columns in the first record, read the way ``csv.reader`` will read it.
+
+    Measuring on the first *line* instead is what made the evidence
+    unfalsifiable. For ``b'"a\nb";c\n1;2\n'`` the first line is the
+    fragment ``"a`` -- an unterminated quote -- so every candidate scores 1,
+    the comma default wins, and the header shown is ``['a\nb;c']``: the
+    counts and the header both agree with the wrong answer, and nothing a
+    reader could check contradicts the guess.
+    """
+    try:
+        return len(next(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)))
+    except (csv.Error, StopIteration):
+        return 0
+
+
+def _has_content(text: str) -> bool:
+    return any(line.strip() for line in split_lines(text)[0])
+
+
 def delimiter_evidence(text: str) -> dict[str, int]:
     """How many columns each candidate delimiter would produce.
 
@@ -72,49 +92,28 @@ def delimiter_evidence(text: str) -> dict[str, int]:
     so "the header below is the check" fails for exactly the input it was
     written for. The counts do not fail: they show two candidates tied.
     """
-    lines, _ = split_lines(text)
-    for line in lines:
-        if line.strip():
-            break
-    else:
+    if not _has_content(text):
         return dict.fromkeys(_CANDIDATES, 1)
-
-    evidence: dict[str, int] = {}
-    for candidate in _CANDIDATES:
-        try:
-            evidence[candidate] = len(next(csv.reader([line], delimiter=candidate)))
-        except (csv.Error, StopIteration):
-            evidence[candidate] = 0
-    return evidence
+    return {candidate: _first_record_width(text, candidate) for candidate in _CANDIDATES}
 
 
 def sniff_delimiter(text: str) -> str:
-    """The delimiter producing the most columns on the first populated line.
+    """The delimiter producing the most columns in the first record.
 
     Deterministic by construction: same text in, same delimiter out. A
     one-column file has no evidence either way and gets the ordinary comma,
     which is a no-op for a file that really has one column. Ties go to the
     earliest candidate, and comma is first.
 
-    Uses :func:`~labcairn.material.text.split_lines` rather than
-    ``str.splitlines`` so that "line" means one thing in this package: a
-    splitlines-based sniff disagreed with ``csv.reader`` on a file
-    containing a vertical tab, picking a delimiter from a line the parser
-    never sees.
+    Reads a *record* rather than a line, so a quoted field containing a
+    newline cannot shrink the sample into a fragment.
     """
-    lines, _ = split_lines(text)
-    for line in lines:
-        if line.strip():
-            break
-    else:
+    if not _has_content(text):
         return ","
     best = ","
     best_width = -1
     for candidate in _CANDIDATES:
-        try:
-            width = len(next(csv.reader([line], delimiter=candidate)))
-        except (csv.Error, StopIteration):
-            continue
+        width = _first_record_width(text, candidate)
         if width > best_width:
             best, best_width = candidate, width
     return best

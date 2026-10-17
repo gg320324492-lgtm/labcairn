@@ -142,7 +142,7 @@ def test_plain_ascii_still_decodes_with_no_complaint() -> None:
 
 @pytest.mark.parametrize(
     "code",
-    [0x0B, 0x0C, 0x85, 0x2028, 0x2029],
+    [0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029],
 )
 def test_a_character_that_is_not_a_line_terminator_makes_no_line(code: int) -> None:
     """A form feed is a page separator in every format that has one.
@@ -633,3 +633,58 @@ def test_a_three_backtick_run_does_not_close_a_four_backtick_fence() -> None:
     sections = {_line_of(u).section for u in _md(payload).units}
     assert "inner" not in sections
     assert sections == {"M"}
+
+
+# --------------------------------------------------------------------------
+# the record separators are kept, like every other exotic break
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("code", [0x1C, 0x1D, 0x1E])
+def test_record_separators_are_kept_like_every_other_exotic_break(code: int) -> None:
+    """Refusing these was a wrong refusal, and it cost data for no safety.
+
+    ``csv.reader`` treats FS/GS/RS exactly as it treats VT and FF: none is
+    a record terminator, all are kept inside the field. The argument that
+    motivated refusing them -- "a character cannot be both evidence of a
+    misreading and a line break we keep" -- does not apply, because the
+    control gate inspects the whole file *before* ``split_lines`` sees the
+    character. The two checks are ordered and never overlap.
+    """
+    payload = (chr(97) + chr(code) + chr(98) + NL).encode()
+    result = _text(payload)
+    assert result.units, [p.code for p in result.problems]
+    assert result.units[0].text == chr(97) + chr(code) + chr(98)
+    assert "text_contains_control" not in _codes(result)
+
+
+def test_a_non_latin_utf16_file_is_still_refused_after_that_revert() -> None:
+    """The revert must not have reopened the round-three hole."""
+    for text in ("Р", "Привет", "ā"):  # noqa: RUF001 - non-Latin is the point
+        result = _text(text.encode("utf-16-le"))
+        assert result.units == (), text
+        assert _codes(result) & {"text_contains_control", "text_contains_nul"}, text
+
+
+# --------------------------------------------------------------------------
+# delimiter evidence must describe a record, not a fragment
+# --------------------------------------------------------------------------
+
+
+def test_a_quoted_header_field_spanning_a_newline_still_sniffs_correctly() -> None:
+    """Measuring the first *line* measured the fragment ``"a``.
+
+    Every candidate then scored one column, the comma default won, and the
+    header shown agreed with the counts and with the wrong answer -- so the
+    disclosure added two rounds ago could not be used to falsify anything.
+    """
+    from labcairn.material.delimited import delimiter_evidence, sniff_delimiter
+
+    payload = '"a' + NL + 'b";c' + NL + "1;2" + NL
+    assert sniff_delimiter(payload) == ";"
+    evidence = delimiter_evidence(payload)
+    assert evidence[";"] > evidence[","], evidence
+
+    result = _csv(payload.encode())
+    columns = {_cell_of(u).column for u in result.units}
+    assert columns == {"a" + NL + "b", "c"}, columns

@@ -109,6 +109,38 @@ class Adapter(Protocol):
     the read-only boundary is ``SourceMaterial``'s, and an adapter that
     reached past it would make LC-P1-04's promise depend on every future
     adapter being careful.
+
+    **Two rules, learned the expensive way.** Four rounds of adversarial
+    review found five fabrication paths in three adapters, and both rules
+    below are what stopped them. They are written here so the PDF adapter
+    inherits them rather than re-deriving them from another five findings.
+
+    **One: ask whether the material determines the answer.**
+
+    - *Determined* -- encodings, delimiters, line terminators. Exactly one
+      reading is correct. If it cannot be recovered, refuse; if it can, take
+      it and disclose that it was inferred. Every adapter in this package is
+      in this class, and refusal was right every time.
+    - *Underdetermined* -- PDF reading order, whitespace reconstruction.
+      Two or more readings are equally consistent with the evidence, and
+      ADR-0008 **measured** that no threshold separates them: word gaps and
+      column gutters sit on one continuum with every integer in gutter
+      territory populated. Refusal there refuses the dominant case --
+      LaTeX- and Word-produced PDFs, which is what this product ingests.
+      The obligation is a **disclosure the reader can check against the
+      page**, not a refusal.
+
+    The distinction is not "fallback versus refusal". Every fabrication
+    found so far came from a *determined* question that was answered by a
+    guess, and every fix came from answering it properly.
+
+    **Two: find the signal in the bytes, and refuse when it fires.** Every
+    one of the five had a candidate signal present that would have said so
+    -- NULs, control characters, raggedness, per-candidate column counts.
+    Not one was fixed by being more careful with the guess. The thing to
+    design against is not "a heuristic fabricated" but **"a heuristic whose
+    wrongness the reader cannot see"**, and that is why every disclosure
+    here carries the evidence for its own conclusion.
     """
 
     kind: SourceKind

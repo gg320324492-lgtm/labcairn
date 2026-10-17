@@ -72,8 +72,26 @@ _NUL_SUSPECTS: tuple[tuple[str, float], ...] = (
 
 #: Control characters that never occur in a real text file, and so are
 #: evidence of a misreading in the same way a NUL is. Excludes tab, newline,
-#: vertical tab, form feed and carriage return, which do occur.
-_REFUSED_CONTROLS = frozenset(list(range(0x09)) + list(range(0x0E, 0x20)) + [0x7F])
+#: vertical tab, form feed, carriage return -- and the record and unit
+#: separators, which were excluded here once and put back. `csv.reader`
+#: treats FS/GS/RS exactly as it treats VT and FF: none is a record
+#: terminator, all are kept inside the field. Refusing them traded a
+#: disclosed keep for a disclosed refusal at no safety gain, and lost data.
+#: U+0000-U+0008, U+000E, U+000F and U+007F. Tab, newline, vertical tab,
+#: form feed and carriage return are excluded because they occur in real
+#: files -- form feed especially, since it is a page separator in every
+#: format that has one.
+#:
+#: The record and unit separators (U+001C-U+001E) were excluded here once
+#: and put back. ``csv.reader`` treats FS/GS/RS exactly as it treats VT and
+#: FF: none is a record terminator, all are kept inside the field, verified
+#: directly. Refusing them traded a disclosed keep for a disclosed refusal
+#: at no safety gain, and lost data. The argument that motivated it -- "a
+#: character cannot be both evidence of a misreading and a line break we
+#: keep" -- does not apply here, because this gate inspects the whole file
+#: *before* :func:`split_lines` ever sees the character. The two checks are
+#: ordered and never overlap.
+_REFUSED_CONTROLS = frozenset([*range(9), 0x0E, 0x0F, 0x7F])
 
 #: Above this fraction of non-ASCII characters a decoding is treated as a
 #: misreading rather than as text. Material this project ingests is
@@ -88,12 +106,10 @@ _MAX_NON_LATIN = 0.20
 #: one into a phantom ``line=N`` invents an address no author wrote.
 _LINE_RE = re.compile(r"\r\n|\r|\n")
 
-#: Characters ``splitlines`` would have broken on, and which are still kept
-#: inside a line rather than treated as corruption. Vertical tab, form feed
-#: and NEL occur in real files; the record separators (U+001C-U+001E) and the
-#: unit separator do not, and are in :data:`_REFUSED_CONTROLS` instead -- a
-#: character cannot both be evidence of a misreading and a line break we
-#: choose to keep.
+#: Characters ``splitlines`` would have broken on, and which are kept inside
+#: a line rather than treated as corruption. Every one of them is treated the
+#: same way by every parser here: ``csv.reader`` keeps each inside the field
+#: rather than ending the record.
 _EXOTIC_BREAKS = "".join(chr(code) for code in (0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029))
 
 
