@@ -1,0 +1,418 @@
+"""The spreadsheet adapter and the ingest pipeline that feeds the store.
+
+Two things are under test that a passing run would not otherwise show.
+
+**Idempotence.** ADR-0009's key is ``(content hash, extraction version,
+address)``, and the claim that re-ingesting an unchanged file writes nothing
+is the claim that makes a failed ingest safe to retry. It is asserted by
+running the write twice and counting, not by inspecting the constraint.
+
+**Disclosure instead of silence.** An empty spreadsheet and a workbook we
+failed to read are different claims. So are a formula whose result we do not
+have and a cell holding the number three. Each has a test that distinguishes
+it from the other.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import io
+import pathlib
+from collections.abc import Iterator
+from typing import Any
+
+import openpyxl
+import pytest
+from sqlalchemy.orm import Session
+
+from labcairn.db.materials import (
+    ExtractedTextRow,
+    put_source,
+    put_source_texts,
+    text_at,
+)
+from labcairn.db.migrations import upgrade_to_head
+from labcairn.db.session import create_db_engine, create_session_factory
+from labcairn.material.ingest import (
+    IngestedMaterial,
+    ingest_bytes,
+    kind_for_path,
+    to_text_row,
+)
+from labcairn.material.spreadsheet import render_cell
+from labcairn.material.units import ExtractedUnit, ExtractionResult
+from labcairn.security.untrusted import UntrustedText
+from labcairn.sources.locators import XlsxLocator
+from labcairn.sources.source import SourceKind
+
+NOW = dt.datetime(2026, 10, 17, tzinfo=dt.UTC)
+
+
+def _xlsx(
+    *,
+    cells: dict[str, Any] | None = None,
+    sheets: tuple[str, ...] = ("Trial",),
+    empty_sheets: tuple[str, ...] = (),
+) -> bytes:
+    """A workbook with *cells* in the first sheet and *empty_sheets* added."""
+    buffer = io.BytesIO()
+    book = openpyxl.Workbook()
+    # openpyxl's stubs type `active` as optional and `__setitem__` narrowly,
+    # so both are narrowed here rather than silenced at the call sites.
+    first = book.active
+    assert first is not None
+    first.title = sheets[0]
+    for ref, value in (cells or {}).items():
+        first[ref] = value
+    for title in empty_sheets:
+        book.create_sheet(title)
+    book.save(buffer)
+    return buffer.getvalue()
+
+
+def _cell(unit: ExtractedUnit) -> XlsxLocator:
+    assert isinstance(unit.locator, XlsxLocator), unit.locator
+    return unit.locator
+
+
+def _codes(result: ExtractionResult) -> set[str]:
+    return {p.code for p in result.problems}
+
+
+# --------------------------------------------------------------------------
+# kind detection
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("papers/t.pdf", SourceKind.PDF),
+        ("notes.md", SourceKind.MARKDOWN),
+        ("notes.txt", SourceKind.TEXT),
+        ("data.csv", SourceKind.CSV),
+        ("data.tsv", SourceKind.CSV),
+        ("book.xlsx", SourceKind.XLSX),
+        ("archive.zip", SourceKind.OTHER),
+        ("no-extension", SourceKind.OTHER),
+    ],
+)
+def test_kind_comes_from_the_extension(path: str, expected: SourceKind) -> None:
+    assert kind_for_path(path) is expected
+
+
+def test_extension_matching_ignores_case() -> None:
+    assert kind_for_path("BOOK.XLSX") is SourceKind.XLSX
+
+
+# --------------------------------------------------------------------------
+# the spreadsheet adapter
+# --------------------------------------------------------------------------
+
+
+def test_one_unit_per_cell_holding_a_value() -> None:
+    result = _extract(_xlsx(cells={"A1": "trial", "B2": 3.5, "C3": "alpha"}))
+    assert [(_cell(u).cell_ref, u.text) for u in result.units] == [
+        ("A1", "trial"),
+        ("B2", "3.5"),
+        ("C3", "alpha"),
+    ]
+
+
+def test_an_empty_cell_is_not_a_unit() -> None:
+    """A spreadsheet is mostly empty; the padding is not evidence.
+
+    This is where the text adapter's "keep every line" rule deliberately
+    does *not* transfer: a blank line in prose is a line a reader counts,
+    while a blank cell is not a measurement.
+    """
+    result = _extract(_xlsx(cells={"A1": "trial"}))
+    assert [_cell(u).cell_ref for u in result.units] == ["A1"]
+
+
+def test_a_formula_with_no_cached_value_is_disclosed_and_kept() -> None:
+    """The cell is dropped silently unless this holds.
+
+    openpyxl does not compute, so a formula with no cached result reads as
+    None -- and an emptiness check placed first would drop it, recording a
+    *measured blank* where the truth is "we could not read this". A later
+    numeric check would then compare against nothing.
+    """
+    result = _extract(_xlsx(cells={"B3": "=SUM(B1:B2)"}))
+    assert "xlsx_formula_without_cached_value" in _codes(result)
+    assert [u.text for u in result.units] == ["=SUM(B1:B2)"]
+
+
+def test_an_empty_sheet_is_reported_as_a_fact() -> None:
+    result = _extract(_xlsx(cells={"A1": "x"}, empty_sheets=("Notes",)))
+    assert "xlsx_sheet_empty" in _codes(result)
+    assert any(p.location == "Notes" for p in result.problems)
+
+
+def test_a_workbook_that_cannot_be_read_is_disclosed_not_raised() -> None:
+    result = _extract(b"this is not a workbook")
+    assert result.units == ()
+    assert "xlsx_unreadable" in _codes(result)
+
+
+@pytest.mark.parametrize(
+    "payload", [b"", b"\x00\x01\x02", b"PK\x03\x04 truncated", bytes(range(256))]
+)
+def test_no_hostile_input_raises(payload: bytes) -> None:
+    _extract(payload)  # must not raise
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (True, "TRUE"),
+        (False, "FALSE"),
+        # A spreadsheet stores a naive datetime, so that is what is rendered.
+        (dt.datetime(2026, 10, 17, 9, 30), "2026-10-17T09:30:00"),  # noqa: DTZ001
+        (dt.date(2026, 10, 17), "2026-10-17"),
+        (0.1, "0.1"),
+        (3.5, "3.5"),
+        ("plain", "plain"),
+    ],
+)
+def test_values_render_without_a_locale(value: object, expected: str) -> None:
+    """A value rendered differently per machine makes the hash machine-dependent."""
+    assert render_cell(value) == expected
+
+
+def test_extraction_is_deterministic() -> None:
+    """ADR-0008: the same bytes must give the same string, or a character
+    range silently re-points."""
+    from labcairn.material.addressing import render_locator_key
+
+    data = _xlsx(cells={"A1": "trial", "B2": 3.5, "C3": "alpha", "D4": True})
+    first = [(render_locator_key(u.locator), u.text) for u in _extract(data).units]
+    second = [(render_locator_key(u.locator), u.text) for u in _extract(data).units]
+    assert first == second
+    assert first
+
+
+def test_openpyxl_version_is_in_the_extraction_version() -> None:
+    """It reads the container and the XML, so an upgrade can change a cell."""
+    from labcairn.material import adapter_for
+
+    libs = adapter_for(SourceKind.XLSX).libraries()
+    assert libs.get("openpyxl") == openpyxl.__version__
+
+
+def _extract(data: bytes) -> ExtractionResult:
+    from labcairn.material import adapter_for
+
+    return adapter_for(SourceKind.XLSX).extract(data)
+
+
+# --------------------------------------------------------------------------
+# ingest
+# --------------------------------------------------------------------------
+
+
+def test_content_hash_is_the_file_hash() -> None:
+    import hashlib
+
+    data = _xlsx(cells={"A1": "x"})
+    material = ingest_bytes(data, relative_path="a.xlsx", display_name="a.xlsx", ingested_at=NOW)
+    assert material.source.content_sha256 == hashlib.sha256(data).hexdigest()
+    assert material.source.size_bytes == len(data)
+
+
+def test_the_same_bytes_and_path_give_the_same_id_on_two_machines() -> None:
+    a = ingest_bytes(b"same", relative_path="a.txt", display_name="a", ingested_at=NOW)
+    b = ingest_bytes(b"same", relative_path="a.txt", display_name="a", ingested_at=NOW)
+    assert a.source.source_id == b.source.source_id
+
+
+def test_a_material_with_no_adapter_is_recorded_with_a_disclosure() -> None:
+    """Inventoried and hashed, and *not* silently absent."""
+    material = ingest_bytes(
+        b"PK\x03\x04", relative_path="a.zip", display_name="a.zip", ingested_at=NOW
+    )
+    assert material.source.kind is SourceKind.OTHER
+    assert material.texts == ()
+    assert "no_adapter_for_kind" in {p.code for p in material.problems}
+    assert material.extraction_version == "no-adapter"
+
+
+def test_a_format_with_an_adapter_but_no_extension_still_declines() -> None:
+    material = ingest_bytes(
+        b"%PDF-1.4\n", relative_path="paper", display_name="paper", ingested_at=NOW
+    )
+    assert "no_adapter_for_kind" in {p.code for p in material.problems}
+
+
+def test_every_unit_carries_the_canonical_key_and_a_text_hash() -> None:
+    material = ingest_bytes(
+        _xlsx(cells={"A1": "trial"}),
+        relative_path="a.xlsx",
+        display_name="a.xlsx",
+        ingested_at=NOW,
+    )
+    unit = material.texts[0]
+    assert unit.locator_key.startswith("k=4:xlsx|")
+    import hashlib
+
+    assert unit.text_sha256 == hashlib.sha256(unit.text.encode()).hexdigest()
+
+
+def test_text_leaves_the_pipeline_wrapped() -> None:
+    """ADR-0003 C6's guarantee is consumer-side, so the wrap is on the way out."""
+    material = ingest_bytes(
+        _xlsx(cells={"A1": "trial"}),
+        relative_path="a.xlsx",
+        display_name="a.xlsx",
+        ingested_at=NOW,
+    )
+    wrapped = material.as_untrusted(material.texts[0])
+    assert isinstance(wrapped, UntrustedText)
+    assert wrapped.value == "trial"
+    assert wrapped.locator is not None
+
+
+def test_untrusted_text_is_not_a_string() -> None:
+    """ADR-0003 C6 is enforced *statically*, so there is no runtime check here.
+
+    ``UntrustedText`` is a frozen dataclass that does not subclass ``str``,
+    and mypy rejects ``isinstance(wrapped, str)`` as **unreachable** --
+    "subclass of UntrustedText and str cannot exist: have distinct disjoint
+    bases". That is stronger than a test: imported text cannot be passed
+    where a ``str`` is annotated, and the type checker refuses the file on
+    every change. A runtime assertion here would check something the type
+    system already guarantees, and would read as though it did not.
+    """
+
+
+# --------------------------------------------------------------------------
+# persistence
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def session(tmp_path: pathlib.Path) -> Iterator[Session]:
+    target = tmp_path / "materials.db"
+    upgrade_to_head(target)
+    engine = create_db_engine(target)
+    made = create_session_factory(engine)()
+    yield made
+    made.close()
+    engine.dispose()
+
+
+def _ingested(now: dt.datetime = NOW) -> IngestedMaterial:
+    return ingest_bytes(
+        _xlsx(cells={"A1": "trial", "B2": 3.5}),
+        relative_path="papers/t.xlsx",
+        display_name="t.xlsx",
+        ingested_at=now,
+    )
+
+
+def test_re_ingesting_an_unchanged_file_writes_nothing(session: Session) -> None:
+    """The claim that makes a failed ingest safe to retry."""
+    material = _ingested()
+    put_source(session, material.source)
+    rows = [to_text_row(t, created_at=NOW) for t in material.texts]
+    session.commit()
+
+    assert put_source_texts(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version=material.extraction_version,
+        rows=rows,
+    ) == (2, 0)
+    session.commit()
+    assert put_source_texts(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version=material.extraction_version,
+        rows=rows,
+    ) == (0, 2)
+    session.commit()
+
+
+def test_a_different_extraction_version_is_a_different_address(session: Session) -> None:
+    """An upgrade writes beside the old rows rather than over them."""
+    material = _ingested()
+    put_source(session, material.source)
+    rows = [to_text_row(t, created_at=NOW) for t in material.texts]
+    session.commit()
+    put_source_texts(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version="an-older-version",
+        rows=rows,
+    )
+    session.commit()
+    old = text_at(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version="an-older-version",
+        locator_key=material.texts[0].locator_key,
+    )
+    assert old == "trial"
+
+
+def test_a_malformed_row_is_an_error_not_a_silent_duplicate(session: Session) -> None:
+    """Why this is not ``INSERT OR IGNORE``.
+
+    OR IGNORE would swallow a blank ``locator_key`` or an invalid
+    ``cell_ref`` and report a row the constraints refused as a row that
+    was already there.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    put_source(session, _ingested().source)
+    session.commit()
+    bad = ExtractedTextRow(
+        locator_kind="xlsx",
+        locator_key="   ",
+        text="x",
+        text_sha256="0" * 64,
+        created_at=NOW,
+        sheet_name="S",
+        cell_ref="B2",
+    )
+    with pytest.raises(IntegrityError):
+        put_source_texts(
+            session,
+            source_content_sha256="a" * 64,
+            extraction_version="v1",
+            rows=[bad],
+        )
+        session.commit()
+
+
+def test_text_is_found_at_the_address_the_locator_names(session: Session) -> None:
+    material = _ingested()
+    put_source(session, material.source)
+    session.commit()
+    put_source_texts(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version=material.extraction_version,
+        rows=[to_text_row(t, created_at=NOW) for t in material.texts],
+    )
+    session.commit()
+    for unit in material.texts:
+        found = text_at(
+            session,
+            source_content_sha256=material.source.content_sha256,
+            extraction_version=material.extraction_version,
+            locator_key=unit.locator_key,
+        )
+        assert found == unit.text
+
+
+def test_an_address_that_was_never_extracted_is_none_not_an_error(session: Session) -> None:
+    assert (
+        text_at(
+            session,
+            source_content_sha256="f" * 64,
+            extraction_version="v1",
+            locator_key="k=4:xlsx|sh=1:Nope|c=1:Z99",
+        )
+        is None
+    )
