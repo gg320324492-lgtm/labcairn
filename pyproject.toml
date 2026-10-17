@@ -28,6 +28,10 @@ dependencies = [
     "pydantic-ai>=1,<2",
     # Application-owned task authority (LC-P1-05).
     "sqlalchemy>=2.0,<3",
+    # LC-P1-08 spreadsheet ingestion. MIT, verified from the sdist's own
+    # LICENCE.rst rather than from package metadata. Loaded lazily by
+    # material.spreadsheet, so the text and CSV paths do not need it.
+    "openpyxl>=3.1,<4",
     "alembic>=1.13,<2",
 ]
 
@@ -44,6 +48,10 @@ dev = [
     # Stubs only: mypy --strict rejects an untyped yaml import, and the C-1/C-4
     # gate tests parse workflow YAML structurally.
     "types-pyyaml>=6,<7",
+    # Stubs only, for the same reason: mypy --strict rejects an untyped
+    # openpyxl import. Preferred to a `type: ignore`, which nothing then
+    # checks is still needed.
+    "types-openpyxl>=3.1,<4",
     "pytest>=8.3,<9",
     "ruff>=0.8,<1",
 ]
