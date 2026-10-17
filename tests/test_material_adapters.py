@@ -50,7 +50,7 @@ def _codes(result: ExtractionResult) -> set[str]:
 
 def _substantive(result: ExtractionResult) -> set[str]:
     """Codes other than the always-present delimiter announcement."""
-    return _codes(result) - {"delimiter_used"}
+    return _codes(result) - {"delimiter_used", "csv_header_row"}
 
 
 # --------------------------------------------------------------------------

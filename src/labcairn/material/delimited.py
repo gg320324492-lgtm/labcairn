@@ -35,7 +35,7 @@ import io
 import sys
 from types import ModuleType
 
-from labcairn.material.text import decode_text
+from labcairn.material.text import decode_text, split_lines
 from labcairn.material.units import (
     ExtractedUnit,
     ExtractionProblem,
@@ -45,7 +45,12 @@ from labcairn.material.units import (
 from labcairn.sources.locators import CsvLocator
 from labcairn.sources.source import SourceKind
 
-__all__ = ["CsvAdapter", "decode_text", "sniff_delimiter"]
+__all__ = [
+    "CsvAdapter",
+    "decode_text",
+    "delimiter_evidence",
+    "sniff_delimiter",
+]
 
 
 def _fold(name: str) -> str:
@@ -57,14 +62,48 @@ def _fold(name: str) -> str:
 _CANDIDATES = (",", ";", "\t", "|")
 
 
+def delimiter_evidence(text: str) -> dict[str, int]:
+    """How many columns each candidate delimiter would produce.
+
+    Reported alongside the choice, because a tie is a coin flip and saying
+    so is the difference between a guess a reader can check and one they
+    cannot. In the case this exists for -- ``trial,note;mean`` with
+    ``a,b;3.0`` -- the guessed header ``note;mean`` is entirely plausible,
+    so "the header below is the check" fails for exactly the input it was
+    written for. The counts do not fail: they show two candidates tied.
+    """
+    lines, _ = split_lines(text)
+    for line in lines:
+        if line.strip():
+            break
+    else:
+        return dict.fromkeys(_CANDIDATES, 1)
+
+    evidence: dict[str, int] = {}
+    for candidate in _CANDIDATES:
+        try:
+            evidence[candidate] = len(next(csv.reader([line], delimiter=candidate)))
+        except (csv.Error, StopIteration):
+            evidence[candidate] = 0
+    return evidence
+
+
 def sniff_delimiter(text: str) -> str:
     """The delimiter producing the most columns on the first populated line.
 
     Deterministic by construction: same text in, same delimiter out. A
     one-column file has no evidence either way and gets the ordinary comma,
-    which is a no-op for a file that really has one column.
+    which is a no-op for a file that really has one column. Ties go to the
+    earliest candidate, and comma is first.
+
+    Uses :func:`~labcairn.material.text.split_lines` rather than
+    ``str.splitlines`` so that "line" means one thing in this package: a
+    splitlines-based sniff disagreed with ``csv.reader`` on a file
+    containing a vertical tab, picking a delimiter from a line the parser
+    never sees.
     """
-    for line in text.splitlines():
+    lines, _ = split_lines(text)
+    for line in lines:
         if line.strip():
             break
     else:
@@ -93,6 +132,7 @@ class CsvAdapter:
             return ExtractionResult(problems=problems)
 
         delimiter = sniff_delimiter(text)
+        evidence = delimiter_evidence(text)
         extra_problems: list[ExtractionProblem] = list(problems)
         # Always announced, not only when it is off comma. Announcing only
         # the non-default case means *every wrong guess at comma* is silent by
@@ -103,9 +143,17 @@ class CsvAdapter:
             ExtractionProblem(
                 code="delimiter_used",
                 detail=(
-                    f"read with {delimiter!r}, chosen because that is what splits the "
-                    f"first populated line into the most columns. The header below is "
-                    f"the check: if it looks wrong, this is where it went wrong."
+                    f"read with {delimiter!r}. Column counts on the first populated "
+                    f"line were "
+                    + ", ".join(f"{k!r}:{v}" for k, v in evidence.items())
+                    + f"; {delimiter!r} won. "
+                    + (
+                        "That is a tie, so this was a coin flip and the header below "
+                        "should be read before anything is cited from it."
+                        if sum(1 for v in evidence.values() if v == max(evidence.values())) > 1
+                        else "The header below is the check: if it looks wrong, this "
+                        "is where it went wrong."
+                    )
                 ),
                 location="row 1",
             )
@@ -139,6 +187,37 @@ class CsvAdapter:
             )
 
         header = records[0]
+        # Always say which row became the header. Instrument exports, write.csv
+        # with row names, and "Save as CSV" from Excel all put a title row
+        # above the real one, and taking it silently produced a record where
+        # the column "mean" appears nowhere and the measurement 3.0 is
+        # addressed at column " 2024" -- an address no reader can resolve.
+        header_preview = ", ".join(repr(name) for name in header[:6]) or "(empty)"
+        extra_problems.append(
+            ExtractionProblem(
+                code="csv_header_row",
+                detail=(
+                    f"row 1 is taken as the header, giving column names "
+                    f"{header_preview}. If the file opens with a title, preamble or "
+                    f"blank row, the names below are that text instead, and nothing "
+                    f"downstream can tell the difference -- check this row before "
+                    f"citing anything."
+                ),
+                location="row 1",
+            )
+        )
+        if len(records) > 1 and len(records[1]) > len(header):
+            extra_problems.append(
+                ExtractionProblem(
+                    code="csv_later_row_wider_than_header",
+                    detail=(
+                        f"row 2 has {len(records[1])} field(s) and row 1 has "
+                        f"{len(header)}, so row 1 may not be the header at all -- files "
+                        f"with a title row look exactly like this."
+                    ),
+                    location="row 2",
+                )
+            )
         # A header field with no name has no address, and building one --
         # "column_2", or an empty string -- would be inventing a name the file
         # does not contain. It is reported and its column is left unextracted.

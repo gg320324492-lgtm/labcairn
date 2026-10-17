@@ -127,7 +127,7 @@ class Adapter(Protocol):
         ...
 
     def source_modules(self) -> tuple[ModuleType, ...]:
-        """Every module whose source affects this adapter's output.
+        """Modules inside this package whose source can affect this adapter.
 
         **The adapter's own module first, then the ones it calls into.** The
         second part is not optional: `CsvAdapter` gets its decoding from
@@ -135,6 +135,16 @@ class Adapter(Protocol):
         behaviour change -- edit `decode_text` and the CSV output changes
         while the version does not, which is exactly the key lying that
         ADR-0009 forbids.
+
+        **Scope, stated narrowly because it is narrower than it sounds.** This
+        covers `labcairn.material`, not the whole package: the locators in
+        `labcairn.sources` and the validators in `sources.primitives` are
+        outside the digest. A change to those alters which cells are accepted
+        with the version fixed -- the round-one blank-header crash came from
+        exactly that unhashed layer. Covering them properly means hashing the
+        transitive import graph rather than a hand-listed set, which is a
+        larger change than this protocol carries. Until then the guarantee
+        is: *within this package*, behaviour changes move the version.
 
         Return `sys.modules[__name__]`, never ``__import__(__name__)``: with
         no ``fromlist`` the latter returns the *top-level package*, so three

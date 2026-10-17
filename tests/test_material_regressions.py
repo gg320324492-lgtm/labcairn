@@ -20,11 +20,18 @@ from labcairn.material.addressing import (
     render_locator_key,
     split_locator_key,
 )
-from labcairn.material.units import Adapter, ExtractionResult, register
+from labcairn.material.units import Adapter, ExtractedUnit, ExtractionResult, register
 from labcairn.material.units import register as _register
 from labcairn.material.version import derive_extraction_version
 from labcairn.sources.locators import CsvLocator, TextLocator
 from labcairn.sources.source import SourceKind
+
+#: Spelled out rather than escaped: a NUL or a newline written as a
+#: backslash sequence inside a generated test file is the kind of thing
+#: that survives a copy and breaks the file.
+NL = chr(10)
+BT = chr(96)
+NUL = chr(0)
 
 
 def _text(data: bytes) -> ExtractionResult:
@@ -45,6 +52,11 @@ def _csv(data: bytes) -> ExtractionResult:
     return adapter_for(SourceKind.CSV).extract(data)
 
 
+def _line_of(unit: ExtractedUnit) -> TextLocator:
+    assert isinstance(unit.locator, TextLocator), unit.locator
+    return unit.locator
+
+
 def _cell_of(unit: object) -> CsvLocator:
     assert isinstance(unit.locator, CsvLocator)  # type: ignore[attr-defined]
     return unit.locator  # type: ignore[attr-defined]
@@ -60,26 +72,54 @@ def _codes(result: object) -> set[str]:
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [
-        b"H\x00e\x00l\x00l\x00o\x00",
-        b"\x00H\x00e\x00l\x00l\x00o",
-        b"H\x00\x00\x00e\x00\x00\x00l\x00\x00\x00l\x00\x00\x00o\x00\x00\x00",
-    ],
-    ids=["utf-16le", "utf-16be", "utf-32le"],
+    "encoding",
+    ["utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"],
 )
-def test_bom_less_utf16_is_not_returned_with_nul_characters(payload: bytes) -> None:
+def test_bom_less_utf16_reads_back_as_the_original_text(encoding: str) -> None:
     """Strict UTF-8 accepts these: every ASCII char followed by a NUL.
 
     That is the one input class that defeated "decode strictly or
     disclose" -- the decode *succeeds*, and the output is a string no
-    author wrote. NUL in a successful decode is itself the evidence.
+    author wrote.
+
+    The assertion is the **exact text**, not the absence of a NUL. A
+    weaker form of this test was green over a regression that turned
+    "Hello" into CJK: the garbage contains no NUL either.
     """
-    result = _text(payload)
-    assert "\x00" not in result.units[0].text, result.units[0].text
+    result = _text("Hello".encode(encoding))
+    assert result.units, result.problems
+    assert result.units[0].text == "Hello", f"{encoding} produced {result.units[0].text!r}"
     assert "bom_missing_encoding_inferred" in _codes(result), (
         "the encoding was inferred and must be said so"
     )
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "tail"),
+    [
+        ("alpha", "bravo", chr(10)),  # even byte count
+        ("key", "value", ""),  # odd byte count
+        ("RECORD", "", ""),
+        ("one", "two", "three"),
+    ],
+    ids=["even", "odd", "mostly-nul", "two-nuls"],
+)
+def test_a_utf8_file_with_an_embedded_nul_is_refused_not_transcribed(
+    left: str, right: str, tail: str
+) -> None:
+    """Real UTF-8 carrying a NUL is a different thing from UTF-16.
+
+    An earlier attempt at the fallback tried every encoding and took the
+    first that decoded without NULs, which turned this into CJK whenever
+    the byte count happened to be even -- so whether your data survived
+    depended on its length. Density is the gate: a UTF-16 run is ~50% NUL
+    and UTF-32 ~75%, while this is well under 12%.
+    """
+    nul = chr(0)
+    payload = (left + nul + right + tail).encode()
+    result = _text(payload)
+    assert result.units == (), [u.text for u in result.units]
+    assert "text_contains_nul" in _codes(result)
 
 
 def test_nul_bytes_with_no_clean_re_encoding_are_refused() -> None:
@@ -358,3 +398,105 @@ def test_registering_the_same_adapter_twice_is_fine() -> None:
 
     assert register(PlainTextAdapter) is PlainTextAdapter
     assert _register(PlainTextAdapter) is PlainTextAdapter
+
+
+# --------------------------------------------------------------------------
+# a title row silently became the header
+# --------------------------------------------------------------------------
+
+
+def test_a_title_row_being_taken_as_the_header_is_announced() -> None:
+    """Instrument exports and Excel put a title above the real header.
+
+    Taking it silently produced a record where the column ``mean`` appears
+    nowhere and the measurement ``3.0`` sits at ``column=" 2024"`` -- an
+    address no reader can resolve. The announcement must show the names
+    it chose, or it diagnoses nothing.
+    """
+    payload = ("Study Results, 2024" + NL + "trial,mean" + NL + "alpha,3.0" + NL).encode()
+    result = _csv(payload)
+    assert "csv_header_row" in _codes(result)
+    detail = next(p.detail for p in result.problems if p.code == "csv_header_row")
+    assert "Study Results" in detail
+
+
+def test_a_leading_blank_row_is_diagnosable_rather_than_merely_dropped() -> None:
+    """Everything was dropped, and the problems blamed raggedness."""
+    payload = (NL + "Study Results 2024" + NL + "trial,mean" + NL + "alpha,3.0" + NL).encode()
+    result = _csv(payload)
+    assert result.units == ()
+    assert "csv_header_row" in _codes(result)
+    assert "csv_later_row_wider_than_header" in _codes(result)
+
+
+def test_an_ordinary_csv_still_extracts() -> None:
+    """The header announcement is not a refusal."""
+    payload = ("trial,mean" + NL + "alpha,3.0" + NL).encode()
+    result = _csv(payload)
+    cells = {(_cell_of(u).row, _cell_of(u).column): u.text for u in result.units}
+    assert cells == {(2, "trial"): "alpha", (2, "mean"): "3.0"}
+
+
+# --------------------------------------------------------------------------
+# the delimiter announcement must carry evidence, not only a verdict
+# --------------------------------------------------------------------------
+
+
+def test_a_tied_delimiter_choice_says_it_was_a_tie() -> None:
+    """ "The header below is the check" fails when the header looks fine.
+
+    ``note;mean`` is a plausible column name and ``a,b;3.0`` a plausible
+    value, so the stated check cannot catch the case it was written for.
+    The column counts can, because they show two candidates level.
+    """
+    payload = ("trial,note;mean" + NL + 'alpha,"a,b";3.0' + NL).encode()
+    result = _csv(payload)
+    detail = next(p.detail for p in result.problems if p.code == "delimiter_used")
+    assert "tie" in detail.lower(), detail
+    assert ":" in detail, "the counts themselves must be shown"
+
+
+# --------------------------------------------------------------------------
+# markdown structure inside code
+# --------------------------------------------------------------------------
+
+
+def test_a_hash_inside_a_fence_is_not_a_section() -> None:
+    """A Python comment in a fenced block is not a heading.
+
+    It set the section for every line after it -- including the real prose
+    -- and ``section`` is part of the address, so those citations resolved
+    to nothing.
+    """
+    fence = BT * 3
+    payload = (
+        "# Methods"
+        + NL
+        + NL
+        + fence
+        + "python"
+        + NL
+        + "# a comment, not a heading"
+        + NL
+        + "x = 1"
+        + NL
+        + fence
+        + NL
+        + NL
+        + "real body"
+        + NL
+    ).encode()
+    sections = {_line_of(u).section for u in _md(payload).units}
+    assert "a comment, not a heading" not in sections
+    assert sections == {"Methods"}
+
+
+def test_four_spaces_of_indent_is_code_not_a_heading() -> None:
+    """CommonMark allows 0-3 spaces before an ATX heading; 4 is code."""
+    payload = ("# T" + NL + "    # indented code" + NL + "body" + NL).encode()
+    assert {_line_of(u).section for u in _md(payload).units} == {"T"}
+
+
+def test_three_spaces_of_indent_is_still_a_heading() -> None:
+    payload = ("# T" + NL + "   # shallow" + NL + "body" + NL).encode()
+    assert {_line_of(u).section for u in _md(payload).units} == {"T", "shallow"}

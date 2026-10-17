@@ -28,6 +28,7 @@ from __future__ import annotations
 import codecs
 import re
 import sys
+import unicodedata
 from types import ModuleType
 
 from labcairn.material.units import (
@@ -51,8 +52,29 @@ _BOMS: tuple[tuple[bytes, str], ...] = (
 
 
 #: Encodings tried when the bytes decode as UTF-8 but contain NULs, which is
-#: what a BOM-less UTF-16 or UTF-32 file looks like after a UTF-8 decode.
-_NUL_SUSPECTS: tuple[str, ...] = ("utf-32-le", "utf-32-be", "utf-16-le", "utf-16-be")
+#: what a BOM-less UTF-16 or UTF-32 file looks like after a UTF-8 decode,
+#: each with the minimum share of NUL bytes that reading implies.
+#:
+#: The threshold is the whole safety property, and it exists because a naive
+#: "try the other encodings" fallback fabricates. Measured: a BOM-less UTF-16
+#: run is ~50% NUL and UTF-32 is ~75%, while a genuine UTF-8 file carrying
+#: one embedded NUL is under 12%. Below the threshold the fallback does not
+#: run at all and the file is refused, which is what round 1 did safely and
+#: what an earlier attempt here stopped doing -- it turned
+#: ``b"alpha\\x00bravo"`` into CJK, and only because the file had an even
+#: byte count.
+_NUL_SUSPECTS: tuple[tuple[str, float], ...] = (
+    ("utf-32-le", 0.70),
+    ("utf-32-be", 0.70),
+    ("utf-16-le", 0.40),
+    ("utf-16-be", 0.40),
+)
+
+#: Above this fraction of non-ASCII characters a decoding is treated as a
+#: misreading rather than as text. Material this project ingests is
+#: overwhelmingly ASCII and Latin; ``b"H\\x00e\\x00..."`` read as UTF-16-LE
+#: yields CJK, and that is the tell that the other byte order was meant.
+_MAX_NON_LATIN = 0.20
 
 #: Line terminators this project recognises. Deliberately *not*
 #: ``str.splitlines``, which also breaks on vertical tab, form feed, the
@@ -111,37 +133,86 @@ def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]
     if "\x00" not in text:
         return text, ()
 
-    # Valid UTF-8 containing NULs: almost certainly UTF-16 or UTF-32 without
-    # its BOM. Try, and say so either way.
-    for candidate in _NUL_SUSPECTS:
+    # Valid UTF-8 containing NULs. Two gates, and both are load-bearing:
+    # density decides *whether* to read the file as UTF-16/32 at all, and a
+    # plausibility check decides *which* byte order. Density alone cannot
+    # separate little-endian from big-endian -- both are 50% NUL -- and
+    # picking the first that decodes without NULs turned ``"Hello".encode(
+    # "utf-16-be")`` into CJK while reporting a successful inference.
+    density = text.count("\x00") / len(text)
+    candidates: list[tuple[str, str]] = []
+    for encoding, threshold in _NUL_SUSPECTS:
+        if density < threshold:
+            continue
         try:
-            redecoded = body.decode(candidate)
+            redecoded = body.decode(encoding)
         except UnicodeDecodeError:
             continue
         if "\x00" in redecoded:
             continue
-        return redecoded, (
+        candidates.append((encoding, redecoded))
+
+    if not candidates:
+        return None, (
             ExtractionProblem(
-                code="bom_missing_encoding_inferred",
+                code="text_contains_nul",
                 detail=(
-                    f"the bytes decode as UTF-8 but contain NUL characters, which is "
-                    f"what UTF-16 or UTF-32 without a byte-order mark looks like. Read "
-                    f"as {candidate} instead. Confirm from the text below that this is "
-                    f"the right reading."
+                    f"the bytes decode as UTF-8 and contain NUL characters at "
+                    f"{density:.0%}, which is not the density a UTF-16 or UTF-32 file "
+                    f"has. The text is not extracted, because NUL-separated letters "
+                    f"are not what the file says."
                 ),
             ),
         )
 
-    return None, (
+    plausible = [c for c in candidates if _is_plausible_text(c[1])]
+    if len(plausible) != 1:
+        # Zero plausible readings, or several -- an ambiguous file is
+        # refused rather than guessed, and the refusal says what was tried.
+        tried = ", ".join(sorted({encoding for encoding, _ in candidates}))
+        return None, (
+            ExtractionProblem(
+                code="text_encoding_ambiguous",
+                detail=(
+                    f"the bytes decode as UTF-8 with NUL characters at {density:.0%}, "
+                    f"which suggests UTF-16 or UTF-32 without a byte-order mark, but "
+                    f"the readings tried ({tried or 'none'}) do not settle on one "
+                    f"plausible text. Nothing is extracted, because picking one would "
+                    f"be a guess about every character."
+                ),
+            ),
+        )
+
+    encoding, chosen = plausible[0]
+    return chosen, (
         ExtractionProblem(
-            code="text_contains_nul",
+            code="bom_missing_encoding_inferred",
             detail=(
-                "the bytes decode as UTF-8 and contain NUL characters, but no UTF-16 "
-                "or UTF-32 reading of them is clean either. The text is not extracted, "
-                "because NUL-separated letters are not what the file says."
+                f"the bytes decode as UTF-8 but contain NUL characters at {density:.0%}, "
+                f"which is what UTF-16 or UTF-32 without a byte-order mark looks like. "
+                f"Read as {encoding} instead. Confirm from the text below that this is "
+                f"the right reading."
             ),
         ),
     )
+
+
+def _is_plausible_text(text: str) -> bool:
+    """Whether a decoding looks like the material this project ingests.
+
+    Not a language test and not a claim about what researchers write. It is
+    a single check that a misreading usually fails: bytes read with the
+    wrong endianness land in CJK, Hangul or private-use ranges, while text
+    that came out right is overwhelmingly ASCII and Latin. When several
+    readings pass, or none do, the caller refuses rather than choosing.
+    """
+    visible = [char for char in text if not char.isspace()]
+    if not visible:
+        return False
+    if any(unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs", "Cn"} for char in visible):
+        return False
+    non_latin = sum(1 for char in visible if ord(char) > 0x24F)
+    return (non_latin / len(visible)) <= _MAX_NON_LATIN
 
 
 def split_lines(text: str) -> tuple[list[str], tuple[ExtractionProblem, ...]]:
@@ -179,14 +250,38 @@ def split_lines(text: str) -> tuple[list[str], tuple[ExtractionProblem, ...]]:
     return lines, problems
 
 
+def _fence_marker(line: str) -> str | None:
+    """The fence this line opens or closes, or None.
+
+    CommonMark allows 0-3 spaces of indent before a fence; 4 or more makes
+    it indented code instead, which is also not a heading.
+    """
+    stripped = line.rstrip()
+    indent = len(stripped) - len(stripped.lstrip(" "))
+    if indent > 3:
+        return None
+    rest = stripped.lstrip(" ")
+    for marker in ("```", "~~~"):
+        if rest.startswith(marker):
+            return marker
+    return None
+
+
 def _markdown_section(line: str, current: str | None) -> str | None:
     """The ATX heading this line opens, or the one it is already under.
 
-    ``#`` through ``######``, optionally closed. Setext underlines are not
-    recognised: they are ambiguous with a line of dashes, and a wrong section
-    is worse than no section -- the line number still resolves.
+    ``#`` through ``######``, optionally closed, with at most three spaces
+    of indent -- four or more is an indented code block in CommonMark, and
+    ``    # indented code`` is a code sample, not a heading.
+
+    Setext underlines are not recognised: they are ambiguous with a line of
+    dashes, and a wrong section is worse than no section -- the line number
+    still resolves.
     """
     stripped = line.lstrip(" ")
+    indent = len(line) - len(stripped)
+    if indent > 3:
+        return current
     if not stripped.startswith("#"):
         return current
     hashes = len(stripped) - len(stripped.lstrip("#"))
@@ -244,8 +339,22 @@ class MarkdownAdapter(PlainTextAdapter):
 
         units: list[ExtractedUnit] = []
         section: str | None = None
+        fence: str | None = None
         for number, line in enumerate(lines, start=1):
-            section = _markdown_section(line, section)
+            marker = _fence_marker(line)
+            if marker is not None:
+                # A fenced block holds code, not structure. Without this, a
+                # Python comment inside ```python became the section for
+                # every line after it -- including the real prose -- and the
+                # section is part of the address, so those citations would
+                # resolve to nothing.
+                fence = None if fence == marker else (fence or marker)
+                units.append(
+                    ExtractedUnit(locator=TextLocator(line=number, section=section), text=line)
+                )
+                continue
+            if fence is None:
+                section = _markdown_section(line, section)
             units.append(
                 ExtractedUnit(locator=TextLocator(line=number, section=section), text=line)
             )
