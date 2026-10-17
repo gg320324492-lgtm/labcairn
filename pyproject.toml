@@ -32,6 +32,10 @@ dependencies = [
     # LICENCE.rst rather than from package metadata. Loaded lazily by
     # material.spreadsheet, so the text and CSV paths do not need it.
     "openpyxl>=3.1,<4",
+    # LC-P1-08 PDF ingestion. MIT, verified from the distribution's own
+    # licence file. Loaded lazily by material.pdf, so the text, Markdown
+    # and CSV paths do not need it.
+    "pdfplumber>=0.11,<1",
     "alembic>=1.13,<2",
 ]
 
@@ -203,6 +207,14 @@ strict = true
 warn_unreachable = true
 warn_unused_ignores = true
 show_error_codes = true
+
+# pdfplumber ships no type stubs and there is no types-* package for it, so
+# every use of it would need an inline ignore. Recorded once here instead,
+# scoped to the one module: the alternative is a global relaxation that also
+# hides real errors elsewhere. Remove this override if the library ships types.
+[[tool.mypy.overrides]]
+module = ["pdfplumber.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
 # pytest

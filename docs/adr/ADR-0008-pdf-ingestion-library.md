@@ -144,6 +144,45 @@ The status of that idea is narrower than it was and narrower than it should be. 
 - **Pure Python is slower than MuPDF on large documents.** Accepted. Phase 1 processes a researcher's working set, and the acceptance criterion is that anchors resolve exactly, not that parsing is fast.
 - **Reversible.** The dependency is confined to one ingestion adapter behind the `SourceAnchor` and `LocatorKind` contracts. Swapping libraries later means reimplementing one adapter, and the fixtures and anchor assertions survive the swap — which is the point of having made the contract independent of the library first.
 
+## Known gap: two-column reading order is not reconstructed
+
+Recorded here rather than left for someone to discover from a wrong citation.
+
+`material/pdf.py` extracts each page as pdfplumber renders it, with **no
+attempt to reconstruct reading order across columns**. For a page laid out in
+two columns of running text, that output places a left-column line and the
+right-column line at the same height beside each other. The result is not what
+the paper says, and a citation built on it will not resolve to the author's
+words. This is the fabrication of measurement 2 above, and the adapter cannot
+detect the page it happens on.
+
+**Why there is no detector.** Two rounds of measurement on the repository's
+three CC-BY single-column fixtures ruled out the obvious rules. Measured over
+sixty-eight body pages:
+
+| signal | range across genuine single-column pages |
+|---|---|
+| median body-line width | 0.10 – 0.65 of page width |
+| fraction of body lines crossing the page midpoint | 0.07 – 0.95 |
+
+**21 of those 68 pages** — all confirmed single-column — have fewer than half
+their body lines crossing the midpoint, because those pages carry a full-width
+figure above a single-column body. A width rule or a midpoint rule therefore
+separates real single-column pages from two-column pages by coincidence, not by
+geometry. Shipping one would mean building the extraction on a rule that
+misclassifies known-good input, which is what constraint 1 forbids.
+
+**What would close it.** Two-column CC-licensed material, to measure against.
+The search is recorded in the work-order status: eleven recent arXiv CC-BY
+papers are all single-column; twenty older hep-th papers, the two-column
+golden era, carry **zero** CC licences, because arXiv's default perpetual
+licence is not Creative Commons. Europe PMC and NCBI serve no fetchable PDF
+under automated access. So the intersection is not merely unfound — in the
+sources tried it is close to empty.
+
+Until then the gap is stated, not papered over: a reader who cannot see it
+cannot price it.
+
 ## Constraints LC-P1-08 must satisfy
 
 Each traces to a **measurement** above, numbered 1–5, so none can be satisfied by a test that was written to match whatever the code happened to do. They are written against **page text**, because that is what a `PdfLocator` indexes — an earlier revision of this list spoke of "span geometry", which the anchor contract does not have. A rewrite of this list dropped the exactness constraint without replacing it; that is restored below, and the omission mattered, because exactness is the property the whole correction is about.
