@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from labcairn.material.addressing import render_locator_key
 from labcairn.material.units import (
@@ -61,9 +61,11 @@ _UNOPENABLE: Final[frozenset[str]] = frozenset(
 _DISCLOSURE_LIMIT: Final[int] = 500
 
 __all__ = [
+    "IngestOutcome",
     "IngestedMaterial",
     "IngestedText",
     "ingest_bytes",
+    "ingest_into_store",
     "kind_for_path",
     "to_text_row",
 ]
@@ -269,4 +271,75 @@ def to_text_row(text: IngestedText, *, created_at: datetime) -> ExtractedTextRow
         column_name=getattr(locator, "column", None),
         sheet_name=getattr(locator, "sheet_name", None),
         cell_ref=getattr(locator, "cell_ref", None),
+    )
+
+
+@dataclass(frozen=True)
+class IngestOutcome:
+    """What one ingest wrote. Counts are reported, not predicted."""
+
+    material: IngestedMaterial
+    source_rows: int
+    text_rows_written: int
+    text_rows_present: int
+    problem_rows_written: int
+    problem_rows_present: int
+
+
+def ingest_into_store(
+    session: Any,
+    data: bytes,
+    *,
+    relative_path: str,
+    display_name: str,
+    ingested_at: datetime,
+    source_id: str | None = None,
+) -> IngestOutcome:
+    """Ingest one material and persist everything it produced.
+
+    This is the wiring the pieces were waiting for. ``ingest_bytes`` stops
+    at a return value and ``put_source_problems`` waits for a caller, so a
+    disclosure had a table and no way to reach it -- which is the same
+    "a disclosure with no destination" problem ADR-0010 set out to close,
+    one layer further out than the fix went.
+
+    One transaction. A material whose texts fail the constraints leaves no
+    partial ``sources`` row, because the counts below are what survived the
+    commit rather than what the loops intended to write.
+    """
+    from labcairn.db.materials import (
+        put_source,
+        put_source_problems,
+        put_source_texts,
+    )
+
+    material = ingest_bytes(
+        data,
+        relative_path=relative_path,
+        display_name=display_name,
+        ingested_at=ingested_at,
+        source_id=source_id,
+    )
+    put_source(session, material.source)
+    texts_written, texts_present = put_source_texts(
+        session,
+        source_content_sha256=material.source.content_sha256,
+        extraction_version=material.extraction_version,
+        rows=[to_text_row(t, created_at=ingested_at) for t in material.texts],
+    )
+    problems_written, problems_present = put_source_problems(
+        session,
+        source_id=material.source.source_id,
+        extraction_version=material.extraction_version,
+        problems=[(p.code, p.detail, p.location) for p in material.problems],
+        created_at=ingested_at,
+    )
+    session.commit()
+    return IngestOutcome(
+        material=material,
+        source_rows=1,
+        text_rows_written=texts_written,
+        text_rows_present=texts_present,
+        problem_rows_written=problems_written,
+        problem_rows_present=problems_present,
     )

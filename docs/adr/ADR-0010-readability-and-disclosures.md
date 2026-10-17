@@ -78,11 +78,18 @@ make "the same whole-file problem, once per run" succeed, forever.
   the migration rebuilds `sources` because SQLite cannot ALTER a CHECK. The
   parity test compares types, nullability, unique constraints and CHECK bodies,
   so the rebuild is verified rather than trusted.
-- The downgrade deliberately **does not** narrow the vocabulary back. Doing so
-  would refuse a database legitimately holding an `UNPARSEABLE` row, and
-  refusing a downgrade that would lose a truthful record is worse than a schema
-  that stayed wider than its predecessor. This is a known asymmetry and it is
-  recorded rather than hidden.
+- The downgrade deliberately **does not** narrow the vocabulary back, because
+  doing so would refuse a database legitimately holding an `UNPARSEABLE` row.
+
+  But that reasoning does not cover the whole downgrade, and an earlier
+  draft of this ADR pretended it did: it justified the asymmetry by refusing
+  to "lose a truthful record", and then dropped `source_problems`
+  unconditionally -- losing every disclosure record by a different route.
+  The same loss, not justified. So the asymmetry is narrower than it looks:
+  the vocabulary stays, the disclosures go. **Both are recoverable from the
+  material**, since re-ingesting the workspace reproduces every disclosure
+  under its own extraction version -- but "recoverable" is a weaker claim
+  than "kept", and it should not borrow the other one's argument.
 - A material that cannot be read is now visibly distinct in the store, which
   means some downstream query written against "readable" sees a third state.
   That is the point, and it is also a change.

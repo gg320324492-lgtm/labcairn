@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from labcairn.db.materials import (
     ExtractedTextRow,
+    problems_for,
     put_source,
     put_source_texts,
     text_at,
@@ -38,6 +39,7 @@ from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.material.ingest import (
     IngestedMaterial,
     ingest_bytes,
+    ingest_into_store,
     kind_for_path,
     to_text_row,
 )
@@ -524,3 +526,114 @@ def test_extraction_is_the_same_under_hash_randomisation() -> None:
         )
         digests.add(out.stdout.strip())
     assert len(digests) == 1, digests
+
+
+# --------------------------------------------------------------------------
+# The paths review found with zero coverage, and the wiring it found absent
+# --------------------------------------------------------------------------
+
+
+def test_a_formula_with_no_text_is_refused_not_recorded_as_an_equals_sign() -> None:
+    """An empty expression is not an empty string.
+
+    A workbook can store ``<f t="array" ref="B1:B3"/>`` with no payload,
+    and openpyxl synthesises ``.text == ""``. Recording that -- or the "="
+    it becomes -- puts a string in the record that the file does not
+    contain, while the disclosure beside it claims the formula *was*
+    recorded. Review found this after the repr fix; the guard checked
+    ``None`` and not emptiness.
+    """
+    from openpyxl.worksheet.formula import ArrayFormula
+
+    for expression in ("", "="):
+        buffer = io.BytesIO()
+        book = openpyxl.Workbook()
+        sheet = book.active
+        assert sheet is not None
+        sheet.title = "S"
+        sheet["A1"] = 1
+        sheet["B1"] = ArrayFormula("B1:B3", expression)
+        book.save(buffer)
+        result = _extract(buffer.getvalue())
+        assert [u for u in result.units if _cell(u).cell_ref == "B1"] == [], expression
+        assert "xlsx_formula_not_readable" in _codes(result), expression
+
+
+def test_a_mid_walk_failure_is_disclosed_and_keeps_what_was_read() -> None:
+    """A chartsheet has no ``iter_rows``; the try now wraps the walk.
+
+    What survives is what was actually read, with the failure disclosed.
+    Dropping it would claim the sheet was empty, which is a different and
+    wrong claim.
+    """
+    buffer = io.BytesIO()
+    book = openpyxl.Workbook()
+    data_sheet = book.active
+    assert data_sheet is not None
+    data_sheet.title = "Data"
+    assert book.active is not None
+    data_sheet["A1"] = "kept"
+    book.create_chartsheet("Chart")
+    book.save(buffer)
+    result = _extract(buffer.getvalue())
+    # Measured, not assumed: openpyxl 3.1.5 raises while *loading* a
+    # workbook containing a chartsheet, so this arrives as the open failure
+    # rather than a mid-walk one. Either way it is disclosed and no cell is
+    # invented.
+    assert _codes(result) & {"xlsx_unreadable", "xlsx_iteration_failed"}, [
+        p.code for p in result.problems
+    ]
+    assert result.problems[0].detail, "a disclosure with no detail is not a disclosure"
+
+
+def test_ingesting_unchanged_bytes_a_second_time_writes_nothing(session: Session) -> None:
+    """``put_source`` rewrote eight columns every time, ``ingested_at`` included.
+
+    Review showed the claim "re-ingesting an unchanged file writes
+    nothing" was false for ``sources`` while true for ``source_texts`` --
+    and the test asserted counts, which are the wrong invariant for a row
+    whose *history* is being rewritten.
+    """
+    from sqlalchemy import select
+
+    from labcairn.db.models import SourceRow
+
+    buffer = _xlsx(cells={"A1": "trial", "B2": 3.5})
+    later = NOW + dt.timedelta(days=1)
+    first = ingest_into_store(
+        session, buffer, relative_path="p/t.xlsx", display_name="t.xlsx", ingested_at=NOW
+    )
+    row = session.scalar(
+        select(SourceRow).where(SourceRow.source_id == first.material.source.source_id)
+    )
+    assert row is not None
+    before = row.ingested_at
+    session.expire_all()
+    second = ingest_into_store(
+        session, buffer, relative_path="p/t.xlsx", display_name="t.xlsx", ingested_at=later
+    )
+    session.expire_all()
+    assert row.ingested_at == before, "a re-ingest of unchanged bytes rewrote ingested_at"
+    assert second.text_rows_written == 0 and second.problem_rows_written == 0
+
+
+def test_disclosures_reach_the_store_and_are_not_predicted(session: Session) -> None:
+    """The headline of the last review: a table with no writer.
+
+    ``ingest_bytes`` produced disclosures and ``put_source_problems``
+    stored them, and nothing connected the two, so a disclosure reached
+    memory and stopped.
+    """
+    buffer = _xlsx(cells={"A1": "trial"}, empty_sheets=("Notes",))
+    outcome = ingest_into_store(
+        session, buffer, relative_path="p/t.xlsx", display_name="t.xlsx", ingested_at=NOW
+    )
+    assert outcome.problem_rows_written == 1
+    stored = problems_for(session, source_id=outcome.material.source.source_id)
+    assert [r.code for r in stored] == ["xlsx_sheet_empty"]
+    assert stored[0].detail, "a disclosure with no detail is not a disclosure"
+
+    again = ingest_into_store(
+        session, buffer, relative_path="p/t.xlsx", display_name="t.xlsx", ingested_at=NOW
+    )
+    assert again.problem_rows_written == 0, "a duplicate disclosure was written again"

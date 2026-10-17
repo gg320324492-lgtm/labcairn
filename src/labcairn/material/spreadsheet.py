@@ -257,15 +257,31 @@ def _formula_text(value: Any) -> str | None:
     """A formula cell's text, or ``None`` when it is not expressible.
 
     openpyxl models three kinds of formula. A plain one is a ``str``. An
-    array formula and a data-table formula are objects exposing ``.text``;
-    everything else has no text at all. Calling ``str()`` on those produces
-    a repr with a memory address, which is not what the cell says and makes
-    the excerpt hash depend on the process.
+    array formula and a data-table formula are objects exposing ``.text``.
+
+    Two ways this has to refuse, both found by review rather than by reading:
+
+    - ``str()`` on an object produces a repr with a memory address, which is
+      not what the cell says and makes the excerpt hash depend on the
+      process.
+    - **an empty expression is not an empty string.** A workbook can store
+      ``<f t="array" ref="B1:B3"/>`` with no payload at all, and openpyxl
+      synthesises ``.text == ""``. Returning that -- or ``"="`` -- records a
+      string the file does not contain, while the disclosure alongside it
+      claims the formula *was* recorded. So text that is empty, or only an
+      equals sign, is treated as unreadable and the cell is reported instead.
     """
     if isinstance(value, str):
-        return value
-    text = getattr(value, "text", None)
-    return text if isinstance(text, str) else None
+        text = value
+    else:
+        candidate = getattr(value, "text", None)
+        if not isinstance(candidate, str):
+            return None
+        text = candidate
+    stripped = text.strip()
+    if not stripped or set(stripped) <= {"="}:
+        return None
+    return text
 
 
 def _load(openpyxl: Any, data: bytes, *, data_only: bool) -> Any:
