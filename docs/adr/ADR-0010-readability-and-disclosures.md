@@ -1,8 +1,8 @@
 # ADR-0010: A third readability state, and where a disclosure is stored
 
-**Status:** Accepted — amends a contract frozen by LC-P1-02
+**Status:** Accepted and **ratified by the project owner** — amends a contract frozen by LC-P1-02
 **Work order:** LC-P1-08 (material inventory and source locators)
-**Date:** 2026-10-17
+**Date:** 2026-10-17 · ratified 2026-10-17
 
 > This ADR **modifies a frozen contract.** `SourceReadability` and `Source` come from
 > LC-P1-02, which declared them fixed. The project owner's standing rule is that
@@ -11,6 +11,24 @@
 > that cannot record the truth is not a contract worth freezing, so the change is
 > made here rather than worked around — and the owner is told, rather than
 > discovering it later.
+>
+> **Ratified 2026-10-17.** The sequence is recorded rather than smoothed over,
+> because a reader deciding whether this was examined or rubber-stamped needs
+> it: the amendment was escalated when it was taken, merged into `main` in PR #25
+> under `mergeStateStatus=CLEAN`, and ratified by the owner afterwards on the
+> same branch. The review record that prompted the escalation is in that PR's
+> thread — two rounds, ten defects in the first and three blockers in the
+> second, including the discovery that the original two-member vocabulary had no
+> honest answer for material this project cannot read.
+>
+> **What ratification does and does not cover.** It approves the *contract
+> change*: a third readability member, and the pairing rule becoming "not
+> readable ⟺ disclosed" rather than naming one member. It does not close the
+> two defects review recorded as unaddressed — the per-row `SELECT` in both
+> writers, and the counts being returned before the flush — nor the
+> unaddressed gap that a declared row the walk never reaches is currently
+> unreported. Those are listed under "Known gaps" below rather than implied
+> covered by a signature.
 
 ## Context and concrete problem
 
@@ -93,6 +111,31 @@ make "the same whole-file problem, once per run" succeed, forever.
 - A material that cannot be read is now visibly distinct in the store, which
   means some downstream query written against "readable" sees a third state.
   That is the point, and it is also a change.
+
+## Known gaps
+
+Ratification approves the contract change above. It does not close these,
+which review recorded and which are open as of the merge:
+
+- **A row the sheet declares and the walk never reaches is unreported.** A
+  file declaring ``A0:A1`` loses row 0 silently while reporting the sheet
+  whole. Only reachable from a hand-made file, since row 0 is not legal in
+  Excel, and corrupt files are in the threat model. A check was built and
+  removed: the criterion was unsound, because row 0 is smaller than row 1, so
+  "declared < read" holds for a sheet that lost nothing. The right criterion
+  is whether any *declared row was skipped*, which needs the parser's start
+  row rather than the dimension string. Open, and recorded rather than
+  papered over with a check that cannot fail.
+- **One `SELECT` per row** in both writers — roughly 6x on the write path,
+  and 6x longer hold on SQLite's single write lock for every other writer.
+  Not a correctness problem: `BEGIN IMMEDIATE` takes the lock at
+  transaction start, so the check-then-insert window cannot interleave.
+- **Counts are returned before the flush**, so they are a prediction for a
+  batch that may still fail on a constraint. `ingest_into_store` reports what
+  survived the commit instead, but the lower-level functions still do not.
+- **`source_problems` constrains one column of four.** Blank or oversize
+  `code`, an empty `location`, and a `source_id` naming no source all store;
+  only `detail` is checked, and there is no foreign key.
 
 ## Re-evaluation trigger
 
