@@ -34,7 +34,7 @@ The two skips are declared, not silent: one is the real-provider smoke needing a
 
 | Acceptance clause | Verdict | Evidence |
 |---|---|---|
-| Migration rerun | **PASS** | `tests/test_store_migrations.py` — rerun at 0001 and 0002 leaves the revision and the data untouched, asserted rather than assumed |
+| Migration rerun | **PASS** | `tests/test_store_migrations.py` — rerunning at G2's subject commit (head `0002`) leaves the revision and the data untouched, asserted rather than assumed. The test runs at whatever head is current; `0003` was added by LC-P1-08 after this gate closed. |
 | Fresh database | **PASS** | `test_store_migrations.py`, and both exit demonstrations build one from nothing |
 | Event order | **PASS** | `seq` is per-Task, gapless, allocated inside the transaction. Verified from outside the suite: two interleaved Tasks each get 1..5 while their rowids interleave `1,3,5,7,9` / `2,4,6,8,10` — impossible if `seq` were the rowid |
 | Rollback on failure | **PASS** | Failure injected between the events and the state rows rolls back **both**, asserted through a new connection so a partially committed state cannot pass. A mutation that commits events alone turns exactly that test red |

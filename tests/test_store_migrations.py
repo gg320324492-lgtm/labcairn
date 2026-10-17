@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic.script import ScriptDirectory
-from sqlalchemy import inspect, text
+from sqlalchemy import CheckConstraint, Table, UniqueConstraint, inspect, text
 from test_store_support import (  # noqa: F401
     StoreEnv,
     db_path,
@@ -63,6 +64,12 @@ EXPECTED_TABLES = frozenset(
         "approvals",
         "checkpoints",
         "artifacts",
+        # ADR-0009 / LC-P1-08. `sources` persists the material a report
+        # cites; `source_texts` holds extracted text keyed by content hash,
+        # extraction version and locator. The store held outputs and nothing
+        # held inputs until this revision.
+        "sources",
+        "source_texts",
     }
 )
 
@@ -199,27 +206,85 @@ def test_the_migrated_schema_matches_the_orm_models(tmp_path: Path) -> None:
     Without this, editing ``models.py`` and forgetting the migration leaves the
     application querying columns that do not exist, and every migration test
     still passes because the migration ran perfectly.
+
+    Comparing column *names* alone was not enough, and this test was widened
+    because review found real drift it could not see: revision 0003 rendered
+    two ``UtcDateTime`` columns as ``sa.Text`` where the models use
+    ``sa.String``. SQLite treats both identically, so nothing failed, and the
+    guard that exists precisely for "a migration reported success and changed
+    something else" reported nothing. Types, nullability, unique constraints
+    and CHECK constraint bodies are all compared now.
     """
     target = tmp_path / "drift.db"
     upgrade_to_head(target)
     engine = create_db_engine(target)
     try:
-        actual = inspect(engine)
+        inspector = inspect(engine)
         for name, table in Base.metadata.tables.items():
-            assert actual.has_table(name), f"migration is missing table {name}"
-            migrated = {c["name"] for c in actual.get_columns(name)}
-            modelled = {c.name for c in table.columns}
-            assert migrated == modelled, (
-                f"table {name}: migration has {sorted(migrated - modelled)} extra and "
-                f"{sorted(modelled - migrated)} missing relative to the models"
+            assert inspector.has_table(name), f"migration is missing table {name}"
+
+            migrated = {c["name"]: c for c in inspector.get_columns(name)}
+            modelled = {c.name: c for c in table.columns}
+            assert set(migrated) == set(modelled), (
+                f"table {name}: migration has {sorted(set(migrated) - set(modelled))} extra "
+                f"and {sorted(set(modelled) - set(migrated))} missing relative to the models"
             )
-        # And the unique constraint that makes gaplessness a backstop survived
-        # the migration rather than living only in the ORM.
-        event_keys = inspect(engine).get_unique_constraints("events")
-        pairs = {tuple(c["column_names"]) for c in event_keys}
-        assert ("task_id", "seq") in pairs
+
+            for column_name, column in modelled.items():
+                seen = migrated[column_name]
+                assert bool(seen["nullable"]) == bool(column.nullable), (
+                    f"{name}.{column_name}: migration nullable={seen['nullable']}, "
+                    f"models nullable={column.nullable}"
+                )
+                # The impl, not the declared type: UtcDateTime renders as
+                # String, which is what a frozen migration is required to use.
+                wanted = column.type.compile(dialect=engine.dialect)
+                assert seen["type"].compile(dialect=engine.dialect) == wanted, (
+                    f"{name}.{column_name}: migration has {seen['type']!r}, "
+                    f"models compile to {wanted!r}"
+                )
+
+            assert _unique_sets(inspector, name) == _unique_sets_from_models(table), (
+                f"table {name}: unique constraints differ between migration and models"
+            )
+            assert _check_sets(inspector, name) == _check_sets_from_models(table), (
+                f"table {name}: CHECK constraints differ between migration and models"
+            )
     finally:
         engine.dispose()
+
+
+def _unique_sets(inspector: Any, table: str) -> set[tuple[str, ...]]:
+    return {
+        tuple(sorted(c["column_names"] or ())) for c in inspector.get_unique_constraints(table)
+    } | {tuple(sorted(c["column_names"])) for c in inspector.get_indexes(table) if c.get("unique")}
+
+
+def _unique_sets_from_models(table: Table) -> set[tuple[str, ...]]:
+    found = {
+        tuple(sorted(c.name for c in constraint.columns))
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+    return {key for key in found if key}
+
+
+def _check_sets(inspector: Any, table: str) -> set[str]:
+    """Normalised CHECK bodies: whitespace collapsed, so a reformat is not drift."""
+    return {norm(c.get("sqltext")) for c in inspector.get_check_constraints(table)}
+
+
+def _check_sets_from_models(table: Table) -> set[str]:
+    # ``sqltext`` is a TextClause at schema level, not a str.
+    return {
+        norm(c.sqltext.text) if hasattr(c.sqltext, "text") else norm(c.sqltext)
+        for c in table.constraints
+        if isinstance(c, CheckConstraint)
+    }
+
+
+def norm(text: str | None) -> str:
+    return " ".join((text or "").split())
 
 
 def test_the_migration_does_not_import_labcairn() -> None:

@@ -148,6 +148,76 @@ def _list_of(values: Iterable[str]) -> str:
     return sql_string_list(list(values))
 
 
+#: Characters a value may not consist of *entirely* of, for ``NonEmptyText``.
+#:
+#: ``NonEmptyText`` in :mod:`labcairn.sources.primitives` means *length >= 1
+#: and not entirely whitespace*. ``length(trim(x)) > 0`` looks like it says
+#: that and does not: SQLite's ``trim()`` removes the **space character
+#: only**, so it happily accepts a tab, a newline, an NBSP and an ideographic
+#: space. An earlier draft of this schema used that form, and review found 65
+#: wrong-acceptances from it — one root cause across eight columns.
+#:
+#: Exactly the code points ``str.strip()`` removes — verified against
+#: ``str.isspace()`` by ``test_the_blank_character_class_matches_python``.
+#: Space is included: ``'a b'`` still matches outside the class so it is
+#: accepted, while a value made entirely of spaces has nothing outside it.
+#: Excluding space, as a first attempt here did, looks right and is not.
+#:
+#: A comment in an earlier draft said the remaining Unicode whitespace
+#: "cannot be expressed in a CHECK". **That was false**, and worse than the
+#: bug it documented, because it tells the next reader to stop looking: a GLOB
+#: character class is one pattern term however many characters it holds. An
+#: 8-point class was replaced by this one and closed the family completely.
+#:
+#: Written with ``chr()`` rather than escapes so the code points are visible
+#: in the source instead of surviving a copy through a shell.
+_NON_WHITESPACE_CODEPOINTS: Final[tuple[int, ...]] = (
+    0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x001C, 0x001D, 0x001E, 0x001F,
+    0x0020, 0x0085, 0x00A0, 0x1680,
+    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008,
+    0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000,
+)  # fmt: skip
+
+
+def _whitespace_class() -> str:
+    """A GLOB character class matching one whitespace code point (no negation)."""
+    return "[" + "".join(chr(code) for code in _NON_WHITESPACE_CODEPOINTS) + "]"
+
+
+def _has_content(column: str) -> str:
+    """SQL for "this column holds at least one non-whitespace character"."""
+    negated = "[" + chr(94) + _whitespace_class()[1:]
+    return f"{column} GLOB '*{negated}*'"
+
+
+def _no_edge_whitespace(column: str) -> str:
+    """SQL for "this column neither begins nor ends with whitespace"."""
+    cls = _whitespace_class()
+    return f"{column} NOT GLOB '{cls}*' AND {column} NOT GLOB '*{cls}'"
+
+
+def _a1_glob_check(column: str) -> str:
+    """Render ``XlsxCellRef``'s pattern as a SQLite GLOB disjunction.
+
+    ``XlsxCellRef`` in :mod:`labcairn.sources.locators` is
+    ``^[A-Z]{1,3}[1-9][0-9]{0,6}$``, and GLOB has no bounded repetition, so
+    the pattern is expanded into one alternative per (letters, digits) pair
+    — 3 x 7 = 21 terms. GLOB matches the whole string, so each alternative
+    is an exact shape rather than a prefix.
+
+    Generated rather than hand-written because a hand-written approximation
+    is how ``b12`` and ``B12`` end up as two rows in the same ledger, which
+    is the failure ``locators.py`` names when it explains why lowercase is
+    rejected rather than upcased.
+    """
+    alternatives = [
+        f"{column} GLOB '{'[A-Z]' * letters}{'[1-9]' + '[0-9]' * (digits - 1)}'"
+        for letters in range(1, 4)
+        for digits in range(1, 8)
+    ]
+    return " OR ".join(alternatives)
+
+
 # --------------------------------------------------------------------------- #
 # tasks
 # --------------------------------------------------------------------------- #
@@ -532,4 +602,310 @@ class EventRow(Base):
         # an events.id, so a row deleted by hand cannot have its identity
         # silently handed to a different event.
         {"sqlite_autoincrement": True},
+    )
+
+
+# --------------------------------------------------------------------------- #
+# sources
+# --------------------------------------------------------------------------- #
+
+
+class SourceRow(Base):
+    """One ingested material file.
+
+    Persists :class:`labcairn.sources.source.Source`, whose contract LC-P1-02
+    froze and which LC-P1-05 left unstored -- the store held outputs
+    (``artifacts``) but nothing held the inputs a report cites. There is no
+    ``task_id``: a material belongs to the workspace, not to a Task, and it
+    must outlive the Tasks that cite it.
+
+    ``content_sha256`` is stored, never refreshed. ADR-0004 I4 says drift
+    invalidates downstream rather than silently re-reading, and a hash that
+    updated itself would make drift undetectable.
+    """
+
+    __tablename__ = "sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    #: See :data:`LOCAL_USER_ID`. Not authentication; the question it answers
+    #: is whose material this is, so a future multi-user migration has a
+    #: column to populate.
+    owner_id: Mapped[str] = mapped_column(Text, nullable=False, default=LOCAL_USER_ID)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(2000), nullable=False)
+    relative_path: Mapped[str] = mapped_column(String(2000), nullable=False, unique=True)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    readability: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Required non-empty when unreadable, absent otherwise. A disclosure
+    #: nobody has to write is a disclosure nobody writes, so its absence is a
+    #: schema error rather than a default.
+    readability_disclosure: Mapped[str | None] = mapped_column(Text, nullable=True)
+    identifiers: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    ingested_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    __table_args__ = (
+        Index("ix_sources_content_sha256", "content_sha256"),
+        CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
+        # Closed vocabulary, mirroring ``events.type``. Without it the pairing
+        # check below is one-sided: a typo like 'unreadable' would sail through
+        # with no disclosure, and ADR-0004 A7 would not be enforced by the
+        # database at all. An event type this build has never heard of is a
+        # newer writer or a bug, and a raw INSERT bypassing the ORM is refused
+        # too; the same standard applies here.
+        CheckConstraint(
+            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
+            name="source_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "readability IN ('readable', 'unreadable_no_ocr')",
+            name="source_readability_vocabulary",
+        ),
+        # ADR-0004 A7: "we could not look" is not "there was nothing there".
+        # A disclosure attached to something we did read is a claim about
+        # something that did not happen.
+        CheckConstraint(
+            "(readability = 'unreadable_no_ocr') = (readability_disclosure IS NOT NULL)",
+            name="source_disclosure_paired",
+        ),
+        # Paired is not the same as meaningful. A disclosure nobody can read is
+        # the same failure the pairing exists to prevent, wearing a string.
+        CheckConstraint(
+            "readability_disclosure IS NULL OR " + _has_content("readability_disclosure"),
+            name="source_disclosure_non_empty",
+        ),
+        # Defence in depth, not a second implementation of
+        # ``require_workspace_relative``. The application validator is the
+        # contract; this refuses the shapes that make a stored path dangerous
+        # if a row is ever written by something that skipped it -- absolute,
+        # parent-escaping, a Windows separator, or a redundant '.' segment.
+        # A stored ``..`` is precisely what that validator refuses.
+        CheckConstraint(
+            "relative_path NOT GLOB '/*' AND relative_path NOT GLOB '*\\*' "
+            "AND relative_path NOT GLOB '../*' AND relative_path NOT GLOB '*/../*' "
+            "AND relative_path NOT GLOB '*/..' AND relative_path <> '..' "
+            "AND relative_path NOT GLOB './*' AND relative_path NOT GLOB '*/./*' "
+            "AND relative_path NOT GLOB '*/.' AND relative_path <> '.' "
+            "AND " + _has_content("relative_path"),
+            name="source_relative_path_workspace_relative",
+        ),
+        # The four shapes above are not the whole set. Also refused: a Windows
+        # drive letter written with forward slashes (`C:win/path` has no
+        # backslash to catch), an empty path segment (`papers/`, `papers//p.pdf`
+        # both split to `''`), and surrounding whitespace — every one of which
+        # require_workspace_relative rejects.
+        CheckConstraint(
+            "relative_path NOT GLOB '[A-Za-z]:*' "
+            "AND relative_path NOT LIKE '%/' AND relative_path NOT LIKE '%//%' "
+            "AND " + _no_edge_whitespace("relative_path"),
+            name="source_relative_path_no_empty_segment",
+        ),
+        CheckConstraint(
+            "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_content_sha256_shape",
+        ),
+        CheckConstraint(_has_content("display_name"), name="source_display_name_non_empty"),
+        CheckConstraint(_has_content("source_id"), name="source_id_non_empty"),
+        CheckConstraint(_has_content("owner_id"), name="source_owner_id_non_empty"),
+        # ``size_bytes`` is declared INTEGER, and SQLite will happily store the
+        # string 'abc' in it, or convert '1e3' to 1000 without a trace. The
+        # latter is what ``primitives.py`` calls the thing this project exists
+        # to prevent: a payload written where a string belonged is accepted,
+        # silently rewritten, and nothing downstream can tell.
+        CheckConstraint("typeof(size_bytes) = 'integer'", name="source_size_bytes_is_integer"),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# source_texts
+# --------------------------------------------------------------------------- #
+
+
+class SourceTextRow(Base):
+    """Extracted text for one addressable place in one material.
+
+    ADR-0009. The key is ``(source_content_sha256, extraction_version,
+    locator)``, and every part of it is load-bearing:
+
+    * the **content hash** binds the text to the exact bytes it came from, so
+      a modified file cannot inherit old text and ADR-0004's A2 fires;
+    * the **extraction version** keeps a new extraction beside an old one
+      rather than overwriting it, so an anchor written under the old version
+      still resolves and the divergence becomes detectable rather than silent;
+    * the **locator** separates the many addresses of one material.
+
+    ``locator_key`` is a canonical, NOT NULL, indexable rendering of the typed
+    locator columns beside it. SQLite treats NULLs as distinct inside a UNIQUE
+    index, so a unique constraint over the nullable locator columns would not
+    constrain even one row; this column is what makes the key enforceable. It
+    is derived, never the source of truth -- ADR-0004 rejects prose locators
+    precisely because they cannot be re-derived from anything, and this one is
+    re-derivable from typed columns that can be.
+    """
+
+    __tablename__ = "source_texts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The material's content hash at extraction time. Deliberately *not* a
+    #: foreign key to ``sources.content_sha256``: text outlives the row it was
+    #: extracted from, because a replaced file must not orphan the text that
+    #: existing anchors still resolve against.
+    source_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Which extraction produced this. Derived from the library version and an
+    #: adapter revision, not a constant somebody has to remember to bump.
+    extraction_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    locator_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Canonical rendering of the typed columns below. See the class docstring.
+    locator_key: Mapped[str] = mapped_column(String(2000), nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    line_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    section: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    row_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    column_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    sheet_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    cell_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: The extracted text. Wrapped in
+    #: :class:`labcairn.security.untrusted.UntrustedText` on the way *out*, not
+    #: on the way in: storage is not what makes material untrusted, and
+    #: dropping the wrapper at the database boundary would defeat ADR-0003 C6.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_content_sha256",
+            "extraction_version",
+            "locator_key",
+            name="uq_source_texts_address",
+        ),
+        Index("ix_source_texts_sha", "source_content_sha256"),
+        # Closed vocabulary, same standard as ``events.type``. Every shape
+        # CHECK below is an implication keyed on ``locator_kind``, so an
+        # unrecognised kind satisfies all of them vacuously and every typed
+        # column can be NULL. 'banana', 'PDF' and '' must not be storable.
+        # COMPUTATION is a real LocatorKind but has no extracted text -- a
+        # derived number is addressed by the operator that produced it, so it
+        # belongs in no row of this table.
+        CheckConstraint(
+            "locator_kind IN ('pdf', 'text', 'csv', 'xlsx')",
+            name="source_texts_kind_vocabulary",
+        ),
+        # Exactly the typed columns each locator kind defines, and no others.
+        # A half-populated locator resolves to the wrong thing silently, which
+        # is the failure this table exists to make impossible.
+        #
+        # These must be **exhaustive**: an earlier draft constrained only the
+        # columns a kind *uses*, so a row could claim to be a text locator and
+        # a PDF page and a CSV cell at once -- a row no conforming code can
+        # produce and none can consume. Each check now names every column.
+        CheckConstraint(
+            "locator_kind <> 'pdf' OR (page IS NOT NULL AND line_start IS NULL "
+            "AND line_end IS NULL AND section IS NULL AND row_number IS NULL "
+            "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
+            name="source_texts_pdf_shape",
+        ),
+        CheckConstraint(
+            "locator_kind <> 'text' OR (line_start IS NOT NULL AND page IS NULL "
+            "AND row_number IS NULL AND column_name IS NULL AND sheet_name IS NULL "
+            "AND cell_ref IS NULL)",
+            name="source_texts_text_shape",
+        ),
+        CheckConstraint(
+            "locator_kind <> 'csv' OR (row_number IS NOT NULL AND column_name IS NOT NULL "
+            "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
+            "AND section IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
+            name="source_texts_csv_shape",
+        ),
+        CheckConstraint(
+            "locator_kind <> 'xlsx' OR (sheet_name IS NOT NULL AND cell_ref IS NOT NULL "
+            "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
+            "AND section IS NULL AND row_number IS NULL AND column_name IS NULL)",
+            name="source_texts_xlsx_shape",
+        ),
+        # Every kind pins line_end and section to its own columns. text may
+        # carry them; nothing else may.
+        # NOTE: these two became wholly implied once the shape checks above
+        # were made exhaustive. They are kept as belt and braces for
+        # readability, not because they constrain anything a shape check does
+        # not — a test cannot distinguish them, which is why this says so
+        # rather than leaving two constraints looking load-bearing.
+        CheckConstraint(
+            "line_end IS NULL OR locator_kind = 'text'",
+            name="source_texts_line_end_is_text",
+        ),
+        CheckConstraint(
+            "section IS NULL OR locator_kind = 'text'",
+            name="source_texts_section_is_text",
+        ),
+        CheckConstraint(
+            "section IS NULL OR " + _has_content("section"),
+            name="source_texts_section_non_empty",
+        ),
+        CheckConstraint(
+            "column_name IS NULL OR " + _has_content("column_name"),
+            name="source_texts_column_name_non_empty",
+        ),
+        CheckConstraint(
+            "sheet_name IS NULL OR " + _has_content("sheet_name"),
+            name="source_texts_sheet_name_non_empty",
+        ),
+        # The key column of the key table. It had no shape constraint at all,
+        # so '', 'not-a-hash' and '../../etc/passwd' were storable -- and since
+        # the UNIQUE is (sha, version, locator_key), two rows with '' and
+        # different versions coexist as "the same content", which is the exact
+        # guarantee this design rests on.
+        CheckConstraint(
+            "length(source_content_sha256) = 64 AND source_content_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_texts_content_sha256_shape",
+        ),
+        # Declared INTEGER, but SQLite stores 'abc' and silently converts
+        # '1e3' to 1000. Comparisons do not help: INTEGER sorts before TEXT,
+        # so 'abc' >= 1 is TRUE and every `>= 1` check above is bypassable
+        # with a string. typeof() is the only thing that distinguishes them.
+        CheckConstraint(
+            "(page IS NULL) OR typeof(page) = 'integer'",
+            name="source_texts_page_is_integer",
+        ),
+        CheckConstraint(
+            "(line_start IS NULL) OR typeof(line_start) = 'integer'",
+            name="source_texts_line_start_is_integer",
+        ),
+        CheckConstraint(
+            "(line_end IS NULL) OR typeof(line_end) = 'integer'",
+            name="source_texts_line_end_is_integer",
+        ),
+        CheckConstraint(
+            "(row_number IS NULL) OR typeof(row_number) = 'integer'",
+            name="source_texts_row_number_is_integer",
+        ),
+        # XlsxCellRef's pattern, expanded into GLOB alternatives. Without it
+        # 'b2', '$B$2', 'B0', 'Sheet1!A1' and 'BB2' are all storable, and this
+        # table *is* the ledger locators.py warns would make seen_cells() lie.
+        CheckConstraint(_a1_glob_check("cell_ref"), name="source_texts_cell_ref_a1"),
+        CheckConstraint(
+            _has_content("locator_key") + " AND " + _has_content("extraction_version"),
+            name="source_texts_key_non_empty",
+        ),
+        CheckConstraint(
+            "length(text_sha256) = 64 AND text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_texts_text_sha256_shape",
+        ),
+        # Bounded by what a consumer can accept: UntrustedText refuses above
+        # two million characters, so a longer row could be written and then
+        # never read back through the only sanctioned path.
+        CheckConstraint(
+            "length(text) <= 2000000",
+            name="source_texts_text_length",
+        ),
+        CheckConstraint("page IS NULL OR page >= 1", name="source_texts_page_positive"),
+        CheckConstraint("row_number IS NULL OR row_number >= 1", name="source_texts_row_positive"),
+        CheckConstraint(
+            "line_start IS NULL OR (line_start >= 1 "
+            "AND (line_end IS NULL OR line_end >= line_start))",
+            name="source_texts_line_range",
+        ),
     )
