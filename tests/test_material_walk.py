@@ -208,3 +208,101 @@ def test_a_text_locator_keeps_its_line_number(session: Any) -> None:
     )
     assert [row.line_start for row in stored] == [1, 2], [row.line_start for row in stored]
     assert [row.text for row in stored] == ["line one", "line two"]
+
+
+def test_an_edited_file_is_re_ingested_under_a_new_hash(
+    tmp_path: pathlib.Path, session: Any
+) -> None:
+    """A changed file must move the recorded hash, not freeze at version one.
+
+    The content-derived default ``source_id`` plus ``UNIQUE(relative_path)``
+    made every re-walk of an edited file a permanent IntegrityError, so the
+    stored hash and text stayed at the first version forever. The fix keys
+    the id to the *location*, so the edit takes the refresh branch.
+
+    The superseded text is **kept**, not deleted: ADR-0004 A2 says drift
+    invalidates downstream rather than silently re-reading, and an anchor
+    already pointing into the old bytes must still resolve to them.
+    """
+    import hashlib
+
+    root = tmp_path / "ws5"
+    sources = root / "sources"
+    sources.mkdir(parents=True)
+    notes = sources / "notes.md"
+    # newline="" so the bytes are exactly what is written. write_text would
+    # otherwise translate chr(10) to chr(13)+chr(10) on Windows, and the
+    # expected hash below would then be the hash of a file nobody wrote --
+    # a test that fails on one platform and passes on another.
+    notes.write_text("version one" + chr(10), encoding="utf-8", newline="")
+    ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
+    mat = SourceMaterial(ws, _allowing_policy())
+
+    first = ingest_workspace(session, mat, ingested_at=NOW)
+    assert first.failures == () and len(first.outcomes) == 1
+    source_id = first.outcomes[0].material.source.source_id
+
+    notes.write_text("version two, edited" + chr(10), encoding="utf-8", newline="")
+    second = ingest_workspace(session, mat, ingested_at=NOW)
+    assert second.failures == (), [m for _, m in second.failures]
+    assert second.outcomes[0].material.source.source_id == source_id, (
+        "the identity moved when the bytes changed"
+    )
+
+    from sqlalchemy import text as text_sql
+
+    row = session.execute(
+        text_sql("SELECT content_sha256 FROM sources WHERE source_id = :s"), {"s": source_id}
+    ).fetchone()
+    assert row is not None
+    assert row[0] == hashlib.sha256(("version two, edited" + chr(10)).encode()).hexdigest(), (
+        "the recorded hash did not follow the edit"
+    )
+
+    texts = [t[0] for t in session.execute(text_sql("SELECT text FROM source_texts")).fetchall()]
+    assert "version two, edited" in texts
+    assert "version one" in texts, (
+        "the superseded text must survive: an anchor pointing into it still "
+        "resolves, per ADR-0004 A2"
+    )
+
+
+def test_two_source_roots_holding_the_same_name_are_documented_as_a_schema_limit(
+    tmp_path: pathlib.Path, session: Any
+) -> None:
+    """Two roots, two ``notes.md``. Documented rather than silently half-done.
+
+    ``sources.relative_path`` is workspace-relative and globally UNIQUE, so
+    the second root's ``notes.md`` cannot be stored alongside the first's --
+    the schema rejects it, not the walk. The walk correctly visits both; the
+    second loses at the store. This test pins that behaviour so the day the
+    UNIQUE becomes ``(root_id, relative_path)`` it will say so.
+    """
+    root = tmp_path / "ws6"
+    src_a = root / "sources" / "a"
+    src_b = root / "sources" / "b"
+    src_a.mkdir(parents=True)
+    src_b.mkdir(parents=True)
+    (src_a / "notes.md").write_text("from root a" + chr(10), encoding="utf-8")
+    (src_b / "notes.md").write_text("from root b" + chr(10), encoding="utf-8")
+    ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(src_a, src_b))
+    report = ingest_workspace(session, SourceMaterial(ws, _allowing_policy()), ingested_at=NOW)
+    # The walk visited both; one failed at the store on the UNIQUE path.
+    visited = len(report.outcomes) + len(report.failures)
+    assert visited == 2, f"the walk missed a root entirely: {visited}"
+    assert len(report.outcomes) == 1, (
+        "if both now ingest, sources.relative_path is no longer globally unique -- "
+        "update this test and the schema together"
+    )
+
+
+def test_max_files_is_a_real_bound(
+    workspace: Workspace, material: SourceMaterial, session: Any
+) -> None:
+    """``max_files=1`` used to return two files.
+
+    The check sat only in the file branch, so a directory recursion walked
+    past the limit.
+    """
+    report = ingest_workspace(session, material, ingested_at=NOW, max_files=1)
+    assert len(report.outcomes) == 1, [o.material.source.relative_path for o in report.outcomes]

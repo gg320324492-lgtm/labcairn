@@ -5,11 +5,20 @@ workspace so the whole path -- walk, read, extract, disclose, store -- runs
 against real material.
 
 **It walks through :class:`SourceMaterial`, never the filesystem.** Reading
-directly would bypass the permission boundary: ``list_dir`` applies
-``source.inventory`` filtering and drops denied entries, so a denied
-subdirectory is invisible to this walk exactly as it is to the user. That is
-the whole point of the boundary -- a walk that went around it would inventory
-material the user has not agreed to inventory.
+directly would bypass the permission boundary entirely, so every listing and
+read here goes through it.
+
+**What the walk does not claim.** It does not claim a denied subtree is
+invisible, because that is not yet true and pretending otherwise would be the
+worst kind of bug in this package. Review demonstrated that a **symlink inside
+a permitted directory, pointing into a denied one, is followed**: with
+``DENY source.inventory private/**``, ``read("public/hop/secret.md")`` where
+``public/hop -> private`` returns the denied file's bytes, and this walk
+ingests them. The cause is in the boundary rather than here --
+``policy.filter_listing`` matches only the declared spelling and
+``SourceMaterial.read`` never consults the policy -- but this walk is what
+turns the gap into persisted, searchable rows. Recorded as a known gap; the
+fix belongs to the policy layer, not to this module.
 
 One :class:`~labcairn.workspace.readonly.SourceMaterial` read and one
 :func:`~labcairn.material.ingest.ingest_into_store` per file, each in its own
@@ -25,6 +34,7 @@ workspace*, distinct from a file that was never seen.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -79,10 +89,13 @@ def ingest_workspace(
     outcomes: list[IngestOutcome] = []
     failures: list[tuple[str, str]] = []
     skipped: list[str] = []
-    seen: set[str] = set()
 
     for root in material.workspace.source_roots:
         root_id = root.root_id
+        # Per root, not shared. ``list_dir`` returns **root-relative** keys, so
+        # two roots each holding ``notes.md`` produce the same string and a
+        # shared ``seen`` silently swallowed the second file.
+        seen: set[str] = set()
         for key in _walk(material, root_id=root_id, max_files=max_files, seen=seen):
             try:
                 data = material.read(key, root_id=root_id)
@@ -96,6 +109,13 @@ def ingest_workspace(
                     relative_path=key,
                     display_name=key.rsplit("/", 1)[-1],
                     ingested_at=ingested_at,
+                    # Stable across content changes, unlike the
+                    # content-derived default. ``sources.relative_path`` is
+                    # UNIQUE, so a content-derived id made every re-walk of an
+                    # *edited* file a permanent IntegrityError, leaving the
+                    # recorded hash and text frozen at the first version -- and
+                    # ADR-0004 A2's drift detection nothing to detect against.
+                    source_id=_stable_source_id(root_id, key),
                 )
             except Exception as exc:
                 session.rollback()
@@ -154,9 +174,25 @@ def _walk(
         else:
             seen.add(entry)
             files.append(entry)
-            if max_files is not None and len(seen) >= max_files:
-                break
+        # After **every** entry, directory or file. The check used to sit only
+        # in the file branch, so a directory recursion walked past the limit
+        # and ``max_files=1`` returned two files -- an order-dependent limit
+        # that looked like a bound.
+        if max_files is not None and len(seen) >= max_files:
+            break
     return files
+
+
+def _stable_source_id(root_id: str, key: str) -> str:
+    """A source id that identifies a *location*, not a version of its bytes.
+
+    Root-scoped and path-scoped, so the same file keeps its identity when it
+    is edited -- which is what lets ``put_source`` take its refresh branch and
+    move the recorded hash. A content-derived id cannot: every edit looks
+    like a new file at a path already taken.
+    """
+    digest = hashlib.sha256(f"{root_id}{chr(0)}{key}".encode()).hexdigest()
+    return f"src-{digest[:16]}"
 
 
 def _is_directory(material: SourceMaterial, key: str, *, root_id: str) -> bool:
