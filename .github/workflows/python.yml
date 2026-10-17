@@ -57,6 +57,13 @@ jobs:
           - windows-latest
     steps:
       - uses: actions/checkout@v7
+        # Full history, because `test_status_consistency` decides whether a
+        # `NOT STARTED` row is stale by asking whether any *merge commit*
+        # names that work order. A depth-1 checkout has no merge commits, so
+        # the check would skip on every CI run and look green while proving
+        # nothing.
+        with:
+          fetch-depth: 0
 
       # The interpreter comes from the committed `.python-version` rather than
       # a literal, so CI cannot drift away from the pin that
