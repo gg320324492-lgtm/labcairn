@@ -30,7 +30,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-05 | P0 | G2 | **PASS WITH NOTES** | merged `917f844` · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-06 | P0 | G2 | **PASS WITH NOTES** | merged `3c2269e` · three crash points injected; no blind replay · [acceptance](acceptance/G2-acceptance.md) |
 | LC-P1-07 | P0 | G2 | **PASS WITH NOTES** | merged `a6c6671` · forged-input and placeholder tests · [acceptance](acceptance/G2-acceptance.md) |
-| LC-P1-08 | P0 | G3 | **IN PROGRESS** | schema + [ADR-0009](adr/ADR-0009-material-and-extracted-text-storage.md) merged (`3c4425c`) · locator-key and extraction-version derivations implemented · **text, Markdown and CSV adapters done**; PDF and XLSX adapters not yet written, and no ingest orchestration exists yet · fixture corpus is single-column only — **no two-column material obtained** |
+| LC-P1-08 | P0 | G3 | **IN PROGRESS** | schema + [ADR-0009](adr/ADR-0009-material-and-extracted-text-storage.md) merged (`3c4425c`) · locator-key and extraction-version derivations plus the **text, Markdown and CSV adapters** merged (`11f1fd3`, four rounds of adversarial review) · **PDF and XLSX adapters not written, and no ingest orchestration exists yet** · fixture corpus is single-column only — **no two-column material obtained**, so column segmentation remains untested |
 | LC-P1-09 | P0 | G3 | NOT STARTED | contract pre-decided in [ADR-0004](adr/ADR-0004-scientific-provenance-and-evidence-model.md) |
 | LC-P1-10 | P1 | G3 | NOT STARTED | see the priority legend above — still required for G3 |
 | LC-P1-11 | P0 | G4 | NOT STARTED | |
