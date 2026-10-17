@@ -251,27 +251,60 @@ def to_text_row(text: IngestedText, *, created_at: datetime) -> ExtractedTextRow
 
     Lives here rather than in :mod:`labcairn.db.materials` because reading a
     concrete locator's fields is the material layer's knowledge: a
-    ``CsvLocator`` has no ``page`` and an ``XlsxLocator`` has no
-    ``line_start``, and the union type cannot be asked for either.
+    ``CsvLocator`` has no ``page`` and an ``XlsxLocator`` has no ``line``.
+
+    Dispatched by concrete type rather than by ``getattr``. A ``getattr``
+    default of ``None`` silently turned a wrong field name into a missing
+    one: ``TextLocator.line`` read as ``line_start`` yielded ``None``, every
+    Markdown line failed the ``text_shape`` CHECK, and the failure surfaced
+    as a store error on a file whose extraction was correct. An explicit
+    ``else: raise`` turns the same mistake into a loud one.
     """
     from labcairn.db.materials import ExtractedTextRow
+    from labcairn.sources.locators import CsvLocator, PdfLocator, TextLocator, XlsxLocator
 
     locator = text.locator
-    return ExtractedTextRow(
-        locator_kind=locator.locator_kind.value,
-        locator_key=text.locator_key,
-        text=text.text,
-        text_sha256=text.text_sha256,
-        created_at=created_at,
-        page=getattr(locator, "page", None),
-        line_start=getattr(locator, "line_start", None),
-        line_end=getattr(locator, "line_end", None),
-        section=getattr(locator, "section", None),
-        row_number=getattr(locator, "row", None),
-        column_name=getattr(locator, "column", None),
-        sheet_name=getattr(locator, "sheet_name", None),
-        cell_ref=getattr(locator, "cell_ref", None),
-    )
+    if isinstance(locator, PdfLocator):
+        return ExtractedTextRow(
+            locator_kind=locator.locator_kind.value,
+            locator_key=text.locator_key,
+            text=text.text,
+            text_sha256=text.text_sha256,
+            created_at=created_at,
+            page=locator.page,
+        )
+    if isinstance(locator, TextLocator):
+        return ExtractedTextRow(
+            locator_kind=locator.locator_kind.value,
+            locator_key=text.locator_key,
+            text=text.text,
+            text_sha256=text.text_sha256,
+            created_at=created_at,
+            line_start=locator.line,
+            line_end=locator.line_end,
+            section=locator.section,
+        )
+    if isinstance(locator, CsvLocator):
+        return ExtractedTextRow(
+            locator_kind=locator.locator_kind.value,
+            locator_key=text.locator_key,
+            text=text.text,
+            text_sha256=text.text_sha256,
+            created_at=created_at,
+            row_number=locator.row,
+            column_name=locator.column,
+        )
+    if isinstance(locator, XlsxLocator):
+        return ExtractedTextRow(
+            locator_kind=locator.locator_kind.value,
+            locator_key=text.locator_key,
+            text=text.text,
+            text_sha256=text.text_sha256,
+            created_at=created_at,
+            sheet_name=locator.sheet_name,
+            cell_ref=locator.cell_ref,
+        )
+    raise TypeError(f"no row shape for {type(locator).__name__}")
 
 
 @dataclass(frozen=True)
