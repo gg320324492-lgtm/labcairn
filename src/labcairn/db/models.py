@@ -148,6 +148,49 @@ def _list_of(values: Iterable[str]) -> str:
     return sql_string_list(list(values))
 
 
+#: Characters a value may not consist of *entirely* of, for ``NonEmptyText``.
+#:
+#: ``NonEmptyText`` in :mod:`labcairn.sources.primitives` means *length >= 1
+#: and not entirely whitespace*. ``length(trim(x)) > 0`` looks like it says
+#: that and does not: SQLite's ``trim()`` removes the **space character
+#: only**, so it happily accepts a tab, a newline, an NBSP and an ideographic
+#: space. An earlier draft of this schema used that form, and review found 65
+#: wrong-acceptances from it — one root cause across eight columns.
+#:
+#: Space is **included**. It looked as though it should not be, since an
+#: ordinary value contains spaces and must be accepted — but ``'a b'`` has a
+#: letter to match outside the class, so it is accepted either way, while a
+#: value made *entirely* of spaces has nothing outside it and is refused.
+#: Excluding space was simply wrong, and it let ``' '`` and ``' \t\n'`` through.
+#:
+#: Written with ``chr()`` rather than escapes so the code points are visible
+#: in the source instead of surviving a copy through a shell.
+#:
+#: This is defence in depth behind ``NonEmptyText``, **not** an implementation
+#: of it. Python's ``str.strip()`` covers all Unicode whitespace; this covers
+#: ASCII plus U+00A0 and U+3000. The remainder — U+2000-200A, U+2028, U+2029,
+#: U+205F and the rest — cannot be expressed in a CHECK, so a value made of
+#: those still needs the validator to refuse it.
+_NON_WHITESPACE_CODEPOINTS: Final[tuple[int, ...]] = (32, 9, 10, 11, 12, 13, 0xA0, 0x3000)
+
+
+def _whitespace_class() -> str:
+    """A GLOB character class matching one whitespace code point (no negation)."""
+    return "[" + "".join(chr(code) for code in _NON_WHITESPACE_CODEPOINTS) + "]"
+
+
+def _has_content(column: str) -> str:
+    """SQL for "this column holds at least one non-whitespace character"."""
+    negated = "[" + chr(94) + _whitespace_class()[1:]
+    return f"{column} GLOB '*{negated}*'"
+
+
+def _no_edge_whitespace(column: str) -> str:
+    """SQL for "this column neither begins nor ends with whitespace"."""
+    cls = _whitespace_class()
+    return f"{column} NOT GLOB '{cls}*' AND {column} NOT GLOB '*{cls}'"
+
+
 def _a1_glob_check(column: str) -> str:
     """Render ``XlsxCellRef``'s pattern as a SQLite GLOB disjunction.
 
@@ -625,7 +668,7 @@ class SourceRow(Base):
         # Paired is not the same as meaningful. A disclosure nobody can read is
         # the same failure the pairing exists to prevent, wearing a string.
         CheckConstraint(
-            "readability_disclosure IS NULL OR length(trim(readability_disclosure)) > 0",
+            "readability_disclosure IS NULL OR " + _has_content("readability_disclosure"),
             name="source_disclosure_non_empty",
         ),
         # Defence in depth, not a second implementation of
@@ -640,7 +683,7 @@ class SourceRow(Base):
             "AND relative_path NOT GLOB '*/..' AND relative_path <> '..' "
             "AND relative_path NOT GLOB './*' AND relative_path NOT GLOB '*/./*' "
             "AND relative_path NOT GLOB '*/.' AND relative_path <> '.' "
-            "AND length(trim(relative_path)) > 0",
+            "AND " + _has_content("relative_path"),
             name="source_relative_path_workspace_relative",
         ),
         # The four shapes above are not the whole set. Also refused: a Windows
@@ -651,16 +694,16 @@ class SourceRow(Base):
         CheckConstraint(
             "relative_path NOT GLOB '[A-Za-z]:*' "
             "AND relative_path NOT LIKE '%/' AND relative_path NOT LIKE '%//%' "
-            "AND relative_path = trim(relative_path)",
+            "AND " + _no_edge_whitespace("relative_path"),
             name="source_relative_path_no_empty_segment",
         ),
         CheckConstraint(
             "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_content_sha256_shape",
         ),
-        CheckConstraint("length(trim(display_name)) > 0", name="source_display_name_non_empty"),
-        CheckConstraint("length(trim(source_id)) > 0", name="source_id_non_empty"),
-        CheckConstraint("length(trim(owner_id)) > 0", name="source_owner_id_non_empty"),
+        CheckConstraint(_has_content("display_name"), name="source_display_name_non_empty"),
+        CheckConstraint(_has_content("source_id"), name="source_id_non_empty"),
+        CheckConstraint(_has_content("owner_id"), name="source_owner_id_non_empty"),
         # ``size_bytes`` is declared INTEGER, and SQLite will happily store the
         # string 'abc' in it, or convert '1e3' to 1000 without a trace. The
         # latter is what ``primitives.py`` calls the thing this project exists
@@ -794,15 +837,15 @@ class SourceTextRow(Base):
             name="source_texts_section_is_text",
         ),
         CheckConstraint(
-            "section IS NULL OR length(trim(section)) > 0",
+            "section IS NULL OR " + _has_content("section"),
             name="source_texts_section_non_empty",
         ),
         CheckConstraint(
-            "column_name IS NULL OR length(trim(column_name)) > 0",
+            "column_name IS NULL OR " + _has_content("column_name"),
             name="source_texts_column_name_non_empty",
         ),
         CheckConstraint(
-            "sheet_name IS NULL OR length(trim(sheet_name)) > 0",
+            "sheet_name IS NULL OR " + _has_content("sheet_name"),
             name="source_texts_sheet_name_non_empty",
         ),
         # The key column of the key table. It had no shape constraint at all,
@@ -839,7 +882,7 @@ class SourceTextRow(Base):
         # table *is* the ledger locators.py warns would make seen_cells() lie.
         CheckConstraint(_a1_glob_check("cell_ref"), name="source_texts_cell_ref_a1"),
         CheckConstraint(
-            "length(trim(locator_key)) > 0 AND length(trim(extraction_version)) > 0",
+            _has_content("locator_key") + " AND " + _has_content("extraction_version"),
             name="source_texts_key_non_empty",
         ),
         CheckConstraint(

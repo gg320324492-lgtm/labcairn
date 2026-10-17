@@ -648,18 +648,123 @@ def test_identity_columns_must_be_non_empty(db: Path, field: str, value: str) ->
 
 @pytest.mark.parametrize("field", ["column_name", "sheet_name"])
 def test_csv_and_sheet_names_must_be_non_empty(db: Path, field: str) -> None:
-    base = {
-        "locator_kind": "csv" if field == "column_name" else "xlsx",
-        "locator_key": f"k{field}",
-        "page": None,
-        "row_number": 1,
-        "column_name": "mean",
-        "sheet_name": "S",
-        "cell_ref": "B2",
-    }
+    """Each fixture must be conforming except for the value under test.
+
+    An earlier version set row_number, column_name, sheet_name and cell_ref
+    together, so csv_shape or xlsx_shape refused the row before the non-empty
+    rule was ever reached — and dropping the non-empty constraints left the
+    test green. This is the third test fixture to isolate its constraint by
+    accident rather than by design.
+    """
+    if field == "column_name":
+        base = {
+            "locator_kind": "csv",
+            "locator_key": f"k{field}",
+            "page": None,
+            "row_number": 1,
+        }
+    else:
+        base = {
+            "locator_kind": "xlsx",
+            "locator_key": f"k{field}",
+            "page": None,
+            "sheet_name": "S",
+            "cell_ref": "B2",
+        }
     base[field] = "   "
     with pytest.raises(IntegrityError):
         _insert_text(db, **base)
+
+
+# Whitespace, not length. SQLite's trim() removes the space character only, so
+# length(trim(x)) > 0 accepts a tab, a newline, an NBSP and an ideographic
+# space -- 65 wrong-acceptances across eight columns from one mistake. The
+# values below are the ones a reviewer found and length(trim(x)) let through.
+BLANK_VALUES = [" ", "\t", "\n", "\r", "\x0b", "\x0c", " \t\n", "\xa0", "　"]
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_disclosure_is_refused(db: Path, blank: str) -> None:
+    """A disclosure nobody can read is the failure the pairing prevents.
+
+    The source's own comment says so: a disclosure nobody can read is "the
+    same failure the pairing exists to prevent, wearing a string."
+    """
+    with pytest.raises(IntegrityError):
+        _insert_source(db, readability="unreadable_no_ocr", readability_disclosure=blank)
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_extraction_version_is_refused(db: Path, blank: str) -> None:
+    """It is in the key. A blank version is not a version."""
+    with pytest.raises(IntegrityError):
+        _insert_text(db, extraction_version=blank)
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_locator_key_is_refused(db: Path, blank: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(db, locator_key=blank)
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_section_is_refused(db: Path, blank: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db, locator_kind="text", locator_key="t", page=None, line_start=1, section=blank
+        )
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_column_name_is_refused(db: Path, blank: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="csv",
+            locator_key="c",
+            page=None,
+            row_number=1,
+            column_name=blank,
+        )
+
+
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_sheet_name_is_refused(db: Path, blank: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_text(
+            db,
+            locator_kind="xlsx",
+            locator_key="x",
+            page=None,
+            sheet_name=blank,
+            cell_ref="B2",
+        )
+
+
+@pytest.mark.parametrize("field", ["display_name", "source_id", "owner_id"])
+@pytest.mark.parametrize("blank", BLANK_VALUES)
+def test_a_blank_identity_column_is_refused(db: Path, field: str, blank: str) -> None:
+    with pytest.raises(IntegrityError):
+        _insert_source(db, **{field: blank})
+
+
+@pytest.mark.parametrize("blank", ["\t" + "papers/p.pdf", "papers/p.pdf\t", " papers/p.pdf "])
+def test_a_path_with_edge_whitespace_is_refused(db: Path, blank: str) -> None:
+    """``relative_path = trim(relative_path)`` caught spaces only."""
+    with pytest.raises(IntegrityError):
+        _insert_source(db, relative_path=blank)
+
+
+def test_a_value_containing_spaces_is_still_accepted(db: Path) -> None:
+    """Space is in the class, and an ordinary value must not be refused for it."""
+    _insert_source(db, display_name="Efficacy of Widgets in Field Trials")
+    _insert_text(
+        db, locator_kind="csv", locator_key="c", page=None, row_number=1, column_name="mean"
+    )
+
+
+def test_a_value_containing_an_interior_tab_is_still_accepted(db: Path) -> None:
+    _insert_source(db, display_name="a\tb")
 
 
 def test_a_section_must_be_non_empty(db: Path) -> None:

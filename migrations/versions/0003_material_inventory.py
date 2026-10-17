@@ -82,6 +82,32 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+#: Characters a value may not consist of *entirely* of, for NonEmptyText.
+#: Space is included: 'a b' still matches outside the class so it is accepted,
+#: while a value made entirely of spaces has nothing outside it and is refused.
+#:
+#: Defence in depth behind NonEmptyText, not an implementation of it. Python's
+#: str.strip() covers all Unicode whitespace; this covers ASCII plus U+00A0 and
+#: U+3000. The remainder cannot be expressed in a CHECK.
+_NON_WHITESPACE_CODEPOINTS = (32, 9, 10, 11, 12, 13, 0xA0, 0x3000)
+
+
+def _whitespace_class() -> str:
+    return "[" + "".join(chr(code) for code in _NON_WHITESPACE_CODEPOINTS) + "]"
+
+
+def _has_content(column: str) -> str:
+    """SQL for "this column holds at least one non-whitespace character"."""
+    negated = "[" + chr(94) + _whitespace_class()[1:]
+    return f"{column} GLOB '*{negated}*'"
+
+
+def _no_edge_whitespace(column: str) -> str:
+    """SQL for "this column neither begins nor ends with whitespace"."""
+    cls = _whitespace_class()
+    return f"{column} NOT GLOB '{cls}*' AND {column} NOT GLOB '*{cls}'"
+
+
 def _a1_glob_check(column: str) -> str:
     """XlsxCellRef's ``^[A-Z]{1,3}[1-9][0-9]{0,6}$`` as GLOB alternatives.
 
@@ -133,7 +159,7 @@ def upgrade() -> None:
             name="source_disclosure_paired",
         ),
         sa.CheckConstraint(
-            "readability_disclosure IS NULL OR length(trim(readability_disclosure)) > 0",
+            "readability_disclosure IS NULL OR " + _has_content("readability_disclosure"),
             name="source_disclosure_non_empty",
         ),
         # Defence in depth behind require_workspace_relative, not a copy of it.
@@ -143,7 +169,7 @@ def upgrade() -> None:
             "AND relative_path NOT GLOB '*/..' AND relative_path <> '..' "
             "AND relative_path NOT GLOB './*' AND relative_path NOT GLOB '*/./*' "
             "AND relative_path NOT GLOB '*/.' AND relative_path <> '.' "
-            "AND length(trim(relative_path)) > 0",
+            "AND " + _has_content("relative_path"),
             name="source_relative_path_workspace_relative",
         ),
         # Also refused: a drive letter written with forward slashes, an empty
@@ -151,16 +177,16 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "relative_path NOT GLOB '[A-Za-z]:*' "
             "AND relative_path NOT LIKE '%/' AND relative_path NOT LIKE '%//%' "
-            "AND relative_path = trim(relative_path)",
+            "AND " + _no_edge_whitespace("relative_path"),
             name="source_relative_path_no_empty_segment",
         ),
         sa.CheckConstraint(
             "length(content_sha256) = 64 AND content_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_content_sha256_shape",
         ),
-        sa.CheckConstraint("length(trim(display_name)) > 0", name="source_display_name_non_empty"),
-        sa.CheckConstraint("length(trim(source_id)) > 0", name="source_id_non_empty"),
-        sa.CheckConstraint("length(trim(owner_id)) > 0", name="source_owner_id_non_empty"),
+        sa.CheckConstraint(_has_content("display_name"), name="source_display_name_non_empty"),
+        sa.CheckConstraint(_has_content("source_id"), name="source_id_non_empty"),
+        sa.CheckConstraint(_has_content("owner_id"), name="source_owner_id_non_empty"),
         sa.CheckConstraint("typeof(size_bytes) = 'integer'", name="source_size_bytes_is_integer"),
     )
     op.create_index("ix_sources_content_sha256", "sources", ["content_sha256"])
@@ -232,15 +258,15 @@ def upgrade() -> None:
             name="source_texts_section_is_text",
         ),
         sa.CheckConstraint(
-            "section IS NULL OR length(trim(section)) > 0",
+            "section IS NULL OR " + _has_content("section"),
             name="source_texts_section_non_empty",
         ),
         sa.CheckConstraint(
-            "column_name IS NULL OR length(trim(column_name)) > 0",
+            "column_name IS NULL OR " + _has_content("column_name"),
             name="source_texts_column_name_non_empty",
         ),
         sa.CheckConstraint(
-            "sheet_name IS NULL OR length(trim(sheet_name)) > 0",
+            "sheet_name IS NULL OR " + _has_content("sheet_name"),
             name="source_texts_sheet_name_non_empty",
         ),
         # The key column of the key table. It had no shape constraint at all,
@@ -271,7 +297,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(_a1_glob_check("cell_ref"), name="source_texts_cell_ref_a1"),
         sa.CheckConstraint(
-            "length(trim(locator_key)) > 0 AND length(trim(extraction_version)) > 0",
+            _has_content("locator_key") + " AND " + _has_content("extraction_version"),
             name="source_texts_key_non_empty",
         ),
         sa.CheckConstraint(
