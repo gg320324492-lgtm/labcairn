@@ -70,6 +70,11 @@ _NUL_SUSPECTS: tuple[tuple[str, float], ...] = (
     ("utf-16-be", 0.40),
 )
 
+#: Control characters that never occur in a real text file, and so are
+#: evidence of a misreading in the same way a NUL is. Excludes tab, newline,
+#: vertical tab, form feed and carriage return, which do occur.
+_REFUSED_CONTROLS = frozenset(list(range(0x09)) + list(range(0x0E, 0x20)) + [0x7F])
+
 #: Above this fraction of non-ASCII characters a decoding is treated as a
 #: misreading rather than as text. Material this project ingests is
 #: overwhelmingly ASCII and Latin; ``b"H\\x00e\\x00..."`` read as UTF-16-LE
@@ -83,9 +88,12 @@ _MAX_NON_LATIN = 0.20
 #: one into a phantom ``line=N`` invents an address no author wrote.
 _LINE_RE = re.compile(r"\r\n|\r|\n")
 
-#: Characters ``splitlines`` would have broken on. Their presence is reported
-#: rather than acted on, because silently merging lines that a reader counts
-#: differently is the other half of the same mistake.
+#: Characters ``splitlines`` would have broken on, and which are still kept
+#: inside a line rather than treated as corruption. Vertical tab, form feed
+#: and NEL occur in real files; the record separators (U+001C-U+001E) and the
+#: unit separator do not, and are in :data:`_REFUSED_CONTROLS` instead -- a
+#: character cannot both be evidence of a misreading and a line break we
+#: choose to keep.
 _EXOTIC_BREAKS = "".join(chr(code) for code in (0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029))
 
 
@@ -130,15 +138,30 @@ def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]
             ),
         )
 
-    if "\x00" not in text:
+    # Control characters are the evidence, not NUL specifically. A NUL is only
+    # a *proxy* for "this is UTF-16", and the proxy holds only for UTF-16 that
+    # contains ASCII -- because ASCII is what produces the NULs. A UTF-16 file
+    # with no ASCII at all has none, decodes cleanly as UTF-8, and would
+    # otherwise be certified readable with nothing disclosed:
+    #
+    #     U+0420 encoded as utf-16-le   ->  " \x04"
+    #
+    # -- one letter in, two characters out, one of them EOT.
+    #
+    # Tab, newline, vertical tab, form feed and carriage return are excluded
+    # because they occur in real text files; form feed especially, since it is
+    # a page separator in every format that has one and is already reported
+    # by :func:`split_lines` rather than treated as corruption.
+    forbidden = sorted({char for char in text if ord(char) in _REFUSED_CONTROLS})
+    if not forbidden:
         return text, ()
 
-    # Valid UTF-8 containing NULs. Two gates, and both are load-bearing:
+    # Valid UTF-8 containing control characters. Two gates, both load-bearing:
     # density decides *whether* to read the file as UTF-16/32 at all, and a
     # plausibility check decides *which* byte order. Density alone cannot
     # separate little-endian from big-endian -- both are 50% NUL -- and
-    # picking the first that decodes without NULs turned ``"Hello".encode(
-    # "utf-16-be")`` into CJK while reporting a successful inference.
+    # picking the first that decodes cleanly turned "Hello".encode(
+    # "utf-16-be") into CJK while reporting a successful inference.
     density = text.count("\x00") / len(text)
     candidates: list[tuple[str, str]] = []
     for encoding, threshold in _NUL_SUSPECTS:
@@ -155,12 +178,19 @@ def decode_text(data: bytes) -> tuple[str | None, tuple[ExtractionProblem, ...]]
     if not candidates:
         return None, (
             ExtractionProblem(
-                code="text_contains_nul",
+                code="text_contains_nul" if "\x00" in text else "text_contains_control",
                 detail=(
-                    f"the bytes decode as UTF-8 and contain NUL characters at "
-                    f"{density:.0%}, which is not the density a UTF-16 or UTF-32 file "
-                    f"has. The text is not extracted, because NUL-separated letters "
-                    f"are not what the file says."
+                    "the bytes decode as UTF-8 but contain "
+                    + (
+                        f"NUL characters at {density:.0%}"
+                        if "\x00" in text
+                        else "control characters "
+                        + ", ".join(f"U+{ord(c):04X}" for c in forbidden[:6])
+                    )
+                    + ", which is not what a text file contains, and no UTF-16 or "
+                    f"UTF-32 reading of them (density {density:.0%}) is plausible "
+                    f"either. Nothing is extracted, because guessing here puts "
+                    f"characters in the record that the file does not contain."
                 ),
             ),
         )
@@ -251,10 +281,15 @@ def split_lines(text: str) -> tuple[list[str], tuple[ExtractionProblem, ...]]:
 
 
 def _fence_marker(line: str) -> str | None:
-    """The fence this line opens or closes, or None.
+    """The fence run this line opens or closes, or None.
 
     CommonMark allows 0-3 spaces of indent before a fence; 4 or more makes
     it indented code instead, which is also not a heading.
+
+    The **whole run** is returned, not just its first three characters: a
+    three-backtick line does not close a four-backtick fence, and treating
+    them as interchangeable let a heading inside a nested block become a
+    section again.
     """
     stripped = line.rstrip()
     indent = len(stripped) - len(stripped.lstrip(" "))
@@ -262,8 +297,13 @@ def _fence_marker(line: str) -> str | None:
         return None
     rest = stripped.lstrip(" ")
     for marker in ("```", "~~~"):
-        if rest.startswith(marker):
-            return marker
+        run = len(rest) - len(rest.lstrip(marker[0]))
+        if (
+            run >= 3
+            and rest[run - 1 if run else 0] in ("`", "~")
+            and rest.startswith(marker[0] * run)
+        ):
+            return marker[0] * run
     return None
 
 
@@ -348,7 +388,10 @@ class MarkdownAdapter(PlainTextAdapter):
                 # every line after it -- including the real prose -- and the
                 # section is part of the address, so those citations would
                 # resolve to nothing.
-                fence = None if fence == marker else (fence or marker)
+                if fence is not None and marker[0] == fence[0] and len(marker) >= len(fence):
+                    fence = None
+                elif fence is None:
+                    fence = marker
                 units.append(
                     ExtractedUnit(locator=TextLocator(line=number, section=section), text=line)
                 )

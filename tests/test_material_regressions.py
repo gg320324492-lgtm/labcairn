@@ -142,7 +142,7 @@ def test_plain_ascii_still_decodes_with_no_complaint() -> None:
 
 @pytest.mark.parametrize(
     "code",
-    [0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029],
+    [0x0B, 0x0C, 0x85, 0x2028, 0x2029],
 )
 def test_a_character_that_is_not_a_line_terminator_makes_no_line(code: int) -> None:
     """A form feed is a page separator in every format that has one.
@@ -500,3 +500,136 @@ def test_four_spaces_of_indent_is_code_not_a_heading() -> None:
 def test_three_spaces_of_indent_is_still_a_heading() -> None:
     payload = ("# T" + NL + "   # shallow" + NL + "body" + NL).encode()
     assert {_line_of(u).section for u in _md(payload).units} == {"T", "shallow"}
+
+
+# --------------------------------------------------------------------------
+# R1 -- a NUL is only a proxy, and the proxy fails on non-Latin UTF-16
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Р", "Привет", "ā", "áção", "مرحبا", "数据表"],  # noqa: RUF001 - the point is that these are non-Latin
+)
+def test_bom_less_utf16_with_no_ascii_is_refused_not_transcribed(text: str) -> None:
+    """A NUL is a proxy for UTF-16 and the proxy only holds when the file
+    contains ASCII -- because ASCII is what produces the NULs.
+
+    A UTF-16 file with no ASCII has no NULs, decodes cleanly as UTF-8, and
+    was certified readable with **nothing disclosed**: one letter in, two
+    characters out, one of them EOT.
+
+    Control characters are the general evidence, so they are the gate. Tab,
+    newline, vertical tab, form feed and carriage return are excluded
+    because they occur in real text files -- form feed especially, since it
+    is a page separator in every format that has one.
+    """
+    result = _text(text.encode("utf-16-le"))
+    assert result.units == (), [u.text for u in result.units]
+    # Which refusal fires depends on where the evidence shows up: bytes
+    # that are not valid UTF-8 fail the strict decode, and only bytes that
+    # *are* valid UTF-8 reach the control-character gate. Both are
+    # refusals, which is the property being asserted.
+    assert _codes(result) & {
+        "text_contains_control",
+        "text_contains_nul",
+        "text_not_decodable",
+    }, result.problems
+
+
+@pytest.mark.parametrize(
+    ("payload", "label", "expected_first_line"),
+    [
+        (b"plain text", "ascii", "plain text"),
+        ((chr(97) + chr(12) + chr(98)).encode(), "form feed", chr(97) + chr(12) + chr(98)),
+        (
+            (chr(97) + chr(9) + chr(98) + chr(10) + chr(99)).encode(),
+            "tab and newline",
+            chr(97) + chr(9) + chr(98),
+        ),
+        ((chr(97) + chr(13) + chr(10) + chr(98)).encode(), "crlf", chr(97)),
+        ("café über".encode(), "latin", "café über"),
+        ("数据".encode(), "cjk", "数据"),
+    ],
+)
+def test_ordinary_text_with_legal_control_characters_is_not_refused(
+    payload: bytes, label: str, expected_first_line: str
+) -> None:
+    """The gate must not refuse text that legitimately carries them.
+
+    Compared against the first *line*, because a payload containing a
+    newline is several lines and only the first is one unit.
+    """
+    result = _text(payload)
+    assert result.units, f"{label}: nothing extracted"
+    assert not (_codes(result) & {"text_contains_nul", "text_contains_control"}), (
+        f"{label}: refused with {list(_codes(result))}"
+    )
+    # The expectation is passed in rather than computed: str.splitlines()
+    # splits on the form feed, which this extractor deliberately does not,
+    # so using it here would assert the very behaviour under question.
+    assert result.units[0].text == expected_first_line, label
+
+
+def test_utf16_still_works_when_it_contains_ascii() -> None:
+    """The control gate must not have cost us the case we fixed last round."""
+    for encoding in ("utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be"):
+        result = _text("Results 2024".encode(encoding))
+        assert result.units[0].text == "Results 2024", encoding
+
+
+# --------------------------------------------------------------------------
+# the equal-width title row, which a width rule cannot see
+# --------------------------------------------------------------------------
+
+
+def test_an_equal_width_title_row_is_suspected() -> None:
+    """Two-column title over two-column header: same width, so the width
+    rule structurally cannot see it."""
+    payload = ("Study Results, 2024" + NL + "trial,mean" + NL + "alpha,3.0" + NL).encode()
+    result = _csv(payload)
+    assert "csv_title_row_suspected" in _codes(result)
+    detail = next(p.detail for p in result.problems if p.code == "csv_title_row_suspected")
+    assert "Study Results" in detail
+
+
+def test_an_ordinary_csv_is_not_accused_of_having_a_title() -> None:
+    payload = ("trial,mean" + NL + "alpha,3.0" + NL).encode()
+    assert "csv_title_row_suspected" not in _codes(_csv(payload))
+
+
+def test_the_header_announcement_states_rather_than_advises() -> None:
+    """It fires on every CSV, so advice about a file you may not be looking
+    at is noise. The advisory moved to the targeted signal."""
+    payload = ("trial,mean" + NL + "alpha,3.0" + NL).encode()
+    detail = next(p.detail for p in _csv(payload).problems if p.code == "csv_header_row")
+    assert "row 1" in detail
+    assert "if the file opens with a title" not in detail.lower()
+
+
+# --------------------------------------------------------------------------
+# nested fences
+# --------------------------------------------------------------------------
+
+
+def test_a_three_backtick_run_does_not_close_a_four_backtick_fence() -> None:
+    fence3, fence4 = BT * 3, BT * 4
+    payload = (
+        "# M"
+        + NL
+        + fence4
+        + NL
+        + fence3
+        + NL
+        + "# inner"
+        + NL
+        + fence3
+        + NL
+        + fence4
+        + NL
+        + "body"
+        + NL
+    ).encode()
+    sections = {_line_of(u).section for u in _md(payload).units}
+    assert "inner" not in sections
+    assert sections == {"M"}

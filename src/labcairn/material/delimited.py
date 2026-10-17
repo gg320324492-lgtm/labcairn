@@ -196,26 +196,40 @@ class CsvAdapter:
         extra_problems.append(
             ExtractionProblem(
                 code="csv_header_row",
-                detail=(
-                    f"row 1 is taken as the header, giving column names "
-                    f"{header_preview}. If the file opens with a title, preamble or "
-                    f"blank row, the names below are that text instead, and nothing "
-                    f"downstream can tell the difference -- check this row before "
-                    f"citing anything."
-                ),
+                # Stated, not advised. This fires on every CSV, and a message
+                # that always fires with the same wording becomes noise at
+                # volume -- it was carrying advice about a file the reader may
+                # not be looking at. The advisory moved to
+                # csv_title_row_suspected, which fires only when there is
+                # something to advise about.
+                detail=(f"row 1 is taken as the header, giving column names {header_preview}."),
                 location="row 1",
             )
         )
+        # Two signals, because width alone misses the commonest shape: a
+        # two-column title over a two-column header is the *same* width, and
+        # was exactly the case a width-only rule could not see.
         if len(records) > 1 and len(records[1]) > len(header):
             extra_problems.append(
                 ExtractionProblem(
                     code="csv_later_row_wider_than_header",
                     detail=(
                         f"row 2 has {len(records[1])} field(s) and row 1 has "
-                        f"{len(header)}, so row 1 may not be the header at all -- files "
-                        f"with a title row look exactly like this."
+                        f"{len(header)}, so row 1 may not be the header at all."
                     ),
                     location="row 2",
+                )
+            )
+        if len(records) > 1 and any(" " in name.strip() for name in header):
+            extra_problems.append(
+                ExtractionProblem(
+                    code="csv_title_row_suspected",
+                    detail=(
+                        f"row 1 contains {header_preview} -- a header name with a space "
+                        f"in it is ordinary, but titles and preambles look the same "
+                        f"shape. Confirm row 1 is the header before citing from it."
+                    ),
+                    location="row 1",
                 )
             )
         # A header field with no name has no address, and building one --
