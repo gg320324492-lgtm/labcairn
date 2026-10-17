@@ -232,6 +232,12 @@ def test_no_pdf_is_tracked_outside_the_fixture_directory() -> None:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        # Explicit, not the system code page: a decode error surfaces in
+        # subprocess's reader thread, which returns None rather than raising
+        # where the caller can see it. CI is UTF-8; a Windows checkout on
+        # another code page is not.
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     tracked = {

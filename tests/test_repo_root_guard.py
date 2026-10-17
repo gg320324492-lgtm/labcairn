@@ -22,6 +22,12 @@ def _run(cwd: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(SCRIPT)],
         capture_output=True,
         text=True,
+        # Explicit, not the system code page: a decode error surfaces in
+        # subprocess's reader thread, which returns None rather than raising
+        # where the caller can see it. CI is UTF-8; a Windows checkout on
+        # another code page is not.
+        encoding="utf-8",
+        errors="replace",
         cwd=cwd,
         check=False,
         timeout=60,
