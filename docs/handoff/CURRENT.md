@@ -1,7 +1,9 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-17
-**Current `main`:** `310bdd0` (merge of PR #16, the G2 acceptance and its independent cross-review). ADR-0008 sits on top of this and is not yet merged at the time of writing. **This line rots on every merge** — check `git log origin/main` rather than trusting it, and refresh it in the PR that reports the change.
+**Current `main`:** the merge of PR #24, which carried a consistency check for the status board. The work before it landed in PR #16 (G2 acceptance), #18 (the CC BY fixture corpus), #19 (ADR-0008), #20 (ADR-0009 and the material schema), #21 (striking a carried item G2's record no longer reflected), #22 (the ingest derivations and the text, Markdown and CSV adapters) and #23 (a status-board correction).
+
+**This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. Refresh this file in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
 ## Gates
 
@@ -9,7 +11,7 @@
 |---|---|
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
-| **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | G3 | **next** — LC-P1-08 material parsing, LC-P1-09 retrieval and evidence ledger, LC-P1-10 bounded analysis and plots |
 
 ## What exists now
