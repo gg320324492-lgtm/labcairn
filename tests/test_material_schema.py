@@ -678,9 +678,57 @@ def test_csv_and_sheet_names_must_be_non_empty(db: Path, field: str) -> None:
 
 # Whitespace, not length. SQLite's trim() removes the space character only, so
 # length(trim(x)) > 0 accepts a tab, a newline, an NBSP and an ideographic
-# space -- 65 wrong-acceptances across eight columns from one mistake. The
-# values below are the ones a reviewer found and length(trim(x)) let through.
-BLANK_VALUES = [" ", "\t", "\n", "\r", "\x0b", "\x0c", " \t\n", "\xa0", "　"]
+# space -- 65 wrong-acceptances across eight columns from one mistake.
+#
+# The corpus is derived from str.isspace() rather than written out, so it
+# cannot drift from the contract the schema is defending, and so a new
+# codepoint Python learns to strip is covered here automatically.
+BLANK_VALUES = [chr(code) for code in range(0x11000) if chr(code).isspace()]
+
+
+def test_the_blank_character_class_matches_python() -> None:
+    """The schema's blank class must be exactly what ``str.strip()`` removes.
+
+    A comment here once claimed the remaining Unicode whitespace "cannot be
+    expressed in a CHECK". False, and worse than the bug it documented,
+    because it tells the next reader to stop looking -- a GLOB character class
+    is one pattern term however many characters it holds. Review found 21
+    leaking code points behind that sentence.
+    """
+    from labcairn.db.models import _NON_WHITESPACE_CODEPOINTS
+
+    python_blank = {code for code in range(0x11000) if chr(code).isspace()}
+    assert set(_NON_WHITESPACE_CODEPOINTS) == python_blank, (
+        f"schema class is missing {sorted(python_blank - set(_NON_WHITESPACE_CODEPOINTS))} "
+        f"and invents {sorted(set(_NON_WHITESPACE_CODEPOINTS) - python_blank)}"
+    )
+    # And str.strip() removes exactly this set -- no more, no less.
+    assert {code for code in range(0x11000) if chr(code).strip() == ""} == python_blank
+
+
+def test_no_blank_value_gets_through_any_guarded_column(db: Path) -> None:
+    """One sweep over the whole class, on the column that matters most.
+
+    A disclosure nobody can read is the failure ADR-0004's A7 pairing exists
+    to prevent -- the schema's own comment calls it "the same failure the
+    pairing exists to prevent, wearing a string."
+    """
+    for blank in BLANK_VALUES:
+        with pytest.raises(IntegrityError):
+            _insert_source(
+                db,
+                readability="unreadable_no_ocr",
+                readability_disclosure=blank,
+                source_id=f"s{ord(blank[0])}{len(blank)}",
+            )
+
+
+def test_a_value_holding_an_ideographic_space_is_still_accepted(db: Path) -> None:
+    """U+3000 is whitespace and is refused on its own -- but not inside text."""
+    _insert_source(
+        db, display_name="Intro　section", source_id="wide", relative_path="papers/wide.md"
+    )
+    _insert_source(db, display_name="Q1 2026", source_id="quarter", relative_path="papers/q1.csv")
 
 
 @pytest.mark.parametrize("blank", BLANK_VALUES)

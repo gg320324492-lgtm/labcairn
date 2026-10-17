@@ -82,14 +82,18 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-#: Characters a value may not consist of *entirely* of, for NonEmptyText.
-#: Space is included: 'a b' still matches outside the class so it is accepted,
-#: while a value made entirely of spaces has nothing outside it and is refused.
-#:
-#: Defence in depth behind NonEmptyText, not an implementation of it. Python's
-#: str.strip() covers all Unicode whitespace; this covers ASCII plus U+00A0 and
-#: U+3000. The remainder cannot be expressed in a CHECK.
-_NON_WHITESPACE_CODEPOINTS = (32, 9, 10, 11, 12, 13, 0xA0, 0x3000)
+#: Exactly the code points str.strip() removes, verified against
+#: str.isspace() by tests/test_material_schema.py. A comment in an earlier
+#: draft said the remaining Unicode whitespace "cannot be expressed in a
+#: CHECK" -- false, and worse than the bug it documented because it tells the
+#: next reader to stop looking. A GLOB character class is one pattern term
+#: however many characters it holds.
+_NON_WHITESPACE_CODEPOINTS = (
+    0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x001C, 0x001D, 0x001E, 0x001F,
+    0x0020, 0x0085, 0x00A0, 0x1680,
+    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008,
+    0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000,
+)  # fmt: skip
 
 
 def _whitespace_class() -> str:

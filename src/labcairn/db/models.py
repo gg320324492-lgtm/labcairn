@@ -157,21 +157,26 @@ def _list_of(values: Iterable[str]) -> str:
 #: space. An earlier draft of this schema used that form, and review found 65
 #: wrong-acceptances from it — one root cause across eight columns.
 #:
-#: Space is **included**. It looked as though it should not be, since an
-#: ordinary value contains spaces and must be accepted — but ``'a b'`` has a
-#: letter to match outside the class, so it is accepted either way, while a
-#: value made *entirely* of spaces has nothing outside it and is refused.
-#: Excluding space was simply wrong, and it let ``' '`` and ``' \t\n'`` through.
+#: Exactly the code points ``str.strip()`` removes — verified against
+#: ``str.isspace()`` by ``test_the_blank_character_class_matches_python``.
+#: Space is included: ``'a b'`` still matches outside the class so it is
+#: accepted, while a value made entirely of spaces has nothing outside it.
+#: Excluding space, as a first attempt here did, looks right and is not.
+#:
+#: A comment in an earlier draft said the remaining Unicode whitespace
+#: "cannot be expressed in a CHECK". **That was false**, and worse than the
+#: bug it documented, because it tells the next reader to stop looking: a GLOB
+#: character class is one pattern term however many characters it holds. An
+#: 8-point class was replaced by this one and closed the family completely.
 #:
 #: Written with ``chr()`` rather than escapes so the code points are visible
 #: in the source instead of surviving a copy through a shell.
-#:
-#: This is defence in depth behind ``NonEmptyText``, **not** an implementation
-#: of it. Python's ``str.strip()`` covers all Unicode whitespace; this covers
-#: ASCII plus U+00A0 and U+3000. The remainder — U+2000-200A, U+2028, U+2029,
-#: U+205F and the rest — cannot be expressed in a CHECK, so a value made of
-#: those still needs the validator to refuse it.
-_NON_WHITESPACE_CODEPOINTS: Final[tuple[int, ...]] = (32, 9, 10, 11, 12, 13, 0xA0, 0x3000)
+_NON_WHITESPACE_CODEPOINTS: Final[tuple[int, ...]] = (
+    0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x001C, 0x001D, 0x001E, 0x001F,
+    0x0020, 0x0085, 0x00A0, 0x1680,
+    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008,
+    0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000,
+)  # fmt: skip
 
 
 def _whitespace_class() -> str:
