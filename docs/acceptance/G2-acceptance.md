@@ -125,4 +125,4 @@ All six LC-P1-06 acceptance clauses, all five LC-P1-07 clauses and all six LC-P1
 | Path-guard tests ran on Windows only | G3 | POSIX ADS and case semantics unverified. One test of this class was already fixed when CI found it on Ubuntu |
 | ADR-0006's outbound-consent bridge | G3 | Both modules exist; the bridge is not built |
 | Structured-output capability unmeasured | G3 | Both probes fail in pydantic-ai's client layer before a request is sent |
-| **PyMuPDF is AGPL/commercial dual-licensed** | **G3, before LC-P1-08** | Named by LC-P1-08 and constraining a future MIT release. Needs a decision, not a workaround |
+| ~~PyMuPDF is AGPL/commercial dual-licensed~~ | LC-P1-08 | **RESOLVED after G2 closed** — [ADR-0008](../adr/ADR-0008-pdf-ingestion-library.md) selects pdfplumber + pdfminer.six (MIT) for LC-P1-08, so the constraint on a future MIT release is gone. A reader arriving here from the carried list should know this decision has been made; the remaining rows are still open. |
