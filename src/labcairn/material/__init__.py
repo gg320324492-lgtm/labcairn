@@ -15,13 +15,31 @@ property:
   adapter's own source, so changing extraction code changes the version
   without anyone remembering to bump a constant.
 
-The adapters themselves follow in the next slice.
+:mod:`~labcairn.material.units` holds what every adapter produces, and
+:mod:`~labcairn.material.text` and :mod:`~labcairn.material.delimited` are
+the two adapters with no dependency beyond the standard library. Importing
+this package registers them, which is why the adapters are modules of it
+rather than a registry somebody has to remember to populate.
 """
 
+from labcairn.material import delimited as _delimited  # noqa: F401 - registration
+from labcairn.material import text as _text  # noqa: F401 - registration
 from labcairn.material.addressing import (
     LocatorKeyError,
     render_locator_key,
     split_locator_key,
+)
+from labcairn.material.delimited import CsvAdapter, sniff_delimiter
+from labcairn.material.text import MarkdownAdapter, PlainTextAdapter, decode_text
+from labcairn.material.units import (
+    Adapter,
+    ExtractedUnit,
+    ExtractionProblem,
+    ExtractionResult,
+    UnknownAdapterError,
+    adapter_for,
+    register,
+    registered_kinds,
 )
 from labcairn.material.version import (
     ExtractionVersionError,
@@ -31,11 +49,24 @@ from labcairn.material.version import (
 )
 
 __all__ = [
+    "Adapter",
+    "CsvAdapter",
+    "ExtractedUnit",
+    "ExtractionProblem",
+    "ExtractionResult",
     "ExtractionVersionError",
     "LocatorKeyError",
+    "MarkdownAdapter",
+    "PlainTextAdapter",
+    "UnknownAdapterError",
+    "adapter_for",
     "assert_version_tracks_source",
+    "decode_text",
     "derive_extraction_version",
     "library_versions",
+    "register",
+    "registered_kinds",
     "render_locator_key",
+    "sniff_delimiter",
     "split_locator_key",
 ]
