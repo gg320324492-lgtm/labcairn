@@ -99,6 +99,17 @@ class SourceReadability(StrEnum):
     #: No text layer and no OCR. Ingestable and hashable, **not citable**.
     #: Requires a non-empty ``readability_disclosure``.
     UNREADABLE_NO_OCR = "unreadable_no_ocr"
+    #: The bytes could not be parsed at all -- corrupt, encrypted, truncated, or
+    #: not the format its name claims. Ingestable and hashable, **not citable**.
+    #:
+    #: Added by LC-P1-08, which found the original two-member vocabulary had no
+    #: honest answer for a workbook it could not open. ``READABLE`` claims the
+    #: source "may be indexed and cited", which is false of it, and
+    #: ``UNREADABLE_NO_OCR`` claims *no text layer*, which is a different and
+    #: equally false claim about a file whose container is broken. Recording
+    #: either would put a falsehood in the one place the project cannot afford
+    #: one. See ADR-0010.
+    UNPARSEABLE = "unparseable"
 
 
 class AnchorKind(StrEnum):
@@ -203,13 +214,13 @@ class Source(BaseModel):
 
     @model_validator(mode="after")
     def _disclosure_is_paired_with_readability(self) -> Self:
-        unreadable = self.readability is SourceReadability.UNREADABLE_NO_OCR
+        unreadable = self.readability is not SourceReadability.READABLE
         disclosed = self.readability_disclosure is not None
         if unreadable and not disclosed:
             raise ValueError(
-                "an unreadable source must carry readability_disclosure. ADR-0004 A7: "
-                "'OCR not available' is part of the record, not something a user has "
-                "to infer from a citation that is missing."
+                f"a {self.readability.value} source must carry readability_disclosure. "
+                "ADR-0004 A7: why it could not be read is part of the record, not "
+                "something a user has to infer from a citation that is missing."
             )
         if disclosed and not unreadable:
             raise ValueError(

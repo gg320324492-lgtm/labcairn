@@ -29,10 +29,21 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from labcairn.db.models import LOCAL_USER_ID, SourceRow, SourceTextRow
+from labcairn.db.models import LOCAL_USER_ID, SourceProblemRow, SourceRow, SourceTextRow
 from labcairn.sources.source import Source
 
-__all__ = ["ExtractedTextRow", "put_source", "put_source_texts", "text_at"]
+__all__ = [
+    "ExtractedTextRow",
+    "put_source",
+    "put_source_problems",
+    "put_source_texts",
+    "text_at",
+]
+
+#: Stands in for a null location. SQLite compares NULLs as distinct inside a
+#: UNIQUE index, so a nullable location would make "the same whole-file
+#: problem, once per run" a success.
+WHOLE_FILE = chr(0) + "whole-file"
 
 
 class ExtractedTextRow:
@@ -125,6 +136,15 @@ def put_source(session: Session, source: Source) -> SourceRow:
         session.add(row)
         return row
 
+    # Idempotent for an unchanged file. A refresh is only warranted when the
+    # bytes actually moved: ADR-0004 A2's drift detection compares the
+    # recorded hash, and rewriting eight columns on every re-ingest -- including
+    # ``ingested_at``, so the row's own history is rewritten by a read -- made
+    # "re-ingesting an unchanged file writes nothing" false for this table even
+    # though it held for ``source_texts``.
+    if existing.content_sha256 == source.content_sha256:
+        return existing
+
     existing.display_name = source.display_name
     existing.kind = source.kind.value
     existing.content_sha256 = source.content_sha256
@@ -204,5 +224,60 @@ def texts_for(
                 SourceTextRow.extraction_version == extraction_version,
             )
             .order_by(SourceTextRow.id)
+        )
+    )
+
+
+def put_source_problems(
+    session: Session,
+    *,
+    source_id: str,
+    extraction_version: str,
+    problems: Iterable[tuple[str, str, str | None]],
+    created_at: datetime,
+) -> tuple[int, int]:
+    """Store disclosures about one material. Returns ``(written, present)``.
+
+    Same shape and same reason as :func:`put_source_texts`: existence is
+    checked rather than delegated to ``INSERT OR IGNORE``, because a blank
+    ``detail`` refused by the CHECK is a different fact from one already
+    stored, and only one of them is a duplicate.
+    """
+    written = 0
+    present = 0
+    for code, detail, location in problems:
+        where = location if location is not None else WHOLE_FILE
+        exists = session.scalar(
+            select(SourceProblemRow.id).where(
+                SourceProblemRow.source_id == source_id,
+                SourceProblemRow.extraction_version == extraction_version,
+                SourceProblemRow.code == code,
+                SourceProblemRow.location == where,
+            )
+        )
+        if exists is not None:
+            present += 1
+            continue
+        session.add(
+            SourceProblemRow(
+                source_id=source_id,
+                extraction_version=extraction_version,
+                code=code,
+                detail=detail,
+                location=where,
+                created_at=created_at,
+            )
+        )
+        written += 1
+    return written, present
+
+
+def problems_for(session: Session, *, source_id: str) -> tuple[SourceProblemRow, ...]:
+    """Every disclosure recorded for one material."""
+    return tuple(
+        session.scalars(
+            select(SourceProblemRow)
+            .where(SourceProblemRow.source_id == source_id)
+            .order_by(SourceProblemRow.id)
         )
     )

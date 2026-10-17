@@ -70,6 +70,7 @@ EXPECTED_TABLES = frozenset(
         # held inputs until this revision.
         "sources",
         "source_texts",
+        "source_problems",
     }
 )
 

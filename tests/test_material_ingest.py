@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import os
 import pathlib
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import openpyxl
@@ -125,9 +127,38 @@ def test_an_empty_cell_is_not_a_unit() -> None:
     This is where the text adapter's "keep every line" rule deliberately
     does *not* transfer: a blank line in prose is a line a reader counts,
     while a blank cell is not a measurement.
+
+    The fixture has to contain a *gap* between two filled cells. An earlier
+    version wrote only A1, so openpyxl stored one cell and ``iter_rows()``
+    yielded one -- deleting the emptiness guard entirely left this test green.
     """
-    result = _extract(_xlsx(cells={"A1": "trial"}))
-    assert [_cell(u).cell_ref for u in result.units] == ["A1"]
+    result = _extract(_xlsx(cells={"A1": "first", "A5": "last"}))
+    assert [_cell(u).cell_ref for u in result.units] == ["A1", "A5"]
+    assert all(u.text for u in result.units), "an empty cell must not become a unit"
+
+
+def test_cells_are_attributed_to_the_sheet_they_are_in() -> None:
+    """Attributing everything to the first sheet would be silently wrong.
+
+    There was no test putting a cell in a *second* sheet, so a version
+    reading ``sheetnames[0]`` for every cell passed.
+    """
+    buffer = io.BytesIO()
+    book = openpyxl.Workbook()
+    first_sheet = book.active
+    assert first_sheet is not None
+    first_sheet.title = "First"
+    first_sheet["A1"] = "in-first"
+    second_sheet = book.create_sheet("Second")
+    second_sheet["A1"] = "in-second"
+    book.save(buffer)
+    result = _extract(buffer.getvalue())
+    by_sheet = {
+        _cell(unit).sheet_name: unit.text
+        for unit in result.units
+        if _cell(unit).sheet_name in {"First", "Second"}
+    }
+    assert by_sheet == {"First": "in-first", "Second": "in-second"}
 
 
 def test_a_formula_with_no_cached_value_is_disclosed_and_kept() -> None:
@@ -171,6 +202,7 @@ def test_no_hostile_input_raises(payload: bytes) -> None:
         (dt.datetime(2026, 10, 17, 9, 30), "2026-10-17T09:30:00"),  # noqa: DTZ001
         (dt.date(2026, 10, 17), "2026-10-17"),
         (0.1, "0.1"),
+        (1234567.891, "1234567.891"),
         (3.5, "3.5"),
         ("plain", "plain"),
     ],
@@ -416,3 +448,79 @@ def test_an_address_that_was_never_extracted_is_none_not_an_error(session: Sessi
         )
         is None
     )
+
+
+# --------------------------------------------------------------------------
+# what review found uncovered
+# --------------------------------------------------------------------------
+
+
+def test_a_material_with_an_adapter_that_reads_nothing_is_disclosed() -> None:
+    """The branch that produced no text *and* no problem was entirely
+    untested, so deleting it left every test green."""
+    material = ingest_bytes(
+        chr(0).encode() * 8, relative_path="a.txt", display_name="a.txt", ingested_at=NOW
+    )
+    codes = {p.code for p in material.problems}
+    assert codes, "reading nothing must never be silent"
+
+
+def test_source_id_follows_the_bytes_not_their_length() -> None:
+    """Two different files of the same length must not collide.
+
+    The previous test ingested the *same* bytes twice, so it could only
+    detect non-determinism -- never a wrong-but-deterministic id.
+    """
+    a = ingest_bytes(b"aaaa", relative_path="a.txt", display_name="a", ingested_at=NOW)
+    b = ingest_bytes(b"bbbb", relative_path="a.txt", display_name="a", ingested_at=NOW)
+    assert a.source.source_id != b.source.source_id
+
+
+def test_an_array_formula_is_recorded_as_its_formula_not_a_repr() -> None:
+    """openpyxl models array formulas as objects.
+
+    ``str()`` on one gives ``<...ArrayFormula object at 0x...>`` -- a
+    fabrication, and one that makes the excerpt hash depend on the process.
+    """
+    from openpyxl.worksheet.formula import ArrayFormula
+
+    buffer = io.BytesIO()
+    book = openpyxl.Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.title = "S"
+    sheet["A1"], sheet["A2"], sheet["A3"] = 1, 2, 3
+    sheet["B1"] = ArrayFormula("B1:B3", "=SUM(A1:A3)")
+    book.save(buffer)
+    result = _extract(buffer.getvalue())
+    texts = [u.text for u in result.units if _cell(u).cell_ref == "B1"]
+    assert texts == ["=SUM(A1:A3)"], texts
+    assert "object at 0x" not in texts[0]
+
+
+def test_extraction_is_the_same_under_hash_randomisation() -> None:
+    """A repr with a memory address would make the hash process-dependent."""
+    import subprocess
+    import sys
+
+    data = _xlsx(cells={"A1": "trial", "B2": 3.5}).hex()
+    script = (
+        "import hashlib,sys;"
+        f"sys.path.insert(0, {str(Path(__file__).parents[1] / 'src')!r});"
+        "from labcairn.material import adapter_for;"
+        "from labcairn.sources.source import SourceKind;"
+        f"r=adapter_for(SourceKind.XLSX).extract(bytes.fromhex('{data}'));"
+        "print(sorted(hashlib.sha256(u.text.encode()).hexdigest() for u in r.units))"
+    )
+    digests = set()
+    for seed in ("0", "1", "99999"):
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            check=True,
+        )
+        digests.add(out.stdout.strip())
+    assert len(digests) == 1, digests

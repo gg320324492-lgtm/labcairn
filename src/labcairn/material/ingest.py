@@ -50,6 +50,16 @@ from labcairn.sources.source import Source, SourceKind, SourceReadability
 if TYPE_CHECKING:
     from labcairn.db.materials import ExtractedTextRow
 
+#: Problems meaning the material could not be opened at all, as opposed to
+#: opened and found wanting. These are what make a source UNPARSEABLE.
+_UNOPENABLE: Final[frozenset[str]] = frozenset(
+    {"no_adapter_for_kind", "text_not_decodable", "xlsx_unreadable", "xlsx_unparseable"}
+)
+
+#: ``readability_disclosure`` is free text a user reads; a wall of every
+#: problem would be unreadable, and its point is to be read.
+_DISCLOSURE_LIMIT: Final[int] = 500
+
 __all__ = [
     "IngestedMaterial",
     "IngestedText",
@@ -174,27 +184,36 @@ def ingest_bytes(
             for unit in result.units
         )
 
-    # A material that produced no text and no explanation is the one case
-    # that must not pass silently. A readable file with genuinely nothing in
-    # it is a fact; a readable file we failed to read is a bug, and ADR-0004
-    # A7 says the two must not be confused.
-    #
-    # Readability stays READABLE here for everything that was opened.
-    # ``UNREADABLE_NO_OCR`` means "opened, and there is no text layer" -- a
-    # fact only the PDF adapter can establish, and it does so by returning
-    # it. This module never infers it from an absence of units, because an
-    # empty spreadsheet and a scanned page are not the same claim.
-    if not texts and not problems:
-        problems.append(
-            ExtractionProblem(
-                code="extracted_nothing_and_said_nothing",
-                detail=(
-                    "the material was read and produced neither text nor an "
-                    "explanation. Recorded rather than passed off as an empty file."
-                ),
+    # Readability, which is a claim about the bytes rather than about the
+    # parse. Three states, and the two easy ones are both wrong for material
+    # we could not open: ``READABLE`` asserts the source "may be indexed and
+    # cited", which is false of it, and ``UNREADABLE_NO_OCR`` asserts *no
+    # text layer*, which is a different and equally false claim about a file
+    # whose container is broken. ``UNPARSEABLE`` says the third thing --
+    # we could not read it, and we say why.
+    unopenable = _UNOPENABLE & {p.code for p in problems}
+    if unopenable:
+        readability = SourceReadability.UNPARSEABLE
+        disclosure = "; ".join(p.detail for p in problems if p.code in unopenable)[
+            :_DISCLOSURE_LIMIT
+        ]
+    else:
+        readability = SourceReadability.READABLE
+        disclosure = None
+        # A material that produced no text and no explanation is the one case
+        # that must not pass silently. A readable file with genuinely nothing
+        # in it is a fact; a readable file we failed to read is a bug, and
+        # ADR-0004 A7 says the two must not be confused.
+        if not texts and not problems:
+            problems.append(
+                ExtractionProblem(
+                    code="extracted_nothing_and_said_nothing",
+                    detail=(
+                        "the material was read and produced neither text nor an "
+                        "explanation. Recorded rather than passed off as an empty file."
+                    ),
+                )
             )
-        )
-    readability = SourceReadability.READABLE
 
     source = Source(
         source_id=source_id or f"src-{digest[:16]}",
@@ -204,6 +223,7 @@ def ingest_bytes(
         content_sha256=digest,
         size_bytes=len(data),
         readability=readability,
+        readability_disclosure=disclosure,
         identifiers=(),
         ingested_at=ingested_at,
     )

@@ -660,14 +660,14 @@ class SourceRow(Base):
             name="source_kind_vocabulary",
         ),
         CheckConstraint(
-            "readability IN ('readable', 'unreadable_no_ocr')",
+            "readability IN ('readable', 'unreadable_no_ocr', 'unparseable')",
             name="source_readability_vocabulary",
         ),
         # ADR-0004 A7: "we could not look" is not "there was nothing there".
         # A disclosure attached to something we did read is a claim about
         # something that did not happen.
         CheckConstraint(
-            "(readability = 'unreadable_no_ocr') = (readability_disclosure IS NOT NULL)",
+            "(readability <> 'readable') = (readability_disclosure IS NOT NULL)",
             name="source_disclosure_paired",
         ),
         # Paired is not the same as meaningful. A disclosure nobody can read is
@@ -715,6 +715,47 @@ class SourceRow(Base):
         # to prevent: a payload written where a string belonged is accepted,
         # silently rewritten, and nothing downstream can tell.
         CheckConstraint("typeof(size_bytes) = 'integer'", name="source_size_bytes_is_integer"),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# source_problems
+
+
+class SourceProblemRow(Base):
+    """One disclosure about a material: why it could not be read, or what was
+    found in it that a reader must know.
+
+    Revision 0004 added this because every adapter produced these records and
+    **nothing wrote them**. A disclosure with no destination is not a
+    disclosure -- the same argument ``sources.readability_disclosure`` makes
+    for itself.
+
+    ``location`` is a not-null sentinel rather than a nullable column because
+    SQLite compares NULLs as distinct inside a UNIQUE index, so a nullable
+    location would let "the same whole-file problem, once per run" succeed.
+    """
+
+    __tablename__ = "source_problems"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    location: Mapped[str] = mapped_column(String(2000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "extraction_version",
+            "code",
+            "location",
+            name="uq_source_problems",
+        ),
+        Index("ix_source_problems_source_id", "source_id"),
+        CheckConstraint("length(trim(detail)) > 0", name="source_problem_detail_non_empty"),
     )
 
 

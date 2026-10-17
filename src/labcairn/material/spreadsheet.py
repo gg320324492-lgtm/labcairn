@@ -117,71 +117,116 @@ class SpreadsheetAdapter:
                 )
             )
 
-        units: list[ExtractedUnit] = []
-        for sheet_title in values.sheetnames:
-            value_sheet = values[sheet_title]
-            formula_sheet = formulas[sheet_title] if sheet_title in formulas.sheetnames else None
-            filled = 0
+        # The try wraps the **iteration**, not only the load. Both failures a
+        # reviewer reached -- a chartsheet, which has no ``iter_rows``, and a
+        # row number past Excel's own limit, which ``iter_rows`` refuses to
+        # raise about -- happen while walking, not while opening.
+        #
+        # What survives a mid-walk failure is what was actually read, with the
+        # failure disclosed. Dropping it would claim the sheet was empty, which
+        # is a different and wrong claim; keeping it silently would claim we
+        # read all of it. Rows already emitted are true.
+        try:
+            units: list[ExtractedUnit] = []
+            for sheet_title in values.sheetnames:
+                value_sheet = values[sheet_title]
+                formula_sheet = (
+                    formulas[sheet_title] if sheet_title in formulas.sheetnames else None
+                )
+                filled = 0
 
-            for row in value_sheet.iter_rows():
-                for cell in row:
-                    # The formula test comes **first**. openpyxl does not
-                    # compute, so a formula with no cached result reads as
-                    # None -- and an emptiness check placed before this one
-                    # drops the cell silently, which is the failure this
-                    # module exists to avoid: a cell we could not read is
-                    # not an empty cell.
-                    formula_cell = (
-                        formula_sheet[cell.coordinate] if formula_sheet is not None else None
-                    )
-                    is_formula = formula_cell is not None and formula_cell.data_type == "f"
-                    value = cell.value
+                for row in value_sheet.iter_rows():
+                    for cell in row:
+                        # The formula test comes **first**. openpyxl does not
+                        # compute, so a formula with no cached result reads as
+                        # None -- and an emptiness check placed before this one
+                        # drops the cell silently, which is the failure this
+                        # module exists to avoid: a cell we could not read is
+                        # not an empty cell.
+                        formula_cell = (
+                            formula_sheet[cell.coordinate] if formula_sheet is not None else None
+                        )
+                        is_formula = formula_cell is not None and formula_cell.data_type == "f"
+                        value = cell.value
 
-                    if is_formula and formula_cell is not None:
-                        if value is None:
-                            problems.append(
-                                ExtractionProblem(
-                                    code="xlsx_formula_without_cached_value",
-                                    detail=(
-                                        f"{sheet_title}!{cell.coordinate} holds a "
-                                        f"formula and the workbook stores no cached "
-                                        f"result for it, which is normal for a file "
-                                        f"written by a library rather than a "
-                                        f"spreadsheet application. The formula is "
-                                        f"recorded; no number is invented for it."
-                                    ),
-                                    location=f"{sheet_title}!{cell.coordinate}",
+                        if is_formula and formula_cell is not None:
+                            formula_text = _formula_text(formula_cell.value)
+                            if formula_text is None:
+                                # An object with no readable formula in it. Its
+                                # repr is a memory address, which would make the
+                                # excerpt hash depend on the process, so the cell
+                                # is reported rather than transcribed.
+                                problems.append(
+                                    ExtractionProblem(
+                                        code="xlsx_formula_not_readable",
+                                        detail=(
+                                            f"{sheet_title}!{cell.coordinate} holds a "
+                                            f"formula this reader cannot express as text. "
+                                            f"No value is recorded, because an object's repr "
+                                            f"is not what the cell says."
+                                        ),
+                                        location=f"{sheet_title}!{cell.coordinate}",
+                                    )
                                 )
-                            )
-                            # openpyxl already includes the leading "=".
-                            text = str(formula_cell.value)
+                                continue
+                            if value is None:
+                                problems.append(
+                                    ExtractionProblem(
+                                        code="xlsx_formula_without_cached_value",
+                                        detail=(
+                                            f"{sheet_title}!{cell.coordinate} holds a "
+                                            f"formula and the workbook stores no cached "
+                                            f"result for it, which is normal for a file "
+                                            f"written by a library rather than a "
+                                            f"spreadsheet application. The formula is "
+                                            f"recorded; no number is invented for it."
+                                        ),
+                                        location=f"{sheet_title}!{cell.coordinate}",
+                                    )
+                                )
+                                # openpyxl already includes the leading "=".
+                                text = formula_text
+                            else:
+                                text = render_cell(value)  # a cached result exists
                         else:
+                            if value is None or (isinstance(value, str) and not value.strip()):
+                                continue
                             text = render_cell(value)
-                    else:
-                        if value is None or (isinstance(value, str) and not value.strip()):
-                            continue
-                        text = render_cell(value)
 
-                    units.append(
-                        ExtractedUnit(
-                            locator=XlsxLocator(sheet_name=sheet_title, cell_ref=cell.coordinate),
-                            text=text,
+                        units.append(
+                            ExtractedUnit(
+                                locator=XlsxLocator(
+                                    sheet_name=sheet_title, cell_ref=cell.coordinate
+                                ),
+                                text=text,
+                            )
+                        )
+                        filled += 1
+
+                if filled == 0:
+                    problems.append(
+                        ExtractionProblem(
+                            code="xlsx_sheet_empty",
+                            detail=(
+                                f"sheet {sheet_title!r} holds no readable cell. That is "
+                                f"recorded as a fact about the sheet, not as an empty "
+                                f"result for the whole workbook."
+                            ),
+                            location=sheet_title,
                         )
                     )
-                    filled += 1
 
-            if filled == 0:
-                problems.append(
-                    ExtractionProblem(
-                        code="xlsx_sheet_empty",
-                        detail=(
-                            f"sheet {sheet_title!r} holds no readable cell. That is "
-                            f"recorded as a fact about the sheet, not as an empty "
-                            f"result for the whole workbook."
-                        ),
-                        location=sheet_title,
-                    )
+        except _READ_FAILURE as exc:
+            problems.append(
+                ExtractionProblem(
+                    code="xlsx_iteration_failed",
+                    detail=(
+                        f"reading stopped part-way: {type(exc).__name__}: {exc}. "
+                        f"{len(units)} cell(s) were read before it did and are kept; "
+                        f"the rest were not read and are not claimed to be empty."
+                    ),
                 )
+            )
 
         if not values.sheetnames:
             problems.append(
@@ -206,6 +251,21 @@ class SpreadsheetAdapter:
         import sys
 
         return (sys.modules[__name__],)
+
+
+def _formula_text(value: Any) -> str | None:
+    """A formula cell's text, or ``None`` when it is not expressible.
+
+    openpyxl models three kinds of formula. A plain one is a ``str``. An
+    array formula and a data-table formula are objects exposing ``.text``;
+    everything else has no text at all. Calling ``str()`` on those produces
+    a repr with a memory address, which is not what the cell says and makes
+    the excerpt hash depend on the process.
+    """
+    if isinstance(value, str):
+        return value
+    text = getattr(value, "text", None)
+    return text if isinstance(text, str) else None
 
 
 def _load(openpyxl: Any, data: bytes, *, data_only: bool) -> Any:
