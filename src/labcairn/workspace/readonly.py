@@ -40,8 +40,18 @@ from pathlib import Path
 
 from labcairn.security.approval import content_hash
 from labcairn.security.paths import RootKind
-from labcairn.security.policy import PermissionPolicy
+from labcairn.security.policy import Permission, PermissionPolicy, ResourceRef
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace
+
+
+class SourceAccessDeniedError(PermissionError):
+    """An attempt to read supplied material the policy denies.
+
+    Distinct from :class:`SourceIsReadOnlyError`, which is about *writing*.
+    A caller that handles path errors by converting them to a tool error
+    should not swallow this one either: it is a policy outcome, and the
+    material it names was denied on purpose.
+    """
 
 
 class SourceIsReadOnlyError(PermissionError):
@@ -71,6 +81,14 @@ class SourceMaterial:
         workspace" is the wrong question for source material — the right one is
         "read something that is *source*", and making the caller name the root
         is what stops an output file being served as if it were evidence.
+
+        **This does not consult the permission policy.** It checks *whose*
+        material it is, not whether this caller may have it; the policy is
+        applied by the tool layer above. A caller that reads material the
+        policy denies is not misusing this method — it is using it correctly
+        and skipping the check that was its job to do.
+
+        :meth:`read_permitted` is the same read with the policy applied.
         """
         path = self._require_source(key, root_id)
         size = path.stat().st_size
@@ -78,6 +96,43 @@ class SourceMaterial:
             msg = f"{key} is {size} bytes, over the {max_bytes} byte read limit"
             raise SourceIsReadOnlyError(msg)
         return path.read_bytes()
+
+    def read_permitted(
+        self,
+        key: str,
+        *,
+        root_id: str,
+        capability: str,
+        max_bytes: int = 64_000_000,
+    ) -> bytes:
+        """Read a source file only if the policy permits this capability for it.
+
+        The policy is evaluated on the **canonical** entry, not on the
+        spelling, so a symlink inside a permitted directory pointing into a
+        denied one is refused rather than served. ADR-0003 §C5 requires both
+        spellings to be matched, and the declared spelling alone is not enough
+        when the name is a symlink.
+
+        Refuses rather than filters, because a single named read has no
+        "drop it from the results" to do -- there are no results.
+        """
+        canonical = self._workspace.path_in(key, root_id)
+        resource = ResourceRef(
+            declared_key=key,
+            resolved_key=canonical.resolved_key,
+            root_id=root_id,
+            root_kind=RootKind.SOURCE,
+            real_path=canonical.real_path,
+        )
+        decision = self._policy.evaluate(
+            task_id=self._workspace.task_id,
+            capability=capability,
+            resource=resource,
+        )
+        if decision.permission is Permission.DENY:
+            msg = f"{key} is denied for {capability}"
+            raise SourceAccessDeniedError(msg)
+        return self.read(key, root_id=root_id, max_bytes=max_bytes)
 
     def hash_of(self, key: str, *, root_id: str) -> str:
         """Content hash of a source file, for an approval's ``depends_on``."""
@@ -105,6 +160,24 @@ class SourceMaterial:
         prefix = f"{key}/" if key else ""
         keys = [f"{prefix}{name}" for name in names if fnmatch.fnmatchcase(name, pattern)]
 
+        def resolve(entry: str) -> ResourceRef:
+            """The canonical view of a listing entry.
+
+            A listing entry is a **name**, and a name can be a symlink.
+            Evaluating the policy on the name alone would let
+            ``public/hop -> private`` pass a ``DENY private/**`` rule, so
+            the entry is resolved to what the filesystem will actually open
+            and the policy sees both spellings, as ADR-0003 §C5 requires.
+            """
+            canonical = self._workspace.path_in(entry, root_id)
+            return ResourceRef(
+                declared_key=entry,
+                resolved_key=canonical.resolved_key,
+                root_id=root_id,
+                root_kind=RootKind.SOURCE,
+                real_path=canonical.real_path,
+            )
+
         return self._policy.filter_listing(
             keys,
             task_id=self._workspace.task_id,
@@ -112,6 +185,7 @@ class SourceMaterial:
             root_id=root_id,
             root_kind=RootKind.SOURCE,
             real_root=directory,
+            resolve=resolve,
         )
 
     def write(self, key: str, data: bytes, *, root_id: str) -> None:
@@ -182,6 +256,7 @@ def resolve_source_path(workspace: Workspace, *, root_id: str) -> Callable[[str]
 
 
 __all__ = [
+    "SourceAccessDeniedError",
     "SourceIsReadOnlyError",
     "SourceMaterial",
     "bind_source_material",
