@@ -56,7 +56,7 @@ import hashlib
 import json
 import os
 import unicodedata
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import lru_cache
@@ -674,6 +674,7 @@ class PermissionPolicy:
         root_id: str,
         root_kind: RootKind,
         real_root: Path,
+        resolve: Callable[[str], ResourceRef] | None = None,
     ) -> tuple[str, ...]:
         """Drop denied entries from a listing rather than refusing the call.
 
@@ -685,16 +686,28 @@ class PermissionPolicy:
 
         The listing is filtered, not sorted into a visible/hidden split: the
         returned tuple contains only permitted keys, in the order given.
+
+        **``resolve`` supplies the canonical view of each entry**, and without
+        it the two spellings are the same string, so §C5's "both spellings are
+        matched" never applies to a listing. The consequence is concrete: a
+        symlink inside a permitted directory, pointing into a denied one, is
+        listed as itself and then read, so ``DENY private/**`` does not stop
+        it. Callers that have a workspace to resolve against should pass a
+        resolver; those that do not keep the previous behaviour, which is only
+        sound for entries that cannot be symlinks.
         """
         kept: list[str] = []
         for key in keys:
-            resource = ResourceRef(
-                declared_key=key,
-                resolved_key=key,
-                root_id=root_id,
-                root_kind=root_kind,
-                real_path=real_root / Path(*PurePosixPath(key).parts),
-            )
+            if resolve is not None:
+                resource = resolve(key)
+            else:
+                resource = ResourceRef(
+                    declared_key=key,
+                    resolved_key=key,
+                    root_id=root_id,
+                    root_kind=root_kind,
+                    real_path=real_root / Path(*PurePosixPath(key).parts),
+                )
             decision = self.evaluate(task_id=task_id, capability=capability, resource=resource)
             if decision.permission is not Permission.DENY:
                 kept.append(key)

@@ -208,15 +208,22 @@ def test_a_failing_file_does_not_stop_the_walk_and_leaves_the_rest_stored(
     assert stored == ["a.md", "z.md"], "the report and the store disagree; one of them is wrong"
 
 
-def test_a_symlink_into_a_denied_directory_is_ingested_and_that_is_documented(
+def test_a_symlink_into_a_denied_directory_is_not_ingested(
     tmp_path: pathlib.Path, session: Any
 ) -> None:
-    """A known gap, pinned so it cannot be forgotten.
+    """ADR-0011 contract 3: the walk does not ingest it, and no denied text
+    reaches ``source_texts``.
 
-    ``DENY source.inventory private/**`` does not stop
-    ``public/hop -> private``: ``read`` returns the denied bytes and this walk
-    ingests them. The module docstring says so; this test says it in code, so
-    that closing the gap breaks a test rather than passing quietly.
+    This test used to assert the *opposite*, deliberately, to pin a known gap:
+    it said so in code as well as in the module docstring, so that closing the
+    gap would break a test rather than pass quietly. The gap is closed, so the
+    assertion is inverted.
+
+    The walk is defended twice and needs only one to hold. The listing drops
+    ``public/hop`` because the policy is evaluated on the canonical entry, and
+    the read re-evaluates before opening because a listing entry is a name and
+    a name can be a symlink. That the walk reports *no failure* here is the
+    point: the entry is filtered, so it is never visited and never read.
     """
     root = tmp_path / "ws7"
     sources = root / "sources"
@@ -252,15 +259,55 @@ def test_a_symlink_into_a_denied_directory_is_ingested_and_that_is_documented(
     report = ingest_workspace(session, SourceMaterial(ws, policy), ingested_at=NOW)
     ingested = {o.material.source.relative_path for o in report.outcomes}
 
-    if "public/hop/secret.md" in ingested:
-        # The gap is still open. Recorded, not asserted as correct.
-        ingested_text = "".join(unit.text for o in report.outcomes for unit in o.material.texts)
-        assert "SECRET" in ingested_text
-    else:
-        assert "public/hop" not in ingested, (
-            "the symlink stopped being followed -- if that is the fix landing, "
-            "update the walk's module docstring, which still describes the gap"
-        )
+    assert "public/hop/secret.md" not in ingested, (
+        "the walk ingested a denied file through a symlink"
+    )
+    everything = "".join(unit.text for o in report.outcomes for unit in o.material.texts)
+    assert "SECRET" not in everything, "denied material reached the store"
+    assert "public/ok.md" in ingested, "the permitted file stopped being ingested too"
+
+    # The store is the claim, not the report.
+    from sqlalchemy import text as text_sql
+
+    stored = [
+        r[0] for r in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
+    ]
+    assert "public/hop/secret.md" not in stored
+    rows = [r[0] for r in session.execute(text_sql("SELECT text FROM source_texts")).fetchall()]
+    assert not any("SECRET" in row for row in rows), "denied text was persisted"
+
+
+def test_every_ingested_file_passed_through_the_policy_check(
+    workspace: Workspace, material: SourceMaterial, session: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-0011's second check, and the one the listing cannot stand in for.
+
+    Every byte the walk stores went through ``read_permitted``, which
+    evaluates the policy on the canonical entry *before* opening the file.
+
+    Pinned because nothing else notices its absence. While the listing is
+    correct the denied symlink is never visited, so reverting the walk to the
+    unchecked ``read`` leaves every other test in the suite green and the
+    second layer disappears with nothing failing -- while this module's
+    docstring keeps claiming it is there. That is the same shape of defect
+    ADR-0011 was written about: a boundary asserted in prose and not
+    enforced in code.
+    """
+    checked: list[str] = []
+    real = SourceMaterial.read_permitted
+
+    def recording(self: SourceMaterial, key: str, **kwargs: Any) -> bytes:
+        checked.append(key)
+        return real(self, key, **kwargs)
+
+    monkeypatch.setattr(SourceMaterial, "read_permitted", recording)
+    report = ingest_workspace(session, material, ingested_at=NOW)
+
+    assert report.outcomes, "the walk ingested nothing, so nothing was checked"
+    assert report.failures == (), [m for _, m in report.failures]
+    assert sorted(checked) == sorted(o.material.source.relative_path for o in report.outcomes), (
+        "a file was ingested without passing the policy check first"
+    )
 
 
 def test_max_files_bounds_the_walk(

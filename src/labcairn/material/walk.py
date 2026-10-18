@@ -8,17 +8,19 @@ against real material.
 directly would bypass the permission boundary entirely, so every listing and
 read here goes through it.
 
-**What the walk does not claim.** It does not claim a denied subtree is
-invisible, because that is not yet true and pretending otherwise would be the
-worst kind of bug in this package. Review demonstrated that a **symlink inside
-a permitted directory, pointing into a denied one, is followed**: with
-``DENY source.inventory private/**``, ``read("public/hop/secret.md")`` where
-``public/hop -> private`` returns the denied file's bytes, and this walk
-ingests them. The cause is in the boundary rather than here --
-``policy.filter_listing`` matches only the declared spelling and
-``SourceMaterial.read`` never consults the policy -- but this walk is what
-turns the gap into persisted, searchable rows. Recorded as a known gap; the
-fix belongs to the policy layer, not to this module.
+**A denied subtree is invisible here, and that took two fixes to be true.**
+Review demonstrated that a **symlink inside a permitted directory, pointing
+into a denied one, was followed**: with ``DENY source.inventory private/**``,
+``read("public/hop/secret.md")`` where ``public/hop -> private`` returned
+the denied file's bytes, and this walk ingested them. Two causes, both in the
+boundary rather than here -- ``policy.filter_listing`` matched only the
+declared spelling, and ``SourceMaterial.read`` never consulted the policy --
+and this walk is what turned the gap into persisted, searchable rows.
+
+Both are now closed. The listing evaluates the policy on the **canonical**
+entry, and the read does the same before opening, so neither depends on the
+other being right. ``read_permitted`` is the protected read;
+``read`` remains the unchecked primitive it always was, and says so.
 
 One :class:`~labcairn.workspace.readonly.SourceMaterial` read and one
 :func:`~labcairn.material.ingest.ingest_into_store` per file, each in its own
@@ -103,7 +105,12 @@ def ingest_workspace(
         seen: set[str] = set()
         for key in _walk(material, root_id=root_id, max_files=max_files, seen=seen):
             try:
-                data = material.read(key, root_id=root_id)
+                # read_permitted, not read: the listing already refuses a
+                # denied entry, but a listing entry is a *name* and a name
+                # can be a symlink. Evaluating the policy on the canonical
+                # entry before reading is the second of the two checks, and
+                # the one that does not depend on the listing being right.
+                data = material.read_permitted(key, root_id=root_id, capability="source.inventory")
             except Exception as exc:
                 failures.append((key, f"{type(exc).__name__}: {exc}"))
                 continue
