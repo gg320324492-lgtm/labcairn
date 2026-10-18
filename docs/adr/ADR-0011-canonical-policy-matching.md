@@ -1,11 +1,23 @@
 # ADR-0011: Match the policy on the canonical entry, not the declared spelling
 
-**Status:** Proposed
+**Status:** Accepted and **ratified by the project owner** — records the execution of ADR-0003 §C5, changes no contract
 **Work order:** LC-P1-08 (material inventory and source locators)
-**Date:** 2026-10-18
+**Date:** 2026-10-18 · ratified 2026-10-18
 
 > This ADR does not change a contract. It records how ADR-0003 §C5 is
 > *executed* at two points where the execution did not match the rule.
+
+> **Ratified 2026-10-18.** Unlike ADR-0010, this one amends nothing, so the
+> ratification is narrower: it approves *how* §C5 is executed, not §C5. It does
+> not re-open ADR-0003, and it does not extend the boundary — every change here
+> makes the code do what the frozen contract already said.
+>
+> It was merged in PR #29 under `mergeStateStatus=CLEAN` with twelve checks
+> green on both Ubuntu and Windows, and ratified afterwards.
+>
+> **What ratification covers.** The canonical listing check, the protected read,
+> `read` remaining the unchecked primitive, and `SourceAccessDeniedError` being
+> distinct from `SourceIsReadOnlyError`. It does not close the items below.
 
 ## Context and concrete problem
 
@@ -115,6 +127,13 @@ Contracts 1, 2, 4, 5 and 6 are in `tests/test_security_listing_canonical.py`,
 in the layer that was wrong. Contract 3 is about ingestion and the store, so
 it is in `tests/test_material_walk.py`.
 
+Contracts 1, 2 and 5 are asserted twice: once against a **symlink** and once
+against an **NTFS junction**. The Context above says a junction leaked the same
+way, so the fix has to be measured on the construct the ADR names rather than
+argued from the symlink case — they are different reparse points, and whatever
+resolves one is not thereby shown to resolve the other. Both were
+mutation-checked: dropping the resolver fails both.
+
 A seventh test, `test_every_ingested_file_passed_through_the_policy_check`,
 pins the second check itself. Without it the two layers are not equally
 protected: while the listing is correct the denied symlink is never visited,
@@ -123,6 +142,36 @@ while the layer disappears and this ADR's "does not depend on the first being
 right" stops being true. Both layers were mutation-checked — removing the
 resolver from `list_dir` fails contract 1, and reverting the walk to `read`
 fails only the seventh test.
+
+## Known gaps
+
+Ratification approves the execution of §C5 described above. It does not close
+these, which are open as of the merge. The first two were measured against the
+tree at `729a84a`, not inferred:
+
+- **`filter_listing`'s resolver is optional, so the unsound path stays
+  reachable.** Contract 6 requires that a caller without a resolver keeps the
+  old behaviour, which is exactly the declared-spelling-only matching this ADR
+  exists to remove. Nothing makes that failure loud: a future caller that
+  forgets `resolve` gets a listing that looks filtered and is not. Measured:
+  `list_dir` is the only production caller and it passes a resolver, so nothing
+  in `src/` is affected today — but that is a property of today's call graph,
+  not an enforced one.
+- **`read` stays reachable and unchecked, deliberately.** Measured: the only
+  caller of `read` in `src/` is `read_permitted` itself, so no production path
+  skips the check today, and the tool layer that `read`'s docstring defers to is
+  not built yet. The property does not survive a future caller using `read`
+  directly, and only its docstring stands in the way. This is the same shape as
+  the defect above, accepted knowingly rather than by oversight.
+- **The per-entry `Path.resolve` cost is unmeasured.** A listing now pays a
+  syscall per entry that it did not pay before. Nobody has run a listing of a
+  large workspace; the re-evaluation trigger below names the threshold to
+  watch, not a number.
+- **Junction coverage is Windows-only.** The junction tests skip on every
+  other platform, because NTFS junctions are a Windows facility. The Linux
+  runner therefore never exercises that case — correct, since Linux has no
+  equivalent construct, but it means the Linux green is not evidence about
+  junctions.
 
 ## Re-evaluation trigger
 
