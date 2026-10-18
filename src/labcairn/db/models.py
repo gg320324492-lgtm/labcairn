@@ -44,6 +44,7 @@ from typing import Any, Final
 from sqlalchemy import (
     JSON,
     CheckConstraint,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -55,6 +56,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
 from labcairn.db.base import Base, sql_string_list
+from labcairn.evidence.states import (
+    CheckKind,
+    CheckOutcome,
+    EvidenceCreator,
+    EvidenceKind,
+    NormalizationProfile,
+    VerificationStatus,
+)
 from labcairn.runtime.event import EventType, event_requires_operation_context, event_requires_run
 
 #: The single Phase-1 principal. See :data:`OWNER_SCOPE_NOTE`.
@@ -949,4 +958,239 @@ class SourceTextRow(Base):
             "AND (line_end IS NULL OR line_end >= line_start))",
             name="source_texts_line_range",
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# LC-P1-09 — the evidence ledger
+# ---------------------------------------------------------------------------
+# ADR-0004 Contract 1 types these records in Pydantic, and every invariant
+# below is already a validator on ``labcairn.evidence.record``. The CHECK
+# constraints are not a second opinion on those rules; they are the same rules
+# where they *can* be expressed, so a row written by a SQL client, a migration,
+# or a future contributor who never imports the Pydantic model is refused the
+# same way. ``source_texts`` sets the precedent: closed vocabularies and a
+# derived canonical column that exists so a constraint can see what a nullable
+# one could not.
+#
+# What is deliberately NOT in the schema, and why:
+#
+# * **Append-only-ness of the log.** No CHECK can see that a row was not
+#   rewritten; only the writer and its tests can establish that.
+# * **"at least one resolving anchor".** A CHECK cannot read a join table, and
+#   the alternative -- a denormalised count that could disagree with the join
+#   table -- buys constraint coverage at the price of a second source of truth.
+#   So ``anchor_key`` below is the trade ``source_texts.locator_key`` already
+#   makes: a canonical, re-derivable rendering used *for* the constraint, with
+#   the join table remaining authoritative.
+# * **The state machine.** ADR-0004 Contract 2's transitions describe a record
+#   moving between states over time, which is a relation between two versions of
+#   a row rather than a property of one.
+
+
+class EvidenceAnchorRow(Base):
+    """One anchor cited by one evidence record.
+
+    A join table rather than a column, because ``anchor_ids`` is an ordered
+    tuple and order carries meaning: the first anchor is the primary one, and a
+    report that cites the wrong anchor first is citing something real in the
+    wrong role. ``position`` is that order, dense from 0, so a gap means a bug
+    rather than a choice.
+    """
+
+    __tablename__ = "evidence_anchors"
+
+    #: Surrogate key, as ``source_problems`` uses. The natural key is the
+    #: (evidence_id, position) pair below, carried as a UNIQUE constraint
+    #: rather than as the primary key, so the two can differ in one place only.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    __table_args__ = (
+        # The anchor table is not created by this work order, so a foreign key
+        # to it is not available yet. It is deliberately NOT faked with a loose
+        # reference: an anchor id naming nothing is precisely a fabricated
+        # source, and C1 is what must catch it. A foreign key here would make
+        # the row unstorable instead, turning a checkable failure into a
+        # constraint error the caller cannot read.
+        UniqueConstraint("evidence_id", "position", name="uq_evidence_anchors_position"),
+        # Duplicates are not meaningful, and ADR-0004's validator rejects them
+        # on the record. This makes the same refusal true of the rows.
+        UniqueConstraint("evidence_id", "anchor_id", name="uq_evidence_anchors_anchor"),
+        CheckConstraint("position >= 0", name="evidence_anchors_position_non_negative"),
+        CheckConstraint(
+            "length(anchor_id) > 0 AND length(evidence_id) > 0", name="evidence_anchors_ids_present"
+        ),
+        Index("ix_evidence_anchors_anchor", "anchor_id"),
+    )
+
+
+class EvidenceRecordRow(Base):
+    """A claim, a number or a result, with the provenance it will be judged on.
+
+    ADR-0004 Contract 1. The columns mirror
+    :class:`~labcairn.evidence.record.EvidenceRecord` field for field, and the
+    CHECK constraints are the SQL-expressible half of its validators.
+    """
+
+    __tablename__ = "evidence_records"
+
+    evidence_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    task_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    #: ``None`` for a numeric record, and required to say so. In Pydantic the
+    #: key must be *present* even when its value is ``None``; in a row every
+    #: column is present by construction, so a nullable column is the faithful
+    #: shape of that rule.
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Never defaulted to 0.0 anywhere. An undeclared tolerance is not an
+    #: exact-match requirement, and C3 returns ``indeterminate`` without one.
+    tolerance: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    #: Canonical rendering of this record's ``evidence_anchors``, so the "a
+    #: located record cites something" rule is expressible in a CHECK. See the
+    #: module comment on why this is a rendering rather than a count.
+    anchor_key: Mapped[str] = mapped_column(Text, nullable=False)
+    extracted_span: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extracted_span_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Hash of the source as read at extraction. Compared against the index,
+    #: never refreshed: ADR-0004 I4 invalidates on drift rather than silently
+    #: re-reading.
+    source_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: Set when a newer record replaces this one. The old row is kept, not
+    #: deleted, so the history of a claim stays auditable.
+    superseded_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("task_id", "extracted_span_sha256", name="uq_evidence_task_span"),
+        Index("ix_evidence_records_status", "status"),
+        Index("ix_evidence_records_task", "task_id"),
+        CheckConstraint(
+            f"kind IN {sql_string_list(k.value for k in EvidenceKind)}",
+            name="evidence_records_kind_vocabulary",
+        ),
+        CheckConstraint(
+            f"status IN {sql_string_list(s.value for s in VerificationStatus)}",
+            name="evidence_records_status_vocabulary",
+        ),
+        CheckConstraint(
+            f"created_by IN {sql_string_list(c.value for c in EvidenceCreator)}",
+            name="evidence_records_creator_vocabulary",
+        ),
+        # ADR-0004 Contract 1's kind discipline. A sentence attached to a number
+        # is a second claim no check will ever look at, so the two are mutually
+        # exclusive rather than merely discouraged.
+        CheckConstraint(
+            "(kind <> 'numeric' OR (text IS NULL AND value IS NOT NULL AND unit IS NOT NULL)) "
+            "AND (kind = 'numeric' OR (text IS NOT NULL AND value IS NULL "
+            "AND unit IS NULL AND tolerance IS NULL))",
+            name="evidence_records_kind_fields",
+        ),
+        # Quoted text without its hash cannot be checked for drift; a hash
+        # without the text cannot be shown to anyone.
+        CheckConstraint(
+            "(extracted_span IS NULL) = (extracted_span_sha256 IS NULL)",
+            name="evidence_records_span_all_or_nothing",
+        ),
+        # Everything past ``planned`` claims to have been located, so it must
+        # carry what a location is made against: the quoted span and its hash,
+        # the source hash it was read from, and at least one anchor. This is the
+        # checkable half of ADR-0004 Contract 2 -- whether the anchor *resolves*
+        # is C1's call, and deliberately not this constraint's.
+        CheckConstraint(
+            "status = 'planned' OR (extracted_span IS NOT NULL "
+            "AND extracted_span_sha256 IS NOT NULL AND source_content_hash IS NOT NULL "
+            "AND anchor_key <> '[]')",
+            name="evidence_records_located_past_planned",
+        ),
+        CheckConstraint(
+            "length(evidence_id) > 0 AND length(task_id) > 0 AND length(created_by_id) > 0",
+            name="evidence_records_ids_present",
+        ),
+        CheckConstraint(
+            "(extracted_span_sha256 IS NULL OR (length(extracted_span_sha256) = 64 "
+            "AND extracted_span_sha256 NOT GLOB '*[^0-9a-f]*')) "
+            "AND (source_content_hash IS NULL OR (length(source_content_hash) = 64 "
+            "AND source_content_hash NOT GLOB '*[^0-9a-f]*'))",
+            name="evidence_records_hash_shape",
+        ),
+        # A tolerance is a declared comparison width, so a negative one would be
+        # a comparison no number could satisfy.
+        CheckConstraint("tolerance IS NULL OR tolerance >= 0", name="evidence_records_tolerance"),
+    )
+
+
+class VerificationRecordRow(Base):
+    """One entry in a record's append-only verification log.
+
+    The log is a relation, not a column: it grows, it is ordered, and a report
+    reads it as a sequence of dated verdicts with named checkers. ``seq`` is
+    that order, dense from 1, because a gap in an audit trail is a defect.
+    """
+
+    __tablename__ = "verification_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Named ``check_kind``, not ``check``: ``check`` is a SQL keyword, so a
+    #: CHECK constraint body referring to it -- ``check IN ('c1', ...)`` -- is a
+    #: syntax error, since a body cannot quote its own column. The DDL quotes
+    #: the column definition happily; it is the three constraints below that
+    #: cannot. Renaming costs one word in the storage mapping and saves every
+    #: future hand-written query from the same trap.
+    check_kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    checker_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    checked_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    normalization_profile: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("evidence_id", "seq", name="uq_verification_records_seq"),
+        CheckConstraint(
+            f"check_kind IN {sql_string_list(c.value for c in CheckKind)}",
+            name="verification_records_check_vocabulary",
+        ),
+        CheckConstraint(
+            f"outcome IN {sql_string_list(o.value for o in CheckOutcome)}",
+            name="verification_records_outcome_vocabulary",
+        ),
+        # ADR-0004 I2. There is no seventh state that could hold a C4 pass, so
+        # the combination is unrepresentable rather than discouraged.
+        CheckConstraint(
+            "check_kind <> 'c4' OR outcome = 'not_checked'",
+            name="verification_records_c4_never_passes",
+        ),
+        # "How lenient was this comparison" is a question a reader of the log
+        # must be able to answer. An absent profile on C2 answers it as
+        # "unknown", which is not "exact"; a profile on a check that compares
+        # no text is a claim about a comparison that did not happen.
+        CheckConstraint(
+            "(check_kind = 'c2') = (normalization_profile IS NOT NULL)",
+            name="verification_records_profile_belongs_to_c2",
+        ),
+        CheckConstraint(
+            f"normalization_profile IS NULL OR normalization_profile IN "
+            f"{sql_string_list(p.value for p in NormalizationProfile)}",
+            name="verification_records_profile_vocabulary",
+        ),
+        CheckConstraint("seq >= 1", name="verification_records_seq_positive"),
+        CheckConstraint(
+            "length(evidence_id) > 0 AND length(checker_id) > 0 AND length(detail) > 0",
+            name="verification_records_ids_present",
+        ),
+        Index("ix_verification_records_evidence", "evidence_id"),
     )
