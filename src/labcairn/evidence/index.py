@@ -130,6 +130,27 @@ class Hit:
     text: str
     source_ids: tuple[str, ...]
 
+    @property
+    def is_drifted(self) -> bool:
+        """This excerpt is from a version of the file that no longer exists.
+
+        ADR-0004 A2: the source's bytes changed after this text was extracted.
+        The text is still in ``source_texts`` -- ADR-0009 requires that, so an
+        anchor written against the old bytes still resolves -- and the index
+        carries it, because a passage that genuinely was written should not
+        become unfindable and surface as A6's "the material does not say that".
+
+        What must not happen is that it looks current. A hit carrying this text
+        has a real page, a real locator and text C2 can verify against the
+        store, so without this property every downstream check passes and the
+        citation reads as though the file still said it.
+
+        Named rather than inferred from an empty ``source_ids``: the emptiness
+        is the *mechanism*, and a caller reading ``if not hit.source_ids`` has
+        to know to look here at all.
+        """
+        return self.source_ids == ()
+
 
 def build_match_expression(query: str) -> str | None:
     """An FTS5 expression for *query*, or ``None`` when it has no terms.
