@@ -150,7 +150,60 @@ not just the transformed string.
 
 The concrete `SourceIndex`: `locate` and `content_hash`.
 
-**The first thing to do is point `tests/test_evidence_index.py` at `tests/fixtures/retrieval/ground_truth.json`.** It exists already and is validated against the papers (§3), so an index that returns the wrong excerpt for `customary greedy selection rule`, or anything at all for a fabricated DOI, fails on the first run rather than after the checks are written.
+**The first thing to do is point `tests/test_evidence_index.py` at `tests/fixtures/retrieval/ground_truth.json`.**
+ It exists already and is
+validated against the papers (§3), so an index that returns the wrong excerpt
+for `customary greedy selection rule`, or anything at all for a fabricated DOI,
+fails on the first run rather than after the checks are written.
+
+**Four decisions, all settled by measurement rather than by argument.**
+
+*T03 owns a retrieval API as well as the `SourceIndex`.* The Protocol has two
+members, `locate` and `content_hash`, and both are **address resolution for
+C1** — they answer "where does this anchor point", not "what does this query
+match". Nothing in it can be handed a query string, so with retrieval left
+elsewhere the ground-truth set would have no consumer.
+
+*A hit carries the original text, never the indexed text.* T02's normalisation
+is an index-side copy and `source_texts` is the only authority, so a hit must
+re-read the row named by its identity and hand back what the adapter produced.
+Handing C2 the normalised text would have C2 comparing the index against itself —
+a comparison that cannot fail, and the same shape as the two-column defect
+LC-P1-08 just closed.
+
+*The tokenizer is `trigram`, and the first two answers were both wrong.*
+A query string is not an FTS5 expression: measured, a naive `MATCH :query`
+**crashes** on two of the ground-truth set's own queries —
+`10.9999/j.labcairn.2026.00001` is a syntax error near the `.`, and
+`total-correlation` is read as a column filter and fails with *no such column* —
+so every term is quoted and joined with `AND`.
+
+The default `unicode61` tokenizer was then not good enough, and the reason is
+measured. It matches **whole tokens**, and on this corpus most words are not
+tokens: ADR-0008's third constraint records that these PDFs space words by
+positioning, so page 4 of `arx-2610.12393` stores
+`...,anirreduciblesynergisticgapI(Y;q...` — `irreducible` is a fragment of one
+token, glued to an article on one side and a math symbol on the other, with no
+separator of any kind between them. Queries for `irreducible`, `synergistic`
+and `irreduciblesynergisticgap` all return **zero** hits on a page that visibly
+contains all three.
+
+Two alternatives were tried and both are wrong. Indexing a **second,
+fully space-stripped copy** makes each page a single 3188-character token, which
+is *less* searchable. Changing **separator characters** cannot work at all,
+because the boundary information is not in the text — there is nothing to split
+on. Only a tokenizer built on substrings answers the question, so revision 0006
+rebuilds the table on `trigram`. An FTS5 tokenizer is part of the table
+definition rather than a column, so that is a drop and recreate; the rows are
+the index's own and `source_texts` is untouched.
+
+*A query holding a term shorter than three characters is refused, not
+narrowed.* A trigram table cannot match one, and SQLite's own answer is to
+return no rows without saying so. Dropping the short term would turn "the is
+not greedy" into "the greedy" and return excerpts nobody asked for — and those
+would look like hits, carrying a real page and a real locator all the way to a
+citation. Refusing makes the emptiness an absence, which is A6's own semantics.
+ It exists already and is validated against the papers (§3), so an index that returns the wrong excerpt for `customary greedy selection rule`, or anything at all for a fabricated DOI, fails on the first run rather than after the checks are written.
 
 - **`locate` returns `None` for an unknown anchor id**, per the Protocol. It is
   not an error; C1 turns `None` into `fail`. Keeping that distinction is what
