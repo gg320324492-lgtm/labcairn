@@ -164,7 +164,19 @@ class CsvAdapter:
             # seen in unquoted field" and an ordinary file gets reported as
             # unparseable. It also leaves a CR *inside* a quoted field alone,
             # so nothing needs normalising and nothing can be corrupted.
-            records = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter))
+            reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
+            records: list[list[str]] = []
+            # The physical line each record *begins* on. ``CsvLocator`` promises
+            # the physical row "header included", and a record number is not
+            # one: a quoted field holding a newline makes record N start on
+            # line N+k, so a locator built from the record index points at the
+            # wrong line of the file and nobody checking it would see why.
+            starts: list[int] = []
+            previous_end = 0
+            for record in reader:
+                starts.append(previous_end + 1)
+                records.append(record)
+                previous_end = reader.line_num
         except csv.Error as exc:
             extra_problems.append(
                 ExtractionProblem(
@@ -280,7 +292,8 @@ class CsvAdapter:
                 )
 
         units: list[ExtractedUnit] = []
-        for row_number, record in enumerate(records[1:], start=2):
+        for index, record in enumerate(records[1:], start=1):
+            row_number = starts[index]
             if len(record) != len(header):
                 extra_problems.append(
                     ExtractionProblem(

@@ -474,8 +474,33 @@ def test_source_id_follows_the_bytes_not_their_length() -> None:
     detect non-determinism -- never a wrong-but-deterministic id.
     """
     a = ingest_bytes(b"aaaa", relative_path="a.txt", display_name="a", ingested_at=NOW)
-    b = ingest_bytes(b"bbbb", relative_path="a.txt", display_name="a", ingested_at=NOW)
+    b = ingest_bytes(b"bbbb", relative_path="b.txt", display_name="b", ingested_at=NOW)
     assert a.source.source_id != b.source.source_id
+
+
+def test_editing_a_file_does_not_make_it_a_new_material() -> None:
+    """The other half, and the half that was pinned the wrong way round.
+
+    This test used to ingest two different bodies at the *same* path and assert
+    they got different ids. That is a collision only if the id identifies
+    content -- and it does not. ``source_id`` identifies a **location**, which
+    is what ``walk.py`` has always assumed when it derives its own, and what
+    ``sources.relative_path``'s UNIQUE constraint requires: with a
+    content-derived id, the second ingest of an edited file raised
+    ``IntegrityError`` and left the caller's session unusable, because this
+    function rolls nothing back.
+
+    So the property to hold is the pair of them. Different locations never
+    share an id; the same location keeps its id when its bytes change, and the
+    content hash -- which is what distinguishes the versions -- lives in its
+    own column.
+    """
+    first = ingest_bytes(b"version one\n", relative_path="n.md", display_name="n", ingested_at=NOW)
+    second = ingest_bytes(
+        b"version two, edited\n", relative_path="n.md", display_name="n", ingested_at=NOW
+    )
+    assert first.source.source_id == second.source.source_id
+    assert first.source.content_sha256 != second.source.content_sha256
 
 
 def test_an_array_formula_is_recorded_as_its_formula_not_a_repr() -> None:

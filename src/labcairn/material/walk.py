@@ -159,8 +159,16 @@ def _walk(
     previously shared across roots on the reasoning that a material reachable
     from two roots should be ingested once -- but ``list_dir`` keys are
     root-relative, so two roots each holding ``notes.md`` produce the same
-    string and the shared set silently swallowed one. Cross-root dedup
-    happens instead through the workspace's own ``cross_root`` refusal.
+    string and the shared set silently swallowed one.
+
+    Nothing dedups across roots, and this is the accurate statement of it: the
+    only mechanism is ``sources``' UNIQUE constraint on ``relative_path``,
+    which makes the second root's file fail at the store and land in
+    ``failures``. An earlier version of this docstring claimed the workspace
+    had a ``cross_root`` refusal doing the work. It does not -- ``CROSS_ROOT``
+    is a denial reason in ``security/paths.py`` that ``list_dir`` never
+    consults -- and a comment naming a safety net that is not there is worse
+    than no comment, because it is read as one.
     """
     if max_files is not None and len(seen) >= max_files:
         return []

@@ -228,6 +228,28 @@ def test_an_embedded_newline_stays_inside_its_cell() -> None:
     assert by_key[(2, "note")] == "line one\nline two"
 
 
+def test_a_row_is_numbered_by_where_it_sits_in_the_file_not_by_its_ordinal() -> None:
+    """``CsvLocator`` promises the **physical** row, and an embedded newline is
+    what makes the two differ.
+
+    Above, ``alpha`` occupies physical lines 2 and 3, so ``bravo`` starts on
+    line 4 -- but it is the third *record*, and a locator built from the record
+    ordinal puts it on row 3. The locator is then wrong about the file, and
+    wrong in a way that looks right: opening row 3 of a CSV gives you a
+    plausible line, just not the one that was cited.
+
+    The previous version of this file's newline test checked that the embedded
+    newline stayed inside its own cell and stopped there. That is a real
+    property, and it is silent about the row *after* it.
+    """
+    result = _csv_result(b'trial,note\nalpha,"line one\nline two"\nbravo,x\n')
+    by_key = {(_cell_of(u).row, _cell_of(u).column): u.text for u in result.units}
+    assert by_key[(2, "trial")] == "alpha"
+    assert by_key[(4, "trial")] == "bravo", "bravo is on physical line 4, not record 3"
+    assert by_key[(4, "note")] == "x"
+    assert {row for row, _ in by_key} == {2, 4}, "no row may be invented or skipped"
+
+
 def test_an_empty_file_is_empty_and_says_so() -> None:
     result = _csv_result(b"")
     assert result.units == ()

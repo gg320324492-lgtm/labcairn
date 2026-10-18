@@ -146,6 +146,24 @@ The status of that idea is narrower than it was and narrower than it should be. 
 
 ## Known gap: two-column reading order is not reconstructed
 
+**Status at LC-P1-08 acceptance (2026-10-18): the gap is now detected and
+refused, not merely recorded.** The owner decided against shipping the
+fabrication and against deferring it. Each page's baselines are cut into
+horizontally contiguous runs and the runs' left edges clustered; two clusters
+at least 80pt apart with the rival holding at least 35% of the page's line
+starts is a two-column page, and that page is refused and disclosed as
+`pdf_multicolumn_unsupported` rather than extracted. Constraint 5 below is
+therefore satisfied in substance — a character range cannot land in
+interleaved text, because interleaved text is never stored — but it is
+satisfied by **refusal**, not by reconstruction, and the distinction is the
+point: a refusal is loud and a reconstruction that is nearly right is not.
+
+**Constraint 7 below is still unmet.** Rotated text is not detected at all, so
+a rotated page would still extract in the wrong order with nothing recorded.
+This ADR's constraint list is the checklist; a reader should take the two
+entries as different answers rather than assume the list is uniformly
+satisfied.
+
 Recorded here rather than left for someone to discover from a wrong citation.
 
 `material/pdf.py` extracts each page as pdfplumber renders it, with **no
@@ -181,7 +199,10 @@ under automated access. So the intersection is not merely unfound — in the
 sources tried it is close to empty.
 
 Until then the gap is stated, not papered over: a reader who cannot see it
-cannot price it.
+cannot price it. The refusal implemented above does not change that — it makes
+the failure loud, which is a different thing from making it absent, and it
+rests on a threshold bracketed against single-column fixtures rather than
+calibrated against two-column ones.
 
 ## Constraints LC-P1-08 must satisfy
 
