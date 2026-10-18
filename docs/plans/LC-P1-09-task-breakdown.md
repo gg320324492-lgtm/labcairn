@@ -248,6 +248,29 @@ because `fail` here means the report cites nothing.
 - `indeterminate` for a material the format cannot address — which, after
   `98b5ea5`, is a real state rather than a hypothetical one.
 
+Two decisions the contract does not settle, now written down:
+
+- **All anchors are examined before the verdict.** ADR-0004 says "all anchors
+  resolve", but not what to report when one is unreadable and another has
+  drifted. Returning on the first non-pass answers `indeterminate` and buries
+  the drift, which is the more dangerous of the two: "we could not tell"
+  invites a reader to move on, "the file changed" tells them the record is
+  wrong. So `fail` outranks `indeterminate`, and the order of the anchor ids is
+  irrelevant to the outcome.
+- **A record that stored no source hash is `indeterminate`, not `pass`.** There
+  is nothing to re-verify, and `pass` asserts "the hashes match". The state is
+  reachable only at `planned`, since the record model refuses any later status
+  without a hash — which is Contract 2's requirement, not C1's, and the two
+  locks are tested separately so that removing one shows up as a failure.
+
+**What C1's tests cannot establish.** Every anchor in them is written directly
+into `source_anchors`; no anchor in the suite came from a real ingest, so "an
+anchor the walk made is resolved correctly months later" is not demonstrated.
+Likewise the `UNADDRESSABLE` branch is reached by inserting a text row for a
+source marked unreadable, a combination LC-P1-08's walk never produces -- a scan
+has no text rows at all, so its anchors answer `UNRESOLVABLE` instead. The check
+is tested; the state it handles is not shown to occur.
+
 #### T05a — the anchor registry (added after T03; T05 depends on it)
 
 This subtask was not in the original decomposition and T05 is not implementable

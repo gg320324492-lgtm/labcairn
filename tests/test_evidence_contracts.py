@@ -397,20 +397,25 @@ def test_c4_cannot_enter_the_verification_log_as_a_pass() -> None:
     assert entry.outcome is CheckOutcome.NOT_CHECKED
 
 
-def test_c4_is_the_only_implemented_check_and_is_still_not_a_pass() -> None:
-    """``IMPLEMENTED_CHECKS`` says what can answer, and today that is only C4.
+def test_the_implemented_set_names_what_can_answer_and_c4_is_still_not_a_pass() -> None:
+    """``IMPLEMENTED_CHECKS`` says what can answer, and it grows only by edit.
 
-    A report or a gate can ask this value rather than assuming. When LC-P1-09
-    lands C1-C3, this test fails until someone changes the line on purpose.
+    A report or a gate can ask this value rather than assuming. C1 landed with
+    LC-P1-09 T05; C2 and C3 have not; C4 never will. The assertion is written as
+    an explicit set rather than derived from anything, because a test that
+    computed it from the functions' bodies could not fail when a stub quietly
+    started returning a verdict.
+
+    The second half is the part that outlives the first: however the set grows,
+    C4's answer is always ``not_checked``.
     """
-    assert frozenset({CheckKind.C4}) == IMPLEMENTED_CHECKS
-    assert [check.value for check in sorted(IMPLEMENTED_CHECKS)] == ["c4"]
+    assert frozenset({CheckKind.C1, CheckKind.C4}) == IMPLEMENTED_CHECKS
+    assert [check.value for check in sorted(IMPLEMENTED_CHECKS)] == ["c1", "c4"]
 
     record = EvidenceRecord.model_validate(_claim_payload())
-    for implemented in IMPLEMENTED_CHECKS:
-        verdict = check_scientific_interpretation(record)
-        assert verdict.check is implemented
-        assert verdict.outcome is CheckOutcome.NOT_CHECKED
+    verdict = check_scientific_interpretation(record)
+    assert verdict.check is CheckKind.C4
+    assert verdict.outcome is CheckOutcome.NOT_CHECKED
 
 
 def test_c4_return_type_is_narrow_enough_to_fail_a_mypy_reimplementation() -> None:
@@ -454,31 +459,46 @@ def test_c4_is_not_deletable_from_the_package_surface() -> None:
     assert evidence_package.check_scientific_interpretation is check_scientific_interpretation
 
 
-def test_c1_c2_c3_are_declared_but_refuse_to_answer() -> None:
-    """They raise; they do not return a placeholder verdict.
+def test_unimplemented_checks_refuse_rather_than_answer() -> None:
+    """C2 and C3 raise; C1 does not, and that distinction is the point.
 
     A check that returned ``indeterminate`` because it is unimplemented would be
     indistinguishable, forever and downstream, from one that declined to answer
     for a real reason — and the first would let a record sit at ``extracted``
     looking, to a report, like something a system had looked at.
+
+    C1 landed with LC-P1-09 T05, so it is no longer in this set. The test names
+    the checks that still refuse *by asking the ledger*, not by listing them, so
+    implementing C2 or C3 makes this test fail until someone changes the
+    assertion on purpose -- the same discipline
+    ``test_c4_is_never_anything_but_not_checked`` applies to C4.
     """
     record = EvidenceRecord.model_validate(_numeric_payload())
 
     # `index=None` stands in for "no index exists yet"; the call must fail on
     # the unimplemented check, not on the missing argument, which is why the
     # raises below is specifically CiteSupportNotImplementedError.
-    calls: tuple[tuple[CheckKind, Callable[[], Verdict]], ...] = (
-        (CheckKind.C1, lambda: check_source_exists(record, index=None)),  # type: ignore[arg-type]
+    unimplemented: tuple[tuple[CheckKind, Callable[[], Verdict]], ...] = (
         (CheckKind.C2, lambda: check_quotation_support(record, index=None)),  # type: ignore[arg-type]
         (CheckKind.C3, lambda: check_numeric_consistency(record, index=None)),  # type: ignore[arg-type]
     )
-    for check, call in calls:
+    for check, call in unimplemented:
         with pytest.raises(CiteSupportNotImplementedError) as caught:
             call()
         assert caught.value.check is check
         assert isinstance(caught.value, NotImplementedError)
         assert check.value in str(caught.value)
-        assert "c4" in str(caught.value)
+        assert "can answer today" in str(caught.value)
+        # The message names what *can* answer, so a caller reading the error is
+        # told the truth about this build rather than guessing.
+        for implemented in sorted(IMPLEMENTED_CHECKS):
+            assert implemented.value in str(caught.value)
+        assert check.value in str(caught.value)
+
+    # And the set of what can answer says so, as data rather than as a comment.
+    assert CheckKind.C2 not in IMPLEMENTED_CHECKS
+    assert CheckKind.C3 not in IMPLEMENTED_CHECKS
+    assert CheckKind.C1 in IMPLEMENTED_CHECKS
 
 
 def test_the_four_validators_keep_adr_0004_signatures() -> None:
