@@ -112,7 +112,12 @@ def upgrade() -> None:
         # against the current hash by C1; never refreshed (ADR-0004 I4).
         sa.Column("bound_source_sha256", sa.String(64), nullable=False),
         sa.Column("excerpt_sha256", sa.String(64), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        # sa.String(), not sa.DateTime or sa.Text: the models use UtcDateTime,
+        # a TypeDecorator whose impl is String because SQLite has no timestamp
+        # type and SQLAlchemy's DateTime drops the offset. Revision 0005 spells
+        # it the same way, and revision 0003 got it wrong once -- which is what
+        # the schema parity test exists to catch.
+        sa.Column("created_at", sa.String(), nullable=False),
         sa.PrimaryKeyConstraint("anchor_id", name="pk_source_anchors"),
         # Closed vocabulary. Same standard as events.type and source_texts: a
         # kind that reconstructs no union member must not be storable, because
@@ -133,8 +138,7 @@ def upgrade() -> None:
             name="source_anchors_kind_vocabulary",
         ),
         sa.CheckConstraint(
-            "length(bound_source_sha256) = 64 "
-            "AND bound_source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            "length(bound_source_sha256) = 64 AND bound_source_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_anchors_bound_sha256_shape",
         ),
         sa.CheckConstraint(

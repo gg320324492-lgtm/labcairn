@@ -4,6 +4,40 @@
 **Work order:** LC-P1-09 (evidence ledger and cite-support validator); prerequisite input for LC-P1-08 (source locators) and gate G3 (evidence path)
 **Date:** 2026-10-15
 
+> **Execution note, 2026-10-18 (LC-P1-09 T05a).** One seam this ADR assumed
+> and never specified: `SourceIndex`'s members. Contract 3 names the type in
+> three signatures and never says what it is — that Protocol exists only in
+> `src/labcairn/evidence/cite_support/__init__.py`. As written it had two
+> members, `locate(anchor: SourceAnchor)` and `content_hash(source_id: str)`,
+> and **neither accepts an anchor id** — which is all an `EvidenceRecord`
+> carries (`anchor_ids: tuple[str, ...]`, ids deliberately, so a source cannot
+> be mutated by editing the record that cites it).
+>
+> So this ADR's C1 requirement to *"fail if an anchor id is unknown"* had no
+> implementation behind it and could not have had one. Revision 0007 adds the
+> missing registry (`source_anchors`) and a third member,
+> `load_anchor(anchor_id) -> SourceAnchor | None`. This **executes the
+> requirement rather than amending it**; no signature, verdict vocabulary or
+> transition condition here changes.
+>
+> Two decisions in that seam are worth this ADR's attention because they are
+> not obvious and are easy to undo by accident:
+>
+> * **`load_anchor` returns `None` only for "no such id."** A row that exists
+>   but whose address cannot be rebuilt raises `LocatorKeyError` instead. Both
+>   make C1 answer `fail`, but "the ledger has never heard of this source" and
+>   "the ledger has a broken row" are different findings and different repairs,
+>   so collapsing them is the A12 confusion arriving by a new route.
+> * **The registry stores one locator representation**, the canonical
+>   `locator_key`, not the eight typed columns `source_texts` also carries.
+>   With both, a reader would have to choose which to rebuild the anchor from,
+>   and choosing wrong does not raise — it yields a *different valid* address
+>   that C1 then resolves against the wrong page. That is this ADR's A1
+>   ("never cite the nearest page") arriving by a route nobody was watching.
+>
+> Still true below, unchanged: C4 is never implemented in Phase 1, and
+> `IMPLEMENTED_CHECKS` remains `{C4}` until C1-C3 land.
+
 ## Context and concrete problem
 
 LabCairn's differentiating claim is that the evidence chain is traceable: literature, data, analysis, claims and results must each resolve to a located source with a declared verification state. `docs/ARCHITECTURE.md` fixes six verification states — `planned`, `extracted`, `verified_by_rule`, `user_attested`, `conflicted`, `unsupported` — and adds a constraint that is the hard part of this ADR:

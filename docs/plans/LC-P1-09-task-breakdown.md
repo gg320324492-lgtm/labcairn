@@ -102,6 +102,7 @@ in the PR rather than editing it.
 | T03 | `src/labcairn/evidence/index.py`, `tests/test_evidence_index.py` (consumes the ground-truth set, which it does not own) |
 | T04 | `src/labcairn/material/indexing.py`, `tests/test_material_indexing.py` |
 | T05 | `src/labcairn/evidence/checks/c1.py`, `tests/test_cite_c1.py` |
+| T05a | `migrations/versions/0007_*.py`, `src/labcairn/evidence/index.py` (`load_anchor`/`_locator_from_key`/`LabCairnIndex` only), `src/labcairn/db/models.py` (`SourceAnchorRow` only), `src/labcairn/evidence/cite_support/__init__.py` (`SourceIndex` only), `tests/test_evidence_anchor_registry.py` |
 | T06 | `src/labcairn/evidence/checks/c2.py`, `tests/test_cite_c2.py` |
 | T07 | `src/labcairn/evidence/checks/c3.py`, `tests/test_cite_c3.py` |
 | T08 | `src/labcairn/evidence/store.py`, `tests/test_evidence_store.py` |
@@ -246,6 +247,48 @@ because `fail` here means the report cites nothing.
   wanted one.
 - `indeterminate` for a material the format cannot address — which, after
   `98b5ea5`, is a real state rather than a hypothetical one.
+
+#### T05a — the anchor registry (added after T03; T05 depends on it)
+
+This subtask was not in the original decomposition and T05 is not implementable
+without it. ADR-0004 Contract 3 requires C1 to *"fail if an anchor id is
+unknown"*, an `EvidenceRecord` carries `anchor_ids` as bare strings, and
+`SourceIndex` had two members — `locate(anchor: SourceAnchor)` and
+`content_hash(source_id: str)` — **neither of which accepts an id**. There was no
+path from what C1 is handed to the thing it must check.
+
+ADR-0004 does not fix `SourceIndex`'s members; the Protocol exists only in the
+implementation module. So this is the seam the ADR's requirement was missing,
+not an amendment to it — which is recorded as an execution note at the head of
+ADR-0004 rather than as a contract change.
+
+What it adds: revision 0007 (`source_anchors`), `SourceIndex.load_anchor`, and
+`LabCairnIndex` — the first concrete implementation of the Protocol, which
+nothing satisfied before.
+
+Three decisions are not obvious and are the ones a later writer would undo:
+
+- **One locator representation.** The registry stores the canonical
+  `locator_key` and *not* the eight typed columns `source_texts` also carries.
+  With both, a reader must choose which to rebuild the anchor from, and
+  choosing wrong does not raise — it returns a different *valid* address that C1
+  then resolves against the wrong page. A1's prohibition arriving by a route
+  nobody was watching.
+- **`None` means "no such id" only.** A row that exists but cannot be rebuilt
+  raises `LocatorKeyError`. Both make C1 answer `fail`, but they are different
+  findings and different repairs.
+- **`computation` is refused**, following `source_texts`: a derived number is
+  addressed by the operator that produced it and has no row to resolve against.
+
+**What its tests cannot claim.** The round trip is verified over sixteen key
+shapes, and the refusals over nineteen malformed keys, but every one of them is
+synthetic — written as literals beside the object they must equal, because a
+test that rendered the key from the locator would only prove the renderer is
+deterministic. There is no real anchor in the fixture corpus to recover, so
+"an anchor written during a real ingest still resolves months later" is not
+yet demonstrated. It is also not demonstrated the other way, which is the more
+expensive failure: the mutation that makes a corrupt row rebuild from whatever
+fields it happens to carry was caught, but only on synthetic keys.
 
 ### T06 — C2, quotation match
 

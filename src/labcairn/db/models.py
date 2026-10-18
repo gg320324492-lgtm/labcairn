@@ -237,8 +237,7 @@ def _locator_kind_glob_check() -> str:
     row that must be refused catches it.
     """
     return " OR ".join(
-        f"locator_key GLOB 'k={len(kind)}:{kind}|*'"
-        for kind in ("pdf", "text", "csv", "xlsx")
+        f"locator_key GLOB 'k={len(kind)}:{kind}|*'" for kind in ("pdf", "text", "csv", "xlsx")
     )
 
 
@@ -1086,8 +1085,7 @@ class SourceAnchorRow(Base):
             name="source_anchors_locator_key_vocabulary",
         ),
         CheckConstraint(
-            "length(bound_source_sha256) = 64 "
-            "AND bound_source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            "length(bound_source_sha256) = 64 AND bound_source_sha256 NOT GLOB '*[^0-9a-f]*'",
             name="source_anchors_bound_sha256_shape",
         ),
         CheckConstraint(

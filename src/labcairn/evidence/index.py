@@ -92,8 +92,14 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
 from labcairn.evidence.cite_support import LocatedContent, LocationResolution
-from labcairn.material.addressing import render_locator_key, split_locator_key
-from labcairn.sources.locators import SourceLocator
+from labcairn.material.addressing import LocatorKeyError, render_locator_key, split_locator_key
+from labcairn.sources.locators import (
+    CsvLocator,
+    PdfLocator,
+    SourceLocator,
+    TextLocator,
+    XlsxLocator,
+)
 from labcairn.sources.source import AnchorKind, SourceAnchor
 
 __all__ = [
@@ -293,10 +299,135 @@ def _locator_from_key(locator_key: str) -> SourceLocator:
     is what says so -- the same error ``render_locator_key`` raises for a
     locator whose typed fields contradict its kind, so the two directions fail
     identically rather than only the awkward one.
+
+    **Strict about *extra* components, not just missing ones.** A key that
+    carries ``r=`` on a ``pdf`` reconstructs perfectly if the reader ignores
+    the field, and the result is a page anchor pointing at the right page --
+    which is the failure this function exists to make impossible, arriving
+    disguised as success. So each kind declares the fields it may carry and an
+    unexpected one is refused. It costs six lines and turns "the key is one I
+    recognise" into a decidable property rather than a habit.
+
+    **The length prefix needs no check of its own, and that took a mutation to
+    establish.** ``split_locator_key`` reads the prefix's *declared* length and
+    takes exactly that many characters, so ``k=9:pdf|p=1:4`` yields
+    ``{"k": "pdf|p=1:4"}`` -- the prefix swallows the rest of the key, the
+    value comes out as something that is not a kind, and the check above
+    refuses it. A separate ``startswith(f"k={len(kind)}:")`` was written
+    anyway, on the reasoning that a wrong prefix is a corrupt key; mutation
+    checking showed it could not fire on any input the kind check does not
+    already catch, so it was deleted rather than left as a branch no test could
+    reach. The prefix is still enforced -- by the parser, where it belongs.
     """
-    # TODO(human): dispatch on the leading `k` field and build the right member.
-    # See the module's `load_anchor` docstring and the key grammar below.
-    raise NotImplementedError
+    fields = split_locator_key(locator_key)
+    kind = fields.get("k")
+    if kind not in _REQUIRED_COMPONENTS:
+        raise LocatorKeyError(
+            f"locator_key {locator_key!r} names kind {kind!r}, which is not one of "
+            f"{sorted(_REQUIRED_COMPONENTS)}. A kind LabCairn cannot rebuild is a "
+            f"corrupt row; naming a member of the union by guesswork would produce "
+            f"a valid address that points nowhere the author wrote."
+        )
+    _check_components(locator_key, kind, fields)
+
+    if kind == "pdf":
+        page = _integer(fields, "p")
+        span = fields.get("c")
+        if span is None:
+            return PdfLocator(page=page)
+        return PdfLocator(page=page, char_start=_span_start(span), char_end=_span_end(span))
+    if kind == "text":
+        return TextLocator(
+            line=_integer(fields, "l"),
+            line_end=_integer(fields, "le") if "le" in fields else None,
+            section=fields.get("s"),
+        )
+    if kind == "csv":
+        return CsvLocator(row=_integer(fields, "r"), column=fields["c"])
+    return XlsxLocator(sheet_name=fields["sh"], cell_ref=fields["c"])
+
+
+#: The components each kind must carry, and the ones it may. Generated from the
+#: same grammar ``render_locator_key`` writes -- a fourth spelling of that
+#: grammar would be exactly the fork ADR-0009's ``locator_key`` exists to stop.
+_REQUIRED_COMPONENTS: Final[dict[str, frozenset[str]]] = {
+    "pdf": frozenset({"k", "p"}),
+    "text": frozenset({"k", "l"}),
+    "csv": frozenset({"k", "r", "c"}),
+    "xlsx": frozenset({"k", "sh", "c"}),
+}
+
+_OPTIONAL_COMPONENTS: Final[dict[str, frozenset[str]]] = {
+    "pdf": frozenset({"c"}),
+    "text": frozenset({"le", "s"}),
+    "csv": frozenset(),
+    "xlsx": frozenset(),
+}
+
+
+def _check_components(locator_key: str, kind: str, fields: dict[str, str]) -> None:
+    """Refuse a key whose components do not match its kind's grammar."""
+    allowed = _REQUIRED_COMPONENTS[kind] | _OPTIONAL_COMPONENTS[kind]
+    missing = _REQUIRED_COMPONENTS[kind] - fields.keys()
+    unexpected = fields.keys() - allowed
+    if missing or unexpected:
+        raise LocatorKeyError(
+            f"locator_key {locator_key!r} is not a well-formed {kind!r} key. "
+            f"Missing: {sorted(missing) or 'none'}. "
+            f"Unexpected: {sorted(unexpected) or 'none'}. "
+            f"A {kind!r} locator may carry {sorted(allowed)}."
+        )
+
+
+def _integer(fields: dict[str, str], name: str) -> int:
+    """One component read as an integer, or refused.
+
+    ``ValueError`` is wrapped rather than allowed out because every caller of
+    this function is a reconstruction step in C1's path, and the caller's
+    contract is a :class:`LocatorKeyError` meaning "this key does not describe
+    a locator" -- a type it already handles from ``split_locator_key``.
+    """
+    raw = fields[name]
+    try:
+        return int(raw)
+    except ValueError:
+        raise LocatorKeyError(
+            f"component {name!r} holds {raw!r}, which is not an integer. Every "
+            f"page, line and row in a key is written in decimal; a key that says "
+            f"otherwise was not produced by render_locator_key."
+        ) from None
+
+
+def _span_start(span: str) -> int:
+    return _span_part(span, 0, "char_start")
+
+
+def _span_end(span: str) -> int:
+    return _span_part(span, 1, "char_end")
+
+
+def _span_part(span: str, index: int, field: str) -> int:
+    """One end of a PDF's ``c=start-end`` component.
+
+    Split on the single ``-`` rather than parsed with ``partition``, because the
+    separator appears exactly once in a well-formed span and a span that carries
+    it twice is not a span. ``partition`` would happily return ``"99"`` for the
+    right end of ``"10-99-4"`` and hand back a valid locator for a nonsense
+    address.
+    """
+    parts = span.split("-")
+    if len(parts) != 2:
+        raise LocatorKeyError(
+            f"a PDF character span is written 'start-end', and {span!r} has "
+            f"{len(parts) - 1} separators. {field} cannot be read from it."
+        )
+    raw = parts[index]
+    try:
+        return int(raw)
+    except ValueError:
+        raise LocatorKeyError(
+            f"a PDF character span holds {raw!r} where {field} should be an integer."
+        ) from None
 
 
 def load_anchor(connection: Connection, anchor_id: str) -> SourceAnchor | None:
