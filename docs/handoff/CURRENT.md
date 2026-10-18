@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-18
-**Current `main`:** `de28b42`, the merge of PR #30. LC-P1-08's acceptance review is on `fix/lc-p1-08-acceptance-findings` and is not yet merged. The merges since the previous refresh: #25 (XLSX), #26 (single-column PDF), #27 (ADR-0010 ratification), #28 (the workspace walk), #29 (the permission-boundary fix and [ADR-0011](../adr/ADR-0011-canonical-policy-matching.md)), #30 (ADR-0011 ratification).
+**Current `main`:** `98b5ea5`, the merge of PR #31 (LC-P1-08's acceptance review and the eight defects it found). LC-P1-08's acceptance review is on `fix/lc-p1-08-acceptance-findings` and is not yet merged. The merges since the previous refresh: #25 (XLSX), #26 (single-column PDF), #27 (ADR-0010 ratification), #28 (the workspace walk), #29 (the permission-boundary fix and [ADR-0011](../adr/ADR-0011-canonical-policy-matching.md)), #30 (ADR-0011 ratification).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 reviewed (PASS WITH NOTES, awaiting an independent review); LC-P1-09 retrieval and evidence ledger and LC-P1-10 bounded analysis and plots not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md), not implemented; LC-P1-10 not started |
 
 ## What exists now
 
@@ -29,13 +29,15 @@ uv run python examples/g2_uncertain_demo.py # the uncertain path end to end — 
 
 ## What does not exist yet
 
-**No research capability.** No retrieval, no evidence ledger, no analysis, no plots, no claims and no citations. No CLI, no server, no web UI, and no model call that leaves the machine. G3's first two steps are not built.
+**No research capability.** Retrieval, the evidence ledger, analysis, plots, claims and citations are all still unbuilt — the ledger's *contracts* exist and are frozen, but C1, C2 and C3 raise `CiteSupportNotImplementedError` and `SourceIndex` is a Protocol nobody implements. No CLI, no server, no web UI, and no model call that leaves the machine.
 
 ## Next: finish G3
 
 LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
 
-**LC-P1-08 needs an independent review**, not more implementation. Its acceptance review is [written up](../acceptance/LC-P1-08-acceptance.md) and records eight defects found and fixed; it was carried out by the same party that fixed them, so the board's rule — a row is marked done only on an independent review at a named commit — is not yet discharged.
+**LC-P1-08 was accepted with notes by owner decision, not by independent review.** Its acceptance review is [written up](../acceptance/LC-P1-08-acceptance.md) and records eight defects found and fixed — most seriously, a two-column PDF storing sentences the author never wrote and marking them citable. The review and the fixes are the same party, so the board's rule is not discharged; the owner decided on 2026-10-18 to proceed without it, and the board records that as a decision rather than as a review.
+
+**LC-P1-09 is decomposed and ready.** [Task breakdown](../plans/LC-P1-09-task-breakdown.md): ten subtasks with a file-ownership map for parallel work, and ADR-0004 Contract 4's twelve conditions each mapped to the subtask and test that carries it. Nothing is implemented.
 
 **Its PDF library question is settled.** [ADR-0008](../adr/ADR-0008-pdf-ingestion-library.md) puts it on pdfplumber + pdfminer.six, both MIT, rather than PyMuPDF, whose AGPL branch would have constrained LabCairn's own MIT release. Nothing needed undoing.
 
