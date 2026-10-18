@@ -71,16 +71,49 @@ EXPECTED_TABLES = frozenset(
         "sources",
         "source_texts",
         "source_problems",
+        # LC-P1-09 / ADR-0004. The ledger is the first thing in this schema
+        # that must answer a question about absence: C1-C3 need somewhere to
+        # resolve an anchor and re-read a value.
+        "evidence_records",
+        "evidence_anchors",
+        "verification_records",
+        # The FTS5 index, and the only table in this schema deliberately
+        # absent from ``Base.metadata``. It is listed here rather than derived
+        # from the metadata precisely because it is not there -- a test that
+        # read its expectations from the ORM could not notice its absence, and
+        # an index that quietly did not get created reads as a database with
+        # nothing to find.
+        "evidence_fts",
     }
 )
 
 
 def _tables(db: Path) -> set[str]:
+    """The tables this project declares, excluding SQLite's own bookkeeping.
+
+    ``PRAGMA table_list`` rather than ``sqlite_master``, because an FTS5
+    virtual table registers **six** rows in ``sqlite_master`` -- the table
+    itself plus five shadow tables (``_data``, ``_idx``, ``_content``,
+    ``_docsize``, ``_config``). Listing them as expected tables would assert
+    SQLite's internal layout, which is not this project's to promise and not
+    guaranteed across versions.
+
+    They are filtered by *kind*, not by name: ``table_list`` classifies each
+    row as ``table``, ``virtual`` or ``shadow``, and only ``shadow`` is dropped.
+    Filtering on a name prefix would be the tempting shortcut and would hide a
+    real table that happened to share it.
+
+    ``sqlite_`` names go for a different reason: ``table_list`` reports
+    ``sqlite_schema`` and ``sqlite_temp_schema``, which the ``sqlite_master``
+    query this replaced did not return at all. ``sqlite_`` is SQLite's reserved
+    prefix, so excluding it by prefix is the rule rather than a guess.
+    """
     with sqlite3.connect(str(db)) as connection:
         return {
-            row[0]
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        } - {"alembic_version", "sqlite_sequence"}
+            row[1]
+            for row in connection.execute("PRAGMA table_list")
+            if row[2] in ("table", "virtual") and not row[1].startswith("sqlite_")
+        } - {"alembic_version"}
 
 
 # --------------------------------------------------------------------------- #
