@@ -437,6 +437,140 @@ def test_an_anchor_may_name_a_source_the_ledger_has_never_seen(engine: Any) -> N
 
 
 # --------------------------------------------------------------------------- #
+# the anchor registry (revision 0007)
+# --------------------------------------------------------------------------- #
+#
+# A *different* helper from the one above. That one writes ``evidence_anchors``
+# -- who cites what; this one writes ``source_anchors`` -- what an anchor is.
+# The names are close enough to be worth separating explicitly rather than
+# overloading.
+
+
+LEGAL_SOURCE_ANCHOR: dict[str, Any] = {
+    "anchor_id": "sa-legal",
+    "source_id": "src-1",
+    "kind": "quotation",
+    "locator_key": "k=3:pdf|p=1:4",
+    "bound_source_sha256": SHA,
+    "excerpt_sha256": None,
+    "created_at": NOW,
+}
+
+
+def _insert_source_anchor(engine: Any, **overrides: Any) -> None:
+    row = {**LEGAL_SOURCE_ANCHOR, **overrides}
+    columns = ", ".join(row)
+    marks = ", ".join(f":{name}" for name in row)
+    with engine.begin() as connection:
+        connection.execute(
+            sql_text(f"INSERT INTO source_anchors ({columns}) VALUES ({marks})"), row
+        )
+
+
+def test_a_registry_row_is_storable_and_holds_its_address(engine: Any) -> None:
+    """The constraints below are not a filter that eats everything.
+
+    Every kind the ledger can resolve, because the length prefix is not
+    constant -- ``pdf`` and ``csv`` render ``k=3:`` while ``text`` and ``xlsx``
+    render ``k=4:``. A hand-written ``k=3:`` accepted two kinds and refused the
+    other two, which is why the guard is generated from the spelling length.
+    """
+    for index, key in enumerate(
+        (
+            "k=3:pdf|p=1:4",
+            "k=3:pdf|p=1:2|c=5:10-99",
+            "k=4:text|l=1:7",
+            "k=4:text|l=1:7|le=1:9|s=7:Methods",
+            "k=3:csv|r=2:12|c=4:mean",
+            "k=4:xlsx|sh=2:S1|c=2:B2",
+        )
+    ):
+        _insert_source_anchor(engine, anchor_id=f"sa-{index}", locator_key=key)
+    with engine.connect() as connection:
+        stored = connection.execute(
+            sql_text("SELECT locator_key FROM source_anchors ORDER BY locator_key")
+        ).scalars()
+        assert list(stored) == [
+            "k=3:csv|r=2:12|c=4:mean",
+            "k=3:pdf|p=1:2|c=5:10-99",
+            "k=3:pdf|p=1:4",
+            "k=4:text|l=1:7",
+            "k=4:text|l=1:7|le=1:9|s=7:Methods",
+            "k=4:xlsx|sh=2:S1|c=2:B2",
+        ]
+
+
+@pytest.mark.parametrize(
+    ("why", "overrides"),
+    [
+        ("kind is not a member of AnchorKind", {"kind": "quote"}),
+        ("kind is uppercased", {"kind": "QUOTATION"}),
+        ("kind is empty", {"kind": ""}),
+        ("locator kind is not one LabCairn can resolve", {"locator_key": "k=3:docx|p=1:4"}),
+        (
+            "locator kind exists but has no extracted text",
+            {"locator_key": "k=2:computation|p=1:4"},
+        ),
+        ("locator kind is uppercased", {"locator_key": "k=3:PDF|p=1:4"}),
+        ("locator key carries no kind at all", {"locator_key": "p=1:4"}),
+        ("locator key is empty", {"locator_key": ""}),
+        ("bound hash is too short", {"bound_source_sha256": "abc"}),
+        ("bound hash is not hex", {"bound_source_sha256": "z" * 64}),
+        ("bound hash is not lowercase", {"bound_source_sha256": "A" * 64}),
+        ("excerpt hash is not a hash", {"excerpt_sha256": "nope"}),
+        ("anchor id is empty", {"anchor_id": ""}),
+        ("source id is empty", {"source_id": ""}),
+    ],
+)
+def test_a_registry_row_that_names_nothing_real_is_refused(
+    engine: Any, why: str, overrides: dict[str, Any]
+) -> None:
+    """A storable address that resolves to nothing, or a hash that is not one.
+
+    ``k=3:docx`` is the load-bearing case: the key parses, and a reader that
+    did not check the kind would build a locator out of it. ``computation`` is
+    a *real* :class:`LocatorKind` and is still refused, because a derived number
+    is addressed by the operator that produced it and has no row to resolve
+    against.
+    """
+    with pytest.raises(IntegrityError):
+        _insert_source_anchor(engine, **overrides)
+
+
+def test_two_rows_cannot_claim_the_same_anchor_id(engine: Any) -> None:
+    """Identity is the id, so a second writer for one anchor is a duplicate.
+
+    Not a silent overwrite: an anchor whose address changed under the same id
+    would make every citation already pointing at it quietly mean something
+    else, which is the drift ADR-0004 A2 detects by *failing*, not by
+    accepting a newer row.
+    """
+    _insert_source_anchor(engine)
+    with pytest.raises(IntegrityError):
+        _insert_source_anchor(engine, locator_key="k=3:pdf|p=1:9")
+
+
+def test_a_registry_row_may_bind_a_hash_no_source_currently_holds(engine: Any) -> None:
+    """``bound_source_sha256`` is deliberately not a foreign key.
+
+    It is the source's hash *as it was when the anchor was made*, so it names a
+    version of a file that may no longer be on disk. Forcing it to match a
+    current ``sources`` row would delete the evidence of the drift A2 exists to
+    report -- the anchor would have to be rewritten to survive, and rewriting
+    it is what A2 forbids.
+    """
+    _insert_source_anchor(engine, bound_source_sha256=OTHER_SHA)
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                sql_text("SELECT COUNT(*) FROM sources WHERE content_sha256 = :sha"),
+                {"sha": OTHER_SHA},
+            ).scalar()
+            == 0
+        )
+
+
+# --------------------------------------------------------------------------- #
 # the index
 # --------------------------------------------------------------------------- #
 

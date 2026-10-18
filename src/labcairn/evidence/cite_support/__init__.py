@@ -269,15 +269,39 @@ class LocatedContent(BaseModel):
 class SourceIndex(Protocol):
     """The seam C1-C3 are handed. Implemented by LC-P1-09's FTS5 index.
 
-    Two members, because C1 has two jobs ADR-0004 states separately: *resolve
-    every anchor_id against the ingested material* and *re-verify the recorded
-    content hash*. Splitting them keeps the hash check from being folded into the
-    lookup and forgotten.
+    Three members, and the third exists because of a gap this Protocol had for
+    months. ADR-0004 Contract 3 requires C1 to "fail if an anchor id is
+    unknown", and an :class:`~labcairn.evidence.record.EvidenceRecord` carries
+    ``anchor_ids`` as bare strings. ``locate`` and ``content_hash`` between them
+    accept no id -- one wants a whole anchor, the other a source id -- so C1 had
+    no path from what it was handed to the thing it must check. ADR-0004 does
+    not fix this Protocol's members; the Protocol exists only in this module. So
+    :meth:`load_anchor` is the seam the ADR's requirement was missing, not an
+    amendment to the ADR.
+
+    The two it already had are split because C1 has two jobs ADR-0004 states
+    separately: *resolve every anchor_id against the ingested material* and
+    *re-verify the recorded content hash*. Keeping them apart is what stops the
+    hash check being folded into the lookup and forgotten.
+
+    It is also what lets ``locate``'s ``None`` mean something. An unknown
+    anchor id is detected by :meth:`load_anchor`, before there is an anchor to
+    hand over, so "the ledger has never heard of this" cannot be confused with
+    "the address was empty".
 
     A Protocol nobody implements yet is the point here, not a gap. ADR-0002's
     lesson about a faked capability probe returning "looks fine" is exactly why
     C1-C3 raise rather than accept an index and answer from it.
     """
+
+    def load_anchor(self, anchor_id: str) -> SourceAnchor | None:
+        """The anchor with this id, or ``None`` if the ledger has never heard of it.
+
+        ``None`` is a real answer and not a zero: it is ADR-0004 A12's
+        fabricated source, and it has to stay distinguishable from an anchor
+        that resolved to the wrong place.
+        """
+        ...
 
     def locate(self, anchor: SourceAnchor) -> LocatedContent | None:
         """Resolve one anchor. ``None`` if the anchor id is unknown to the ledger."""
