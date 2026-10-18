@@ -69,29 +69,42 @@ extracted row and says which version it used, so a caller comparing the two can
 detect the divergence. The policy is stated here rather than left implicit
 because the contracts do not answer it.
 
-**There is no anchors table.** ``SourceAnchor`` is a Pydantic model and nothing
-persists one yet, so ``locate`` cannot return ``None`` for an unknown anchor id
-the way its Protocol member documents: it is handed a whole anchor, so there is
-nothing to look up and no way to be unknown. The ``None`` branch belongs to a
-future anchor registry. Recorded rather than faked, because a ``locate`` that
-returned ``None`` for an anchor it simply had never heard of would make a
-fabricated source indistinguishable from a real one — ADR-0004 A12.
+**Where the anchor itself comes from.** ``SourceAnchor`` is a Pydantic model,
+so something has to persist one before C1 can be handed it -- and until
+revision 0007 nothing did. ``load_anchor`` reads the ``source_anchors``
+registry that migration created, and ``_locator_from_key`` rebuilds the
+locator from its canonical ``locator_key``. That round trip is the newest
+thing here and the easiest to break in a way nothing catches: a mis-rebuilt
+locator is still a *valid* locator, so it resolves, and the error surfaces as
+C1 having quietly read the wrong page rather than as an exception. It is why
+the registry stores one representation of the address and the reconstruction
+refuses rather than repairs.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Final, cast
 
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
 from labcairn.evidence.cite_support import LocatedContent, LocationResolution
-from labcairn.material.addressing import render_locator_key
-from labcairn.sources.source import SourceAnchor
+from labcairn.material.addressing import render_locator_key, split_locator_key
+from labcairn.sources.locators import SourceLocator
+from labcairn.sources.source import AnchorKind, SourceAnchor
 
-__all__ = ["Hit", "build_match_expression", "locate_anchor", "read_content_hash", "search"]
+__all__ = [
+    "Hit",
+    "LabCairnIndex",
+    "build_match_expression",
+    "load_anchor",
+    "locate_anchor",
+    "read_content_hash",
+    "search",
+]
 
 #: SQLite's own default cap, restated so a caller raising it is doing so
 #: visibly rather than by discovering SQLite's number in a traceback.
@@ -260,6 +273,116 @@ def _with_source(hit: Hit, source_id: str) -> Hit:
         text=hit.text,
         source_ids=(*hit.source_ids, source_id),
     )
+
+
+def _locator_from_key(locator_key: str) -> SourceLocator:
+    """Rebuild the locator that :func:`render_locator_key` rendered.
+
+    The inverse direction, and the one place a bug would be invisible: a wrong
+    reconstruction does not raise, it returns a *different valid* address, and
+    every check downstream then resolves happily against the wrong page.
+
+    ``split_locator_key`` returns a ``dict[str, str]`` -- the length-prefixed
+    components, including the leading ``k`` that names the union member. So
+    every field arrives as text and the integers have to be parsed here, which
+    is the whole reason this function exists and the reason it is a decision
+    rather than a lookup.
+
+    Refuse rather than repair. A key whose components do not fit its kind is a
+    corrupt row, and :class:`~labcairn.material.addressing.LocatorKeyError`
+    is what says so -- the same error ``render_locator_key`` raises for a
+    locator whose typed fields contradict its kind, so the two directions fail
+    identically rather than only the awkward one.
+    """
+    # TODO(human): dispatch on the leading `k` field and build the right member.
+    # See the module's `load_anchor` docstring and the key grammar below.
+    raise NotImplementedError
+
+
+def load_anchor(connection: Connection, anchor_id: str) -> SourceAnchor | None:
+    """The anchor with this id, or ``None`` if the ledger has never heard of it.
+
+    **This is the seam ADR-0004's C1 requirement was missing.** The contract
+    says C1 must "fail if an anchor id is unknown"; a record carries
+    ``anchor_ids`` as bare strings and ``SourceIndex.locate`` takes a whole
+    :class:`SourceAnchor`. Without this function there is no path between the
+    two, so the requirement had nothing implementing it.
+
+    ``None`` means **no such id**, which is ADR-0004 A12's fabricated source.
+    It is deliberately *not* also the answer for a row that exists but cannot
+    be read: a corrupt ``locator_key`` raises :class:`LocatorKeyError` instead,
+    because "the ledger has never heard of this" and "the ledger has a broken
+    row" are different findings and a report that cannot tell them apart will
+    eventually call one the other. A caller turning either into a verdict is
+    doing that at the *check*, not here.
+
+    The key grammar this parses, one per union member::
+
+        k=3:pdf|p=1:4
+        k=3:pdf|p=1:2|c=5:10-99
+        k=4:text|l=1:7
+        k=4:text|l=1:7|le=1:9|s=7:Methods
+        k=3:csv|r=2:12|c=4:mean
+        k=4:xlsx|sh=2:S1|c=2:B2
+
+    Note that ``c`` is three different things depending on the kind: a PDF's
+    character span (``start-end``), a CSV's column header, and an XLSX's cell
+    reference. Reading it without dispatching on ``k`` first is how one becomes
+    another silently.
+    """
+    row = connection.execute(
+        sql_text(
+            "SELECT anchor_id, source_id, kind, locator_key, bound_source_sha256,"
+            "       excerpt_sha256, created_at"
+            "  FROM source_anchors WHERE anchor_id = :anchor_id"
+        ),
+        {"anchor_id": anchor_id},
+    ).fetchone()
+    if row is None:
+        return None
+
+    anchor_id_, source_id, kind, locator_key, bound_sha, excerpt_sha, created_at = cast(
+        "tuple[str, str, str, str, str, str | None, datetime]", tuple(row)
+    )
+    return SourceAnchor(
+        anchor_id=anchor_id_,
+        source_id=source_id,
+        kind=AnchorKind(kind),
+        locator=_locator_from_key(locator_key),
+        bound_source_sha256=bound_sha,
+        excerpt_sha256=excerpt_sha,
+        created_at=created_at,
+    )
+
+
+class LabCairnIndex:
+    """The concrete :class:`~labcairn.evidence.cite_support.SourceIndex`.
+
+    Three members and one connection. It exists because the Protocol had no
+    implementation: a ``Protocol`` nothing satisfies is a description, and
+    anything handed one could get a duck-typed stand-in that answers from
+    nothing. This class is the one place a C1-C3 call can be routed, and it
+    routes to the store.
+
+    Stateless with respect to the store -- it holds no cache and makes no
+    decision. A caller that wants a snapshot asks inside a transaction, because
+    the alternative is an index that answers about a store that has since moved.
+    """
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def load_anchor(self, anchor_id: str) -> SourceAnchor | None:
+        """See :func:`load_anchor`."""
+        return load_anchor(self._connection, anchor_id)
+
+    def locate(self, anchor: SourceAnchor) -> LocatedContent | None:
+        """See :func:`locate_anchor`. Never ``None``: see its docstring."""
+        return locate_anchor(self._connection, anchor)
+
+    def content_hash(self, source_id: str) -> str | None:
+        """See :func:`read_content_hash`."""
+        return read_content_hash(self._connection, source_id)
 
 
 def locate_anchor(connection: Connection, anchor: SourceAnchor) -> LocatedContent:

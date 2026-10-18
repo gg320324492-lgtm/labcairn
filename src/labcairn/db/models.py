@@ -1,4 +1,10 @@
-"""The eight tables that make SQLite the task authority.
+"""The fifteen tables that make SQLite the task authority.
+
+Fifteen is not a claim to be trusted: ``tests/test_evidence_schema.py``'s parity
+test walks ``Base.metadata`` and the migrated schema independently, and that is
+what catches a table added to one and not the other. It is written here so a
+reader knows the scope of the file, and it has been wrong before -- it still said
+"eight" after LC-P1-08 and T01 added six tables -- because nothing recomputed it.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -203,6 +209,37 @@ def _no_edge_whitespace(column: str) -> str:
     """SQL for "this column neither begins nor ends with whitespace"."""
     cls = _whitespace_class()
     return f"{column} NOT GLOB '{cls}*' AND {column} NOT GLOB '*{cls}'"
+
+
+def _locator_kind_glob_check() -> str:
+    """SQL restricting ``locator_key`` to the four kinds LabCairn can resolve.
+
+    A rendered key opens with its length-prefixed discriminator --
+    ``k=3:csv|``, ``k=4:xlsx|`` -- so the prefix is *generated* from the kind
+    rather than written out, for two reasons that each cost a bug:
+
+    * the prefix length is the kind's spelling length and is not constant
+      (``pdf`` and ``csv`` are 3, ``text`` and ``xlsx`` are 4). A hand-written
+      ``k=3:`` accepted the first two and refused the other two;
+    * the length prefix is exactly what makes the key injective, so a
+      constraint that ignores it is not constraining the thing the key is for.
+
+    Generated here for the reason :func:`_a1_glob_check` generates its 21
+    alternatives: a hand-written list of GLOBs is a second spelling of a
+    closed set, and closed sets are where the second spelling drifts.
+
+    **No ``?`` wildcard, and that is not an oversight.** ``locator_key GLOB
+    'k=?:csv|*'`` reads better and cannot be used: SQLAlchemy reads ``:csv`` as
+    a bind parameter, so all four alternatives compiled to the literal
+    ``'k=?NULL|*'`` and the table accepted nothing. The parity test passed
+    through it, because the migration and the ORM were mangled identically --
+    a test comparing two texts cannot catch both being wrong. Only writing a
+    row that must be refused catches it.
+    """
+    return " OR ".join(
+        f"locator_key GLOB 'k={len(kind)}:{kind}|*'"
+        for kind in ("pdf", "text", "csv", "xlsx")
+    )
 
 
 def _a1_glob_check(column: str) -> str:
@@ -988,6 +1025,87 @@ class SourceTextRow(Base):
 #   a row rather than a property of one.
 
 
+class SourceAnchorRow(Base):
+    """One :class:`~labcairn.sources.source.SourceAnchor`, persisted.
+
+    This is the *address* half of a citation. ``EvidenceAnchorRow`` below is the
+    *reference* half -- which anchors one record cites, in what order -- and the
+    two are easy to confuse, so: this table is what an anchor **is**, that one is
+    who **points at** it. C1 needs this one, because a record carries
+    ``anchor_ids`` as bare strings and cannot reach a locator without it.
+
+    **The locator is one column, not eight.** ``source_texts`` stores the
+    rendered ``locator_key`` *and* the typed locator columns, and nothing in
+    that schema requires the two to agree. Storing both here would have been
+    consistent with that precedent and wrong: :meth:`load_anchor` would have to
+    pick which to rebuild the anchor from, and picking wrong does not raise --
+    it yields a *different, valid* address, which C1 then resolves successfully
+    against the wrong page. That is ADR-0004 A1's prohibition (no nearest-page
+    fallback) arriving by a route nobody was watching.
+
+    So ``locator_key`` is the whole locator, and the union discriminator is its
+    leading component rather than a column of its own::
+
+        k=3:pdf|p=1:4
+        k=3:csv|r=2:12|c=4:mean
+
+    ``split_locator_key`` hands the ``k`` back like any other field, so nothing
+    is left that could fall out of step. ``kind`` is still a column because it is
+    not a locator fact: it records what the anchor is *for* (quotation, numeric,
+    structural, absence_scan) and never appears in the key.
+    """
+
+    __tablename__ = "source_anchors"
+
+    #: Caller-minted, not a row number: a record may cite an anchor made in an
+    #: earlier run, so identity cannot depend on insertion order.
+    anchor_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    locator_key: Mapped[str] = mapped_column(String(2000), nullable=False)
+    #: The source's hash **as it was when this anchor was made**. C1 compares
+    #: it against the current hash; nothing ever refreshes it (ADR-0004 I4),
+    #: which is why it is stored rather than joined through ``sources``.
+    bound_source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    excerpt_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        # Closed vocabulary, same standard as ``events.type`` and
+        # ``source_texts``: an unrecognised value must be refused rather than
+        # coerced, because a coerced kind reconstructs an anchor nobody made.
+        CheckConstraint(
+            "kind IN ('quotation', 'numeric', 'structural', 'absence_scan')",
+            name="source_anchors_kind_vocabulary",
+        ),
+        # The locator's kind is the key's leading `k=` component, generated by
+        # the length prefix's own rule rather than written out. See
+        # _locator_kind_glob_check for why a `?` wildcard cannot be used here.
+        CheckConstraint(
+            _locator_kind_glob_check(),
+            name="source_anchors_locator_key_vocabulary",
+        ),
+        CheckConstraint(
+            "length(bound_source_sha256) = 64 "
+            "AND bound_source_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="source_anchors_bound_sha256_shape",
+        ),
+        CheckConstraint(
+            "excerpt_sha256 IS NULL OR (length(excerpt_sha256) = 64 "
+            "AND excerpt_sha256 NOT GLOB '*[^0-9a-f]*')",
+            name="source_anchors_excerpt_sha256_shape",
+        ),
+        # '' as a locator_key is a storable address that resolves to nothing --
+        # the defect 0005 found in source_texts.
+        CheckConstraint(
+            "length(locator_key) > 0 AND length(anchor_id) > 0 AND length(source_id) > 0",
+            name="source_anchors_ids_present",
+        ),
+        # C1 resolves by id on every check, so this is the table's only hot path.
+        Index("ix_source_anchors_source", "source_id"),
+    )
+
+
 class EvidenceAnchorRow(Base):
     """One anchor cited by one evidence record.
 
@@ -1009,12 +1127,13 @@ class EvidenceAnchorRow(Base):
     anchor_id: Mapped[str] = mapped_column(String(200), nullable=False)
 
     __table_args__ = (
-        # The anchor table is not created by this work order, so a foreign key
-        # to it is not available yet. It is deliberately NOT faked with a loose
-        # reference: an anchor id naming nothing is precisely a fabricated
-        # source, and C1 is what must catch it. A foreign key here would make
-        # the row unstorable instead, turning a checkable failure into a
-        # constraint error the caller cannot read.
+        # No foreign key to ``source_anchors``, even though revision 0007 now
+        # creates it. Deliberate, and the reason is A12 rather than sequencing:
+        # an anchor id naming nothing is precisely a fabricated source, and C1
+        # is what must catch it. A foreign key would make the row unstorable
+        # instead, turning a checkable failure into a constraint error the
+        # caller cannot read -- and it would refuse the *write* rather than
+        # report the *finding*, which are different acts.
         UniqueConstraint("evidence_id", "position", name="uq_evidence_anchors_position"),
         # Duplicates are not meaningful, and ADR-0004's validator rejects them
         # on the record. This makes the same refusal true of the rows.

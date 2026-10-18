@@ -77,6 +77,10 @@ EXPECTED_TABLES = frozenset(
         "evidence_records",
         "evidence_anchors",
         "verification_records",
+        # LC-P1-09 T05a. `evidence_anchors` above records *which* anchors a
+        # record cites; this is what an anchor *is*, and without it C1 cannot
+        # turn the `anchor_ids` a record carries into a locator.
+        "source_anchors",
         # The FTS5 index, and the only table in this schema deliberately
         # absent from ``Base.metadata``. It is listed here rather than derived
         # from the metadata precisely because it is not there -- a test that
