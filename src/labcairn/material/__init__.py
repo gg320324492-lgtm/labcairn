@@ -32,6 +32,15 @@ from labcairn.material.addressing import (
     split_locator_key,
 )
 from labcairn.material.delimited import CsvAdapter, sniff_delimiter
+from labcairn.material.ingest import (
+    IngestedMaterial,
+    IngestedText,
+    IngestOutcome,
+    ingest_bytes,
+    ingest_into_store,
+    kind_for_path,
+    to_text_row,
+)
 from labcairn.material.pdf import PdfAdapter
 from labcairn.material.spreadsheet import SpreadsheetAdapter, render_cell
 from labcairn.material.text import MarkdownAdapter, PlainTextAdapter, decode_text
@@ -51,6 +60,7 @@ from labcairn.material.version import (
     derive_extraction_version,
     library_versions,
 )
+from labcairn.material.walk import WalkReport, ingest_workspace
 
 __all__ = [
     "Adapter",
@@ -59,16 +69,24 @@ __all__ = [
     "ExtractionProblem",
     "ExtractionResult",
     "ExtractionVersionError",
+    "IngestOutcome",
+    "IngestedMaterial",
+    "IngestedText",
     "LocatorKeyError",
     "MarkdownAdapter",
     "PdfAdapter",
     "PlainTextAdapter",
     "SpreadsheetAdapter",
     "UnknownAdapterError",
+    "WalkReport",
     "adapter_for",
     "assert_version_tracks_source",
     "decode_text",
     "derive_extraction_version",
+    "ingest_bytes",
+    "ingest_into_store",
+    "ingest_workspace",
+    "kind_for_path",
     "library_versions",
     "register",
     "registered_kinds",
@@ -76,4 +94,5 @@ __all__ = [
     "render_locator_key",
     "sniff_delimiter",
     "split_locator_key",
+    "to_text_row",
 ]
