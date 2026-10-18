@@ -9,7 +9,11 @@ from ADR-0008 that are about text rather than schema actually bind:
   names;
 * the text is the author's words, with spaces -- which is the adapter's
   problem, and is disclosed here when it cannot be met;
-* reading order is column-aware, and rotated text is handled or reported;
+* reading order is **not** column-aware. A PDF page that reads as two columns
+  is refused and disclosed rather than extracted, because splicing the columns
+  stores sentences the author never wrote; rotated text is likewise not
+  detected, so a rotated page would extract in the wrong order and nothing
+  would say so;
 * the extraction version is recorded, so a library upgrade is attributable.
 
 Two things this deliberately does **not** do.
@@ -53,8 +57,25 @@ if TYPE_CHECKING:
 #: Problems meaning the material could not be opened at all, as opposed to
 #: opened and found wanting. These are what make a source UNPARSEABLE.
 _UNOPENABLE: Final[frozenset[str]] = frozenset(
-    {"no_adapter_for_kind", "text_not_decodable", "xlsx_unreadable", "xlsx_unparseable"}
+    {
+        "no_adapter_for_kind",
+        "text_not_decodable",
+        "xlsx_unreadable",
+        "xlsx_unparseable",
+        "pdf_unreadable",
+        "pdf_extraction_failed",
+        "pdf_multicolumn_unsupported",
+    }
 )
+
+#: Problems meaning the material is intact and carries no text layer, which is
+#: a different fact from a container we could not open. These are what make a
+#: source UNREADABLE_NO_OCR, and that member is not decorative: it exists in
+#: ADR-0010's vocabulary, in the schema's CHECK constraint and in the
+#: disclosure's non-null requirement, and before this set was split out no code
+#: path in ``src/`` produced it at all -- a scanned PDF came out ``READABLE``
+#: and therefore citable, which is the opposite of what the state is for.
+_NO_TEXT_LAYER: Final[frozenset[str]] = frozenset({"pdf_no_text_layer"})
 
 #: ``readability_disclosure`` is free text a user reads; a wall of every
 #: problem would be unreadable, and its point is to be read.
@@ -146,6 +167,23 @@ def _adapter_version(adapter: Adapter) -> str:
     return derive_extraction_version(adapter.source_modules(), adapter.libraries())
 
 
+def _id_for_path(relative_path: str) -> str:
+    """A source id that identifies a *location*, not a version of its bytes.
+
+    Deriving it from the content hash instead -- which this did -- makes every
+    edit a new material. Two things then break, and neither announces itself.
+    ``sources.relative_path`` is UNIQUE, so re-ingesting an edited file raised
+    ``IntegrityError``; and because this function opens no transaction of its
+    own and rolls nothing back, the caller's session stayed poisoned, failing
+    every later call with ``PendingRollbackError`` even for unrelated files.
+
+    ``walk.py`` passed an explicit location-derived id and so never hit either,
+    which is why 508 material tests stayed green against a public API that
+    could not be called twice on an edited file.
+    """
+    return f"src-{hashlib.sha256(relative_path.encode('utf-8')).hexdigest()[:16]}"
+
+
 def ingest_bytes(
     data: bytes,
     *,
@@ -157,9 +195,13 @@ def ingest_bytes(
     """Read one material and produce the rows that describe it.
 
     ``source_id`` is accepted so a caller can keep a stable identity across
-    re-ingests of the same path; one is derived from the path's SHA-256 when
-    omitted, so the same bytes at the same path produce the same id on two
-    machines without a shared database.
+    re-ingests of the same path. When omitted it is derived from the path
+    alone -- *not* from the bytes -- so two machines ingesting the same
+    workspace agree on it, and **editing a file does not make it a new
+    material**. That second half is the point: a content-derived id turns
+    every edit into a different source, and ``sources.relative_path`` is
+    UNIQUE, so the second ingest of an edited file cannot be stored at all.
+    See :func:`_id_for_path`.
     """
     kind = kind_for_path(relative_path)
     digest = _content_hash(data)
@@ -187,14 +229,23 @@ def ingest_bytes(
         )
 
     # Readability, which is a claim about the bytes rather than about the
-    # parse. Three states, and the two easy ones are both wrong for material
-    # we could not open: ``READABLE`` asserts the source "may be indexed and
-    # cited", which is false of it, and ``UNREADABLE_NO_OCR`` asserts *no
-    # text layer*, which is a different and equally false claim about a file
-    # whose container is broken. ``UNPARSEABLE`` says the third thing --
-    # we could not read it, and we say why.
+    # parse. Three states, and picking the wrong one puts a falsehood in the
+    # one field that decides citability.
+    #
+    # ``READABLE`` asserts the source "may be indexed and cited", which is
+    # false of anything this pass produced no text for. ``UNREADABLE_NO_OCR``
+    # asserts *no text layer*, which is true of a scan and false of a broken
+    # container -- and false, in the other direction, of a two-column page we
+    # declined to read. ``UNPARSEABLE`` is the remaining bucket: we did not
+    # obtain usable text, and the disclosure says which of those it was.
     unopenable = _UNOPENABLE & {p.code for p in problems}
-    if unopenable:
+    no_text_layer = _NO_TEXT_LAYER & {p.code for p in problems}
+    if no_text_layer:
+        readability = SourceReadability.UNREADABLE_NO_OCR
+        disclosure = "; ".join(p.detail for p in problems if p.code in no_text_layer)[
+            :_DISCLOSURE_LIMIT
+        ]
+    elif unopenable:
         readability = SourceReadability.UNPARSEABLE
         disclosure = "; ".join(p.detail for p in problems if p.code in unopenable)[
             :_DISCLOSURE_LIMIT
@@ -218,7 +269,7 @@ def ingest_bytes(
             )
 
     source = Source(
-        source_id=source_id or f"src-{digest[:16]}",
+        source_id=source_id or _id_for_path(relative_path),
         kind=kind,
         display_name=display_name,
         relative_path=relative_path,

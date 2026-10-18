@@ -29,17 +29,20 @@ extraction version that moves when pdfplumber's moves, no locale in any value,
 scanned pages recorded as unreadable rather than empty, and no exception
 escaping for any input.
 
-One unit per page. A character range within a page is what
-``PdfLocator.char_start``/``char_end`` address, computed against this page's
-stored text -- so a page of the right length yields a range that means what it
-says.
+One unit per page, carrying the page number and the page's text. A character
+range within a page is what ``PdfLocator.char_start``/``char_end`` address,
+and **the adapter does not set them** -- every locator it produces is
+page-level, with no span. The contract allows an omitted span for a whole-page
+quote, so this is conformant rather than broken, but a reader must not infer
+that per-page ranges are available here.
 """
 
 from __future__ import annotations
 
+import math
 import sys
 from types import ModuleType
-from typing import Any
+from typing import Any, Final
 
 from labcairn.material.units import (
     ExtractedUnit,
@@ -51,6 +54,102 @@ from labcairn.sources.locators import PdfLocator
 from labcairn.sources.source import SourceKind
 
 __all__ = ["PdfAdapter"]
+
+#: Thresholds for the two-column refusal, disclosed because MANIFEST.md records
+#: that this paper's geometry does not permit a cleverer choice.
+#:
+#: The obvious approach -- measure the horizontal gap and cut where it is wide --
+#: is ruled out by measurement, not taste. On ``arx-2610.12393`` the gap
+#: distribution decays continuously with no break: p90 is 16.68pt and **4% of
+#: all gaps fall in 15-30pt**, which is exactly where a real gutter lives. A
+#: threshold set anywhere in gutter territory slices through the word-gap
+#: population instead of separating from it.
+#:
+#: So the signal is positional rather than a size. Each line is cut into
+#: horizontally contiguous runs, and the runs' left edges are clustered. Two
+#: clusters at least 80pt apart, each carrying lines of its own, is a
+#: two-column page. Cutting the line first is not optional: the two columns
+#: share baselines, so grouping characters by baseline merges them and reports
+#: one column for material that plainly has two -- the exact failure MANIFEST.md
+#: names in the method that classified the corpus.
+_RUN_GAP_PT: Final[float] = 20.0
+_CLUSTER_TOL_PT: Final[float] = 8.0
+_COLUMN_SEP_PT: Final[float] = 80.0
+_MIN_LINES_PER_CLUSTER: Final[int] = 2
+
+#: A rival cluster must hold at least this share of the page's line starts
+#: before the page is called two-column.
+#:
+#: The figure is not a guess, it is bracketed by measurement in both
+#: directions. Real single-column pages *do* produce a second cluster, because
+#: cutting a line at a wide internal gap is exactly what happens around a
+#: figure, a table or an equation: seven pages across the three fixture papers
+#: cluster at 20-26%, and the highest is 26%. A genuine two-column page splits
+#: near evenly, and the synthetic control used by the tests splits 50/50. So
+#: 30%, 35% and 40% all refuse nothing on the real corpus and all still refuse
+#: the control; 35% is the midpoint of the empty band rather than an edge of it.
+_MIN_COLUMN_SHARE: Final[float] = 0.35
+
+
+def _two_column_evidence(page: Any) -> str | None:
+    """Why this page reads as two columns, or ``None`` if it reads as one.
+
+    A page with no extractable words has no opinion here; the caller's
+    no-text-layer path is the one that speaks for it.
+
+    A cluster counts only if it carries a real share of the page. Cutting each
+    baseline into column-local runs is not optional -- the two columns share
+    baselines, so taking only each line's first word would place every start in
+    the left column and report one column for material that plainly has two,
+    which is the failure MANIFEST.md names in the method that classified the
+    corpus. The cost of cutting is that real single-column lines contain gaps as
+    wide as a gutter, so the rival cluster must also hold its share of the page
+    before the page is called two-column.
+    """
+    lines: dict[float, list[tuple[float, float]]] = {}
+    for word in page.extract_words():
+        lines.setdefault(round(float(word["top"]), 1), []).append(
+            (float(word["x0"]), float(word["x1"]))
+        )
+
+    starts: list[float] = []
+    for spans in lines.values():
+        spans.sort()
+        run_start = spans[0][0]
+        previous_end = spans[0][1]
+        for start, end in spans[1:]:
+            if start - previous_end > _RUN_GAP_PT:
+                starts.append(run_start)
+                run_start = start
+            previous_end = end
+        starts.append(run_start)
+
+    if len(starts) < _MIN_LINES_PER_CLUSTER:
+        return None
+
+    clusters: list[list[float]] = []
+    for start in sorted(starts):
+        if clusters and start - clusters[-1][-1] <= _CLUSTER_TOL_PT:
+            clusters[-1].append(start)
+        else:
+            clusters.append([start])
+
+    dominant = max(clusters, key=len)
+    share_needed = max(_MIN_LINES_PER_CLUSTER, math.ceil(len(starts) * _MIN_COLUMN_SHARE))
+    rivals = [
+        c
+        for c in clusters
+        if c is not dominant
+        and len(c) >= share_needed
+        and abs(sum(c) / len(c) - sum(dominant) / len(dominant)) >= _COLUMN_SEP_PT
+    ]
+    if not rivals:
+        return None
+    edges = ", ".join(
+        f"{min(c):.0f}pt on {len(c)}/{len(starts)} lines" for c in [dominant, *rivals]
+    )
+    nearest = min(abs(sum(c) / len(c) - sum(dominant) / len(dominant)) for c in rivals)
+    return f"line starts cluster at {edges}, nearest {nearest:.0f}pt from the dominant column"
 
 
 @register
@@ -93,6 +192,22 @@ class PdfAdapter:
                                     f"OCR is not available in this phase, so the page "
                                     f"is recorded as unreadable rather than cited as "
                                     f"empty."
+                                ),
+                                location=f"page {index}",
+                            )
+                        )
+                        continue
+                    columns = _two_column_evidence(page)
+                    if columns is not None:
+                        problems.append(
+                            ExtractionProblem(
+                                code="pdf_multicolumn_unsupported",
+                                detail=(
+                                    f"page {index} reads as two columns ({columns}). "
+                                    f"Reading order is not reconstructed, so extracting "
+                                    f"would splice the columns into sentences the author "
+                                    f"never wrote. The page is not extracted and not "
+                                    f"cited rather than stored wrong."
                                 ),
                                 location=f"page {index}",
                             )
