@@ -313,7 +313,9 @@ class SourceIndex(Protocol):
 
 
 class CiteSupportNotImplementedError(NotImplementedError):
-    """Raised by C1, C2 and C3 in Phase 1.
+    """Raised by the cite-support checks that are not yet implemented.
+
+    Today that is C2 and C3; C1 landed with LC-P1-09 T05.
 
     Subclasses :class:`NotImplementedError` so a caller that genuinely wants to
     probe for the implementation can catch the standard type, and carries the
@@ -329,10 +331,9 @@ class CiteSupportNotImplementedError(NotImplementedError):
     def __init__(self, check: CheckKind) -> None:
         super().__init__(
             f"{check.value} is a declared cite-support contract with no Phase 1 "
-            f"implementation. C1-C3 land with LC-P1-09's index; only "
-            f"{sorted(c.value for c in IMPLEMENTED_CHECKS)} can answer today. "
-            f"Callers must handle the unimplemented case rather than treat the "
-            f"absence of a verdict as agreement."
+            f"implementation. Only {sorted(c.value for c in IMPLEMENTED_CHECKS)} "
+            f"can answer today. Callers must handle the unimplemented case rather "
+            f"than treat the absence of a verdict as agreement."
         )
         self.check = check
 
@@ -351,14 +352,20 @@ def check_source_exists(record: EvidenceRecord, *, index: SourceIndex) -> Verdic
         resolve, and ``indeterminate`` if the material is present but is a format
         LabCairn cannot address (e.g. a scanned PDF with no OCR).
 
-    Phase 1: not implemented. See :class:`CiteSupportNotImplementedError`.
+    Implemented in :mod:`labcairn.evidence.checks.c1` (LC-P1-09 T05), and the
+    import is inside the function rather than at module level: ``checks/c1.py``
+    needs ``Verdict`` and ``SourceIndex`` from this module, so a top-level
+    import would make the package import itself before it had finished defining
+    the types its own implementation depends on.
 
     Note what this must never do, per ADR-0004 A1: when an anchor does not
     resolve, the answer is ``fail`` and the report cites **nothing**. There is no
     nearest-page fallback, because :class:`~labcairn.sources.source.SourceAnchor`
     has no free-text label to trim.
     """
-    raise CiteSupportNotImplementedError(CheckKind.C1)
+    from labcairn.evidence.checks.c1 import check_source_exists as _c1
+
+    return _c1(record, index=index)
 
 
 # ---------------------------------------------------------------------------

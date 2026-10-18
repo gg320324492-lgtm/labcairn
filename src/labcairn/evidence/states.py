@@ -23,8 +23,8 @@ Three of these enums carry the weight ADR-0004 puts on them:
 
 :class:`CheckKind`
     Exactly C1-C4. :data:`IMPLEMENTED_CHECKS` says which of them can answer
-    today, and today that is only C4 — see
-    :mod:`labcairn.evidence.cite_support`.
+    today — C1 and C4 — and
+    :mod:`labcairn.evidence.cite_support` explains why the others refuse.
 """
 
 from __future__ import annotations
@@ -180,11 +180,12 @@ class CheckOutcome(StrEnum):
 
 #: The checks that may report anything other than ``not_checked``.
 #:
-#: Today this is *only* C4, and that is the point: the set says out loud that
-#: nothing in Phase 1 can establish a scientific interpretation, and it is a
-#: value a report can ask. Adding C1-C3 at LC-P1-09 means changing this line,
-#: which is a reviewed edit rather than an invisible capability that appeared.
-IMPLEMENTED_CHECKS: Final[frozenset[CheckKind]] = frozenset({CheckKind.C4})
+#: C4 by construction (its only verdict is ``not_checked``), and C1 since
+#: LC-P1-09 T05 — see :mod:`labcairn.evidence.checks.c1`. C2 and C3 still
+#: raise. The set is a value a report can ask: it says out loud what this build
+#: can establish. Adding a check means changing this line, which is a reviewed
+#: edit rather than an invisible capability that appeared.
+IMPLEMENTED_CHECKS: Final[frozenset[CheckKind]] = frozenset({CheckKind.C1, CheckKind.C4})
 
 #: Every check the model knows about. Closed, per ADR-0004 I2.
 CHECK_KINDS: Final[frozenset[CheckKind]] = frozenset(CheckKind)
