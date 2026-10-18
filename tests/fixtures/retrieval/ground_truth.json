@@ -1,0 +1,155 @@
+{
+  "$comment": [
+    "Ground truth for retrieval, over the three CC-BY fixtures in",
+    "tests/fixtures/papers/. Written by READING the papers and recording what",
+    "each one says where -- not by running a retriever and keeping what it",
+    "found. A ground truth produced that way can only prove the index is",
+    "deterministic, which is not the claim the work order makes.",
+    "",
+    "`expect` is the set of CORRECT answers, not one correct answer. Several",
+    "phrases legitimately occur on several pages, and pinning a single page",
+    "would make the set fail for being right. A query with an empty `expect`",
+    "must retrieve nothing, which is ADR-0004 A6 (a genuine absence) and A12",
+    "(a fabricated source must not be findable).",
+    "",
+    "Matching is whitespace-insensitive, and that is a property of the corpus",
+    "rather than a convenience. ADR-0008 measured space glyphs at 0.03%-1.08%",
+    "across these papers: they space words by positioning, so extracted body",
+    "text arrives with words run together ('Dijkstra'salgorithmis'). A set",
+    "written with spaces would therefore describe text no query can match. The",
+    "one exception is recorded below rather than smoothed over.",
+    "",
+    "The scope of this set is what it is: three papers, all single-column,",
+    "70 pages, no two-column material. It can say a query finds the right",
+    "excerpt. It cannot say the index handles a layout the corpus does not",
+    "contain."
+  ],
+
+  "papers": {
+    "arx-2610.09396.pdf": {
+      "title": "ARCS: Towards Precise Text-to-SQL via Structured Disambiguation",
+      "pages": 29
+    },
+    "arx-2610.10596.pdf": {
+      "title": "Dijkstra Is NOT Greedy: A Global-to-Local Proof of Correctness",
+      "pages": 9
+    },
+    "arx-2610.12393.pdf": {
+      "title": "HRIL: Learning Multimodal Synergy via Higher-Order Tensor Modeling",
+      "pages": 32
+    }
+  },
+
+  "queries": [
+    {
+      "id": "dq-10596-affiliation",
+      "query": "Hangzhou Normal University",
+      "expect": [{ "source": "arx-2610.10596.pdf", "pages": [1] }],
+      "expect_text_contains": "Hangzhou Normal University",
+      "why": "The author's affiliation, on the title page. Unique in the corpus: no other paper is authored from that institution, so a retriever that also returned the other two papers would be answering a different question."
+    },
+    {
+      "id": "dq-10596-greedy-selection-rule",
+      "query": "customary greedy selection rule",
+      "expect": [{ "source": "arx-2610.10596.pdf", "pages": [2] }],
+      "expect_text_contains": "customary greedy selection rule",
+      "why": "A sentence about prior work (Sniedovich), not the paper's own claim. It appears once, in the space-separated paper, so it is also the case that proves the retriever handles normally-spaced text."
+    },
+    {
+      "id": "dq-10596-global-path-minimum",
+      "query": "Global Path Minimum",
+      "expect": [{ "source": "arx-2610.10596.pdf", "pages": [4] }],
+      "expect_text_contains": "The Global Path Minimum",
+      "why": "Section 3.1's heading. Tests that a heading is indexed as content rather than skipped as structure."
+    },
+    {
+      "id": "dq-10596-three-vertex-sets",
+      "query": "Three Vertex Sets",
+      "expect": [{ "source": "arx-2610.10596.pdf", "pages": [2] }],
+      "expect_text_contains": "Three Vertex Sets",
+      "why": "Section 2.1's heading, on a different page from the other heading query, so a retriever pinned to one page of a paper fails here."
+    },
+    {
+      "id": "dq-09396-database-construction",
+      "query": "DatabaseConstruction",
+      "expect": [{ "source": "arx-2610.09396.pdf", "pages": [5] }],
+      "expect_text_contains": "DatabaseConstruction",
+      "why": "Section 4.1. From a paper whose body text arrives with words run together, so it exercises the opposite extraction shape from the Dijkstra queries."
+    },
+    {
+      "id": "dq-09396-evaluation-metrics",
+      "query": "EvaluationMetrics",
+      "expect": [{ "source": "arx-2610.09396.pdf", "pages": [7, 25] }],
+      "expect_text_contains": "EvaluationMetrics",
+      "why": "Appears as section 4.5 on page 7 and again in the appendix on page 25. Recorded as both: a single expected page would be wrong."
+    },
+    {
+      "id": "dq-09396-title",
+      "query": "Structured Disambiguation",
+      "expect": [{ "source": "arx-2610.09396.pdf", "pages": [1, 3, 9, 25, 26, 27] }],
+      "expect_text_contains": "Structured Disambiguation",
+      "why": "Six occurrences across the paper. The broadest expectation in the set, and the one that would break a retriever that silently caps results per source."
+    },
+    {
+      "id": "dq-12393-irreducible-gap",
+      "query": "irreduciblesynergisticgap",
+      "expect": [{ "source": "arx-2610.12393.pdf", "pages": [4] }],
+      "expect_text_contains": "irreduciblesynergisticgap",
+      "why": "The only unambiguous phrase in a math-heavy paper, and it is written space-free because that is how it sits in the extracted text. A query authored with spaces would find nothing here, which is the corpus's property and not the retriever's failure."
+    },
+    {
+      "id": "dq-12393-ablation",
+      "query": "AblationStudies",
+      "expect": [{ "source": "arx-2610.12393.pdf", "pages": [9] }],
+      "expect_text_contains": "AblationStudies",
+      "why": "Section 5's heading, in the longest paper of the three."
+    },
+    {
+      "id": "dq-12393-total-correlation",
+      "query": "totalcorrelation",
+      "expect": [{ "source": "arx-2610.12393.pdf", "pages": [2, 4, 10, 14, 21] }],
+      "expect_text_contains": "totalcorrelation",
+      "why": "Five occurrences across theory, method, related work and appendix. Together with the ARCS title query, the two cases where a per-source result cap would show."
+    },
+    {
+      "id": "dq-12393-affiliation",
+      "query": "SouthwesternUniversityofFinance",
+      "expect": [{ "source": "arx-2610.12393.pdf", "pages": [1] }],
+      "expect_text_contains": "SouthwesternUniversityofFinance",
+      "why": "First of eleven author affiliations on the title page. Unique to this paper."
+    },
+
+    {
+      "id": "dq-neg-fabricated-doi",
+      "query": "10.9999/j.labcairn.2026.00001",
+      "expect": [],
+      "why": "ADR-0004 A12. A fabricated DOI must retrieve nothing. The string looks like an arXiv identifier and appears in no fixture."
+    },
+    {
+      "id": "dq-neg-fabricated-title",
+      "query": "Kolmogorov Complexity Bounds for Transformers",
+      "expect": [],
+      "why": "ADR-0004 A12 again, in the shape a fabricated citation actually takes: a plausible title rather than a malformed identifier. A retriever that invented an excerpt here would pass every positive query above."
+    },
+    {
+      "id": "dq-neg-out-of-corpus",
+      "query": "retrieval augmented generation",
+      "expect": [],
+      "why": "A term central to this project and absent from all three papers. Tests that the retriever reports absence rather than returning its nearest passage -- the failure that would let a citation cite whatever was closest."
+    },
+    {
+      "id": "dq-neg-other-project",
+      "query": "MicroBubble",
+      "expect": [],
+      "why": "Named in PHASE_1_WORKORDERS.md as a dependency the project must not have. Nothing in the corpus says it."
+    }
+  ],
+
+  "frozen": {
+    "$comment": "The empty query is a caller-level case, not a MATCH query: SQLite's FTS5 rejects an empty MATCH string as a syntax error. It belongs to the retrieval API's argument validation, not to this set, and is listed so it is not forgotten rather than tested here.",
+    "empty_string_query": {
+      "expect": [],
+      "why": "ADR-0004 A6: an empty query is an absence, not an error and not a match-everything."
+    }
+  }
+}

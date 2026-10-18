@@ -99,7 +99,7 @@ in the PR rather than editing it.
 |---|---|
 | T01 | `migrations/versions/0005_*.py`, `src/labcairn/db/models.py` (evidence tables only) |
 | T02 | `src/labcairn/evidence/normalize.py`, `tests/test_evidence_normalize.py` |
-| T03 | `src/labcairn/evidence/index.py`, `tests/test_evidence_index.py` |
+| T03 | `src/labcairn/evidence/index.py`, `tests/test_evidence_index.py` (consumes the ground-truth set, which it does not own) |
 | T04 | `src/labcairn/material/indexing.py`, `tests/test_material_indexing.py` |
 | T05 | `src/labcairn/evidence/checks/c1.py`, `tests/test_cite_c1.py` |
 | T06 | `src/labcairn/evidence/checks/c2.py`, `tests/test_cite_c2.py` |
@@ -149,6 +149,8 @@ not just the transformed string.
 ### T03 — the index
 
 The concrete `SourceIndex`: `locate` and `content_hash`.
+
+**The first thing to do is point `tests/test_evidence_index.py` at `tests/fixtures/retrieval/ground_truth.json`.** It exists already and is validated against the papers (§3), so an index that returns the wrong excerpt for `customary greedy selection rule`, or anything at all for a fabricated DOI, fails on the first run rather than after the checks are written.
 
 - **`locate` returns `None` for an unknown anchor id**, per the Protocol. It is
   not an error; C1 turns `None` into `fail`. Keeping that distinction is what
@@ -280,9 +282,32 @@ being worked on.
 
 Plus the work order's own acceptance: ground-truth queries identify the correct
 excerpts. That needs a **ground-truth query set** — queries whose correct
-answer is known. If none exists, T03's first subtask is building one, because
-"retrieval works" without a query whose right answer is recorded is not
-testable.
+answer is known.
+
+**It exists now**, ahead of T03, and lives outside every subtask's file
+ownership because it is data rather than code:
+`tests/fixtures/retrieval/ground_truth.json`, checked by
+`tests/test_retrieval_ground_truth.py`. Fifteen queries over the three CC-BY
+fixtures — eleven positive, four that must retrieve nothing — with each one
+carrying a page set and the reason it is there.
+
+Two properties of it are worth stating because they are what make it usable:
+
+- **The answers were read, not recorded.** Each expectation names the pages the
+  phrase occurs on, confirmed against the PDFs, so a retriever that returned
+  its own output would produce a set that only proves the index is
+  deterministic. `test_retrieval_ground_truth.py` imports no retrieval code at
+  all; it validates the annotations against the papers, which is what an input
+  to T03 has to be if the tests built on it are to mean anything.
+- **It is bounded, and says so.** Three single-column papers, 70 pages, no
+  two-column material. It can say a query finds the right excerpt. It cannot
+  say anything about a layout the corpus does not contain, and a test that
+  deletes that sentence is one of the eight in that file.
+
+The set's negatives are the ones ADR-0004 A6 and A12 need, including
+"retrieval augmented generation" — central to this project and absent from all
+three papers, so a retriever returning its nearest passage is demonstrably wrong
+rather than unmatched by luck.
 
 ## 4. What this work order cannot deliver
 
