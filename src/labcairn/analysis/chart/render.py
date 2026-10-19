@@ -74,10 +74,9 @@ What the manifest's environment does not cover
 The renderer's declared drawing parameters -- the figure's size, the
 histogram's bin count, and the digest of the declared settings -- are
 published as module constants and are **not** carried by the manifest's
-environment fingerprint, so the byte-identity claim is scoped to one
-recorded environment plus these three, and a reader comparing two
-manifests that say the same environment cannot tell from the manifests
-alone why the bytes differ.
+environment fingerprint, so a reader comparing two manifests that say the
+same environment cannot tell from the manifests alone why the bytes
+differ.
 """
 
 from __future__ import annotations
