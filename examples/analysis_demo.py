@@ -89,7 +89,7 @@ from labcairn.workspace.roots import Workspace
 #: The recipe, as a committed document. Read, never written: the figure's
 #: editable source is a file a person edits, and a script that generated it
 #: would make the recipe a copy of the script instead.
-RECIPE_FILE: Path = Path(__file__).parent / "analysis_demo_recipe.json"
+RECIPE_FILE: Path = Path(__file__).resolve().parent / "analysis_demo_recipe.json"
 
 #: Where the recipe goes inside the demonstration's workspace. Workspace-
 #: relative, because the run path records the recipe by that spelling.
@@ -97,7 +97,9 @@ RECIPE_KEY: str = RECIPE_FILE.name
 
 #: The controlled fixture. LC-P1-10's corpus, whose statistics were written
 #: down by hand beside it -- not a table invented inside this script.
-CORPUS: Path = Path(__file__).parent.parent / "tests" / "fixtures" / "analysis" / "groups.csv"
+CORPUS: Path = (
+    Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "analysis" / "groups.csv"
+)
 
 #: A fixed moment. Nothing in this file reads the wall clock, so two runs of
 #: it differ only in what they measured.
