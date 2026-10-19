@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-19
-**Current `main`:** the merge of PR #39 (LC-P1-09 T05, C1), `c0f9c1e`. This PR (#40) lands T06 and T07 — C2 and C3 — so once it merges the head advances again; the merges since the previous refresh are #32 (LC-P1-09's task breakdown), #33 (T01, the evidence tables), #34 (T02, normalisation), #35 (the ground-truth query set), #36 (T03, the FTS5 index), #37 (T04, building the index from ingestion), #38 (T05a, the anchor registry) and #39 (T05, C1).
+**Current `main`:** `a7a2f48` — the merge of PR #44, the LC-P1-09 acceptance review. The merges since the previous refresh are #32 (LC-P1-09's task breakdown), #33 (T01, the evidence tables), #34 (T02, normalisation), #35 (the ground-truth query set), #36 (T03, the FTS5 index), #37 (T04, building the index from ingestion), #38 (T05a, the anchor registry), #39 (T05, C1), #40 (T06, C2), #41 (T07, C3), #42 (T08, the store), #43 (T09, the gate), #44 (T10, retrieval and the acceptance review).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. It was then stale again at #32, and the claim it made — "Nothing is implemented" for LC-P1-09 — stopped being true at #33. Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [implemented and reviewed](../acceptance/LC-P1-09-acceptance.md) — **PASS WITH NOTES**: all ten subtasks merged, three review findings fixed, and two clauses of the acceptance not discharged (the *fabricated DOI* half, and provenance through report generation, which is LC-P1-11's); LC-P1-10 not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [implemented and reviewed](../acceptance/LC-P1-09-acceptance.md) — **PASS WITH NOTES**: all ten subtasks merged, three review findings fixed, and two clauses of the acceptance not discharged (the *fabricated DOI* half, and provenance through report generation, which is LC-P1-11's); LC-P1-10 [decomposed](../plans/LC-P1-10-task-breakdown.md), not started |
 
 ## What exists now
 
@@ -20,7 +20,7 @@ The engineering floor from G2: versioned contracts, provider adapters with fail-
 
 And, from LC-P1-08: **material ingestion works end to end.** Text, Markdown, CSV, XLSX and PDF adapters produce text units with locators — page, line, row+header, sheet+cell — which a workspace walk reads through `SourceMaterial` and stores as `sources` rows plus content-addressed `source_texts`, with hashed bytes and workspace-relative paths. Unreadable material is separated from empty material and from readable material, and neither unreadable state is citable.
 
-And, from LC-P1-09 so far: **the ledger has a store, an index and one working check.**
+And, from LC-P1-09: **the ledger has a store, an index, four working checks and a gate.**
 
 - Revision 0005 creates `evidence_records`, `evidence_anchors`, `verification_records` and the `evidence_fts` FTS5 table; 0006 rebuilds that table on a **trigram** tokenizer, and 0007 adds `source_anchors`, the anchor registry.
 - Normalisation is an index-side copy with a declared profile and an `alters_letters` flag, so a comparison can report how lossy it was (T02).
@@ -66,9 +66,19 @@ LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the ev
 
 **LC-P1-08 was accepted with notes by owner decision, not by independent review.** Its acceptance review is [written up](../acceptance/LC-P1-08-acceptance.md) and records eight defects found and fixed — most seriously, a two-column PDF storing sentences the author never wrote and marking them citable. The review and the fixes are the same party, so the board's rule is not discharged; the owner decided on 2026-10-18 to proceed without it, and the board records that as a decision rather than as a review.
 
-**LC-P1-09 is under way.** [Task breakdown](../plans/LC-P1-09-task-breakdown.md): ten subtasks with a file-ownership map for parallel work, and ADR-0004 Contract 4's twelve conditions each mapped to the subtask and test that carries each one. T01 (the tables), T02 (normalisation), the ground-truth set, T03 (the index and address resolution), T04 (building the index from ingestion) and T05a (the anchor registry) are merged. T05's C1 is in progress; T06, T07, T08, T09 and T10 are not started.
+**LC-P1-09 is implemented and reviewed — PASS WITH NOTES.** All ten subtasks are merged, the acceptance review is [written up](../acceptance/LC-P1-09-acceptance.md), and it found three defects, all of the family LC-P1-08's review found eight of: a claim made in a docstring that the code did not enforce, and a column nothing ever wrote. Two are fixed; the third is a **clause of the acceptance that is not discharged** — the *fabricated DOI* half has no implementation, and the gap is structural rather than an oversight. The review and the fixes are the same party, so the board's independent-review rule is **not discharged**; the same caveat as LC-P1-08.
 
 One thing worth knowing before reading the code: **`SourceIndex`'s members were never specified by ADR-0004.** The ADR requires C1 to "fail if an anchor id is unknown", but the Protocol it names takes no id — `locate` wants a whole anchor and `content_hash` a source id, and a record carries only `anchor_ids` as bare strings. Revision 0007 and `load_anchor` close that seam. It is recorded as an execution note at the head of ADR-0004, because it is the requirement's missing implementation rather than a change to the contract.
+
+**LC-P1-10 is decomposed and not started.** [Task breakdown](../plans/LC-P1-10-task-breakdown.md): eleven subtasks (T00–T10) with a file-ownership map, and the work order's five acceptance clauses plus the ADR-0004 conditions it touches each mapped to the subtask and test that carries them.
+
+Three facts about it are worth having before the code is written, because each one removes work rather than adding it:
+
+- **No schema migration is needed.** `ArtifactReceipt` already reserves `ArtifactKind.FIGURE` (*"LC-P1-10's concern"*), `ArtifactKind.MANIFEST` and `ArtifactProducerKind.ANALYSIS_OPERATOR`, the `artifacts` table already mirrors the receipt, and `ComputationLocator` was written for this work order — its docstring names ADR-0004's re-evaluation trigger 3 as the reason it exists.
+- **The repository contains no CSV and no XLSX file at all.** `tests/fixtures/` holds `papers/` and `retrieval/`, and a repository-wide search for `*.csv` and `*.xlsx` returns nothing. So the "controlled fixtures" the acceptance clause names are a **deliverable of LC-P1-10**, not an input to it — the same gap LC-P1-09's review recorded when it noted that every C3 case was a row written by a test.
+- **An aggregate cannot be an evidence record, and the schema already says so.** `evidence_records.anchor_ids` name rows in `source_anchors`, whose `locator_key` is CHECK-constrained to the four extractable kinds, and `render_locator_key` raises for `LocatorKind.COMPUTATION` because a derived number has no address in `source_texts`. The owner chose to keep it that way on 2026-10-19: an aggregate is an **artifact** with a manifest, and the ledger keeps doing what it is good at — statements about located cells. The cost is stated in the breakdown rather than glossed: **a figure's numbers are traceable to the input file but are not re-checked by C1, C2 or C3.**
+- **The two spreadsheet formats disagree about what an empty cell is, and it was measured rather than assumed.** A **CSV** emits a `source_texts` row for an empty cell, so empty cells can be counted; an **XLSX** emits no row for one, so the same table's rectangular extent is **not recoverable from the ledger**. The consequence reaches the acceptance clause: the count of missing cells is *unknown with a reason* in one format and a number in the other, and it is never `0` to mean "unknown" — ADR-0004 A8, applied to statistics.
+
 
 **Its PDF library question is settled.** [ADR-0008](../adr/ADR-0008-pdf-ingestion-library.md) puts it on pdfplumber + pdfminer.six, both MIT, rather than PyMuPDF, whose AGPL branch would have constrained LabCairn's own MIT release. Nothing needed undoing.
 

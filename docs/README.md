@@ -86,14 +86,13 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Item | Value |
 |---|---|
-| Latest gate | **G0 closed** — LC-P1-00 `PASS WITH NOTES`, subject `623e3ca` |
-| Formal review | [LC-P1-00 review](acceptance/LC-P1-00-review-623e3ca.md) |
+| Latest gate | **G2 closed** — LC-P1-05/06/07 all `PASS WITH NOTES`. [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| Gate G3 | **IN PROGRESS** — spans LC-P1-08…10. LC-P1-08 `PASS WITH NOTES` by owner decision; [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`); [LC-P1-10 decomposed](plans/LC-P1-10-task-breakdown.md), not started |
 | Independent re-review | [PR #1 re-review](acceptance/PR-1-independent-review.md) — C-1/C-2/R-01/R-02 reproduced, not assumed |
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
+| Task breakdowns | [LC-P1-09](plans/LC-P1-09-task-breakdown.md) · [LC-P1-10](plans/LC-P1-10-task-breakdown.md) |
 | License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
 | LC-P1-01 | **Accepted and merged.** `PASS WITH NOTES` at `c23ef775`, merged [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). [Evidence](acceptance/LC-P1-01-evidence.md) |
-| LC-P1-02 | **Not started.** Next: versioned data contracts (Task, Run, Stage, Approval, Evidence) |
-| Gate G1 | **IN PROGRESS** — spans LC-P1-01…04. One of four accepted |
 
 All reviews must identify subject commit SHA, actual inspected evidence, tests run (or not run), open issues and next action.
