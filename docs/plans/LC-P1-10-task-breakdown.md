@@ -313,10 +313,10 @@ in the PR rather than editing it.
 |---|---|
 | T00 | `pyproject.toml`, `uv.lock`, `docs/adr/ADR-0012-*.md` (the dependency decision) |
 | T01 | `tests/fixtures/analysis/**`, `tests/test_analysis_fixtures.py` |
-| T02 | `src/labcairn/analysis/__init__.py`, `src/labcairn/analysis/operators/__init__.py`, `tests/test_analysis_operator_contract.py` — **the catalogue lands with T04**, §3a |
+| T02 | `src/labcairn/analysis/__init__.py`, `src/labcairn/analysis/operators/__init__.py`, `tests/test_analysis_operator_contract.py` — **the catalogue lands with T04**, §3b |
 | T03 | `src/labcairn/analysis/selection.py`, `src/labcairn/analysis/values.py`, `src/labcairn/sources/quantity.py`, `src/labcairn/evidence/checks/c3.py` (**the quantity reader only**), `tests/test_analysis_selection.py`, and `tests/analysis_fixtures.py` (**the corpus reader and row vocabulary**, which T01's test now shares) |
-| T04 | `src/labcairn/analysis/operators/descriptive.py`, `src/labcairn/analysis/units.py`, `tests/test_analysis_descriptive.py` |
-| T05 | `src/labcairn/analysis/operators/grouped.py`, `tests/test_analysis_grouped.py` |
+| T04 | `src/labcairn/analysis/operators/descriptive.py`, `src/labcairn/analysis/units.py`, `src/labcairn/analysis/catalog.py` (**the catalogue**, which cannot exist before the operators it registers — §3b), `tests/test_analysis_descriptive.py`, `tests/test_analysis_catalog.py` |
+| T05 | `src/labcairn/analysis/operators/grouped.py`, `tests/test_analysis_grouped.py`, and `tests/test_analysis_catalog.py` (**one line** — the catalogue test is T04's and had to learn about the eighth operator) |
 | T06 | `src/labcairn/analysis/chart/__init__.py`, `src/labcairn/analysis/chart/recipe.py`, `tests/test_analysis_recipe.py` |
 | T07 | `src/labcairn/analysis/chart/render.py`, `tests/test_analysis_render.py` |
 | T08 | `src/labcairn/analysis/manifest.py`, `tests/test_analysis_manifest.py` |
@@ -672,12 +672,12 @@ storing it would be a second copy of a fact with its own staleness.
 
 ### T05 — grouped aggregates
 
-**One operator**, `labcairn.analysis.grouped.aggregate`, whose `aggregate`
+**One operator**, `labcairn.analysis.grouped_aggregate`, whose `aggregate`
 parameter **must name a registered descriptive operator**:
 
 ```json
 {
-  "operator": "labcairn.analysis.grouped.aggregate@1.0.0",
+  "operator": "labcairn.analysis.grouped_aggregate@1.0.0",
   "parameters": {
     "aggregate": "labcairn.analysis.mean@1.0.0",
     "by": "group",
@@ -713,22 +713,21 @@ The recipe is the editable source, and its schema is the whole language:
 
 ```json
 {
-  "operator": "labcairn.analysis.chart.bar@1.0.0",
-  "parameters": {
-    "data": {
-      "operator": "labcairn.analysis.grouped.aggregate@1.0.0",
-      "parameters": {"aggregate": "labcairn.analysis.mean@1.0.0",
-                     "by": "group", "of": "value"},
-      "selection": {"source": "runs/exp1.csv", "columns": ["group", "value"]}
-    },
-    "encoding": {
-      "mark": "bar",
-      "title": "Mean by group",
-      "x_label": "group",
-      "y_label": "mean (kg)",
-      "caption": "Group means over 10 rows.",
-      "interpretation": null
-    }
+  "data": {
+    "operator": "labcairn.analysis.grouped_aggregate@1.0.0",
+    "parameters": {"aggregate": "labcairn.analysis.mean@1.0.0",
+                   "by": "group", "of": "value"},
+    "selection": {"source": "runs/exp1.csv", "columns": ["group", "value"]}
+  },
+  "encoding": {
+    "mark": "bar",
+    "x": "group",
+    "y": "value",
+    "title": "Mean by group",
+    "x_label": "group",
+    "y_label": "mean (kg)",
+    "caption": "Group means over 10 rows.",
+    "interpretation": null
   },
   "output": {"format": "svg", "dpi": 200}
 }
@@ -983,6 +982,40 @@ precise statement is:
 The corrected wording is in the corpus README, the status board, the handoff
 and §5 below. The corpus's **data** was already right; only the prose was
 loose.
+
+## 3b. What T04, T05, T06 and T08 decided, and two errors in this document
+
+T04, T05, T06 and T08 are implemented. Two of the examples in §3 were
+**wrong**, and the implementations are right:
+
+**The operator id is `labcairn.analysis.grouped_aggregate`, not
+`labcairn.analysis.grouped.aggregate`.** The id grammar frozen in T02 admits
+**one** segment after `labcairn.analysis.` — a dot is not in it — so the
+plan's spelling was refused by `Operator.__post_init__` and by
+`parse_operator_reference`. The repository's own examples already spell it
+the other way (`tests/test_evidence_contracts.py`,
+`tests/test_source_contracts.py`), so the plan's example was the odd one
+out. The grammar is unchanged; the examples were corrected.
+
+**A chart recipe has three parts, not four.** The prose above says data,
+encoding and output, and the JSON example gave a fourth: a top-level
+chart-operator reference. The chart operator is **not in the catalogue** —
+it belongs to T07 — and a recipe that named an operator this build does not
+implement would be refused for a reason that has nothing to do with the
+recipe. The example now matches the prose.
+
+Two decisions the implementations made that this document did not say:
+
+- **The catalogue and the operators it registers are one thing.** The
+  catalogue is built from the operator modules' own constants, so it cannot
+  exist before them — the same reason `evidence/catalog.py` was created in
+  T08 of LC-P1-09, after the checks it registers existed. T02 therefore
+  delivers the *contract* and T04 the *catalogue*, and the file map in §3 is
+  out of date in that one row.
+- **A group with no quantity has no statistic, and its reason names the
+  group.** The aggregate's own reason says "the selection holds no value",
+  which in a table of groups is the wrong thing to blame: it is *that
+  group* that holds no value, and the other groups may hold plenty.
 
 ## 4. Acceptance mapping
 
