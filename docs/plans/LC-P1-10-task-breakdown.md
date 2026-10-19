@@ -313,8 +313,8 @@ in the PR rather than editing it.
 |---|---|
 | T00 | `pyproject.toml`, `uv.lock`, `docs/adr/ADR-0012-*.md` (the dependency decision) |
 | T01 | `tests/fixtures/analysis/**`, `tests/test_analysis_fixtures.py` |
-| T02 | `src/labcairn/analysis/__init__.py`, `src/labcairn/analysis/catalog.py`, `src/labcairn/analysis/operators/__init__.py`, `tests/test_analysis_catalog.py` |
-| T03 | `src/labcairn/analysis/selection.py`, `src/labcairn/analysis/values.py`, `src/labcairn/sources/quantity.py`, `src/labcairn/evidence/checks/c3.py` (**the quantity reader only**), `tests/test_analysis_selection.py` |
+| T02 | `src/labcairn/analysis/__init__.py`, `src/labcairn/analysis/operators/__init__.py`, `tests/test_analysis_operator_contract.py` — **the catalogue lands with T04**, §3a |
+| T03 | `src/labcairn/analysis/selection.py`, `src/labcairn/analysis/values.py`, `src/labcairn/sources/quantity.py`, `src/labcairn/evidence/checks/c3.py` (**the quantity reader only**), `tests/test_analysis_selection.py`, and `tests/analysis_fixtures.py` (**the corpus reader and row vocabulary**, which T01's test now shares) |
 | T04 | `src/labcairn/analysis/operators/descriptive.py`, `src/labcairn/analysis/units.py`, `tests/test_analysis_descriptive.py` |
 | T05 | `src/labcairn/analysis/operators/grouped.py`, `tests/test_analysis_grouped.py` |
 | T06 | `src/labcairn/analysis/chart/__init__.py`, `src/labcairn/analysis/chart/recipe.py`, `tests/test_analysis_recipe.py` |
@@ -941,6 +941,49 @@ plot**"*. Step 6 is the part that would otherwise be untested: a plot that is
 deterministic but does not notice its input changed is not an evidence
 product.
 
+## 3a. What T02 and T03 changed, and one claim they corrected
+
+T02 and T03 are merged. Two things about them are not what the breakdown
+above said, and one published claim was corrected.
+
+**The catalogue lands with the operators, not with the contract.** The map
+gives T02 `analysis/catalog.py`, and the contract is there — but the
+**catalogue** cannot exist before the operators do, because it has to be
+built from their own id constants for the same reason
+``labcairn.evidence.catalog`` is: *one id, one spelling*. A catalogue
+written out beside the implementations would be a second spelling of a
+closed set, which is exactly what ADR-0009's canonical ``locator_key`` was
+written to stop. LC-P1-09 has the precedent: the evidence catalogue was
+created in T08, **after** the checks it registers existed.
+
+So T02 delivers the *contract* — the id grammar, the one reference spelling,
+the closed argument model — and T04 delivers the catalogue and the
+operators together.
+
+**The quantity reader moved, and C3's tests did not.** ``read_number`` and
+``NumericReading`` now live in ``labcairn/sources/quantity.py`` and are
+re-exported from ``evidence/checks/c3.py``, so both import paths still work
+and **C3's existing tests pass unmodified**. The move was for one reason:
+the ledger asks "is this a number" and the analysis layer asks the same
+question of the same text, and two readers of that question would be two
+answers to it.
+
+**A published claim was corrected.** The corpus, the status board and this
+document all said that for a spreadsheet "the count of missing cells is
+unknown with a reason". That was imprecise, and the corpus's own data said
+so: ``holes.xlsx`` records one **absent** cell, which is a number. The
+precise statement is:
+
+* the count of **addresses with no recorded value** is known in both formats;
+* what is **not** knowable for a spreadsheet is **how many of those were
+  blanks the author left**, because a cell that holds nothing and a cell
+  that was never there are the same observation — and a range that
+  overshoots the table cannot be told apart from a range full of blanks.
+
+The corrected wording is in the corpus README, the status board, the handoff
+and §5 below. The corpus's **data** was already right; only the prose was
+loose.
+
 ## 4. Acceptance mapping
 
 ### 4.1 The work order's own acceptance clause
@@ -950,7 +993,7 @@ product.
 | 1 | numerics recalculated from source with controlled fixtures | T01, T03, T04, T05 | the operator's output is compared against **hand-written expected values** beside each fixture, not against a value the operator produced; and the values are read from the ingested representation bound to the file's hash |
 | 2 | dimensions/units checked | T03, T04, T05 | a selection with two unit tokens is refused and names both; a header-declared unit that disagrees with the recipe's is refused; a cell with no token leaves the declared unit unverified |
 | 3 | charts match data and captions | T07 | the renderer plots the operator's result object, so the plotted values **are** the operator's values; a caption that states a number the data does not contain is refused |
-| 4 | missing/invalid data reported, not silently imputed | T03, T04, T05 | the result carries `n_used`, `n_missing` and `n_invalid`; a blank cell is never 0; the mean of an empty selection is undefined, not 0; and where the format does not permit a count, the count is **unknown with a reason** rather than 0 (A8) |
+| 4 | missing/invalid data reported, not silently imputed | T03, T04, T05 | the result carries `n_used`, `n_missing` and `n_invalid`; a blank cell is never 0; the mean of an empty selection is undefined, not 0; and a count of zero is never used to mean "unknown" (A8) |
 | 5 | Deterministic output on identical inputs as applicable | T07, T08 | two renders in one environment produce byte-identical files; the manifest records the environment fingerprint that makes "identical inputs" mean something |
 
 **And three assertions that are not clauses but are the work order's
@@ -1024,7 +1067,11 @@ Named now so they are not discovered as surprises.
   adapters: a **CSV** emits a `source_texts` row for an empty cell, so the
   empty cells in a selection can be counted; an **XLSX** emits no row for one,
   so the same table's extent is not recoverable from the ledger and the missing
-  count is **unknown with a reason** rather than a number. The analysis sees
+  blanks the author left is not recoverable from the ledger — a cell that holds
+  nothing and a cell that was never there are the same observation. The count of
+  *addresses with no recorded value* is known in both formats; what is not knowable
+  for a spreadsheet is how many of them were blanks the author left, and a range that
+  overshoots the table cannot be told apart from a range full of blanks. The analysis sees
   the cells that carry text, and says so. This is a narrowing of *"dimensions
   checked"*: for XLSX, the dimension is the extent of the non-empty region,
   not of the sheet.

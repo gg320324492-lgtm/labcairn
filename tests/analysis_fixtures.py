@@ -61,9 +61,11 @@ __all__ = [
     "SPREADSHEET_SOURCES",
     "Table",
     "build_spreadsheet_fixtures",
+    "corpus_cells",
     "expected_path",
     "load_expected",
     "read_table_csv",
+    "row_numbers",
     "write_table_csv",
     "write_table_xlsx",
 ]
@@ -216,6 +218,62 @@ def expected_path(fixture: str) -> Path:
     return CORPUS_DIR / f"{fixture}.expected.json"
 
 
+def corpus_cells(fixture: str) -> dict[tuple[int, str], str]:
+    """The cells of one corpus fixture, addressed by (physical row, header text).
+
+    Read through the **real** ingestion path, so that what the corpus says
+    about a fixture and what the adapters make of it are the same statement.
+
+    The address is the corpus's own: a physical row and a column's **header
+    text**. A spreadsheet's header row is included, because A1 and B1 are
+    cells like any other; a CSV's is not, because the CSV adapter takes row 1
+    as the header and extracts no cells from it. The data rows of both formats
+    are the physical rows from 2 upwards.
+    """
+    import datetime as dt
+
+    from labcairn.material.ingest import ingest_bytes
+    from labcairn.sources.locators import CsvLocator, XlsxLocator
+
+    now = dt.datetime(2026, 10, 19, tzinfo=dt.UTC)
+    if fixture in SPREADSHEET_SOURCES:
+        data = build_spreadsheet_fixtures()[fixture]
+    else:
+        data = (CORPUS_DIR / fixture).read_bytes()
+
+    material = ingest_bytes(data, relative_path=fixture, display_name=fixture, ingested_at=now)
+    cells: dict[tuple[int, str], str] = {}
+    if fixture.endswith(".csv"):
+        for text in material.texts:
+            locator = text.locator
+            if not isinstance(locator, CsvLocator):
+                msg = f"{fixture} produced a {type(locator).__name__}, which is not a CSV locator"
+                raise AssertionError(msg)
+            cells[(locator.row, locator.column)] = text.text
+        return cells
+
+    by_ref: dict[str, tuple[int, str]] = {}
+    for text in material.texts:
+        locator = text.locator
+        if not isinstance(locator, XlsxLocator):
+            msg = (
+                f"{fixture} produced a {type(locator).__name__}, which is not a spreadsheet locator"
+            )
+            raise AssertionError(msg)
+        row = int("".join(ch for ch in locator.cell_ref if ch.isdigit()))
+        by_ref[locator.cell_ref] = (row, text.text)
+    header_by_letter = {
+        "".join(ch for ch in ref if ch.isalpha()): value
+        for ref, (row, value) in by_ref.items()
+        if row == 1
+    }
+    for ref, (row, value) in by_ref.items():
+        header = header_by_letter.get("".join(ch for ch in ref if ch.isalpha()))
+        if header is not None:
+            cells[(row, header)] = value
+    return cells
+
+
 def load_expected(fixture: str) -> dict[str, Any]:
     """The expected values for one fixture, parsed."""
     path = expected_path(fixture)
@@ -224,3 +282,17 @@ def load_expected(fixture: str) -> dict[str, Any]:
         raise FileNotFoundError(msg)
     parsed: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return parsed
+
+
+def row_numbers(spec: Any) -> list[int]:
+    """The physical rows a selection names.
+
+    The corpus's vocabulary: a range string like ``"2-11"`` for a contiguous
+    run, or a list of row numbers. Both spellings appear in the expected
+    files, and a reader that knew only one of them would silently read the
+    other as nothing.
+    """
+    if isinstance(spec, str):
+        start, _, end = spec.partition("-")
+        return list(range(int(start), int(end) + 1))
+    return [int(r) for r in spec]
