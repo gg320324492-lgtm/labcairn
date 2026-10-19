@@ -57,9 +57,17 @@ from labcairn.evidence.checks.c3 import check_numeric_consistency
 from labcairn.evidence.cite_support import SourceIndex, Verdict
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import CheckKind, CheckOutcome, VerificationStatus
-from labcairn.evidence.store import detect_conflicts, load_task_records
+from labcairn.evidence.store import detect_conflicts, load_record, load_task_records
+from labcairn.sources.locators import describe_locator
 
-__all__ = ["Finding", "GateResult", "evaluate_task"]
+__all__ = [
+    "ConflictDetail",
+    "ConflictSide",
+    "Finding",
+    "GateResult",
+    "conflict_between",
+    "evaluate_task",
+]
 
 #: The states a report may cite from. ``verified_by_rule`` is a rule's pass and
 #: ``user_attested`` is a person's word; the other four are all "not yet" or
@@ -71,6 +79,46 @@ CITABLE_STATUSES: Final[frozenset[VerificationStatus]] = frozenset(
 
 
 @dataclass(frozen=True)
+class ConflictSide:
+    """One record's side of a disagreement.
+
+    A side is a record's id, the number it claims, and the unit it claims it
+    in. It carries no status -- not "the record's claim", not "the rival's" --
+    because a side that knows it is the subject is a side that can be read as
+    the one that matters.
+    """
+
+    evidence_id: str
+    value: float | None
+    unit: str | None
+
+
+@dataclass(frozen=True)
+class ConflictDetail:
+    """Two records that disagree about the same number, as data.
+
+    **Structured, not a sentence.** ADR-0004 A5 says the conflict is displayed
+    and *neither wins by recency*; how a report lays two contradicting numbers
+    out is a presentation question, and presentation belongs to LC-P1-11. So the
+    gate hands the renderer the facts and lets it decide the shape.
+
+    The structure is **symmetric on purpose**. ``left`` and ``right`` are the
+    same kind of thing and neither is privileged -- a detail with a "subject"
+    and an "object" would encode A5's winner in the type, and a renderer
+    reaching for ``detail.subject`` would be reaching for the side that
+    happened to be found first. Two sides that can be swapped without changing
+    what the structure says is A5 expressed in a type rather than in a promise.
+    """
+
+    #: The address both records cite as their primary anchor -- the cell or
+    #: page they are disagreeing about. It is the thing a reader would go and
+    #: look at, so it is here rather than only in prose.
+    locator: str
+    left: ConflictSide
+    right: ConflictSide
+
+
+@dataclass(frozen=True)
 class Finding:
     """One reason a record may not be cited.
 
@@ -78,11 +126,17 @@ class Finding:
     filter without parsing ``reason``. ``reason`` is the sentence a person
     reads, and it is not optional: a finding nobody can read is a finding
     nobody acts on.
+
+    ``detail`` carries the structured payload for the kinds that have one, and
+    is ``None`` for the kinds whose whole content is the sentence. A renderer
+    switches on ``kind`` and uses ``detail`` when it is there; it does not
+    parse ``reason`` to recover a number.
     """
 
     evidence_id: str
     kind: str
     reason: str
+    detail: ConflictDetail | None = None
 
 
 @dataclass(frozen=True)
@@ -133,7 +187,7 @@ def evaluate_task(
     for record in records:
         findings.extend(_judge_status(record))
         findings.extend(_reverify(record, index))
-    findings.extend(_conflicts(connection, records))
+    findings.extend(_conflicts(connection, records, index))
     return GateResult(
         passed=not findings,
         findings=tuple(findings),
@@ -207,63 +261,71 @@ def _run(check: CheckKind, record: EvidenceRecord, index: SourceIndex) -> Verdic
     )
 
 
-def _conflicts(connection: Connection, records: tuple[EvidenceRecord, ...]) -> list[Finding]:
+def _conflicts(
+    connection: Connection, records: tuple[EvidenceRecord, ...], index: SourceIndex
+) -> list[Finding]:
     """Records that contradict each other, with neither preferred.
 
     Each conflict is reported from both sides, because A5's rule is that
     neither wins: a report that named only one of them would be naming a
-    winner.
+    winner. And the two findings carry the *same* detail, so the reader sees
+    one disagreement described twice rather than two disagreements.
     """
     findings: list[Finding] = []
     for record in records:
         for other_id in detect_conflicts(connection, record):
+            other = load_record(connection, other_id)
+            if other is None:  # pragma: no cover - detect_conflicts found it
+                continue
+            detail = conflict_between(record, other, locator=_shared_locator(record, index))
             findings.append(
                 Finding(
                     evidence_id=record.evidence_id,
                     kind="conflict",
-                    reason=describe_conflict(record, other_id),
+                    reason=(
+                        f"the record and {other_id!r} disagree about the number at "
+                        f"{detail.locator}. The conflict is reported and neither "
+                        f"record is preferred; the two claims are set out in the "
+                        f"detail."
+                    ),
+                    detail=detail,
                 )
             )
     return findings
 
 
-def describe_conflict(record: EvidenceRecord, other_id: str) -> str:
-    """How a conflict is put to the reader.
+def _shared_locator(record: EvidenceRecord, index: SourceIndex) -> str:
+    """The address both records are disagreeing about, in words.
 
-    TODO(human): write the sentence a person reads when two records disagree
-    about the same number.
-
-    The facts available, and the ones that are not:
-
-    - ``record`` is one side and ``other_id`` names the other. The other
-      record's own value and unit are **not** passed in, because the gate has
-      them and the renderer may not; if the sentence should name both numbers,
-      the other record has to be looked up and this function's signature has to
-      change to allow it.
-    - The two records share a **primary anchor** -- the same cell or page --
-      which is what makes them claims about the same thing. That anchor's
-      address is on ``record`` and is the single most useful thing to name,
-      because it is what a reader would go and look at.
-    - ``record.value`` and ``record.unit`` are the record's own claim.
-
-    The constraint ADR-0004 A5 puts on the answer: **neither wins by recency.**
-    A sentence that implies the newer row is right -- by ordering them, by
-    saying "instead of", by any other means -- is wrong however well it reads.
-    Two records that disagree are both shown, and the disagreement is what is
-    shown.
-
-    Two shapes worth considering, and they are not equivalent:
-
-    - One sentence naming both records, the shared address and the number,
-      saying plainly that neither is preferred. Self-contained, and a renderer
-      can print it as-is.
-    - A structured result the renderer formats, so a report can lay the two
-      numbers out side by side. More useful to a reader, and it moves the
-      wording decision into LC-P1-11 -- which is where a report's presentation
-      belongs, and where this project's other presentation decisions were
-      deliberately put.
-
-    Whatever you choose, the sentence must not read as though one of the two
-    had been chosen over the other.
+    The primary anchor, rendered by ``describe_locator`` -- which computes from
+    the structured fields, so it cannot drift from them. A record with no
+    anchor has no shared address to name, and says so rather than inventing
+    one.
     """
-    return f"the record conflicts with {other_id!r} about the same number, and neither is preferred"
+    if not record.anchor_ids:
+        return "an address neither record names"
+    anchor = index.load_anchor(record.anchor_ids[0])
+    if anchor is None:
+        return record.anchor_ids[0]
+    return describe_locator(anchor.locator)
+
+
+def conflict_between(
+    record: EvidenceRecord, other: EvidenceRecord, *, locator: str
+) -> ConflictDetail:
+    """Build the structured detail of a disagreement between two records.
+
+    The two sides are built in the order the records were given, and the
+    structure gives them no way to be told apart. That is deliberate: ADR-0004
+    A5 says neither wins by recency, and a representation with a "subject" and
+    an "object" would carry the winner in its type even if every sentence it
+    produced were scrupulously neutral. A renderer that wants to lay the two
+    numbers out side by side gets two equivalent sides, and a renderer that
+    wanted to prefer one would have to say so in words -- where a reader would
+    see it.
+    """
+    return ConflictDetail(
+        locator=locator,
+        left=ConflictSide(evidence_id=record.evidence_id, value=record.value, unit=record.unit),
+        right=ConflictSide(evidence_id=other.evidence_id, value=other.value, unit=other.unit),
+    )

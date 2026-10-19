@@ -322,8 +322,12 @@ def test_conflicting_numbers_fail_the_gate_and_name_both_records(store: Store) -
     """A5: two records about the same cell, and neither wins.
 
     The cell says 3.50. One record claims 3.5 and one claims 9.0, so C3 passes
-    the first and fails the second. The gate names both, and the sentence must
-    not read as though one had been chosen.
+    the first and fails the second.
+
+    The conflict is **structured**, because how a report lays two contradicting
+    numbers out is LC-P1-11's business. What this test pins is the property
+    that makes that safe: the two sides are interchangeable, so the structure
+    itself cannot express a winner.
     """
     connection, index = store
     append_record(connection, _numeric("ev-a", 3.5))
@@ -349,8 +353,44 @@ def test_conflicting_numbers_fail_the_gate_and_name_both_records(store: Store) -
     assert not result.passed
     conflicts = [f for f in result.findings if f.kind == "conflict"]
     assert {f.evidence_id for f in conflicts} == {"ev-a", "ev-b"}
-    for finding in conflicts:
-        assert "neither is preferred" in finding.reason
+
+    by_record = {f.evidence_id: f for f in conflicts}
+    first = by_record["ev-a"].detail
+    second = by_record["ev-b"].detail
+    assert first is not None and second is not None
+
+    # The two sides are interchangeable. A structure with a "subject" and an
+    # "object" would carry A5's winner in its type even if every sentence it
+    # produced were scrupulously neutral -- and a renderer reaching for
+    # ``detail.subject`` would be reaching for whichever side was found first.
+    assert first.left == second.right
+    assert first.right == second.left
+    assert first.locator == second.locator
+
+    # And the sides carry the facts a renderer needs to lay the numbers out.
+    assert {first.left.evidence_id, first.right.evidence_id} == {"ev-a", "ev-b"}
+    assert {first.left.value, first.right.value} == {3.5, 9.0}
+    assert first.left.unit == first.right.unit == "ms"
+    assert "row 2" in first.locator
+
+
+def test_the_two_sides_carry_no_hint_of_which_record_is_the_subject(
+    store: Store,
+) -> None:
+    """The side type has no field that could hold a preference.
+
+    A renderer that wanted to pick a winner would have to reach for something
+    the structure does not offer, and would have to say so in words -- where a
+    reader can see it. That is the point of making the conflict data rather
+    than a sentence.
+    """
+    from labcairn.evidence.gate import ConflictSide
+
+    assert set(ConflictSide.__dataclass_fields__) == {"evidence_id", "value", "unit"}
+    assert not any(
+        name in ConflictSide.__dataclass_fields__
+        for name in ("subject", "primary", "winner", "preferred", "claim")
+    )
 
 
 # --------------------------------------------------------------------------- #

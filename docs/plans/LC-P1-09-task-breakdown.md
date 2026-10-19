@@ -472,6 +472,44 @@ wrong locator, missing evidence and conflicting numbers must all fail.
 - The gate must be reachable from a report the way ADR-0004 Contract 3
   describes, and must refuse rather than degrade.
 
+**What T09 decided.**
+
+*The gate re-runs the checks; it does not read their verdicts.* A stored verdict
+says what was true when it was made, and ADR-0004 I4 says a record whose source
+has drifted is invalidated rather than quietly kept with a stale "pass" in its
+log. So the gate asks the source again and compares, and a re-run that
+**disagrees with the log** is itself a finding — "the verification recorded
+against this record no longer holds" is a different fact from "the check failed
+today", and a report needs to know which. This is not duplication of C1-C3:
+those run at transition time and their verdicts are the durable audit trail, and
+the gate asks a different question, which is whether that trail is still true.
+
+*The gate refuses as a whole, and names everything.* A gate that answers only
+per-record and leaves the decision to the caller is a gate weakened into a
+suggestion — a caller under pressure will cite the records that passed. So
+`GateResult.passed` is the verdict on the set, `findings` carries every
+objection rather than the first, and `citable` is **empty** when the gate
+failed. A partial list of citable ids would invite a caller to cite the ones
+that survived, which is the degradation the gate exists to prevent.
+
+*A conflict is structured, and the structure is symmetric.* How a report lays
+two contradicting numbers out is a presentation question, and presentation belongs
+to LC-P1-11. So the gate hands over the facts: the shared address, and two
+sides carrying each record's id, value and unit. The sides are
+**interchangeable** — `left` and `right` are the same kind of thing and neither
+is privileged. A structure with a "subject" and an "object" would carry A5's
+winner in its *type*, even if every sentence it produced were scrupulously
+neutral, and a renderer reaching for `detail.subject` would be reaching for
+whichever side happened to be found first. A5's "neither wins by recency" is
+therefore expressed in a type rather than promised in prose, and the test
+asserts the symmetry rather than a wording.
+
+**What T09 cannot establish.** The gate is reachable from a ledger, not from a
+report: nothing renders a `GateResult` yet, so the claim that a report cites
+nothing when the gate refuses is enforced at the gate and asserted at the
+record model, not observed in a rendered document. That is LC-P1-11's
+demonstration to make.
+
 ### T10 — retrieval, and the two negatives
 
 A6 and A9, which are the same requirement seen from two sides: **a failed

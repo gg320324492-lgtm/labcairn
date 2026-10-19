@@ -37,6 +37,12 @@ And, from LC-P1-09 so far: **the ledger has a store, an index and one working ch
   name a checker id in the rule catalog -- the one rule the model cannot
   enforce, because it accepts any id, and a human attestation is logged by a
   human's id.
+- **The evidence gate refuses** (T09). It re-runs the checks rather than reading
+  their verdicts -- a record whose source has drifted is invalidated, not kept
+  with a stale "pass" -- and it refuses as a whole: `citable` is empty when any
+  record fails, because a partial list would invite a caller to cite the ones
+  that survived. A conflict is handed over as data with two interchangeable
+  sides, so the structure itself cannot express a winner.
 
 Both exit demonstrations run green:
 
@@ -52,7 +58,7 @@ leaves the machine. All four cite-support checks now have bodies, and `IMPLEMENT
 every one of them — the set no longer distinguishes "implemented" from "not", and what still
 separates them is that C4 can never return a pass.
 
-No gate ties the checks together (T09), and the two-negative question — a failed search is not a negative result — is unanswered (T10). The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
+The two-negative question — a failed search is not a negative result — is unanswered (T10). And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is LC-P1-11's to make. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
 ## Next: finish G3
 
