@@ -328,6 +328,24 @@ def test_the_recipe_refuses_an_operator_version_this_build_does_not_implement() 
 
 
 @pytest.mark.unit
+def test_the_recipe_refuses_an_operator_reference_that_is_not_well_formed() -> None:
+    """A reference with no version is not a reference, and the refusal says so.
+
+    The id alone names an operator this build implements, so a refusal that
+    blamed the version would point the author at a version they never wrote
+    instead of at the missing ``@version``. The grammar is the operator
+    contract's own, and the refusal has to name the reference as it was
+    written.
+    """
+    with pytest.raises(RecipeRefusedError) as refusal:
+        _recipe(data=_part("data", operator="labcairn.analysis.stdev"))
+    message = str(refusal.value)
+    assert "not a well-formed operator reference" in message
+    assert "labcairn.analysis.stdev" in message
+    assert "at version" not in message
+
+
+@pytest.mark.unit
 def test_the_recipe_refuses_a_parameter_the_operator_does_not_accept() -> None:
     """A parameter the operator does not take is refused, and named.
 
