@@ -602,8 +602,6 @@ class MatplotlibFigureRenderer:
         """The figure's bytes."""
         import matplotlib.pyplot as plt
 
-        from labcairn.analysis.chart.recipe import FigureFormat
-
         canvas = plt.figure(figsize=FIGURE_SIZE, dpi=figure.dpi)
         try:
             axes = canvas.add_axes(_AXES_RECT)
@@ -633,8 +631,6 @@ def _draw_the_mark(axes: Any, figure: FigureResult) -> None:
     text says which groups those were, so the reader is not left guessing
     why a group is missing.
     """
-    from labcairn.analysis.chart.recipe import Mark
-
     values = figure.values
     defined = [(index, value) for index, value in enumerate(values) if value.value is not None]
     if figure.mark is Mark.BAR:
@@ -704,8 +700,6 @@ def _check_the_axes_name_the_result(recipe: ChartRecipe, result: GroupedResult) 
     ``"country"`` is asking for an axis the figure does not have, and
     drawing the groups under the wrong heading is a false label.
     """
-    from labcairn.analysis.chart.recipe import Mark
-
     encoding = recipe.encoding
     if encoding.mark is Mark.HISTOGRAM:
         # A histogram's x axis is the statistic itself, binned -- not the
@@ -746,6 +740,14 @@ def _check_the_units_agree(recipe: ChartRecipe, result: GroupedResult) -> None:
     A unit that only one side declares is not a disagreement: a column whose
     cells carry no token leaves the declared unit **unverified**, which is
     the asymmetry C3 keeps everywhere else.
+
+    The **header against the cells** is not this function's to settle: the
+    selection refuses that disagreement when it resolves the column, before
+    an operator ever sees a value. So the two the renderer compares -- the
+    recipe's own declaration against the header's and against the data's --
+    are the two the recipe is answerable for, and the renderer's comparison
+    of the header against the data is a second opinion rather than the only
+    one.
     """
     data_units = sorted({group.unit for group in result.groups if group.unit is not None})
     if len(data_units) > 1:
@@ -790,8 +792,6 @@ def _axes_of(
     A histogram's y axis is a count the renderer derives, so it has no
     column and no unit to check.
     """
-    from labcairn.analysis.chart.recipe import Mark
-
     encoding = recipe.encoding
     if encoding.mark is Mark.HISTOGRAM:
         return ((encoding.x_label, result.of, True), (encoding.y_label, None, False))
@@ -808,8 +808,6 @@ def _check_the_mark_can_be_honoured(mark: Mark, values: tuple[FigureValue, ...])
     cut into bins: one distinct value has no range, and the edges numpy
     would make up around it are not "from those values".
     """
-    from labcairn.analysis.chart.recipe import Mark
-
     plotted = [value.value for value in values if value.value is not None]
     if not plotted:
         raise FigureRefusedError(
