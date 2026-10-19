@@ -1,0 +1,90 @@
+{
+  "fixture": "basic.csv",
+  "note": "The reference case: two groups over the values 1..10, every cell a clean quantity. Its statistics are closed-form -- mean 5.5, median 5.5, population stdev sqrt(8.25), sample stdev sqrt(82.5/9) -- so the expected values can be checked by hand as well as by a program.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-11",
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 55.0,
+          "min": 1.0,
+          "max": 10.0,
+          "mean": 5.5,
+          "median": 5.5,
+          "stdev_population": 2.8722813232690143,
+          "stdev_sample": 3.0276503540974917
+        },
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4,
+          6,
+          8,
+          10
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 25.0,
+          "min": 1.0,
+          "max": 9.0,
+          "mean": 5.0,
+          "median": 5.0,
+          "stdev_population": 2.8284271247461903,
+          "stdev_sample": 3.1622776601683795
+        },
+        "unit": null
+      },
+      {
+        "key": "B",
+        "rows": [
+          3,
+          5,
+          7,
+          9,
+          11
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 30.0,
+          "min": 2.0,
+          "max": 10.0,
+          "mean": 6.0,
+          "median": 6.0,
+          "stdev_population": 2.8284271247461903,
+          "stdev_sample": 3.1622776601683795
+        },
+        "unit": null
+      }
+    ]
+  }
+}

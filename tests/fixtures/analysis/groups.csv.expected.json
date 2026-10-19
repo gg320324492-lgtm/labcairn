@@ -1,0 +1,115 @@
+{
+  "fixture": "groups.csv",
+  "note": "Three groups of unequal size (4, 4 and 8) over the values 1..16. The sizes are unequal on purpose: a group boundary that is off by one changes a MEAN and not only a count, and a count is easy to get right by accident.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-17",
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 136.0,
+          "min": 1.0,
+          "max": 16.0,
+          "mean": 8.5,
+          "median": 8.5,
+          "stdev_population": 4.6097722286464435,
+          "stdev_sample": 4.760952285695233
+        },
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4,
+          6,
+          9
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 17.0,
+          "min": 1.0,
+          "max": 8.0,
+          "mean": 4.25,
+          "median": 4.0,
+          "stdev_population": 2.5860201081971503,
+          "stdev_sample": 2.9860788111948193
+        },
+        "unit": null
+      },
+      {
+        "key": "B",
+        "rows": [
+          3,
+          5,
+          7,
+          11
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 22.0,
+          "min": 2.0,
+          "max": 10.0,
+          "mean": 5.5,
+          "median": 5.0,
+          "stdev_population": 2.958039891549808,
+          "stdev_sample": 3.415650255319866
+        },
+        "unit": null
+      },
+      {
+        "key": "C",
+        "rows": [
+          8,
+          10,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 97.0,
+          "min": 7.0,
+          "max": 16.0,
+          "mean": 12.125,
+          "median": 12.5,
+          "stdev_population": 2.8476964374736293,
+          "stdev_sample": 3.044315545875155
+        },
+        "unit": null
+      }
+    ]
+  }
+}

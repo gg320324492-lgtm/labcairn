@@ -1,0 +1,100 @@
+{
+  "fixture": "holes.xlsx",
+  "note": "holes.csv in the other format, cell for cell, with the same characters. The emptied cell is ABSENT rather than empty, and the spreadsheet's header row is addressable in its own right (A1 and B1 are cells like any other), which the CSV's header row is not. Two differences between the two paths, and both are the adapter's rather than the writer's.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": true,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-11",
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [
+          [
+            4,
+            "value"
+          ]
+        ],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 52.0,
+          "min": 1.0,
+          "max": 10.0,
+          "mean": 5.777777777777778,
+          "median": 6.0,
+          "stdev_population": 2.8974232912011773,
+          "stdev_sample": 3.073181485764296
+        },
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4,
+          6,
+          8,
+          10
+        ],
+        "outcome": "ok",
+        "absent": [
+          [
+            4,
+            "value"
+          ]
+        ],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 22.0,
+          "min": 1.0,
+          "max": 9.0,
+          "mean": 5.5,
+          "median": 6.0,
+          "stdev_population": 2.958039891549808,
+          "stdev_sample": 3.415650255319866
+        },
+        "unit": null
+      },
+      {
+        "key": "B",
+        "rows": [
+          3,
+          5,
+          7,
+          9,
+          11
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 30.0,
+          "min": 2.0,
+          "max": 10.0,
+          "mean": 6.0,
+          "median": 6.0,
+          "stdev_population": 2.8284271247461903,
+          "stdev_sample": 3.1622776601683795
+        },
+        "unit": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "fixture": "empty.csv",
+  "note": "A header and no rows. Every statistic over an empty selection is undefined rather than 0, and the file produces no cells at all.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": [],
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": null,
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": []
+  }
+}
