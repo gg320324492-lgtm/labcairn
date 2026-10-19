@@ -126,15 +126,40 @@ def normalize(text: str, profile: NormalizationProfile) -> Normalized:
     mean "the raw bytes of the file": LC-P1-08's PDF adapter already trims what
     a page boundary introduces, and re-deriving that here would be a second,
     divergent implementation of a decision that was already made.
+
+    Every profile is dispatched explicitly. An ``else`` here was once a
+    shorthand for "the ligature profile", and adding a fourth member to a closed
+    vocabulary turns a shorthand into a silent misclassification: a text
+    normalised under the new profile would quietly have its ligatures folded
+    too, and the log entry would record a transform that did not happen.
     """
     if profile is NormalizationProfile.EXACT:
         return Normalized(text=text, profile=profile, alters_letters=False)
 
+    if profile is NormalizationProfile.WORD_BOUNDARIES_REMOVED:
+        # NFKC, then every whitespace character removed. Deliberately *not*
+        # ligature-folded: boundary removal and letter identity are different
+        # axes, and conflating them would make a match under this profile
+        # ambiguous about which of the two did the work.
+        stripped = "".join(unicodedata.normalize("NFKC", text).split())
+        return Normalized(
+            text=stripped,
+            profile=profile,
+            # Removing whitespace cannot change a letter, so this is False by
+            # construction -- and it is computed rather than asserted, because
+            # the flag is what C4's A4 rule reads. If a future NFKC change made
+            # boundary removal touch a letter, this reports it instead of
+            # claiming it did not.
+            alters_letters=_letters(stripped) != _letters(text),
+        )
+
     collapsed = _collapse(text)
     if profile is NormalizationProfile.NFKC_WHITESPACE_COLLAPSED:
         folded = collapsed
-    else:
+    elif profile is NormalizationProfile.NFKC_WHITESPACE_COLLAPSED_LIGATURES:
         folded = "".join(LIGATURES.get(character, character) for character in collapsed)
+    else:  # pragma: no cover - the vocabulary is closed
+        raise ValueError(f"unknown normalisation profile {profile!r}")
 
     return Normalized(
         text=folded,

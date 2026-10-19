@@ -11,14 +11,16 @@ What exists here
 
 What does not exist here, and why
 ---------------------------------
-**C1, C2 and C3 raise :class:`CiteSupportNotImplementedError`.** They are declared
-with ADR-0004's exact signatures so that the call sites, the signature and the
-failure mode are all fixed now, but the behaviour is LC-P1-09's: deciding what
-"verbatim" means needs a real index, and deciding that a number "agrees" needs
-the parsed cell behind the anchor. Writing a plausible-looking implementation
-here would mean writing one that never has an index to ask — and a check that
-answers from a stub is worse than a check that refuses, because a caller cannot
-tell the difference between "it passed" and "there was nothing to pass against".
+**All four checks now have a body.** C1, C2 and C3 delegate to
+:mod:`labcairn.evidence.checks`, and C4 returns ``not_checked`` by design. Each
+was declared with ADR-0004's exact signature before any of them had an
+implementation, so that the call sites, the signatures and the failure modes were
+fixed first.
+
+That ordering was the point. Writing a plausible-looking implementation before
+its inputs existed would have meant a check answering from a stub, and a check
+that answers from a stub is worse than a check that refuses: a caller cannot tell
+"it passed" from "there was nothing to pass against".
 
 Raising is the *safe* direction and is not the same as the ADR's "none may raise
 past its boundary" rule, which governs the eventual implementations: it says a
@@ -26,8 +28,8 @@ finished check must return a verdict rather than leaking an exception to its
 caller. A check with no implementation has nothing to leak.
 
 :class:`~labcairn.evidence.states.IMPLEMENTED_CHECKS` says the same thing as
-data — it is currently ``{C4}`` — so a report or a gate can ask "what can this
-build actually establish?" and get the honest answer.
+data — it is currently ``{C1, C2, C4}`` — so a report or a gate can ask "what can
+this build actually establish?" and get the honest answer.
 
 C4 is structurally unable to pass
 ---------------------------------
@@ -315,7 +317,12 @@ class SourceIndex(Protocol):
 class CiteSupportNotImplementedError(NotImplementedError):
     """Raised by the cite-support checks that are not yet implemented.
 
-    Today that is C2 and C3; C1 landed with LC-P1-09 T05.
+    **Currently nothing raises it.** C1 landed with LC-P1-09 T05, C2 with T06
+    and C3 with T07, so all four validators now have a body. The class is
+    retained because it is part of the exported contract surface callers were
+    written against, and deleting an exported symbol mid-work-order is itself a
+    contract change. Its unreachability is asserted by a test rather than left
+    as a comment, so if it stays dead through Phase 1 that is visible.
 
     Subclasses :class:`NotImplementedError` so a caller that genuinely wants to
     probe for the implementation can catch the standard type, and carries the
@@ -386,12 +393,17 @@ def check_quotation_support(record: EvidenceRecord, *, index: SourceIndex) -> Ve
     :attr:`~labcairn.evidence.record.VerificationRecord.normalization_profile` on
     the C2 log entry this run produces — a field this module does not take as an
     argument, because ADR-0004's signature fixes the two parameters and the
-    auditable fact is what the check actually used. A run with no prior C2 entry
-    declares nothing, and declaring nothing is ``indeterminate``, not ``pass``.
+    auditable fact is what the check actually used. Callers that need the profile
+    use :func:`labcairn.evidence.checks.c2.quotation_match`, which returns the
+    verdict and the profile together.
 
-    Phase 1: not implemented.
+    Implemented in :mod:`labcairn.evidence.checks.c2` (LC-P1-09 T06), imported
+    inside the function for the same reason as C1: the implementation needs
+    ``Verdict`` and ``SourceIndex`` from this module.
     """
-    raise CiteSupportNotImplementedError(CheckKind.C2)
+    from labcairn.evidence.checks.c2 import check_quotation_support as _c2
+
+    return _c2(record, index=index)
 
 
 # ---------------------------------------------------------------------------
@@ -413,9 +425,18 @@ def check_numeric_consistency(record: EvidenceRecord, *, index: SourceIndex) -> 
     default exact-match requirement, and "exactly equal" is a claim about a
     number nobody has compared yet.
 
-    Phase 1: not implemented.
+    Implemented in :mod:`labcairn.evidence.checks.c3` (LC-P1-09 T07), imported
+    inside the function for the same reason as C1 and C2.
+
+    One thing the contract assumes and the store does not provide: a unit at the
+    anchor. ``LocatedContent`` carries text and a number, and the unit can only be
+    read from the text next to the number. :func:`labcairn.evidence.checks.c3.read_number`
+    therefore accepts a segment only when it is one number and at most one token,
+    and C3 compares unit tokens as written rather than converting them.
     """
-    raise CiteSupportNotImplementedError(CheckKind.C3)
+    from labcairn.evidence.checks.c3 import check_numeric_consistency as _c3
+
+    return _c3(record, index=index)
 
 
 # ---------------------------------------------------------------------------

@@ -328,6 +328,39 @@ elsewhere. T06's tests should be built around *mutation of the store after the
 quote was taken*, not around a quote that was wrong from the start, because the
 latter cannot fail.
 
+**What T06 measured, and what it had to decide.** The three declared profiles are
+not enough on this corpus. Of the 21 (phrase, page) pairs in the ground-truth set
+whose phrase a human confirmed on the page, **14 appear character-for-character
+in the stored text and 7 do not** — page 3 of `arx-2610.09396` stores
+`StructuredDisambiguationforText-to-SQL`, because these PDFs space words by
+positioning and the extractor synthesises the space from the gap between glyphs.
+Whether a given word pair comes out with a space is a property of the extractor
+in that moment, not of the document.
+
+Matching with word boundaries removed recovers all 7 and admits nothing that is
+not there: zero false positives across the corpus's four negative queries, zero
+for three paraphrase probes. That required a **fourth member of
+`NormalizationProfile`**, a vocabulary ADR-0004 fixes as closed, so revision 0008
+rebuilds `verification_records` — SQLite cannot ALTER a CHECK constraint — and the
+enum change is recorded as an execution note on ADR-0004 rather than a contract
+change.
+
+A match reached only under the boundary-free profile is `indeterminate`, never
+`pass`. That is why the profile is a named vocabulary member instead of a private
+step inside the check: an audit row recording `nfkc_whitespace_collapsed` for a
+comparison that deleted every space would be an audit row lying about how lenient
+the check was.
+
+One redundancy was found by mutation-checking, not by reading. The first draft
+tested each located span and then the concatenation; since any span is a substring
+of the join, the per-span test can never succeed where the join fails. Deleting it
+changed nothing and no test noticed, so it is gone.
+
+**What C2's tests cannot establish.** The ligature rung has no real material:
+measured, no page in the fixture corpus contains a ligature codepoint, so that rung
+is exercised only by a synthetic row. The cross-span case uses hand-written
+two-token spans rather than a genuine page boundary.
+
 ### T07 — C3, numerical consistency
 
 - Re-read the anchored cell or segment and compare against `record.value` under
@@ -340,6 +373,34 @@ latter cannot fail.
 - Re-read the *parsed* value behind the anchor, not the display string. A cell
   stored as `"3.50"` and a record claiming `3.5` agree; string equality would
   call that a conflict.
+
+**The gap T07 had to face.** Contract 3 says "fail on unit mismatch", and the
+store has no unit at the anchor. `LocatedContent` carries text and a number;
+`source_texts` holds exactly the string the file contained. A unit can only be
+read from whatever sits next to the number in that string.
+
+Measured on the corpus, scanning for a number followed by a trailing token returns
+as its most frequent "units": `%`, `m`, `r`, `introduction`, `e`, `conclusion`,
+`t`, `j`, `ij`, `on`, `as`. Half of those are prose. So `read_number` accepts a
+segment only when it is **one number and at most one token** — a page of prose
+containing a figure is not a cell, and C3 reports `indeterminate` rather than
+picking a number out of it.
+
+Two decisions follow, both stated rather than assumed:
+
+- **Units are compared as written, never converted.** `1 kg` against a record
+  claiming `1000 g` is the same quantity and a contradiction as a record; C3
+  reports the contradiction. A unit algebra inside a cite-support check would
+  itself need the evidence standard this ledger enforces.
+- **`kilograms` against `kg` fails.** That is a false negative, and it is the cost
+  of not building an alias table. The detail names both tokens so the reader can
+  see what the check did not do. This is the trade ADR-0004 R2 warns about, and it
+  is tested explicitly so it stays visible rather than being discovered by a user.
+
+**What T07 cannot establish.** The fixture corpus has no CSV or XLSX material — the
+three papers are all PDFs — so every C3 case is written into `source_texts` by the
+test. The shapes tested are the shapes a spreadsheet cell can have, but no cell in
+this repository came from a spreadsheet.
 
 ### T08 — persistence and the state machine
 

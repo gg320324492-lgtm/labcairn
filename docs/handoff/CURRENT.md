@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-19
-**Current `main`:** `c3333ab`, the merge of PR #38 (LC-P1-09 T05a, the anchor registry). The merges since the previous refresh: #32 (LC-P1-09's task breakdown), #33 (T01, the evidence tables), #34 (T02, normalisation), #35 (the ground-truth query set), #36 (T03, the FTS5 index), #37 (T04, building the index from ingestion), #38 (T05a, the anchor registry).
+**Current `main`:** the merge of PR #39 (LC-P1-09 T05, C1), `c0f9c1e`. This PR (#40) lands T06 and T07 — C2 and C3 — so once it merges the head advances again; the merges since the previous refresh are #32 (LC-P1-09's task breakdown), #33 (T01, the evidence tables), #34 (T02, normalisation), #35 (the ground-truth query set), #36 (T03, the FTS5 index), #37 (T04, building the index from ingestion), #38 (T05a, the anchor registry) and #39 (T05, C1).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. It was then stale again at #32, and the claim it made — "Nothing is implemented" for LC-P1-09 — stopped being true at #33. Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **partly implemented**: T01, T02, T03, T04 and T05a are merged and C1 answers; C2, C3, T08–T10 are not; LC-P1-10 not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **largely implemented**: T01–T07 merged, all four cite-support checks have bodies; T08–T10 are not; LC-P1-10 not started |
 
 ## What exists now
 
@@ -26,7 +26,11 @@ And, from LC-P1-09 so far: **the ledger has a store, an index and one working ch
 - Normalisation is an index-side copy with a declared profile and an `alters_letters` flag, so a comparison can report how lossy it was (T02).
 - Retrieval works over the real papers: fifteen ground-truth queries, eleven that must find the right pages and four that must find nothing, validated against the PDFs before any index existed (T03).
 - The index is built from the store and reports what it excluded (T04).
-- **C1 answers.** `check_source_exists` resolves every cited anchor and compares three separate hashes, and it refuses rather than guessing (T05, in progress).
+- **All four cite-support checks answer.** `check_source_exists` resolves every cited anchor and
+  compares three separate hashes (T05). `check_quotation_support` walks a ladder of four
+  normalisation profiles and refuses to promote a lossy match to `pass` (T06).
+  `check_numeric_consistency` re-reads the anchored cell and compares parsed values under a
+  declared tolerance (T07). C4 returns `not_checked` and always will.
 
 Both exit demonstrations run green:
 
@@ -37,7 +41,10 @@ uv run python examples/g2_uncertain_demo.py # the uncertain path end to end — 
 
 ## What does not exist yet
 
-**No research capability yet.** There is no CLI, no server, no web UI, and no model call that leaves the machine. Of the four cite-support checks, **only C1 can answer**; C2 and C3 still raise `CiteSupportNotImplementedError`, and C4 never will in Phase 1. `IMPLEMENTED_CHECKS` is `{C1, C4}` and is the value a report can ask rather than assume.
+**No research capability yet.** There is no CLI, no server, no web UI, and no model call that
+leaves the machine. All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is
+every one of them — the set no longer distinguishes "implemented" from "not", and what still
+separates them is that C4 can never return a pass.
 
 Nothing yet persists an `EvidenceRecord` through the ledger, so no record has a durable state machine — that is T08. No gate ties the checks together (T09), and the two-negative question — a failed search is not a negative result — is unanswered (T10).
 

@@ -35,8 +35,56 @@
 >   that C1 then resolves against the wrong page. That is this ADR's A1
 >   ("never cite the nearest page") arriving by a route nobody was watching.
 >
-> Still true below, unchanged: C4 is never implemented in Phase 1, and
-> `IMPLEMENTED_CHECKS` remains `{C4}` until C1-C3 land.
+> Still true below, unchanged: C4 is never implemented in Phase 1. `IMPLEMENTED_CHECKS`
+> is now every check, because C1, C2 and C3 landed in T05-T07 -- what still
+> separates them is that C4 can never return a pass.
+
+> **Execution note, 2026-10-19 (LC-P1-09 T06).** One vocabulary this ADR
+> closed, and C2 turned out to need a fourth member of it.
+>
+> `NormalizationProfile` is fixed here as a closed set of three -- `exact`,
+> `nfkc_whitespace_collapsed`, `nfkc_whitespace_collapsed_ligatures` -- with
+> the note that "the *transforms* are LC-P1-09's; this contract fixes the
+> vocabulary so the answer is comparable across runs and across records." The
+> transforms, then, are this work order's to build, and the *shape* of the
+> answer is what the vocabulary fixes.
+>
+> Measured against this repository's own papers, the three are not enough.
+> Of the 21 (phrase, page) pairs in `tests/fixtures/retrieval/ground_truth.json`
+> whose phrase a human confirmed on the page, **14 appear character-for-character
+> in the stored text and 7 do not**. Page 3 of `arx-2610.09396` stores
+> `StructuredDisambiguationforText-to-SQL`: ADR-0008 constraint 3 records that
+> these PDFs space words by positioning, and the extractor *synthesises* the
+> space from the gap between glyphs. Whether a word pair comes out with a space
+> is a property of the extractor in that moment, not of the document.
+>
+> A quotation check that accepts only verbatim matches therefore calls a third
+> of the corpus's genuine quotations unsupported -- which is R2's named failure
+> ("a matcher whose aggressiveness is invisible generates false negatives, and
+> false negatives teach users to turn the check off"), except that the
+> aggressiveness would not even be visible, because the check would not have
+> been lenient at all.
+>
+> Measured before deciding, so the cost is a number and not a worry:
+>
+>   - verbatim match:                      14/21
+>   - match ignoring word boundaries:      21/21
+>   - false positives on the four negative
+>     queries (phrases absent from all
+>     three papers, including "retrieval
+>     augmented generation"):               0
+>   - paraphrase probes:                    0
+>
+> So `word_boundaries_removed` joins the vocabulary, and revision 0008 rebuilds
+> `verification_records` to widen the CHECK -- SQLite cannot ALTER one.
+>
+> **What this does not change.** A match reached only under the new profile is
+> `indeterminate`, never `pass`; that is A4 and it is why the profile is a named
+> member rather than a private step inside C2. An audit row recording
+> `nfkc_whitespace_collapsed` for a comparison that deleted every space would be
+> an audit row lying about how lenient the check was, which is R2's objection
+> in a single field. No signature, verdict vocabulary or transition condition
+> here changes; the vocabulary grows by one, and the reason is measured.
 
 ## Context and concrete problem
 

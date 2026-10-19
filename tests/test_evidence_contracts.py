@@ -409,8 +409,8 @@ def test_the_implemented_set_names_what_can_answer_and_c4_is_still_not_a_pass() 
     The second half is the part that outlives the first: however the set grows,
     C4's answer is always ``not_checked``.
     """
-    assert frozenset({CheckKind.C1, CheckKind.C4}) == IMPLEMENTED_CHECKS
-    assert [check.value for check in sorted(IMPLEMENTED_CHECKS)] == ["c1", "c4"]
+    assert frozenset(CheckKind) == IMPLEMENTED_CHECKS
+    assert [check.value for check in sorted(IMPLEMENTED_CHECKS)] == ["c1", "c2", "c3", "c4"]
 
     record = EvidenceRecord.model_validate(_claim_payload())
     verdict = check_scientific_interpretation(record)
@@ -459,46 +459,56 @@ def test_c4_is_not_deletable_from_the_package_surface() -> None:
     assert evidence_package.check_scientific_interpretation is check_scientific_interpretation
 
 
-def test_unimplemented_checks_refuse_rather_than_answer() -> None:
-    """C2 and C3 raise; C1 does not, and that distinction is the point.
+class _EmptyIndex:
+    """An index that knows nothing, for a test about reachability only.
 
-    A check that returned ``indeterminate`` because it is unimplemented would be
-    indistinguishable, forever and downstream, from one that declined to answer
-    for a real reason — and the first would let a record sit at ``extracted``
-    looking, to a report, like something a system had looked at.
+    Deliberately a stub, and deliberately so in a contracts test rather than a
+    behaviour test: this assertion is about whether a call raises, not about what
+    a check concludes. The behavioural tests in ``test_cite_c1`` through
+    ``test_cite_c3`` run against a real migrated store, and a fake index there
+    would make every assertion a statement about the fake.
+    """
 
-    C1 landed with LC-P1-09 T05, so it is no longer in this set. The test names
-    the checks that still refuse *by asking the ledger*, not by listing them, so
-    implementing C2 or C3 makes this test fail until someone changes the
-    assertion on purpose -- the same discipline
-    ``test_c4_is_never_anything_but_not_checked`` applies to C4.
+    def load_anchor(self, anchor_id: str) -> Any:
+        return None
+
+    def locate(self, anchor: Any) -> Any:
+        return None
+
+    def content_hash(self, source_id: str) -> None:
+        return None
+
+
+def test_no_check_raises_the_unimplemented_error_anymore() -> None:
+    """Every check answers; the refusal class is exported and unreachable.
+
+    This assertion replaced an earlier one that required C1, C2 and C3 to raise.
+    The discipline is the same and the polarity flipped: the test still fails if
+    the set of what can answer changes without someone editing it on purpose.
+
+    ``CiteSupportNotImplementedError`` is kept for two reasons, both of which are
+    decisions rather than oversights. It is part of the exported contract surface
+    callers were written against, so deleting it is itself a contract change; and
+    C4's answer is permanently ``not_checked``, which is the same shape of
+    information the exception used to carry. What is *not* acceptable is the error
+    quietly becoming a live path again -- that is what this test catches.
     """
     record = EvidenceRecord.model_validate(_numeric_payload())
 
-    # `index=None` stands in for "no index exists yet"; the call must fail on
-    # the unimplemented check, not on the missing argument, which is why the
-    # raises below is specifically CiteSupportNotImplementedError.
-    unimplemented: tuple[tuple[CheckKind, Callable[[], Verdict]], ...] = (
-        (CheckKind.C2, lambda: check_quotation_support(record, index=None)),  # type: ignore[arg-type]
-        (CheckKind.C3, lambda: check_numeric_consistency(record, index=None)),  # type: ignore[arg-type]
+    calls: tuple[tuple[CheckKind, Callable[[], Verdict]], ...] = (
+        (CheckKind.C1, lambda: check_source_exists(record, index=_EmptyIndex())),
+        (CheckKind.C2, lambda: check_quotation_support(record, index=_EmptyIndex())),
+        (CheckKind.C3, lambda: check_numeric_consistency(record, index=_EmptyIndex())),
+        (CheckKind.C4, lambda: check_scientific_interpretation(record)),
     )
-    for check, call in unimplemented:
-        with pytest.raises(CiteSupportNotImplementedError) as caught:
-            call()
-        assert caught.value.check is check
-        assert isinstance(caught.value, NotImplementedError)
-        assert check.value in str(caught.value)
-        assert "can answer today" in str(caught.value)
-        # The message names what *can* answer, so a caller reading the error is
-        # told the truth about this build rather than guessing.
-        for implemented in sorted(IMPLEMENTED_CHECKS):
-            assert implemented.value in str(caught.value)
-        assert check.value in str(caught.value)
+    for check, call in calls:
+        try:
+            verdict = call()
+        except CiteSupportNotImplementedError:
+            pytest.fail(f"{check.value} still raises CiteSupportNotImplementedError")
+        assert verdict.check is check
 
-    # And the set of what can answer says so, as data rather than as a comment.
-    assert CheckKind.C2 not in IMPLEMENTED_CHECKS
-    assert CheckKind.C3 not in IMPLEMENTED_CHECKS
-    assert CheckKind.C1 in IMPLEMENTED_CHECKS
+    assert frozenset(CheckKind) == IMPLEMENTED_CHECKS
 
 
 def test_the_four_validators_keep_adr_0004_signatures() -> None:

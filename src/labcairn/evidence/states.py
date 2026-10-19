@@ -22,9 +22,11 @@ Three of these enums carry the weight ADR-0004 puts on them:
     ``outcome == PASS`` cannot be satisfied by a check that did not run.
 
 :class:`CheckKind`
-    Exactly C1-C4. :data:`IMPLEMENTED_CHECKS` says which of them can answer
-    today — C1 and C4 — and
-    :mod:`labcairn.evidence.cite_support` explains why the others refuse.
+    Exactly C1-C4. :data:`IMPLEMENTED_CHECKS` says which of them have an
+    implementation; after LC-P1-09 T05-T07 all four do, and what still separates
+    them is :data:`UPGRADING_CHECKS` — the subset whose ``pass`` may move a
+    record out of ``extracted``. C4 has a body and can never return anything but
+    ``not_checked``.
 """
 
 from __future__ import annotations
@@ -153,6 +155,20 @@ class NormalizationProfile(StrEnum):
     #: The above, plus ligature expansion (ﬁ → fi). For scanned-and-OCR'd or
     #: badly-encoded material, where letter *identity* may not be preserved.
     NFKC_WHITESPACE_COLLAPSED_LIGATURES = "nfkc_whitespace_collapsed_ligatures"
+    #: NFKC, then **every** whitespace character removed. Added by LC-P1-09 T06
+    #: because these PDFs space words by positioning and the extractor
+    #: synthesises the space from glyph gaps: on one page "total correlation"
+    #: keeps its space while "alignsfusedmodalitysubsetswith" has none of
+    #: theirs. Measured on the fixture corpus, 7 of the 21 quotations a human
+    #: confirmed on a page are not character-for-character present in the
+    #: stored text, and boundary removal recovers all 7 with no false positive
+    #: on the corpus's four negative queries.
+    #:
+    #: A match achieved only under this profile is ADR-0004 A4's ambiguous
+    #: case: ``indeterminate``, never ``pass``. It is named here rather than
+    #: hidden inside the check so the audit row can say how lenient the
+    #: comparison actually was.
+    WORD_BOUNDARIES_REMOVED = "word_boundaries_removed"
 
 
 class CheckOutcome(StrEnum):
@@ -178,14 +194,25 @@ class CheckOutcome(StrEnum):
     NOT_CHECKED = "not_checked"
 
 
-#: The checks that may report anything other than ``not_checked``.
+#: The checks that have an implementation rather than a stub.
 #:
-#: C4 by construction (its only verdict is ``not_checked``), and C1 since
-#: LC-P1-09 T05 — see :mod:`labcairn.evidence.checks.c1`. C2 and C3 still
-#: raise. The set is a value a report can ask: it says out loud what this build
-#: can establish. Adding a check means changing this line, which is a reviewed
-#: edit rather than an invisible capability that appeared.
-IMPLEMENTED_CHECKS: Final[frozenset[CheckKind]] = frozenset({CheckKind.C1, CheckKind.C4})
+#: All four do now: C1 landed with LC-P1-09 T05, C2 with T06 and C3 with T07.
+#: C4's implementation is a body that always returns ``not_checked``, which is
+#: still an implementation -- it answers, and the answer is that Phase 1 cannot
+#: establish scientific interpretation.
+#:
+#: This set is now equal to :data:`CHECK_KINDS`, and that is worth saying out
+#: loud, because a reader who expects it to be a subset will look for the check
+#: that is missing. There is none. The distinction that matters is no longer
+#: "implemented or not" but "may report pass": C4 structurally cannot, and
+#: :data:`UPGRADING_CHECKS` is where that is enforced.
+#:
+#: ``CiteSupportNotImplementedError`` is currently raised by nothing. It is kept
+#: because it is part of the exported contract surface callers were written
+#: against, and deleting an exported symbol mid-work-order is a contract change
+#: in its own right. A test asserts that no check raises it, so its
+#: unreachability is a fact in the suite rather than a drift nobody noticed.
+IMPLEMENTED_CHECKS: Final[frozenset[CheckKind]] = frozenset(CheckKind)
 
 #: Every check the model knows about. Closed, per ADR-0004 I2.
 CHECK_KINDS: Final[frozenset[CheckKind]] = frozenset(CheckKind)

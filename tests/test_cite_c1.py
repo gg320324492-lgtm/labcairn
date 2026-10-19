@@ -38,7 +38,6 @@ from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c1 import C1_CHECKER_ID
 from labcairn.evidence.cite_support import (
-    CiteSupportNotImplementedError,
     check_numeric_consistency,
     check_quotation_support,
     check_source_exists,
@@ -673,21 +672,23 @@ def test_an_index_that_cannot_answer_fails_rather_than_passing(store: Store) -> 
     assert "cannot resolve it at all" in verdict.detail
 
 
-def test_c1_answers_while_c2_and_c3_still_refuse(store: Store) -> None:
+def test_c1_answers_and_the_implemented_set_is_honest(store: Store) -> None:
     """What this build can establish, as data a report can ask.
 
     ``IMPLEMENTED_CHECKS`` is the honest version of a capability probe. ADR-0002
     is the reason it is a set rather than a boolean: a probe that says "fine"
     without having looked is the failure this whole ledger exists to avoid.
+
+    This test was written so that landing the next check would break it, and it
+    did. C4's ``not_checked`` is the only answer that is not a verdict about this
+    record, and the assertion that nothing raises is what keeps the retained
+    ``CiteSupportNotImplementedError`` from quietly becoming a live path again.
     """
     from labcairn.evidence.states import IMPLEMENTED_CHECKS
 
     record = _record(("anchor-1",), source_hash=ORIGINAL)
     _, index = store
     assert check_source_exists(record, index=index).outcome is CheckOutcome.PASS
-    for not_yet in (check_quotation_support, check_numeric_consistency):
-        with pytest.raises(CiteSupportNotImplementedError) as caught:
-            not_yet(record, index=index)
-        assert caught.value.check in {CheckKind.C2, CheckKind.C3}
-    assert CheckKind.C1 in IMPLEMENTED_CHECKS
-    assert CheckKind.C2 not in IMPLEMENTED_CHECKS
+    assert check_quotation_support(record, index=index).check is CheckKind.C2
+    assert check_numeric_consistency(record, index=index).check is CheckKind.C3
+    assert frozenset(CheckKind) == IMPLEMENTED_CHECKS
