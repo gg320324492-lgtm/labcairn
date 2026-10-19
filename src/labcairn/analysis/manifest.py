@@ -524,6 +524,13 @@ def _output_payload(result: BaseModel) -> JsonValue:
     unknown into a value without saying so. The Python-in-JSON form keeps the
     ``NaN``, and the manifest's own validation refuses it -- which is the
     outcome ADR-0004 A8 asks for.
+
+    A result whose model holds a **union of dataclasses** makes pydantic
+    emit a ``PydanticSerializationUnexpectedValue`` warning while it works
+    out which member it has. The payload it produces is right, and the
+    manifest's digest is therefore stable; the warning belongs to the result
+    model's shape and is not silenced here, because silencing it would also
+    hide a union that really does serialise ambiguously.
     """
     payload = result.model_dump(mode="json")
     try:
