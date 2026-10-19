@@ -92,7 +92,13 @@ Both are recorded in the expected values rather than smoothed over.
    and addressable. A spreadsheet does not: its adapter does not extract an
    empty cell, so the cell is simply absent. A spreadsheet's rectangular
    extent is therefore **not recoverable from the ledger**, and the count of
-   missing cells is *unknown with a reason* rather than a number.
+   blanks the author left is not recoverable from the ledger. What *is* known in both
+   formats is the count of **addresses with no recorded value** — that is what `absent`
+   records. What is not knowable for a spreadsheet is **how many of those were blanks
+   the author left**, and a range that overshoots the table cannot be told apart from
+   a range full of blanks. So `empty` means "cells the ledger holds with empty text",
+   which for a spreadsheet is always zero and does **not** mean the author left no
+   blanks.
 2. **The header row.** A spreadsheet's A1 and B1 are cells like any other and
    are addressable. A CSV's header names the columns and is not itself a set
    of cells. A selection that took "the whole column" would see two extra

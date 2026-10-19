@@ -68,15 +68,15 @@ from analysis_fixtures import (
     FIXTURE_NAMES,
     SPREADSHEET_SOURCES,
     build_spreadsheet_fixtures,
+    corpus_cells,
     expected_path,
     load_expected,
     read_table_csv,
+    row_numbers,
     write_table_csv,
 )
 
 from labcairn.evidence.checks.c3 import read_number
-from labcairn.material.ingest import ingest_bytes
-from labcairn.sources.locators import CsvLocator, XlsxLocator
 
 NOW = dt.datetime(2026, 10, 19, tzinfo=dt.UTC)
 
@@ -91,51 +91,6 @@ def _column_letter(ref: str) -> str:
 def _row_number(ref: str) -> int:
     digits = "".join(ch for ch in ref if ch.isdigit())
     return int(digits)
-
-
-def _ingest(name: str, data: bytes) -> dict[tuple[int, str], str]:
-    """The cells of one fixture, addressed by (physical row, header text).
-
-    This is the corpus's addressing contract, written once so that every
-    assertion below reads the same way.
-    """
-    material = ingest_bytes(data, relative_path=name, display_name=name, ingested_at=NOW)
-    cells: dict[tuple[int, str], str] = {}
-    if name.endswith(".csv"):
-        for text in material.texts:
-            locator = text.locator
-            assert isinstance(locator, CsvLocator), (
-                f"{name} produced a {type(locator).__name__}, which is not a CSV locator"
-            )
-            cells[(locator.row, locator.column)] = text.text
-        return cells
-
-    by_ref: dict[str, tuple[int, str]] = {}
-    for text in material.texts:
-        locator = text.locator
-        assert isinstance(locator, XlsxLocator), (
-            f"{name} produced a {type(locator).__name__}, which is not a spreadsheet locator"
-        )
-        by_ref[locator.cell_ref] = (_row_number(locator.cell_ref), text.text)
-    header_by_letter = {
-        _column_letter(ref): value for ref, (row, value) in by_ref.items() if row == 1
-    }
-    for ref, (row, value) in by_ref.items():
-        # The header row is included on purpose. A spreadsheet's A1 and B1 are
-        # cells like any other, and the corpus records that as a difference
-        # from the CSV rather than hiding it.
-        header = header_by_letter.get(_column_letter(ref))
-        if header is not None:
-            cells[(row, header)] = value
-    return cells
-
-
-def _rows(spec: Any) -> list[int]:
-    """The rows a selection names: a range string, or a list of numbers."""
-    if isinstance(spec, str):
-        start, _, end = spec.partition("-")
-        return list(range(int(start), int(end) + 1))
-    return [int(r) for r in spec]
 
 
 def _classify(
@@ -293,7 +248,7 @@ def test_a_fixture_ingests_to_the_cells_its_expected_values_describe(name: str) 
     collapsing them is how a missing measurement becomes a zero.
     """
     payload = load_expected(name)
-    cells = _ingest(name, _fixture_bytes(name))
+    cells = corpus_cells(name)
     tolerance = float(payload["tolerance"])
 
     header_is_addressable = any(row == 1 for row, _ in cells)
@@ -303,7 +258,7 @@ def test_a_fixture_ingests_to_the_cells_its_expected_values_describe(name: str) 
     )
 
     for selection in payload["selections"]:
-        rows = _rows(selection["rows"])
+        rows = row_numbers(selection["rows"])
         columns = list(selection["columns"])
         expect = selection["expect"]
         if expect["outcome"] == "refused":
@@ -334,14 +289,14 @@ def test_a_fixture_ingests_to_the_statistics_its_expected_values_state(name: str
     code, so this is a real comparison and not an echo.
     """
     payload = load_expected(name)
-    cells = _ingest(name, _fixture_bytes(name))
+    cells = corpus_cells(name)
     tolerance = float(payload["tolerance"])
 
     for selection in payload["selections"]:
         expect = selection["expect"]
         if expect["outcome"] == "refused":
             continue
-        rows = _rows(selection["rows"])
+        rows = row_numbers(selection["rows"])
         columns = list(selection["columns"])
         _absent, _empty, _not_a_quantity, values, units = _classify(cells, rows, columns)
         _assert_statistics_close(_statistics(values), expect["statistics"], tolerance)
@@ -362,7 +317,7 @@ def test_a_fixture_groups_the_way_its_expected_values_state(name: str) -> None:
     **no statistics** rather than statistics of nothing.
     """
     payload = load_expected(name)
-    cells = _ingest(name, _fixture_bytes(name))
+    cells = corpus_cells(name)
     tolerance = float(payload["tolerance"])
     grouped = payload["grouped"]
     by, of = grouped["by"], grouped["of"]
@@ -381,7 +336,7 @@ def test_a_fixture_groups_the_way_its_expected_values_state(name: str) -> None:
     )
 
     for group in expected_groups:
-        rows = _rows(group["rows"])
+        rows = row_numbers(group["rows"])
         _absent, _empty, _not_a_quantity, values, units = _classify(cells, rows, [of])
         _assert_statistics_close(_statistics(values), group["statistics"], tolerance)
         if group["statistics"] is None:
@@ -404,13 +359,13 @@ def test_a_refused_selection_really_carries_more_than_one_unit_token() -> None:
     started being refused for a different reason.
     """
     payload = load_expected("units.csv")
-    cells = _ingest("units.csv", (CORPUS_DIR / "units.csv").read_bytes())
+    cells = corpus_cells("units.csv")
 
     refused = [s for s in payload["selections"] if s["expect"]["outcome"] == "refused"]
     assert refused, "units.csv is supposed to contain a refused selection"
 
     for selection in refused:
-        rows = _rows(selection["rows"])
+        rows = row_numbers(selection["rows"])
         columns = list(selection["columns"])
         _absent, _empty, _not_a_quantity, _values, units = _classify(cells, rows, columns)
         assert len(set(units)) > 1, (
@@ -429,8 +384,8 @@ def test_the_spreadsheet_fixture_carries_the_same_characters_as_its_csv() -> Non
     not the writer's.
     """
     for name, source in SPREADSHEET_SOURCES.items():
-        sheet_cells = _ingest(name, build_spreadsheet_fixtures()[name])
-        csv_cells = _ingest(source, (CORPUS_DIR / source).read_bytes())
+        sheet_cells = corpus_cells(name)
+        csv_cells = corpus_cells(source)
         for key, text in csv_cells.items():
             if not text.strip():
                 # An empty cell is the one place the two may differ, and
@@ -455,8 +410,8 @@ def test_an_empty_cell_is_a_cell_in_a_csv_and_nothing_in_a_spreadsheet() -> None
     and a table's rectangular extent is not recoverable from the ledger for a
     spreadsheet.
     """
-    csv_cells = _ingest("holes.csv", (CORPUS_DIR / "holes.csv").read_bytes())
-    sheet_cells = _ingest("holes.xlsx", build_spreadsheet_fixtures()["holes.xlsx"])
+    csv_cells = corpus_cells("holes.csv")
+    sheet_cells = corpus_cells("holes.xlsx")
 
     assert (4, "value") in csv_cells, "holes.csv should keep the emptied cell"
     assert csv_cells[(4, "value")] == "", "the CSV's emptied cell should be empty"
@@ -478,8 +433,8 @@ def test_the_header_row_is_addressable_in_a_spreadsheet_and_not_in_a_csv() -> No
     cells. A selection that took "the whole column" would therefore see two
     extra cells in one format and none in the other.
     """
-    csv_cells = _ingest("basic.csv", (CORPUS_DIR / "basic.csv").read_bytes())
-    sheet_cells = _ingest("numeric.xlsx", build_spreadsheet_fixtures()["numeric.xlsx"])
+    csv_cells = corpus_cells("basic.csv")
+    sheet_cells = corpus_cells("numeric.xlsx")
 
     assert not any(row == 1 for row, _ in csv_cells), (
         "the CSV's header row should not be a set of cells"
@@ -502,7 +457,7 @@ def test_a_column_that_declares_a_unit_declares_it() -> None:
     assert payload["declared_units"] == {"mass (kg)": "kg"}, (
         f"typed.csv declares {payload['declared_units']!r}, and the header says 'mass (kg)'"
     )
-    cells = _ingest("typed.csv", (CORPUS_DIR / "typed.csv").read_bytes())
+    cells = corpus_cells("typed.csv")
     assert (2, "mass (kg)") in cells, "the column is addressed by its header text"
 
 

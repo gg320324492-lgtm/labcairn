@@ -7,6 +7,23 @@ ADR-0004 Contract 3, verbatim:
     exceeding tolerance. ``indeterminate`` when the segment is non-numeric or the
     declared tolerance is absent -- an undeclared tolerance is never 0.
 
+The quantity reader now lives elsewhere
+---------------------------------------
+``read_number`` and ``NumericReading`` moved to
+:mod:`labcairn.sources.quantity` in LC-P1-10, and are re-exported here, so
+``from labcairn.evidence.checks.c3 import read_number`` and
+``from labcairn.evidence.checks import read_number`` both still work and C3's
+tests are untouched.
+
+The move was for one reason: **the ledger and the analysis layer must not
+disagree about what a number is.** C3 asks "does the number in this record
+agree with the number in this cell" and LC-P1-10's operators ask "what is the
+mean of this column", and both start by asking the same question of the same
+text. Two readers of that question would be two answers to it, and the
+disagreement would not crash — it would be a ledger that calls ``"3.5 kg"`` a
+quantity and an analysis that calls it prose, and a number nobody checked
+twice.
+
 What the contract assumes, and what the store actually has
 ----------------------------------------------------------
 C3 speaks of "the anchored cell" as if a cell carries a unit. It does not.
@@ -58,92 +75,17 @@ decision, and it bites.
 from __future__ import annotations
 
 import math
-import re
-from dataclasses import dataclass
 from typing import Final
 
 from labcairn.evidence.cite_support import LocationResolution, SourceIndex, Verdict
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import CheckKind, CheckOutcome, EvidenceKind
 from labcairn.sources.locators import describe_locator
+from labcairn.sources.quantity import NumericReading, read_number
 
 __all__ = ["C3_CHECKER_ID", "NumericReading", "check_numeric_consistency", "read_number"]
 
 C3_CHECKER_ID: Final = "c3.numeric_consistency"
-
-#: One number, optionally signed. No thousands separators: ``1,234`` is read as
-#: the number 1 followed by a token, and the token is not a unit, so the segment
-#: is refused as ambiguous rather than guessed.
-_NUMBER: Final[re.Pattern[str]] = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
-
-#: A unit token: letters, or a bare symbol, optionally with a slash. ``%`` alone
-#: counts -- an earlier draft required a letter and so refused "12%", turning a
-#: legitimate percentage into "not a quantity". There is no length cap: a segment
-#: qualifies only when it is a number and at most one token, so prose is refused
-#: by shape rather than by an arbitrary limit. Scanning the fixture corpus shows
-#: why a cap is the wrong tool -- the words following numbers there include
-#: "introduction", "conclusion" and "ij", but each sits inside a multi-token line,
-#: which the shape rule already rejects.
-_UNIT: Final[re.Pattern[str]] = re.compile(r"(?:°?[A-Za-z]+|%|°|²|³)(?:/[A-Za-z]+)?")
-
-#: A leading currency symbol is part of the value's unit, not noise.
-_CURRENCY: Final[str] = "$€£"
-
-
-@dataclass(frozen=True)
-class NumericReading:
-    """What one anchored segment says numerically, and whether it says a unit.
-
-    ``value`` is ``None`` when the segment is not a clean quantity. ``unit`` is
-    ``None`` when the number stands alone, which is the ordinary case for a cell
-    in a table and the reason most declared units cannot be verified.
-    """
-
-    value: float | None
-    unit: str | None
-    raw: str
-
-
-def read_number(text: str) -> NumericReading:
-    """Parse one anchored segment into a number and an optional unit.
-
-    Strict on purpose. A segment qualifies if it is a number, optionally preceded
-    by a currency symbol and optionally followed by one unit token, and nothing
-    else. Everything else -- prose, two figures, a thousands separator -- is
-    reported as having no readable quantity, which C3 answers ``indeterminate``.
-    That is the honest answer: the data is present and the comparison is not
-    possible, which is a different fact from the data contradicting the record.
-    """
-    stripped = text.strip()
-    if not stripped:
-        return NumericReading(value=None, unit=None, raw=stripped)
-
-    body = stripped
-    leading = ""
-    if body[0] in _CURRENCY:
-        leading, body = body[0], body[1:].strip()
-
-    number_part = _NUMBER.match(body)
-    if number_part is None:
-        return NumericReading(value=None, unit=None, raw=stripped)
-
-    # ``fullmatch`` on the number alone means the segment is nothing but a
-    # number. Anything left over must be exactly one unit token, or the segment
-    # is not a quantity.
-    rest = body[number_part.end() :].strip()
-
-    if not rest:
-        return NumericReading(value=float(number_part.group(0)), unit=leading or None, raw=stripped)
-
-    unit_match = _UNIT.fullmatch(rest)
-    if unit_match is None:
-        return NumericReading(value=None, unit=None, raw=stripped)
-
-    return NumericReading(
-        value=float(number_part.group(0)),
-        unit=leading + rest,
-        raw=stripped,
-    )
 
 
 def check_numeric_consistency(record: EvidenceRecord, *, index: SourceIndex) -> Verdict:
