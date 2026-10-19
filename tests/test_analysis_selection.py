@@ -29,18 +29,26 @@ disagreement would not crash.
 from __future__ import annotations
 
 import pytest
-from analysis_fixtures import corpus_cells, load_expected, row_numbers
+from analysis_fixtures import (
+    FIXTURE_NAMES,
+    corpus_cells,
+    corpus_selection,
+    load_expected,
+    row_numbers,
+)
 
 from labcairn.analysis.selection import (
     FilterOp,
     MissingPolicy,
     RowFilter,
     RowRange,
+    RowSelection,
     RowSet,
     Selection,
     SelectionRefusedError,
     resolve_selection,
 )
+from labcairn.analysis.units import UnitDisagreementError, declared_unit_for
 from labcairn.analysis.values import (
     CellAddress,
     CellOutcome,
@@ -384,3 +392,273 @@ def test_the_analysis_and_the_ledger_read_a_quantity_the_same_way() -> None:
     assert ledger_reader is shared_reader
     for text in ("3.50", "3.5 kg", "not-a-number", "", "1,234", "12%"):
         assert ledger_reader(text) == shared_reader(text)
+
+
+# ---------------------------------------------------------------------------
+# A column's declared unit, and the data under it
+# ---------------------------------------------------------------------------
+
+
+class _CellsSource:
+    """A cell source over a table written out in the test.
+
+    The corpus is the fixture for what a real table looks like. This is for
+    the cases the corpus cannot hold, because the case is about the *check*
+    and not about a table anyone would keep.
+    """
+
+    def __init__(self, cells: dict[tuple[int, str], str]) -> None:
+        self._cells = cells
+        self._rows = tuple(sorted({row for row, _ in cells}))
+
+    def text_at(self, address: CellAddress) -> str | None:
+        return self._cells.get((address.row, address.column))
+
+    def rows(self) -> tuple[int, ...]:
+        return self._rows
+
+    @property
+    def records_blank_cells(self) -> bool:
+        return True
+
+
+#: The one row the synthetic tables below hold. A module-level singleton, so
+#: that it is a value rather than a call in an argument default.
+_ONE_ROW: RowSelection = RowRange(2, 2)
+
+
+def _synthetic(columns: tuple[str, ...], rows: RowSelection = _ONE_ROW) -> Selection:
+    """A selection over a synthetic table."""
+    return Selection(
+        source_id="synthetic.csv",
+        content_sha256=HASH,
+        columns=columns,
+        rows=rows,
+        missing=MissingPolicy.EXCLUDE,
+    )
+
+
+@pytest.mark.unit
+def test_a_header_that_declares_a_unit_the_cells_contradict_is_refused() -> None:
+    """The one case the corpus's other fixtures cannot hold.
+
+    Every cell of the column says ``m`` and the header says ``cm``, so the
+    cells agree with *each other* and a check that compared the cells only
+    with each other would have nothing to say and would pass. This is the
+    case the check exists for, and the reason a check that only ever looked
+    at cell text would have been vacuous.
+
+    The refusal happens in the **selection**, not in an operator, because the
+    conflict is about the column: the selection is what names a column and
+    resolves its cells, so every operator inherits the check rather than each
+    one repeating it.
+    """
+    source = _CorpusSource("declared.csv")
+    selection = corpus_selection("declared.csv", {"rows": "2-5", "columns": ["length (cm)"]})
+    with pytest.raises(UnitDisagreementError):
+        resolve_selection(selection, source)
+
+
+@pytest.mark.unit
+def test_the_refusal_names_both_tokens() -> None:
+    """A reader told only that the units differ cannot tell a typo from a
+    real second unit, so the refusal names **both** of them.
+
+    The quotes are load-bearing. The column's own name contains ``cm``, so a
+    bare substring would be satisfied by the name alone, and a message that
+    named neither token would pass. Only a quoted token is a token.
+    """
+    source = _CorpusSource("declared.csv")
+    selection = corpus_selection("declared.csv", {"rows": "2-5", "columns": ["length (cm)"]})
+    with pytest.raises(UnitDisagreementError) as raised:
+        resolve_selection(selection, source)
+    message = str(raised.value)
+    assert "'cm'" in message
+    assert "'m'" in message
+
+
+@pytest.mark.unit
+def test_a_column_that_declares_a_unit_the_cells_agree_with_is_not_refused() -> None:
+    """A declaration the data confirms is not a conflict.
+
+    A refusal that fired on a confirmed declaration would be a check nobody
+    could satisfy, which is the other way a check stops being one.
+    """
+    source = _CorpusSource("declared.csv")
+    selection = corpus_selection("declared.csv", {"rows": "2-5", "columns": ["mass (kg)"]})
+    result = resolve_selection(selection, source)
+    assert result.units == ("kg",)
+    assert result.n_used == 4
+
+
+@pytest.mark.unit
+def test_a_declared_unit_no_cell_corroborates_is_unverified_and_nothing_is_refused() -> None:
+    """A cell with no token leaves the declared unit unverified.
+
+    The asymmetry C3 keeps: a bare numeric cell has no unit to contradict, so
+    the header's claim is neither confirmed nor denied and nothing is
+    refused. ``typed.csv`` is exactly that case, and a column the source does
+    not have at all is the same case with no cells in it.
+    """
+    source = _CorpusSource("typed.csv")
+    selection = corpus_selection("typed.csv", {"rows": "2-4", "columns": ["mass (kg)"]})
+    result = resolve_selection(selection, source)
+    assert result.units == ()
+    assert result.n_used == 3
+
+    absent = _CellsSource({(2, "other"): "1.0"})
+    empty = resolve_selection(_synthetic(("mass (kg)",)), absent)
+    assert empty.n_absent == 1
+    assert empty.units == ()
+
+
+@pytest.mark.unit
+def test_a_header_that_declares_nothing_is_not_compared_with_the_cells() -> None:
+    """A header that declares nothing has no claim to check.
+
+    Two shapes, and the second is the one C3's own docstring names: prose in
+    parentheses is not a unit, and a cell carrying a unit under such a header
+    is not a conflict, because there is nothing to disagree with.
+    """
+    source = _CorpusSource("declared.csv")
+    selection = corpus_selection(
+        "declared.csv", {"rows": "2-5", "columns": ["total (see table 2)"]}
+    )
+    result = resolve_selection(selection, source)
+    assert result.units == ("kg",)
+
+    plain = _CellsSource({(2, "value"): "3.5 kg"})
+    assert resolve_selection(_synthetic(("value",)), plain).units == ("kg",)
+
+
+@pytest.mark.unit
+def test_the_declaration_is_checked_against_the_columns_own_cells_only() -> None:
+    """A declaration is a claim about one column, and only that column answers it.
+
+    ``mass (kg)`` says kg and its own cells say kg, so it is not a conflict
+    however many other columns of the same selection carry something else.
+    The other columns' units are a different problem with a different owner:
+    a selection whose cells disagree with each other is refused by the
+    operator, and that check is not this one.
+    """
+    source = _CellsSource({(2, "mass (kg)"): "1.0 kg", (2, "other"): "2.0 g"})
+    result = resolve_selection(_synthetic(("mass (kg)", "other")), source)
+    assert result.units == ("g", "kg")
+
+
+@pytest.mark.unit
+def test_two_unit_tokens_in_a_column_are_the_operator_s_refusal_and_not_this_one() -> None:
+    """Two different problems, two different owners.
+
+    ``units.csv``'s column declares nothing and its cells carry two tokens.
+    The selection resolves it — the cells are readable — and the *operator*
+    refuses, because a selection whose cells disagree with each other is not
+    a statistic over anything. The refusal in this file is the other one: a
+    column whose header contradicts its own data.
+    """
+    payload = load_expected("units.csv")
+    source = _CorpusSource("units.csv")
+    described = payload["selections"][0]
+    rows = row_numbers(described["rows"])
+    selection = Selection(
+        source_id="units.csv",
+        content_sha256=HASH,
+        columns=("value",),
+        rows=RowRange(rows[0], rows[-1]),
+        missing=MissingPolicy.EXCLUDE,
+    )
+    result = resolve_selection(selection, source)
+    assert result.units == ("g", "kg")
+
+
+@pytest.mark.unit
+def test_a_narrowed_selection_inherits_the_check() -> None:
+    """The check travels with the selection, so a narrowed one is checked too.
+
+    A grouped aggregate narrows a selection to the column it measures and
+    resolves that. The check is where the narrowing happens, so the narrowed
+    selection is refused for the same reason the whole one is — which is the
+    reason the check is in the selection and not in each operator.
+    """
+    source = _CorpusSource("declared.csv")
+    selection = Selection(
+        source_id="declared.csv",
+        content_sha256=HASH,
+        columns=("length (cm)",),
+        rows=RowSet((2, 3)),
+        missing=MissingPolicy.EXCLUDE,
+    )
+    with pytest.raises(UnitDisagreementError):
+        resolve_selection(selection, source)
+
+
+@pytest.mark.unit
+def test_an_incomplete_and_conflicting_selection_is_refused_for_the_incompleteness() -> None:
+    """The caller's declared policy is honoured before the analysis-level refusal.
+
+    A selection that cannot be resolved under ``REFUSE`` does not exist as
+    asked, so there is nothing yet to say about what its column means. The
+    conflict is still waiting once the holes are filled, and which of the two
+    refusals comes first is stated here rather than left to whichever was
+    written first.
+    """
+    source = _CellsSource({(2, "mass (kg)"): "1.0 g", (3, "mass (kg)"): ""})
+    selection = Selection(
+        source_id="synthetic.csv",
+        content_sha256=HASH,
+        columns=("mass (kg)",),
+        rows=RowRange(2, 3),
+        missing=MissingPolicy.REFUSE,
+    )
+    with pytest.raises(SelectionRefusedError):
+        resolve_selection(selection, source)
+
+
+@pytest.mark.unit
+def test_every_fixture_records_the_declarations_its_headers_make() -> None:
+    """The corpus's record of what a header declares is the record the code produces.
+
+    A corpus that says a header declares a unit it does not declare — or
+    that forgot to record one it does — misstates the very thing the check
+    is about, and a reader of the corpus would be misled about which columns
+    the check has something to say on.
+    """
+    for name in FIXTURE_NAMES:
+        payload = load_expected(name)
+        declared = {
+            header: unit
+            for header in payload["columns"]
+            if (unit := declared_unit_for(header)) is not None
+        }
+        assert payload["declared_units"] == declared, (
+            f"{name} records the declarations {payload['declared_units']!r}, and "
+            f"its headers declare {declared!r}"
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("header", "declared", "carried"),
+    [
+        ("mass (kg)", "kg", "g"),
+        ("mass (KG)", "KG", "kg"),
+        ("mass (kg)", "kg", "kilograms"),
+    ],
+)
+def test_units_are_compared_as_written_and_never_converted(
+    header: str, declared: str, carried: str
+) -> None:
+    """``kg`` against ``g`` is a disagreement, and it stays one.
+
+    The same quantity written two ways is still two tokens, and the owner's
+    decision is that the two are not reconciled: a conversion table is a unit
+    algebra, and the arithmetic of that algebra would need an evidence
+    standard this ledger does not have in Phase 1. The tokens are also
+    compared case-sensitively, because they are compared *as written*.
+    """
+    source = _CellsSource({(2, header): f"1.0 {carried}"})
+    with pytest.raises(UnitDisagreementError) as raised:
+        resolve_selection(_synthetic((header,)), source)
+    message = str(raised.value)
+    assert f"'{declared}'" in message
+    assert f"'{carried}'" in message

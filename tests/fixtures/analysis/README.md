@@ -21,6 +21,7 @@ is honest: `tests/test_analysis_fixtures.py`.
 | `numeric.xlsx` | `basic.csv` in the other format, cell for cell, with the same characters. |
 | `single.csv` | Exactly one value. The population standard deviation of one value is `0`, and the sample standard deviation is **undefined**. The difference between those two is the point, and it is ADR-0004 A8: an unknown quantity is not a zero. |
 | `typed.csv` | A header that declares a unit: `mass (kg)`. The cells carry no token of their own, so the unit comes from the column name — and the space in that column name is also why the adapter announces that a header with a space in it might be a title row. |
+| `declared.csv` | A header that declares a unit, three ways. `mass (kg)` declares `kg` and the cells carry `kg`; `length (cm)` declares `cm` and the cells carry `m`, which is a **conflict** and is refused with both tokens named; `total (see table 2)` declares **nothing**, because prose in parentheses is not a unit, so there is nothing to compare the cells with. |
 | `empty.csv` | A header and no rows. Every statistic over an empty selection is undefined rather than `0`, and the file produces no cells at all. |
 
 ## The spreadsheets are derived, not committed

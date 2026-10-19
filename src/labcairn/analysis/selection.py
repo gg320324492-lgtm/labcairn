@@ -29,12 +29,22 @@ so. ``EXCLUDE`` says "use what you can and tell me what you skipped";
 matches no operator, including ``NE``: there is nothing to compare, and
 admitting it would put a row in the selection for no stated reason.
 
-What is *not* decided here
---------------------------
-The unit check. A selection reports the unit tokens its cells carry and
-nothing more; whether they agree is the operator's business (LC-P1-10 T04),
-because C3's discipline — units are compared as written and never converted —
-is the operator's to apply, not the selection's to anticipate.
+What is decided here, and what is not
+-------------------------------------
+**A column's declared unit is checked against that column's own cells.** A
+header of the form ``mass (kg)`` declares a unit, and the cells under it are
+the only evidence that can check the claim: a real table almost never puts
+units in its cells, so a check that only ever looked at cell text would find
+no unit to check and pass vacuously. A cell carrying a token the header does
+not declare is a **conflict**, and it is refused here rather than in each
+operator, because the conflict is about the column — which the selection is
+what names and resolves.
+
+**The cells' unit tokens are not compared with each other here.** Whether the
+tokens in a selection agree with one another is the operator's business
+(LC-P1-10 T04), because C3's discipline — units are compared as written and
+never converted — is the operator's to apply, not the selection's to
+anticipate.
 """
 
 from __future__ import annotations
@@ -43,6 +53,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
+from labcairn.analysis.units import UnitDisagreementError, declaration_disagreement
 from labcairn.analysis.values import (
     CellAddress,
     CellOutcome,
@@ -280,6 +291,12 @@ def resolve_selection(selection: Selection, source: ValueSource) -> SelectionRes
     Under the ``REFUSE`` policy, a selection with any unusable cell raises
     rather than returning a partial answer. Under ``EXCLUDE`` the unusable
     cells are counted and left out, and the counts are the disclosure.
+
+    A column whose header declares a unit the cells contradict is refused
+    here as well, and not in each operator. The check is about the column,
+    and a selection is what names a column and resolves its cells — so every
+    operator that resolves a selection inherits the check, and a grouped
+    aggregate inherits it through the narrowed selection it resolves.
     """
     rows = _rows_for(selection.rows, source)
     cells = tuple(
@@ -294,7 +311,33 @@ def resolve_selection(selection: Selection, source: ValueSource) -> SelectionRes
     )
     if selection.missing is MissingPolicy.REFUSE and result.unusable:
         raise SelectionRefusedError(selection=selection, unusable=result.unusable)
+    conflict = _declaration_conflict(selection, result)
+    if conflict is not None:
+        raise UnitDisagreementError(conflict)
     return result
+
+
+def _declaration_conflict(selection: Selection, result: SelectionResult) -> str | None:
+    """The reason a column's declared unit disagrees with its cells, or ``None``.
+
+    The check is **per column**. A declaration is a claim about one column,
+    so it is checked against that column's own cells and not against the
+    units the selection's other columns happen to carry: a column that
+    agrees with its own header would otherwise be refused because of a
+    column somewhere else in the same selection, which is a different
+    problem with a different owner.
+    """
+    tokens_by_column: dict[str, set[str]] = {}
+    for cell in result.quantities:
+        unit = cell.unit
+        if unit is None:
+            continue
+        tokens_by_column.setdefault(cell.address.column, set()).add(unit)
+    for column in selection.columns:
+        reason = declaration_disagreement(column, tokens_by_column.get(column, set()))
+        if reason is not None:
+            return reason
+    return None
 
 
 def _rows_for(spec: RowSelection, source: ValueSource) -> tuple[int, ...]:
