@@ -36,6 +36,16 @@ dependencies = [
     # licence file. Loaded lazily by material.pdf, so the text, Markdown
     # and CSV paths do not need it.
     "pdfplumber>=0.11,<1",
+    # LC-P1-10 chart rendering. The work order names Matplotlib; the decision
+    # record is docs/adr/ADR-0012-*.md. The licence was read from the
+    # distribution's own LICENSE file rather than from package metadata --
+    # a PSF-style permissive licence, BUT the wheel also BUNDLES FONTS under
+    # two further licences (DejaVu: Bitstream Vera; STIX: SIL OFL 1.1), so
+    # the G5 licence audit must cover the bundled fonts and not the root
+    # licence line alone. That is the paper-qa failure mode ADR-0004
+    # records. Must be loaded lazily by analysis.chart.render (LC-P1-10
+    # T07), so the text, Markdown, CSV and XLSX paths do not need it.
+    "matplotlib>=3.9,<4",
     "alembic>=1.13,<2",
 ]
 
