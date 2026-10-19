@@ -364,6 +364,29 @@ def test_a_group_with_no_quantity_has_no_statistic() -> None:
 
 
 @pytest.mark.unit
+def test_an_undefined_group_blames_the_group_and_not_the_selection() -> None:
+    """The reason names the group it is about.
+
+    The aggregate's own reason says "the selection holds no value", and in a
+    table of groups "the selection" is the wrong thing to blame: it is *this
+    group* that holds no value, and the other groups may hold plenty. A
+    reader told the selection was empty would be told something false about
+    the selection, and the group that is actually empty would go unnamed.
+    """
+    payload = load_expected("missing.csv")
+    described = payload["selections"][0]
+    result = aggregate(
+        _args("missing.csv", payload, described, "labcairn.analysis.mean@1.0.0", {}),
+        corpus_source("missing.csv"),
+    )
+    by_key = {group.key: group for group in result.groups}
+    reason = by_key["B"].undefined_reason
+    assert reason is not None
+    assert "B" in reason
+    assert "selection" not in reason
+
+
+@pytest.mark.unit
 def test_the_result_reports_the_rows_it_filtered_and_the_rows_it_excluded() -> None:
     """A table of statistics is a claim about a set of rows, and says which.
 
