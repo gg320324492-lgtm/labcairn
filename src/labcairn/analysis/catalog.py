@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+from labcairn.analysis.chart.render import CHART
 from labcairn.analysis.operators import RegisteredOperator
 from labcairn.analysis.operators.descriptive import (
     COUNT,
@@ -41,6 +42,17 @@ __all__ = [
     "operator_for",
     "operator_version",
 ]
+
+#: Every operator this build implements.
+#:
+#: The type parameters are erased, and deliberately so: the catalogue holds
+#: operators with **different** argument models, and the place a caller's
+#: parameters lose their type is the capability's own boundary, where
+#: ``analysis.run`` carries them as an untyped mapping and the operator's
+#: argument model validates them.
+OPERATORS: Final[frozenset[RegisteredOperator[Any, Any]]] = frozenset(
+    {AGGREGATE, CHART, COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM}
+)
 
 
 def is_registered_operator(operator_id: str) -> bool:
@@ -71,34 +83,3 @@ def operator_version(operator_id: str) -> str | None:
     if registered is None:
         return None
     return registered.operator.operator_version
-
-
-def _shipped_operators() -> frozenset[RegisteredOperator[Any, Any]]:
-    """Every operator this build implements.
-
-    The type parameters are erased, and deliberately so: the catalogue holds
-    operators with **different** argument models, and the place a caller's
-    parameters lose their type is the capability's own boundary, where
-    ``analysis.run`` carries them as an untyped mapping and the operator's
-    argument model validates them.
-
-    The **chart operator** is imported here rather than at the top of the
-    module, and the reason is an import cycle that no arrangement of
-    module-level imports can break: the chart package's own initialiser
-    imports the recipe module, the recipe module imports *this* module for
-    ``operator_for``, and the catalogue holds the chart operator. So the
-    chart operator's module can only be imported once this module is
-    otherwise complete -- which is what this function's place at the bottom
-    of the file buys, and why the set is built by a call rather than by a
-    literal at the top.
-
-    The constant still has exactly one home: the chart operator's own
-    module. The catalogue quotes it; it does not spell it out.
-    """
-    from labcairn.analysis.chart.render import CHART
-
-    return frozenset({AGGREGATE, CHART, COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM})
-
-
-#: Every operator this build implements.
-OPERATORS: Final[frozenset[RegisteredOperator[Any, Any]]] = _shipped_operators()

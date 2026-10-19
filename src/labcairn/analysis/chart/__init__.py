@@ -48,16 +48,7 @@ from labcairn.analysis.chart.render import (
     FigureResult,
     FigureValue,
     MatplotlibFigureRenderer,
-    _bind_recipe_types,
 )
-
-# The renderer's two models name the recipe's types by string, because the
-# recipe imports the operator catalogue and the catalogue holds the chart
-# operator: a module-level import the other way round would close a cycle.
-# The binding is therefore done when the recipe is importable, and this is
-# the point at which it always is -- the recipe is imported above, and this
-# package's initialiser finishes before anyone can reach the models.
-_bind_recipe_types()
 
 __all__ = [
     "CHART_OPERATOR_ID",

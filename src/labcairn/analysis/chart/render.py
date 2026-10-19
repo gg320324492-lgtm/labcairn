@@ -69,23 +69,19 @@ across machines: a different machine may resolve different fonts. The
 environment fingerprint in the manifest is what makes "identical inputs"
 mean something.
 
-Why this module does not import the recipe at its top level
------------------------------------------------------------
-The recipe module imports the operator catalogue, and the catalogue holds
-this module's chart operator, so a top-level ``from
-labcairn.analysis.chart.recipe import ...`` here would close an import cycle
-that no arrangement of module-level imports can open: the catalogue is
-imported *from* the recipe, and the recipe would be imported *from* the
-catalogue. The recipe types are therefore named by string in the two models
-below and bound by :func:`_bind_recipe_types` the first time they are used.
-It is an awkward seam, and it is here rather than spread across three
-modules because the alternative -- a second spelling of the recipe -- is the
-failure this project keeps paying for.
+What the manifest's environment does not cover
+-----------------------------------------------
+The renderer's declared drawing parameters -- the figure's size, the
+histogram's bin count, and the digest of the declared settings -- are
+published as module constants and are **not** carried by the manifest's
+environment fingerprint, so the byte-identity claim is scoped to one
+recorded environment plus these three, and a reader comparing two
+manifests that say the same environment cannot tell from the manifests
+alone why the bytes differ.
 """
 
 from __future__ import annotations
 
-import contextlib
 import io
 import math
 import os
@@ -93,10 +89,11 @@ import re
 import tempfile
 import textwrap
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, NamedTuple, cast
+from typing import Any, Final, NamedTuple, cast
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from labcairn.analysis.chart.recipe import ChartRecipe, FigureFormat, Mark
 from labcairn.analysis.manifest import FileRef, read_recipe
 from labcairn.analysis.operators import (
     TABULAR_LOCATOR_KINDS,
@@ -109,9 +106,6 @@ from labcairn.analysis.operators.grouped import GroupedResult
 from labcairn.analysis.units import declared_unit_for
 from labcairn.analysis.values import CellAddress, ValueSource
 from labcairn.sources.primitives import NonEmptyText
-
-if TYPE_CHECKING:
-    from labcairn.analysis.chart.recipe import ChartRecipe, FigureFormat, Mark
 
 __all__ = [
     "CHART_OPERATOR_ID",
@@ -407,7 +401,6 @@ def describe(args: ChartArgs, source: ValueSource) -> FigureResult:
     by the operator whose result it was given. The figure's numbers are
     that operator's numbers, and there is exactly one reading of the file.
     """
-    _bind_recipe_types()
     recipe = args.recipe
     result = args.result
 
@@ -483,39 +476,6 @@ class _UnreadableSource:
         raise FigureRefusedError("the chart operator asked about the source's blanks.")
 
 
-def _bind_recipe_types() -> None:
-    """Bind the recipe types the two models above name by string.
-
-    The recipe module imports the operator catalogue and the catalogue holds
-    this module's chart operator, so a top-level import of the recipe here
-    would close a cycle that no module-level arrangement can open. The
-    models therefore name their recipe types as strings, and this binds
-    them -- once the recipe module is importable, which is when they are
-    first needed.
-
-    It is called from three places, and the reason for each is the same:
-    the models cannot be built until the recipe is importable, and the
-    recipe is importable at different moments depending on which module
-    was imported first.
-    """
-    from labcairn.analysis.chart.recipe import ChartRecipe, FigureFormat, Mark
-
-    globals()["ChartRecipe"] = ChartRecipe
-    globals()["FigureFormat"] = FigureFormat
-    globals()["Mark"] = Mark
-    ChartArgs.model_rebuild()
-    FigureResult.model_rebuild()
-
-
-# Bound at import time when the recipe is already importable, which is the
-# usual case: the chart package's initialiser imports the recipe before
-# this module. The exception is the window in which the catalogue is
-# importing this module *from* the recipe, and the chart package's
-# initialiser binds the types again once that closes.
-with contextlib.suppress(ImportError):
-    _bind_recipe_types()
-
-
 class MatplotlibFigureRenderer:
     """Draws a figure from a recipe and the operator's result.
 
@@ -586,7 +546,6 @@ class MatplotlibFigureRenderer:
         Everything else is a refusal, because everything else is a defect in
         the inputs rather than a fact about the result.
         """
-        _bind_recipe_types()
         data_operator, _version = parse_operator_reference(self._recipe.data.operator)
         if operator_id != data_operator:
             return None
