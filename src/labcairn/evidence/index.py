@@ -72,7 +72,7 @@ because the contracts do not answer it.
 **Where the anchor itself comes from.** ``SourceAnchor`` is a Pydantic model,
 so something has to persist one before C1 can be handed it -- and until
 revision 0007 nothing did. ``load_anchor`` reads the ``source_anchors``
-registry that migration created, and ``_locator_from_key`` rebuilds the
+registry that migration created, and ``locator_from_key`` rebuilds the
 locator from its canonical ``locator_key``. That round trip is the newest
 thing here and the easiest to break in a way nothing catches: a mis-rebuilt
 locator is still a *valid* locator, so it resolves, and the error surfaces as
@@ -108,6 +108,7 @@ __all__ = [
     "build_match_expression",
     "load_anchor",
     "locate_anchor",
+    "locator_from_key",
     "read_content_hash",
     "search",
 ]
@@ -281,7 +282,7 @@ def _with_source(hit: Hit, source_id: str) -> Hit:
     )
 
 
-def _locator_from_key(locator_key: str) -> SourceLocator:
+def locator_from_key(locator_key: str) -> SourceLocator:
     """Rebuild the locator that :func:`render_locator_key` rendered.
 
     The inverse direction, and the one place a bug would be invisible: a wrong
@@ -479,7 +480,7 @@ def load_anchor(connection: Connection, anchor_id: str) -> SourceAnchor | None:
         anchor_id=anchor_id_,
         source_id=source_id,
         kind=AnchorKind(kind),
-        locator=_locator_from_key(locator_key),
+        locator=locator_from_key(locator_key),
         bound_source_sha256=bound_sha,
         excerpt_sha256=excerpt_sha,
         created_at=created_at,

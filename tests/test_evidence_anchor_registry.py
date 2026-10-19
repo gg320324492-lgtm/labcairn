@@ -1,6 +1,6 @@
 """The anchor registry: the round trip from a rendered key back to a locator.
 
-``_locator_from_key`` is the one function in LC-P1-09 whose bug produces no
+``locator_from_key`` is the one function in LC-P1-09 whose bug produces no
 error. Everything else about an address fails loudly if it is wrong -- the
 schema refuses a malformed key, Pydantic refuses a zero page, and
 ``LocatedContent`` refuses a resolution with no content -- but a locator
@@ -36,8 +36,8 @@ from labcairn.db.session import create_db_engine
 from labcairn.evidence.cite_support import SourceIndex
 from labcairn.evidence.index import (
     LabCairnIndex,
-    _locator_from_key,
     load_anchor,
+    locator_from_key,
     read_content_hash,
 )
 from labcairn.material.addressing import (
@@ -106,8 +106,8 @@ def test_a_key_rebuilds_the_locator_it_was_rendered_from(
     renderings agreeing is what makes the pair a bijection rather than a
     function with a faithful-looking inverse.
     """
-    assert _locator_from_key(locator_key) == locator
-    assert render_locator_key(_locator_from_key(locator_key)) == locator_key
+    assert locator_from_key(locator_key) == locator
+    assert render_locator_key(locator_from_key(locator_key)) == locator_key
 
 
 @pytest.mark.parametrize(("locator", "locator_key"), ROUND_TRIP, ids=lambda v: str(v)[:28])
@@ -119,7 +119,7 @@ def test_a_component_containing_the_separator_splits_back_whole(
     A reader that split on ``|`` first would shred ``c=5:a|b|c`` into three
     components and either raise or, worse, bind ``c`` to ``a``.
     """
-    rebuilt = _locator_from_key(locator_key)
+    rebuilt = locator_from_key(locator_key)
     assert split_locator_key(locator_key)["k"] == rebuilt.locator_kind.value
     assert render_locator_key(rebuilt) == locator_key
 
@@ -170,7 +170,7 @@ def test_a_key_the_renderer_could_not_have_written_is_refused(why: str, locator_
     be one type in both.
     """
     with pytest.raises(LocatorKeyError):
-        _locator_from_key(locator_key)
+        locator_from_key(locator_key)
 
 
 def test_the_locators_own_validators_are_left_to_speak_for_themselves() -> None:
@@ -182,7 +182,7 @@ def test_the_locators_own_validators_are_left_to_speak_for_themselves() -> None:
     the model, and it is not a ``LocatorKeyError``.
     """
     with pytest.raises(ValueError):
-        _locator_from_key("k=3:pdf|p=1:0")
+        locator_from_key("k=3:pdf|p=1:0")
 
 
 # --------------------------------------------------------------------------- #
