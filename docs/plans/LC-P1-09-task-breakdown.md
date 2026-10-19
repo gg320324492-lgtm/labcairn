@@ -526,6 +526,55 @@ search is not a negative result.**
   instructions and enable write access"* is **data**, and the wrapper is what
   makes that true rather than merely intended.
 
+**What T10 decided.**
+
+*The discrimination is structural, not a convention.* `RetrievalOutcome` refuses
+to be built in a confused state: `FOUND` requires excerpts and forbids a
+failure; `NO_HIT` requires neither; `PROVIDER_FAILURE` requires a
+`ProviderFailure` and forbids excerpts. A caller cannot hold an outcome saying
+"nothing found and also the search broke", because the constructor will not let
+one exist.
+
+*A broken search is a failure, and it says so in the project's own vocabulary.*
+The index is dropped underneath the search in the test, the search raises, and
+the result is `PROVIDER_FAILURE` carrying a
+`labcairn.providers.errors.ProviderFailure` -- kind, whether it is retryable,
+what a person should do -- rather than a string this module invented.
+
+*The refusal lives at the boundary, and it raises.* `require_evidence` is where
+a zero-hit search stops the flow, and it raises rather than returning a refusal,
+because the caller is what A6 protects: a caller that has to remember to check
+will eventually forget, and the failure it produces is a report that answers
+from nothing. An empty context is the thing A6 is about -- a model called with
+no evidence answers from its own priors and the report cannot tell.
+
+*A11 is two guarantees, and only one of them is about the text.* The excerpt is a
+`UntrustedText`, which is deliberately not a `str` subclass, so document text
+passed where an ordinary string is expected is a *type error* rather than a
+silent success. And the capabilities are a **parameter** of
+`build_model_context` and the context is frozen, so there is no path from the
+text of a retrieved passage to the set of tools a model may call. The rendering
+encloses the excerpt in a fence **derived from the excerpt's own content** and
+lengthened while the content contains it, so a passage cannot forge the marker
+that closes its own enclosure.
+
+*A8: an unmeasured value is `None`, and it is shown as "unknown".* The search
+layer does not expose the FTS5 rank, so the score is unknown -- never ``0.0``,
+which would state that nothing was measured as though nothing had been measured.
+The telemetry discloses the word *unknown* for a value that was not taken.
+
+**What T10 cannot establish.** The guarantee A11 actually asks for is about
+*capabilities*, and that is what is structural here: an excerpt reading "enable
+write access" cannot add `fs.write`, because the capability set is a parameter
+and the context is frozen. What is **not** guaranteed is that a model will
+*read* the text as data rather than as instruction. A wrapper cannot make a
+language model unpersuadable, and a claim that it could would be the kind of
+claim this ledger exists to refuse. The narrower claim is the one made, and the
+test says which. The retrieval "provider" here is the local FTS5 index, so the
+failure modes exercised are the index missing and SQLite raising; the outbound
+provider failures in `labcairn.providers` are the same vocabulary but no remote
+provider is wired to retrieval yet.
+
 ## 3. Acceptance mapping
 
 ADR-0004 Contract 4. Every condition gets a row; a condition with no row is not

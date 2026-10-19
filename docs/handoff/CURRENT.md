@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **largely implemented**: T01–T08 merged, all four cite-support checks have bodies and the ledger persists records through a state machine; T09 and T10 are not; LC-P1-10 not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **implemented**: T01–T10 merged — all four cite-support checks have bodies, the ledger persists records through a state machine, the evidence gate refuses, and retrieval tells a failed search from a negative one; LC-P1-10 not started |
 
 ## What exists now
 
@@ -58,7 +58,7 @@ leaves the machine. All four cite-support checks now have bodies, and `IMPLEMENT
 every one of them — the set no longer distinguishes "implemented" from "not", and what still
 separates them is that C4 can never return a pass.
 
-The two-negative question — a failed search is not a negative result — is unanswered (T10). And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is LC-P1-11's to make. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
+Retrieval now answers the two-negative question (T10): a search that breaks is a `PROVIDER_FAILURE` and never a `no_hit`, and the boundary refuses to hand a caller an empty context. What is still unbuilt is everything around it — the analysis, the report renderer, and the model call the evidence would feed. And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is LC-P1-11's to make. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
 ## Next: finish G3
 
