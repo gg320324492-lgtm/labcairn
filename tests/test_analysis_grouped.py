@@ -60,6 +60,7 @@ from labcairn.sources.locators import LocatorKind
 #: Every fixture the corpus gives a grouped section for.
 GROUPED_FIXTURES: Final[tuple[str, ...]] = (
     "basic.csv",
+    "declared.csv",
     "empty.csv",
     "groups.csv",
     "holes.csv",
@@ -432,6 +433,39 @@ def test_units_are_checked_per_group_and_not_across_the_selection() -> None:
     assert by_key["C"].unit == "g"
     assert by_key["D"].unit is None
     assert by_key["C"].value == pytest.approx(3500.0)
+
+
+@pytest.mark.unit
+def test_the_grouped_aggregate_refuses_a_column_whose_header_contradicts_its_cells() -> None:
+    """The grouped aggregate inherits the header's declaration check.
+
+    The corpus's ``declared.csv`` holds a column whose header declares ``cm``
+    while its cells carry ``m``. The check lives in the selection layer, so a
+    grouped aggregate -- which resolves a narrowed selection over the column it
+    measures -- refuses it rather than aggregating a column whose header and
+    cells disagree, and the refusal names both tokens.
+    """
+    payload = load_expected("declared.csv")
+    described = payload["selections"][1]
+    assert described["expect"]["outcome"] == "refused"
+
+    with pytest.raises(UnitDisagreementError) as refused:
+        aggregate(
+            GroupedArgs(
+                selection=corpus_selection(
+                    "declared.csv",
+                    {"rows": described["rows"], "columns": ["group", "length (cm)"]},
+                ),
+                aggregate="labcairn.analysis.mean@1.0.0",
+                by="group",
+                of="length (cm)",
+                aggregate_parameters={},
+            ),
+            corpus_source("declared.csv"),
+        )
+    message = str(refused.value)
+    assert "cm" in message
+    assert "'m'" in message
 
 
 @pytest.mark.unit
