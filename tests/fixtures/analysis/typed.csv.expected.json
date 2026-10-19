@@ -1,0 +1,83 @@
+{
+  "fixture": "typed.csv",
+  "note": "A header that declares a unit: 'mass (kg)'. The cells carry no token of their own, so the unit comes from the column name -- and the space in that column name is also why the adapter announces that a header with a space in it might be a title row.",
+  "columns": [
+    "group",
+    "mass (kg)"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {
+    "mass (kg)": "kg"
+  },
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-4",
+      "columns": [
+        "mass (kg)"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 7.5,
+          "min": 1.5,
+          "max": 3.5,
+          "mean": 2.5,
+          "median": 2.5,
+          "stdev_population": 0.816496580927726,
+          "stdev_sample": 1.0
+        },
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "mass (kg)",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 5.0,
+          "min": 1.5,
+          "max": 3.5,
+          "mean": 2.5,
+          "median": 2.5,
+          "stdev_population": 1.0,
+          "stdev_sample": 1.4142135623730951
+        },
+        "unit": null
+      },
+      {
+        "key": "B",
+        "rows": "3-3",
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 2.5,
+          "min": 2.5,
+          "max": 2.5,
+          "mean": 2.5,
+          "median": 2.5,
+          "stdev_population": 0.0,
+          "stdev_sample": null
+        },
+        "unit": null
+      }
+    ]
+  }
+}

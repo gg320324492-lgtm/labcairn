@@ -1,0 +1,161 @@
+{
+  "fixture": "units.csv",
+  "note": "Unit tokens. Four rows carry 'kg', one carries 'g' and one carries none. A selection over the whole file is REFUSED for holding two unit tokens, while every group on its own is fine -- the refusal is a property of the selection, not of the file.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-7",
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "refused",
+        "because": "the cells carry more than one unit token"
+      }
+    },
+    {
+      "name": "the four kilogram rows, and only those",
+      "rows": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 16.0,
+          "min": 3.5,
+          "max": 4.6,
+          "mean": 4.0,
+          "median": 3.95,
+          "stdev_population": 0.3937003937005904,
+          "stdev_sample": 0.45460605656619507
+        },
+        "unit": "kg"
+      }
+    },
+    {
+      "name": "the gramme row alone",
+      "rows": [
+        6
+      ],
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 3500.0,
+          "min": 3500.0,
+          "max": 3500.0,
+          "mean": 3500.0,
+          "median": 3500.0,
+          "stdev_population": 0.0,
+          "stdev_sample": null
+        },
+        "unit": "g"
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 7.4,
+          "min": 3.5,
+          "max": 3.9,
+          "mean": 3.7,
+          "median": 3.7,
+          "stdev_population": 0.19999999999999996,
+          "stdev_sample": 0.28284271247461895
+        },
+        "unit": "kg"
+      },
+      {
+        "key": "B",
+        "rows": [
+          3,
+          5
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 8.6,
+          "min": 4.0,
+          "max": 4.6,
+          "mean": 4.3,
+          "median": 4.3,
+          "stdev_population": 0.2999999999999998,
+          "stdev_sample": 0.4242640687119283
+        },
+        "unit": "kg"
+      },
+      {
+        "key": "C",
+        "rows": "6-6",
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 3500.0,
+          "min": 3500.0,
+          "max": 3500.0,
+          "mean": 3500.0,
+          "median": 3500.0,
+          "stdev_population": 0.0,
+          "stdev_sample": null
+        },
+        "unit": "g"
+      },
+      {
+        "key": "D",
+        "rows": "7-7",
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 5.0,
+          "min": 5.0,
+          "max": 5.0,
+          "mean": 5.0,
+          "median": 5.0,
+          "stdev_population": 0.0,
+          "stdev_sample": null
+        },
+        "unit": null
+      }
+    ]
+  }
+}

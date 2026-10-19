@@ -1,0 +1,141 @@
+{
+  "fixture": "missing.csv",
+  "note": "The three ways a cell can fail to be a number: present and empty, present and not a number, and absent altogether (the trailing blank row, which has no fields at all). Nothing here is a zero, and nothing here is imputed.",
+  "columns": [
+    "group",
+    "value"
+  ],
+  "tolerance": 1e-12,
+  "header_cells": false,
+  "declared_units": {},
+  "selections": [
+    {
+      "name": "the value column, every data row",
+      "rows": "2-7",
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [
+          [
+            7,
+            "value"
+          ]
+        ],
+        "empty": [
+          [
+            3,
+            "value"
+          ]
+        ],
+        "not_a_quantity": [
+          [
+            5,
+            "value"
+          ]
+        ],
+        "statistics": {
+          "sum": 9.0,
+          "min": 1.0,
+          "max": 5.0,
+          "mean": 3.0,
+          "median": 3.0,
+          "stdev_population": 1.632993161855452,
+          "stdev_sample": 2.0
+        },
+        "unit": null
+      }
+    },
+    {
+      "name": "the rows that have fields, leaving the blank row out",
+      "rows": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "columns": [
+        "value"
+      ],
+      "expect": {
+        "outcome": "ok",
+        "absent": [],
+        "empty": [
+          [
+            3,
+            "value"
+          ]
+        ],
+        "not_a_quantity": [
+          [
+            5,
+            "value"
+          ]
+        ],
+        "statistics": {
+          "sum": 9.0,
+          "min": 1.0,
+          "max": 5.0,
+          "mean": 3.0,
+          "median": 3.0,
+          "stdev_population": 1.632993161855452,
+          "stdev_sample": 2.0
+        },
+        "unit": null
+      }
+    }
+  ],
+  "grouped": {
+    "by": "group",
+    "of": "value",
+    "groups": [
+      {
+        "key": "A",
+        "rows": [
+          2,
+          4,
+          6
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [],
+        "not_a_quantity": [],
+        "statistics": {
+          "sum": 9.0,
+          "min": 1.0,
+          "max": 5.0,
+          "mean": 3.0,
+          "median": 3.0,
+          "stdev_population": 1.632993161855452,
+          "stdev_sample": 2.0
+        },
+        "unit": null
+      },
+      {
+        "key": "B",
+        "rows": [
+          3,
+          5
+        ],
+        "outcome": "ok",
+        "absent": [],
+        "empty": [
+          [
+            3,
+            "value"
+          ]
+        ],
+        "not_a_quantity": [
+          [
+            5,
+            "value"
+          ]
+        ],
+        "statistics": null,
+        "unit": null
+      }
+    ]
+  }
+}
