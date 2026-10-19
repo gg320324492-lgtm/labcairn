@@ -906,9 +906,15 @@ def _cells_for(session: Session, source: Source) -> ValueSource:
 
     Read from the **ledger**, and from its current extraction: the same bytes
     may be held under more than one extraction, and the current one is the
-    newest row for each address. That rule is the store's, and
-    :func:`labcairn.db.materials.current_texts` is where it lives, so that
-    this path and the evidence index cannot drift apart.
+    newest row for each address. That rule is stated once, in
+    :func:`labcairn.db.materials.current_texts`, and this path asks the store
+    for it rather than working it out here.
+
+    The evidence index keeps **its own** copy of the same ordering, because
+    it resolves one address at a time from a raw connection and cannot be
+    used in bulk. The two are held in step by a test that asks both readers
+    which row is current and requires them to answer alike -- not by the code
+    sharing one implementation.
     """
     if source.kind is SourceKind.CSV:
         locator_kind = LocatorKind.CSV

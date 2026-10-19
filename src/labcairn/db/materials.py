@@ -235,7 +235,11 @@ def current_texts(session: Session, *, source_content_sha256: str) -> Sequence[S
     **"Current" is the newest row for an address** -- ``created_at DESC,
     id DESC`` -- which is the rule
     :func:`labcairn.evidence.index.locate_anchor` already applies when it
-    resolves one anchor. The ledger may hold more than one extraction of the
+    resolves one anchor. That reader keeps its own copy of the ordering,
+    because it resolves one address at a time from a raw connection and
+    cannot be asked for a whole material at once; a test asks both readers
+    which row is current and requires them to answer alike, which is what
+    holds them in step. The ledger may hold more than one extraction of the
     same bytes: an adapter's code changed and the material was re-ingested
     without the file changing. A reader that took the first row it happened to
     find would read whichever extraction the database returned first, and the

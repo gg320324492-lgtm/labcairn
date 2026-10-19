@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -100,6 +100,11 @@ NOW: dt.datetime = dt.datetime(2026, 10, 20, 12, 0, tzinfo=dt.UTC)
 #: The operator most of these tests run.
 MEAN: str = "labcairn.analysis.mean"
 
+#: An operator that takes a parameter besides the selection. A manifest that
+#: dropped its parameters is invisible under ``mean``, whose only other
+#: argument is none, so the tests that look at the parameters run this one.
+STDEV: str = "labcairn.analysis.stdev"
+
 #: The source root the workspace binds, and the root-relative key of the
 #: material inside it.
 ROOT_ID: str = "source:0"
@@ -142,14 +147,34 @@ class Scenario:
         """The source root the material lives in."""
         return ROOT_ID
 
+    def parameters(
+        self, selection: Selection | None = None, extra: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """The operator's parameters, as the caller states them.
+
+        The selection is the one parameter every operator takes, and it is
+        stated in the manifest's own spelling. ``extra`` carries the rest --
+        ``ddof`` for ``stdev`` -- so that a test can run an operator that has
+        a parameter besides the selection, and a manifest that dropped its
+        parameters would be visible.
+        """
+        payload: dict[str, Any] = {"selection": selection_payload(selection or self.selection)}
+        if extra:
+            payload.update(extra)
+        return payload
+
     def arguments(
-        self, *, operator_id: str = MEAN, selection: Selection | None = None
+        self,
+        *,
+        operator_id: str = MEAN,
+        selection: Selection | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """The capability's own arguments, as the caller states them."""
         return {
             "path": self.key,
             "operator_id": operator_id,
-            "parameters": {"selection": selection_payload(selection or self.selection)},
+            "parameters": self.parameters(selection, extra),
         }
 
     def grant(
@@ -158,6 +183,7 @@ class Scenario:
         selection: Selection | None = None,
         operator_id: str = MEAN,
         expected_hash: str | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> ApprovalId:
         """An approval covering exactly this request, granted.
 
@@ -172,7 +198,7 @@ class Scenario:
             {
                 "path": self.key,
                 "operator_id": operator_id,
-                "parameters": {"selection": selection_payload(chosen)},
+                "parameters": self.parameters(chosen, extra),
             }
         )
         canonical = self.workspace.path_in(self.key, self.root_id)
@@ -209,6 +235,7 @@ class Scenario:
         operator_id: str = MEAN,
         selection: Selection | None = None,
         parameters: dict[str, Any] | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> AnalysisRequest:
         """The request the run path is handed."""
         return AnalysisRequest(
@@ -218,9 +245,7 @@ class Scenario:
                 "path": self.key,
                 "operator_id": operator_id,
                 "parameters": (
-                    parameters
-                    if parameters is not None
-                    else {"selection": selection_payload(selection or self.selection)}
+                    parameters if parameters is not None else self.parameters(selection, extra)
                 ),
             },
         )
@@ -399,10 +424,15 @@ def _two_sheet_workbook() -> bytes:
 
 def _expected_mean(fixture: str) -> float:
     """The mean the corpus says, read out of the committed expectations."""
+    return _expected_statistic(fixture, "mean")
+
+
+def _expected_statistic(fixture: str, name: str) -> float:
+    """A statistic the corpus says, read out of the committed expectations."""
     import json
 
     expected = json.loads((CORPUS / f"{fixture}.expected.json").read_text(encoding="utf-8"))
-    return float(expected["selections"][0]["expect"]["statistics"]["mean"])
+    return float(expected["selections"][0]["expect"]["statistics"][name])
 
 
 def _statistic(run: AnalysisRun) -> Any:
@@ -478,16 +508,42 @@ def test_the_manifest_carries_the_six_fields_the_work_order_names(scenarios: Any
     """Input hash, selection, operator version, parameters, recipe, output hash.
 
     Each checked *where* it lives, not merely that something like it exists.
+    The operator is ``stdev`` and not ``mean`` because ``mean`` has no
+    argument besides the selection: a test that named the parameters while
+    running an operator with none would assert nothing about them.
     """
     scenario = scenarios()
-    run = scenario.run()
+    run = scenario.run(operator_id=STDEV, extra={"ddof": 1})
     manifest = run.manifest
 
     assert manifest.input_file.content_sha256 == scenario.source.content_sha256
     assert manifest.locator.parameters["selection"] == selection_payload(scenario.selection)
     assert manifest.locator.operator_version == "1.0.0"
+    assert manifest.locator.parameters["ddof"] == 1
     assert manifest.recipe.relative_path == RECIPE
     assert manifest.output_sha256 == canonical_digest(manifest.output)
+
+
+@pytest.mark.unit
+def test_the_manifests_parameters_are_the_operators_own_arguments(scenarios: Any) -> None:
+    """The parameters are the operator's, and the selection has its own field.
+
+    Two failure modes, and the assertion catches both: a manifest that
+    recorded **no** parameters is indistinguishable from one whose operator
+    has none, so the operator here has one (``ddof``); and a run that passed
+    the selection among the operator's parameters would not produce a
+    manifest at all, because the manifest refuses a parameter that shadows
+    the selection. The parameters are therefore exactly the selection and the
+    argument, each once.
+    """
+    scenario = scenarios()
+    run = scenario.run(operator_id=STDEV, extra={"ddof": 1})
+
+    assert _statistic(run).value == pytest.approx(_expected_statistic("basic.csv", "stdev_sample"))
+    assert run.manifest.locator.parameters == {
+        "selection": selection_payload(scenario.selection),
+        "ddof": 1,
+    }
 
 
 @pytest.mark.unit
@@ -681,7 +737,15 @@ def test_an_approval_that_promised_another_hash_is_refused(scenarios: Any) -> No
 
 @pytest.mark.unit
 def test_a_denied_policy_is_refused(scenarios: Any) -> None:
-    """The policy's verdict is asked for, and a deny is a refusal."""
+    """The policy's verdict is asked for, and a deny is a refusal.
+
+    The **message** is what a reader acts on, so it is asserted and not only
+    the reason: a denial says it was *denied*, and it names the policy's own
+    reason and the rule that matched. The two refusals this path can make for
+    the same reason -- a denial and an unanswered question -- are different
+    facts, and a message that said "asked" about a denial would be false
+    about what the policy did.
+    """
     scenario = scenarios()
     scenario.policy = PermissionPolicy.from_rules(
         [Rule(effect=Permission.DENY, pattern="**", capabilities=frozenset({"analysis.run"}))]
@@ -691,6 +755,10 @@ def test_a_denied_policy_is_refused(scenarios: Any) -> None:
     with pytest.raises(AnalysisRefusedError) as caught:
         scenario.run(approval_id=granted)
     assert caught.value.reason is AnalysisRefusal.PERMISSION_DENIED
+    assert caught.value.detail.startswith("the policy denied analysis.run on")
+    assert "rule_deny" in caught.value.detail
+    assert scenario.policy.rules[0].render() in caught.value.detail
+    assert "asked" not in caught.value.detail
 
 
 @pytest.mark.unit
@@ -698,7 +766,9 @@ def test_a_policy_that_asks_is_refused(scenarios: Any) -> None:
     """An unanswered question is not consent.
 
     The path has no way to ask -- there is no one to ask, in a library call --
-    so an ``ASK`` is refused rather than read as a yes.
+    so an ``ASK`` is refused rather than read as a yes. The message says
+    *asked*, because a question that was not answered is a different fact
+    from a request that was denied.
     """
     scenario = scenarios()
     scenario.policy = PermissionPolicy.from_rules(
@@ -709,6 +779,8 @@ def test_a_policy_that_asks_is_refused(scenarios: Any) -> None:
     with pytest.raises(AnalysisRefusedError) as caught:
         scenario.run(approval_id=granted)
     assert caught.value.reason is AnalysisRefusal.PERMISSION_DENIED
+    assert "the policy asked about analysis.run" in caught.value.detail
+    assert "denied" not in caught.value.detail
 
 
 @pytest.mark.unit
@@ -1213,10 +1285,14 @@ def test_the_arguments_of_a_run_are_the_ones_the_approval_is_bound_to(scenarios:
 # --------------------------------------------------------------------------- #
 #
 # Each of these is a way the path's properties could be undone, and the named
-# test that catches it. Every one was applied and run; all thirty-four were
+# test that catches it. Every one was applied and run; all thirty-seven were
 # caught. Two of them were applied outside this module, and they are marked:
 # the approval's single-use rule lives in the shared approval machinery, and
-# the "current row" rule lives in the store's reader.
+# the "current row" rule lives in the store's reader. The last three came out
+# of an independent review that wrote its own mutations against the branch,
+# and the two that survived it were real gaps in these tests rather than bad
+# mutations: a policy *denial* was reported with the message an unanswered
+# *question* gets, and the manifest's parameters were never observed.
 #
 #   1. the approval's digest not recomputed at the moment of use
 #      -> test_an_approval_for_one_selection_does_not_authorise_another
@@ -1289,3 +1365,9 @@ def test_the_arguments_of_a_run_are_the_ones_the_approval_is_bound_to(scenarios:
 #      -> test_a_run_over_a_spreadsheet_reads_the_ledger_cells
 #  34. a two-sheet workbook read from whichever sheet came first
 #      -> test_a_workbook_with_two_sheets_is_refused
+#  35. a policy denial reported with the message an unanswered question gets
+#      -> test_a_denied_policy_is_refused
+#  36. the manifest's parameters dropped
+#      -> test_the_manifests_parameters_are_the_operators_own_arguments
+#  37. the selection passed among the operator's parameters
+#      -> test_the_manifests_parameters_are_the_operators_own_arguments
