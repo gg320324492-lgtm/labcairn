@@ -85,6 +85,7 @@ __all__ = [
     "attest",
     "detect_conflicts",
     "load_record",
+    "load_task_records",
 ]
 
 #: ADR-0004 Contract 2's transition table, as data. A pair that is not here has
@@ -253,6 +254,31 @@ def load_record(connection: Connection, evidence_id: str) -> EvidenceRecord | No
             "superseded_by": row[15],
         }
     )
+
+
+def load_task_records(connection: Connection, task_id: str) -> tuple[EvidenceRecord, ...]:
+    """Every record belonging to a task, in a stable order.
+
+    Ordered by creation time and then by id, so a caller that renders a list of
+    them sees the same order every time. The order is *not* a ranking: ADR-0004
+    A5 says a conflict is not resolved by taking the newer row, and an ordering
+    that looks like a preference is a trap for whoever reads it next.
+    """
+    ids: list[str] = list(
+        connection.execute(
+            sql_text(
+                "SELECT evidence_id FROM evidence_records WHERE task_id = :tid"
+                " ORDER BY created_at, evidence_id"
+            ),
+            {"tid": task_id},
+        ).scalars()
+    )
+    records: list[EvidenceRecord] = []
+    for evidence_id in ids:
+        record = load_record(connection, str(evidence_id))
+        if record is not None:
+            records.append(record)
+    return tuple(records)
 
 
 def append_verification(
