@@ -178,7 +178,14 @@ SVG_HASHSALT: Final[str] = "labcairn-analysis-figure"
 #: ``axes.prop_cycle``
 #:     The colours, spelled out. A colour cycle inherited from whatever the
 #:     ambient configuration said would be an unrecorded input like any
-#:     other.
+#:     other. The value is **quoted**, and that is not decoration: matplotlib
+#:     reads an unquoted value up to the first ``#``, so a cycle of hex
+#:     colours written plainly is read as the empty fragment before the
+#:     first colour, rejected with a warning, and silently replaced by
+#:     matplotlib's own default. A declared setting that is not in force is
+#:     worse than no declared setting, because it is a claim the bytes do
+#:     not keep -- and the digest below would then be a digest of a file
+#:     that is partly in effect and partly not.
 #: ``text.usetex``
 #:     ``False``. A LaTeX render would depend on a LaTeX installation.
 RC_PARAMS_SOURCE: Final[str] = """\
@@ -201,7 +208,7 @@ text.usetex                : False
 text.antialiased           : True
 axes.unicode_minus         : False
 axes.grid                  : False
-axes.prop_cycle            : cycler('color', ['#1f77b4', '#ff7f0e', '#9467bd', '#2ca02c'])
+axes.prop_cycle            : "cycler('color', ['#1f77b4', '#ff7f0e', '#9467bd', '#2ca02c'])"
 svg.hashsalt               : labcairn-analysis-figure
 svg.fonttype               : path
 agg.path.chunksize         : 0
@@ -220,7 +227,7 @@ path.simplify              : True
 #: settings without saying so is a failure rather than a silence: the test
 #: suite compares the two, and a settings file that has drifted from its
 #: own digest fails there.
-RC_PARAMS_SHA256: Final[str] = "e36e0087df3890b346448b11f6ba70abf581108346c4923678c013a890b6755e"
+RC_PARAMS_SHA256: Final[str] = "4445af10222192a326d7d76a703698605d2564b54b17d8246cd728cc141f9701"
 
 #: Where matplotlib's configuration and its font cache live.
 #:

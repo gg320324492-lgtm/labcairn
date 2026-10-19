@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -1213,6 +1214,66 @@ def test_the_declared_settings_are_hashed() -> None:
     assert hashlib.sha256(RC_PARAMS_SOURCE.encode("utf-8")).hexdigest() == RC_PARAMS_SHA256
     assert "svg.hashsalt" in RC_PARAMS_SOURCE
     assert SVG_HASHSALT in RC_PARAMS_SOURCE
+
+
+@pytest.mark.unit
+def test_matplotlib_accepts_every_line_of_the_declared_settings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Nothing in the declared file is rejected.
+
+    A **declared setting that is not in force** is worse than no declared
+    setting: it is a claim the bytes do not keep, and the digest above
+    would then be a digest of a file that is partly in effect and partly
+    not. matplotlib reads an rcParams value up to the first ``#``, so a
+    value carrying hex colours has to be quoted -- and when it is not,
+    matplotlib rejects the fragment with a warning and keeps its own
+    default, silently.
+
+    So this checks the two halves: that matplotlib's parser accepted
+    every line, and that the values it read are the ones declared.
+    """
+    with caplog.at_level(logging.WARNING, logger="matplotlib"):
+        drawn = MatplotlibFigureRenderer(
+            recipe=_recipe(),
+            recipe_ref=_reference(),
+            workspace_root=Path(),
+        )
+        drawn.prepare()
+    rejected = [
+        record.getMessage() for record in caplog.records if "Bad value" in record.getMessage()
+    ]
+    assert not rejected, (
+        f"matplotlib rejected a line of the declared settings: {rejected}. A "
+        f"declared setting that is not in force is a claim the bytes do not "
+        f"keep."
+    )
+
+
+@pytest.mark.unit
+def test_the_declared_colour_cycle_is_the_one_in_force() -> None:
+    """The colours the figure uses are the declared ones.
+
+    The cycle is declared so that a colour is not an unrecorded input. It
+    is checked **in force** rather than declared, because a declared
+    value that matplotlib's parser threw away would leave matplotlib's own
+    default in its place and the figure's colours would not be the
+    declared ones.
+    """
+    import matplotlib
+
+    drawn = MatplotlibFigureRenderer(
+        recipe=_recipe(),
+        recipe_ref=_reference(),
+        workspace_root=Path(),
+    )
+    drawn.prepare()
+    assert [entry["color"] for entry in matplotlib.rcParams["axes.prop_cycle"]] == [
+        "#1f77b4",
+        "#ff7f0e",
+        "#9467bd",
+        "#2ca02c",
+    ]
 
 
 # ---------------------------------------------------------------------------
