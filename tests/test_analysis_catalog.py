@@ -37,8 +37,14 @@ from labcairn.analysis.operators.descriptive import (
     STDEV,
     SUM,
 )
+from labcairn.analysis.operators.grouped import AGGREGATE
 
 DESCRIPTIVE = (MEAN, SUM, MIN, MAX, MEDIAN, STDEV, COUNT)
+
+#: Every operator this build ships. The catalogue is compared against the
+#: modules' own constants, so an operator that is shipped but not registered
+#: -- or registered but not shipped -- is caught here.
+SHIPPED = (*DESCRIPTIVE, AGGREGATE)
 
 
 @pytest.mark.unit
@@ -49,7 +55,7 @@ def test_the_catalogue_holds_every_shipped_operator() -> None:
     operator that is shipped but not registered — or registered but not
     shipped — is caught here rather than at the first run that asks for it.
     """
-    assert frozenset(DESCRIPTIVE) == OPERATORS
+    assert frozenset(SHIPPED) == OPERATORS
 
 
 @pytest.mark.unit

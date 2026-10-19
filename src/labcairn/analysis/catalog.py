@@ -33,6 +33,7 @@ from labcairn.analysis.operators.descriptive import (
     STDEV,
     SUM,
 )
+from labcairn.analysis.operators.grouped import AGGREGATE
 
 __all__ = [
     "OPERATORS",
@@ -49,7 +50,7 @@ __all__ = [
 #: ``analysis.run`` carries them as an untyped mapping and the operator's
 #: argument model validates them.
 OPERATORS: Final[frozenset[RegisteredOperator[Any, Any]]] = frozenset(
-    {COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM}
+    {AGGREGATE, COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM}
 )
 
 
