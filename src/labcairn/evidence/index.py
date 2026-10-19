@@ -109,6 +109,7 @@ __all__ = [
     "load_anchor",
     "locate_anchor",
     "locator_from_key",
+    "query_is_servable",
     "read_content_hash",
     "search",
 ]
@@ -170,6 +171,29 @@ class Hit:
         to know to look here at all.
         """
         return self.source_ids == ()
+
+
+def query_is_servable(query: str) -> bool:
+    """Whether this index can express *query* at all.
+
+    A trigram table cannot match a term shorter than three characters, so such a
+    query is **refused** rather than answered -- and a refusal and an empty
+    result are the same value at this layer, because :func:`search` returns an
+    empty tuple for both. That is fine for a caller that only wants excerpts and
+    terrible for one that has to report *why* it found none, because "we
+    searched and it is not there" and "we never searched" are different facts
+    and ADR-0004 A9 is exactly about not confusing them.
+
+    So the refusal is made visible here, by the same function that makes it.
+    A caller that must distinguish uses this and :func:`build_match_expression`
+    together; a caller that does not can keep using :func:`search` and accept
+    that it cannot tell the two apart.
+
+    The second reason it is false is a query with no terms at all, which asks
+    nothing. That is a caller error rather than a limitation, and the two are
+    distinguished by the caller reading the query rather than by this function.
+    """
+    return build_match_expression(query) is not None
 
 
 def build_match_expression(query: str) -> str | None:

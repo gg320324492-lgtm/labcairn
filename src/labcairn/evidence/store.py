@@ -86,6 +86,7 @@ __all__ = [
     "detect_conflicts",
     "load_record",
     "load_task_records",
+    "supersede_record",
 ]
 
 #: ADR-0004 Contract 2's transition table, as data. A pair that is not here has
@@ -254,6 +255,61 @@ def load_record(connection: Connection, evidence_id: str) -> EvidenceRecord | No
             "superseded_by": row[15],
         }
     )
+
+
+def supersede_record(
+    connection: Connection, evidence_id: str, replacement: EvidenceRecord
+) -> EvidenceRecord:
+    """Replace a record with a newer one, and say so on the old one.
+
+    ADR-0004 I1 says the two endpoints of the state machine are exclusive and
+    that "a change of mind goes back through ``extracted``". For a record a
+    *rule* wrote that is not enough: the only route to ``user_attested`` needs
+    ``created_by == "user"`` (Contract 2, and the record model agrees), so a
+    rule-written record whose quotation came out ambiguous has nowhere to go --
+    it cannot be verified, because no check passed, and it cannot be attested,
+    because it is not a person's record. Superseding is the exit the schema
+    provides: a person writes their own record, and the rule's is kept and
+    marked.
+
+    The old row is **kept**, not deleted. Its log and its history are the
+    evidence of what was claimed and when, and a record that was wrong is worth
+    more in the ledger than outside it.
+
+    The replacement must be in the same task. A record cannot be superseded by
+    one about a different piece of work, because then "superseded" would mean
+    nothing a reader could check.
+    """
+    original = load_record(connection, evidence_id)
+    if original is None:
+        raise UnknownRecordError(f"no record with id {evidence_id!r}")
+    if original.superseded_by is not None:
+        raise LedgerError(
+            f"the record {evidence_id!r} is already superseded by "
+            f"{original.superseded_by!r}. A record is superseded once; replacing "
+            f"the replacement would rewrite the history rather than extend it"
+        )
+    if replacement.task_id != original.task_id:
+        raise LedgerError(
+            f"the replacement record is in task {replacement.task_id!r} and the "
+            f"record it replaces is in task {original.task_id!r}. A record cannot "
+            f"be superseded by one about a different piece of work"
+        )
+    if replacement.evidence_id == evidence_id:
+        raise LedgerError(
+            "a record cannot supersede itself. The replacement is a different "
+            "record, and the old one is kept and marked"
+        )
+
+    append_record(connection, replacement)
+    connection.execute(
+        sql_text("UPDATE evidence_records SET superseded_by = :new WHERE evidence_id = :old"),
+        {"new": replacement.evidence_id, "old": evidence_id},
+    )
+    updated = load_record(connection, evidence_id)
+    if updated is None:  # pragma: no cover - the row was read a moment ago
+        raise UnknownRecordError(f"no record with id {evidence_id!r}")
+    return updated
 
 
 def load_task_records(connection: Connection, task_id: str) -> tuple[EvidenceRecord, ...]:

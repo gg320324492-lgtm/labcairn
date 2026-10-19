@@ -624,6 +624,32 @@ The set's negatives are the ones ADR-0004 A6 and A12 need, including
 three papers, so a retriever returning its nearest passage is demonstrably wrong
 rather than unmatched by luck.
 
+## 3a. What the acceptance review found, and what it could not discharge
+
+The review is written up in
+[`docs/acceptance/LC-P1-09-acceptance.md`](../acceptance/LC-P1-09-acceptance.md).
+Three defects, all of the family LC-P1-08's review found eight of: a claim made
+in a docstring that the code did not enforce, and a column nothing ever wrote.
+Two are fixed here — a refused query is no longer reported as a negative result,
+and `superseded_by` is now written by a real superseding operation — and the
+third is a **clause of the acceptance that is not discharged**.
+
+**The "fabricated DOI" half of the clause has no implementation, and the gap is
+structural.** No record can carry an identifier, nothing in `src/` resolves one
+to a source, and ingestion records none because the PDF adapters do not extract
+a DOI from the text. What the checks *do* catch is a fabricated **source** — a
+citation to material that was never ingested names an anchor the ledger does not
+hold, and C1 fails it.
+
+Closing the DOI half is new work, not a fix: extract a DOI at ingest, give a
+record a place to cite one, and give the gate a resolution path. It is recorded
+here so it is scheduled rather than forgotten, and `sources/source.py` no longer
+claims C1 does it.
+
+**"Source provenance preserved through report generation" is LC-P1-11's clause.**
+Nothing renders a `GateResult` yet, so the gate's refusal is enforced and
+asserted but not observed in a document.
+
 ## 4. What this work order cannot deliver
 
 Named now so they are not discovered as surprises.

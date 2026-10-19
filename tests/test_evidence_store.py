@@ -51,6 +51,7 @@ from labcairn.evidence.store import (
     attest,
     detect_conflicts,
     load_record,
+    supersede_record,
 )
 from labcairn.material.addressing import render_locator_key
 from labcairn.sources.locators import CsvLocator, PdfLocator
@@ -737,6 +738,73 @@ def test_a_record_written_with_a_log_gets_sequence_one(store: Store) -> None:
     assert seqs == [1]
     loaded = _must_load(connection, "ev-log")
     assert len(loaded.verification_log) == 1
+
+
+def test_superseding_keeps_the_old_record_and_marks_it(store: Store) -> None:
+    """The old row is kept, not deleted, and says what replaced it.
+
+    A record that was wrong is worth more in the ledger than outside it: its log
+    is the evidence of what was claimed and when.
+    """
+    connection, _ = store
+    append_record(connection, _claim("ev-old"))
+    replacement = _claim("ev-new")
+    updated = supersede_record(connection, "ev-old", replacement)
+
+    assert updated.superseded_by == "ev-new"
+    assert _must_load(connection, "ev-old").superseded_by == "ev-new"
+    assert _must_load(connection, "ev-new").evidence_id == "ev-new"
+
+
+def test_a_record_cannot_be_superseded_across_tasks(store: Store) -> None:
+    """Otherwise "superseded" would mean nothing a reader could check."""
+    connection, _ = store
+    append_record(connection, _claim("ev-old"))
+    with pytest.raises(LedgerError) as caught:
+        supersede_record(connection, "ev-old", _claim("ev-new", task_id="task-2"))
+    assert "different piece of work" in str(caught.value)
+
+
+def test_a_record_is_superseded_once(store: Store) -> None:
+    """Replacing the replacement would rewrite history rather than extend it."""
+    connection, _ = store
+    append_record(connection, _claim("ev-old"))
+    supersede_record(connection, "ev-old", _claim("ev-new"))
+    with pytest.raises(LedgerError) as caught:
+        supersede_record(connection, "ev-old", _claim("ev-third"))
+    assert "already superseded" in str(caught.value)
+
+
+def test_a_record_cannot_supersede_itself(store: Store) -> None:
+    connection, _ = store
+    append_record(connection, _claim("ev-old"))
+    with pytest.raises(LedgerError) as caught:
+        supersede_record(connection, "ev-old", _claim("ev-old"))
+    assert "cannot supersede itself" in str(caught.value)
+
+
+def test_the_exit_for_a_rule_written_ambiguous_record(store: Store) -> None:
+    """A4's route, end to end.
+
+    A record a rule wrote whose quotation came out ambiguous cannot be verified
+    (no check passed) and cannot be attested (Contract 2 wants ``created_by ==
+    "user"`` and the record model agrees). Superseding is the way out: a person
+    writes their own record, and the rule's is kept and marked. Without it the
+    record had nowhere to go at all.
+    """
+    connection, _index = store
+    append_record(connection, _claim("ev-rule"))
+    with pytest.raises(LedgerError):
+        attest(connection, "ev-rule", user_id="dr-who", note="I read it.", checked_at=NOW)
+
+    supersede_record(
+        connection,
+        "ev-rule",
+        _claim("ev-person", created_by="user", status="extracted", anchors=("a-page",)),
+    )
+    moved = attest(connection, "ev-person", user_id="dr-who", note="I read it.", checked_at=NOW)
+    assert moved.status is VerificationStatus.USER_ATTESTED
+    assert _must_load(connection, "ev-rule").superseded_by == "ev-person"
 
 
 def test_an_unknown_record_is_named_rather_than_returned_as_none(store: Store) -> None:
