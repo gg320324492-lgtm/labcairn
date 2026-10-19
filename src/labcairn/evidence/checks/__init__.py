@@ -12,5 +12,13 @@ owns the types every check returns. These modules own the decisions.
 from __future__ import annotations
 
 from labcairn.evidence.checks.c1 import check_source_exists
+from labcairn.evidence.checks.c2 import check_quotation_support, quotation_match
+from labcairn.evidence.checks.c3 import check_numeric_consistency, read_number
 
-__all__ = ["check_source_exists"]
+__all__ = [
+    "check_numeric_consistency",
+    "check_quotation_support",
+    "check_source_exists",
+    "quotation_match",
+    "read_number",
+]
