@@ -60,6 +60,7 @@ from labcairn.sources.locators import LocatorKind
 #: Every fixture the corpus gives a grouped section for.
 GROUPED_FIXTURES: Final[tuple[str, ...]] = (
     "basic.csv",
+    "declared.csv",
     "empty.csv",
     "groups.csv",
     "holes.csv",
@@ -432,6 +433,118 @@ def test_units_are_checked_per_group_and_not_across_the_selection() -> None:
     assert by_key["C"].unit == "g"
     assert by_key["D"].unit is None
     assert by_key["C"].value == pytest.approx(3500.0)
+
+
+@pytest.mark.unit
+def test_the_grouped_aggregate_refuses_a_column_whose_header_contradicts_its_cells() -> None:
+    """The grouped aggregate inherits the header's declaration check.
+
+    The corpus's ``declared.csv`` holds a column whose header declares ``cm``
+    while its cells carry ``m``. The check lives in the selection layer, so a
+    grouped aggregate -- which resolves a narrowed selection over the column it
+    measures -- refuses it rather than aggregating a column whose header and
+    cells disagree, and the refusal names both tokens.
+    """
+    payload = load_expected("declared.csv")
+    described = payload["selections"][1]
+    assert described["expect"]["outcome"] == "refused"
+
+    with pytest.raises(UnitDisagreementError) as refused:
+        aggregate(
+            GroupedArgs(
+                selection=corpus_selection(
+                    "declared.csv",
+                    {"rows": described["rows"], "columns": ["group", "length (cm)"]},
+                ),
+                aggregate="labcairn.analysis.mean@1.0.0",
+                by="group",
+                of="length (cm)",
+                aggregate_parameters={},
+            ),
+            corpus_source("declared.csv"),
+        )
+    message = str(refused.value)
+    assert "cm" in message
+    assert "'m'" in message
+
+
+@pytest.mark.unit
+def test_a_grouped_aggregate_inherits_the_header_unit_check() -> None:
+    """A column whose header the data contradicts is refused, and nothing here repeats the check.
+
+    The check lives in the selection layer, where the column is named and its
+    cells are resolved, so every operator inherits it. The grouped aggregate
+    inherits it through the narrowed selection it resolves, and the refusal
+    names both tokens so the reader can see what the check did not do.
+    """
+    payload = load_expected("declared.csv")
+    described = payload["selections"][0]
+    selection = _grouped_selection("declared.csv", payload, described)
+    with pytest.raises(UnitDisagreementError) as raised:
+        aggregate(
+            GroupedArgs(
+                selection=selection,
+                aggregate="labcairn.analysis.mean@1.0.0",
+                by="group",
+                of="length (cm)",
+            ),
+            corpus_source("declared.csv"),
+        )
+    assert "length (cm)" in str(raised.value)
+    assert "'cm'" in str(raised.value)
+    assert "'m'" in str(raised.value)
+
+
+@pytest.mark.unit
+def test_a_header_that_declares_nothing_is_not_a_conflict() -> None:
+    """A header with no claim to check leaves the cells alone.
+
+    ``total (see table 2)`` declares nothing, because prose in parentheses is
+    not a unit, so the cells under it are measured and not refused. The unit
+    the result carries is the one the cells carry, which is a different fact
+    from the one the header would have declared.
+    """
+    payload = load_expected("declared.csv")
+    described = payload["selections"][0]
+    selection = _grouped_selection("declared.csv", payload, described)
+    result = aggregate(
+        GroupedArgs(
+            selection=selection,
+            aggregate="labcairn.analysis.mean@1.0.0",
+            by="group",
+            of="total (see table 2)",
+        ),
+        corpus_source("declared.csv"),
+    )
+    assert [group.key for group in result.groups] == ["A", "B"]
+    assert [group.n_used for group in result.groups] == [2, 2]
+    assert [group.unit for group in result.groups] == ["kg", "kg"]
+
+
+@pytest.mark.unit
+def test_a_column_the_aggregate_does_not_measure_cannot_refuse_it() -> None:
+    """The check is per column.
+
+    The selection names four columns and the aggregate measures one of them,
+    so a conflict in a column the aggregate does not measure is not the
+    aggregate's to refuse: a declaration is a claim about one column, and it
+    is that column's own cells that answer it.
+    """
+    payload = load_expected("declared.csv")
+    described = payload["selections"][0]
+    selection = _grouped_selection("declared.csv", payload, described)
+    assert "length (cm)" in selection.columns
+    result = aggregate(
+        GroupedArgs(
+            selection=selection,
+            aggregate="labcairn.analysis.mean@1.0.0",
+            by="group",
+            of="mass (kg)",
+        ),
+        corpus_source("declared.csv"),
+    )
+    assert [group.key for group in result.groups] == ["A", "B"]
+    assert [group.unit for group in result.groups] == ["kg", "kg"]
 
 
 @pytest.mark.unit

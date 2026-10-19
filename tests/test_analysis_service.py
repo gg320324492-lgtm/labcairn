@@ -67,6 +67,7 @@ from labcairn.analysis.service import (
     run_analysis,
     selection_from_payload,
 )
+from labcairn.analysis.units import UnitDisagreementError
 from labcairn.core.ids import ApprovalId, OperationId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, current_texts, put_source_texts
 from labcairn.db.migrations import upgrade_to_head
@@ -827,6 +828,16 @@ def test_the_approval_is_spent_before_the_operator_runs(scenarios: Any) -> None:
     Proved by the operator refusing: the units in ``units.csv`` disagree, so
     the run is refused -- and the approval is already spent, which is only
     true if it was consumed before the evaluation.
+
+    It also pins the **translation**, which is a contract about the
+    exception's type rather than about where it was raised. A unit
+    disagreement can come from the operator (the cells disagree with each
+    other) or from the selection (a column's header declares a unit its
+    cells contradict), and the run path matches on the type, so both are
+    translated the same way: one refusal, the original's message carried
+    verbatim, and the original kept as the cause. Asserting the cause and
+    the message here says that whichever site raises it, the reader is told
+    what was wrong.
     """
     scenario = scenarios(fixture="units.csv", rows=RowRange(2, 7))
     granted = scenario.grant()
@@ -834,7 +845,9 @@ def test_the_approval_is_spent_before_the_operator_runs(scenarios: Any) -> None:
     with pytest.raises(AnalysisRefusedError) as caught:
         scenario.run(approval_id=granted)
     assert caught.value.reason is AnalysisRefusal.OPERATOR_REFUSED
-    assert "kg" in str(caught.value) and "g" in str(caught.value)
+    assert isinstance(caught.value.__cause__, UnitDisagreementError)
+    assert caught.value.detail == str(caught.value.__cause__)
+    assert "kg" in caught.value.detail and "g" in caught.value.detail
 
     with pytest.raises(AnalysisRefusedError) as spent:
         scenario.run(approval_id=granted)

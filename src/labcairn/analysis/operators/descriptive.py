@@ -25,7 +25,10 @@ choice, and a default would be a silent claim about which population was
 meant.
 
 **Units are compared as written.** A selection whose cells carry two unit
-tokens is **refused**, not reconciled — see :mod:`labcairn.analysis.units`.
+tokens is **refused**, not reconciled — see :mod:`labcairn.analysis.units`. A
+column whose header declares a unit the cells contradict is refused earlier
+still, by the selection, because the declaration is a claim about the column
+and the column's own cells are the only evidence that can check it.
 
 Every result is a **derivation**, not a fact about a cell. It carries the
 selection it came from rather than the list of cells, because the list is
@@ -131,9 +134,11 @@ def _measured(
 ) -> tuple[tuple[float, ...], SelectionResult, str | None]:
     """The values a statistic may be computed over, and what the selection cost.
 
-    The unit check happens here rather than in each operator, because a
-    selection that carries two unit tokens is refused whatever is being
-    computed over it.
+    The check between the cells' own unit tokens happens here rather than in
+    each operator, because a selection that carries two unit tokens is
+    refused whatever is being computed over it. A column's *declared* unit
+    is checked earlier still, by the selection, because that conflict is
+    about the column and not about what is computed over it.
     """
     result = resolve_selection(args.selection, source)
     disagreement = unit_disagreement(result.units)

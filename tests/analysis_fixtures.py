@@ -79,6 +79,7 @@ CORPUS_DIR: Final[Path] = Path(__file__).resolve().parent / "fixtures" / "analys
 #: purpose: they are derived, and a derived file is not a fixture.
 FIXTURE_NAMES: Final[tuple[str, ...]] = (
     "basic.csv",
+    "declared.csv",
     "empty.csv",
     "groups.csv",
     "holes.csv",

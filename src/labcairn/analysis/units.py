@@ -24,6 +24,13 @@ corpus are prose.
 The declared unit is a property of the **column's name**, so it is a pure
 function of that name and needs no access to the material. That is what makes
 it checkable against a header the ledger holds and against one it does not.
+
+**And a declaration is a claim the data has to answer to.** A real table
+almost never puts units in its cells — ``mass (kg)`` is the convention — so a
+check that only ever looked at cell text would find no unit to check and
+pass vacuously, which is the failure ADR-0004 R2 names. The cell that
+contradicts the declaration is therefore a **conflict** and is refused, with
+both tokens named.
 """
 
 from __future__ import annotations
@@ -31,7 +38,12 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-__all__ = ["UnitDisagreementError", "declared_unit_for", "unit_disagreement"]
+__all__ = [
+    "UnitDisagreementError",
+    "declaration_disagreement",
+    "declared_unit_for",
+    "unit_disagreement",
+]
 
 #: A column header that declares a unit: a name, then a parenthesised token
 #: with no whitespace in it. The whitespace rule is the whole rule — it is
@@ -77,4 +89,45 @@ def unit_disagreement(tokens: Iterable[str]) -> str | None:
         f"the cells carry {len(distinct)} different unit tokens: {listed}. "
         f"Units are compared as written and never converted, so this selection "
         f"is refused rather than reconciled."
+    )
+
+
+def declaration_disagreement(column: str, tokens: Iterable[str]) -> str | None:
+    """The reason a column's declared unit disagrees with its cells, or ``None``.
+
+    **A declaration is a claim, and the cells under the column are the only
+    evidence that can answer it.** A real table almost never puts units in
+    its cells — ``mass (kg)`` is the convention — so a check that only ever
+    looked at cell text would find no unit to check and pass vacuously, and
+    that is the failure ADR-0004 R2 names: a check whose aggressiveness is
+    invisible generates false confidence.
+
+    The asymmetry C3 keeps is kept here. **A cell with no token leaves the
+    declaration unverified** rather than contradicting it, so a column of bare
+    numbers under a header that declares a unit is not refused — there is
+    nothing to disagree with. Only a token that differs from the declared one
+    is a disagreement, and it is a disagreement however many cells agree with
+    the header beside it.
+
+    A header that declares **nothing** has no claim to check, so the cells
+    are left alone: ``total (see table 2)`` declares nothing, and a cell
+    carrying ``kg`` under it is not a conflict.
+
+    The reason names **both** tokens, for the reason
+    :func:`unit_disagreement` gives: a reader told only that the units differ
+    cannot tell a typo from a real second unit, and the two have different
+    repairs.
+    """
+    declared = declared_unit_for(column)
+    if declared is None:
+        return None
+    carried = sorted({token for token in tokens if token != declared})
+    if not carried:
+        return None
+    listed = ", ".join(repr(token) for token in carried)
+    return (
+        f"the column {column!r} declares the unit {declared!r}, and its cells "
+        f"carry units the header does not declare: {listed}. Units are compared "
+        f"as written and never converted, so this column is refused rather than "
+        f"reconciled."
     )

@@ -241,3 +241,66 @@ def test_a_header_declares_a_unit_only_in_a_narrow_shape(column: str, expected: 
     corpus are prose.
     """
     assert declared_unit_for(column) == expected
+
+
+@pytest.mark.unit
+def test_every_operator_refuses_a_column_whose_header_contradicts_its_cells() -> None:
+    """The check is in the selection, so every operator inherits it.
+
+    A check written into one operator would leave the other six computing a
+    statistic over a column whose data contradicts its own header, and the
+    refusal would then depend on which operator the caller happened to ask
+    for. The cells of this column agree with each other — every one of them
+    says ``m`` — so nothing else would have refused it.
+    """
+    described: dict[str, object] = {"rows": "2-5", "columns": ["length (cm)"]}
+    source = corpus_source("declared.csv")
+    for operator in (mean, sum_, minimum, maximum, median, count):
+        with pytest.raises(UnitDisagreementError):
+            operator(_args("declared.csv", described), source)
+    with pytest.raises(UnitDisagreementError):
+        stdev(_stdev_args("declared.csv", described, 0), source)
+
+
+@pytest.mark.unit
+def test_a_statistic_over_a_declared_column_carries_the_unit_the_data_carries() -> None:
+    """A confirmed declaration is the data's own unit, and the result says so."""
+    described: dict[str, object] = {"rows": "2-5", "columns": ["mass (kg)"]}
+    result = mean(_args("declared.csv", described), corpus_source("declared.csv"))
+    assert result.unit == "kg"
+    assert result.value == pytest.approx(3.0)
+
+
+@pytest.mark.unit
+def test_a_declared_unit_no_cell_corroborates_leaves_the_result_without_a_unit() -> None:
+    """An unverified declaration is not a unit, and the result does not carry one.
+
+    The unit of a statistic is the unit of the cells it was computed over. A
+    header's claim is not a measurement, and a result that reported it as one
+    would be reporting a unit nobody checked — the "unknown is not zero"
+    discipline applied to a unit instead of to a number.
+    """
+    payload = load_expected("typed.csv")
+    described = payload["selections"][0]
+    result = mean(_args("typed.csv", described), corpus_source("typed.csv"))
+    assert result.unit is None
+    assert result.value == pytest.approx(2.5)
+
+
+@pytest.mark.unit
+def test_two_unit_tokens_are_refused_as_the_cells_disagreeing_with_each_other() -> None:
+    """Two different problems, two different words.
+
+    ``units.csv``'s column declares nothing and its cells carry two tokens, so
+    the selection resolves it and the *operator* refuses: a selection whose
+    cells disagree with each other is not a statistic over anything. That is
+    not the refusal a column's declaration earns, and the two are told apart
+    by the words they use.
+    """
+    payload = load_expected("units.csv")
+    described = payload["selections"][0]
+    with pytest.raises(UnitDisagreementError) as raised:
+        mean(_args("units.csv", described), corpus_source("units.csv"))
+    message = str(raised.value)
+    assert "different unit tokens" in message
+    assert "declares the unit" not in message
