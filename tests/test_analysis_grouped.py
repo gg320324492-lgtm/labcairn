@@ -411,6 +411,40 @@ def test_the_result_reports_the_rows_it_filtered_and_the_rows_it_excluded() -> N
 
 
 @pytest.mark.unit
+def test_the_result_counts_the_rows_the_selection_did_not_name() -> None:
+    """A row the source holds and the selection did not name is still a row.
+
+    The count is about the source and not about the filter that removed
+    rows, so a selection naming two of the three rows its source holds
+    leaves one to account for. The corpus's own fixtures name every row
+    their source holds, so their count is zero -- which is also what an
+    operator that never counted anything would report.
+    """
+    source = _InlineSource(
+        {
+            (2, "group"): "A",
+            (2, "value"): "1",
+            (3, "group"): "A",
+            (3, "value"): "2",
+            (4, "group"): "B",
+            (4, "value"): "3",
+        }
+    )
+    result = aggregate(
+        GroupedArgs(
+            selection=_inline_selection(("group", "value"), RowSet((2, 3))),
+            aggregate="labcairn.analysis.mean@1.0.0",
+            by="group",
+            of="value",
+        ),
+        source,
+    )
+    assert result.n_rows_selected == 2
+    assert result.n_rows_filtered == 1
+    assert result.n_rows_selected + result.n_rows_filtered == len(source.rows())
+
+
+@pytest.mark.unit
 def test_units_are_checked_per_group_and_not_across_the_selection() -> None:
     """Each group is its own measurement.
 
@@ -902,6 +936,34 @@ def test_a_group_is_either_a_value_or_undefined_with_a_reason() -> None:
 
 
 @pytest.mark.unit
+def test_a_group_may_not_carry_a_value_and_a_reason_at_once() -> None:
+    """A reason says the value is unknown, so a value beside it is a lie.
+
+    A group that carried both would let a reader take the value as the
+    statistic while the reason said the statistic was undefined, and the two
+    cannot both be true. The model refuses the pair, and the refusal says
+    what the group was given.
+    """
+    with pytest.raises(ValidationError) as raised:
+        GroupAggregate(
+            key="A",
+            rows=(2,),
+            n_used=1,
+            n_empty=0,
+            n_absent=0,
+            n_invalid=0,
+            value=1.0,
+            undefined_reason="the group holds no value",
+            unit=None,
+        )
+    message = str(raised.value)
+    assert "either a value or undefined with a reason" in message
+    assert "the group 'A'" in message
+    assert "value=1.0" in message
+    assert "the group holds no value" in message
+
+
+@pytest.mark.unit
 def test_the_counts_and_the_table_must_agree() -> None:
     """A result cannot say one thing and show another.
 
@@ -935,6 +997,49 @@ def test_the_counts_and_the_table_must_agree() -> None:
             selection=_inline_selection(("group", "value"), RowSet((2,))),
         )
     assert "counted exactly once" in str(raised.value)
+
+
+@pytest.mark.unit
+def test_the_excluded_count_must_agree_with_the_groups() -> None:
+    """The excluded count and the groups' own counts are one fact, twice.
+
+    A group says how many of its rows yielded no quantity, and the result
+    says how many rows the missing-value policy removed. A result in which
+    the two differ would tell its reader two different things about the rows
+    it dropped, and the selected count is left in agreement here so that the
+    excluded count is the only thing wrong.
+    """
+    with pytest.raises(ValidationError) as raised:
+        GroupedResult(
+            operator_id="labcairn.analysis.grouped_aggregate",
+            operator_version="1.0.0",
+            aggregate="labcairn.analysis.mean@1.0.0",
+            by="group",
+            of="value",
+            groups=(
+                GroupAggregate(
+                    key="A",
+                    rows=(2, 3),
+                    n_used=1,
+                    n_empty=1,
+                    n_absent=0,
+                    n_invalid=0,
+                    value=1.0,
+                    undefined_reason=None,
+                    unit=None,
+                ),
+            ),
+            n_rows_selected=2,
+            n_rows_filtered=0,
+            n_rows_excluded=0,
+            n_rows_ungrouped=0,
+            selection=_inline_selection(("group", "value"), RowSet((2, 3))),
+        )
+    message = str(raised.value)
+    assert "excluded by the missing-value policy" in message
+    assert "the result says 0 row(s)" in message
+    assert "its groups hold 1 row(s)" in message
+    assert "counted exactly once" not in message
 
 
 @pytest.mark.unit
