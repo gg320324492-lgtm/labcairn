@@ -34,6 +34,7 @@ from labcairn.sources.source import Source
 
 __all__ = [
     "ExtractedTextRow",
+    "current_texts",
     "put_source",
     "put_source_problems",
     "put_source_texts",
@@ -226,6 +227,42 @@ def texts_for(
             .order_by(SourceTextRow.id)
         )
     )
+
+
+def current_texts(session: Session, *, source_content_sha256: str) -> Sequence[SourceTextRow]:
+    """The current extraction of every address in one material.
+
+    **"Current" is the newest row for an address** -- ``created_at DESC,
+    id DESC`` -- which is the rule
+    :func:`labcairn.evidence.index.locate_anchor` already applies when it
+    resolves one anchor. The ledger may hold more than one extraction of the
+    same bytes: an adapter's code changed and the material was re-ingested
+    without the file changing. A reader that took the first row it happened to
+    find would read whichever extraction the database returned first, and the
+    answer would depend on the order of an unordered query -- which is the
+    kind of bug that looks like a data problem and is not one.
+
+    Unlike :func:`text_at` and :func:`texts_for`, this reader takes **no
+    extraction version**, and that is the whole point of it: the versions are
+    what it chooses between. A reader that filtered by version would have to
+    be *told* which version is current, which is the question this answers.
+
+    The rows come back ordered by ``locator_key``, so the result is the same
+    whichever order the rows were written in.
+    """
+    rows = session.scalars(
+        select(SourceTextRow)
+        .where(SourceTextRow.source_content_sha256 == source_content_sha256)
+        .order_by(
+            SourceTextRow.locator_key,
+            SourceTextRow.created_at.desc(),
+            SourceTextRow.id.desc(),
+        )
+    ).all()
+    current: dict[str, SourceTextRow] = {}
+    for row in rows:
+        current.setdefault(row.locator_key, row)
+    return tuple(current.values())
 
 
 def put_source_problems(
