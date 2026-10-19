@@ -191,8 +191,15 @@ class AnalysisRefusal(StrEnum):
     APPROVAL_REFUSED = "approval_refused"
     #: The run would read more rows or more cells than the bounds allow.
     LIMITS_EXCEEDED = "limits_exceeded"
-    #: The operator refused: the selection could not be resolved, or the cells
-    #: disagree about their units.
+    #: The operator's **run** was refused, whatever raised it: the selection
+    #: could not be resolved, the cells disagree about their units, or a
+    #: column's header declares a unit its own cells contradict.
+    #:
+    #: One member for all three, and the reason is the vocabulary's shape
+    #: rather than an accident: a new member would have to be handled by every
+    #: consumer of the reason, and it would still not say *which* column
+    #: conflicted or why -- the message says that, and the message is
+    #: carried verbatim from the exception that raised it.
     OPERATOR_REFUSED = "operator_refused"
     #: The manifest could not be built.
     MANIFEST_REFUSED = "manifest_refused"
