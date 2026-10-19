@@ -36,6 +36,11 @@ node_modules/
 web/dist/
 .DS_Store
 
+# The coding agent's own scratch space. It holds full worktree clones of this
+# repository, so `git add -A` must never be able to stage one — the same
+# reasoning as the build-output rules below.
+.claude/
+
 # Build and packaging output. These are reproducible from source at any time,
 # and shipping them would defeat the clean-venv install check in LC-P1-01.
 # `git add -A` must never be able to stage a wheel.

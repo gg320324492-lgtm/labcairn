@@ -774,7 +774,7 @@ The determinism controls, and why each one is needed:
 | Control | Why |
 |---|---|
 | `svg.hashsalt` fixed | matplotlib generates element ids for SVG; without a fixed salt they differ per run |
-| `metadata={"Date": None}` | matplotlib writes a creation date into SVG and PNG metadata by default, which alone makes every render differ |
+| `metadata={"Date": None}` | matplotlib writes a creation date into the **SVG** metadata by default, which alone makes every render differ. **PNG needs neither this control nor the salt** — see §3b |
 | `savefig` with a fixed `dpi`, a fixed `figure.figsize`, and `bbox_inches` unset | the other three knobs that change the bytes |
 | `MPLCONFIGDIR` pinned, font cache built once | the font cache is part of what makes a render environment-dependent |
 | `rcParams` set from a **declared, hashed** defaults file | an ambient `matplotlibrc` is an input nobody put in the manifest, and an unrecorded input is an input the reproducibility claim cannot cover |
@@ -983,10 +983,10 @@ The corrected wording is in the corpus README, the status board, the handoff
 and §5 below. The corpus's **data** was already right; only the prose was
 loose.
 
-## 3b. What T04, T05, T06 and T08 decided, and two errors in this document
+## 3b. What T04, T05, T06 and T08 decided, and three errors in this document
 
-T04, T05, T06 and T08 are implemented. Two of the examples in §3 were
-**wrong**, and the implementations are right:
+T04, T05, T06 and T08 are implemented. Three claims in §3 were **wrong**, and
+the measurements are right:
 
 **The operator id is `labcairn.analysis.grouped_aggregate`, not
 `labcairn.analysis.grouped.aggregate`.** The id grammar frozen in T02 admits
@@ -1003,6 +1003,21 @@ chart-operator reference. The chart operator is **not in the catalogue** —
 it belongs to T07 — and a recipe that named an operator this build does not
 implement would be refused for a reason that has nothing to do with the
 recipe. The example now matches the prose.
+
+**PNG needs neither determinism control; the creation date is an SVG fact.**
+The T07 table said matplotlib "writes a creation date into SVG **and PNG**
+metadata by default". It writes it into the SVG metadata and nowhere else:
+matplotlib's PNG carries exactly one text chunk, a constant `Software`
+string, and no date — so two PNG renders in two separate interpreters are
+byte-identical, while two SVG renders a millisecond apart are not, their
+`<dc:date>` differing in the microseconds. ADR-0012 recorded this when it
+measured it, and this document did not — and T07 is written against this
+document, so a renderer built from the table alone would have set a control
+for a format that does not need it, and would have claimed a reason for it
+that the bytes do not support. The two formats have **different**
+determinism requirements, and one rule for both would be wrong about one of
+them. The date control is an **SVG** control, and so is the salt, because a
+PNG carries no element ids to salt.
 
 Two decisions the implementations made that this document did not say:
 
