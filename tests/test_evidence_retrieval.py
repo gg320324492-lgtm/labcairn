@@ -200,13 +200,59 @@ def test_the_two_negatives_cannot_be_the_same_value(store: Store) -> None:
     with pytest.raises(EvidenceUnavailableError) as missed_message:
         require_evidence(missed)
     assert str(failed_message.value) != str(missed_message.value)
-    assert "does not say it" in str(missed_message.value)
+    # The miss says what was established -- no passage matched -- and says
+    # plainly that it is not a statement about the material. The failure says
+    # the search did not happen. Neither claims the material denies the claim.
+    assert "no evidence was found" in str(missed_message.value)
+    assert "not about the material" in str(missed_message.value)
+    assert "nobody asked it" in str(failed_message.value)
+    # And the miss must not claim the material denies the claim. A lexical
+    # search establishes that no *passage* matched; the material may say it in
+    # other words, and a message that says otherwise is a claim the check did
+    # not make.
+    assert "does not say it" not in str(missed_message.value)
     assert "does not say it" not in str(failed_message.value)
+    # The qualifier has to be *present*, not merely non-contradicted: a message
+    # that says "no passage matched" and stops there still reads as a finding
+    # about the material, because "lexical" is what tells a reader the search
+    # only looked for those words.
+    assert "lexical" in str(missed_message.value)
 
 
 # --------------------------------------------------------------------------- #
 # the outcome refuses to be confused
 # --------------------------------------------------------------------------- #
+
+
+def test_a_query_the_index_cannot_serve_is_a_failure_not_a_miss(
+    store: Store,
+) -> None:
+    """A query with a term this index cannot match was never asked.
+
+    A trigram table matches three-character sequences, so "AI" has nothing to
+    match and the index *refuses* the query rather than narrowing it. The
+    refusal and an empty result are the same value at the index layer, so the
+    layer above has to be told the difference -- otherwise the report says the
+    material does not contain the phrase when nothing was looked for.
+
+    This is A9 from the other side: a search that did not happen is not a
+    negative result.
+    """
+    connection, index = store
+    outcome = retrieve(connection, "AI", index=index)
+    assert outcome.status is RetrievalStatus.PROVIDER_FAILURE
+    assert outcome.excerpts == ()
+    assert outcome.failure is not None
+    assert not outcome.may_proceed
+
+    # And a query the index *can* serve, which simply is not in the corpus, is
+    # a miss -- a different fact, with a different message.
+    served = retrieve(connection, ABSENT, index=index)
+    assert served.status is RetrievalStatus.NO_HIT
+
+    with pytest.raises(EvidenceUnavailableError) as caught:
+        require_evidence(outcome)
+    assert "nobody asked it" in str(caught.value)
 
 
 @pytest.mark.parametrize(
@@ -268,7 +314,7 @@ def test_the_boundary_refuses_to_hand_over_nothing(store: Store) -> None:
     outcome = retrieve(connection, ABSENT, index=index)
     with pytest.raises(EvidenceUnavailableError) as caught:
         require_evidence(outcome)
-    assert "no evidence to act on" in str(caught.value)
+    assert "no evidence was found" in str(caught.value)
 
 
 def test_a_context_cannot_be_built_without_evidence(store: Store) -> None:

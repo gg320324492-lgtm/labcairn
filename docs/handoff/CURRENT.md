@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **implemented**: T01–T10 merged — all four cite-support checks have bodies, the ledger persists records through a state machine, the evidence gate refuses, and retrieval tells a failed search from a negative one; LC-P1-10 not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [implemented and reviewed](../acceptance/LC-P1-09-acceptance.md) — **PASS WITH NOTES**: all ten subtasks merged, three review findings fixed, and two clauses of the acceptance not discharged (the *fabricated DOI* half, and provenance through report generation, which is LC-P1-11's); LC-P1-10 not started |
 
 ## What exists now
 

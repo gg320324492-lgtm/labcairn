@@ -29,9 +29,24 @@ What an identifier does and does not prove
 ------------------------------------------
 :class:`SourceIdentifier` validates the **shape** of a DOI or arXiv id. It does
 not prove the work exists — a fabricated DOI is shape-valid by construction, and
-that is precisely the case LC-P1-09's acceptance names. Existence is C1's job
-at LC-P1-09, against a ledger row or a registry. Nothing here should be read as
-"we checked the citation".
+that is precisely the case LC-P1-09's acceptance names.
+
+**What the ledger does with one, and what it does not.** A source row may carry
+identifiers, and they are stored alongside it. But **nothing in ``src/``
+resolves an identifier to a source**, and LC-P1-09's ingestion records none: the
+walk writes ``identifiers=()`` because the PDF adapters do not extract a DOI
+out of the text.
+
+C1 checks that an *anchored source* exists in the ledger — the source the
+anchor points at. It does not check that a *cited identifier* corresponds to
+any source at all, because no record can carry an identifier and nothing looks
+one up.
+
+So the "fabricated DOI" half of LC-P1-09's acceptance clause is **not
+discharged** by the cite-support checks. What they do catch is a fabricated
+*source*: a citation to a material that was never ingested names an anchor the
+ledger does not hold, and C1 fails it. The review that found this is written up
+in ``docs/acceptance/LC-P1-09-acceptance.md``.
 """
 
 from __future__ import annotations

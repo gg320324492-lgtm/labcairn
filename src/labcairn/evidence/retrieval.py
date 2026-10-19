@@ -61,7 +61,7 @@ from typing import Final
 from sqlalchemy.engine import Connection
 
 from labcairn.evidence.cite_support import SourceIndex
-from labcairn.evidence.index import locator_from_key, search
+from labcairn.evidence.index import locator_from_key, query_is_servable, search
 from labcairn.material.addressing import LocatorKeyError
 from labcairn.providers.errors import FailureKind, ProviderFailure
 from labcairn.security.capabilities import CapabilityId
@@ -223,9 +223,11 @@ def require_evidence(outcome: RetrievalOutcome) -> tuple[Excerpt, ...]:
         )
     if outcome.status is RetrievalStatus.NO_HIT:
         raise EvidenceUnavailableError(
-            f"the search found nothing for {outcome.detail!r}. There is no "
-            f"evidence to act on, and the answer is that the material does not "
-            f"say it"
+            f"no passage matching {outcome.detail!r} was found in the indexed "
+            f"material, so no evidence was found for it and the flow stops here. "
+            f"That is a statement about the passages, not about the material: "
+            f"the search is lexical, so the material may well say this in other "
+            f"words"
         )
     return outcome.excerpts
 
@@ -245,11 +247,20 @@ def retrieve(
     or corrupt says nothing about whether the material contains the answer, and
     reporting "not found" would answer a question the failure never reached.
 
+    So is a search that was **refused** before it started. A trigram index
+    cannot match a term shorter than three characters, and the index refuses
+    such a query rather than narrowing it -- but the refusal and an empty
+    result are the same value at that layer. Reporting one as the other would
+    tell a reader the material does not contain the phrase when nothing was
+    asked, which is the confusion A9 names.
+
     The failure is recorded as a
     :class:`~labcairn.providers.errors.ProviderFailure`, so it carries the
     project's own vocabulary -- kind, whether it is retryable, what a person
     should do -- rather than a string this module invented.
     """
+    if not query_is_servable(query):
+        return _refused(query, "no term in the query is long enough for this index to match")
     try:
         hits = search(connection, query, limit=limit)
     except Exception as error:
@@ -274,6 +285,23 @@ def retrieve(
         telemetry=RetrievalTelemetry(
             query=query, backend="fts5", hit_count=len(excerpts), duration_ms=None
         ),
+    )
+
+
+def _refused(query: str, why: str) -> RetrievalOutcome:
+    """The search was not performed, and that is not a negative result.
+
+    Reported as a failure rather than a miss, because "we looked and it is not
+    there" and "we did not look" are different facts, and a reader who is told
+    the first will conclude something the system never established.
+    """
+    return RetrievalOutcome(
+        status=RetrievalStatus.PROVIDER_FAILURE,
+        failure=ProviderFailure.of(
+            FailureKind.INTERNAL, detail_digest=hashlib.sha256(why.encode()).hexdigest()
+        ),
+        detail=query,
+        telemetry=RetrievalTelemetry(query=query, backend="fts5", hit_count=0, duration_ms=None),
     )
 
 
