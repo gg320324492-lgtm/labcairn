@@ -412,6 +412,54 @@ A record that cannot become `verified_by_rule` must be unable to *look* like one
 status and log must be consistent, and `VerificationRecord`'s existing C4
 refusal extends to the transitions.
 
+#### What T08 had to decide, and what it could not
+
+**The rule catalog is code, not a table.** Contract 2 requires a
+`verified_by_rule` record's passing entry to come "from a `checker_id` present in
+the registered rule catalog", and the model cannot enforce that: it accepts any
+non-empty `checker_id`, because a *human* attestation is logged by a human's id.
+So the catalog is a frozenset built from the check modules' own id constants,
+which means one id has one spelling — a frozenset written out by hand would be a
+second spelling of a closed set, which is what ADR-0009's canonical key exists
+to stop. The cost is that a rule cannot be registered at runtime; Phase 1 has
+nobody to register one, since the rules *are* the checks.
+
+**"The same claim/numeric key" is the primary anchor.** The ADR never says what
+a key is, and the schema rules out one reading: `uq_evidence_task_span` is
+`UNIQUE(task_id, extracted_span_sha256)`, so two records cannot share a span
+hash within a task. That leaves the anchor, and specifically **position 0** —
+the schema's own comment says position 0 is the primary address and that a
+report citing the wrong anchor first is citing something real in the wrong role.
+Records that merely mention a common background anchor are not in conflict.
+
+**A disagreement means `pass` against `fail`.** Not "the verdicts differ": an
+`indeterminate` against a `fail` says one record had some *other* anchor it
+could not read, which is not a dispute about the number, and counting it would
+bury the real conflicts under noise.
+
+**The table is enforced as written, and that leaves two transitions refused.**
+Contract 2 lists `any → conflicted` and `any → unsupported` as catch-alls and
+lists `→ extracted` only for `planned` and — by I1 — for the two endpoints. A
+pair not on the table has no transition, so `conflicted → extracted` and
+`unsupported → extracted` are refused. A record that has to be re-located is
+expressed the way the schema provides for: a new record, with the old one kept
+and `superseded_by` set. This is the one place where the table's silence is
+read as a refusal, and it is worth saying so rather than leaving it to be
+discovered.
+
+**An attestation is logged as a C4 `not_checked` entry.** C4's only verdict is
+`not_checked` — I2 makes it the permanent terminal for interpretation — so a C4
+entry is exactly "no machine checked this, and a person is standing behind it".
+The `checker_id` is the person's, which is what keeps an attestation
+distinguishable from a rule's pass: only the latter names an id in the catalog.
+
+**What T08's tests cannot establish.** The rule catalog is tested against the
+three shipped checks, so a *new* rule has no example to follow and no test says
+what registering one would take. The conflict rule is exercised with two
+numeric records about one cell; the claim-side conflict that ADR-0004 A5 also
+describes is not implemented, because two claim records cannot share a span
+hash within a task and so cannot collide under the schema's own constraint.
+
 ### T09 — the final evidence gate
 
 What the work order's acceptance actually tests: a fabricated DOI or source, a

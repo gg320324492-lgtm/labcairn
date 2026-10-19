@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **largely implemented**: T01–T07 merged, all four cite-support checks have bodies; T08–T10 are not; LC-P1-10 not started |
+| G3 | **in progress** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [decomposed](../plans/LC-P1-09-task-breakdown.md) and **largely implemented**: T01–T08 merged, all four cite-support checks have bodies and the ledger persists records through a state machine; T09 and T10 are not; LC-P1-10 not started |
 
 ## What exists now
 
@@ -31,6 +31,12 @@ And, from LC-P1-09 so far: **the ledger has a store, an index and one working ch
   normalisation profiles and refuses to promote a lossy match to `pass` (T06).
   `check_numeric_consistency` re-reads the anchored cell and compares parsed values under a
   declared tolerance (T07). C4 returns `not_checked` and always will.
+- **The ledger persists records through a state machine** (T08). `advance` and
+  `attest` are the only ways a status changes, and each refusal names the
+  Contract 2 rule it refused. A `verified_by_rule` record's passing entry must
+  name a checker id in the rule catalog -- the one rule the model cannot
+  enforce, because it accepts any id, and a human attestation is logged by a
+  human's id.
 
 Both exit demonstrations run green:
 
@@ -46,7 +52,7 @@ leaves the machine. All four cite-support checks now have bodies, and `IMPLEMENT
 every one of them — the set no longer distinguishes "implemented" from "not", and what still
 separates them is that C4 can never return a pass.
 
-Nothing yet persists an `EvidenceRecord` through the ledger, so no record has a durable state machine — that is T08. No gate ties the checks together (T09), and the two-negative question — a failed search is not a negative result — is unanswered (T10).
+No gate ties the checks together (T09), and the two-negative question — a failed search is not a negative result — is unanswered (T10). The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
 ## Next: finish G3
 
