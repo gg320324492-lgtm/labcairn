@@ -44,17 +44,21 @@ class _Result(BaseModel):
     value: float
 
 
-def _operator(**overrides: object) -> Operator:
-    fields: dict[str, object] = {
-        "operator_id": "labcairn.analysis.mean",
-        "operator_version": "1.0.0",
-        "args_model": _Args,
-        "result_model": _Result,
-        "accepted_locator_kinds": frozenset({LocatorKind.CSV}),
-        "summary": "the arithmetic mean of a numeric column",
-    }
-    fields.update(overrides)
-    return Operator(**fields)  # type: ignore[arg-type]
+def _operator(
+    *,
+    operator_id: str = "labcairn.analysis.mean",
+    operator_version: str = "1.0.0",
+    accepted_locator_kinds: frozenset[LocatorKind] = frozenset({LocatorKind.CSV}),
+    summary: str = "the arithmetic mean of a numeric column",
+) -> Operator[_Args, _Result]:
+    return Operator(
+        operator_id=operator_id,
+        operator_version=operator_version,
+        args_model=_Args,
+        result_model=_Result,
+        accepted_locator_kinds=accepted_locator_kinds,
+        summary=summary,
+    )
 
 
 @pytest.mark.unit

@@ -62,6 +62,8 @@ __all__ = [
     "Table",
     "build_spreadsheet_fixtures",
     "corpus_cells",
+    "corpus_selection",
+    "corpus_source",
     "expected_path",
     "load_expected",
     "read_table_csv",
@@ -296,3 +298,54 @@ def row_numbers(spec: Any) -> list[int]:
         start, _, end = spec.partition("-")
         return list(range(int(start), int(end) + 1))
     return [int(r) for r in spec]
+
+
+class CorpusSource:
+    """A cell source over one corpus fixture, read through the real adapters.
+
+    The corpus's own reader, so the selection's behaviour is checked against
+    the same cells the expected values describe.
+    """
+
+    def __init__(self, fixture: str) -> None:
+
+        self._cells = corpus_cells(fixture)
+        self._rows = tuple(sorted({row for row, _ in self._cells}))
+        from labcairn.analysis.values import records_blank_cells
+        from labcairn.sources.source import SourceKind
+
+        kind = SourceKind.CSV if fixture.endswith(".csv") else SourceKind.XLSX
+        self._records_blank = records_blank_cells(kind)
+
+    def text_at(self, address: Any) -> str | None:
+        return self._cells.get((address.row, address.column))
+
+    def rows(self) -> tuple[int, ...]:
+        return self._rows
+
+    @property
+    def records_blank_cells(self) -> bool:
+        return self._records_blank
+
+
+def corpus_source(fixture: str) -> CorpusSource:
+    """A cell source over one corpus fixture."""
+    return CorpusSource(fixture)
+
+
+def corpus_selection(fixture: str, described: Any) -> Any:
+    """The selection an expected file describes.
+
+    The corpus's vocabulary: a range string like ``"2-11"`` for a contiguous
+    run, or a list of row numbers, and the columns by header text.
+    """
+    from labcairn.analysis.selection import MissingPolicy, RowRange, RowSet, Selection
+
+    rows = row_numbers(described["rows"])
+    return Selection(
+        source_id=fixture,
+        content_sha256="a" * 64,
+        columns=tuple(described["columns"]),
+        rows=RowRange(rows[0], rows[-1]) if len(rows) > 1 else RowSet(tuple(rows)),
+        missing=MissingPolicy.EXCLUDE,
+    )

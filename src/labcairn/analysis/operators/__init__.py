@@ -49,11 +49,13 @@ decorative.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict
 
+from labcairn.analysis.values import ValueSource
 from labcairn.sources.locators import LocatorKind
 
 __all__ = [
@@ -103,7 +105,7 @@ class OperatorArgs(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
-class Operator:
+class Operator[ArgsT: OperatorArgs, ResultT: BaseModel]:
     """One vetted analysis operation, and everything a caller needs to run it.
 
     ``args_model`` and ``result_model`` are the *classes*, not instances: an
@@ -113,8 +115,8 @@ class Operator:
 
     operator_id: str
     operator_version: str
-    args_model: type[OperatorArgs]
-    result_model: type[BaseModel]
+    args_model: type[ArgsT]
+    result_model: type[ResultT]
     #: The locator kinds this operator may read. An operator that could read
     #: anything would be an operator nobody could reason about.
     accepted_locator_kinds: frozenset[LocatorKind]
@@ -158,7 +160,7 @@ class Operator:
         return operator_reference(self)
 
 
-def operator_reference(operator: Operator) -> str:
+def operator_reference(operator: Operator[Any, Any]) -> str:
     """``labcairn.analysis.mean@1.0.0`` — the one spelling a manifest quotes."""
     return f"{operator.operator_id}@{operator.operator_version}"
 
@@ -183,3 +185,24 @@ def parse_operator_reference(reference: str) -> tuple[str, str]:
     if OPERATOR_VERSION_PATTERN.match(version) is None:
         raise OperatorIdError(f"{version!r} is not a well-formed operator version.")
     return identifier, version
+
+
+@dataclass(frozen=True, slots=True)
+class RegisteredOperator[ArgsT: OperatorArgs, ResultT: BaseModel]:
+    """One operator, and how to run it.
+
+    :class:`Operator` says what an operator **is**; this says one that this
+    build actually ships, together with the call that runs it. The two are
+    paired in one object on purpose: a catalogue entry that named an operator
+    with no implementation behind it would be the same defect as a rule id
+    that names no shipped check, and a run would be able to ask for something
+    that does not exist and find out from a missing result rather than from a
+    refusal.
+    """
+
+    operator: Operator[ArgsT, ResultT]
+    #: The implementation. It takes the operator's own argument model and a
+    #: cell source, and returns the operator's result model. Both are the
+    #: operator's own types, so the declared model, the result model and the
+    #: code that runs cannot drift apart.
+    run: Callable[[ArgsT, ValueSource], ResultT]
