@@ -1,33 +1,52 @@
-"""Text PDFs, extracted a whole page at a time. Two columns are a known gap.
+"""Text PDFs, extracted a whole page at a time. Two columns are detected and refused.
 
 **Scope.** This adapter reads a page's text as pdfplumber renders it and does
-not attempt to reconstruct reading order across columns. That is a decision
-with a measured cost, recorded below rather than buried.
+not attempt to reconstruct reading order across columns. A page that reads as
+two columns is **refused and disclosed** rather than extracted, so the
+interleaved text is never stored; a page that does not read as two columns is
+extracted as rendered, and the limit of that rule is stated below rather than
+buried.
 
-**Why no column detection.** Two rounds of measurement on the repository's
-three CC-BY single-column fixtures killed the obvious approach. Body-line
-width does not identify a column: these papers are LaTeX single-column with
-wide side margins, so a genuine body line spans only 0.10-0.65 of the page.
-Twenty-one of sixty-eight measured pages -- all confirmed single-column --
-have fewer than half their body lines crossing the page's midpoint, because
-those pages carry a full-width figure over a single-column body. Any width- or
-midpoint-based rule separates them from two-column pages by coincidence, not
-by geometry. Building the extraction on an uncalibrated rule is what ADR-0008
-warns against, so there is no such rule here.
+**How columns are detected, and why not by width.** Two rounds of
+measurement on the repository's three CC-BY single-column fixtures killed the
+obvious approach. Body-line width does not identify a column: these papers are
+LaTeX single-column with wide side margins, so a genuine body line spans only
+0.10-0.65 of the page. Twenty-one of sixty-eight measured pages -- all
+confirmed single-column -- have fewer than half their body lines crossing the
+page's midpoint, because those pages carry a full-width figure over a
+single-column body. Any width- or midpoint-based rule separates them from
+two-column pages by coincidence, not by geometry.
 
-**What this costs, stated plainly.** For a page laid out in two columns of
-running text, ``extract_text`` emits the lines ordered top to bottom, which
-puts a left-column line and the right-column line at the same height next to
-each other. The result is not what the paper says, and a citation built on it
-would not resolve to the author's words. This adapter cannot detect that page
-and does not pretend to. It is recorded in ADR-0011 and in the work-order
-status, because a reader who cannot see a gap cannot price it.
+What the adapter uses instead is **positional**: each line is cut into
+horizontally contiguous runs, and the runs' left edges are clustered. Two
+clusters at least 80pt apart, with the rival holding at least **30%** of the
+page's line starts, is a two-column page. Cutting the line first is not
+optional: the two columns share baselines, so grouping characters by baseline
+merges them and reports one column for material that plainly has two.
+
+**What this costs, stated plainly.** A page refused as two-column is extracted
+**not at all**: it carries the disclosure ``pdf_multicolumn_unsupported``, it is
+not ``readable``, and nothing may cite it. That is the right trade for a page
+the detector is sure about -- a loud refusal beats a quiet fabrication. The
+cost is the other side of the same trade: **a two-column page whose rival
+column holds less than 30% of the line starts is not refused.** It is stored
+``readable``, and its left-column line and its right-column line sit at the
+same height beside each other in the extracted text -- text no author wrote.
+The band between the real corpus's highest single-column cluster (26%) and the
+threshold (30%) is irreducible with this signal: the real single-column pages
+this rule would also catch cluster at 20-26% of their line starts, so no
+threshold separates an unbalanced two-column page from a figure that starts
+well right of the margin. ADR-0008 records why the one thing that would
+calibrate the other direction -- two-column CC-licensed material -- could not
+be obtained. The band is recorded there and in the work-order status, because
+a reader who cannot see a gap cannot price it.
 
 **What is delivered and tested.** Everything that does not depend on column
 reconstruction: UTF-8/encoding discipline reused from :mod:`.text`, an
 extraction version that moves when pdfplumber's moves, no locale in any value,
-scanned pages recorded as unreadable rather than empty, and no exception
-escaping for any input.
+scanned pages recorded as unreadable rather than empty, two-column pages
+refused and disclosed rather than spliced, and no exception escaping for any
+input.
 
 One unit per page, carrying the page number and the page's text. A character
 range within a page is what ``PdfLocator.char_start``/``char_end`` address,
@@ -80,15 +99,25 @@ _MIN_LINES_PER_CLUSTER: Final[int] = 2
 #: A rival cluster must hold at least this share of the page's line starts
 #: before the page is called two-column.
 #:
-#: The figure is not a guess, it is bracketed by measurement in both
-#: directions. Real single-column pages *do* produce a second cluster, because
-#: cutting a line at a wide internal gap is exactly what happens around a
-#: figure, a table or an equation: seven pages across the three fixture papers
-#: cluster at 20-26%, and the highest is 26%. A genuine two-column page splits
-#: near evenly, and the synthetic control used by the tests splits 50/50. So
-#: 30%, 35% and 40% all refuse nothing on the real corpus and all still refuse
-#: the control; 35% is the midpoint of the empty band rather than an edge of it.
-_MIN_COLUMN_SHARE: Final[float] = 0.35
+#: The figure is not a guess, it is bracketed by measurement in one direction
+#: and bounded in the other. Real single-column pages *do* produce a second
+#: cluster, because cutting a line at a wide internal gap is exactly what
+#: happens around a figure, a table or an equation: seven pages across the
+#: three fixture papers cluster at 20-26%, and the highest is 26%. A genuine
+#: two-column page splits near evenly, and the synthetic control used by the
+#: tests splits 50/50. So 30%, 35% and 40% all refuse nothing on the real
+#: corpus and all still refuse the control, and 30% is the **lowest** of those
+#: three -- the edge of the measured band rather than a point chosen inside
+#: it, chosen on 2026-10-20 when the owner closed the residual band down as
+#: far as the corpus allows.
+#:
+#: The band **below** this share is the residual, and it is a real one: a
+#: two-column page whose rival column holds less than 30% of the line starts
+#: is not refused, is stored readable, and has its columns interleaved in the
+#: extracted text. No threshold closes it, because the real single-column
+#: pages that would be caught with it cluster at 20-26% -- the same place. The
+#: module docstring says so, and ADR-0008 records it.
+_MIN_COLUMN_SHARE: Final[float] = 0.30
 
 
 def _two_column_evidence(page: Any) -> str | None:

@@ -364,9 +364,11 @@ def test_an_edited_file_is_re_ingested_under_a_new_hash(
     stored hash and text stayed at the first version forever. The fix keys
     the id to the *location*, so the edit takes the refresh branch.
 
-    The superseded text is **kept**, not deleted: ADR-0004 A2 says drift
-    invalidates downstream rather than silently re-reading, and an anchor
-    already pointing into the old bytes must still resolve to them.
+    The superseded text is **kept**, not deleted: ADR-0009's item 2 says
+    anchors bound to the old hash still resolve to the old text, and an
+    anchor already pointing into the old bytes must still resolve to them.
+    (ADR-0004's A2 is the neighbouring clause -- drift makes C1 return
+    ``fail`` -- and it is about staleness, not about text surviving.)
     """
     import hashlib
 
@@ -407,7 +409,7 @@ def test_an_edited_file_is_re_ingested_under_a_new_hash(
     assert "version two, edited" in texts
     assert "version one" in texts, (
         "the superseded text must survive: an anchor pointing into it still "
-        "resolves, per ADR-0004 A2"
+        "resolves, per ADR-0009's item 2"
     )
 
 
