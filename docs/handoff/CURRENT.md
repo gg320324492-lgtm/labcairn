@@ -60,7 +60,7 @@ separates them is that C4 can never return a pass.
 
 Retrieval now answers the two-negative question (T10): a search that breaks is a `PROVIDER_FAILURE` and never a `no_hit`, and the boundary refuses to hand a caller an empty context. What is still unbuilt is everything around it — the analysis, the report renderer, and the model call the evidence would feed. And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is LC-P1-11's to make. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
-## Next: finish G3
+## Next: G3's closure, then G4
 
 LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
 
@@ -110,6 +110,8 @@ Three facts about the rest of it are worth having before the code is written, be
 **Its PDF library question is settled.** [ADR-0008](../adr/ADR-0008-pdf-ingestion-library.md) puts it on pdfplumber + pdfminer.six, both MIT, rather than PyMuPDF, whose AGPL branch would have constrained LabCairn's own MIT release. Nothing needed undoing.
 
 **The two-column PDF question is also settled, as a refusal.** Reading order is not reconstructed. A page that reads as two columns is refused and disclosed rather than extracted, because splicing two columns stores sentences the author never wrote — that defect was real, reproduced, and is the reason the refusal exists. Rotated text is still not detected, and there is no two-column paper in the repository to test detection against.
+
+**G4 is the next gate, and its plan is written.** [LC-P1-11 and LC-P1-12's task breakdown](../plans/LC-P1-11-12-task-breakdown.md): the report's document model with four renderers over it, the report artefact manifest, the revisions and the staleness, the content checks, and then the three surfaces — the Typer CLI, the local FastAPI service and the React workbench — behind one application layer they all call. **Four decisions are the owner's and are not yet taken** (§1.4): what a report may cite (the source model has a place for identifiers that ingestion never fills and that nothing resolves), what *"the same versioned report"* means for the gate's exit test, whether the exports are byte-reproducible (a DOCX is a ZIP and a PDF carries a creation date, so by default neither is), and the local API's session model. **None of it is implemented**: there is no `cli/` module, no `api/` module, the web package is a placeholder skeleton, and the store has **no list query** for tasks, runs, stages or artefacts, which all three surfaces need. The G3 gate's closure — the owner's decision — comes first.
 
 ## Carried limitations, none blocking
 

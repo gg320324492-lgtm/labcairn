@@ -6,22 +6,26 @@
 
 ## Current position
 
-**Phase:** P1 — Foundation & MVP · **Gate:** G0 closed · **`main` at time of writing:** `89c16d4` — see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
+**Phase:** P1 — Foundation & MVP · **Gate:** G0, G1 and G2 closed; **G3's exit test is met and the gate's closure is the owner's decision** · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
 | | |
 |---|---|
-| Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at [`623e3ca`](https://github.com/gg320324492-lgtm/labcairn/commit/623e3ca31caba327d2f8b1af40ab67c35c7a61d3) and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
-| Accepted and merged | **LC-P1-01** — reproducible engineering baseline. **PASS WITH NOTES** at [`c23ef775`](https://github.com/gg320324492-lgtm/labcairn/pull/2), fourth independent review, across four review rounds. Hatchling package, web baseline, five CI workflows green on Ubuntu and Windows, 174 tests, reference isolation enforced as a required status check. Evidence in [`acceptance/LC-P1-01-evidence.md`](acceptance/LC-P1-01-evidence.md). **Merged to `main` at [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via PR #2.** G1 stays open — LC-P1-02, 03, 04 are not started. |
-| Next direction | **LC-P1-01 is merged, so the gate is open.** **LC-P1-02…04** close **G1 (Trusted core)**: versioned contracts and module boundaries, model providers with truthful capability detection, and the workspace/tool permission boundary. Freeze the LC-P1-02 contracts before branching LC-P1-03 and LC-P1-04. |
+| Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at `623e3ca` and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
+| Accepted and merged | **LC-P1-01 … LC-P1-10** — the engineering baseline (LC-P1-01), the trusted core (02–04, G1), the durable work and its recovery (05–07, G2), and the evidence path (08 material and locators, 09 retrieval and the ledger, 10 bounded analysis and a deterministic figure). **Every work order is `PASS WITH NOTES`**, each with its own acceptance review under [`acceptance/`](acceptance/), and every one of them was reviewed by the party that wrote the fixes. |
+| Next direction | **G4 is next**: **LC-P1-11** (report assembly, export and artefact versioning) and **LC-P1-12** (the Typer CLI and the local FastAPI + React workbench), behind the one application layer they all call. G4's exit test is *"CLI and Web produce same versioned report"*. One decision is outstanding before G4 opens: **whether to close G3**. Its exit test is met and the [gate review](acceptance/G3-acceptance.md) recommends closure, but the board's rule — a row is marked done only when an **independent** review at a named commit says so — is not satisfied for any of G3's three work orders, and the owner has already made one decision of this kind, for LC-P1-08. |
 
-**Open issues carried into LC-P1-01** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
+**Open issues carried forward** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
 
 - Copyright ownership is unresolved and the repository deliberately has **no `LICENSE` file**. No open-source rights have been granted.
-- **PyMuPDF** is AGPL/commercial dual-licensed and is named by LC-P1-08; it constrains a future MIT release and needs a decision before that work order.
+- **PyMuPDF was avoided**: [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md) chose pdfplumber and pdfminer.six, both MIT, over PyMuPDF, whose AGPL branch would have constrained a future MIT release.
 - Reference isolation **is now enforced on `main`** since `89c16d4`: `tests/test_no_reference_leakage.py` (99 tests) and `reference-exclusion` as a required status check. It was prose until LC-P1-01 merged.
 - The five upstream pin SHAs were **verified present on GitHub at LC-P1-00 review time**. The standing risk is upstream force-push or garbage collection, which no local practice prevents; re-verify with `git ls-remote <url>` before relying on a pin.
+- **The fabricated-DOI half of LC-P1-09's clause is still unimplemented**, and the gap is structural: the ledger holds no external identifier for a source, so a report can only cite locators unless G4 changes that.
+- **No work order has had an independent review.** The reviews that found the defects and the fixes that answered them were the same party in every case, and the board's rule — a row is marked done only when an independent review at a named commit says so — is therefore unsatisfied throughout.
+- **The exit demonstrations of G1 and G2 are run by nothing**: no test and no CI job, so they can rot without anyone noticing. LC-P1-10's demonstration is covered by a test.
+- **matplotlib's bundled fonts bring a licence obligation** that the root licence line does not cover, and G5's audit has to cover the fonts rather than the root line.
 
-**What is not yet true of this project:** `main` now holds the engineering baseline — a Hatchling package, a web baseline, five CI workflows and 174 tests — and **still no product**: no CLI, no server, no database, no research capability. Every scientific feature described below is planned, not shipped. Do not read this roadmap as a status report on working software; the honest summary is that the floor is real and nothing on it is a research tool yet.
+**What is not yet true of this project:** `main` now holds a research workspace's **spine** — versioned contracts, a permission boundary, a durable task store with crash recovery, material ingestion with locators, a lexical index and an evidence ledger, bounded statistics with a deterministic figure, and a reproducibility manifest — **and none of its surfaces**. There is no CLI, no HTTP API, no report document, and the web package is a placeholder skeleton that renders no research functionality. A person cannot yet run a research task end to end from an interface. That is G4's work, and it is the first work in Phase 1 that is about the person using the tool rather than about the tool's internals.
 
 | Phase | Focus | Exit gate |
 |---|---|---|
