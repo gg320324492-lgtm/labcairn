@@ -1161,6 +1161,7 @@ Named now so they are not discovered as surprises.
   is a decision about what the work order promises. The byte-identity claim
   is therefore scoped to *one renderer's build* as well as to one recorded
   environment, and the figure's own hash is what records the bytes.
+- **The renderer draws from the recipe it was handed, and checks the file's bytes.** The renderer is given both the parsed recipe and the file reference, and it refuses when the file's content hash differs from the reference — so a recipe that has *changed* is refused. What it does not check is that the parsed recipe it was handed **is** that file's content: a caller that passed a different recipe would draw a figure the manifest does not describe, and nothing would notice. The remedy would be to re-parse the file and compare the *models* rather than the bytes — a hand-written recipe is not canonical, so comparing bytes would refuse spuriously — and that is a design question rather than a defect, because the run path reads the same file through the same root. The one who calls the renderer is the one who would have to lie.
 - **A unit algebra.** §1.4.1. `kg` and `kilograms` are one unit spelled two
   ways and a selection containing both is refused.
 - **Inferential statistics.** No p-value, no confidence interval, no
