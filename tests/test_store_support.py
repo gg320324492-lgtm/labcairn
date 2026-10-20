@@ -37,6 +37,7 @@ from labcairn.core.ids import (
 from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.repository import Clock, TaskStore
 from labcairn.db.session import create_db_engine, create_session_factory
+from labcairn.material import ingest_bytes
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -198,9 +199,21 @@ def make_receipt(task_id: TaskId, *, relative_path: str = "outputs/report.md") -
     )
 
 
-def make_source_id() -> SourceId:
-    """A SourceId, for the ``bound_source_ids`` field on Task."""
-    return SourceId(new_id())
+def make_source_id(relative_path: str = "materials/one.csv") -> SourceId:
+    """A source id of the shape the ingestion path mints.
+
+    Minted through the public ingestion path rather than assembled by hand, so
+    that the id a test binds is the id a real ingestion would have produced. A
+    change to the id's form then shows up here, instead of quietly
+    invalidating every test that binds a source.
+    """
+    material = ingest_bytes(
+        b"a,b\n1,2\n",
+        relative_path=relative_path,
+        display_name=relative_path.rsplit("/", 1)[-1],
+        ingested_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    return SourceId(material.source.source_id)
 
 
 # --------------------------------------------------------------------------- #

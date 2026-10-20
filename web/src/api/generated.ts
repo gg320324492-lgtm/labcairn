@@ -210,6 +210,8 @@ export type PlanStage = {
 
 export type RawId = string
 
+export type RawSourceId = string
+
 export type RefusalBody = {
   reason: string
   message: string
@@ -307,7 +309,7 @@ export type Task = {
   task_id?: RawId
   title: string
   goal: TaskGoal
-  bound_source_ids?: RawId[]
+  bound_source_ids?: RawSourceId[]
   revision?: StrictPosInt
   created_at?: string
   updated_at?: string

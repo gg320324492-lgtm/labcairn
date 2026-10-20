@@ -1,6 +1,8 @@
 """Stable identity for everything the project records.
 
-Identifiers are UUIDv7. The choice is load-bearing rather than cosmetic:
+Identifiers are UUIDv7, with one deliberate exception: a **source id** is
+location-derived text — ``src-`` followed by sixteen lowercase hex characters
+— and not a UUID. The choice is load-bearing rather than cosmetic:
 
 - **UUIDv7 is time-ordered.** Lexical sort of a v7 UUID matches creation
   order, so indexes stay compact and "roughly insertion order" survives even
@@ -9,6 +11,16 @@ Identifiers are UUIDv7. The choice is load-bearing rather than cosmetic:
 - **UUIDv4 would not be.** Random ids scatter across every index page.
 - **Monotonic integers would not survive export.** They leak volume and
   collide when two workspaces are merged.
+
+A source id is the exception because it identifies a *material*, not a
+*record*. Every other id here names a record the store created, once. A source
+id has to survive re-ingestion of the same material with different bytes, so
+it is derived from the material's location instead: an edited file keeps its
+identity and the ledger's refresh branch moves its recorded hash, whereas a
+content-derived id would make every edit a new material. The shape is
+therefore a contract with the ingestion path, and it is enforced where a
+source id enters a model — so a binding cannot hold an id the ingestion path
+could never have minted.
 
 Ids are distinct types rather than bare strings, so a ``SourceAnchor`` cannot be
 passed where a ``TaskId`` is expected: a type error at the boundary rather than
@@ -36,6 +48,12 @@ _UUID_RE: Final = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
+
+#: The shape the ingestion path mints a source id in. Lowercase is not
+#: negotiable: :mod:`labcairn.sources.locators` rejects an uppercase spelling
+#: rather than upcasing it, and the reason is the one that applies here too —
+#: two spellings of one id are two ids.
+_SOURCE_ID_RE: Final = re.compile(r"^src-[0-9a-f]{16}$")
 
 
 _MONOTONIC_LOCK = threading.Lock()
@@ -115,15 +133,38 @@ def _validate_uuid7(value: object) -> uuid.UUID:
 #: parsed from outside.
 type RawId = Annotated[uuid.UUID, AfterValidator(_validate_uuid7)]
 
+
+def _validate_source_id(value: object) -> str:
+    """Refuse anything that is not the id the ingestion path mints.
+
+    The id is derived from the material's location, so the shape is fixed:
+    ``src-`` and sixteen lowercase hex characters. Checking it here is what
+    makes a Task's binding mean something: the value the store reads back is
+    an id the ledger could have minted, or the read is refused.
+    """
+    if not isinstance(value, str):
+        raise TypeError(f"expected a source id string, got {type(value).__name__}")
+    if not _SOURCE_ID_RE.match(value):
+        raise ValueError(f"not a source id: {value!r}")
+    return value
+
+
+#: A source id as the ingestion path mints it. Validated at runtime wherever a
+#: source id enters a model.
+type RawSourceId = Annotated[str, AfterValidator(_validate_source_id)]
+
 # ``NewType``, not ``type X = RawId``: a distinct nominal type the checker
-# actually enforces. Each carries the same runtime validation.
+# actually enforces. Each carries the runtime validation of its own base.
 TaskId = NewType("TaskId", RawId)
 RunId = NewType("RunId", RawId)
 StageId = NewType("StageId", RawId)
 OperationId = NewType("OperationId", RawId)
 ApprovalId = NewType("ApprovalId", RawId)
 CheckpointId = NewType("CheckpointId", RawId)
-SourceId = NewType("SourceId", RawId)
+#: The one id that is not a UUID. It names a *material*, and a material's
+#: identity is derived from where it lives rather than from the records the
+#: store creates. See the module docstring.
+SourceId = NewType("SourceId", RawSourceId)
 EvidenceId = NewType("EvidenceId", RawId)
 ArtifactId = NewType("ArtifactId", RawId)
 EventId = NewType("EventId", RawId)

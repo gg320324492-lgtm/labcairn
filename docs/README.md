@@ -86,8 +86,9 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Item | Value |
 |---|---|
-| Latest gate | **G2 closed** — LC-P1-05/06/07 all `PASS WITH NOTES`. [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
-| Gate G3 | **the exit test is met; the [gate review](acceptance/G3-acceptance.md) recommends closure, and the owner decided on 2026-10-20 that G3 closes only after an **independent review**; G4 proceeds in the meantime** [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`); [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged |
+| Latest gate | **G3 closed** — LC-P1-08/09/10 all `PASS WITH NOTES`, and the gate closed on an **independent review** at `d114810` (verdict `PASS WITH NOTES`; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](acceptance/G3-acceptance.md) · G2: [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| Gate G3 | **closed** — [LC-P1-08 `PASS WITH NOTES`](acceptance/LC-P1-08-acceptance.md) · [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`) · [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged. The independent review that closed the gate is [recorded in the gate review](acceptance/G3-acceptance.md) |
+| G3's independent review | At `d114810` — a reviewer that wrote none of the fixes broke each of the gate's fourteen fixes, implementation only and never the test, and **no mutation survived**; verdict `PASS WITH NOTES`. Its three findings are fixed in `37f7d77` |
 | Independent re-review | [PR #1 re-review](acceptance/PR-1-independent-review.md) — C-1/C-2/R-01/R-02 reproduced, not assumed |
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
