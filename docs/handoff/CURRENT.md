@@ -12,7 +12,7 @@
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
-| G3 | **the exit test is met; the [gate review](../acceptance/G3-acceptance.md) recommends closure and the owner's decision is outstanding** — LC-P1-08 **PASS WITH NOTES** by owner decision; LC-P1-09 [reviewed](../acceptance/LC-P1-09-acceptance.md) **PASS WITH NOTES**; LC-P1-10 [reviewed](../acceptance/LC-P1-10-acceptance.md) **PASS WITH NOTES**. The board's rule — a row is marked done only when an **independent** review at a named commit says so — is not satisfied for any of the three, so the closure is the owner's decision |
+| G3 | **the exit test is met; the [gate review](../acceptance/G3-acceptance.md) recommends closure, and on 2026-10-20 the owner decided that G3 closes only after an **independent review** rather than instead of one; G4 proceeds in the meantime**
 
 ## What exists now
 
