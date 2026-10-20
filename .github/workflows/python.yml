@@ -26,9 +26,14 @@
 #
 # Running the quality gates on `windows-latest` proves the lint, type and test
 # commands behave on a Windows runner. It does NOT exercise a Windows build of
-# a LabCairn application, because LC-P1-01 ships no executable, no CLI and no
-# server (those belong to LC-P1-12). Do not describe this matrix as a Windows
-# smoke test, and do not let a green run here stand in for one.
+# a LabCairn application. LC-P1-01 shipped no executable, no CLI and no
+# server, and that was why the matrix was not a smoke test; **LC-P1-12 has
+# since shipped the CLI**, and its tests run it as a subprocess, so the
+# windows job now does exercise the command line on Windows. The **server**
+# is still not exercised: the API's tests drive it in process, through
+# FastAPI's test client, and no Windows runner binds a socket. Do not
+# describe this matrix as a Windows smoke test, and do not let a green run
+# here stand in for one.
 name: python
 
 on:
