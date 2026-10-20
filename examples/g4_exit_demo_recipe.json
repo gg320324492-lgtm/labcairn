@@ -1,0 +1,30 @@
+{
+  "data": {
+    "operator": "labcairn.analysis.grouped_aggregate@1.0.0",
+    "parameters": {
+      "aggregate": "labcairn.analysis.mean@1.0.0",
+      "by": "group",
+      "of": "value"
+    },
+    "selection": {
+      "source": "materials/groups.csv",
+      "columns": ["group", "value"],
+      "rows": {"start": 2, "end": 17},
+      "missing": "exclude"
+    }
+  },
+  "encoding": {
+    "mark": "bar",
+    "x": "group",
+    "y": "value",
+    "title": "Mean value by group",
+    "x_label": "group",
+    "y_label": "mean value",
+    "caption": "The mean of the value column, computed once per group.",
+    "interpretation": "Group C holds the highest mean of the three groups, but it also holds the fewest rows, so the difference is a statement about this table and not about the groups themselves."
+  },
+  "output": {
+    "format": "svg",
+    "dpi": 100
+  }
+}
