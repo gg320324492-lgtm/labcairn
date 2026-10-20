@@ -64,6 +64,12 @@ dependencies = [
     # does not pay for lxml or reportlab.
     "python-docx>=1.2,<2",
     "reportlab>=4.0,<6",
+    # LC-P1-12 T07. The localhost API. FastAPI is the framework
+    # ARCHITECTURE.md names; uvicorn is the server that runs it, because
+    # the bind address is the API's own decision and a service that cannot
+    # choose where it listens cannot refuse to listen anywhere else.
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
 ]
 
 [dependency-groups]
