@@ -1,0 +1,677 @@
+"""The content checks: what a report must agree with before it may be written.
+
+LC-P1-11 asks for *"content verification separate from formatting/rendering"*,
+and this module is that separation made mechanical. The work order's acceptance
+clause — *"numeric values agree with ledger, figures/captions intact, links
+resolve"* — is three sentences about the report's **content**, and not one of
+them is about Markdown or HTML or DOCX or PDF. So the checks run against
+:class:`~labcairn.reports.model.ReportDocument`, before anything is rendered.
+
+**Why the model and not an export.** A check on a rendered file would be a
+*second* content: the export's own numbers, its own captions, its own links.
+The four renderers would then have to agree with each other, which is the
+defect this subtask exists to prevent — one report, four renderings, four
+chances to say something the ledger does not say. The model is the one place
+the content is, so the checks are about the model and the renderers only draw
+it.
+
+**Why a refusal and not a warning.** A report that says 4.25 where the ledger
+says 4.5 must not be written. A check that *corrected* the document would be a
+second copy of the ledger with its own idea of what the numbers are, and a
+check that warned and went on would put the disagreement on the page. So a
+failed check raises :class:`ReportRefusedError` and the report is not written.
+
+**Why the live ledger.** A check that compared the model's copy of a record
+with the model's copy of the same record would be comparing the thing under
+test with itself. So the checks read the ledger: the record they name, the
+value it holds, the state it is in. Where the model says ``verified_by_rule``
+and the ledger now says ``conflicted``, the report is refused — the model's
+copy is what is being checked, and a copy is not an authority.
+
+The five checks
+---------------
+1. :func:`check_numbers_agree_with_the_ledger` — every number in the report
+   is the ledger's number, compared exactly, in a claim and in a disclosure
+   alike.
+2. :func:`check_figures_and_tables_are_the_artefacts_on_disk` — every
+   artefact the report references is the artefact on disk, and every figure is
+   captioned.
+3. :func:`check_links_resolve` — every citation is an address the index can
+   resolve, and the check is a resolution rather than a comparison of strings.
+4. :func:`check_claims_and_disclosures_rest_on_records_the_ledger_holds` —
+   every record the report names is one the ledger holds; a claim states the
+   ledger's status and no stronger one, and a disclosure states the ledger's
+   status exactly.
+5. :func:`check_the_snapshot_names_the_records_the_report_carries` — the
+   report's extent is answerable: it names exactly the records it carries.
+
+The cost
+--------
+**The checks need the ledger, and the index, and the disk.** A report cannot
+be verified against nothing, which means a report's content is only as good
+as the machinery that can look at the material behind it — and a caller that
+wants to check an *older* revision has to hand over a ledger as it was at that
+revision's moment, because the live ledger has moved on. The seam for that is
+:class:`LedgerReader`: the checks read records through it and never through
+the model, so the reader is the one thing a caller chooses.
+
+**Two of the five are rules the model already enforces.** A figure without a
+caption and a snapshot that disagrees with the records the report carries are
+both refused by :class:`~labcairn.reports.model.ReportDocument` on
+construction. The checks say them again anyway, and the duplication is the
+point: the model is the rule a document meets when it is *built*, and these
+are the rules a document meets when it is *written out*. A check that relied
+on the model's validators would be a check that could not fail on its own.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Final, Protocol, runtime_checkable
+
+from sqlalchemy.engine import Connection
+
+from labcairn.evidence.cite_support import LocationResolution, SourceIndex
+from labcairn.evidence.record import EvidenceRecord
+from labcairn.evidence.states import VerificationStatus
+from labcairn.evidence.store import load_record
+from labcairn.reports.model import (
+    FINDING_STATUSES,
+    LedgerRecordView,
+    ProvenanceFootnote,
+    ReportClaim,
+    ReportDocument,
+)
+from labcairn.security.approval import content_hash
+from labcairn.sources.locators import describe_locator
+from labcairn.sources.source import SourceAnchor
+
+__all__ = [
+    "REPORT_STATUS_FLOOR",
+    "LedgerReader",
+    "ReportRefusedError",
+    "check_claims_and_disclosures_rest_on_records_the_ledger_holds",
+    "check_figures_and_tables_are_the_artefacts_on_disk",
+    "check_links_resolve",
+    "check_numbers_agree_with_the_ledger",
+    "check_report",
+    "check_the_snapshot_names_the_records_the_report_carries",
+    "ledger_reader",
+]
+
+#: The one status a report may always state.
+#:
+#: ``extracted`` says the material was located, copied out and hashed, so it
+#: is true of every record that was ever confirmed. It is the **floor** of
+#: what a report may claim: a report that says less than the ledger is not
+#: overstating, and a record promoted after the report was written leaves the
+#: report true. The **ceiling** is the ledger's own status, and a report may
+#: not state more than that.
+REPORT_STATUS_FLOOR: Final[VerificationStatus] = VerificationStatus.EXTRACTED
+
+
+class ReportRefusedError(RuntimeError):
+    """The report is refused: it does not agree with the material it names.
+
+    A refusal and not a warning, and never a correction — see the module
+    docstring. The message names the check that refused and says what
+    disagreed, because a refusal nobody can act on is the same as no refusal:
+    the person fixing it has to know which of the five rules it broke.
+    """
+
+    def __init__(self, check: str, reason: str) -> None:
+        super().__init__(f"{check}: {reason}")
+        self.check = check
+        self.reason = reason
+
+
+@runtime_checkable
+class LedgerReader(Protocol):
+    """The ledger, as the checks read it.
+
+    One member, and it is the one the checks need: a record by its id, or
+    ``None`` for an id the ledger has never heard of. A Protocol rather than a
+    :class:`~sqlalchemy.engine.Connection` so that the checks are about the
+    report and not about SQL, and so that a caller may hand them the ledger
+    as it stood at the report's moment rather than the ledger as it is now.
+    """
+
+    def load_record(self, evidence_id: str) -> EvidenceRecord | None:
+        """The record with this id, or ``None`` if the ledger holds no such record."""
+        ...
+
+
+class _ConnectionLedger:
+    """The live ledger, read through the ledger's own reader."""
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def load_record(self, evidence_id: str) -> EvidenceRecord | None:
+        return load_record(self._connection, evidence_id)
+
+
+def ledger_reader(connection: Connection) -> LedgerReader:
+    """The live ledger, as the checks read it.
+
+    The one place the connection becomes a ledger. Everything above it reads
+    records through :class:`LedgerReader`, so a caller that wants to check a
+    report against the ledger as it was at some earlier moment can hand over
+    a reader over that moment instead.
+    """
+    return _ConnectionLedger(connection)
+
+
+def check_numbers_agree_with_the_ledger(document: ReportDocument, *, ledger: LedgerReader) -> None:
+    """Every number in the report is the ledger's number.
+
+    The comparison is **exact**, and that is the whole content of the check.
+    The ledger's number and the report's number are two floats, and a check
+    that compared their rounded forms would accept a report that says 4.25
+    where the ledger says 4.253 — a different claim about the same cell, and
+    one that no reader could see was different. So the values are compared as
+    they are.
+
+    The comparison cannot be widened from here either, and that is the
+    model's doing rather than this check's:
+    :class:`~labcairn.reports.model.LedgerRecordView` carries **no tolerance
+    field at all**, so there is nowhere for a wider tolerance to sit beside
+    the number — the guarantee is structural, and no check is needed for it.
+    The unit *is* carried, so the unit is compared, and it is declared, never
+    inferred.
+
+    **A number in a disclosure is a number the report prints**, so it is
+    compared too: a conflict is disclosed with the quantity it is a conflict
+    about, and a number printed beside it is a number the ledger holds.
+
+    A record the ledger does not hold is left to
+    :func:`check_claims_and_disclosures_rest_on_records_the_ledger_holds`:
+    there is no number here to compare with anything, and a check that
+    reported it twice would say the same thing in two places.
+    """
+    problems: list[str] = []
+    for label, view in _named_record_views(document):
+        record = ledger.load_record(view.record_id)
+        if record is None:
+            continue
+        if view.value != record.value:
+            problems.append(
+                f"{label} states the value {view.value!r}, but the ledger's record "
+                f"{record.evidence_id!r} holds {record.value!r}. A report states the "
+                "ledger's number; a report that states another one is not written"
+            )
+        if view.unit != record.unit:
+            problems.append(
+                f"{label} states the unit {view.unit!r}, but the ledger's record "
+                f"{record.evidence_id!r} declares {record.unit!r}. The unit is "
+                "declared and never inferred, and a report may not restate it"
+            )
+    if problems:
+        raise ReportRefusedError("numbers", "; ".join(problems))
+
+
+def _named_record_views(document: ReportDocument) -> tuple[tuple[str, LedgerRecordView], ...]:
+    """Every record the report names, with the words that name it.
+
+    A record the report *states* and a record it *discloses* are both printed,
+    so both carry numbers, words and a status that the ledger has to agree
+    with. The label says which is which, because a refusal that said only
+    "the report states a number the ledger does not hold" would leave the
+    reader guessing which of the two it was.
+    """
+    named = [(f"the claim {claim.claim_id!r}", claim.record) for claim in document.claims]
+    named.extend(
+        (
+            f"the disclosure of the record {disclosure.record.record_id!r}",
+            disclosure.record,
+        )
+        for disclosure in document.unresolved_records
+    )
+    return tuple(named)
+
+
+def check_claims_and_disclosures_rest_on_records_the_ledger_holds(
+    document: ReportDocument, *, ledger: LedgerReader
+) -> None:
+    """Every record the report names is the ledger's — and the two ways of
+    naming it are **not** judged by the same rule.
+
+    A report *states* the records it rests on and *discloses* the records it
+    could not resolve. Both are looked up in the ledger, both carry the
+    ledger's numbers and words, and their statuses are judged by **different**
+    rules — a ceiling for a claim, equality for a disclosure. The reason is
+    worth reading, because the two look like they should be the same rule
+    and are not.
+
+    **A claim may state the ledger's status, or the floor.** The ledger's
+    current status is the **ceiling**: a report may state the ledger's
+    status, or :data:`REPORT_STATUS_FLOOR` — ``extracted``, the floor, which
+    is true of every record that was ever confirmed. Anything stronger is
+    refused, because it is a claim the ledger never made: a report that says
+    a record was *verified by rule* where the ledger says it was merely
+    *extracted* is claiming a strength of verification the ledger does not
+    record, and the report prints that status beside the statement.
+
+    A *weaker* claim is always true, and that is what makes a ceiling the
+    right shape here. A report that says ``extracted`` about a record the
+    ledger now holds as ``verified_by_rule`` is stale but not misleading: it
+    says less credit than the ledger gives. So understating is allowed, and
+    it is **not** drift — a record promoted after the report was written
+    leaves the report true. Comparing the two statuses for *equality* would
+    refuse it, and equality is exactly what the drift doctrine forbids: it
+    would turn "this was true then" into "this was never written".
+
+    **A disclosure must state the ledger's status exactly.** Neither
+    direction is safe for a disclosure, and that is the whole difference:
+
+    - The ledger holds ``unsupported`` and the report discloses
+      ``conflicted``. ``unsupported`` is reachable from ``planned``,
+      ``extracted``, ``verified_by_rule`` and ``user_attested`` as well as
+      from ``conflicted``, so a record that is unsupported now may never have
+      had a conflict at all. The report would be disclosing a conflict the
+      ledger does not record, and may never have had. Refused.
+    - The ledger holds ``conflicted`` and the report discloses
+      ``unsupported``. ADR-0004's A5 says the conflict is *displayed* rather
+      than resolved, and a report that says ``unsupported`` about a conflict
+      does not display it: it displays the absence of support instead, which
+      is a different and weaker statement. Refused.
+
+    So equality is the only rule that neither invents a conflict nor hides
+    one, and it has the right shape for the seam this module already has: a
+    caller checking an **older** report hands over the ledger as it was at
+    that report's moment, through :class:`LedgerReader`. That is what the
+    reader is for.
+
+    **What else the two have in common.** A record the report names must be
+    one the ledger holds, whatever the report does with it: a claim naming an
+    id the ledger has never heard of rests on nothing, and a disclosure of a
+    record the ledger does not hold is a conflict with nothing behind it. A
+    claim may only rest on a record that may be **stated** — ADR-0004's rule
+    is that neither of two disagreeing readings wins by recency and the
+    conflict is *displayed* — and this check reads the ledger for that,
+    because the ledger is what the record *is*. And the report states the
+    ledger's **words** and the ledger's **kind**: a number and a sentence
+    are kept apart on purpose, and a report may not turn one into the other.
+
+    **What is not compared, and should not be.** A disclosure carries a
+    ``reason`` — the report's own prose about why the record could not be
+    resolved — and the ledger holds no reason to compare it with. The
+    absence is deliberate: the ledger records *that* a record could not be
+    resolved, and the report says *why*, in words only the report can choose.
+    Nothing here compares the two, and nothing should.
+
+    The record's own **text** is the other matter entirely, and it *is*
+    compared: it is the ledger's words, printed beside the disclosure, and
+    the reason is the report's. A disclosure that printed words the ledger
+    never wrote would put a statement on the page that no record backs, and
+    the difference between the two is the difference between the ledger's
+    sentence and the report's.
+
+    **Drift is not a content failure, and the record's
+    ``source_content_hash`` is deliberately not compared.** The report was
+    true when it was written, and what makes it untrue is the *material
+    moving* — a fact about time and not about the report's content. ADR-0004's
+    I4 says a changed source invalidates what was derived from it, and that
+    invalidation is marked on the receipt (LC-P1-11's revisions), not refused
+    here: a check that refused a report whose material had since changed would
+    turn "this was true then" into "this was never written", and a report
+    that was true has to stay readable. So the comparison is left out on
+    purpose, and it should stay left out.
+    """
+    problems: list[str] = []
+    for claim in document.claims:
+        view = claim.record
+        record = ledger.load_record(view.record_id)
+        if record is None:
+            problems.append(
+                f"the claim {claim.claim_id!r} rests on the record {view.record_id!r}, "
+                "which the ledger does not hold. A claim names the record it rests "
+                "on, and a record nobody holds is nothing to rest on"
+            )
+            continue
+        if record.status not in FINDING_STATUSES:
+            problems.append(
+                f"the claim {claim.claim_id!r} rests on the record "
+                f"{record.evidence_id!r}, which the ledger now holds as "
+                f"{record.status.value!r}. A record in that state may not be stated "
+                "as a finding: neither of two disagreeing readings wins by recency, "
+                "and the conflict is displayed rather than resolved"
+            )
+        if record.kind is not view.record_kind:
+            problems.append(
+                f"the claim {claim.claim_id!r} states a {view.record_kind.value!r} "
+                f"record, but the ledger's record {record.evidence_id!r} is a "
+                f"{record.kind.value!r} one. A number and a sentence are kept apart "
+                "on purpose, and a report may not turn one into the other"
+            )
+        elif record.text != view.text:
+            problems.append(
+                f"the claim {claim.claim_id!r} states {view.text!r}, but the ledger's "
+                f"record {record.evidence_id!r} says {record.text!r}. The report "
+                "states the ledger's words, not its own"
+            )
+        if view.status is not record.status and view.status is not REPORT_STATUS_FLOOR:
+            problems.append(
+                f"the claim {claim.claim_id!r} states the record {record.evidence_id!r} "
+                f"as {view.status.value!r}, but the ledger holds it as "
+                f"{record.status.value!r}. A report may state the ledger's status or "
+                f"the floor of {REPORT_STATUS_FLOOR.value!r}, and it may not state "
+                "more than the ledger does: a stronger status is a claim the ledger "
+                "never made"
+            )
+    for disclosure in document.unresolved_records:
+        view = disclosure.record
+        record = ledger.load_record(view.record_id)
+        if record is None:
+            problems.append(
+                f"the report discloses the record {view.record_id!r}, which the ledger "
+                "does not hold. A disclosure is a record the ledger carries and could "
+                "not resolve, and a record nobody holds is not one"
+            )
+            continue
+        if record.status is not view.status:
+            problems.append(
+                f"the report discloses the record {record.evidence_id!r} as "
+                f"{view.status.value!r}, but the ledger holds it as "
+                f"{record.status.value!r}. A disclosure is neither a ceiling nor a "
+                "floor: it is the ledger's own state, because a disclosure that "
+                "claims a conflict the ledger does not record invents one, and a "
+                "disclosure that says 'unsupported' about a conflict hides one"
+            )
+        if record.kind is not view.record_kind:
+            problems.append(
+                f"the report discloses a {view.record_kind.value!r} record "
+                f"{record.evidence_id!r}, but the ledger's record is a "
+                f"{record.kind.value!r} one. A number and a sentence are kept apart "
+                "on purpose, and a report may not turn one into the other"
+            )
+        elif record.text != view.text:
+            problems.append(
+                f"the report discloses {view.text!r} for the record "
+                f"{record.evidence_id!r}, but the ledger's record says "
+                f"{record.text!r}. The report states the ledger's words, not its own"
+            )
+    if problems:
+        raise ReportRefusedError("records", "; ".join(problems))
+
+
+def check_links_resolve(document: ReportDocument, *, index: SourceIndex) -> None:
+    """Every citation is an address the index can resolve.
+
+    The check is a **resolution**, and that is the difference between a check
+    and a comparison. Two locators can be equal as text and name an address
+    that holds nothing — page 99 of a three-page paper is a well-formed
+    address. So the citation is resolved against the material, and the answer
+    the material gives is the answer the check acts on: ``resolved`` and
+    nothing else. ADR-0004's A1 requires that an address which does not
+    resolve cites *nothing* in its place — not the nearest page, not the last
+    page — and there is no free-text label here to trim, so the only possible
+    fallback would be a different address, which is a different claim.
+
+    A citation is also the address of a record a claim rests on, so it is
+    resolved through that record's own anchors: the ledger's registered
+    addresses are the ones the record was read from, and a citation that
+    names another address is a citation to something else.
+
+    **The report may cite only the address the ledger holds.** A locator may
+    not be widened on the way into the report: a citation to the page when the
+    record was read from the page's characters is a *different* address, and
+    resolving it would be claiming the ledger says something at an address it
+    never recorded. So the refusal a builder meets when it widens a locator
+    is on purpose and not a defect — and if the report needs a wider span,
+    the **ledger** has to record that wider span first. The anchor is the
+    record of where the material was read, and the report cites what the
+    ledger holds.
+    """
+    problems: list[str] = []
+    footnotes = {footnote.footnote_id: footnote for footnote in document.footnotes}
+    cited: set[str] = set()
+    for claim in document.claims:
+        for footnote_id in claim.footnote_ids:
+            cited.add(footnote_id)
+            footnote = footnotes.get(footnote_id)
+            if footnote is None:
+                problems.append(
+                    f"the claim {claim.claim_id!r} cites the citation {footnote_id!r}, "
+                    "which the report does not carry"
+                )
+                continue
+            problems.extend(_resolve_citation(claim, footnote, index))
+    for footnote in document.footnotes:
+        if footnote.footnote_id not in cited:
+            problems.append(
+                f"the citation {footnote.footnote_id!r} is cited by no claim. A "
+                "citation is the address of the record a claim rests on, and a "
+                "citation with no claim behind it has no address to resolve"
+            )
+    if problems:
+        raise ReportRefusedError("links", "; ".join(problems))
+
+
+def _resolve_citation(
+    claim: ReportClaim, footnote: ProvenanceFootnote, index: SourceIndex
+) -> list[str]:
+    """What resolving one citation found, as the sentences that say so."""
+    problems: list[str] = []
+    anchors: list[SourceAnchor] = []
+    for anchor_id in claim.record.anchor_ids:
+        anchor = index.load_anchor(anchor_id)
+        if anchor is None:
+            problems.append(
+                f"the claim {claim.claim_id!r} rests on the anchor {anchor_id!r}, which "
+                "the ledger has never heard of"
+            )
+            continue
+        anchors.append(anchor)
+
+    matching = [
+        anchor
+        for anchor in anchors
+        if anchor.source_id == footnote.source_id and anchor.locator == footnote.locator
+    ]
+    if not matching:
+        problems.append(
+            f"the citation {footnote.footnote_id!r} names {footnote.source_id!r} at "
+            f"{describe_locator(footnote.locator)}, which is not an address the record "
+            f"behind the claim {claim.claim_id!r} was read from"
+        )
+        return problems
+
+    for anchor in matching:
+        located = index.locate(anchor)
+        if located is None:
+            problems.append(
+                f"the citation {footnote.footnote_id!r} points at "
+                f"{describe_locator(footnote.locator)}, and the index cannot resolve "
+                "it at all. A citation to an address nothing answers is a citation to "
+                "nothing"
+            )
+            continue
+        if located.resolution is not LocationResolution.RESOLVED:
+            problems.append(
+                f"the citation {footnote.footnote_id!r} points at "
+                f"{describe_locator(footnote.locator)}, which the material answers "
+                f"with {located.resolution.value!r}. Nothing is cited in its place"
+            )
+    return problems
+
+
+def check_figures_and_tables_are_the_artefacts_on_disk(
+    document: ReportDocument, *, workspace_root: Path
+) -> None:
+    """Every artefact the report references is the artefact on disk.
+
+    **A table's bytes are checked the way a figure's are, because a table is
+    a reference in the same shape as a figure.** The model carries a figure
+    and a table the same way — a workspace-relative path and the hash of the
+    bytes at it — and both are references to a file rather than copies of one.
+    Verifying one and not the other would have no principle behind it: a
+    reader of the checks would reasonably assume that the table the report
+    includes is the table on disk, and the answer would be that nobody
+    checked. So the same comparison is made for both, by the same code.
+
+    The one thing a figure has and a table does not is a **caption**, and
+    that asymmetry is the model's own: a figure is drawn into the report and
+    a table is included in it, so the figure needs a caption beside it and
+    the table's heading is part of the table artefact.
+
+    Two things, then, and the second is the one that can be done wrong.
+
+    **The caption is the model's.** A figure without a caption is a picture
+    the reader has to interpret alone, and a caption invented by a renderer is
+    a caption that changes with the format — which is how four exports of one
+    report stop saying the same thing. The model refuses a blank caption and
+    so does this check, because the model is the rule a document meets when it
+    is built and this is the rule a document meets when it is written out.
+
+    **The bytes are read, not believed.** The artefact's ``content_sha256`` is
+    the model's *claim* about the file; the file's own hash is the fact. A
+    check that compared the model's hash with the model's hash would pass on
+    an artefact that was never produced, and the report would show a picture
+    of something else or a table of something else. So the file is opened and
+    hashed here, and the two are compared — the same way the ledger compares
+    a recorded hash with the source as it now stands, and never the other way
+    round.
+    """
+    problems: list[str] = []
+    root = workspace_root.resolve()
+    for figure in document.figures:
+        if not figure.caption.strip():
+            problems.append(
+                f"the figure {figure.figure_id!r} carries no caption. A caption is the "
+                "model's, and a renderer that has to invent one invents a different "
+                "one for every format"
+            )
+        problems.extend(
+            _artefact_bytes(
+                root,
+                figure.relative_path,
+                figure.content_sha256,
+                label=figure.figure_id,
+                kind="figure",
+            )
+        )
+    for table in document.tables:
+        problems.extend(
+            _artefact_bytes(
+                root,
+                table.relative_path,
+                table.content_sha256,
+                label=table.table_id,
+                kind="table",
+            )
+        )
+    if problems:
+        raise ReportRefusedError("artefacts", "; ".join(problems))
+
+
+def check_the_snapshot_names_the_records_the_report_carries(document: ReportDocument) -> None:
+    """The report's extent is answerable, in both directions.
+
+    A report is a view of a set of ledger records, frozen at a moment, and
+    the snapshot says which set. So the records the report carries are the
+    records the snapshot names, and neither may exceed the other: a record
+    the snapshot does not name is a record the reader cannot check the view
+    against, and a record the snapshot names that the report does not show
+    makes "which records is this a view of" answerable two ways.
+
+    The model refuses both on construction, and this check says them again
+    for the reason
+    :func:`check_figures_and_tables_are_the_artefacts_on_disk` gives: a check
+    that leaned on the model's validators would be a check that could not
+    fail on its own.
+    """
+    carried = {claim.record.record_id for claim in document.claims}
+    carried |= {record.record.record_id for record in document.unresolved_records}
+    named = set(document.snapshot.record_ids)
+
+    problems: list[str] = []
+    missing = sorted(carried - named)
+    if missing:
+        problems.append(
+            f"the report carries the record(s) {missing}, which its snapshot does not "
+            "name. The snapshot is the report's statement of which records it is a "
+            "view of, and a record it does not name is a record the reader cannot "
+            "check the view against"
+        )
+    extra = sorted(named - carried)
+    if extra:
+        problems.append(
+            f"the snapshot names the record(s) {extra}, which the report does not "
+            "carry. The snapshot names the extent of the view, and a record it names "
+            "that the report does not show makes the view's extent unanswerable"
+        )
+    if problems:
+        raise ReportRefusedError("snapshot", "; ".join(problems))
+
+
+def _artefact_bytes(
+    root: Path, relative_path: str, content_sha256: str, *, label: str, kind: str
+) -> list[str]:
+    """Whether the bytes at *relative_path* are the bytes the model names.
+
+    One comparison, made for a figure and for a table alike: the artefact is
+    on disk, it is inside the workspace, and it hashes to what the model
+    records. The sentences are returned rather than raised, so that a report
+    with two wrong artefacts says so twice rather than once.
+    """
+    target = root / relative_path
+    resolved = target.resolve()
+    if not resolved.is_relative_to(root):
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, which resolves outside the "
+            f"workspace. A {kind} is a file in the workspace, and one somewhere else "
+            "is not it"
+        ]
+    try:
+        observed = content_hash(resolved)
+    except OSError as error:
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, which cannot be read: "
+            f"{error}. The artefact the report names is not on disk"
+        ]
+    if observed != content_sha256:
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, whose bytes hash to "
+            f"{observed}, but the report records {content_sha256}. The artefact in the "
+            "report is not the one on disk"
+        ]
+    return []
+
+
+def check_report(
+    document: ReportDocument,
+    *,
+    ledger: LedgerReader,
+    index: SourceIndex,
+    workspace_root: Path,
+) -> None:
+    """Every content check, in the report's own dependency order.
+
+    The order is the report's: the extent of the view, then the records the
+    report names, then the numbers those records hold, then the citations,
+    then the artefacts on disk. Each check answers about something the one
+    before it has already established — a number belongs to a record, a
+    citation belongs to a claim's record, a figure belongs to a report that
+    is already sound — so the order is the order of the report's own
+    dependencies and not a preference. The records come before the numbers
+    because a number is a thing a record holds: a claim that says a numeric
+    record is a claim is a claim about the record, and it is refused as one
+    rather than as a number that does not match.
+
+    The first refusal stops the run, because a report is not written on the
+    strength of the checks that happened to pass — and a check that warns and
+    carries on is exactly what this work order forbids.
+
+    :param document: the report to check. The model, never an export.
+    :param ledger: the records are read from here, not from the document.
+    :param index: the citations are resolved through here.
+    :param workspace_root: the root the figures' workspace-relative paths are
+        read under.
+    :raises ReportRefusedError: if any check finds anything.
+    """
+    check_the_snapshot_names_the_records_the_report_carries(document)
+    check_claims_and_disclosures_rest_on_records_the_ledger_holds(document, ledger=ledger)
+    check_numbers_agree_with_the_ledger(document, ledger=ledger)
+    check_links_resolve(document, index=index)
+    check_figures_and_tables_are_the_artefacts_on_disk(document, workspace_root=workspace_root)
