@@ -1174,27 +1174,30 @@ def test_every_command_the_plan_names_is_reachable() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_task_cannot_bind_a_material_the_product_ingests() -> None:
-    """The layer's task binds sources by UUIDv7; the product mints ``src-``.
+def test_the_task_can_bind_a_material_the_product_ingests() -> None:
+    """The task's binding takes the id the product actually mints.
 
-    LC-P1-08's ingestion gives a source the id ``src-<hash>``, while
-    ``Task.bound_source_ids`` is typed as the runtime's UUIDv7
-    :class:`~labcairn.core.ids.SourceId`. A task therefore cannot bind the
+    **This test used to say the opposite, and it was right to.** LC-P1-08's
+    ingestion gives a source the id ``src-<hash>``, while
+    ``Task.bound_source_ids`` was typed as the runtime's UUIDv7
+    :class:`~labcairn.core.ids.SourceId` — so a task could not bind the
     material the product ingests, and the layer's ``list_sources`` — which
-    matches the bound ids against the ledger — cannot find it.
+    matches the bound ids against the ledger — could not find it. The old
+    test recorded that inconsistency rather than working around it.
 
-    The CLI's source commands work on a ledger source by id, which does not
-    need the binding, so they work. This test records the inconsistency
-    rather than working around it.
+    The type is now the id the store holds (`ba07dd5`), so the binding works,
+    and this test is the marker that it keeps working: the same
+    ``src-<hash>`` the product mints goes into a task and comes back out.
     """
-    with pytest.raises(ValueError, match="UUID"):
-        Task.model_validate(
-            {
-                "title": "Bound to real material",
-                "goal": {"objective": "One.", "success_criterion": "Done."},
-                "bound_source_ids": [_SOURCE_ID],
-            }
-        )
+    task = Task.model_validate(
+        {
+            "title": "Bound to real material",
+            "goal": {"objective": "One.", "success_criterion": "Done."},
+            "bound_source_ids": [_SOURCE_ID],
+        }
+    )
+
+    assert task.bound_source_ids == (_SOURCE_ID,)
 
 
 def test_the_cli_never_needs_the_binding_to_inspect_a_source(
@@ -1202,8 +1205,9 @@ def test_the_cli_never_needs_the_binding_to_inspect_a_source(
 ) -> None:
     """``sources inspect`` works on a ledger source the task does not bind.
 
-    The binding is broken as the test above says it is; the command is not,
-    because it looks the source up by id rather than through the task.
+    The command does not need the binding, because it looks the source up by
+    id rather than through the task — and that is worth saying, because the
+    binding used to be impossible and the command worked anyway.
     """
     result = run_cli(
         "--workspace", str(workspace), "sources", "inspect", "--source", source_id, "--json"
