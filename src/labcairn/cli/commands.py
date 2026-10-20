@@ -36,13 +36,17 @@ from pathlib import Path
 from typing import Annotated, Any, NoReturn, cast
 
 import typer
-from rich.console import Console
+from rich.console import Console, RenderableType
+from rich.panel import Panel
+from rich.table import Table
 
 from labcairn.application import (
     ApplicationRefusedError,
+    MaterialIngested,
     StageOutcome,
     StageRequest,
     create_task,
+    ingest_material,
     inspect_source,
     list_artifacts,
     read_plan,
@@ -56,6 +60,7 @@ from labcairn.application.tasks import TaskState
 from labcairn.cli import render
 from labcairn.cli.models import (
     CLI_REFUSAL_INVALID_ARGUMENTS,
+    CLI_REFUSAL_MATERIAL_INCOMPLETE,
     CLI_REFUSAL_NO_TASK_SELECTED,
     CLI_REFUSAL_WORKSPACE_EXISTS,
     CLI_REFUSAL_WORKSPACE_NOT_INITIALISED,
@@ -681,6 +686,18 @@ def task_create(
 
     The task's output area is created and the task's first event is written
     in one transaction by the layer, so a task that exists has a history.
+
+    **The workspace's material is ingested, and the task is bound to it.** A
+    task that holds no material can carry disclosures and never a claim,
+    because a claim rests on a cited record and a citation points into
+    material the task holds. So the material under the workspace's source
+    roots is read through the permission boundary and bound to the task
+    before this command returns.
+
+    A file that could not be read makes the command refuse: the Task model
+    has no field for a failure, and a task that quietly holds less than the
+    operator asked for is a task nobody can trust. The message names each
+    file and why it could not be read.
     """
     options = _options(ctx)
     location = locate(options.workspace)
@@ -705,15 +722,44 @@ def task_create(
         finally:
             engine.dispose()
 
-        write_config(
-            location, config.model_copy(update={"current_task": str(created.task.task_id)})
-        )
-        model = created.task
+        task_id = created.task.task_id
+        with application_context(location, config, task_id) as context:
+            ingested = ingest_material(context)
+            # Read back through the layer rather than patched from the value
+            # above: the binding moved the task's own ``updated_at``, and the
+            # model this command prints has to be the one the layer reports.
+            model = read_task_state(context).task
+
+        write_config(location, config.model_copy(update={"current_task": str(task_id)}))
+        if ingested.failures:
+            _refuse(
+                CLI_REFUSAL_MATERIAL_INCOMPLETE,
+                _the_unreadable_material(ingested, task_id=task_id),
+                as_json=as_json,
+            )
     if as_json:
         emit_model(model)
     else:
         output_area = location.output_path / str(model.task_id)
         _console().print(render.render_task(model, output_area))
+
+
+def _the_unreadable_material(ingested: MaterialIngested, *, task_id: TaskId) -> str:
+    """What could not be read, and what the task holds because of it.
+
+    The message names each file and why it could not be read, because a reason
+    nobody can act on is the same as no reason. The task is named too: it
+    exists, and it holds the material that could be read.
+    """
+    listed = "; ".join(
+        f"{failure.relative_path} ({failure.reason})" for failure in ingested.failures
+    )
+    return (
+        f"{len(ingested.failures)} file(s) of the supplied material could not be read, "
+        f"so the task {task_id} holds only the material that could: {listed}. "
+        "A task that quietly holds less than the material it was given is a task "
+        "nobody can check a claim against."
+    )
 
 
 def _resolve_source_dirs(
@@ -923,6 +969,62 @@ def sources_inspect(
         emit_model(model)
     else:
         _console().print(render.render_source(model))
+
+
+@sources_app.command("ingest")
+def sources_ingest(
+    ctx: typer.Context,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Ingest the workspace's supplied material, and bind it to the task.
+
+    The material under the workspace's source roots is read through the
+    permission boundary, stored in the ledger, and bound to the task by the
+    ids the ingestion mints. A task that holds no material can carry
+    disclosures and never a claim, because a claim rests on a cited record
+    and a citation points into material the task holds.
+
+    Running it again over the same material writes nothing new, and running it
+    again over an edited file refreshes what the ledger records about it.
+
+    A file that could not be read is **reported, not swallowed**: the report
+    names it and says why, and the rest of the material is still ingested.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            model: MaterialIngested = ingest_material(context)
+    if as_json:
+        emit_model(model)
+    else:
+        _console().print(_render_ingestion(model))
+
+
+def _render_ingestion(model: MaterialIngested) -> RenderableType:
+    """What the ingestion produced, drawn from the model.
+
+    The picture is generated from the same value the ``--json`` form
+    serialises, so the two cannot disagree. The failures are on their own
+    lines: a file that could not be read is a fact the reader has to act on,
+    and a count alone would not say which one.
+    """
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("ingested", str(len(model.source_ids)))
+    table.add_row("readable", str(model.readable))
+    table.add_row("empty", str(model.empty))
+    table.add_row("unreadable", str(model.unreadable))
+    table.add_row("no adapter", str(len(model.skipped)))
+    table.add_row("failed", str(len(model.failures)))
+    table.add_row("bound", ", ".join(model.bound_source_ids) or "(nothing)")
+    for failure in model.failures:
+        table.add_row("failed", f"{failure.relative_path}: {failure.reason}")
+    return Panel(table, title="ingested", expand=False)
 
 
 # --------------------------------------------------------------------------- #

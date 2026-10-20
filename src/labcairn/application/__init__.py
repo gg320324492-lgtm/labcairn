@@ -51,6 +51,7 @@ Operation                  Capability
 ``read_steps``             ``fs.read``
 ``list_sources``           ``source.inventory``
 ``inspect_source``         ``source.inventory``
+``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
 ``request_approval``       the caller's
@@ -80,6 +81,12 @@ from labcairn.application.artifacts import (
 )
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import EventPage, read_events
+from labcairn.application.material_ingestion import (
+    IngestedFile,
+    IngestFailure,
+    MaterialIngested,
+    ingest_material,
+)
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.reports import (
@@ -124,6 +131,9 @@ __all__ = [
     "ArtifactContent",
     "ArtifactView",
     "EventPage",
+    "IngestFailure",
+    "IngestedFile",
+    "MaterialIngested",
     "PlanStage",
     "ReportRendered",
     "ReportRequest",
@@ -140,6 +150,7 @@ __all__ = [
     "consume_approval",
     "create_task",
     "grant_approval",
+    "ingest_material",
     "inspect_source",
     "list_artifacts",
     "list_sources",
