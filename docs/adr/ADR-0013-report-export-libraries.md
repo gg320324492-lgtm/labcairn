@@ -14,10 +14,10 @@ dependency decision — with LC-P1-12 (the CLI and the local Web workbench)
 > under what licence obligations, at what install cost, and what the
 > determinism of each form actually is.
 >
-> **This ADR does not add the dependencies.** `python-docx` and `reportlab`
-> are named here and are *not* in `pyproject.toml` or `uv.lock`. The
-> subtask that implements the exporters adds them, pins them, and writes the
-> dependency comment in the style of ADR-0012's. A dependency that appears in
+> **This ADR did not add the dependencies.** `python-docx` and `reportlab`
+> are named here; the subtask that implemented the exporters added them —
+> `python-docx>=1.2,<2` and `reportlab>=4.0,<6` — pinned them in `uv.lock`,
+> and wrote the dependency comment in the style of ADR-0012's. A dependency that appears in
 > an ADR without appearing in the lockfile is a decision, not a dependency;
 > the two must not be confused, and the lockfile is where the second one
 > lives.
@@ -445,12 +445,13 @@ and one the owner has already declined to pin.
   into the tree constrains LabCairn's own intended MIT grant is a question
   for the G5 review and for whoever settles copyright ownership. This ADR
   records the fact and the text; it does not decide the legal question.
-- **The Markdown escape table is specified, not written.** The
-  implementing subtask owns the table and its test; this ADR fixes that it
-  must be one table and must be tested, and does not pretend the table
-  exists.
-- **No report has been exported yet.** Everything above says the libraries
-  can produce the four forms; the first real export is LC-P1-11's.
+- **The Markdown escape table is this ADR's business only in shape.** The
+  implementing subtask owns the table and its test; the table is written —
+  **nineteen characters, one table, pinned by a test of its own** — and this
+  ADR fixes only that it must be one table and must be tested.
+- **A report has been exported since this ADR was written.** Everything above
+  says the libraries can produce the four forms; the first real export was
+  LC-P1-11's, and it is in `main`.
 
 ## Re-evaluation trigger
 
