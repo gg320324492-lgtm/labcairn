@@ -53,6 +53,7 @@ from typing import Any, Protocol, runtime_checkable
 
 import pytest
 from analysis_fixtures import corpus_selection, corpus_source
+from matplotlib.transforms import Bbox
 
 from labcairn.analysis.chart import render as render_module
 from labcairn.analysis.chart.recipe import (
@@ -342,6 +343,52 @@ def _artists(figure: FigureResult) -> Any:
     axes = canvas.add_subplot(111)
     render_module._draw_the_mark(axes, figure)
     return axes
+
+
+def _drawn_canvas(figure: FigureResult) -> Any:
+    """The canvas the renderer draws the figure on, drawn.
+
+    The renderer's own draw closes the canvas and returns bytes, so the
+    geometry cannot be measured on it. This draws the figure the way the
+    renderer does -- through the module's own drawing function, so there is
+    one drawing and not two -- and hands the canvas back for measuring.
+    """
+    import matplotlib.pyplot as plt
+
+    canvas = plt.figure(figsize=FIGURE_SIZE, dpi=200)
+    render_module._draw_the_figure(canvas, figure)
+    canvas.canvas.draw()
+    return canvas
+
+
+def _label_band(canvas: Any) -> Any:
+    """The band the axes' tick labels and axis labels occupy.
+
+    In fractions of the figure's height, from the axes' tight bounding
+    box: that is where matplotlib puts the tick labels and the axis
+    label, and it is the band the caption must not be drawn over.
+    """
+    axes = canvas.axes[0]
+    box = axes.get_tightbbox(canvas.canvas.get_renderer())
+    return box.transformed(canvas.transFigure.inverted())
+
+
+def _caption_band(canvas: Any) -> Any:
+    """The band the figure's own text occupies.
+
+    The texts on the **figure** are the caption, the notes and the
+    interpretation; the tick labels and the axis labels are on the axes,
+    so they are not in this band.
+    """
+    renderer = canvas.canvas.get_renderer()
+    boxes = [text.get_window_extent(renderer) for text in canvas.texts]
+    assert boxes, "the figure carries no text at all"
+    left = min(box.x0 for box in boxes)
+    bottom = min(box.y0 for box in boxes)
+    right = max(box.x1 for box in boxes)
+    top = max(box.y1 for box in boxes)
+    band = Bbox.from_extents(left, bottom, right, top)
+    return band.transformed(canvas.transFigure.inverted())
 
 
 def _described(recipe: ChartRecipe, result: GroupedResult) -> FigureResult:
@@ -1099,6 +1146,52 @@ def test_the_png_carries_no_creation_date(tmp_path: Path) -> None:
     assert data is not None
     assert b"Date" not in data
     assert b"Software" in data
+
+
+@pytest.mark.unit
+def test_the_caption_does_not_overlap_the_axis_labels() -> None:
+    """The caption is drawn below the tick labels and the axis label.
+
+    The property is geometric, and it is measured on the canvas the figure
+    was drawn on: the axes' tight bounding box is where matplotlib puts
+    the tick labels and the axis label, and the figure's own text must be
+    below it. A caption drawn across the tick labels is a caption nobody
+    can read, and the acceptance clause's "charts match data and captions"
+    fails on the figure itself.
+
+    The SVG cannot carry the check: ``svg.fonttype: path`` writes the text
+    as glyph outlines, so the caption's words are not in the file to be
+    read back. The geometry is the thing the file was drawn from, and it
+    is what is checked.
+    """
+    figure = _described(_recipe(), _grouped())
+    canvas = _drawn_canvas(figure)
+    labels = _label_band(canvas)
+    caption = _caption_band(canvas)
+    assert caption.y1 <= labels.y0, (
+        f"the figure's text runs from {caption.y0:.4f} to {caption.y1:.4f} and "
+        f"the axes' labels occupy up to {labels.y0:.4f}, so the caption is "
+        f"drawn across them. A caption nobody can read is not a caption."
+    )
+
+
+@pytest.mark.unit
+def test_a_taller_axis_label_pushes_the_caption_down_rather_than_under_it() -> None:
+    """The caption's place follows the labels, whatever they are.
+
+    A constant is right for one label and wrong for the next. An x-axis
+    label on two lines makes the band the labels occupy taller, and the
+    caption has to move down with it -- which a constant cannot do, and
+    which is exactly the case that put the caption across the tick labels
+    in the first place.
+    """
+    one_line = _drawn_canvas(_described(_recipe(x_label="group"), _grouped()))
+    two_lines = _drawn_canvas(_described(_recipe(x_label="group\n(the unit)"), _grouped()))
+    assert _caption_band(two_lines).y1 <= _label_band(two_lines).y0
+    assert _caption_band(two_lines).y1 < _caption_band(one_line).y1, (
+        "a taller axis label did not move the caption down, so the caption's "
+        "place is a constant rather than a measurement"
+    )
 
 
 @pytest.mark.unit

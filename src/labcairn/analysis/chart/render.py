@@ -69,6 +69,17 @@ across machines: a different machine may resolve different fonts. The
 environment fingerprint in the manifest is what makes "identical inputs"
 mean something.
 
+The layout is measured, not guessed
+-----------------------------------
+The figure's text starts **below the axes' tick labels and axis label**,
+and where that is is **measured**: the axes' tight bounding box is taken
+after a draw, so the labels are where matplotlib actually put them. A
+constant is right for one label and wrong for the next, and a caption
+drawn across the tick labels is a caption nobody can read -- which is the
+acceptance clause's "charts match data and captions" failing on the
+figure itself. The measurement is deterministic: it is a function of the
+labels and the fonts, and the fonts are part of the recorded environment.
+
 What the manifest's environment does not cover
 -----------------------------------------------
 The renderer's declared drawing parameters -- the figure's size, the
@@ -260,17 +271,38 @@ HISTOGRAM_BINS: Final[int] = 10
 #: marker, because a caption saying what is plotted is not an interpretation.
 INTERPRETATION_MARKER: Final[str] = "[interpretation not machine-verified]"
 
-#: Where the axes sit, and where the figure's text sits.
+#: Where the axes sit.
 #:
 #: Fixed, and set with ``add_axes`` rather than left to a layout engine, so
-#: that the text below the plot has a declared home and the layout does not
-#: depend on which strings happen to be in it.
+#: that the plot has a declared home and the layout does not depend on
+#: which strings happen to be in it. The axes are **shortened** when the
+#: figure's text needs the room (see :func:`_text_top`), and nothing else
+#: about them moves.
 _AXES_RECT: Final[tuple[float, float, float, float]] = (0.10, 0.36, 0.86, 0.56)
+
+#: Where the figure's text sits: its left margin, its line step, its size.
+#:
+#: The text's **top** is not among them, because it is not a constant. It
+#: is measured -- the axes' tight bounding box is taken after a draw, so
+#: the tick labels and the axis label are where they actually are, and the
+#: text goes below them. A constant would be right for one label and
+#: wrong for the next, and a caption drawn across the tick labels is a
+#: caption nobody can read: the acceptance clause's "charts match data and
+#: captions" failing on the figure itself.
 _TEXT_LEFT: Final[float] = 0.02
-_TEXT_TOP: Final[float] = 0.33
 _TEXT_STEP: Final[float] = 0.030
 _TEXT_SIZE: Final[float] = 7.0
 _TEXT_WIDTH: Final[int] = 96
+
+#: The gap between the axes' labels and the figure's text.
+_TEXT_CLEARANCE: Final[float] = 0.02
+
+#: The space kept below the figure's last line of text.
+_TEXT_MARGIN: Final[float] = 0.02
+
+#: The smallest the plot may be, so that a long caption cannot squeeze it
+#: out of the figure altogether.
+_MIN_AXES_HEIGHT: Final[float] = 0.20
 
 #: How close a caption's number has to be to a plotted value to be *that*
 #: value.
@@ -610,12 +642,7 @@ class MatplotlibFigureRenderer:
 
         canvas = plt.figure(figsize=FIGURE_SIZE, dpi=figure.dpi)
         try:
-            axes = canvas.add_axes(_AXES_RECT)
-            _draw_the_mark(axes, figure)
-            axes.set_xlabel(figure.x_label)
-            axes.set_ylabel(figure.y_label)
-            axes.set_title(figure.title)
-            _draw_the_text(canvas, figure)
+            _draw_the_figure(canvas, figure)
             buffer = io.BytesIO()
             if figure.format is FigureFormat.SVG:
                 # The date is the within-process control, and it is an SVG
@@ -627,6 +654,22 @@ class MatplotlibFigureRenderer:
             return buffer.getvalue()
         finally:
             plt.close(canvas)
+
+
+def _draw_the_figure(canvas: Any, figure: FigureResult) -> None:
+    """The whole figure, on a canvas the caller owns.
+
+    Split out from the renderer's own draw so that the geometry can be
+    measured on the canvas the figure was drawn on. A figure's layout is a
+    property of the figure, and a test that could not see it could not
+    check it.
+    """
+    axes = canvas.add_axes(_AXES_RECT)
+    _draw_the_mark(axes, figure)
+    axes.set_xlabel(figure.x_label)
+    axes.set_ylabel(figure.y_label)
+    axes.set_title(figure.title)
+    _draw_the_text(canvas, axes, figure)
 
 
 def _draw_the_mark(axes: Any, figure: FigureResult) -> None:
@@ -664,7 +707,7 @@ def _draw_the_mark(axes: Any, figure: FigureResult) -> None:
         )
 
 
-def _draw_the_text(canvas: Any, figure: FigureResult) -> None:
+def _draw_the_text(canvas: Any, axes: Any, figure: FigureResult) -> None:
     """The figure's text: the caption, what happened to the undefined groups,
     and the interpretation with its marker.
 
@@ -674,6 +717,28 @@ def _draw_the_text(canvas: Any, figure: FigureResult) -> None:
     can be left out by forgetting. A recipe with no interpretation gets no
     marker, because a caption saying what is plotted is not an
     interpretation and marking it as one would be a lie about the figure.
+
+    The text starts **below the axes' labels**, and where that is is
+    **measured** rather than guessed: see :func:`_text_top`.
+    """
+    lines = _text_lines(figure)
+    top = _text_top(canvas, axes, lines)
+    for index, line in enumerate(lines):
+        canvas.text(
+            _TEXT_LEFT,
+            top - index * _TEXT_STEP,
+            line,
+            ha="left",
+            va="top",
+            fontsize=_TEXT_SIZE,
+        )
+
+
+def _text_lines(figure: FigureResult) -> tuple[str, ...]:
+    """The figure's text, one line each.
+
+    The caption, then a line for each group with no statistic, then the
+    interpretation with its marker.
     """
     lines: list[str] = list(textwrap.wrap(figure.caption, width=_TEXT_WIDTH))
     for value in figure.values:
@@ -688,15 +753,51 @@ def _draw_the_text(canvas: Any, figure: FigureResult) -> None:
         lines.extend(
             textwrap.wrap(f"{figure.interpretation} {INTERPRETATION_MARKER}", width=_TEXT_WIDTH)
         )
-    for index, line in enumerate(lines):
-        canvas.text(
-            _TEXT_LEFT,
-            _TEXT_TOP - index * _TEXT_STEP,
-            line,
-            ha="left",
-            va="top",
-            fontsize=_TEXT_SIZE,
+    return tuple(lines)
+
+
+def _text_top(canvas: Any, axes: Any, lines: tuple[str, ...]) -> float:
+    """Where the figure's text starts, in fractions of the figure's height.
+
+    **Measured, not guessed.** The axes' tight bounding box is taken after
+    a draw, so the tick labels and the axis label are where they actually
+    are rather than where a constant hoped they would be, and the text
+    goes below that box. A constant is right for one label and wrong for
+    the next -- and a caption drawn across the tick labels is a caption
+    nobody can read.
+
+    If the text does not fit in the space below the labels, the **plot
+    gives up the room**: the axes are shortened and the text starts below
+    them again. A shorter plot is a legible figure; a caption that runs off
+    the page is not.
+    """
+    top = _label_band_bottom(canvas, axes) - _TEXT_CLEARANCE
+    shortfall = _TEXT_MARGIN - (top - len(lines) * _TEXT_STEP)
+    if shortfall <= 0:
+        return top
+    left, bottom, width, height = axes.get_position().bounds
+    if height - shortfall < _MIN_AXES_HEIGHT:
+        raise FigureRefusedError(
+            f"the figure's text needs {len(lines)} line(s), and the plot cannot "
+            f"be shortened to make room for them without the figure ceasing to "
+            f"be a figure. A caption that runs off the page is a caption nobody "
+            f"can read, so the figure is refused rather than drawn badly."
         )
+    axes.set_position((left, bottom + shortfall, width, height - shortfall))
+    return _label_band_bottom(canvas, axes) - _TEXT_CLEARANCE
+
+
+def _label_band_bottom(canvas: Any, axes: Any) -> float:
+    """Where the band the axes' labels occupy ends, in figure fractions.
+
+    Measured from the axes' tight bounding box -- which is where matplotlib
+    puts the tick labels and the axis label, rather than where a constant
+    might have guessed.
+    """
+    canvas.canvas.draw()
+    renderer = canvas.canvas.get_renderer()
+    box = axes.get_tightbbox(renderer)
+    return float(box.transformed(canvas.transFigure.inverted()).y0)
 
 
 def _check_the_axes_name_the_result(recipe: ChartRecipe, result: GroupedResult) -> None:
