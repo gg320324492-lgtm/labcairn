@@ -81,6 +81,8 @@ from labcairn.reports.receipt import (
     DerivationRef,
     DerivationTargetKind,
 )
+from labcairn.reports.render.constants import INTERPRETATION_MARKER
+from labcairn.reports.render.markdown import render_markdown
 from labcairn.reports.render.resolve import resolve
 from labcairn.sources.locators import ComputationLocator, PdfLocator, SourceLocator
 from labcairn.sources.source import (
@@ -124,6 +126,9 @@ LEDGER_VALUE: float = 4.253
 
 #: The caption the author gave the figure.
 FIGURE_CAPTION: str = "Mean yield across the five measured runs."
+#: The reading the author gave the figure, which the recipe keeps apart
+#: from the caption because an interpretation is never machine-verified.
+FIGURE_INTERPRETATION: str = "The treated group yields more than the control."
 
 
 def _source(
@@ -420,6 +425,7 @@ def task() -> dict[str, Any]:
         },
         "manifests": {"manifest-1": manifest},
         "captions": {"figure-1": FIGURE_CAPTION},
+        "interpretations": {"figure-1": FIGURE_INTERPRETATION},
     }
 
 
@@ -435,6 +441,7 @@ def _build(task: dict[str, Any], **overrides: Any) -> ReportDocument:
         anchors=arguments["anchors"],
         manifests=arguments["manifests"],
         captions=arguments["captions"],
+        interpretations=arguments.get("interpretations"),
     )
 
 
@@ -866,7 +873,14 @@ def test_a_task_with_nothing_to_report_is_refused(task: dict[str, Any]) -> None:
         )
     ]
     with pytest.raises(ReportBuildRefusedError, match="nothing a report may carry"):
-        _build(task, records=empty, artifacts=[], manifests={}, captions={})
+        _build(
+            task,
+            records=empty,
+            artifacts=[],
+            manifests={},
+            captions={},
+            interpretations={},
+        )
 
 
 def test_two_artefacts_with_one_receipt_id_are_refused(task: dict[str, Any]) -> None:
@@ -908,10 +922,12 @@ def test_the_sections_place_every_block_the_document_carries(task: dict[str, Any
 
     figures = document.sections[1]
     figure_blocks = [block for block in figures.blocks if isinstance(block, FigureBlock)]
-    assert len(figure_blocks) == len(figures.blocks)
     assert {block.figure_id for block in figure_blocks} == {
         figure.figure_id for figure in document.figures
     }
+    # The figure's own interpretation is placed with it, so the section holds
+    # the figure and the reading of it and nothing else.
+    assert all(isinstance(block, FigureBlock | InterpretationBlock) for block in figures.blocks)
 
     tables = document.sections[2]
     table_blocks = [block for block in tables.blocks if isinstance(block, TableBlock)]
@@ -936,31 +952,100 @@ def test_a_disclosure_is_placed_in_the_disclosure_section_and_nowhere_else(
     assert all(isinstance(block, UnresolvedBlock) for block in disclosed.blocks)
 
 
-def test_the_builder_writes_no_prose(task: dict[str, Any]) -> None:
-    """No narrative and no interpretation: those are the author's words.
+def test_the_builder_writes_no_narrative(task: dict[str, Any]) -> None:
+    """No narrative: a narrative describes what the report covers, and
+    nothing in the ledger holds those sentences.
 
-    An interpretation is never machine-verified (ADR-0004's A10), and a
-    builder that invented prose would be putting words in the researcher's
-    mouth.
+    The only prose the builder carries is a figure's own interpretation,
+    and that one it carries rather than writes.
     """
     document = _build(task)
 
     for section in document.sections:
         for block in section.blocks:
             assert not isinstance(block, NarrativeBlock)
-            assert not isinstance(block, InterpretationBlock)
-    kinds = {block.block_kind for section in document.sections for block in section.blocks}
-    assert kinds <= {
-        BlockKind.CLAIM,
-        BlockKind.FIGURE,
-        BlockKind.TABLE,
-        BlockKind.UNRESOLVED,
-    }
+
+
+def test_a_figures_own_interpretation_is_carried_as_an_interpretation(
+    task: dict[str, Any],
+) -> None:
+    """The recipe's reading of the figure reaches the report, marked.
+
+    The recipe keeps the caption and the interpretation apart for ADR-0004's
+    A10, and so does the report: the caption says what is plotted and the
+    interpretation says what it means, and only the second is an
+    interpretation.
+    """
+    document = _build(task)
+
+    figures_section = next(
+        section for section in document.sections if section.section_id == FIGURES_SECTION_ID
+    )
+    readings = [block for block in figures_section.blocks if isinstance(block, InterpretationBlock)]
+    assert len(readings) == 1
+    assert readings[0].text == FIGURE_INTERPRETATION
+
+    # Immediately after the figure it belongs to.
+    kinds = [block.block_kind for block in figures_section.blocks]
+    assert kinds == [BlockKind.FIGURE, BlockKind.INTERPRETATION]
+
+
+def test_a_figure_with_no_interpretation_contributes_no_block(task: dict[str, Any]) -> None:
+    """An absent interpretation is absent, and not an empty one.
+
+    The recipe's field is optional, and a figure with none must not carry a
+    block saying nothing — the marker would then ride on an absence.
+    """
+    document = _build(task, interpretations={})
+
+    figures_section = next(
+        section for section in document.sections if section.section_id == FIGURES_SECTION_ID
+    )
+    assert [block.block_kind for block in figures_section.blocks] == [BlockKind.FIGURE]
+
+
+def test_the_interpretation_reaches_the_export_marked_as_unverified(
+    task: dict[str, Any],
+) -> None:
+    """The marker fires, and it is the figure's own marker.
+
+    A claim resting on a ``claim`` or ``result`` record is marked for the
+    same reason, and the marker is the constant the figure's renderer uses.
+    The two lines are the report's whole A10 story: a statement no rule
+    confirmed and a reading no rule verified.
+    """
+    document = _build(task)
+
+    markdown = render_markdown(document)
+    text = markdown.decode("utf-8") if isinstance(markdown, bytes) else markdown
+
+    marked = [line for line in text.splitlines() if INTERPRETATION_MARKER in line]
+    # The Markdown writer escapes the full stop, so the comparison is made
+    # without it: the writer escapes for the reader and the text under the
+    # marker is the researcher's own.
+    assert any(FIGURE_INTERPRETATION.rstrip(".") in line for line in marked)
+
+
+def test_an_interpretation_that_names_no_figure_is_refused(task: dict[str, Any]) -> None:
+    """A reading keyed to nothing would be dropped in silence.
+
+    A parameter that is accepted and ignored is a parameter that lies, and a
+    mistyped key is exactly how the report would lose a figure's reading
+    without anything saying so.
+    """
+    with pytest.raises(ReportBuildRefusedError, match="does not carry"):
+        _build(task, interpretations={"figure-typo": FIGURE_INTERPRETATION})
+
+
+def test_a_blank_interpretation_is_refused(task: dict[str, Any]) -> None:
+    """A blank reading is a different fact from an absent one."""
+    with pytest.raises(ReportBuildRefusedError, match="blank interpretation"):
+        _build(task, interpretations={"figure-1": "   "})
 
 
 def test_a_section_with_nothing_to_carry_is_not_a_section(task: dict[str, Any]) -> None:
     """A kind with nothing to carry contributes no section at all."""
-    document = _build(task, artifacts=[], manifests={}, captions={})
+    document = _build(task, artifacts=[], manifests={}, captions={}, interpretations={})
 
     assert [section.section_id for section in document.sections] == [
         FINDINGS_SECTION_ID,

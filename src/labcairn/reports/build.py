@@ -70,10 +70,15 @@ Nothing in the reason is the builder's opinion, because an interpretation is
 never machine-verified (ADR-0004's A10) and a builder that composed one
 would be putting words in the researcher's mouth.
 
-**The builder writes no prose.** It emits no narrative block and no
-interpretation block, because those are the report author's own words and
-the model marks the second for the reader. The sections are structure and
-nothing else: a heading, and the blocks under it.
+**The builder writes no prose.** It emits no narrative block, because a
+narrative describes what the material is, what was done and what the report
+does not cover, and nothing in the ledger holds those sentences. It *does*
+carry the **figure's own interpretation**, because that one the ledger does
+hold: the chart recipe separates the caption from the interpretation for
+exactly the reason the model does, and the recipe is a file the manifest
+already binds by path and hash. Those are the researcher's own words, so the
+builder carries them rather than writing them — and the renderers mark them,
+exactly as the figure's renderer marks the figure's interpretation.
 
 What the builder will not do
 ----------------------------
@@ -87,7 +92,7 @@ contradiction.
 
 What the caller has to bring
 ----------------------------
-Three of the arguments are things only the caller can have, and each of them
+Four of the arguments are things only the caller can have, and each of them
 is a refusal rather than a default:
 
 * **the anchors**, by id, because a record carries anchor *ids* and the
@@ -101,13 +106,21 @@ is a refusal rather than a default:
 * **the captions**, by the figure artefact's id, because a caption is the
   author's words and the model forbids a renderer from inventing one. A
   figure with no caption supplied is refused: the alternative is a caption
-  composed from the file name, which says nothing about what is plotted.
+  composed from the file name, which says nothing about what is plotted;
+* **the interpretations**, by the figure artefact's id, for the same reason
+  and because the recipe keeps them apart: a caption says what is plotted and
+  an interpretation says what it means, and marking the second and not the
+  first is the whole of ADR-0004's A10 for a figure. An interpretation is
+  **optional** — a recipe with none contributes no block at all, because an
+  absent interpretation and an empty one are different facts and only the
+  first is true.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
@@ -119,9 +132,11 @@ from labcairn.reports.model import (
     UNRESOLVED_STATUSES,
     ClaimBlock,
     FigureBlock,
+    InterpretationBlock,
     LedgerRecordView,
     LedgerSnapshot,
     ProvenanceFootnote,
+    ReportBlock,
     ReportClaim,
     ReportDocument,
     ReportFigure,
@@ -186,6 +201,23 @@ class ReportBuildRefusedError(RuntimeError):
     """
 
 
+@dataclass(frozen=True, slots=True)
+class _FigurePart:
+    """A figure, and the interpretation that goes with it when it has one.
+
+    The two are kept apart because the recipe keeps them apart and the
+    model does too: a caption says what is plotted and an interpretation
+    says what it means, and marking the second while leaving the first
+    alone is the whole of ADR-0004's A10 for a figure. An absent
+    interpretation is ``None`` and not an empty string, because a recipe
+    with no interpretation and one with a blank one are different facts
+    and only the first of them is true.
+    """
+
+    figure: ReportFigure
+    interpretation: str | None
+
+
 def build_report_document(
     *,
     title: str,
@@ -196,6 +228,7 @@ def build_report_document(
     anchors: Mapping[str, SourceAnchor],
     manifests: Mapping[str, ReproducibilityManifest],
     captions: Mapping[str, str],
+    interpretations: Mapping[str, str] | None = None,
 ) -> ReportDocument:
     """Build the report document for one task, from what the task has.
 
@@ -220,12 +253,19 @@ def build_report_document(
     :param captions: the figure captions, by the figure artefact's id. The
         author's words; the builder refuses a figure whose caption it was
         not given.
+    :param interpretations: the figures' own interpretations, by the figure
+        artefact's id — the recipe's ``interpretation`` field, which is
+        separate from the caption and optional. A figure with one carries it
+        as an :class:`~labcairn.reports.model.InterpretationBlock` beside the
+        figure, which the renderers mark as never machine-verified. A figure
+        with none carries no block at all.
     :returns: the document, which the model has checked against its own
         rules by the time it is returned.
     :raises ReportBuildRefusedError: when the facts do not support a
         document — a record that may be stated but cannot be cited, a
-        figure whose manifest is not its own, a figure with no caption, or a
-        task with nothing in it to report.
+        figure whose manifest is not its own, a figure with no caption, an
+        interpretation that names no figure, or a task with nothing in it to
+        report.
     """
     source_by_id = {source.source_id: source for source in sources}
     artifact_by_id = {receipt.receipt_id: receipt for receipt in artifacts}
@@ -236,6 +276,18 @@ def build_report_document(
             "means two artefacts makes the manifest of one of them describe the "
             "other."
         )
+
+    readings: Mapping[str, str] = interpretations or {}
+    _refuse_readings_that_name_no_figure(
+        readings,
+        artifact_by_id=artifact_by_id,
+        label="interpretation",
+    )
+    _refuse_readings_that_name_no_figure(
+        captions,
+        artifact_by_id=artifact_by_id,
+        label="caption",
+    )
 
     claims: list[ReportClaim] = []
     disclosures: list[UnresolvedRecord] = []
@@ -264,14 +316,15 @@ def build_report_document(
                 "snapshot claiming an extent the report does not have."
             )
 
-    figures, tables = _parts_from_artifacts(
+    figure_parts, tables = _parts_from_artifacts(
         artifacts,
         artifact_by_id=artifact_by_id,
         manifests=manifests,
         captions=captions,
+        interpretations=readings,
     )
 
-    if not claims and not disclosures and not figures and not tables:
+    if not claims and not disclosures and not figure_parts and not tables:
         raise ReportBuildRefusedError(
             "the task has nothing a report may carry: no record that may be stated, "
             "no record that may be disclosed, no figure and no table. The report "
@@ -287,7 +340,12 @@ def build_report_document(
     # and the bytes include both.
     claims = sorted(claims, key=lambda claim: claim.claim_id)
     disclosures = sorted(disclosures, key=lambda record: record.record.record_id)
-    sections = _sections(claims=claims, figures=figures, tables=tables, disclosures=disclosures)
+    sections = _sections(
+        claims=claims,
+        figures=figure_parts,
+        tables=tables,
+        disclosures=disclosures,
+    )
     carried = sorted(
         {claim.record.record_id for claim in claims}
         | {record.record.record_id for record in disclosures}
@@ -299,7 +357,7 @@ def build_report_document(
             snapshot=LedgerSnapshot(as_of=as_of, record_ids=tuple(carried)),
             sections=sections,
             claims=tuple(claims),
-            figures=figures,
+            figures=tuple(part.figure for part in figure_parts),
             tables=tables,
             footnotes=tuple(sorted(footnotes.values(), key=lambda note: note.footnote_id)),
             unresolved_records=tuple(disclosures),
@@ -507,7 +565,8 @@ def _parts_from_artifacts(
     artifact_by_id: Mapping[str, ArtifactReceipt],
     manifests: Mapping[str, ReproducibilityManifest],
     captions: Mapping[str, str],
-) -> tuple[tuple[ReportFigure, ...], tuple[ReportTable, ...]]:
+    interpretations: Mapping[str, str],
+) -> tuple[tuple[_FigurePart, ...], tuple[ReportTable, ...]]:
     """The figures and the tables, from the task's artefacts.
 
     Only the newest revision of each artefact is carried: the artefacts table
@@ -519,7 +578,7 @@ def _parts_from_artifacts(
     itself, the report's own manifest, a dataset — are not carried. A part
     the model cannot describe is not a part the report has.
     """
-    figures: list[ReportFigure] = []
+    figures: list[_FigurePart] = []
     tables: list[ReportTable] = []
 
     for receipt in _current_artifacts(artifacts):
@@ -530,6 +589,7 @@ def _parts_from_artifacts(
                     artifact_by_id=artifact_by_id,
                     manifests=manifests,
                     captions=captions,
+                    interpretations=interpretations,
                 )
             )
         elif receipt.kind is ArtifactKind.TABLE:
@@ -542,9 +602,40 @@ def _parts_from_artifacts(
             )
 
     return (
-        tuple(sorted(figures, key=lambda figure: figure.figure_id)),
+        tuple(sorted(figures, key=lambda part: part.figure.figure_id)),
         tuple(sorted(tables, key=lambda table: table.table_id)),
     )
+
+
+def _refuse_readings_that_name_no_figure(
+    readings: Mapping[str, str],
+    *,
+    artifact_by_id: Mapping[str, ArtifactReceipt],
+    label: str,
+) -> None:
+    """Refuse a caption or an interpretation that names no figure.
+
+    A key that names nothing is a typo, and a typo here is silent: the
+    reading would simply never reach the report, and the report would be
+    missing a figure's caption or its interpretation without anything
+    saying so. A parameter that is accepted and ignored is a parameter that
+    lies, so the key is checked against the artefacts the report was given.
+    """
+    for key in sorted(readings):
+        receipt = artifact_by_id.get(key)
+        if receipt is None:
+            raise ReportBuildRefusedError(
+                f"the {label} names the artefact {key!r}, which the report does not "
+                "carry. A reading that names nothing would be dropped in silence, "
+                "and the report would be missing it without anything saying so."
+            )
+        if receipt.kind is not ArtifactKind.FIGURE:
+            raise ReportBuildRefusedError(
+                f"the {label} names the artefact {key!r}, which is a "
+                f"{receipt.kind.value!r} and not a figure. A figure's caption and a "
+                "figure's interpretation are the figure's own, and a reading for "
+                "something else would be ignored."
+            )
 
 
 def _current_artifacts(artifacts: Sequence[ArtifactReceipt]) -> tuple[ArtifactReceipt, ...]:
@@ -585,7 +676,8 @@ def _figure_for(
     artifact_by_id: Mapping[str, ArtifactReceipt],
     manifests: Mapping[str, ReproducibilityManifest],
     captions: Mapping[str, str],
-) -> ReportFigure:
+    interpretations: Mapping[str, str],
+) -> _FigurePart:
     """One figure: its bytes, its caption, and the manifest that describes it.
 
     The manifest is **the artefact's own**, and that is checked rather than
@@ -637,12 +729,24 @@ def _figure_for(
             "plotted, so the figure is refused instead."
         )
 
-    return ReportFigure(
-        figure_id=f"fig-{receipt.receipt_id}",
-        relative_path=receipt.relative_path,
-        content_sha256=receipt.content_sha256,
-        caption=caption,
-        manifest=manifest,
+    interpretation = interpretations.get(receipt.receipt_id)
+    if interpretation is not None and not interpretation.strip():
+        raise ReportBuildRefusedError(
+            f"the figure {receipt.receipt_id!r} has a blank interpretation. The "
+            "recipe's field is optional, and an absent one means the author wrote "
+            "no reading of the figure; a blank one is a different fact and would "
+            "carry a marker onto nothing."
+        )
+
+    return _FigurePart(
+        figure=ReportFigure(
+            figure_id=f"fig-{receipt.receipt_id}",
+            relative_path=receipt.relative_path,
+            content_sha256=receipt.content_sha256,
+            caption=caption,
+            manifest=manifest,
+        ),
+        interpretation=interpretation,
     )
 
 
@@ -686,7 +790,7 @@ def _manifest_receipt_for(
 def _sections(
     *,
     claims: Sequence[ReportClaim],
-    figures: Sequence[ReportFigure],
+    figures: Sequence[_FigurePart],
     tables: Sequence[ReportTable],
     disclosures: Sequence[UnresolvedRecord],
 ) -> tuple[ReportSection, ...]:
@@ -701,6 +805,11 @@ def _sections(
 
     A section with nothing under its heading is not a section, so a kind
     with nothing to carry contributes no section at all.
+
+    A figure's **own** interpretation is placed immediately under the
+    figure it belongs to, in the figure's section and not in a section of
+    its own: it is the reading of that figure and of nothing else, and the
+    reader meets it where the figure is.
     """
     sections: list[ReportSection] = []
     if claims:
@@ -712,11 +821,16 @@ def _sections(
             )
         )
     if figures:
+        figure_blocks: list[ReportBlock] = []
+        for part in figures:
+            figure_blocks.append(FigureBlock(figure_id=part.figure.figure_id))
+            if part.interpretation is not None:
+                figure_blocks.append(InterpretationBlock(text=part.interpretation))
         sections.append(
             ReportSection(
                 section_id=FIGURES_SECTION_ID,
                 heading=FIGURES_HEADING,
-                blocks=tuple(FigureBlock(figure_id=figure.figure_id) for figure in figures),
+                blocks=tuple(figure_blocks),
             )
         )
     if tables:
