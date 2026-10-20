@@ -226,6 +226,14 @@ def _run(argv: tuple[str, ...], cwd: Path, timeout_s: float) -> subprocess.Compl
         cwd=cwd,
         capture_output=True,
         text=True,
+        # Never fail on a decode, and read UTF-8 whatever this machine's
+        # encoding is. The output is read with this machine's encoding by
+        # default, and a byte that encoding cannot read — a UTF-8 sequence
+        # read as GBK, say — kills the reader thread, leaves the capture
+        # empty, and fails the test at random on a Chinese-locale Windows
+        # while passing everywhere else. `PYTHONIOENCODING` says the same
+        # thing to the child, whose output is read back here. Only the exit
+        # code is asserted, so a replaced character costs nothing.
         encoding="utf-8",
         errors="replace",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
