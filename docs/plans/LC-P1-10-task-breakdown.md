@@ -1032,6 +1032,50 @@ Two decisions the implementations made that this document did not say:
   which in a table of groups is the wrong thing to blame: it is *that
   group* that holds no value, and the other groups may hold plenty.
 
+## 3c. What T07 and T09 decided, and the import cycle they had to break
+
+T07 and T09 are implemented. Three decisions they made that this document did
+not say, and one seam they had to close.
+
+**The chart operator is a catalogue entry, and the renderer's `None` means one
+thing.** The recipe names the *data* operator; the thing that *draws* is a
+separate registered operator (`labcairn.analysis.chart@1.0.0`), and the
+renderer dispatches to it through the catalogue rather than to a private
+function. That is what makes §1.4.2's "a vetted chart operator renders" code
+rather than convention: the set of things that can draw a figure is the
+catalogue, and the renderer refuses to draw at all if the chart operator is
+not in it. Its `run` ignores the `ValueSource` it is handed — it computes
+nothing, it describes — and the renderer is what reads cells, by plotting the
+operator's result.
+
+**`None` is a fact about a result; a refusal is a defect in the inputs.**
+`render()` returns `None` for exactly one thing: *this result does not
+produce a figure*, which is either a result from an operator the recipe does
+not name or a result that is not a table. Everything else — a recipe whose
+axes name a column the result has no group for, a recipe whose file changed
+under the renderer, a caption stating a number the data does not hold — is a
+refusal that names the fault. The two are not the same thing, and a reader
+who cannot tell them apart cannot tell a routine answer from a defect.
+
+**The run path builds the selection before it resolves the source.** The plan's
+§2.1 draws the selection after the source; the implementation inverts that,
+because a selection *names* the source it is about — its id and the hash that
+source was ingested under — and that binding is what identifies the material
+in the ledger. The cost is that the caller must say which material it means,
+and a material the ledger has never seen is refused rather than quietly
+analysed as an empty one.
+
+**And the import cycle the catalogue created, and how it was broken.** The
+chart operator's module needs the recipe's types; the recipe needs the
+catalogue to check the operator it names; and the catalogue holds the chart
+operator. That is a cycle, and it was broken the way `operators/grouped.py`
+breaks the same shape: the catalogue import goes **inside** the function that
+needs it, with the reason written down. The recipe's types are then bound in
+one place by one ordinary import, and the string-named types, the runtime
+`globals()` assignment, the `model_rebuild()` calls and the re-binding in
+`chart/__init__.py` — every one of which made the binding depend on which
+module was imported first — are gone.
+
 ## 4. Acceptance mapping
 
 ### 4.1 The work order's own acceptance clause
