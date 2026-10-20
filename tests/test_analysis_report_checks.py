@@ -342,20 +342,43 @@ def _unresolved_view(
     )
 
 
+def _unresolved_claim_view(
+    *,
+    record_id: str = "rec-2",
+    status: VerificationStatus = VerificationStatus.UNSUPPORTED,
+    text: str = CLAIM_TEXT,
+) -> LedgerRecordView:
+    """The model's copy of an unresolved *claim* record: words and no number."""
+    return LedgerRecordView(
+        record_id=record_id,
+        record_kind=EvidenceKind.CLAIM,
+        text=text,
+        status=status,
+        anchor_ids=("anc-1",),
+        source_content_hash=SOURCE_HASH,
+    )
+
+
 def _unresolved(
     *,
     record_id: str = "rec-9",
     status: VerificationStatus = VerificationStatus.CONFLICTED,
     value: float = LEDGER_VALUE,
+    view: LedgerRecordView | None = None,
 ) -> UnresolvedRecord:
     """An unresolved record, disclosed with the report's own reason for it.
 
     The reason is prose the ledger does not hold, and nothing compares the
     two: the ledger records *that* a record could not be resolved, and the
-    report says *why*.
+    report says *why*. The record's own **text** is the other matter
+    entirely — that is the ledger's words, and it is compared.
     """
     return UnresolvedRecord(
-        record=_unresolved_view(record_id=record_id, status=status, value=value),
+        record=(
+            view
+            if view is not None
+            else _unresolved_view(record_id=record_id, status=status, value=value)
+        ),
         reason="Two readings of the same cell disagree beyond the declared tolerance.",
     )
 
@@ -436,6 +459,7 @@ def _disclosure_report(
     record_id: str = "rec-1",
     status: VerificationStatus = VerificationStatus.CONFLICTED,
     value: float = LEDGER_VALUE,
+    view: LedgerRecordView | None = None,
     snapshot_record_ids: tuple[str, ...] | None = None,
 ) -> ReportDocument:
     """A report that discloses one unresolved record and states nothing else.
@@ -444,11 +468,15 @@ def _disclosure_report(
     only, so a report that discloses and states nothing has no footnote
     either, and one it does not cite would be a link with nothing behind it.
     """
+    if view is None:
+        view = _unresolved_view(record_id=record_id, status=status, value=value)
     return _document(
         claims=(),
         footnotes=(),
-        sections=(_section(blocks=(UnresolvedBlock(record_id=record_id),)),),
-        unresolved_records=(_unresolved(record_id=record_id, status=status, value=value),),
+        sections=(_section(blocks=(UnresolvedBlock(record_id=view.record_id),)),),
+        unresolved_records=(
+            _unresolved(record_id=view.record_id, status=status, value=value, view=view),
+        ),
         record_ids=snapshot_record_ids,
     )
 
@@ -1362,3 +1390,71 @@ def test_a_disclosure_that_states_a_number_the_ledger_does_not_hold_is_refused(
         _gate(world, document)
 
     assert refusal.value.check == "numbers"
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_says_a_numeric_record_is_a_claim_is_refused(world: World) -> None:
+    """A number and a sentence are kept apart on purpose — in a disclosure too.
+
+    The ledger holds ``rec-1`` as a number and the report discloses it as a
+    statement, so the report would print the ledger's words for a record that
+    has none, and call the record a statement.
+    """
+    _unsupported_in_the_ledger(world, "rec-1")
+    document = _disclosure_report(
+        view=_unresolved_claim_view(record_id="rec-1", status=VerificationStatus.UNSUPPORTED)
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+    assert "discloses a 'claim' record" in refusal.value.reason
+    assert "but the ledger's record is a 'numeric' one" in refusal.value.reason
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_says_a_claim_record_is_a_number_is_refused(world: World) -> None:
+    """And the other way round.
+
+    The ledger holds ``rec-2`` as a statement and the report discloses it as a
+    number, so the report would print a quantity for a record that has none.
+    """
+    _unsupported_in_the_ledger(world, "rec-2")
+    document = _disclosure_report(
+        view=_unresolved_view(record_id="rec-2", status=VerificationStatus.UNSUPPORTED)
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+    assert "discloses a 'numeric' record" in refusal.value.reason
+    assert "but the ledger's record is a 'claim' one" in refusal.value.reason
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_states_words_the_ledger_does_not_hold_is_refused(
+    world: World,
+) -> None:
+    """A disclosure prints the record's words, so they are the ledger's.
+
+    The record's **text** is the ledger's words and is compared; the
+    disclosure's **reason** is the report's own prose about why the record
+    could not be resolved, and the ledger holds no reason to compare it
+    with. The two are different matters, and only one of them is checked.
+    """
+    _unsupported_in_the_ledger(world, "rec-2")
+    document = _disclosure_report(
+        view=_unresolved_claim_view(
+            record_id="rec-2",
+            status=VerificationStatus.UNSUPPORTED,
+            text="The material reports a yield of 9.999%.",
+        )
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+    assert "but the ledger's record says" in refusal.value.reason

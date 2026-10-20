@@ -300,6 +300,13 @@ def check_claims_and_disclosures_rest_on_records_the_ledger_holds(
     resolved, and the report says *why*, in words only the report can choose.
     Nothing here compares the two, and nothing should.
 
+    The record's own **text** is the other matter entirely, and it *is*
+    compared: it is the ledger's words, printed beside the disclosure, and
+    the reason is the report's. A disclosure that printed words the ledger
+    never wrote would put a statement on the page that no record backs, and
+    the difference between the two is the difference between the ledger's
+    sentence and the report's.
+
     **Drift is not a content failure, and the record's
     ``source_content_hash`` is deliberately not compared.** The report was
     true when it was written, and what makes it untrue is the *material
