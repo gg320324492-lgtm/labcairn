@@ -43,7 +43,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
@@ -374,13 +374,17 @@ def test_the_command_binds_the_address_it_was_given(
     command opens to find out whether it can bind, and the service it
     starts. A port that was accepted and thrown away would be a parameter
     that lies, and this is where that would show.
+
+    The address is **not** the default one: 127.0.0.2 is a loopback
+    address like 127.0.0.1 is, and a command that ignored the address it
+    was given and always bound the default would be caught here.
     """
     result = _invoke(
-        "--workspace", str(workspace), "serve", "--host", "127.0.0.1", "--port", str(port)
+        "--workspace", str(workspace), "serve", "--host", "127.0.0.2", "--port", str(port)
     )
     assert result.exit_code == 0, result.output
-    assert binds == [("127.0.0.1", port)]
-    assert served == [("127.0.0.1", port)]
+    assert binds == [("127.0.0.2", port)]
+    assert served == [("127.0.0.2", port)]
 
 
 def test_the_command_binds_nothing_that_is_not_loopback(
@@ -453,32 +457,27 @@ def test_the_command_answers_to_the_origin_it_is_given(
 
 
 def test_the_command_serves_the_workbench_it_is_given(
-    workspace: Path,
-    task_id: str,
-    port: int,
-    tmp_path: Path,
-    served: list[tuple[str, int]],
+    workspace: Path, task_id: str, tmp_path: Path
 ) -> None:
     """The built workbench is served from the service's own origin.
 
     The browser and the API then share one origin, which is what the
     service's origin check means when it says the workbench's own origin.
+    Asked of the running service rather than of the command's report: a
+    report that named a workbench the service did not serve would be a
+    report that lies.
     """
     build = tmp_path / "dist"
     build.mkdir()
     (build / "index.html").write_text("<!doctype html><title>workbench</title>", encoding="utf-8")
-    result = _invoke(
-        "--workspace",
-        str(workspace),
-        "serve",
-        "--port",
-        str(port),
-        "--static-dir",
-        str(build),
-        "--json",
-    )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["static_dir"] == str(build.resolve())
+    running = _start(workspace, extra=("--static-dir", str(build)))
+    try:
+        assert running.report["static_dir"] == str(build.resolve())
+        status, body = running.get("/")
+    finally:
+        running.stop()
+    assert status == 200
+    assert "workbench" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -490,6 +489,7 @@ def test_the_command_serves_the_workbench_it_is_given(
 class RunningService:
     """A service that is really running, and the way to stop it."""
 
+    host: str
     port: int
     process: subprocess.Popen[str]
     report: dict[str, Any]
@@ -500,7 +500,7 @@ class RunningService:
 
     def get(self, path: str, headers: Mapping[str, str] | None = None) -> tuple[int, str]:
         """One request to the running service."""
-        return _request(self.port, path, headers)
+        return _request(self.host, self.port, path, headers)
 
     def stop(self) -> tuple[str, str]:
         """Stop the service, and return what it printed.
@@ -523,14 +523,16 @@ def _free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def _request(port: int, path: str, headers: Mapping[str, str] | None = None) -> tuple[int, str]:
+def _request(
+    host: str, port: int, path: str, headers: Mapping[str, str] | None = None
+) -> tuple[int, str]:
     """One request to the service, and its status and body.
 
     ``http.client`` rather than ``urllib``, because urllib consults the
     environment's proxy settings and a proxied request to the loopback
     address would not reach the service at all.
     """
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection = http.client.HTTPConnection(host, port, timeout=10)
     try:
         connection.request("GET", path, headers=dict(headers or {}))
         response = connection.getresponse()
@@ -565,7 +567,9 @@ class _ServiceDidNotStartError(RuntimeError):
     """The command did not become a service."""
 
 
-def _start(workspace: Path, *arguments: str) -> RunningService:
+def _start(
+    workspace: Path, *, host: str = "127.0.0.1", extra: Sequence[str] = ()
+) -> RunningService:
     """The service, really running, on a port the operating system had free.
 
     **The command is run through the interpreter, not through the console
@@ -590,10 +594,12 @@ def _start(workspace: Path, *arguments: str) -> RunningService:
                 "--workspace",
                 str(workspace),
                 "serve",
+                "--host",
+                host,
                 "--port",
                 str(port),
                 "--json",
-                *arguments,
+                *extra,
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -611,12 +617,13 @@ def _start(workspace: Path, *arguments: str) -> RunningService:
         for reader in readers:
             reader.start()
         try:
-            _wait_for_the_service(process, port)
+            _wait_for_the_service(process, host, port)
         except _ServiceDidNotStartError as error:
             failures.append(str(error))
             _stop(process)
             continue
         return RunningService(
+            host=host,
             port=port,
             process=process,
             report=_await_report(out_lines),
@@ -646,14 +653,16 @@ def _await_report(lines: list[str], timeout: float = 15.0) -> dict[str, Any]:
     raise AssertionError(f"the command printed no report: {lines!r}")
 
 
-def _wait_for_the_service(process: subprocess.Popen[str], port: int, timeout: float = 60.0) -> None:
+def _wait_for_the_service(
+    process: subprocess.Popen[str], host: str, port: int, timeout: float = 60.0
+) -> None:
     """Wait until the service answers, or the command gives up."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise _ServiceDidNotStartError(f"the command exited with {process.returncode}")
         try:
-            status, _ = _request(port, "/health")
+            status, _ = _request(host, port, "/health")
         except OSError:
             status = 0
         if status == 200:
@@ -688,6 +697,28 @@ def test_the_service_really_binds_the_port_the_command_was_given(
     assert f"http://127.0.0.1:{service.port}" in health["origins"]
     assert service.report["port"] == service.port
     assert service.report["origin"] == f"http://127.0.0.1:{service.port}"
+
+
+def test_the_service_binds_the_address_it_reports(workspace: Path, task_id: str) -> None:
+    """The address the service reports is the address it is bound to.
+
+    Asked of the running service: a command that built the service with one
+    address and started it on another would report the first and be
+    reachable on the second, and the origin the guard compares against
+    would be the address the service is not on.
+
+    The address is **not** the default one, for the reason the other test
+    gives: a command that always used the default would be caught here.
+    """
+    running = _start(workspace, host="127.0.0.2")
+    try:
+        status, body = running.get("/health")
+    finally:
+        running.stop()
+    assert status == 200
+    health = json.loads(body)
+    assert health["host"] == "127.0.0.2"
+    assert f"http://127.0.0.2:{running.port}" in health["origins"]
 
 
 def test_the_running_service_refuses_a_foreign_origin(service: RunningService) -> None:
