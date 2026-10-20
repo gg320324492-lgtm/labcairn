@@ -52,6 +52,7 @@ from labcairn.reports.manifest import (
     ReportManifest,
     ReportManifestRefusedError,
     build_report_manifest,
+    manifest_chain,
     write_report_manifest,
 )
 from labcairn.reports.model import (
@@ -114,15 +115,16 @@ CAPTION: str = "Mean yield across the five measured runs."
 CLAIM_TEXT: str = "The material reports a yield of 4.253%."
 
 
-def _figure_manifest() -> ReproducibilityManifest:
+def _figure_manifest(*, mean: float = 4.253) -> ReproducibilityManifest:
     """A valid reproducibility manifest for one figure.
 
     Built through the manifest's own fields rather than through
     :func:`labcairn.analysis.manifest.build_manifest`, because the builder
     wants a source on disk and a workspace, and neither is what this file is
-    about.
+    about. The *mean* varies so that two figures can hold two different
+    manifests, which is what a constant manifest id would collide.
     """
-    output: dict[str, Any] = {"mean": 4.253, "n_used": 5}
+    output: dict[str, Any] = {"mean": mean, "n_used": 5}
     selection: dict[str, Any] = {
         "source_id": "src-1",
         "content_sha256": SOURCE_HASH,
@@ -157,6 +159,7 @@ def _document(
     figure_hash: str = FIGURE_HASH,
     table_hash: str = TABLE_HASH,
     with_table: bool = True,
+    second_figure: bool = False,
 ) -> ReportDocument:
     """A valid document with a figure and, unless told otherwise, a table."""
     record = LedgerRecordView(
@@ -187,16 +190,29 @@ def _document(
         content_sha256=table_hash,
     )
     blocks: tuple[Any, ...] = (ClaimBlock(claim_id="clm-1"), FigureBlock(figure_id="fig-1"))
+    figures: tuple[ReportFigure, ...] = (figure,)
     tables: tuple[ReportTable, ...] = ()
     if with_table:
         blocks = (*blocks, TableBlock(table_id="tab-1"))
         tables = (table,)
+    if second_figure:
+        figures = (
+            figure,
+            ReportFigure(
+                figure_id="fig-2",
+                relative_path="outputs/figures/fig-2.svg",
+                content_sha256=_hash("figure-2"),
+                caption="Median yield across the same five runs.",
+                manifest=_figure_manifest(mean=4.501),
+            ),
+        )
+        blocks = (*blocks, FigureBlock(figure_id="fig-2"))
     return ReportDocument(
         title="A first-pass report",
         snapshot=LedgerSnapshot(as_of=as_of, record_ids=("rec-1",)),
         sections=(ReportSection(section_id="sec-1", heading="Findings", blocks=blocks),),
         claims=(ReportClaim(claim_id="clm-1", record=record, footnote_ids=("fn-1",)),),
-        figures=(figure,),
+        figures=figures,
         tables=tables,
         footnotes=(footnote,),
     )
@@ -219,13 +235,14 @@ def _manifest(
     document: ReportDocument,
     *,
     upstreams: dict[str, tuple[DerivationRef, ...]] | None = None,
+    document_relative_path: str = DOCUMENT_PATH,
 ) -> ReportManifest:
     """The manifest for *document*, with the table's upstream supplied."""
     if upstreams is None:
         upstreams = {"tab-1": (_upstream(),)}
     return build_report_manifest(
         document=document,
-        document_relative_path=DOCUMENT_PATH,
+        document_relative_path=document_relative_path,
         upstreams=upstreams,
     )
 
@@ -442,6 +459,21 @@ def test_the_digest_changes_when_the_reports_content_changes(frozen_now: datetim
     assert before.report_sha256 != later.report_sha256
 
 
+@pytest.mark.unit
+def test_the_documents_path_is_the_one_the_caller_named(frozen_now: datetime) -> None:
+    """The path the builder cannot derive, it keeps.
+
+    The report model carries no path, so the caller names where the report's
+    canonical bytes are written, and the manifest must carry **that** path.
+    The path used here is deliberately not the one the other tests use, so
+    that a builder with the path hard-coded cannot pass by accident.
+    """
+    elsewhere = "outputs/reports/second-attempt/report.json"
+    manifest = _manifest(_document(as_of=frozen_now), document_relative_path=elsewhere)
+
+    assert _part(manifest, DOCUMENT_PART_ID).relative_path == elsewhere
+
+
 # ---------------------------------------------------------------------------
 # Rule 3 — each part's lineage names its upstream
 # ---------------------------------------------------------------------------
@@ -631,6 +663,58 @@ def test_a_lineage_may_not_name_a_thing_twice(frozen_now: datetime) -> None:
 
     with pytest.raises(ValidationError, match="twice"):
         ReportManifest.model_validate(payload)
+
+
+@pytest.mark.unit
+def test_each_figure_names_its_own_manifest(frozen_now: datetime) -> None:
+    """Two figures, two manifests, two names.
+
+    The name a figure's manifest is given is derived from the figure's id,
+    so two figures cannot land on one name. A constant name would make the
+    chain refuse — the same upstream named twice with different hashes — and
+    a reader would be shown a report whose two figures claim the same
+    manifest.
+    """
+    document = _document(as_of=frozen_now, second_figure=True)
+    manifest = _manifest(document)
+
+    first = _part(manifest, "fig-1").lineage
+    second = _part(manifest, "fig-2").lineage
+
+    assert first[0].target_id == "fig-1.manifest"
+    assert second[0].target_id == "fig-2.manifest"
+    assert first[0].content_sha256 != second[0].content_sha256
+
+
+@pytest.mark.unit
+def test_a_supplied_upstream_for_a_figure_is_kept_after_its_own_manifest_link(
+    frozen_now: datetime,
+) -> None:
+    """A caller who hands the builder an upstream is not ignored.
+
+    The builder accepts extra links for a figure — the manifest receipt's id,
+    say — and records them **after** the figure's own manifest link, so the
+    figure's lineage still reads from the manifest outwards. A builder that
+    accepted them and dropped them would be telling the caller it had
+    recorded something it had not.
+    """
+    extra = DerivationRef(
+        target_kind=DerivationTargetKind.ARTIFACT,
+        target_id="receipt-figure-1",
+        content_sha256=_hash("figure-manifest-artefact"),
+    )
+    document = _document(as_of=frozen_now)
+
+    manifest = build_report_manifest(
+        document=document,
+        document_relative_path=DOCUMENT_PATH,
+        upstreams={"fig-1": (extra,), "tab-1": (_upstream(),)},
+    )
+    lineage = _part(manifest, "fig-1").lineage
+
+    assert len(lineage) == 2
+    assert lineage[0].target_id == "fig-1.manifest"
+    assert lineage[1] == extra
 
 
 # ---------------------------------------------------------------------------
@@ -880,6 +964,88 @@ def test_the_chain_names_a_thing_once(tmp_path: Path, frozen_now: datetime) -> N
     assert len(keys) == len(set(keys))
 
 
+@pytest.mark.unit
+def test_the_chain_refuses_one_upstream_named_twice_with_different_hashes(
+    frozen_now: datetime,
+) -> None:
+    """The same file under two hashes is a contradiction, not a dependency.
+
+    A figure and a table that both read the same material file, and disagree
+    about what it holds, would leave the chain naming one thing twice under
+    two hashes. The walk that marks things stale would then mark the report
+    for one of them and leave it current for the other, and a reader would
+    have no way to tell which was meant.
+    """
+    document = _document(as_of=frozen_now)
+    manifest = _manifest(
+        document,
+        upstreams={
+            "fig-1": (_upstream(content_sha256=_hash("one-reading")),),
+            "tab-1": (_upstream(content_sha256=_hash("another-reading")),),
+        },
+    )
+
+    with pytest.raises(ReportManifestRefusedError, match="twice with different"):
+        manifest_chain(manifest)
+
+
+@pytest.mark.unit
+def test_the_writer_honours_the_receipt_id_the_producer_and_the_revision(
+    tmp_path: Path, frozen_now: datetime
+) -> None:
+    """Every parameter the writer accepts, it keeps.
+
+    A parameter that is accepted and then ignored is a parameter that lies:
+    the caller reads the receipt back and finds something else there. The
+    revision is the one T03 builds on — a report's second version is a
+    second receipt with a higher number, and a writer that quietly wrote 1
+    would make every revision the first one.
+    """
+    workspace = _workspace(tmp_path)
+
+    receipt = write_report_manifest(
+        workspace,
+        key="report-manifest.json",
+        manifest=_manifest(_document(as_of=frozen_now)),
+        receipt_id="receipt-42",
+        created_at=frozen_now,
+        producer_id="labcairn.reports.deliver",
+        produced_by=ArtifactProducerKind.ANALYSIS_OPERATOR,
+        revision=7,
+    )
+
+    assert receipt.receipt_id == "receipt-42"
+    assert receipt.producer_id == "labcairn.reports.deliver"
+    assert receipt.produced_by is ArtifactProducerKind.ANALYSIS_OPERATOR
+    assert receipt.revision == 7
+
+
+@pytest.mark.unit
+def test_the_manifest_is_written_inside_the_tasks_output_area(
+    tmp_path: Path, frozen_now: datetime
+) -> None:
+    """A generated file lives in the task's output area, and nowhere else.
+
+    The output area is the only place in this codebase a generated file may
+    be written: it is what keeps a report out of the supplied material, and
+    a manifest written beside the material would be a generated artefact
+    living where only source is allowed to live.
+    """
+    workspace = _workspace(tmp_path)
+
+    receipt = write_report_manifest(
+        workspace,
+        key="report-manifest.json",
+        manifest=_manifest(_document(as_of=frozen_now)),
+        receipt_id="receipt-1",
+        created_at=frozen_now,
+    )
+
+    written = (workspace.selected_root / receipt.relative_path).resolve()
+    assert written.is_relative_to(workspace.output_root.path)
+    assert written.is_file()
+
+
 # ---------------------------------------------------------------------------
 # The manifest's own consistency: one document part, one name per part
 # ---------------------------------------------------------------------------
@@ -890,13 +1056,15 @@ def test_a_manifest_may_not_hold_two_document_parts(frozen_now: datetime) -> Non
     """A manifest is about one report.
 
     Two document parts would make "which report is this" answerable two
-    ways, and the whole point of the digest is that it answers it.
+    ways, and the whole point of the digest is that it answers it. The
+    message is the one that says *how many* there are, so that a reader of a
+    failure is told which of the manifest's two guards spoke.
     """
     manifest = _manifest(_document(as_of=frozen_now))
     payload = json.loads(manifest.canonical_bytes().decode("utf-8"))
     payload["parts"].append(dict(payload["parts"][0]))
 
-    with pytest.raises(ValidationError, match="document parts"):
+    with pytest.raises(ValidationError, match="holds 2 document parts"):
         ReportManifest.model_validate(payload)
 
 

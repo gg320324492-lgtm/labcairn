@@ -30,17 +30,32 @@ manifest, would put the parts list in ``derived_from`` and leave the report's
 own digest with nowhere to go but the receipt's ``content_sha256`` — which is
 the hash of the receipt, not of the report.
 
+The receipt's chain is an **ancestor closure**
+----------------------------------------------
+The receipt's ``derived_from`` names the parts **and** the parts' own
+upstream, in one flat list. That shape is deliberate, and it is the shape the
+whole report lineage should take: the staleness walk
+(:meth:`labcairn.recovery.resume.ResumeCoordinator.invalidate_on_source_change`)
+is **one hop** — an artefact is marked stale only when its *own*
+``derived_from`` names the changed hash — so a chain that named only its
+immediate parent would never see the material underneath it move. The closure
+is what makes the report's lineage one line of hashes from the material to
+the exported file, and it is why the chain is assembled before anything is
+written: a chain that contradicts itself is refused before a byte lands.
+
 The five rules, and what each one costs
 ---------------------------------------
 **1. The manifest is built *from* the document, not assembled beside it.**
-Every part's path and hash is read out of the
-:class:`~labcairn.reports.model.ReportDocument` the manifest describes. A
+Every **figure's** and **table's** path and hash is read out of the
+:class:`~labcairn.reports.model.ReportDocument` the manifest describes, and
+the document part's hash is the digest of that document's canonical bytes. A
 manifest assembled from a parallel description is a second spelling of the
 report, and the second spelling is the one that goes stale. *The cost:* the
 builder can only record what the document knows — and a table in the report
 model is a fact about a file, so the table's **upstream** has to be handed to
 the builder. The report does not say what computed a table, and nothing else
-does either.
+does either. The document part's **path** is the one thing the builder cannot
+derive at all, and it is the caller's to name.
 
 **2. The report's own digest is over its canonical bytes** — the model's
 :meth:`~labcairn.reports.model.ReportDocument.canonical_bytes` — so the
@@ -78,7 +93,11 @@ named in the builder's signature rather than invented inside it:
 
 A figure needs neither, because the report model holds the figure's
 reproducibility manifest by value: the figure's upstream is *in* the
-document, and the manifest's canonical bytes can be hashed from there.
+document, and the manifest's canonical bytes can be hashed from there. A
+caller may still hand the builder an extra upstream for a figure — the
+manifest receipt id of the artefact that holds the figure's manifest, say —
+and those links are recorded **after** the figure's own manifest link, so
+that the figure's lineage still reads from the manifest outwards.
 """
 
 from __future__ import annotations
@@ -113,6 +132,7 @@ __all__ = [
     "ReportManifest",
     "ReportManifestRefusedError",
     "build_report_manifest",
+    "manifest_chain",
     "write_report_manifest",
 ]
 
@@ -333,14 +353,20 @@ class ReportManifest(LabCairnModel):
         runs first; the refusal here is the belt to that braces, and it is
         raised rather than asserted because a validator that asserts can be
         made to fail the wrong way.
+
+        Its wording deliberately differs from that guard's. The two say
+        different things — *how many* document parts there are, and *that
+        there is no single one* — so a reader of a failure is told which
+        guard spoke instead of being left with one message that could have
+        come from either.
         """
         document_parts = [
             part for part in self.parts if part.part_kind is ManifestPartKind.DOCUMENT
         ]
         if len(document_parts) != 1:
             raise ValueError(
-                f"the manifest holds {len(document_parts)} document parts, so it "
-                "has no single document part to answer for."
+                f"the manifest has no single document part to answer for: it holds "
+                f"{len(document_parts)} of them."
             )
         return document_parts[0]
 
@@ -493,11 +519,11 @@ def write_report_manifest(
     the writer's own hash of the bytes on disk, so the receipt and the file
     cannot disagree.
 
-    The receipt's ``derived_from`` names the parts **and** the parts' own
-    upstream, because that chain is what the staleness walk reads: a report
-    whose material changed has to be markable stale, and the walk compares
-    hashes in ``derived_from``.
+    The chain is assembled **before** the file is written, so that a manifest
+    whose chain contradicts itself is refused without leaving a file behind:
+    a generated file with no receipt is an artefact nothing can account for.
     """
+    chain = manifest_chain(manifest)
     outputs = TaskOutputArea(workspace)
     write = outputs.write(key, manifest.canonical_bytes())
     relative_path = write.absolute_path.relative_to(workspace.selected_root).as_posix()
@@ -511,20 +537,30 @@ def write_report_manifest(
         revision=revision,
         produced_by=produced_by,
         producer_id=producer_id,
-        derived_from=_chain(manifest),
+        derived_from=chain,
         media_type="application/json",
         created_at=created_at,
     )
 
 
-def _chain(manifest: ReportManifest) -> tuple[DerivationRef, ...]:
+def manifest_chain(manifest: ReportManifest) -> tuple[DerivationRef, ...]:
     """The receipt's chain: the parts, and the parts' own upstream.
 
-    Each part contributes a link to its own bytes, and each part's lineage
-    contributes its upstream links. A link named twice is kept once — one
-    upstream thing cited twice is one dependency — but two links that name
-    the same thing with **different** hashes are a contradiction, and the
-    chain refuses rather than picking one.
+    An **ancestor closure**, in one flat list. Each part contributes a link
+    to its own bytes, and each part's lineage contributes its upstream links.
+    The closure is what the one-hop staleness walk needs: it compares the
+    hashes in an artefact's *own* ``derived_from``, so a chain that stopped
+    at the immediate parent would never see the material underneath it move.
+
+    A link named twice is kept once — one upstream thing cited twice is one
+    dependency — but two links that name the same thing with **different**
+    hashes are a contradiction, and the chain refuses rather than picking
+    one. The refusal is not decoration: a chain that named one file under
+    two hashes would mark the report stale for one of them and current for
+    the other, and a reader would have no way to tell which was meant.
+
+    :raises ReportManifestRefusedError: when one upstream is named twice with
+        different hashes.
     """
     links: list[DerivationRef] = []
     seen: dict[tuple[DerivationTargetKind, str], str | None] = {}
