@@ -91,11 +91,11 @@ Concretely, by the end:
 - **The fabricated-DOI clause.** It is LC-P1-09's and it is still open; see
   §1.4.1.
 
-### 1.4 Four decisions the owner took, and what each one costs
+### 1.4 Five decisions the owner took, and what each one costs
 
 These are the decisions that change what the work orders deliver, and each of
-them has a cost that is not obvious until it is stated. **All four were taken
-on 2026-10-20, and all four took the recommended option** — which is not
+them has a cost that is not obvious until it is stated. **All five were taken
+on 2026-10-20, and all five took the recommended option** — which is not
 the same as the costs being free, and each cost is stated below.
 
 #### 1.4.1 What a report may cite
@@ -194,6 +194,32 @@ header is the kind of thing a careless front end leaks into a log. *Cost of B:*
 a cookie needs CSRF defence on its own terms, and a one-time URL is a URL
 that can be pasted somewhere it should not be.
 
+#### 1.4.5 The shape of a receipt's chain
+
+**The facts, measured:** the staleness walk that already exists —
+`ResumeCoordinator.invalidate_on_source_change` in
+`src/labcairn/recovery/resume.py` — is **one hop**. An artefact is marked
+`STALE` if and only if **its own** `derived_from` cites a hash that changed;
+it does not follow parent→child edges. A receipt whose chain named only its
+immediate parent would therefore never be marked when the *material* moved:
+the parent would be marked, and the report would sit there saying `CURRENT`
+about bytes whose source had changed.
+
+- **Option A — TAKEN (2026-10-20): a receipt's `derived_from` is a flat
+  ancestor closure.** Every receipt names its whole ancestor set — the parts
+  *and* the parts' upstream — in one list. The material's hash is directly
+  in the report's chain, so the existing walk marks the report, the manifest
+  and the figure in one pass.
+- **Option B — not taken.** Each receipt would name only its direct parent,
+  and the walk would become a graph traversal over the receipt table.
+
+*Cost of A:* the same source hash appears in several receipts' chains, so the
+ledger's rows are longer than a tree's would be, and a chain reads as "every
+thing underneath this" rather than "what this was made from". *Cost of B:*
+it changes `src/labcairn/recovery/resume.py` — **G3's accepted code** — and
+changing accepted code re-opens a closed gate, which the gate discipline
+forbids. The chain is the place to spend the cost instead.
+
 ## 2. The shape of the thing
 
 ### 2.1 The path from a task to a report
@@ -288,6 +314,11 @@ The receipt already carries `revision`, and its docstring already says that
   same walk that marked LC-P1-10's figure and manifest stale in its exit
   demonstration. A report whose material changed is **stale**, and the
   staleness is a *fact about the receipt* rather than a note in the document.
+- **the chain is a flat ancestor closure** (§1.4.5), because that walk is
+  one hop: a receipt names the parts *and* the parts' upstream, so the
+  material's hash is directly in the report's chain and the existing walk
+  reaches the report without a new mechanism and without a change to G3's
+  accepted code.
 - **re-rendering after a material change does not silently produce a new
   report.** It produces a new revision of a *new* document, and the old one
   stays stale and says so.
