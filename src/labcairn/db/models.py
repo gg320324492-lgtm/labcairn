@@ -287,8 +287,10 @@ class TaskRow(Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     objective: Mapped[str] = mapped_column(Text, nullable=False)
     success_criterion: Mapped[str] = mapped_column(Text, nullable=False)
-    #: Materials the Task is bound to, as SourceId strings. Hashes, not paths:
-    #: a path moves, a content hash does not.
+    #: The ids of the materials the Task is bound to, as SourceId strings.
+    #: Each id is minted from the material's location, so an edited file keeps
+    #: its identity; the content hash is what detects drift, and it lives on
+    #: the source row and on the receipt's chain, not here.
     bound_source_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     #: Highest ``seq`` handed out for this Task. 0 means "no events yet".
