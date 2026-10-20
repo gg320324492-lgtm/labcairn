@@ -256,10 +256,12 @@ def render_report(
       document the checks refuse — which is a property of the machinery and
       not of this layer.
 
-    Each hold is enough on its own, and that is the point: a reader who
-    wonders why the checks are run twice should find that removing either
-    one changes nothing, because the other is still there. Removing both
-    would let a report the checks refuse be written.
+    Each hold is enough on its own, and that is the point. **If a future
+    change removes one of them, the other still holds the line** — a reader
+    who wonders why the checks are run twice should find that, because it is
+    the answer, and because it is worth knowing that neither one is load
+    bearing on its own. Removing both would let a report the checks refuse
+    be written.
 
     :param context: everything the operation is given.
     :param request: the report's key and the template it is rendered from.

@@ -996,13 +996,19 @@ def _seed_a_task_with_a_report(
     nothing, a record that cannot be cited, a manifest the ledger does not
     hold, a recipe with no interpretation.
     """
-    source_uuid = new_id()
-    source_id = str(source_uuid)
+    # The source id the ingestion path mints for this material's path, so the
+    # id the test binds is one a real ingestion would have produced. The
+    # ingestion path derives the id from the *path* and not from the bytes,
+    # so this is the id for this material whatever the bytes are — and the
+    # bytes are this test's own, because the source row and the text rows
+    # below are written by hand: the test needs its own content hash, and it
+    # needs to be able to leave the text rows out.
+    source_id = make_source_id("materials/one.txt")
     context = _make_context(
         env,
         workspace_root,
         _allow_all(),
-        bound_sources=(SourceId(source_uuid),),
+        bound_sources=(source_id,),
     )
 
     # The material: a file in the source root, and the source it was read as.
