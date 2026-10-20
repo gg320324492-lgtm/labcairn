@@ -309,11 +309,26 @@ each of which:
   the CLI's `--json` output is the same data the API returns and the UI
   draws.
 
-**What the store does not have yet:** there is no *list* query for tasks,
-runs, stages or artefacts anywhere in `db/repository.py` — only
-`create_task`, the unit of work, and the event readers. The CLI's task list,
-the API's index and the UI's task list all need them, and they are **one**
-query surface, added once.
+**What the store does not have yet — and this list was wrong when this
+document was written.** It said the store lacks *list* queries for tasks,
+runs, stages and artefacts. T05 found the gap is **larger**: the store
+cannot **read** a task, a source or an approval at all, so the list was only
+part of what the operations need. The nine readers T05 added are
+`list_tasks`, `load_task`, `list_runs`, `list_stages`, `list_artifacts`,
+`list_approvals`, `list_operations`, `list_sources` and `load_source`, and
+each one is needed by an operation — `load_task` by `read_task_state`,
+`list_runs`/`list_stages`/`list_artifacts`/`list_approvals` by the state and
+plan reads, `list_operations` by `run_stage` and the approval path,
+`list_sources` and `load_source` by the source operations, and `list_tasks`
+by the list operation itself.
+
+**The ordering rule, because a list whose order changes between runs is a
+bug a reader reports as "it shuffled".** Each kind leads with the
+project's own sequence column where it has one — tasks by
+`(created_at, task_id)`, runs by `(attempt, run_id)`, artefacts by
+`(revision, artifact_id)`, sources by `(ingested_at, source_id)` — and with
+the UUIDv7 id where it does not (stages, approvals, operations); every
+ordering ends with the unique natural key, so no two rows tie.
 
 ### 2.6 The local API's guards
 
