@@ -17,6 +17,8 @@ present.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from labcairn.reports.receipt import (
     ARTIFACT_SCHEMA_VERSION,
     ArtifactKind,
@@ -27,6 +29,9 @@ from labcairn.reports.receipt import (
     DerivationTargetKind,
 )
 
+if TYPE_CHECKING:
+    from labcairn.reports.model import ReportDocument
+
 __all__ = [
     "ARTIFACT_SCHEMA_VERSION",
     "ArtifactKind",
@@ -35,4 +40,25 @@ __all__ = [
     "ArtifactStaleness",
     "DerivationRef",
     "DerivationTargetKind",
+    "ReportDocument",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """The report document model, imported on first use.
+
+    The model imports :mod:`labcairn.analysis.manifest`, and that module
+    imports this package. Importing the model here would make the
+    package import a module that is, in one order, already half-loaded --
+    so the import is deferred to the moment a caller asks for the symbol.
+    """
+    if name == "ReportDocument":
+        from labcairn.reports.model import ReportDocument
+
+        return ReportDocument
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    """The deferred symbol in the listing, so ``dir()`` is not a lie."""
+    return sorted([*globals(), "ReportDocument"])

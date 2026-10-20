@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -52,6 +54,7 @@ from labcairn.reports.model import (
     BlockKind,
     ClaimBlock,
     FigureBlock,
+    InterpretationBlock,
     LedgerRecordView,
     LedgerSnapshot,
     NarrativeBlock,
@@ -121,6 +124,7 @@ def _text_record(
     *,
     record_id: str = "rec-2",
     text: str = "The material reports a yield of 4.253%.",
+    kind: EvidenceKind = EvidenceKind.CLAIM,
     status: VerificationStatus = VerificationStatus.USER_ATTESTED,
     anchors: tuple[str, ...] = ("anc-2",),
     source_hash: str | None = SOURCE_HASH,
@@ -128,7 +132,7 @@ def _text_record(
     """A claim record view: text, and no number."""
     return LedgerRecordView(
         record_id=record_id,
-        record_kind=EvidenceKind.CLAIM,
+        record_kind=kind,
         text=text,
         status=status,
         anchor_ids=anchors,
@@ -308,6 +312,23 @@ def _property_names(schema: dict[str, Any]) -> set[str]:
                 if isinstance(item, dict):
                     names |= _property_names(item)
     return names
+
+
+def _marked_as_interpretation(blocks: tuple[ReportBlock, ...]) -> list[str]:
+    """The blocks a renderer would put the interpretation marker on.
+
+    This is the rule the model has to make possible: mark the blocks
+    whose kind is ``interpretation``, and nothing else. The renderer
+    dispatches on the kind, because the kind is the discriminator, and
+    the kind and the class have to agree — which is what the assertion
+    inside checks.
+    """
+    marked: list[str] = []
+    for block in blocks:
+        if block.block_kind is BlockKind.INTERPRETATION:
+            assert isinstance(block, InterpretationBlock)
+            marked.append(block.text)
+    return marked
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1109,154 @@ def test_the_document_round_trips_through_its_canonical_bytes(
 
 
 # ---------------------------------------------------------------------------
+# The report's own interpretation: a kind, so the marker has a subject
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_renderer_can_tell_an_interpretation_from_a_plain_narrative(
+    frozen_now: datetime,
+) -> None:
+    """The marker has a subject.
+
+    ADR-0004's condition is that an interpretation is never
+    machine-verified, because C4 returned ``not_checked``. The renderers
+    mark it — exactly as the figure's renderer marks the figure's
+    interpretation — and the model says *which* blocks are
+    interpretations, so the marker has something to attach to and no
+    renderer has to work it out for itself.
+
+    A plain narrative is left alone, and the test says so by putting one
+    beside an interpretation and checking that exactly one of them is
+    marked.
+    """
+    document = _document(
+        as_of=frozen_now,
+        sections=(
+            _section(
+                blocks=(
+                    ClaimBlock(claim_id="clm-1"),
+                    NarrativeBlock(text="The dataset contained 120 rows."),
+                    InterpretationBlock(text="The catalyst therefore improves yield."),
+                )
+            ),
+        ),
+    )
+    blocks = document.sections[0].blocks
+
+    assert [block.block_kind for block in blocks] == [
+        BlockKind.CLAIM,
+        BlockKind.NARRATIVE,
+        BlockKind.INTERPRETATION,
+    ]
+    assert _marked_as_interpretation(blocks) == ["The catalyst therefore improves yield."]
+
+
+@pytest.mark.unit
+def test_an_interpretation_is_not_a_narrative() -> None:
+    """The two kinds are separate, so a renderer cannot catch both by
+    accident.
+
+    A renderer that dispatches on the class rather than on the kind must
+    mark the interpretation and not the narrative, and that is only true
+    while the two classes are unrelated.
+    """
+    assert not issubclass(InterpretationBlock, NarrativeBlock)
+    assert not issubclass(NarrativeBlock, InterpretationBlock)
+    assert (
+        InterpretationBlock(text="An inference.").block_kind.value
+        != NarrativeBlock(text="A description.").block_kind.value
+    )
+
+
+@pytest.mark.unit
+def test_the_interpretation_survives_the_canonical_bytes(frozen_now: datetime) -> None:
+    """The distinction is in the document, not only in the model.
+
+    Every export reads the document back, so a renderer has to find the
+    same distinction it found when the document was built. A kind that
+    was dropped on the way to the bytes would leave every export marking
+    every block.
+    """
+    document = _document(
+        as_of=frozen_now,
+        sections=(
+            _section(
+                blocks=(
+                    ClaimBlock(claim_id="clm-1"),
+                    NarrativeBlock(text="The dataset contained 120 rows."),
+                    InterpretationBlock(text="The catalyst therefore improves yield."),
+                )
+            ),
+        ),
+    )
+    payload = json.loads(document.canonical_bytes().decode("utf-8"))
+
+    kinds = [block["block_kind"] for block in payload["sections"][0]["blocks"]]
+    assert kinds == ["claim", "narrative", "interpretation"]
+
+
+@pytest.mark.unit
+def test_a_claim_resting_on_a_claim_record_is_an_interpretation() -> None:
+    """ADR-0004's marker applies to the records as well.
+
+    Every ``claim`` or ``result`` record rendered into a report displays
+    an explicit "interpretation not machine-verified" marker, because C4
+    returned ``not_checked``. A numeric record is not an interpretation:
+    it is a quantity a rule confirmed or a person attested, and the number
+    itself is the record.
+    """
+    claim_record = _text_record(record_id="rec-2", kind=EvidenceKind.CLAIM)
+    result_record = _text_record(record_id="rec-3", kind=EvidenceKind.RESULT)
+    number = _numeric_record()
+
+    assert claim_record.is_interpretation
+    assert result_record.is_interpretation
+    assert not number.is_interpretation
+
+
+# ---------------------------------------------------------------------------
+# One import path, and the cycle it has to survive
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_report_document_has_one_import_path() -> None:
+    """One spelling of where the model lives.
+
+    The rest of G4 imports the model from the package, and this is the
+    test that says so. The two spellings have to be the same object, or
+    there would be two models and the checks would run against one of
+    them.
+    """
+    from labcairn.reports import ReportDocument as ExportedReportDocument
+    from labcairn.reports.model import ReportDocument as DefinedReportDocument
+
+    assert ExportedReportDocument is DefinedReportDocument
+
+
+@pytest.mark.integration
+def test_the_export_does_not_depend_on_who_was_imported_first() -> None:
+    """A cycle is only visible in one order, so the orders are the test.
+
+    The model imports :mod:`labcairn.analysis.manifest`, and that module
+    imports this package. An eager export would make the package import a
+    module that is — in the ``analysis`` first order — already half
+    loaded, and the import would fail with a partly-initialised-module
+    error that no reader of the code would predict. The export is
+    deferred, and this is what keeps it deferred.
+    """
+    orders = (
+        "import labcairn.analysis.manifest; import labcairn.reports as r; assert r.ReportDocument",
+        "import labcairn.analysis.service; import labcairn.reports as r; assert r.ReportDocument",
+        "from labcairn.reports import ReportDocument; assert ReportDocument",
+    )
+    for code in orders:
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, f"{code!r} failed:\n{result.stderr}"
+
+
+# ---------------------------------------------------------------------------
 # The document's own consistency: references, placement, uniqueness
 # ---------------------------------------------------------------------------
 
@@ -1236,6 +1405,7 @@ def test_the_block_kinds_are_a_closed_set() -> None:
     ways."""
     assert {kind.value for kind in BlockKind} == {
         "narrative",
+        "interpretation",
         "claim",
         "figure",
         "table",

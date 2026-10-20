@@ -63,6 +63,19 @@ convention :func:`labcairn.analysis.manifest.manifest_bytes` uses. A third
 spelling is not added here: the tree already has two helpers and they agree
 byte for byte, which the test suite asserts against both of them.
 
+**The report's own interpretation is a kind, not a tone.** A report has
+prose that describes — what the material is, what was done, what the report
+does not cover — and prose that infers: what its findings mean. Only the
+second is an interpretation, and ADR-0004's condition is that an
+interpretation is never machine-verified, because C4 is permanently
+``not_checked``. The renderers mark it, exactly as the figure's renderer
+marks the figure's interpretation; the model says *which* blocks are
+interpretations, so the marker has a subject and no renderer has to invent
+one. A plain narrative is left alone, and a claim resting on a ``claim``
+or ``result`` record is marked for the same reason — the record's kind
+says so, and :attr:`LedgerRecordView.is_interpretation` is the one
+spelling of that rule.
+
 The cost of the whole model
 ---------------------------
 It is a second representation of the ledger's contents. The price is paid by
@@ -80,12 +93,16 @@ An import note, because it is a trap rather than a detail
 This module imports :class:`labcairn.analysis.manifest.ReproducibilityManifest`,
 because a figure's manifest is part of the report's content and not a
 parallel description of it. That import runs *into*
-:mod:`labcairn.reports.receipt`, which is why ``labcairn.reports.__init__``
-must not import this module: the package would then import a module that
-depends on the package, and which of the two finished loading would depend
-on who was imported first. The receipt is the one thing in this package that
-``labcairn.analysis`` already depends on, and the dependency is not
-reversed here.
+:mod:`labcairn.reports.receipt`, so the package :mod:`labcairn.reports`
+and this module cannot import each other eagerly: whichever was imported
+first would find the other half-loaded, and the failure would be a
+partly-initialised-module error that no reader of the code would predict.
+
+The package therefore exports this model **deferred**: a ``__getattr__`` on
+:mod:`labcairn.reports` imports this module at the moment a caller asks
+for ``ReportDocument``, and the caller never sees the difference. The deep
+path, ``labcairn.reports.model``, is the same object, and the test suite
+asserts that it is.
 """
 
 from __future__ import annotations
@@ -112,6 +129,7 @@ __all__ = [
     "BlockKind",
     "ClaimBlock",
     "FigureBlock",
+    "InterpretationBlock",
     "LedgerRecordView",
     "LedgerSnapshot",
     "NarrativeBlock",
@@ -236,6 +254,23 @@ class LedgerRecordView(LabCairnModel):
                     "check will ever look at."
                 )
         return self
+
+    @property
+    def is_interpretation(self) -> bool:
+        """Whether a renderer must mark this record as interpretation.
+
+        ADR-0004's condition is that every ``claim`` or ``result`` record
+        rendered into a report displays an explicit "interpretation not
+        machine-verified" marker, because C4 returned ``not_checked`` and
+        Phase 1 has no state that could hold a pass. A numeric record is
+        not an interpretation: it is a quantity a rule confirmed or a
+        person attested, and the number itself is the record.
+
+        A property rather than a field, because it is a fact about the
+        record's kind and not a second copy of it: a field could be set
+        to the wrong value, and this cannot.
+        """
+        return self.record_kind in (EvidenceKind.CLAIM, EvidenceKind.RESULT)
 
 
 class ProvenanceFootnote(LabCairnModel):
@@ -395,13 +430,18 @@ class BlockKind(StrEnum):
 
     Closed, because a block that could be several things at once would be
     drawn several ways. The kinds are the report's own two voices — the
-    narrative it writes, and the findings it states — plus the three things
-    it places.
+    prose it writes, and the findings it states — plus the three things
+    it places, and the prose voice has two kinds of its own, because a
+    report describes as well as infers and only the second is an
+    interpretation.
     """
 
-    #: The report's own words. Its interpretation, and never a finding:
-    #: nothing here rests on a ledger record.
+    #: The report's own prose that infers nothing: what the material is,
+    #: what was done, what the report does not cover. Drawn as it is.
     NARRATIVE = "narrative"
+    #: The report's own inference: what its findings mean. The renderers
+    #: mark it, because scientific interpretation is never machine-verified.
+    INTERPRETATION = "interpretation"
     #: A statement that rests on a ledger record.
     CLAIM = "claim"
     #: A figure, placed under its caption.
@@ -413,15 +453,36 @@ class BlockKind(StrEnum):
 
 
 class NarrativeBlock(LabCairnModel):
-    """A paragraph of the report's own prose.
+    """A paragraph of the report's own prose that infers nothing.
 
-    The report's interpretation, and the only place it may appear. A
-    finding is a claim, and a claim rests on a record; a paragraph rests on
-    nothing but the report's author, and the renderers mark it as
-    interpretation that no machine verified.
+    What the material is, what was done, what the report does not cover.
+    The report's *inference* is an
+    :class:`InterpretationBlock`, and the two are separate kinds so that a
+    renderer can mark one and leave the other alone.
     """
 
     block_kind: Literal[BlockKind.NARRATIVE] = BlockKind.NARRATIVE
+    text: NonEmptyText
+
+
+class InterpretationBlock(LabCairnModel):
+    """The report's own inference: what its findings mean.
+
+    ADR-0004's condition is that an interpretation is always unverified,
+    because C4 returned ``not_checked`` and Phase 1 has no state that
+    could hold a pass. The renderers mark this block as interpretation
+    that no machine verified — exactly as the figure's renderer marks the
+    figure's interpretation — and the model says *which* blocks are
+    interpretations, so the marker has a subject and no renderer has to
+    work out for itself.
+
+    It rests on the report's own findings and on nothing else, which is
+    why it is not a claim: a claim names the record it rests on, and an
+    inference names no record, because there is no record of what the
+    findings mean.
+    """
+
+    block_kind: Literal[BlockKind.INTERPRETATION] = BlockKind.INTERPRETATION
     text: NonEmptyText
 
 
@@ -460,7 +521,7 @@ class UnresolvedBlock(LabCairnModel):
 
 #: The block union, discriminated on ``block_kind``.
 ReportBlock = Annotated[
-    NarrativeBlock | ClaimBlock | FigureBlock | TableBlock | UnresolvedBlock,
+    NarrativeBlock | InterpretationBlock | ClaimBlock | FigureBlock | TableBlock | UnresolvedBlock,
     Field(discriminator="block_kind"),
 ]
 
@@ -619,7 +680,7 @@ class ReportDocument(LabCairnModel):
                                 f"record {record_id!r}, which the report does not "
                                 "carry as an unresolved record."
                             )
-                    case NarrativeBlock():
+                    case NarrativeBlock() | InterpretationBlock():
                         pass
 
         for claim in self.claims:
@@ -642,7 +703,7 @@ class ReportDocument(LabCairnModel):
                         placed_claims.add(claim_id)
                     case UnresolvedBlock(record_id=record_id):
                         placed_records.add(record_id)
-                    case FigureBlock() | TableBlock() | NarrativeBlock():
+                    case FigureBlock() | TableBlock() | NarrativeBlock() | InterpretationBlock():
                         pass
 
         for claim in self.claims:
