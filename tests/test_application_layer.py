@@ -20,28 +20,44 @@ machine-readable reason, and every surface renders it the same way, without
 knowing which operation produced it.
 
 The rest is behavioural: what the operations return, what the plan and the
-steps say, and what happens when an approval is granted for one set of
-arguments and spent on another.
+steps say, what happens when an approval is granted for one set of
+arguments and spent on another, and what a page of the event log says about
+where a client resumes from.
 """
 
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
-from test_store_support import StoreEnv
+from pydantic import ValidationError
+from sqlalchemy import text as sql_text
+from test_store_support import StoreEnv, make_source_id
 from test_store_support import env as _shared_env
 
+from labcairn.analysis.manifest import (
+    FileRef,
+    RenderEnvironment,
+    ReproducibilityManifest,
+    build_figure_receipt,
+    canonical_digest,
+    write_manifest,
+)
 from labcairn.application import (
     ApplicationContext,
     ApplicationRefusal,
     ApplicationRefusedError,
     ApprovalRequest,
     ApprovalUse,
+    EventPage,
+    Result,
     StageOutcome,
     StageRequest,
     consume_approval,
@@ -52,6 +68,7 @@ from labcairn.application import (
     list_sources,
     list_tasks,
     read_artifact,
+    read_events,
     read_plan,
     read_steps,
     read_task_state,
@@ -59,17 +76,32 @@ from labcairn.application import (
     request_approval,
     run_stage,
 )
+from labcairn.application import reports as report_layer
+from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
-from labcairn.core.ids import ApprovalId, SourceId, new_id
-from labcairn.db.materials import put_source
-from labcairn.db.repository import count_events
-from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
+from labcairn.core.ids import ApprovalId, SourceId, TaskId, new_id
+from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
+from labcairn.db.repository import count_events, events_after
+from labcairn.evidence.record import EvidenceRecord
+from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
+from labcairn.evidence.store import append_record
+from labcairn.material.addressing import render_locator_key
+from labcairn.reports.receipt import (
+    ArtifactKind,
+    ArtifactProducerKind,
+    ArtifactReceipt,
+    DerivationRef,
+    DerivationTargetKind,
+)
+from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
+from labcairn.sources.locators import ComputationLocator, TextLocator
 from labcairn.sources.source import Source, SourceKind, SourceReadability
+from labcairn.workspace.roots import Workspace
 
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
@@ -220,6 +252,7 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.approvals",
         "labcairn.application.artifacts",
         "labcairn.application.context",
+        "labcairn.application.events",
         "labcairn.application.records",
         "labcairn.application.sources",
         "labcairn.application.stages",
@@ -289,6 +322,7 @@ def test_the_layer_itself_reads_and_writes_through_the_store(repo_root: Path) ->
     guard above for the wrong reason.
     """
     touching = _modules_touching_the_store(repo_root)
+    assert "labcairn.application.events" in touching
     assert "labcairn.application.records" in touching
     assert "labcairn.application.tasks" in touching
 
@@ -384,7 +418,7 @@ def test_inspecting_a_source_is_denied_by_a_deny_policy(
     env: StoreEnv, workspace_root: Path
 ) -> None:
     """Reading supplied material is gated."""
-    source_id = str(SourceId(new_id()))
+    source_id = str(make_source_id("materials/one.csv"))
     put_source(env.session, _source(source_id, "materials/one.csv"))
     context = _make_context(env, workspace_root, _deny_all())
     _assert_refused(
@@ -706,8 +740,8 @@ def test_the_sources_of_a_task_are_listed_in_the_binding_order(
     env: StoreEnv, workspace_root: Path
 ) -> None:
     """The order is the task's own binding, not the ledger's."""
-    first = SourceId(new_id())
-    second = SourceId(new_id())
+    first = make_source_id("materials/one.csv")
+    second = make_source_id("materials/two.csv")
     put_source(env.session, _source(str(first), "materials/one.csv"))
     put_source(env.session, _source(str(second), "materials/two.csv"))
     # The ledger holds the source under the id the Task is bound by.
@@ -730,7 +764,7 @@ def test_a_source_the_policy_denies_is_dropped_from_the_list(
     deny work the operator wanted allowed, so the denied source is absent
     rather than the call refused.
     """
-    bound = SourceId(new_id())
+    bound = make_source_id("materials/one.csv")
     put_source(env.session, _source(str(bound), "materials/one.csv"))
     context = _make_context(
         env,
@@ -743,7 +777,7 @@ def test_a_source_the_policy_denies_is_dropped_from_the_list(
 
 def test_asking_for_a_denied_source_by_name_is_refused(env: StoreEnv, workspace_root: Path) -> None:
     """The other half of the rule: a direct request for one thing is refused."""
-    source_id = str(SourceId(new_id()))
+    source_id = str(make_source_id("materials/one.csv"))
     put_source(env.session, _source(source_id, "materials/one.csv"))
     context = _make_context(env, workspace_root, _deny_all())
     _assert_refused(
@@ -758,7 +792,7 @@ def test_a_source_the_ledger_does_not_hold_is_refused(env: StoreEnv, workspace_r
         env,
         workspace_root,
         _allow_all(),
-        bound_sources=(SourceId(new_id()),),
+        bound_sources=(make_source_id("materials/absent.csv"),),
     )
     _assert_refused(
         lambda: list_sources(context),
@@ -861,50 +895,952 @@ def test_the_artefacts_of_a_task_are_listed(env: StoreEnv, workspace_root: Path)
 
 
 # --------------------------------------------------------------------------- #
-# the declared report render
+# the report render
 # --------------------------------------------------------------------------- #
 
 
-def test_rendering_a_report_is_declared_and_not_implemented(
+#: The material the report is about, and the address it is read at.
+_MATERIAL_TEXT = "The yield across the five runs was 4.253%.\n"
+_MATERIAL_HASH = hashlib.sha256(_MATERIAL_TEXT.encode("utf-8")).hexdigest()
+
+#: The number the ledger holds, and the unit it declares.
+_LEDGER_VALUE = 4.253
+_LEDGER_UNIT = "%"
+
+#: The figure's bytes, on disk.
+_FIGURE_BYTES = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='10' height='10'/></svg>"
+
+#: The table's bytes, on disk.
+_TABLE_BYTES = b"run,yield\n1,4.253\n"
+
+#: The caption the recipe carries: the author's words about what is plotted.
+#:
+#: Without a full stop, because the Markdown writer escapes one and the test
+#: below reads the caption out of the rendered form.
+_CAPTION = "The mean of the yield column over the five runs"
+
+#: The interpretation the recipe carries: what the figure means.
+_INTERPRETATION = "The second run reads lower than the first"
+
+#: The marker the renderers put on an interpretation.
+_INTERPRETATION_MARKER = "[interpretation not machine-verified]"
+
+
+def _recipe_text(interpretation: str | None) -> str:
+    """The chart recipe, as it is written on disk.
+
+    A recipe is a person-written document, so it is written here as the JSON a
+    person would write rather than as a model dump. The one field that varies
+    is the interpretation, because the whole of ADR-0004's A10 for a figure is
+    that it is a separate field from the caption and that it is optional.
+    """
+    return json.dumps(
+        {
+            "data": {
+                "operator": "labcairn.analysis.mean@1.0.0",
+                "parameters": {},
+                "selection": {
+                    "source": "materials/one.txt",
+                    "columns": ["group", "value"],
+                    "rows": {"start": 1, "end": 5},
+                    "missing": "exclude",
+                },
+            },
+            "encoding": {
+                "mark": "bar",
+                "x": "group",
+                "y": "value",
+                "title": "Mean yield per run",
+                "x_label": "run",
+                "y_label": "mean yield",
+                "caption": _CAPTION,
+                "interpretation": interpretation,
+            },
+            "output": {"format": "svg", "dpi": 200},
+        },
+        indent=2,
+        sort_keys=True,
+    )
+
+
+@dataclass(frozen=True)
+class _ReportWorld:
+    """A task with the material, the records and the artefacts a report is made of.
+
+    Everything in it is real: the material is a file, the citation resolves at
+    an address that holds text, the record is in the ledger, and the figure's
+    chain runs file, result, manifest, figure. A stub would make every
+    assertion below a statement about the stub.
+    """
+
+    context: ApplicationContext
+    material_hash: str
+    recipe_path: str
+    figure_receipt_id: str
+    manifest_receipt_id: str
+
+
+def _seed_a_task_with_a_report(
+    env: StoreEnv,
+    workspace_root: Path,
+    *,
+    interpretation: str | None = _INTERPRETATION,
+    resolve_citation: bool = True,
+    record_anchors: tuple[str, ...] = ("anc-1",),
+    omit_the_manifest_from_the_ledger: bool = False,
+) -> _ReportWorld:
+    """Seed a task with everything a report is made of.
+
+    The keyword arguments are the ways the world can be broken, and each one
+    breaks it in a way the layer has to notice: a citation that resolves to
+    nothing, a record that cannot be cited, a manifest the ledger does not
+    hold, a recipe with no interpretation.
+    """
+    # The source id the ingestion path mints for this material's path, so the
+    # id the test binds is one a real ingestion would have produced. The
+    # ingestion path derives the id from the *path* and not from the bytes,
+    # so this is the id for this material whatever the bytes are — and the
+    # bytes are this test's own, because the source row and the text rows
+    # below are written by hand: the test needs its own content hash, and it
+    # needs to be able to leave the text rows out.
+    source_id = make_source_id("materials/one.txt")
+    context = _make_context(
+        env,
+        workspace_root,
+        _allow_all(),
+        bound_sources=(source_id,),
+    )
+
+    # The material: a file in the source root, and the source it was read as.
+    # Written as bytes, because a text write would translate the line ending
+    # and the file's hash would not be the hash the ledger records.
+    material = workspace_root / "materials" / "one.txt"
+    material.write_bytes(_MATERIAL_TEXT.encode("utf-8"))
+    put_source(
+        env.session,
+        Source(
+            source_id=source_id,
+            kind=SourceKind.TEXT,
+            display_name="one.txt",
+            relative_path="materials/one.txt",
+            content_sha256=_MATERIAL_HASH,
+            size_bytes=len(_MATERIAL_TEXT.encode("utf-8")),
+            readability=SourceReadability.READABLE,
+            ingested_at=_MOMENT,
+        ),
+    )
+    env.session.flush()
+
+    connection = env.session.connection()
+    locator = TextLocator(line=1)
+    locator_key = render_locator_key(locator)
+    if resolve_citation:
+        body = _MATERIAL_TEXT.strip()
+        put_source_texts(
+            env.session,
+            source_content_sha256=_MATERIAL_HASH,
+            extraction_version="v1",
+            rows=[
+                ExtractedTextRow(
+                    locator_kind=locator.locator_kind.value,
+                    locator_key=locator_key,
+                    text=body,
+                    text_sha256=hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                    created_at=_MOMENT,
+                    line_start=1,
+                    line_end=1,
+                )
+            ],
+        )
+        env.session.flush()
+    connection.execute(
+        sql_text(
+            "INSERT INTO source_anchors (anchor_id, source_id, kind, locator_key,"
+            " bound_source_sha256, excerpt_sha256, created_at)"
+            " VALUES ('anc-1',:sid,'quotation',:key,:bound,NULL,:now)"
+        ),
+        {"sid": source_id, "key": locator_key, "bound": _MATERIAL_HASH, "now": _MOMENT},
+    )
+
+    # The record the report states: a number, a unit, and where it was read.
+    span = str(_LEDGER_VALUE)
+    append_record(
+        connection,
+        EvidenceRecord(
+            evidence_id="ev-1",
+            task_id=str(context.task_id),
+            kind=EvidenceKind.NUMERIC,
+            text=None,
+            value=_LEDGER_VALUE,
+            unit=_LEDGER_UNIT,
+            anchor_ids=record_anchors,
+            extracted_span=span,
+            extracted_span_sha256=hashlib.sha256(span.encode("utf-8")).hexdigest(),
+            status=VerificationStatus.EXTRACTED,
+            created_by=EvidenceCreator.RULE,
+            created_by_id="seed",
+            source_content_hash=_MATERIAL_HASH,
+            created_at=_MOMENT,
+        ),
+    )
+
+    # The recipe: the author's words about the figure.
+    recipe_path = "recipes/chart.json"
+    recipe_file = workspace_root / "recipes" / "chart.json"
+    recipe_file.parent.mkdir(parents=True, exist_ok=True)
+    recipe_text = _recipe_text(interpretation)
+    recipe_file.write_bytes(recipe_text.encode("utf-8"))
+
+    # The manifest: the figure's own derivation, and the file that holds it.
+    output: dict[str, Any] = {"mean": _LEDGER_VALUE, "n_used": 5}
+    manifest = ReproducibilityManifest(
+        input_file=FileRef(relative_path="materials/one.txt", content_sha256=_MATERIAL_HASH),
+        operator="labcairn.analysis.mean@1.0.0",
+        locator=ComputationLocator(
+            operator_id="labcairn.analysis.mean",
+            operator_version="1.0.0",
+            parameters={
+                "selection": {
+                    "source_id": source_id,
+                    "content_sha256": _MATERIAL_HASH,
+                    "columns": ["group", "value"],
+                    "rows": {"kind": "range", "start": 1, "end": 5},
+                    "missing": "exclude",
+                }
+            },
+            input_hashes=(_MATERIAL_HASH,),
+        ),
+        recipe=FileRef(
+            relative_path=recipe_path,
+            content_sha256=hashlib.sha256(recipe_text.encode("utf-8")).hexdigest(),
+        ),
+        output=output,
+        output_sha256=canonical_digest(output),
+        environment=RenderEnvironment(
+            matplotlib_version="3.11.2",
+            svg_hashsalt="labcairn",
+            font_families=("sans-serif",),
+            platform="TestOS-1.0",
+        ),
+    )
+    manifest_receipt = write_manifest(
+        context.workspace,
+        key="figures/manifest.json",
+        manifest=manifest,
+        receipt_id="manifest-1",
+        created_at=_MOMENT,
+    )
+
+    # The figure: the bytes, and the receipt whose chain runs back to the
+    # manifest and through it to the material.
+    figure_relative = f"output/{context.task_id}/figures/fig-1.svg"
+    figure_file = context.workspace.selected_root / figure_relative
+    figure_file.parent.mkdir(parents=True, exist_ok=True)
+    figure_file.write_bytes(_FIGURE_BYTES)
+    figure_receipt = build_figure_receipt(
+        manifest_receipt=manifest_receipt,
+        relative_path=figure_relative,
+        content_sha256=hashlib.sha256(_FIGURE_BYTES).hexdigest(),
+        size_bytes=len(_FIGURE_BYTES),
+        receipt_id="figure-1",
+        created_at=_MOMENT,
+    )
+
+    # The table: the bytes, and the upstream that names the material.
+    table_relative = f"output/{context.task_id}/tables/tab-1.csv"
+    table_file = context.workspace.selected_root / table_relative
+    table_file.parent.mkdir(parents=True, exist_ok=True)
+    table_file.write_bytes(_TABLE_BYTES)
+    table_receipt = ArtifactReceipt(
+        receipt_id="table-1",
+        task_id=str(context.task_id),
+        kind=ArtifactKind.TABLE,
+        relative_path=table_relative,
+        content_sha256=hashlib.sha256(_TABLE_BYTES).hexdigest(),
+        size_bytes=len(_TABLE_BYTES),
+        produced_by=ArtifactProducerKind.ANALYSIS_OPERATOR,
+        producer_id="labcairn.analysis.mean@1.0.0",
+        derived_from=(
+            DerivationRef(
+                target_kind=DerivationTargetKind.MATERIAL_FILE,
+                target_id="materials/one.txt",
+                content_sha256=_MATERIAL_HASH,
+            ),
+        ),
+        media_type="text/csv",
+        created_at=_MOMENT,
+    )
+
+    with context.store.unit(context.task_id) as work:
+        if not omit_the_manifest_from_the_ledger:
+            work.put_artifact(manifest_receipt)
+        work.put_artifact(figure_receipt)
+        work.put_artifact(table_receipt)
+
+    return _ReportWorld(
+        context=context,
+        material_hash=_MATERIAL_HASH,
+        recipe_path=recipe_path,
+        figure_receipt_id=figure_receipt.receipt_id,
+        manifest_receipt_id=manifest_receipt.receipt_id,
+    )
+
+
+@pytest.fixture()
+def report_world(env: StoreEnv, workspace_root: Path) -> _ReportWorld:
+    """A task with the material, the records and the artefacts a report is made of."""
+    return _seed_a_task_with_a_report(env, workspace_root)
+
+
+def _report_dir(context: ApplicationContext) -> Path:
+    """Where the revisions of this task's report live."""
+    return context.workspace.output_root.path / "report"
+
+
+def test_rendering_a_report_writes_a_revision_and_records_it(
+    env: StoreEnv, report_world: _ReportWorld
+) -> None:
+    """The report is written as a revision, and the revision is in the ledger.
+
+    A report that was rendered and not recorded does not exist, so this is
+    one test and not two: the six files on disk and the six receipts in the
+    ledger are the same fact.
+    """
+    context = report_world.context
+    rendered = render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+
+    revision = _report_dir(context) / "v1"
+    for name in ("report.json", "report-manifest.json", "report.md", "report.html"):
+        assert (revision / name).is_file(), f"{name} was not written"
+    assert (revision / "report.docx").read_bytes()[:2] == b"PK"
+    assert (revision / "report.pdf").read_bytes()[:4] == b"%PDF"
+
+    recorded = {view.receipt.receipt_id for view in list_artifacts(context)}
+    assert rendered.receipt.receipt_id in recorded
+    assert len(recorded) == 9  # three seeded artefacts and the revision's six
+    assert rendered.receipt.revision == 1
+    assert rendered.resource_key == "report"
+
+    kinds = [event.type for event in events_after(env.session, context.task_id)]
+    assert EventType.ARTIFACT_RECORDED in kinds
+
+
+def test_rendering_a_report_is_denied_by_a_deny_policy(env: StoreEnv, workspace_root: Path) -> None:
+    """The capability check runs before anything is read or written.
+
+    A surface that reached this operation under a policy that denies
+    ``report.render`` must be told that, and nothing may be written.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root)
+    context = world.context
+    context = ApplicationContext(
+        workspace=context.workspace,
+        store=context.store,
+        policy=_deny_all(),
+        ledger=context.ledger,
+    )
+    before = count_events(env.session, context.task_id)
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    assert count_events(env.session, context.task_id) == before
+    assert not _report_dir(context).exists()
+
+
+def test_a_policy_that_asks_about_the_render_refuses_it(
     env: StoreEnv, workspace_root: Path
 ) -> None:
-    """The operation refuses, and says what is missing.
+    """A render the policy asked about needs consent, and cannot have it here.
 
-    It is a refusal and not a stub: nothing is written, and the reason names
-    the two subtasks that will provide the implementation.
+    The request carries no approval, so a policy that asks has no way to be
+    answered; refusing is the honest answer and writing anyway would be a
+    report nobody agreed to.
     """
-    context = _make_context(env, workspace_root, _allow_all())
-    before = count_events(env.session, context.task_id)
+    world = _seed_a_task_with_a_report(env, workspace_root)
+    context = world.context
+    context = ApplicationContext(
+        workspace=context.workspace,
+        store=context.store,
+        policy=_ask_all(),
+        ledger=context.ledger,
+    )
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.POLICY_ASKED,
+    )
+    assert not _report_dir(context).exists()
+
+
+def test_an_unknown_template_is_refused(report_world: _ReportWorld) -> None:
+    """There is one template, and a name that is not it is refused.
+
+    A parameter that is accepted and ignored is a parameter that lies: a
+    caller that was told "slate" had been rendered would have no way to know
+    it was not.
+    """
+    context = report_world.context
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="slate"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+    assert not _report_dir(context).exists()
+
+
+def test_a_path_that_is_not_the_report_is_refused(report_world: _ReportWorld) -> None:
+    """The revisions are written under one key, so a report named otherwise has nowhere to go.
+
+    The request's path is the base the revision paths hang from, and the
+    revision machinery writes under ``report`` — so ``report.md`` names
+    somewhere the report does not go.
+    """
+    context = report_world.context
     refusal = _assert_refused(
         lambda: render_report(
             context,
             ReportRequest(path="report.md", template_id="default"),
+            now=_MOMENT,
         ),
-        ApplicationRefusal.NOT_IMPLEMENTED,
+        ApplicationRefusal.PATH_REFUSED,
     )
-    assert "T00" in refusal.detail
-    assert "T01" in refusal.detail
-    assert count_events(env.session, context.task_id) == before
+    assert "report" in refusal.detail
+    assert not _report_dir(context).exists()
     assert not (context.workspace.output_root.path / "report.md").exists()
 
 
-def test_rendering_a_report_still_asks_the_policy_first(
-    env: StoreEnv, workspace_root: Path
-) -> None:
-    """The capability check runs before the refusal, so a denial is a denial.
+def test_a_path_that_escapes_the_output_area_is_refused(report_world: _ReportWorld) -> None:
+    """A caller cannot use the path to write outside the task's own area.
 
-    A surface that reached this operation under a policy that denies
-    ``report.render`` must be told that, rather than being told that the
-    renderer is missing — the two have different remedies.
+    The path is admitted into the output area before anything else happens,
+    and a path that walks out of it is refused there — it is not a path the
+    policy can be asked about, because the policy has no way to judge it.
     """
-    context = _make_context(env, workspace_root, _deny_all())
+    context = report_world.context
     _assert_refused(
         lambda: render_report(
             context,
-            ReportRequest(path="report.md", template_id="default"),
+            ReportRequest(path="../../materials/one.txt", template_id="default"),
+            now=_MOMENT,
         ),
-        ApplicationRefusal.PERMISSION_DENIED,
+        ApplicationRefusal.PATH_REFUSED,
     )
+    assert not _report_dir(context).exists()
+
+
+def test_a_report_the_checks_refuse_is_not_written(env: StoreEnv, workspace_root: Path) -> None:
+    """A citation that resolves to nothing is a report that is not written.
+
+    The checks run against the ledger and the material, not against the
+    document's own copy of either. This is the test that holds the checks in
+    place: with them skipped, the report below would be written.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, resolve_citation=False)
+    context = world.context
+    refusal = _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    assert "links" in refusal.detail
+    assert not _report_dir(context).exists()
+
+
+def test_a_refused_report_reaches_the_surface_as_a_content_refusal(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The reason that arrives is the report's, and not a stage's.
+
+    The two fields a surface renders are the refusal's own payload — the
+    API's error body and the CLI's JSON are the same two fields — so the
+    reason that arrives is what this test reads. A report whose content was
+    refused says so, and it does not say that a stage failed: no stage ran.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, resolve_citation=False)
+    context = world.context
+    refusal = _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    payload = refusal.to_payload()
+    assert set(payload) == {"reason", "message"}
+    assert payload["reason"] == "report_content_refused"
+    assert "links check refused the report" in payload["message"]
+
+
+def test_a_report_the_checks_refuse_is_not_even_rendered(
+    monkeypatch: pytest.MonkeyPatch, env: StoreEnv, workspace_root: Path
+) -> None:
+    """The refusal happens before the first byte of any form.
+
+    The four forms are bytes, and the layer runs the checks over the document
+    **before** it draws it. That is the layer's own reason for running them as
+    well as handing them to the revision machinery: a report the checks
+    refuse is not rendered at all, rather than rendered and then refused.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, resolve_citation=False)
+    context = world.context
+
+    drawn: list[str] = []
+
+    def _spy(name: str) -> Callable[[object], bytes]:
+        def _draw(document: object) -> bytes:
+            drawn.append(name)
+            return b""
+
+        return _draw
+
+    for name in ("render_markdown", "render_html", "render_docx", "render_pdf"):
+        monkeypatch.setattr(report_layer, name, _spy(name))
+
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    assert drawn == []
+    assert not _report_dir(context).exists()
+
+
+def test_a_report_that_cannot_be_built_is_not_written(env: StoreEnv, workspace_root: Path) -> None:
+    """A record that may be stated but cannot be cited is not reported around.
+
+    The builder refuses rather than producing a document with a hole in it:
+    dropping the record would leave a verified finding out of a report whose
+    snapshot claims to be a view of the records.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, record_anchors=("anc-9",))
+    context = world.context
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    assert not _report_dir(context).exists()
+
+
+def test_a_figure_whose_manifest_the_ledger_does_not_hold_is_refused(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A figure whose derivation the ledger cannot name is not carried.
+
+    The manifest artefact is found through the figure's own chain, so a
+    ledger that has lost it leaves the figure with no derivation at all.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, omit_the_manifest_from_the_ledger=True)
+    context = world.context
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.ARTIFACT_NOT_FOUND,
+    )
+    assert not _report_dir(context).exists()
+
+
+def test_a_figure_whose_recipe_has_changed_is_refused(
+    report_world: _ReportWorld, workspace_root: Path
+) -> None:
+    """A recipe that has changed under the manifest is not the figure's recipe.
+
+    The caption would not be the caption the figure was drawn from, and a
+    report that carried it would be reporting something nobody wrote.
+    """
+    context = report_world.context
+    recipe = workspace_root / "recipes" / "chart.json"
+    recipe.write_text(_recipe_text("A different reading of the figure."), encoding="utf-8")
+    _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    assert not _report_dir(context).exists()
+
+
+def test_a_figure_with_no_interpretation_contributes_no_interpretation_block(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """An absent interpretation and an empty one are different facts.
+
+    The recipe's field is optional, and a recipe with none carries no block
+    at all: a marker on nothing would be a claim about a reading nobody made.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, interpretation=None)
+    context = world.context
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    markdown = (_report_dir(context) / "v1" / "report.md").read_text(encoding="utf-8")
+    assert _INTERPRETATION_MARKER not in markdown
+    assert _CAPTION in markdown
+
+
+def test_the_four_forms_are_drawn_from_the_canonical_document(
+    report_world: _ReportWorld,
+) -> None:
+    """The four forms and the canonical document say the same thing.
+
+    The revision machinery takes the four forms as bytes, so it cannot tell
+    whether they belong to the document beside them. This test holds that:
+    the forms carry the document's own moment, the document's own caption and
+    the document's own records, and a form drawn from any other document
+    would not.
+    """
+    context = report_world.context
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    revision = _report_dir(context) / "v1"
+    document = json.loads((revision / "report.json").read_text(encoding="utf-8"))
+    markdown = (revision / "report.md").read_text(encoding="utf-8")
+    html = (revision / "report.html").read_text(encoding="utf-8")
+
+    snapshot = next(line for line in markdown.splitlines() if line.startswith("Snapshot: "))
+    assert datetime.fromisoformat(snapshot.removeprefix("Snapshot: ")) == datetime.fromisoformat(
+        document["snapshot"]["as_of"]
+    )
+    assert document["snapshot"]["record_ids"] == ["ev-1"]
+    assert _CAPTION in markdown
+    assert _CAPTION in html
+    assert "ev-1" in markdown
+    assert _INTERPRETATION in markdown
+    assert _INTERPRETATION_MARKER in markdown
+    assert document["figures"][0]["caption"] == _CAPTION
+
+
+def test_the_reports_chain_names_the_material(report_world: _ReportWorld) -> None:
+    """The chain reaches outside the report's own files, to the material.
+
+    A report whose chain names nothing but its own files could not be marked
+    stale when the material moves: the staleness walk compares the hashes in
+    the artefact's own ``derived_from``, and the report's own files never
+    change when the material does.
+    """
+    context = report_world.context
+    rendered = render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    named = {
+        (link.target_kind.value, link.target_id): link.content_sha256
+        for link in rendered.receipt.derived_from
+    }
+    assert ("material_file", "materials/one.txt") in named
+    assert named[("material_file", "materials/one.txt")] == report_world.material_hash
+
+
+def test_a_second_render_writes_a_second_revision_and_leaves_the_first_alone(
+    report_world: _ReportWorld,
+) -> None:
+    """A second render is a new revision, and the first revision's bytes are untouched.
+
+    A revision is immutable once written, so the second render cannot be the
+    first render again: it is a new set of files beside the old ones.
+    """
+    context = report_world.context
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    first = _report_dir(context) / "v1"
+    before = {path.name: path.read_bytes() for path in first.iterdir()}
+
+    second = render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=datetime(2026, 2, 2, tzinfo=UTC),
+    )
+    assert second.receipt.revision == 2
+    assert (_report_dir(context) / "v2" / "report.md").is_file()
+    assert {path.name: path.read_bytes() for path in first.iterdir()} == before
+
+
+# --------------------------------------------------------------------------- #
+# the event log
+# --------------------------------------------------------------------------- #
+
+
+def _emit(context: ApplicationContext, *occurred_at: datetime) -> None:
+    """Append task-level events to the log, stamped as the test says.
+
+    The stamps are the test's own, so a read that ordered by the clock
+    would disagree with a read that ordered by the seq, and the difference
+    would be visible rather than theoretical.
+    """
+    with context.store.unit(context.task_id) as work:
+        for moment in occurred_at:
+            work.emit(EventType.TASK_REVISED, occurred_at=moment)
+
+
+def test_reading_the_events_is_denied_by_a_deny_policy(env: StoreEnv, workspace_root: Path) -> None:
+    """The event log is a read of the task's own record, and it is gated."""
+    context = _make_context(env, workspace_root, _deny_all())
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+
+def test_the_read_is_checked_against_the_tasks_own_area(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The capability and the resource are the task's own, not a nearby one.
+
+    The read is of the task's own record, so it goes through the same check
+    ``read_task_state`` goes through: ``fs.read`` on the task's area. A rule
+    scoped to another capability must not authorise it, and a rule aimed at
+    another key must not cover it — a read of the event log is a read of the
+    area the log belongs to, and of nothing else.
+
+    Each policy below allows one thing and nothing else, so the default-deny
+    is what refuses everything the rule did not name.
+    """
+    only_read = PermissionPolicy.from_rules(
+        [Rule(effect=Permission.ALLOW, pattern="**", capabilities=frozenset({"fs.read"}))]
+    )
+    context = _make_context(env, workspace_root, only_read)
+    assert read_events(context).events
+
+    only_list = PermissionPolicy.from_rules(
+        [Rule(effect=Permission.ALLOW, pattern="**", capabilities=frozenset({"fs.list"}))]
+    )
+    context = _make_context(env, workspace_root, only_list)
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+    the_area = PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="output")])
+    context = _make_context(env, workspace_root, the_area)
+    assert read_events(context).events
+
+    another_area = PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="materials")])
+    context = _make_context(env, workspace_root, another_area)
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+
+def test_reading_the_events_writes_nothing(env: StoreEnv, workspace_root: Path) -> None:
+    """A read is a read: the log is the same size afterwards."""
+    context = _make_context(env, workspace_root, _allow_all())
+    before = count_events(env.session, context.task_id)
+    read_events(context)
+    assert count_events(env.session, context.task_id) == before
+
+
+def test_the_page_carries_the_stores_events_by_value_and_by_type(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The port's contract is a layer model, and the events in it are the store's.
+
+    Two properties in one test, because they are one decision: the layer
+    returns a model of its own, and that model carries **the store's events**
+    -- by value and by type -- rather than a re-spelling of them. An event is
+    a fact about what happened, and a second shape for it would be a second
+    thing to keep true.
+
+    **By value and by type, and not by identity.** The store's readers read
+    the log afresh on every call, so the events a caller holds and the ones
+    the layer holds are never the same objects even when they are the same
+    events. Identity is not a property the layer could satisfy, so it is not
+    the property; what would be wrong is a layer that re-shaped the event
+    into a model of its own, and that is what the type assertion rules out.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    page = read_events(context)
+    assert isinstance(page, Result)
+    assert isinstance(page, EventPage)
+    assert all(isinstance(event, Event) for event in page.events)
+    assert page.events == events_after(env.session, context.task_id)
+
+
+def test_the_events_after_the_cursor_are_the_ones_the_client_has_not_seen(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The cursor is exclusive: the event the client stopped after is not sent again."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT)
+    everything = read_events(context)
+    assert [event.seq for event in everything.events] == [1, 2, 3]
+
+    after_the_first = read_events(context, after_seq=everything.events[0].seq)
+    assert [event.seq for event in after_the_first.events] == [2, 3]
+
+
+def test_the_events_come_back_in_seq_order_and_not_in_wall_clock_order(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The log's order is the seq, and the timestamp is not a sort key.
+
+    Wall-clock is not monotonic: a resumed process can emit a timestamp
+    earlier than one already recorded. A read that ordered by the clock
+    would hand the client the same events in a different order each time,
+    and a client that replays them would see the task's history change
+    shape.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT + timedelta(seconds=10), _MOMENT)
+    page = read_events(context)
+    assert [event.seq for event in page.events] == [1, 2, 3]
+    # The two emitted events are stamped in the opposite order to their seqs,
+    # so a clock-ordered read would have returned them the other way round.
+    assert [event.occurred_at for event in page.events[1:]] == [
+        _MOMENT + timedelta(seconds=10),
+        _MOMENT,
+    ]
+
+
+def test_the_limit_bounds_the_page(env: StoreEnv, workspace_root: Path) -> None:
+    """A limit is a page length, and it changes what comes back."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT, _MOMENT)
+    assert [event.seq for event in read_events(context, limit=2).events] == [1, 2]
+    assert len(read_events(context, limit=4).events) == 4
+    assert len(read_events(context).events) == 4
+
+
+def test_a_full_page_leaves_the_cursor_where_the_page_stopped(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A client that resumes from the page's cursor gets the next events, and only those."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT)
+    first = read_events(context, limit=2)
+    assert first.next_after_seq == 2
+    assert first.last_seq == 3
+    assert not first.caught_up
+
+    second = read_events(context, after_seq=first.next_after_seq)
+    assert [event.seq for event in second.events] == [3]
+    assert second.next_after_seq == 3
+    assert second.caught_up
+
+
+def test_an_empty_page_resumes_from_the_tasks_counter(env: StoreEnv, workspace_root: Path) -> None:
+    """A cursor past the end does not skip the events that are yet to come.
+
+    The cursor the page hands back is the task's own counter, not the one
+    that was asked for: a cursor beyond the counter would skip every event
+    between the two, and those are the events the client has not seen.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    page = read_events(context, after_seq=999)
+    assert page.events == ()
+    assert page.next_after_seq == page.last_seq
+
+
+def test_a_page_length_that_is_not_a_page_is_refused(env: StoreEnv, workspace_root: Path) -> None:
+    """A limit of none would never advance the cursor, and a limit of -1 is no limit.
+
+    SQLite reads ``LIMIT -1`` as unbounded, so a limit that was passed on
+    unchecked would hand the caller the whole log under a name that says
+    otherwise.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    _assert_refused(
+        lambda: read_events(context, limit=MIN_EVENT_LIMIT - 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+    _assert_refused(
+        lambda: read_events(context, limit=-1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+    _assert_refused(
+        lambda: read_events(context, limit=MAX_EVENT_LIMIT + 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_a_cursor_below_the_log_is_refused(env: StoreEnv, workspace_root: Path) -> None:
+    """Every event's seq is one or more, so a cursor below zero names the whole log."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _assert_refused(
+        lambda: read_events(context, after_seq=-1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_the_page_bounds_are_the_runtime_requests_own(env: StoreEnv, workspace_root: Path) -> None:
+    """The layer and the runtime's own event stream request cannot disagree.
+
+    The layer's read is that request applied to the task the context is
+    about, so a page that one of them serves and the other refuses is a
+    request the API cannot build.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MAX_EVENT_LIMIT)
+    assert request.limit == MAX_EVENT_LIMIT
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MAX_EVENT_LIMIT + 1)
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MIN_EVENT_LIMIT - 1)
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=-1)
+
+    assert read_events(context, limit=MAX_EVENT_LIMIT).events
+    _assert_refused(
+        lambda: read_events(context, limit=MAX_EVENT_LIMIT + 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_reading_the_events_of_a_task_the_store_does_not_hold_is_refused(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A task that does not exist is not a task with no events.
+
+    The store states that rule for every other task-scoped read it owns, and
+    the layer keeps it: a client that cannot tell the two apart reports
+    "no events" for a task id it mistyped.
+    """
+    missing = ApplicationContext(
+        workspace=Workspace.bind(workspace_root, task_id=TaskId(new_id())),
+        store=env.store(),
+        policy=_allow_all(),
+        ledger=ApprovalLedger(),
+    )
+    _assert_refused(lambda: read_events(missing), ApplicationRefusal.TASK_NOT_FOUND)
+
+
+def test_the_page_is_serialisable_as_data(env: StoreEnv, workspace_root: Path) -> None:
+    """The CLI's ``--json`` and the API's body are the same model."""
+    context = _make_context(env, workspace_root, _allow_all())
+    payload = read_events(context).model_dump_json()
+    assert '"events"' in payload
+    assert '"next_after_seq"' in payload
+    assert '"last_seq"' in payload
 
 
 # --------------------------------------------------------------------------- #

@@ -1,29 +1,37 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
-import { BASELINE_FACTS } from './baseline'
+import { forgetSessionToken } from './api/session'
+import { FakeApi } from './test/fakeApi'
+
+/**
+ * The shell.
+ *
+ * The workbench's own behaviour is checked in `app/workbench.test.tsx`,
+ * which goes through the same network boundary; this file checks only that
+ * the shell is the workbench and that it stands on its own.
+ */
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', new FakeApi().fetch)
+  forgetSessionToken()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('App', () => {
-  it('renders the baseline notice heading', () => {
+  it('is the workbench', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'LabCairn web baseline' })).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveClass('workbench')
   })
 
-  it('shows the under-construction status rather than a working app', () => {
+  it('says what it is', async () => {
     render(<App />)
 
-    expect(screen.getByTestId('baseline-status')).toHaveTextContent(
-      `Status: ${BASELINE_FACTS.status}`,
-    )
-  })
-
-  it('displays every not-yet-implemented capability', () => {
-    render(<App />)
-
-    for (const item of BASELINE_FACTS.notImplemented) {
-      expect(screen.getByText(item)).toBeInTheDocument()
-    }
+    expect(await screen.findByText(/This page talks to the local API/)).toBeInTheDocument()
   })
 })

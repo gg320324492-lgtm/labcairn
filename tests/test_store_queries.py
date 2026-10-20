@@ -41,6 +41,7 @@ from test_store_support import (
     make_operation,
     make_receipt,
     make_run,
+    make_source_id,
     make_stage,
     make_task,
 )
@@ -48,7 +49,7 @@ from test_store_support import (
     env as _shared_env,
 )
 
-from labcairn.core.ids import SourceId, TaskId, new_id
+from labcairn.core.ids import TaskId, new_id
 from labcairn.db.materials import put_source
 from labcairn.db.repository import (
     TaskStore,
@@ -444,6 +445,6 @@ def test_a_bound_source_id_is_readable_as_a_source_id(env: StoreEnv) -> None:
     """The Task's binding holds ids the ledger can be asked about."""
     source = _source("source-1", ingested_at=_MOMENT, relative_path="m/one.csv")
     put_source(env.session, source)
-    bound = SourceId(new_id())
+    bound = make_source_id("m/absent.csv")
 
     assert load_source(env.session, str(bound)) is None

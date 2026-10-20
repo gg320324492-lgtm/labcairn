@@ -161,10 +161,16 @@ class _RootLineage(LabCairnModel):
 class DeclaredMaterial(LabCairnModel):
     """One material the researcher says the task is about, bound by content.
 
-    ``content_sha256`` rather than a path, for the reason
-    :class:`~labcairn.runtime.lifecycle.Task` gives for ``bound_source_ids``: a
-    path moves, and binding by path is how a task ends up describing a different
-    file than it started with.
+    ``content_sha256`` rather than a path, because a **declaration** is a
+    statement about the bytes: it says which content the researcher means, and
+    content is named by its hash.
+
+    This is a different binding from the one
+    :class:`~labcairn.runtime.lifecycle.Task` holds. A task binds its material
+    by **source id** — the id derived from the material's location, so that an
+    edited file keeps its identity — and the content hash travels on the
+    receipt's chain, where the staleness walk compares it. The two are not the
+    same binding, and this one's reason is not that one's reason.
     """
 
     display_name: NonEmptyText

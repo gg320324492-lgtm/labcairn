@@ -44,6 +44,7 @@ Operation                  Capability
 =========================  ===========================================
 ``create_task``            ``fs.write``
 ``read_task_state``        ``fs.read``
+``read_events``            ``fs.read``
 ``list_tasks``             ``fs.list``
 ``run_stage``              the caller's
 ``read_plan``              ``fs.read``
@@ -55,7 +56,7 @@ Operation                  Capability
 ``request_approval``       the caller's
 ``grant_approval``         — (it *is* the consent)
 ``consume_approval``       the approved one
-``render_report``          ``report.render`` (declared, not implemented)
+``render_report``          ``report.render``
 =========================  ===========================================
 """
 
@@ -78,9 +79,16 @@ from labcairn.application.artifacts import (
     read_artifact,
 )
 from labcairn.application.context import ApplicationContext
+from labcairn.application.events import EventPage, read_events
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
-from labcairn.application.reports import ReportRendered, ReportRequest, render_report
+from labcairn.application.reports import (
+    DEFAULT_TEMPLATE_ID,
+    REPORT_TEMPLATES,
+    ReportRendered,
+    ReportRequest,
+    render_report,
+)
 from labcairn.application.sources import SourceView, inspect_source, list_sources
 from labcairn.application.stages import (
     PlanStage,
@@ -103,6 +111,8 @@ from labcairn.application.tasks import (
 )
 
 __all__ = [
+    "DEFAULT_TEMPLATE_ID",
+    "REPORT_TEMPLATES",
     "ApplicationContext",
     "ApplicationRefusal",
     "ApplicationRefusedError",
@@ -113,6 +123,7 @@ __all__ = [
     "ApprovalUse",
     "ArtifactContent",
     "ArtifactView",
+    "EventPage",
     "PlanStage",
     "ReportRendered",
     "ReportRequest",
@@ -134,6 +145,7 @@ __all__ = [
     "list_sources",
     "list_tasks",
     "read_artifact",
+    "read_events",
     "read_plan",
     "read_steps",
     "read_task_state",

@@ -847,7 +847,7 @@ def _task_from_row(row: TaskRow) -> Task:
         task_id=TaskId(UUID(row.task_id)),
         title=row.title,
         goal=TaskGoal(objective=row.objective, success_criterion=row.success_criterion),
-        bound_source_ids=tuple(SourceId(UUID(source_id)) for source_id in row.bound_source_ids),
+        bound_source_ids=tuple(SourceId(source_id) for source_id in row.bound_source_ids),
         revision=row.revision,
         created_at=row.created_at,
         updated_at=row.updated_at,

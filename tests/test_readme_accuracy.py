@@ -146,6 +146,17 @@ VERIFIED_COMMANDS: tuple[VerifiedCommand, ...] = (
         argv=("uv", "run", "mypy"),
     ),
     VerifiedCommand(
+        name="uv run labcairn --help",
+        documented="uv run labcairn --help",
+        argv=("uv", "run", "labcairn", "--help"),
+        unchanged=("uv.lock",),
+        note="Runs the real console script. It proves the entry point resolves, the "
+        "command tree assembles and every command is registered, and it has no side "
+        "effects — unlike `labcairn init`, which would create a workspace in the "
+        "repository directory. uv.lock must survive it byte-identical, for the same "
+        "reason the `uv sync` row insists on it.",
+    ),
+    VerifiedCommand(
         name="pnpm install",
         documented="pnpm install --frozen-lockfile",
         argv=("pnpm", "install", "--frozen-lockfile"),
@@ -193,6 +204,14 @@ def _run(argv: tuple[str, ...], cwd: Path, timeout_s: float) -> subprocess.Compl
     raises FileNotFoundError for the exact command the README documents. Resolving
     with ``shutil.which`` and routing ``.cmd``/``.bat`` through ``cmd /c``
     reproduces the shell's behaviour instead of weakening the command being tested.
+
+    **The output is read as UTF-8, and the child is told to write UTF-8.** A
+    redirected stream on Windows takes the machine's ANSI code page, so a child
+    that writes anything outside it would have its bytes decoded by the wrong
+    codec — which on this machine is a *failure* in the reader thread rather
+    than a mangled character. The ``labcairn`` console script writes UTF-8 by
+    design, so that it and the local API serve the same bytes; reading it as
+    UTF-8 is the other half of that.
     """
     resolved = shutil.which(argv[0])
     if resolved is None:
@@ -207,12 +226,17 @@ def _run(argv: tuple[str, ...], cwd: Path, timeout_s: float) -> subprocess.Compl
         cwd=cwd,
         capture_output=True,
         text=True,
-        # Never fail on a decode. The output is read with this machine's
-        # encoding, and a byte that encoding cannot read — a UTF-8 sequence
-        # read as GBK, say — kills the reader thread, truncates the capture and
-        # fails the test at random. Only the exit code is asserted, so a
-        # replaced character costs nothing.
+        # Never fail on a decode, and read UTF-8 whatever this machine's
+        # encoding is. The output is read with this machine's encoding by
+        # default, and a byte that encoding cannot read — a UTF-8 sequence
+        # read as GBK, say — kills the reader thread, leaves the capture
+        # empty, and fails the test at random on a Chinese-locale Windows
+        # while passing everywhere else. `PYTHONIOENCODING` says the same
+        # thing to the child, whose output is read back here. Only the exit
+        # code is asserted, so a replaced character costs nothing.
+        encoding="utf-8",
         errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=timeout_s,
         check=False,
         shell=False,
@@ -393,6 +417,64 @@ def test_uv_is_on_path_when_running_under_uv(repo_root: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 1b. The console script the package declares
+# ---------------------------------------------------------------------------
+
+#: An inline code span. A command written in one is delimited exactly, which
+#: is what makes it safe to read as an invocation.
+_CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
+
+#: Every fenced block, whatever its language.
+#:
+#: The runnable-commands extractor above deliberately matches only the shells,
+#: because only a shell line is an instruction. This one is about what the
+#: README *claims exists*, and a command shown in an illustration claims the
+#: same thing as one shown in a shell.
+_ANY_FENCE_RE = re.compile(r"^```[a-z]*[ \t]*$(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+#: A command word. Lower case, so an option (``--title``) is not one and a
+#: path or a flag never ends up inside a command path.
+_COMMAND_WORD_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+
+
+def script_invocations(text: str, script: str) -> list[str]:
+    """Every invocation of *script* the README shows, as command paths.
+
+    Two places, and only two, because both delimit the command exactly: an
+    inline code span, and a line in a fenced block. In both, the path is the
+    script name followed by the words that are command words, so
+    ``uv run labcairn task create --help`` is the path ``labcairn task
+    create`` and the trailing option is not part of it.
+
+    Running prose is not scanned, because "the `labcairn` command line" names
+    the program rather than a subcommand, and guessing where a command ends
+    and an English sentence begins would make the gate fail on ordinary prose.
+
+    Deduplicated, and in document order, so a command shown three times is
+    checked once.
+    """
+    lines: list[str] = list(_CODE_SPAN_RE.findall(text))
+    for block in _ANY_FENCE_RE.findall(text):
+        lines.extend(block.splitlines())
+
+    found: list[str] = []
+    for line in lines:
+        words = line.split()
+        if script not in words:
+            continue
+        index = words.index(script)
+        path = [script]
+        for word in words[index + 1 :]:
+            if not _COMMAND_WORD_RE.match(word):
+                break
+            path.append(word)
+        invocation = " ".join(path)
+        if invocation not in found:
+            found.append(invocation)
+    return found
+
+
+# ---------------------------------------------------------------------------
 # 2. No claims of unimplemented capability
 # ---------------------------------------------------------------------------
 
@@ -527,39 +609,95 @@ def test_readme_makes_no_unqualified_capability_claim(repo_root: Path) -> None:
     )
 
 
-def test_readme_does_not_document_a_product_cli(repo_root: Path) -> None:
-    """No ``labcairn ...`` invocation may appear: no console script is declared.
+def test_every_declared_console_script_is_documented_and_verified(repo_root: Path) -> None:
+    """The converse of the old no-CLI claim: every console script is documented,
+    verified, and real.
 
-    This is a structural claim, not a keyword list. ``pyproject.toml`` has no
-    ``[project.scripts]`` table and ``src/labcairn/cli.py`` does not exist, so any
-    ``labcairn <verb>`` line in the README is by construction an unimplemented
-    command — exactly what the LC-P1-01 gate forbids. Typer merely being present
-    as a transitive import is irrelevant and is deliberately not consulted.
+    The old gate said: *the project declares no console script, so no
+    ``labcairn ...`` may be documented.* That was true while there was no CLI,
+    and it was true for a good reason — a README that documents a command
+    nobody can run is the failure LC-P1-01 exists to prevent.
+
+    The claim that is true now is its converse, and it is the one worth
+    having: **every console script the package declares is documented in the
+    README and covered by a verified row** — so an entry point that nobody
+    documented fails this gate — and **the module it names is really there**.
+
+    Structural, not a keyword list, and for the same reason the old one was:
+    the scripts are read out of ``pyproject.toml``'s ``[project.scripts]``, and
+    the coverage is read out of :data:`VERIFIED_COMMANDS`, whose rows are
+    executed for real by :func:`test_readme_commands_run`. Nothing here
+    matches a word.
     """
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
-    assert "scripts" not in pyproject["project"], (
-        "pyproject.toml now declares [project.scripts]. If that entry point is real, the "
-        "README may document it — add a VerifiedCommand row for it first, and revisit the "
-        "no-CLI claim in tests/test_readme_accuracy.py."
+    scripts = pyproject["project"].get("scripts", {})
+    assert scripts, (
+        "the package declares no console script, so this gate has nothing to check. If "
+        "the CLI is gone, say so here; if it is not, declare it in [project.scripts]."
     )
+    text = readme_text(repo_root)
+
+    for name, target in scripts.items():
+        # The README documents it. The lookaround is what keeps the proper noun
+        # "LabCairn" and a sibling path like "labcairn-upstreams/" from counting:
+        # only a real invocation of the script counts, and the script is spelled
+        # in lower case.
+        assert re.search(rf"(?<![A-Za-z0-9_./-]){re.escape(name)}(?![A-Za-z0-9_.-])", text), (
+            f"pyproject.toml declares the console script {name!r}, but the README does "
+            "not document it. Every entry point the package ships is a command a user "
+            "may type, and the README is where they learn it exists."
+        )
+        covering = [row for row in VERIFIED_COMMANDS if name in row.argv]
+        assert covering, (
+            f"the console script {name!r} has no VerifiedCommand row. The README's "
+            "commands are executed for real by test_readme_commands_run, and a row is "
+            "what puts a command in that set."
+        )
+        module = Path(*target.split(":", 1)[0].split("."))
+        assert (repo_root / "src" / module / "__init__.py").is_file() or (
+            repo_root / "src" / module.with_suffix(".py")
+        ).is_file(), (
+            f"the console script {name!r} points at {target!r}, and there is no such "
+            "module under src/. An entry point that cannot be imported is not one."
+        )
+
     assert not (repo_root / "src" / "labcairn" / "cli.py").exists(), (
-        "src/labcairn/cli.py exists; the README's no-CLI claim and this gate both need "
-        "reviewing before the CLI is documented"
+        "src/labcairn/cli.py exists beside the src/labcairn/cli/ package. A module and "
+        "a package of the same name in one directory is a shadowed import: the package "
+        "wins, and the module is dead code that no entry point reaches."
     )
 
-    # Case-sensitive and preceded-by-nothing: the console script would be spelled
-    # lowercase `labcairn`, so the proper noun "LabCairn is ...", the repo slug
-    # `gg320324492-lgtm/labcairn` and the sibling path `labcairn-upstreams/` are all
-    # correctly not matches. Only a real invocation survives.
-    offenders = [
-        line.strip()
-        for line in readme_text(repo_root).splitlines()
-        if re.search(r"(?<![A-Za-z0-9_./-])labcairn\s+[a-z][a-z0-9-]*", line)
-    ]
-    assert not offenders, (
-        "README documents a `labcairn ...` command but the project declares no console "
-        f"script: {offenders}"
-    )
+
+def test_the_readme_documents_only_commands_that_exist(repo_root: Path) -> None:
+    """Every command the README shows is a command the CLI actually has.
+
+    Asked of the CLI itself: ``labcairn <command> --help`` exits 0 for a
+    command that exists and non-zero for one that does not. That is the
+    structural form of the other half of the old claim — the README
+    documents no command that does not exist — and the authority is the CLI
+    rather than a list of names, so a command added to the CLI and a command
+    removed from it are both noticed.
+
+    The invocations are read from the two places that delimit a command
+    exactly: an inline code span and a shell line in a fenced block. Running
+    prose is not scanned, because "the `labcairn` command line" names the
+    program rather than a subcommand, and guessing where a command ends and
+    an English sentence begins would make this gate fail on ordinary prose.
+    """
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    scripts = pyproject["project"].get("scripts", {})
+    assert scripts, "the package declares no console script; there is nothing to check"
+    text = readme_text(repo_root)
+
+    for name in scripts:
+        for invocation in script_invocations(text, name):
+            result = _run(("uv", "run", *invocation.split(), "--help"), repo_root, 180.0)
+            assert result.returncode == 0, (
+                f"README.md shows `{invocation}`, and the CLI says it does not exist "
+                f"(exit {result.returncode}).\n"
+                f"argv: uv run {invocation} --help\n"
+                f"--- stderr ---\n{result.stderr[-2000:]}"
+            )
 
 
 def test_readme_names_only_paths_that_exist(repo_root: Path) -> None:

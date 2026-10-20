@@ -21,6 +21,54 @@ requires-python = ">=3.12,<3.13"
 # A dependency that nothing imports is an unverified claim; LC-P1-03/05/12 are
 # where each becomes real. See the T02 delivery report.
 dependencies = [
+    # LC-P1-11 report export. The decision record is
+    # docs/adr/ADR-0013-report-export-libraries.md, which measured both
+    # candidates as installed rather than assuming. The licences were read
+    # from each distribution's own licence file rather than from package
+    # metadata: python-docx 1.2.0 is MIT ("Copyright (c) 2013 Steve Canny")
+    # and reportlab 5.0.1 is BSD 3-clause ("Copyright (c) 2000-2024,
+    # ReportLab Inc."), so the root licence lines are permissive -- BUT
+    # reportlab's wheel also BUNDLES FONTS under two further licences
+    # (Bitstream Vera, and DarkGarden under GPL-2.0-or-later with the font
+    # exception), so the G5 licence audit must cover reportlab/fonts/ and
+    # not the root licence line alone. That is the paper-qa failure mode
+    # ADR-0004 records, and it is the same obligation ADR-0012 recorded for
+    # matplotlib's DejaVu fonts. Both must be loaded lazily by
+    # labcairn.reports.render, so a report exported only as Markdown or HTML
+    # does not pay for lxml or reportlab.
+    "python-docx>=1.2,<2",
+    "reportlab>=4.0,<6",
+    # LC-P1-12 T07. The localhost API. FastAPI is the framework
+    # ARCHITECTURE.md names; uvicorn is the server that runs it, because
+    # the bind address is the API's own decision and a service that cannot
+    # choose where it listens cannot refuse to listen anywhere else.
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    # LC-P1-12 T06's command line. Typer is MIT-licensed and pulls Rich in
+    # itself; Rich is declared alongside it because the CLI imports
+    # `rich.console` and `rich.table` directly to draw the models. Both were
+    # already in the lockfile as transitive dependencies of pydantic-ai, so
+    # this makes them direct rather than adding anything new to the resolve.
+    "typer>=0.25,<1",
+    "rich>=15,<16",
+
+    # LC-P1-11 report export. The decision record is
+    # docs/adr/ADR-0013-report-export-libraries.md, which measured both
+    # candidates as installed rather than assuming. The licences were read
+    # from each distribution's own licence file rather than from package
+    # metadata: python-docx 1.2.0 is MIT ("Copyright (c) 2013 Steve Canny")
+    # and reportlab 5.0.1 is BSD 3-clause ("Copyright (c) 2000-2024,
+    # ReportLab Inc."), so the root licence lines are permissive -- BUT
+    # reportlab's wheel also BUNDLES FONTS under two further licences
+    # (Bitstream Vera, and DarkGarden under GPL-2.0-or-later with the font
+    # exception), so the G5 licence audit must cover reportlab/fonts/ and
+    # not the root licence line alone. That is the paper-qa failure mode
+    # ADR-0004 records, and it is the same obligation ADR-0012 recorded for
+    # matplotlib's DejaVu fonts. Both must be loaded lazily by
+    # labcairn.reports.render, so a report exported only as Markdown or HTML
+    # does not pay for lxml or reportlab.
+    "python-docx>=1.2,<2",
+    "reportlab>=4.0,<6",
     # Pydantic v2 typed contracts + versioned JSON serialization.
     "pydantic>=2.9,<3",
     # Model/tool interaction layer. Explicitly NOT the task data authority —
@@ -48,6 +96,14 @@ dependencies = [
     "matplotlib>=3.9,<4",
     "alembic>=1.13,<2",
 ]
+
+# ---------------------------------------------------------------------------
+# The console script
+# ---------------------------------------------------------------------------
+# LC-P1-12 T06 owns this entry and nothing else in this file. The name is the
+# one the work orders use: `labcairn init`, `labcairn doctor`, and so on.
+[project.scripts]
+labcairn = "labcairn.cli:main"
 
 [dependency-groups]
 # Installed by `uv sync` by default. Kept minimal on purpose: no pytest-randomly
@@ -224,6 +280,15 @@ show_error_codes = true
 # hides real errors elsewhere. Remove this override if the library ships types.
 [[tool.mypy.overrides]]
 module = ["pdfplumber.*"]
+ignore_missing_imports = true
+
+# reportlab ships no type stubs and there is no types-* package for it, so
+# every use of it would need an inline ignore. Recorded once here instead,
+# scoped to the one module: the alternative is a global relaxation that also
+# hides real errors elsewhere. Remove this override if the library ships types.
+# python-docx is not listed: 1.2.0 ships a py.typed marker and is checked.
+[[tool.mypy.overrides]]
+module = ["reportlab.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
