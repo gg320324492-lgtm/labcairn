@@ -23,6 +23,21 @@ Typer's older spelling puts a call in the argument default, and ruff's
 bugbear rule (B008) is right that a call in a default is a call that happens
 at import time. The annotation form keeps the default a value and the option
 beside it, and it is the form this project's lint rules can be left to.
+
+**The layer is imported when a command needs it, not when the CLI is loaded.**
+``labcairn --help`` is the first thing a person types, and it must not cost
+two seconds: importing the application layer takes about that, because the
+layer imports the store, the evidence readers and the provider stack. So this
+module imports nothing at module level but the standard library and Typer, and
+every layer name is imported *inside* the command that uses it.
+
+**That is only possible because the command line does not mention the layer.**
+Typer builds the command line from a command's *parameters*, and every
+parameter here is a plain type — ``str``, ``Path``, ``bool`` — so no layer
+type is needed to draw the help. The layer's types appear in annotations only,
+and ``from __future__ import annotations`` leaves those as strings; the ones
+that are never evaluated at runtime live under ``TYPE_CHECKING``, where mypy
+reads them and the interpreter does not.
 """
 
 from __future__ import annotations
@@ -35,96 +50,32 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn, cast
 from urllib.parse import urlsplit
 
 import typer
-from fastapi import FastAPI
-from rich.console import Console, RenderableType
-from rich.panel import Panel
-from rich.table import Table
 
-from labcairn.api import (
-    DEFAULT_BIND_HOST,
-    DEFAULT_BIND_PORT,
-    BindRefusedError,
-    OriginPolicy,
-    SessionToken,
-    create_app,
-    ensure_loopback,
-)
-from labcairn.api import serve as run_service
-from labcairn.api.bind import own_origin
-from labcairn.application import (
-    ApplicationContext,
-    ApplicationRefusedError,
-    StageOutcome,
-    StageRequest,
-    create_task,
-    inspect_source,
-    list_artifacts,
-    read_plan,
-    read_task_state,
-    run_stage,
-)
-from labcairn.application.artifacts import ArtifactView
-from labcairn.application.sources import SourceView
-from labcairn.application.stages import TaskPlan
-from labcairn.application.tasks import TaskState
-from labcairn.cli import render
-from labcairn.cli.models import (
-    CLI_REFUSAL_INVALID_ARGUMENTS,
-    CLI_REFUSAL_NO_TASK_SELECTED,
-    CLI_REFUSAL_WORKSPACE_EXISTS,
-    CLI_REFUSAL_WORKSPACE_NOT_INITIALISED,
-    CLI_REFUSAL_WORKSPACE_UNUSABLE,
-    ApiSessionFinding,
-    CapabilityFinding,
-    DatabaseFinding,
-    DoctorReport,
-    PolicyFinding,
-    ProviderFinding,
-    ServiceStarting,
-    WorkspaceFinding,
-    WorkspaceInitialised,
-    emit_model,
-    emit_models,
-    emit_refusal,
-)
-from labcairn.cli.workspace import (
-    DEFAULT_POLICY_RULES,
-    WorkspaceConfig,
-    WorkspaceLocation,
-    WorkspaceSetupError,
-    application_context,
-    is_initialised,
-    load_policy,
-    locate,
-    read_config,
-    source_paths,
-    write_config,
-    write_policy,
-)
-from labcairn.core.ids import TaskId, is_uuid7
-from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
-from labcairn.db.migrations import (
-    MigrationsUnavailableError,
-    current_revision,
-    head_revision,
-    upgrade_to_head,
-)
-from labcairn.providers.capabilities import (
-    ALL_CAPABILITIES,
-    Capability,
-    CapabilityOutcome,
-    ProviderCapabilities,
-)
-from labcairn.providers.credentials import ProviderSettings
-from labcairn.providers.probe import endpoint_fingerprint
-from labcairn.runtime.lifecycle import TaskGoal
-from labcairn.security.capabilities import CapabilityId
-from labcairn.security.paths import CanonicalPath
-from labcairn.skills.artifacts import StageName
+from labcairn.api.bind import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+    from rich.console import Console, RenderableType
+
+    from labcairn.application import ApplicationContext
+    from labcairn.application.sources import SourceView
+    from labcairn.application.stages import StageOutcome, TaskPlan
+    from labcairn.application.tasks import TaskState
+    from labcairn.cli.models import (
+        CapabilityFinding,
+        DoctorReport,
+        ProviderFinding,
+        ServiceStarting,
+    )
+    from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
+    from labcairn.core.ids import TaskId
+    from labcairn.providers.capabilities import Capability, ProviderCapabilities
+    from labcairn.providers.credentials import ProviderSettings
+    from labcairn.security.paths import CanonicalPath
 
 #: The exit code a refusal carries.
 #:
@@ -234,6 +185,8 @@ def _console() -> Console:
     go to standard error, so a script that ignores the exit code still does
     not mistake a refusal for a result.
     """
+    from rich.console import Console
+
     return Console()
 
 
@@ -245,6 +198,10 @@ def _refusals(as_json: bool) -> Iterator[None]:
     here, so every failure a command can have has one rendering, one exit
     code and one JSON shape.
     """
+    from labcairn.application import ApplicationRefusedError
+    from labcairn.cli.models import CLI_REFUSAL_WORKSPACE_UNUSABLE, emit_refusal
+    from labcairn.cli.workspace import WorkspaceSetupError
+
     try:
         yield
     except ApplicationRefusedError as error:
@@ -262,12 +219,17 @@ def _refusals(as_json: bool) -> Iterator[None]:
 
 def _refuse(reason: str, message: str, *, as_json: bool) -> NoReturn:
     """Refuse, and end the command."""
+    from labcairn.cli.models import emit_refusal
+
     emit_refusal(reason, message, as_json=as_json)
     raise typer.Exit(code=EXIT_REFUSED)
 
 
 def _require_workspace(location: WorkspaceLocation, *, as_json: bool) -> WorkspaceConfig:
     """The workspace's configuration, or a refusal naming what is missing."""
+    from labcairn.cli.models import CLI_REFUSAL_WORKSPACE_NOT_INITIALISED
+    from labcairn.cli.workspace import is_initialised, read_config
+
     if not is_initialised(location):
         _refuse(
             CLI_REFUSAL_WORKSPACE_NOT_INITIALISED,
@@ -293,6 +255,12 @@ def _select_task(
     one failure format, and it carries its own reason so the two are
     distinguishable.
     """
+    from labcairn.cli.models import (
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        CLI_REFUSAL_NO_TASK_SELECTED,
+    )
+    from labcairn.core.ids import TaskId, is_uuid7
+
     chosen = requested if requested is not None else config.current_task
     if chosen is None:
         _refuse(
@@ -327,6 +295,28 @@ def init(
     because a workspace holds a task's history and a second `init` must not
     be able to leave two of them disagreeing about what the workspace is.
     """
+    from labcairn.cli import render
+    from labcairn.cli.models import (
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        CLI_REFUSAL_WORKSPACE_EXISTS,
+        WorkspaceInitialised,
+        emit_model,
+    )
+    from labcairn.cli.workspace import (
+        DEFAULT_POLICY_RULES,
+        WorkspaceConfig,
+        is_initialised,
+        load_policy,
+        locate,
+        write_config,
+        write_policy,
+    )
+    from labcairn.db.migrations import (
+        MigrationsUnavailableError,
+        current_revision,
+        upgrade_to_head,
+    )
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -434,6 +424,10 @@ def doctor(
     one the architecture's rule catches; the way out is to make the paragraph
     generated rather than written.
     """
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import is_initialised, locate, read_config
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -460,6 +454,16 @@ def _doctor_report(
     show_token: bool,
 ) -> DoctorReport:
     """Everything doctor found, assembled from the workspace's own files."""
+    from labcairn.cli.models import (
+        ApiSessionFinding,
+        DatabaseFinding,
+        DoctorReport,
+        PolicyFinding,
+        WorkspaceFinding,
+    )
+    from labcairn.cli.workspace import load_policy
+    from labcairn.db.migrations import current_revision
+
     database_path = location.root / (config.database if config is not None else "labcairn.db")
     present = database_path.is_file()
     revision = current_revision(database_path) if present else None
@@ -502,6 +506,8 @@ def _doctor_report(
 
 def _head_revision() -> str:
     """The newest revision the repository knows about."""
+    from labcairn.db.migrations import MigrationsUnavailableError, head_revision
+
     try:
         return head_revision()
     except MigrationsUnavailableError:
@@ -531,6 +537,11 @@ def _provider_findings(
     endpoints have never been asked. With it, the providers are probed for
     real, which costs money and is why it is opt-in.
     """
+    from labcairn.cli.models import ProviderFinding
+    from labcairn.cli.workspace import WorkspaceSetupError
+    from labcairn.providers.capabilities import ALL_CAPABILITIES
+    from labcairn.providers.probe import endpoint_fingerprint
+
     settings_by_name = _provider_settings(location)
     if not settings_by_name:
         return ()
@@ -569,6 +580,9 @@ def _provider_findings(
 
 def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSettings]:
     """The workspace's configured model providers."""
+    from labcairn.cli.workspace import WorkspaceSetupError
+    from labcairn.providers.credentials import ProviderSettings
+
     path = location.root / PROVIDERS_FILE_NAME
     if not path.is_file():
         return {}
@@ -592,6 +606,8 @@ def _probe_capabilities(
     rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
     dies on the first thing it cannot read is not a diagnostic.
     """
+    from labcairn.providers.capabilities import Capability, CapabilityOutcome, ProviderCapabilities
+
     try:
         from labcairn.providers.pydantic_models import smoke_test
 
@@ -627,6 +643,8 @@ def _evidence_by_capability(evidence: Mapping[Any, Any]) -> dict[Capability, str
     was observed for, and a reason attached to the wrong one would be a claim
     about something nobody measured.
     """
+    from labcairn.providers.capabilities import Capability
+
     reasons: dict[Capability, str] = {}
     for key, value in evidence.items():
         try:
@@ -643,6 +661,9 @@ def _capability_findings(
     assume_capability: tuple[str, ...],
 ) -> tuple[CapabilityFinding, ...]:
     """One finding per capability, in the provider layer's own order."""
+    from labcairn.cli.models import CapabilityFinding
+    from labcairn.providers.capabilities import ALL_CAPABILITIES, ProviderCapabilities
+
     if capabilities is None:
         capabilities = ProviderCapabilities.unverified(
             endpoint_fingerprint="unprobed",
@@ -701,6 +722,13 @@ def task_create(
     The task's output area is created and the task's first event is written
     in one transaction by the layer, so a task that exists has a history.
     """
+    from labcairn.application import create_task
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import load_policy, locate, source_paths, write_config
+    from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
+    from labcairn.runtime.lifecycle import TaskGoal
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -750,6 +778,8 @@ def _resolve_source_dirs(
     refuses it too — but the layer cannot say which directory the operator
     named.
     """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     directories = list(config.source_dirs)
     for entry in requested:
         candidate = (location.root / entry).resolve()
@@ -797,6 +827,12 @@ def task_status(
     apart because neither is derived from the other: the plan is what should
     happen, the state is what did. ``--plan`` says which one to report.
     """
+    from labcairn.application import read_plan, read_task_state
+    from labcairn.application.stages import TaskPlan
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -865,6 +901,18 @@ def _run_a_stage(
     resume names no run, so the layer opens a new one, and a run names the
     task's current one.
     """
+    from labcairn.application import (
+        StageRequest,
+        inspect_source,
+        read_task_state,
+        run_stage,
+    )
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.security.capabilities import CapabilityId
+    from labcairn.skills.artifacts import StageName
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -903,6 +951,7 @@ def _inventory_work(context: Any, source_id: str) -> Any:
     this one is here only because the CLI has to give ``run_stage`` something
     to run.
     """
+    from labcairn.application import StageOutcome, inspect_source
 
     def work(resource: CanonicalPath) -> StageOutcome:
         del resource
@@ -931,6 +980,11 @@ def sources_inspect(
     why it could not be read — is one operation, and reading its bytes is
     another.
     """
+    from labcairn.application import inspect_source
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -961,6 +1015,12 @@ def artifacts_list(
     — an artefact that was written and not recorded is not one the task has
     produced.
     """
+    from labcairn.application import list_artifacts
+    from labcairn.application.artifacts import ArtifactView
+    from labcairn.cli import render
+    from labcairn.cli.models import emit_models
+    from labcairn.cli.workspace import application_context, locate
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -1063,6 +1123,9 @@ def serve(
     them, so a request for either is refused in the layer's own vocabulary
     rather than answered with something that looks like a result.
     """
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
     options = _options(ctx)
     location = locate(options.workspace)
     with _refusals(as_json):
@@ -1107,6 +1170,8 @@ def service_app(
     that had to bind a socket to look at it would be a test that fails when
     the machine's ports are busy.
     """
+    from labcairn.api import create_app
+
     return create_app(
         context,
         host=host,
@@ -1131,6 +1196,11 @@ def _service_report(
     holds them, and the path the token was written to is the service's fact
     and not the command's arithmetic.
     """
+    from labcairn.api.bind import own_origin
+    from labcairn.api.guards import OriginPolicy
+    from labcairn.api.session import SessionToken
+    from labcairn.cli.models import ServiceStarting
+
     origins = cast(OriginPolicy, app.state.origins)
     token = cast(SessionToken, app.state.session)
     return ServiceStarting(
@@ -1151,6 +1221,9 @@ def _render_service_starting(model: ServiceStarting) -> RenderableType:
     is the one thing this CLI starts rather than reports on, and the model
     it draws is the one this command builds.
     """
+    from rich.panel import Panel
+    from rich.table import Table
+
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold")
     table.add_column()
@@ -1173,6 +1246,9 @@ def _check_host(host: str, *, as_json: bool) -> None:
     before it has been answered**, and the command binds the address once to
     find out whether it can.
     """
+    from labcairn.api.bind import BindRefusedError, ensure_loopback
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     try:
         ensure_loopback(host)
     except BindRefusedError as error:
@@ -1186,6 +1262,8 @@ def _check_port(port: int, *, as_json: bool) -> None:
     the port, and the service's own origin is computed from the port it was
     told — so the origin would name a port nothing is listening on.
     """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     if not 1 <= port <= 65535:
         _refuse(
             CLI_REFUSAL_INVALID_ARGUMENTS,
@@ -1203,6 +1281,8 @@ def _check_port_free(host: str, port: int, *, as_json: bool) -> None:
     The socket is bound and let go without ever listening, and the service
     binds the address again a moment later.
     """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     version = ipaddress.ip_address(host).version
     family = socket.AF_INET6 if version == 6 else socket.AF_INET
     try:
@@ -1240,6 +1320,8 @@ def _check_origin(entry: str, *, as_json: bool) -> None:
     trailing slash would never match a header, so accepting one would be
     accepting an origin that does nothing.
     """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     parts = urlsplit(entry)
     if parts.scheme not in ("http", "https") or not parts.netloc:
         _refuse(
@@ -1266,6 +1348,8 @@ def _resolve_static_dir(static_dir: Path | None, *, as_json: bool) -> Path | Non
     developer would be left with a service that serves nothing and no reason
     why.
     """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     if static_dir is None:
         return None
     resolved = static_dir.expanduser().resolve()
@@ -1278,6 +1362,19 @@ def _resolve_static_dir(static_dir: Path | None, *, as_json: bool) -> Path | Non
     return resolved
 
 
+def run_service(app: FastAPI, *, host: str, port: int) -> None:
+    """The service's own runner, imported when the service is actually run.
+
+    **The import is inside the function on purpose.** :mod:`labcairn.api.app`
+    imports FastAPI and the application layer, and the command line's own
+    import is deferred so that loading the CLI does not load the service.
+    The command that starts the service is the one that loads it.
+    """
+    from labcairn.api import serve
+
+    serve(app, host=host, port=port)
+
+
 def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     """Run the service until it is stopped.
 
@@ -1285,6 +1382,9 @@ def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     not start is not a crash: it is a service that declined, and the two are
     told apart by their exit code.
     """
+    from labcairn.api.bind import BindRefusedError
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+
     try:
         run_service(app, host=host, port=port)
     except BindRefusedError as error:
