@@ -38,7 +38,8 @@ The five checks
 3. :func:`check_links_resolve` — every citation is an address the index can
    resolve, and the check is a resolution rather than a comparison of strings.
 4. :func:`check_claims_rest_on_records_that_may_be_stated` — every claim names
-   a record the ledger holds, and that record may be stated as a finding.
+   a record the ledger holds, that record may be stated as a finding, and the
+   report states the ledger's status and no stronger one.
 5. :func:`check_the_snapshot_names_the_records_the_report_carries` — the
    report's extent is answerable: it names exactly the records it carries.
 
@@ -64,12 +65,13 @@ on the model's validators would be a check that could not fail on its own.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
 from sqlalchemy.engine import Connection
 
 from labcairn.evidence.cite_support import LocationResolution, SourceIndex
 from labcairn.evidence.record import EvidenceRecord
+from labcairn.evidence.states import VerificationStatus
 from labcairn.evidence.store import load_record
 from labcairn.reports.model import (
     FINDING_STATUSES,
@@ -82,6 +84,7 @@ from labcairn.sources.locators import describe_locator
 from labcairn.sources.source import SourceAnchor
 
 __all__ = [
+    "REPORT_STATUS_FLOOR",
     "LedgerReader",
     "ReportRefusedError",
     "check_claims_rest_on_records_that_may_be_stated",
@@ -92,6 +95,16 @@ __all__ = [
     "check_the_snapshot_names_the_records_the_report_carries",
     "ledger_reader",
 ]
+
+#: The one status a report may always state.
+#:
+#: ``extracted`` says the material was located, copied out and hashed, so it
+#: is true of every record that was ever confirmed. It is the **floor** of
+#: what a report may claim: a report that says less than the ledger is not
+#: overstating, and a record promoted after the report was written leaves the
+#: report true. The **ceiling** is the ledger's own status, and a report may
+#: not state more than that.
+REPORT_STATUS_FLOOR: Final[VerificationStatus] = VerificationStatus.EXTRACTED
 
 
 class ReportRefusedError(RuntimeError):
@@ -154,9 +167,15 @@ def check_numbers_agree_with_the_ledger(document: ReportDocument, *, ledger: Led
     that compared their rounded forms would accept a report that says 4.25
     where the ledger says 4.253 — a different claim about the same cell, and
     one that no reader could see was different. So the values are compared as
-    they are, and a tolerance is never invented here: ADR-0004's rule is that
-    a unit and a tolerance are *declared*, and a report that restates a
-    quantity may not widen the comparison that authorised it.
+    they are.
+
+    The comparison cannot be widened from here either, and that is the
+    model's doing rather than this check's:
+    :class:`~labcairn.reports.model.LedgerRecordView` carries **no tolerance
+    field at all**, so there is nowhere for a wider tolerance to sit beside
+    the number — the guarantee is structural, and no check is needed for it.
+    The unit *is* carried, so the unit is compared, and it is declared, never
+    inferred.
 
     A record the ledger does not hold is left to
     :func:`check_claims_rest_on_records_that_may_be_stated`: there is no
@@ -191,7 +210,7 @@ def check_claims_rest_on_records_that_may_be_stated(
 ) -> None:
     """Every claim names a record the ledger holds, and that record is statable.
 
-    Three things, and the first is the one the model cannot do.
+    Five things, and the first is the one the model cannot do.
 
     **The record must exist.** A claim names the record it rests on, and the
     ledger is where records live. A claim naming an id the ledger has never
@@ -213,6 +232,23 @@ def check_claims_rest_on_records_that_may_be_stated(
     ledger have to be the same text. The number and the sentence are the same
     kind of obligation, and the model keeps them apart only because one of
     them is a quantity and the other is a statement.
+
+    **The status may not be overstated.** The ledger's current status is the
+    **ceiling**: a report may state the ledger's status, or
+    :data:`REPORT_STATUS_FLOOR` — ``extracted``, the floor, which is true of
+    every record that was ever confirmed. Anything stronger than the ledger's
+    is refused, because it is a claim the ledger never made: a report that
+    says a record was *verified by rule* where the ledger says it was merely
+    *extracted* is claiming a strength of verification the ledger does not
+    record, and the report prints that status beside the statement.
+
+    Understating is the other half of the rule and it is **not** drift. A
+    record promoted from ``extracted`` to ``verified_by_rule`` after the
+    report was written leaves the report true — "this was located and copied
+    out" was still so — so a report that says ``extracted`` is refused by
+    nothing. Comparing the two statuses for *equality* would refuse it, and
+    equality is exactly what the drift doctrine forbids: it would turn "this
+    was true then" into "this was never written".
 
     **Drift is not a content failure, and the record's
     ``source_content_hash`` is deliberately not compared.** The report was
@@ -251,11 +287,20 @@ def check_claims_rest_on_records_that_may_be_stated(
                 f"{record.kind.value!r} one. A number and a sentence are kept apart "
                 "on purpose, and a report may not turn one into the other"
             )
-        if record.text != view.text:
+        elif record.text != view.text:
             problems.append(
                 f"the claim {claim.claim_id!r} states {view.text!r}, but the ledger's "
                 f"record {record.evidence_id!r} says {record.text!r}. The report "
                 "states the ledger's words, not its own"
+            )
+        if view.status is not record.status and view.status is not REPORT_STATUS_FLOOR:
+            problems.append(
+                f"the claim {claim.claim_id!r} states the record {record.evidence_id!r} "
+                f"as {view.status.value!r}, but the ledger holds it as "
+                f"{record.status.value!r}. A report may state the ledger's status or "
+                f"the floor of {REPORT_STATUS_FLOOR.value!r}, and it may not state "
+                "more than the ledger does: a stronger status is a claim the ledger "
+                "never made"
             )
     if problems:
         raise ReportRefusedError("claims", "; ".join(problems))
@@ -515,10 +560,15 @@ def check_report(
     """Every content check, in the order the report's own dependencies come.
 
     The order is the order of the report: the extent of the view, then the
-    numbers, then the records the claims rest on, then the citations, then the
-    figures on disk. The first refusal stops the run, because a report is not
-    written on the strength of the checks that happened to pass — and a check
-    that warns and carries on is exactly what this work order forbids.
+    records the claims rest on, then the numbers those records hold, then the
+    citations, then the artefacts on disk. The records come before the
+    numbers because a number is a thing a record holds — a claim that says a
+    numeric record is a claim is a claim about the record, and it is refused
+    as one rather than as a number that does not match.
+
+    The first refusal stops the run, because a report is not written on the
+    strength of the checks that happened to pass — and a check that warns and
+    carries on is exactly what this work order forbids.
 
     :param document: the report to check. The model, never an export.
     :param ledger: the records are read from here, not from the document.
@@ -528,7 +578,7 @@ def check_report(
     :raises ReportRefusedError: if any check finds anything.
     """
     check_the_snapshot_names_the_records_the_report_carries(document)
-    check_numbers_agree_with_the_ledger(document, ledger=ledger)
     check_claims_rest_on_records_that_may_be_stated(document, ledger=ledger)
+    check_numbers_agree_with_the_ledger(document, ledger=ledger)
     check_links_resolve(document, index=index)
     check_figures_and_tables_are_the_artefacts_on_disk(document, workspace_root=workspace_root)

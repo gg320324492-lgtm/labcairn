@@ -34,6 +34,8 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import inspect
+import os
+import subprocess
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -87,6 +89,8 @@ from labcairn.reports.model import (
     ReportSection,
     ReportTable,
     TableBlock,
+    UnresolvedBlock,
+    UnresolvedRecord,
 )
 from labcairn.security.approval import content_hash
 from labcairn.sources.locators import ComputationLocator, PdfLocator
@@ -293,6 +297,7 @@ def _numeric_view(
     record_id: str = "rec-1",
     value: float = LEDGER_VALUE,
     unit: str = "%",
+    status: VerificationStatus = VerificationStatus.EXTRACTED,
     anchors: tuple[str, ...] = ("anc-1",),
 ) -> LedgerRecordView:
     """The model's copy of the numeric record: a number, its unit, and no text."""
@@ -301,7 +306,7 @@ def _numeric_view(
         record_kind=EvidenceKind.NUMERIC,
         value=value,
         unit=unit,
-        status=VerificationStatus.EXTRACTED,
+        status=status,
         anchor_ids=anchors,
         source_content_hash=SOURCE_HASH,
     )
@@ -317,6 +322,47 @@ def _claim_view(*, record_id: str = "rec-2", text: str = CLAIM_TEXT) -> LedgerRe
         anchor_ids=("anc-1",),
         source_content_hash=SOURCE_HASH,
     )
+
+
+def _conflicted_view(*, record_id: str = "rec-9") -> LedgerRecordView:
+    """The model's copy of a record the report discloses rather than states."""
+    return LedgerRecordView(
+        record_id=record_id,
+        record_kind=EvidenceKind.NUMERIC,
+        value=LEDGER_VALUE,
+        unit="%",
+        status=VerificationStatus.CONFLICTED,
+        anchor_ids=("anc-1",),
+        source_content_hash=SOURCE_HASH,
+    )
+
+
+def _unresolved(*, record_id: str = "rec-9") -> UnresolvedRecord:
+    """A conflict, disclosed with its reason."""
+    return UnresolvedRecord(
+        record=_conflicted_view(record_id=record_id),
+        reason="Two readings of the same cell disagree beyond the declared tolerance.",
+    )
+
+
+def _link_out_of_the_workspace(link: Path, target: Path) -> None:
+    """A directory *inside* the workspace that leads out of it.
+
+    A junction on Windows, because ``Path.is_symlink()`` does not report one
+    and a symlink there may need privileges the test runner does not have; a
+    symlink everywhere else. Both are followed by ``resolve()``, which is the
+    only thing that sees through either.
+    """
+    if os.name == "nt":
+        proc = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            pytest.skip("mklink /J unavailable: " + proc.stderr.decode("utf-8", "replace"))
+        return
+    link.symlink_to(target, target_is_directory=True)
 
 
 def _claim(
@@ -430,6 +476,7 @@ def _document(
     tables: tuple[ReportTable, ...] = (),
     footnotes: tuple[ProvenanceFootnote, ...] | None = None,
     sections: tuple[ReportSection, ...] | None = None,
+    unresolved_records: tuple[UnresolvedRecord, ...] = (),
     record_ids: tuple[str, ...] | None = None,
 ) -> ReportDocument:
     """A valid document, from which a test changes exactly one thing."""
@@ -449,6 +496,7 @@ def _document(
         figures=figures,
         tables=tables,
         footnotes=footnotes,
+        unresolved_records=unresolved_records,
     )
 
 
@@ -927,3 +975,223 @@ def test_a_snapshot_that_names_a_record_the_report_does_not_carry_is_refused(
         _gate(world, wide)
 
     assert refusal.value.check == "snapshot"
+
+
+# ---------------------------------------------------------------------------
+# What the ledger decides, and what the report may say about it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_report_that_overstates_the_record_verification_is_refused(world: World) -> None:
+    """The status may not be stronger than the ledger's.
+
+    The ledger holds the record as ``extracted`` — located, copied out,
+    hashed, and confirmed by nothing. The report says ``verified_by_rule``,
+    which is a claim about the strength of a verification the ledger does
+    not record, and the report prints that status beside the statement it
+    makes.
+    """
+    document = _document(
+        claims=(_claim(record=_numeric_view(status=VerificationStatus.VERIFIED_BY_RULE)),),
+        record_ids=("rec-1",),
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "claims"
+
+
+@pytest.mark.unit
+def test_a_report_that_understates_the_record_verification_is_accepted(world: World) -> None:
+    """The rule is a ceiling and not equality, and this is what says so.
+
+    The record was promoted after the report was written: the ledger now
+    holds it as ``verified_by_rule`` and the report says ``extracted``.
+    Understating is not drift — "this was located and copied out" was true
+    when the report was written and it is true now — so nothing refuses it.
+
+    A check that compared the two statuses for *equality* would refuse it,
+    and would be wrong: equality would turn "this was true then" into "this
+    was never written".
+    """
+    append_verification(
+        world.connection,
+        "rec-1",
+        VerificationRecord(
+            check=CheckKind.C3,
+            checker_id=C3_CHECKER_ID,
+            outcome=CheckOutcome.PASS,
+            detail="the cell holds 4.253",
+            checked_at=NOW,
+        ),
+    )
+    world.connection.commit()
+    advance(
+        world.connection,
+        "rec-1",
+        VerificationStatus.VERIFIED_BY_RULE,
+        index=world.index,
+        checked_at=NOW,
+    )
+    world.connection.commit()
+
+    document = _document(
+        claims=(_claim(record=_numeric_view(status=VerificationStatus.EXTRACTED)),),
+        record_ids=("rec-1",),
+    )
+
+    _gate(world, document)
+
+
+@pytest.mark.unit
+def test_a_claim_that_says_a_numeric_record_is_a_claim_is_refused(world: World) -> None:
+    """A number and a sentence are kept apart on purpose.
+
+    The ledger holds ``rec-2`` as a claim — a statement — and the report
+    says it is a numeric record with a value, so the report would print a
+    number the ledger does not hold and call it the record's.
+
+    The refusal names the two kinds, and the assertion is on that wording
+    rather than on the refusal alone: a text comparison is a second guard
+    for the same case, so a refusal that said only "the words differ" would
+    be a report that mis-states the kind refused for the wrong reason.
+    """
+    document = _document(
+        claims=(_claim(record=_numeric_view(record_id="rec-2")),),
+        record_ids=("rec-2",),
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "claims"
+    assert "states a 'numeric' record" in refusal.value.reason
+    assert "is a 'claim' one" in refusal.value.reason
+
+
+@pytest.mark.unit
+def test_a_claim_that_says_a_claim_record_is_a_number_is_refused(world: World) -> None:
+    """And the other way round.
+
+    The ledger holds ``rec-1`` as a number and the report says it is a
+    statement, so the report would print the ledger's words for a record
+    that has none.
+    """
+    document = _document(
+        claims=(_claim(record=_claim_view(record_id="rec-1")),),
+        record_ids=("rec-1",),
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "claims"
+    assert "states a 'claim' record" in refusal.value.reason
+    assert "is a 'numeric' one" in refusal.value.reason
+
+
+@pytest.mark.unit
+def test_a_claim_resting_on_an_anchor_the_ledger_never_heard_of_is_refused(
+    world: World,
+) -> None:
+    """Every anchor a claim rests on must be one the ledger holds.
+
+    The claim names an anchor id that was never registered. The ledger has
+    never heard of it, so nothing vouches for the address it was read from,
+    and one good anchor among several does not make the others good.
+    """
+    document = _document(
+        claims=(_claim(record=_numeric_view(anchors=("anc-1", "anc-ghost"))),),
+        record_ids=("rec-1",),
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "links"
+
+
+@pytest.mark.unit
+def test_a_snapshot_that_does_not_name_an_unresolved_record_is_refused(world: World) -> None:
+    """A disclosure is a record the report carries too.
+
+    The report discloses a conflicted record and its snapshot does not name
+    it, so "which records is this a view of" is unanswerable for exactly the
+    records that matter most — the ones nobody could agree on.
+
+    The document is built **without** the model's validators — Pydantic's
+    ``model_copy`` does not run them — so that the *check* is what refuses.
+    """
+    document = _document(
+        claims=(_claim(),),
+        sections=(
+            _section(
+                blocks=(
+                    ClaimBlock(claim_id="clm-1"),
+                    UnresolvedBlock(record_id="rec-9"),
+                )
+            ),
+        ),
+        unresolved_records=(_unresolved(),),
+        record_ids=("rec-1", "rec-9"),
+    )
+    short = document.model_copy(
+        update={"snapshot": LedgerSnapshot(as_of=NOW, record_ids=("rec-1",))}
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, short)
+
+    assert refusal.value.check == "snapshot"
+
+
+@pytest.mark.unit
+def test_a_figure_whose_path_leaves_the_workspace_is_refused(world: World) -> None:
+    """A figure is a file in the workspace, and one outside it is not it.
+
+    The path names a file above the workspace root. The model refuses such a
+    path on construction — the document here is built **without** the model's
+    validators, so that the *check* is what refuses — and the check refuses
+    it because the resolved path is outside the workspace, not because the
+    bytes happen to differ.
+    """
+    outside = world.root.parent / "outside"
+    outside.mkdir()
+    (outside / "fig-1.svg").write_bytes(FIGURE_BYTES)
+    document = _report(world)
+    figure = document.figures[0].model_copy(update={"relative_path": "../outside/fig-1.svg"})
+    escaped = document.model_copy(update={"figures": (figure,)})
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, escaped)
+
+    assert refusal.value.check == "artefacts"
+    assert "outside the workspace" in refusal.value.reason
+
+
+@pytest.mark.unit
+def test_a_figure_reached_through_a_link_out_of_the_workspace_is_refused(world: World) -> None:
+    """The escape that only ``resolve()`` sees.
+
+    The path is inside the workspace and stays there — no ``..``, no drive
+    letter, nothing the model's own rule can refuse — and the file it names
+    is outside, because a directory inside the workspace leads out of it.
+    A Windows junction is not a symlink and ``Path.is_symlink()`` does not
+    report one, which is why the guard resolves the path and then asks where
+    it landed.
+    """
+    outside = world.root.parent / "outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "fig-1.svg").write_bytes(FIGURE_BYTES)
+    _link_out_of_the_workspace(world.root / "escape", outside)
+    document = _report(world)
+    figure = document.figures[0].model_copy(update={"relative_path": "escape/fig-1.svg"})
+    escaped = document.model_copy(update={"figures": (figure,)})
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, escaped)
+
+    assert refusal.value.check == "artefacts"
+    assert "outside the workspace" in refusal.value.reason
