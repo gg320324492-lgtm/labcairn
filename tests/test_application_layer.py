@@ -39,7 +39,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import text as sql_text
-from test_store_support import StoreEnv
+from test_store_support import StoreEnv, make_source_id
 from test_store_support import env as _shared_env
 
 from labcairn.analysis.manifest import (
@@ -418,7 +418,7 @@ def test_inspecting_a_source_is_denied_by_a_deny_policy(
     env: StoreEnv, workspace_root: Path
 ) -> None:
     """Reading supplied material is gated."""
-    source_id = str(SourceId(new_id()))
+    source_id = str(make_source_id("materials/one.csv"))
     put_source(env.session, _source(source_id, "materials/one.csv"))
     context = _make_context(env, workspace_root, _deny_all())
     _assert_refused(
@@ -740,8 +740,8 @@ def test_the_sources_of_a_task_are_listed_in_the_binding_order(
     env: StoreEnv, workspace_root: Path
 ) -> None:
     """The order is the task's own binding, not the ledger's."""
-    first = SourceId(new_id())
-    second = SourceId(new_id())
+    first = make_source_id("materials/one.csv")
+    second = make_source_id("materials/two.csv")
     put_source(env.session, _source(str(first), "materials/one.csv"))
     put_source(env.session, _source(str(second), "materials/two.csv"))
     # The ledger holds the source under the id the Task is bound by.
@@ -764,7 +764,7 @@ def test_a_source_the_policy_denies_is_dropped_from_the_list(
     deny work the operator wanted allowed, so the denied source is absent
     rather than the call refused.
     """
-    bound = SourceId(new_id())
+    bound = make_source_id("materials/one.csv")
     put_source(env.session, _source(str(bound), "materials/one.csv"))
     context = _make_context(
         env,
@@ -777,7 +777,7 @@ def test_a_source_the_policy_denies_is_dropped_from_the_list(
 
 def test_asking_for_a_denied_source_by_name_is_refused(env: StoreEnv, workspace_root: Path) -> None:
     """The other half of the rule: a direct request for one thing is refused."""
-    source_id = str(SourceId(new_id()))
+    source_id = str(make_source_id("materials/one.csv"))
     put_source(env.session, _source(source_id, "materials/one.csv"))
     context = _make_context(env, workspace_root, _deny_all())
     _assert_refused(
@@ -792,7 +792,7 @@ def test_a_source_the_ledger_does_not_hold_is_refused(env: StoreEnv, workspace_r
         env,
         workspace_root,
         _allow_all(),
-        bound_sources=(SourceId(new_id()),),
+        bound_sources=(make_source_id("materials/absent.csv"),),
     )
     _assert_refused(
         lambda: list_sources(context),

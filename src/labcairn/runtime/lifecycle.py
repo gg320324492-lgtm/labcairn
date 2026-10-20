@@ -80,9 +80,15 @@ class Task(LabCairnModel):
     task_id: TaskId = Field(default_factory=lambda: TaskId(new_id()))
     title: str = Field(min_length=1, max_length=300)
     goal: TaskGoal
-    #: Materials this Task is bound to. Hashes, not paths: a path moves, a
-    #: content hash does not, and binding by path is how a Task silently ends
-    #: up describing a different file than it started with.
+    #: The ids of the materials this Task is bound to. Each id is minted by
+    #: the ingestion path from the material's *location*, so an edited file
+    #: keeps its identity and the ledger's refresh branch moves the hash
+    #: recorded against it. These are not paths -- the binding is resolved
+    #: through the ledger by id -- and they are not content hashes either:
+    #: the hash is what the derivation walk compares, and it lives on the
+    #: source (``Source.content_sha256``) and on the receipt's chain
+    #: (``ArtifactReceipt.content_sha256`` and the hashes its
+    #: ``DerivationRef``s cite).
     bound_source_ids: tuple[SourceId, ...] = ()
     revision: StrictPosInt = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
