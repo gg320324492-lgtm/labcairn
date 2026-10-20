@@ -1352,10 +1352,36 @@ def test_a_report_the_checks_refuse_is_not_written(env: StoreEnv, workspace_root
             ReportRequest(path="report", template_id="default"),
             now=_MOMENT,
         ),
-        ApplicationRefusal.STAGE_FAILED,
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
     )
     assert "links" in refusal.detail
     assert not _report_dir(context).exists()
+
+
+def test_a_refused_report_reaches_the_surface_as_a_content_refusal(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The reason that arrives is the report's, and not a stage's.
+
+    The two fields a surface renders are the refusal's own payload — the
+    API's error body and the CLI's JSON are the same two fields — so the
+    reason that arrives is what this test reads. A report whose content was
+    refused says so, and it does not say that a stage failed: no stage ran.
+    """
+    world = _seed_a_task_with_a_report(env, workspace_root, resolve_citation=False)
+    context = world.context
+    refusal = _assert_refused(
+        lambda: render_report(
+            context,
+            ReportRequest(path="report", template_id="default"),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
+    )
+    payload = refusal.to_payload()
+    assert set(payload) == {"reason", "message"}
+    assert payload["reason"] == "report_content_refused"
+    assert "links check refused the report" in payload["message"]
 
 
 def test_a_report_the_checks_refuse_is_not_even_rendered(
@@ -1389,7 +1415,7 @@ def test_a_report_the_checks_refuse_is_not_even_rendered(
             ReportRequest(path="report", template_id="default"),
             now=_MOMENT,
         ),
-        ApplicationRefusal.STAGE_FAILED,
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
     )
     assert drawn == []
     assert not _report_dir(context).exists()
@@ -1410,7 +1436,7 @@ def test_a_report_that_cannot_be_built_is_not_written(env: StoreEnv, workspace_r
             ReportRequest(path="report", template_id="default"),
             now=_MOMENT,
         ),
-        ApplicationRefusal.STAGE_FAILED,
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
     )
     assert not _report_dir(context).exists()
 
@@ -1453,7 +1479,7 @@ def test_a_figure_whose_recipe_has_changed_is_refused(
             ReportRequest(path="report", template_id="default"),
             now=_MOMENT,
         ),
-        ApplicationRefusal.STAGE_FAILED,
+        ApplicationRefusal.REPORT_CONTENT_REFUSED,
     )
     assert not _report_dir(context).exists()
 

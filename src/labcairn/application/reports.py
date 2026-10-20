@@ -90,11 +90,22 @@ What is refused, and how
 
 Every refusal is an :class:`ApplicationRefusedError` with a machine-readable
 reason and a message that names what was wrong, so a surface catches one
-exception and not two. The content refusals — the builder's, the checks',
-the manifest's, the revision's — all carry the layer's ``stage_failed``
-reason, because the layer's vocabulary has no report-specific member and
-this operation may not add one; what refuses and why is in the message, and
-the original is kept as the cause.
+exception and not two.
+
+**The content refusals carry their own reason.** The builder's, the checks',
+the manifest's, the revision's — and the layer's own, where a figure's
+manifest or its recipe is not the one the ledger recorded — are all
+``report_content_refused``, because they are one situation: the report's
+content was refused, and nothing was written. They are **not**
+``stage_failed``, because no stage ran and there is no execution to look at.
+A stage that failed ran and failed, and the work may be worth retrying; a
+report whose content was refused never ran, and the ledger is what has to
+change. A caller that cannot tell those apart cannot tell whether to retry.
+
+The message names **what** refused and why — the check that refused and the
+reason it gave, the builder and what it would not build, the artefact and
+the hash it did not have — because a reason nobody can act on is the same as
+no reason. The original is kept as the cause.
 """
 
 from __future__ import annotations
@@ -231,6 +242,25 @@ def render_report(
     the checks, then the four forms, then the revision, then the records. A
     report that cannot be produced leaves no file behind.
 
+    **The checks run twice, and that is deliberate.** They run here, over
+    the document this operation has just built, and the same checks are
+    handed to the revision machinery as its ``verify``. The two are not
+    redundant, because they are at different points:
+
+    * the layer's own run happens **before the four forms are rendered**, so
+      a document the checks refuse is not drawn at all — and the four forms
+      are bytes, so a refusal that arrived after them would have produced
+      bytes of a report that may not exist;
+    * the machinery's run happens **inside the write**, over the document it
+      is about to write, so the machinery itself refuses a revision of a
+      document the checks refuse — which is a property of the machinery and
+      not of this layer.
+
+    Each hold is enough on its own, and that is the point: a reader who
+    wonders why the checks are run twice should find that removing either
+    one changes nothing, because the other is still there. Removing both
+    would let a report the checks refuse be written.
+
     :param context: everything the operation is given.
     :param request: the report's key and the template it is rendered from.
     :param now: the moment the document is a view of. Passed in rather than
@@ -238,8 +268,8 @@ def render_report(
         re-derivation.
     :returns: the canonical document's receipt and the report's key.
     :raises ApplicationRefusedError: the policy denied the render or asked
-        about it, the request named something that does not exist, the report
-        could not be built, or the content checks refused the document.
+        about it, the request named something that does not exist, or the
+        report's content was refused — in which case nothing was written.
     """
     moment = now if now is not None else datetime.now(UTC)
 
@@ -462,9 +492,10 @@ def _read_the_manifest(
     observed = hashlib.sha256(content.content).hexdigest()
     if observed != manifest_receipt.content_sha256:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
-            f"the manifest artefact {manifest_receipt.receipt_id!r} records bytes "
-            f"that hash to {manifest_receipt.content_sha256}, but the file at "
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
+            f"the manifest artefact {manifest_receipt.receipt_id!r} is not the "
+            f"artefact the ledger recorded: the receipt says bytes that hash to "
+            f"{manifest_receipt.content_sha256}, but the file at "
             f"{manifest_receipt.relative_path!r} hashes to {observed}. A manifest "
             "that is not the artefact's own describes a derivation nobody can "
             "reproduce.",
@@ -473,7 +504,7 @@ def _read_the_manifest(
         return ReproducibilityManifest.model_validate_json(content.content)
     except ValidationError as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
             f"the manifest artefact {manifest_receipt.receipt_id!r} does not hold a "
             f"reproducibility manifest: {error}. A figure whose derivation cannot "
             "be read is a figure nobody can check.",
@@ -513,7 +544,7 @@ def _read_the_recipe(
         data = resource.real_path.read_bytes()
     except OSError as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
             f"the recipe of the figure {figure.receipt_id!r} is at "
             f"{reference.relative_path!r}, and its bytes could not be read: "
             f"{error}. A figure whose recipe nobody can read is a figure whose "
@@ -523,19 +554,20 @@ def _read_the_recipe(
     observed = hashlib.sha256(data).hexdigest()
     if observed != reference.content_sha256:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
-            f"the recipe of the figure {figure.receipt_id!r} is at "
-            f"{reference.relative_path!r}, whose bytes hash to {observed}, but the "
-            f"manifest records bytes that hash to {reference.content_sha256}. The "
-            "recipe the manifest describes is not the recipe on disk, and the "
-            "caption would not be the one the figure was drawn from.",
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
+            f"the recipe of the figure {figure.receipt_id!r} is not the recipe the "
+            f"manifest names: the file at {reference.relative_path!r} hashes to "
+            f"{observed}, and the manifest records bytes that hash to "
+            f"{reference.content_sha256}. The recipe the manifest describes is not "
+            "the recipe on disk, and the caption would not be the one the figure "
+            "was drawn from.",
         )
 
     try:
         return ChartRecipe.model_validate_json(data)
     except (ValidationError, RecipeRefusedError) as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
             f"the recipe of the figure {figure.receipt_id!r} is at "
             f"{reference.relative_path!r}, and it is not a chart recipe: {error}. A "
             "figure's caption is the author's words and lives in the chart recipe, "
@@ -584,8 +616,10 @@ def _build_the_document(
         )
     except ReportBuildRefusedError as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
-            f"the report could not be built from what the task has: {error}",
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
+            f"the document builder refused the report: {error}. Nothing was written: "
+            "a report the ledger cannot support must not be written with a hole "
+            "in it.",
         ) from error
 
 
@@ -615,10 +649,10 @@ def _check_the_document(
         )
     except ReportRefusedError as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
-            f"the content checks refused the report, so nothing was written: {error}. "
-            "A report that says something the ledger does not support must not be "
-            "written at all.",
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
+            f"the {error.check} check refused the report: {error.reason}. Nothing "
+            "was written: a report that says something the ledger does not support "
+            "must not be written at all.",
         ) from error
 
 
@@ -673,18 +707,20 @@ def _the_upstreams(
         part_receipt = newest.get(relative_path)
         if part_receipt is None:
             raise ApplicationRefusedError(
-                ApplicationRefusal.STAGE_FAILED,
-                f"the report carries the part {part_id!r} at {relative_path!r}, and "
-                "the ledger holds no artefact at that path. A part the ledger "
-                "does not hold is a part nobody can say is current.",
+                ApplicationRefusal.REPORT_CONTENT_REFUSED,
+                f"the part {part_id!r} is not an artefact the ledger holds: the "
+                f"report carries it at {relative_path!r}, and the ledger holds no "
+                "artefact at that path. A part the ledger does not hold is a part "
+                "nobody can say is current.",
             )
         if part_receipt.content_sha256 != content_sha256:
             raise ApplicationRefusedError(
-                ApplicationRefusal.STAGE_FAILED,
-                f"the report carries the part {part_id!r} at {relative_path!r}, "
-                f"whose bytes hash to {content_sha256}, but the ledger's artefact "
-                f"at that path hashes to {part_receipt.content_sha256}. The part "
-                "in the report is not the one the ledger recorded.",
+                ApplicationRefusal.REPORT_CONTENT_REFUSED,
+                f"the part {part_id!r} is not the artefact the ledger recorded: the "
+                f"report carries bytes at {relative_path!r} that hash to "
+                f"{content_sha256}, and the ledger's artefact at that path hashes "
+                f"to {part_receipt.content_sha256}. The part in the report is not "
+                "the one the ledger recorded.",
             )
         upstreams[part_id] = part_receipt.derived_from
     return upstreams
@@ -736,8 +772,9 @@ def _write_the_revision(
         )
     except (ReportRevisionRefusedError, ReportManifestRefusedError) as error:
         raise ApplicationRefusedError(
-            ApplicationRefusal.STAGE_FAILED,
-            f"the report could not be written as a revision: {error}",
+            ApplicationRefusal.REPORT_CONTENT_REFUSED,
+            f"the report was refused before it could be written as a revision: "
+            f"{error}. Nothing was written.",
         ) from error
 
 
