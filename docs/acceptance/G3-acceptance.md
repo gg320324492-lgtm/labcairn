@@ -94,7 +94,7 @@ residual the independent review found stated nowhere (F2 below).
 **The independent review broke this work order's fixes and no mutation
 survived.** It added two findings: the PDF adapter's own docstring still
 denied the detector it implements (F1), and the coverage band below the
-threshold was unstated (F2). Both are fixed in `37f7d77`.
+threshold was unstated (F2). Both are fixed in `f0f7563`.
 
 ## LC-P1-09 — Local retrieval and evidence ledger
 
@@ -239,7 +239,7 @@ Every fix broken — implementation only, never the test.
 | 14 | Caption layout | old constant `_TEXT_TOP=0.33` restored | `test_the_caption_does_not_overlap_the_axis_labels`; `test_a_taller_axis_label_pushes_the_caption_down_rather_than_under_it` |
 
 The share in row 1 is the threshold as it stood at the commit reviewed; it is
-**30%** now, after `37f7d77` (F2 below).
+**30%** now, after `f0f7563` (F2 below).
 
 Two more, in the LC-P1-10 fixes table rather than the fourteen, were broken
 too and caught: the policy-denial message
@@ -280,8 +280,8 @@ not rotted — 36, 14 and 18 checks, exit 0, at `d114810`.
 
 ### Three findings the acceptance documents did not record
 
-All three are fixed in `37f7d77`, on branch `fix/g3-two-column-band`, which is
-on its way into the repository as its own pull request.
+All three are fixed in `f0f7563`, the commit that carried the
+two-column band into the tree.
 
 **F1 — the PDF adapter's docstring denied the detector it implements.**
 `src/labcairn/material/pdf.py`'s module docstring still said *"Why no column
@@ -290,7 +290,7 @@ page and does not pretend to"*, while the same module implements
 `_two_column_evidence` and refuses such pages. The paragraph dates from
 `221bd91`; the detector was added in `d5e9d89` without updating it. This is
 LC-P1-08 defect 7's own family, reopened by its own fix. **Fixed in
-`37f7d77`:** the docstring now says what the code does, names the threshold
+`f0f7563`:** the docstring now says what the code does, names the threshold
 and the band, and states the residual. The same document in ADR-0008 carried
 two more claims of the same kind — "the adapter cannot detect the page it
 happens on" and a heading "Why there is no detector" — and both were corrected
@@ -320,13 +320,13 @@ the same rule would also catch cluster at 20–26% of their line starts, in the
 same place, so any threshold that closed the residual would refuse seven
 pages of good prose. The one thing that would calibrate the other direction —
 two-column CC-licensed material — could not be obtained; ADR-0008 records the
-search. **Fixed in `37f7d77`**, with the residual's own test.
+search. **Fixed in `f0f7563`**, with the residual's own test.
 
 **F3 — the ADR credit in two test docstrings.** `tests/test_material_walk.py`
 (lines 367 and 410) still credited "ADR-0004 A2" for old text surviving. A2
 (ADR-0004, line 349) says only that drift makes C1 return `fail`; the clause
 that says the old text survives is ADR-0009's item 2. `test_material_indexing.py`
-had been corrected; this one had not. **Fixed in `37f7d77`:** both docstrings
+had been corrected; this one had not. **Fixed in `f0f7563`:** both docstrings
 credit ADR-0009's item 2, and they say what A2 is about.
 
 ### What the review did not check
@@ -361,7 +361,7 @@ The three things such a reviewer would want to look at are answered above: the
 two-column band by a finding and a fix, the manifest and recipe limits by the
 finding that they are deliberate and stated rather than quiet, and the exit
 demonstrations by the finding that the claim is true and they have not rotted.
-The three findings the review added are fixed in `37f7d77`.
+The three findings the review added are fixed in `f0f7563`.
 
 **The closure therefore rests on the independent review and not on an
 exemption**, and the board's rule — a row is marked done only when an

@@ -228,7 +228,7 @@ fourteen fixes, implementation only and never the test, and **no mutation
 survived** — the verdict is **PASS WITH NOTES**. Its mutation table, the three
 named items it answered and the three findings it added are recorded in the
 [gate review](G3-acceptance.md), and the three findings are fixed in
-`37f7d77`. What that adds is a second pair of eyes on the fixes, not a
+`f0f7563`. What that adds is a second pair of eyes on the fixes, not a
 rewriting of the review above — and the caveat above stands for the review
 above.
 
