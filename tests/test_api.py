@@ -35,6 +35,7 @@ import ast
 import hashlib
 import json
 import logging
+import os
 from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -451,6 +452,31 @@ def test_each_service_gets_its_own_token(context: ApplicationContext) -> None:
     first = create_app(context)
     second = create_app(context)
     assert first.state.session.value != second.state.session.value
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_the_session_directory_can_still_be_entered(context: ApplicationContext) -> None:
+    """The session directory carries a *directory's* mode, not a file's.
+
+    On POSIX a directory is traversed with the **execute** bit, and a
+    directory without one cannot be entered — not even by its owner. The
+    session directory was given the token file's ``0o600``, which has no
+    execute bit, so the **first** token could be written into it and the
+    **second** raised ``PermissionError``: the directory could no longer be
+    entered. Windows does not see it — there ``chmod`` only toggles the
+    read-only attribute and every directory stays traversable — so this is
+    asserted where the bits exist.
+
+    The narrowest mode a directory can carry and still be usable is ``0o700``:
+    the owner may enter it, and nobody else may.
+    """
+    app = create_app(context)
+    directory = Path(app.state.session.path).parent
+
+    assert directory.stat().st_mode & 0o700 == 0o700
+    # The behaviour, not just the bits: a directory that cannot be entered
+    # cannot hold a second token either.
+    (directory / "probe").write_text("written", encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #

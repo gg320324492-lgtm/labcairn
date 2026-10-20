@@ -102,8 +102,8 @@ def write_token_file(path: Path, token: str) -> Path:
     except BaseException:
         path.unlink(missing_ok=True)
         raise
-    _restrict(path)
-    _restrict(path.parent)
+    _restrict(path, 0o600)
+    _restrict(path.parent, 0o700)
     return path
 
 
@@ -123,10 +123,24 @@ def read_bearer(header: str | None) -> str | None:
     return presented or None
 
 
-def _restrict(path: Path) -> None:
-    """Narrow *path*'s permissions, where the platform has permissions."""
+def _restrict(path: Path, mode: int) -> None:
+    """Narrow *path*'s permissions to *mode*, where the platform has permissions.
+
+    **A directory and a file need different modes, and a directory given a
+    file's mode stops working.** On POSIX a directory is traversed with the
+    **execute** bit, and a directory with no execute bit cannot be entered —
+    not even by its owner. A session directory given the file's ``0o600`` was
+    therefore writable exactly once: the first token could be written into it,
+    and the second raised ``PermissionError``, because the directory could no
+    longer be entered. Windows does not see it, because there ``chmod`` only
+    toggles the read-only attribute and every directory stays traversable —
+    so the bug showed up on one platform and not the other.
+
+    The narrowest mode a directory can carry and still be usable is ``0o700``:
+    the owner may enter it, and nobody else may.
+    """
     try:
-        path.chmod(0o600)
+        path.chmod(mode)
     except OSError:
         # Windows, and any filesystem without POSIX modes. The file exists and
         # the platform governs who may read it; pretending otherwise by
