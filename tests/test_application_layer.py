@@ -20,19 +20,21 @@ machine-readable reason, and every surface renders it the same way, without
 knowing which operation produced it.
 
 The rest is behavioural: what the operations return, what the plan and the
-steps say, and what happens when an approval is granted for one set of
-arguments and spent on another.
+steps say, what happens when an approval is granted for one set of
+arguments and spent on another, and what a page of the event log says about
+where a client resumes from.
 """
 
 from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from test_store_support import StoreEnv
 from test_store_support import env as _shared_env
 
@@ -42,6 +44,8 @@ from labcairn.application import (
     ApplicationRefusedError,
     ApprovalRequest,
     ApprovalUse,
+    EventPage,
+    Result,
     StageOutcome,
     StageRequest,
     consume_approval,
@@ -52,6 +56,7 @@ from labcairn.application import (
     list_sources,
     list_tasks,
     read_artifact,
+    read_events,
     read_plan,
     read_steps,
     read_task_state,
@@ -59,17 +64,20 @@ from labcairn.application import (
     request_approval,
     run_stage,
 )
+from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
-from labcairn.core.ids import ApprovalId, SourceId, new_id
+from labcairn.core.ids import ApprovalId, SourceId, TaskId, new_id
 from labcairn.db.materials import put_source
-from labcairn.db.repository import count_events
+from labcairn.db.repository import count_events, events_after
 from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
+from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.sources.source import Source, SourceKind, SourceReadability
+from labcairn.workspace.roots import Workspace
 
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
@@ -220,6 +228,7 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.approvals",
         "labcairn.application.artifacts",
         "labcairn.application.context",
+        "labcairn.application.events",
         "labcairn.application.records",
         "labcairn.application.sources",
         "labcairn.application.stages",
@@ -289,6 +298,7 @@ def test_the_layer_itself_reads_and_writes_through_the_store(repo_root: Path) ->
     guard above for the wrong reason.
     """
     touching = _modules_touching_the_store(repo_root)
+    assert "labcairn.application.events" in touching
     assert "labcairn.application.records" in touching
     assert "labcairn.application.tasks" in touching
 
@@ -905,6 +915,255 @@ def test_rendering_a_report_still_asks_the_policy_first(
         ),
         ApplicationRefusal.PERMISSION_DENIED,
     )
+
+
+# --------------------------------------------------------------------------- #
+# the event log
+# --------------------------------------------------------------------------- #
+
+
+def _emit(context: ApplicationContext, *occurred_at: datetime) -> None:
+    """Append task-level events to the log, stamped as the test says.
+
+    The stamps are the test's own, so a read that ordered by the clock
+    would disagree with a read that ordered by the seq, and the difference
+    would be visible rather than theoretical.
+    """
+    with context.store.unit(context.task_id) as work:
+        for moment in occurred_at:
+            work.emit(EventType.TASK_REVISED, occurred_at=moment)
+
+
+def test_reading_the_events_is_denied_by_a_deny_policy(env: StoreEnv, workspace_root: Path) -> None:
+    """The event log is a read of the task's own record, and it is gated."""
+    context = _make_context(env, workspace_root, _deny_all())
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+
+def test_the_read_is_checked_against_the_tasks_own_area(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The capability and the resource are the task's own, not a nearby one.
+
+    The read is of the task's own record, so it goes through the same check
+    ``read_task_state`` goes through: ``fs.read`` on the task's area. A rule
+    scoped to another capability must not authorise it, and a rule aimed at
+    another key must not cover it — a read of the event log is a read of the
+    area the log belongs to, and of nothing else.
+
+    Each policy below allows one thing and nothing else, so the default-deny
+    is what refuses everything the rule did not name.
+    """
+    only_read = PermissionPolicy.from_rules(
+        [Rule(effect=Permission.ALLOW, pattern="**", capabilities=frozenset({"fs.read"}))]
+    )
+    context = _make_context(env, workspace_root, only_read)
+    assert read_events(context).events
+
+    only_list = PermissionPolicy.from_rules(
+        [Rule(effect=Permission.ALLOW, pattern="**", capabilities=frozenset({"fs.list"}))]
+    )
+    context = _make_context(env, workspace_root, only_list)
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+    the_area = PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="output")])
+    context = _make_context(env, workspace_root, the_area)
+    assert read_events(context).events
+
+    another_area = PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="materials")])
+    context = _make_context(env, workspace_root, another_area)
+    _assert_refused(lambda: read_events(context), ApplicationRefusal.PERMISSION_DENIED)
+
+
+def test_reading_the_events_writes_nothing(env: StoreEnv, workspace_root: Path) -> None:
+    """A read is a read: the log is the same size afterwards."""
+    context = _make_context(env, workspace_root, _allow_all())
+    before = count_events(env.session, context.task_id)
+    read_events(context)
+    assert count_events(env.session, context.task_id) == before
+
+
+def test_the_page_carries_the_stores_events_by_value_and_by_type(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The port's contract is a layer model, and the events in it are the store's.
+
+    Two properties in one test, because they are one decision: the layer
+    returns a model of its own, and that model carries **the store's events**
+    -- by value and by type -- rather than a re-spelling of them. An event is
+    a fact about what happened, and a second shape for it would be a second
+    thing to keep true.
+
+    **By value and by type, and not by identity.** The store's readers read
+    the log afresh on every call, so the events a caller holds and the ones
+    the layer holds are never the same objects even when they are the same
+    events. Identity is not a property the layer could satisfy, so it is not
+    the property; what would be wrong is a layer that re-shaped the event
+    into a model of its own, and that is what the type assertion rules out.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    page = read_events(context)
+    assert isinstance(page, Result)
+    assert isinstance(page, EventPage)
+    assert all(isinstance(event, Event) for event in page.events)
+    assert page.events == events_after(env.session, context.task_id)
+
+
+def test_the_events_after_the_cursor_are_the_ones_the_client_has_not_seen(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The cursor is exclusive: the event the client stopped after is not sent again."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT)
+    everything = read_events(context)
+    assert [event.seq for event in everything.events] == [1, 2, 3]
+
+    after_the_first = read_events(context, after_seq=everything.events[0].seq)
+    assert [event.seq for event in after_the_first.events] == [2, 3]
+
+
+def test_the_events_come_back_in_seq_order_and_not_in_wall_clock_order(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The log's order is the seq, and the timestamp is not a sort key.
+
+    Wall-clock is not monotonic: a resumed process can emit a timestamp
+    earlier than one already recorded. A read that ordered by the clock
+    would hand the client the same events in a different order each time,
+    and a client that replays them would see the task's history change
+    shape.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT + timedelta(seconds=10), _MOMENT)
+    page = read_events(context)
+    assert [event.seq for event in page.events] == [1, 2, 3]
+    # The two emitted events are stamped in the opposite order to their seqs,
+    # so a clock-ordered read would have returned them the other way round.
+    assert [event.occurred_at for event in page.events[1:]] == [
+        _MOMENT + timedelta(seconds=10),
+        _MOMENT,
+    ]
+
+
+def test_the_limit_bounds_the_page(env: StoreEnv, workspace_root: Path) -> None:
+    """A limit is a page length, and it changes what comes back."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT, _MOMENT)
+    assert [event.seq for event in read_events(context, limit=2).events] == [1, 2]
+    assert len(read_events(context, limit=4).events) == 4
+    assert len(read_events(context).events) == 4
+
+
+def test_a_full_page_leaves_the_cursor_where_the_page_stopped(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A client that resumes from the page's cursor gets the next events, and only those."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _emit(context, _MOMENT, _MOMENT)
+    first = read_events(context, limit=2)
+    assert first.next_after_seq == 2
+    assert first.last_seq == 3
+    assert not first.caught_up
+
+    second = read_events(context, after_seq=first.next_after_seq)
+    assert [event.seq for event in second.events] == [3]
+    assert second.next_after_seq == 3
+    assert second.caught_up
+
+
+def test_an_empty_page_resumes_from_the_tasks_counter(env: StoreEnv, workspace_root: Path) -> None:
+    """A cursor past the end does not skip the events that are yet to come.
+
+    The cursor the page hands back is the task's own counter, not the one
+    that was asked for: a cursor beyond the counter would skip every event
+    between the two, and those are the events the client has not seen.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    page = read_events(context, after_seq=999)
+    assert page.events == ()
+    assert page.next_after_seq == page.last_seq
+
+
+def test_a_page_length_that_is_not_a_page_is_refused(env: StoreEnv, workspace_root: Path) -> None:
+    """A limit of none would never advance the cursor, and a limit of -1 is no limit.
+
+    SQLite reads ``LIMIT -1`` as unbounded, so a limit that was passed on
+    unchecked would hand the caller the whole log under a name that says
+    otherwise.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    _assert_refused(
+        lambda: read_events(context, limit=MIN_EVENT_LIMIT - 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+    _assert_refused(
+        lambda: read_events(context, limit=-1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+    _assert_refused(
+        lambda: read_events(context, limit=MAX_EVENT_LIMIT + 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_a_cursor_below_the_log_is_refused(env: StoreEnv, workspace_root: Path) -> None:
+    """Every event's seq is one or more, so a cursor below zero names the whole log."""
+    context = _make_context(env, workspace_root, _allow_all())
+    _assert_refused(
+        lambda: read_events(context, after_seq=-1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_the_page_bounds_are_the_runtime_requests_own(env: StoreEnv, workspace_root: Path) -> None:
+    """The layer and the runtime's own event stream request cannot disagree.
+
+    The layer's read is that request applied to the task the context is
+    about, so a page that one of them serves and the other refuses is a
+    request the API cannot build.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MAX_EVENT_LIMIT)
+    assert request.limit == MAX_EVENT_LIMIT
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MAX_EVENT_LIMIT + 1)
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=0, limit=MIN_EVENT_LIMIT - 1)
+    with pytest.raises(ValidationError):
+        EventStreamRequest(task_id=context.task_id, after_seq=-1)
+
+    assert read_events(context, limit=MAX_EVENT_LIMIT).events
+    _assert_refused(
+        lambda: read_events(context, limit=MAX_EVENT_LIMIT + 1),
+        ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+def test_reading_the_events_of_a_task_the_store_does_not_hold_is_refused(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A task that does not exist is not a task with no events.
+
+    The store states that rule for every other task-scoped read it owns, and
+    the layer keeps it: a client that cannot tell the two apart reports
+    "no events" for a task id it mistyped.
+    """
+    missing = ApplicationContext(
+        workspace=Workspace.bind(workspace_root, task_id=TaskId(new_id())),
+        store=env.store(),
+        policy=_allow_all(),
+        ledger=ApprovalLedger(),
+    )
+    _assert_refused(lambda: read_events(missing), ApplicationRefusal.TASK_NOT_FOUND)
+
+
+def test_the_page_is_serialisable_as_data(env: StoreEnv, workspace_root: Path) -> None:
+    """The CLI's ``--json`` and the API's body are the same model."""
+    context = _make_context(env, workspace_root, _allow_all())
+    payload = read_events(context).model_dump_json()
+    assert '"events"' in payload
+    assert '"next_after_seq"' in payload
+    assert '"last_seq"' in payload
 
 
 # --------------------------------------------------------------------------- #
