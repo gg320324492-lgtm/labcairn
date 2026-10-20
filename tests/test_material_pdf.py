@@ -211,6 +211,54 @@ def test_a_single_column_page_of_the_same_shape_is_extracted() -> None:
     assert "LEFT" in result.units[0].text
 
 
+def test_a_two_column_page_at_the_threshold_is_refused() -> None:
+    """The edge of the band, pinned.
+
+    The detector refuses a page whose rival column holds at least 30% of the
+    line starts. 7 of 23 is 30.4%, so this page is on the refused side of the
+    edge, and 35% would have put it on the other side: at 35% the required
+    share is 9 starts and this page has 7, so it would be extracted with its
+    columns interleaved.
+
+    The threshold's exact value is not a property on its own -- what is a
+    property is that the band is **no wider than the corpus allows**. The
+    corpus's own single-column pages cluster at 20-26%, so 30% is the lowest
+    share that refuses nothing real. This test is what stops the threshold
+    drifting back up into the band, where it would refuse less and splice
+    more.
+    """
+    result = _adapter().extract(_unbalanced_two_column_pdf(7, 16))
+
+    assert "pdf_multicolumn_unsupported" in _codes(result)
+
+
+def test_a_two_column_page_below_the_band_is_not_refused_and_that_is_the_residual() -> None:
+    """The residual, executable rather than only described.
+
+    6 of 22 is 27.3%, below the 30% the detector requires, so this page is
+    **not** refused: it is extracted, its left-column line and its
+    right-column line sit at the same height beside each other, and the
+    result is text no author wrote. That is the residual, and it is a real
+    one -- a reader who cannot see it cannot price it.
+
+    The band cannot be closed with this signal: the real single-column pages
+    the rule would also catch cluster at 20-26%, in the same place, so any
+    threshold that caught this page would refuse seven pages of good prose.
+    ADR-0008 records why the one thing that would calibrate the other
+    direction -- two-column CC-licensed material -- could not be obtained.
+
+    So the residual is pinned here instead of left to drift. If a future
+    corpus makes the band closable, this test is the thing to change, and
+    the change is a deletion rather than a reversal.
+    """
+    result = _adapter().extract(_unbalanced_two_column_pdf(6, 16))
+
+    assert "pdf_multicolumn_unsupported" not in _codes(result)
+    assert len(result.units) == 1
+    text = result.units[0].text
+    assert "LEFT line 0" in text and "RIGHT line 0" in text
+
+
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.name)
 def test_no_real_paper_is_refused_as_two_column(path: Path) -> None:
     """The false-positive direction, on the only real material there is.
@@ -313,6 +361,21 @@ def _two_column_pdf() -> bytes:
             for x, side in ((72.0, "LEFT"), (320.0, "RIGHT"))
         ]
     )
+
+
+def _unbalanced_two_column_pdf(left_lines: int, right_lines: int) -> bytes:
+    """Two columns of unequal length, sharing baselines and 248pt apart.
+
+    The shorter column's **share of the page's line starts** is what the
+    detector weighs, so the counts are the interesting part of this fixture
+    and the prose is deliberately different in each column: a reader can see
+    which words are whose.
+    """
+    lines: list[tuple[float, float, str]] = [
+        (320.0, 740 - i * 14, f"RIGHT line {i} of the right column") for i in range(right_lines)
+    ]
+    lines += [(72.0, 740 - i * 14, f"LEFT line {i} of the left column") for i in range(left_lines)]
+    return _text_pdf(lines)
 
 
 def _single_column_pdf() -> bytes:

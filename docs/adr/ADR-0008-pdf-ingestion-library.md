@@ -150,13 +150,28 @@ The status of that idea is narrower than it was and narrower than it should be. 
 refused, not merely recorded.** The owner decided against shipping the
 fabrication and against deferring it. Each page's baselines are cut into
 horizontally contiguous runs and the runs' left edges clustered; two clusters
-at least 80pt apart with the rival holding at least 35% of the page's line
+at least 80pt apart with the rival holding at least **30%** of the page's line
 starts is a two-column page, and that page is refused and disclosed as
 `pdf_multicolumn_unsupported` rather than extracted. Constraint 5 below is
 therefore satisfied in substance — a character range cannot land in
 interleaved text, because interleaved text is never stored — but it is
 satisfied by **refusal**, not by reconstruction, and the distinction is the
 point: a refusal is loud and a reconstruction that is nearly right is not.
+
+**The residual band, and it is a real one.** The threshold was **30%** as of
+2026-10-20, lowered from 35% when the independent review of G3 found the band
+understated. Below that share the page is **not** refused: a two-column page
+whose rival column holds less than 30% of the line starts is stored
+`readable`, and its left-column line and its right-column line sit at the same
+height beside each other in the extracted text — the fabrication, in a
+narrower band. **This band cannot be closed with this signal**: the real
+single-column pages the same rule would catch cluster at 20–26% of their line
+starts, in the same place, so any threshold that caught the residual would
+refuse seven pages of good prose. The one thing that would calibrate the
+other direction — two-column CC-licensed material — could not be obtained,
+for the reasons under "What would close it" below. The residual is pinned by a
+test of its own, so it is a limit that is visible rather than a limit that is
+only described.
 
 **Constraint 7 below is still unmet.** Rotated text is not detected at all, so
 a rotated page would still extract in the wrong order with nothing recorded.
@@ -166,17 +181,20 @@ satisfied.
 
 Recorded here rather than left for someone to discover from a wrong citation.
 
-`material/pdf.py` extracts each page as pdfplumber renders it, with **no
-attempt to reconstruct reading order across columns**. For a page laid out in
-two columns of running text, that output places a left-column line and the
+**Before the refusal, this was the shape of the gap.** `material/pdf.py`
+extracted each page as pdfplumber renders it, with **no attempt to
+reconstruct reading order across columns**. For a page laid out in two
+columns of running text, that output places a left-column line and the
 right-column line at the same height beside each other. The result is not what
 the paper says, and a citation built on it will not resolve to the author's
-words. This is the fabrication of measurement 2 above, and the adapter cannot
-detect the page it happens on.
+words. This is the fabrication of measurement 2 above, and at the time the
+adapter **could not detect the page it happened on**. The refusal at the top of
+this section is what answers that; the paragraph is kept because the reasoning
+that produced the refusal is in it.
 
-**Why there is no detector.** Two rounds of measurement on the repository's
-three CC-BY single-column fixtures ruled out the obvious rules. Measured over
-sixty-eight body pages:
+**Why there is no width- or midpoint-based detector.** Two rounds of
+measurement on the repository's three CC-BY single-column fixtures ruled out
+the obvious rules. Measured over sixty-eight body pages:
 
 | signal | range across genuine single-column pages |
 |---|---|
