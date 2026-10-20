@@ -1,0 +1,965 @@
+"""The eight commands, and the plumbing they share.
+
+Every command's data comes from the application layer. A command here decides
+*what* to ask and *how to draw the answer*; it never reads the store, never
+reaches past the layer, and never computes a thing the layer would compute.
+The one thing it constructs for the layer is the store handle, because the
+handle is what the layer consumes and the surface's only job is to supply it.
+
+**The machine-readable form and the rendered form come from one model.** Each
+command builds a value — the layer's own where the layer has one — and then
+either serialises it or draws it. There is no path where the prose is parsed
+to produce the JSON, because the prose is produced *after* the JSON could have
+been written.
+
+**A refusal is rendered, not raised.** The layer's
+:class:`~labcairn.application.ApplicationRefusedError` becomes a message naming
+what was refused and a non-zero exit, never a traceback. A script tells a
+refusal from a crash by the exit code alone: :data:`EXIT_REFUSED` is a
+refusal, and anything else that fails is a bug.
+
+**The options are declared with ``Annotated`` rather than as defaults.**
+Typer's older spelling puts a call in the argument default, and ruff's
+bugbear rule (B008) is right that a call in a default is a call that happens
+at import time. The annotation form keeps the default a value and the option
+beside it, and it is the form this project's lint rules can be left to.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Annotated, Any, NoReturn, cast
+
+import typer
+from rich.console import Console
+
+from labcairn.application import (
+    ApplicationRefusedError,
+    StageOutcome,
+    StageRequest,
+    create_task,
+    inspect_source,
+    list_artifacts,
+    read_plan,
+    read_task_state,
+    run_stage,
+)
+from labcairn.application.artifacts import ArtifactView
+from labcairn.application.sources import SourceView
+from labcairn.application.stages import TaskPlan
+from labcairn.application.tasks import TaskState
+from labcairn.cli import render
+from labcairn.cli.models import (
+    CLI_REFUSAL_INVALID_ARGUMENTS,
+    CLI_REFUSAL_NO_TASK_SELECTED,
+    CLI_REFUSAL_WORKSPACE_EXISTS,
+    CLI_REFUSAL_WORKSPACE_NOT_INITIALISED,
+    CLI_REFUSAL_WORKSPACE_UNUSABLE,
+    ApiSessionFinding,
+    CapabilityFinding,
+    DatabaseFinding,
+    DoctorReport,
+    PolicyFinding,
+    ProviderFinding,
+    WorkspaceFinding,
+    WorkspaceInitialised,
+    emit_model,
+    emit_models,
+    emit_refusal,
+)
+from labcairn.cli.workspace import (
+    DEFAULT_POLICY_RULES,
+    WorkspaceConfig,
+    WorkspaceLocation,
+    WorkspaceSetupError,
+    application_context,
+    is_initialised,
+    load_policy,
+    locate,
+    read_config,
+    source_paths,
+    write_config,
+    write_policy,
+)
+from labcairn.core.ids import TaskId, is_uuid7
+from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
+from labcairn.db.migrations import (
+    MigrationsUnavailableError,
+    current_revision,
+    head_revision,
+    upgrade_to_head,
+)
+from labcairn.providers.capabilities import (
+    ALL_CAPABILITIES,
+    Capability,
+    CapabilityOutcome,
+    ProviderCapabilities,
+)
+from labcairn.providers.credentials import ProviderSettings
+from labcairn.providers.probe import endpoint_fingerprint
+from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.security.capabilities import CapabilityId
+from labcairn.security.paths import CanonicalPath
+from labcairn.skills.artifacts import StageName
+
+#: The exit code a refusal carries.
+#:
+#: Not 1, because 1 is what an unhandled exception carries and a script must
+#: be able to tell "the layer said no" from "the program is broken" without
+#: reading the message. Not 2, because 2 is Click's own usage-error code and
+#: means the command was never run.
+EXIT_REFUSED = 3
+
+#: The exit code a usage error carries. Click's own.
+EXIT_USAGE = 2
+
+#: The file a workspace's model providers are configured in.
+#:
+#: The product's own format — :func:`labcairn.providers.credentials.
+#: load_providers_config` reads it — so the CLI does not invent a second one.
+PROVIDERS_FILE_NAME = "providers.json"
+
+#: The option every command shares, declared once.
+WorkspaceOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--workspace",
+        "-w",
+        help="The workspace directory. The one root every command is bound to.",
+    ),
+]
+
+#: The machine-readable form, declared once.
+JsonOption = Annotated[
+    bool,
+    typer.Option(
+        "--json",
+        help="Print the machine-readable form instead of the rendered one.",
+    ),
+]
+
+#: Which task a command is about, declared once.
+TaskOption = Annotated[
+    str | None,
+    typer.Option(
+        "--task",
+        help="The task the command is about. Defaults to the workspace's current task.",
+    ),
+]
+
+
+@dataclass(frozen=True, slots=True)
+class CliOptions:
+    """What the root callback decided, passed to every command.
+
+    The workspace path is a *selection*, made once at the top of the command
+    line so that every subcommand judges the same directory. It is the
+    explicit root selection ADR-0003 §C5 asks for; the default is the
+    process's working directory, which is a convenience and not an inference —
+    the path is still named, and still checked.
+    """
+
+    workspace: Path
+
+
+app = typer.Typer(
+    name="labcairn",
+    help="LabCairn — a local-first research workspace.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+task_app = typer.Typer(help="Create, run, inspect and resume a task.", no_args_is_help=True)
+sources_app = typer.Typer(help="Inspect the material a task is bound to.", no_args_is_help=True)
+artifacts_app = typer.Typer(help="List what a task has produced.", no_args_is_help=True)
+
+app.add_typer(task_app, name="task")
+app.add_typer(sources_app, name="sources")
+app.add_typer(artifacts_app, name="artifacts")
+
+
+@app.callback()
+def _root(
+    ctx: typer.Context,
+    workspace: Annotated[
+        Path | None,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="The workspace directory. The one root every command is bound to.",
+        ),
+    ] = None,
+) -> None:
+    """The options every command shares."""
+    ctx.obj = CliOptions(workspace=workspace if workspace is not None else Path.cwd())
+
+
+# --------------------------------------------------------------------------- #
+# plumbing
+# --------------------------------------------------------------------------- #
+
+
+def _options(ctx: typer.Context) -> CliOptions:
+    """The root callback's decision, as the command sees it."""
+    return cast(CliOptions, ctx.obj)
+
+
+def _console() -> Console:
+    """The console a human reads.
+
+    Standard output, because a command's result is its output; the refusals
+    go to standard error, so a script that ignores the exit code still does
+    not mistake a refusal for a result.
+    """
+    return Console()
+
+
+@contextmanager
+def _refusals(as_json: bool) -> Iterator[None]:
+    """Render a refusal instead of letting it out.
+
+    Both the layer's refusals and the CLI's own two conditions come out of
+    here, so every failure a command can have has one rendering, one exit
+    code and one JSON shape.
+    """
+    try:
+        yield
+    except ApplicationRefusedError as error:
+        payload = error.to_payload()
+        emit_refusal(payload["reason"], payload["message"], as_json=as_json)
+        raise typer.Exit(code=EXIT_REFUSED) from None
+    except WorkspaceSetupError as error:
+        emit_refusal(
+            CLI_REFUSAL_WORKSPACE_UNUSABLE,
+            str(error),
+            as_json=as_json,
+        )
+        raise typer.Exit(code=EXIT_REFUSED) from None
+
+
+def _refuse(reason: str, message: str, *, as_json: bool) -> NoReturn:
+    """Refuse, and end the command."""
+    emit_refusal(reason, message, as_json=as_json)
+    raise typer.Exit(code=EXIT_REFUSED)
+
+
+def _require_workspace(location: WorkspaceLocation, *, as_json: bool) -> WorkspaceConfig:
+    """The workspace's configuration, or a refusal naming what is missing."""
+    if not is_initialised(location):
+        _refuse(
+            CLI_REFUSAL_WORKSPACE_NOT_INITIALISED,
+            f"{location.root} is not a LabCairn workspace: there is no "
+            f"{location.config_path}. Run `labcairn init` there, or point "
+            "--workspace at one that is.",
+            as_json=as_json,
+        )
+    return read_config(location)
+
+
+def _select_task(
+    config: WorkspaceConfig,
+    requested: str | None,
+    *,
+    as_json: bool,
+) -> TaskId:
+    """Which task the command is about.
+
+    The explicit ``--task`` wins; otherwise the workspace's current task. A
+    workspace with neither is a usage problem rather than a refusal by the
+    layer — but it is reported in the refusal shape so that a caller reads
+    one failure format, and it carries its own reason so the two are
+    distinguishable.
+    """
+    chosen = requested if requested is not None else config.current_task
+    if chosen is None:
+        _refuse(
+            CLI_REFUSAL_NO_TASK_SELECTED,
+            "no task was named. Pass --task <task-id>, or run `labcairn task "
+            "create` to make one and make it the workspace's current task.",
+            as_json=as_json,
+        )
+    if not is_uuid7(chosen):
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"{chosen!r} is not a task id: task ids are UUIDv7.",
+            as_json=as_json,
+        )
+    return TaskId(uuid.UUID(chosen))
+
+
+# --------------------------------------------------------------------------- #
+# init
+# --------------------------------------------------------------------------- #
+
+
+@app.command()
+def init(
+    ctx: typer.Context,
+    as_json: JsonOption = False,
+) -> None:
+    """Create a workspace, and say what it made.
+
+    A workspace is a directory, a database, a source directory and a policy.
+    This command makes them; it never makes them over an existing workspace,
+    because a workspace holds a task's history and a second `init` must not
+    be able to leave two of them disagreeing about what the workspace is.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if location.root.exists() and not location.root.is_dir():
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{location.root} exists and is not a directory, so it cannot be a workspace.",
+                as_json=as_json,
+            )
+        if is_initialised(location) or location.database_path.exists():
+            _refuse(
+                CLI_REFUSAL_WORKSPACE_EXISTS,
+                f"{location.root} already holds a LabCairn workspace, and `init` does "
+                "not overwrite an existing one. Use the workspace as it is, or "
+                "choose another directory.",
+                as_json=as_json,
+            )
+
+        created: list[str] = []
+        location.root.mkdir(parents=True, exist_ok=True)
+        created.append(str(location.root))
+        location.materials_path.mkdir(parents=True, exist_ok=True)
+        created.append(str(location.materials_path))
+        location.output_path.mkdir(parents=True, exist_ok=True)
+        created.append(str(location.output_path))
+
+        try:
+            upgrade_to_head(location.database_path)
+        except MigrationsUnavailableError as error:
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the database could not be created: {error}",
+                as_json=as_json,
+            )
+        created.append(str(location.database_path))
+
+        write_policy(location, DEFAULT_POLICY_RULES)
+        created.append(str(location.policy_path))
+
+        config = WorkspaceConfig(
+            schema_version=1,
+            database=location.database_path.name,
+            source_dirs=(location.materials_path.name,),
+            current_task=None,
+        )
+        write_config(location, config)
+        created.append(str(location.config_path))
+
+        model = WorkspaceInitialised(
+            root=str(location.root),
+            database_path=str(location.database_path),
+            migration_revision=current_revision(location.database_path) or "none",
+            source_dirs=config.source_dirs,
+            created=tuple(created),
+            policy_digest=load_policy(location).digest(),
+        )
+    if as_json:
+        emit_model(model)
+    else:
+        _console().print(render.render_initialised(model))
+
+
+# --------------------------------------------------------------------------- #
+# doctor
+# --------------------------------------------------------------------------- #
+
+
+@app.command()
+def doctor(
+    ctx: typer.Context,
+    as_json: JsonOption = False,
+    probe: Annotated[
+        bool,
+        typer.Option(
+            "--probe",
+            help=(
+                "Ask the configured model providers what they can do, by making real "
+                "requests. Costs money; without it the capabilities are reported as "
+                "declared but unverified."
+            ),
+        ),
+    ] = False,
+    assume_capability: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--assume-capability",
+            help=(
+                "Treat a model provider capability as supported, whatever was "
+                "observed. May be given more than once."
+            ),
+        ),
+    ] = None,
+    show_token: Annotated[
+        bool,
+        typer.Option(
+            "--show-token",
+            help="Print the local API's session token, if one has been written.",
+        ),
+    ] = False,
+) -> None:
+    """Report what the workspace, the store, the policy and the providers are.
+
+    The findings are data and the prose is drawn from them, so the two cannot
+    disagree. This is the command that most wants to be a paragraph, and the
+    one the architecture's rule catches; the way out is to make the paragraph
+    generated rather than written.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = read_config(location) if is_initialised(location) else None
+        model = _doctor_report(
+            location,
+            config,
+            probe=probe,
+            assume_capability=tuple(assume_capability or ()),
+            show_token=show_token,
+        )
+    if as_json:
+        emit_model(model)
+    else:
+        _console().print(render.render_doctor(model))
+
+
+def _doctor_report(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig | None,
+    *,
+    probe: bool,
+    assume_capability: tuple[str, ...],
+    show_token: bool,
+) -> DoctorReport:
+    """Everything doctor found, assembled from the workspace's own files."""
+    database_path = location.root / (config.database if config is not None else "labcairn.db")
+    present = database_path.is_file()
+    revision = current_revision(database_path) if present else None
+    database = DatabaseFinding(
+        path=str(database_path),
+        present=present,
+        revision=revision,
+        at_head=present and revision == _head_revision(),
+    )
+
+    policy = load_policy(location)
+    policy_finding = PolicyFinding(
+        source=str(location.policy_path) if location.policy_path.is_file() else "default (no file)",
+        digest=policy.digest(),
+        rules=tuple(rule.render() for rule in policy.rules),
+    )
+
+    workspace_finding = WorkspaceFinding(
+        root=str(location.root),
+        initialised=config is not None,
+        source_dirs=config.source_dirs if config is not None else (),
+        output_root=str(location.output_path),
+        current_task=config.current_task if config is not None else None,
+    )
+
+    session = ApiSessionFinding(
+        path=str(location.token_path),
+        present=location.token_path.is_file(),
+        token=_read_token(location) if show_token else None,
+    )
+
+    return DoctorReport(
+        workspace=workspace_finding,
+        database=database,
+        policy=policy_finding,
+        providers=_provider_findings(location, probe=probe, assume_capability=assume_capability),
+        api_session=session,
+    )
+
+
+def _head_revision() -> str:
+    """The newest revision the repository knows about."""
+    try:
+        return head_revision()
+    except MigrationsUnavailableError:
+        return "none"
+
+
+def _read_token(location: WorkspaceLocation) -> str | None:
+    """The API's session token, if the API has written one."""
+    if not location.token_path.is_file():
+        return None
+    try:
+        return location.token_path.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _provider_findings(
+    location: WorkspaceLocation,
+    *,
+    probe: bool,
+    assume_capability: tuple[str, ...],
+) -> tuple[ProviderFinding, ...]:
+    """What the workspace's model providers can do.
+
+    Without ``--probe`` nothing is asked of a provider, so every capability is
+    reported as unverified — which is the honest state of a workspace whose
+    endpoints have never been asked. With it, the providers are probed for
+    real, which costs money and is why it is opt-in.
+    """
+    settings_by_name = _provider_settings(location)
+    if not settings_by_name:
+        return ()
+
+    known = {capability.value for capability in ALL_CAPABILITIES}
+    unknown = sorted(set(assume_capability) - known)
+    if unknown:
+        raise WorkspaceSetupError(
+            f"unknown model provider capabilit{'y' if len(unknown) == 1 else 'ies'}: "
+            f"{', '.join(unknown)}. The capabilities are {', '.join(sorted(known))}."
+        )
+
+    findings: list[ProviderFinding] = []
+    for name, settings in settings_by_name.items():
+        fingerprint = endpoint_fingerprint(
+            base_url=settings.sanitised_base_url(),
+            model=settings.model,
+            protocol=settings.protocol_label,
+        )
+        capabilities = _probe_capabilities(settings, fingerprint) if probe else None
+        findings.append(
+            ProviderFinding(
+                name=name,
+                protocol=settings.protocol_label,
+                model=settings.model,
+                endpoint_fingerprint=fingerprint,
+                probed=capabilities is not None,
+                capabilities=_capability_findings(
+                    capabilities,
+                    assume_capability=assume_capability,
+                ),
+            )
+        )
+    return tuple(findings)
+
+
+def _provider_settings(location: WorkspaceLocation) -> Mapping[str, ProviderSettings]:
+    """The workspace's configured model providers."""
+    path = location.root / PROVIDERS_FILE_NAME
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise WorkspaceSetupError(f"{path} could not be read as JSON: {error}") from error
+    if not isinstance(raw, Mapping) or not isinstance(raw.get("providers"), Mapping):
+        raise WorkspaceSetupError(f'{path} must hold a top-level "providers" object.')
+    entries = raw["providers"]
+    return {str(name): ProviderSettings.from_mapping(entry) for name, entry in entries.items()}
+
+
+def _probe_capabilities(
+    settings: ProviderSettings,
+    fingerprint: str,
+) -> ProviderCapabilities | None:
+    """Ask one endpoint what it can do.
+
+    A probe that fails is reported as a capability that could not be observed
+    rather than as a crash: ``doctor`` is a diagnostic, and a diagnostic that
+    dies on the first thing it cannot read is not a diagnostic.
+    """
+    try:
+        from labcairn.providers.pydantic_models import smoke_test
+
+        wire = smoke_test(settings)
+    except Exception:
+        return None
+
+    outcomes = wire.get("outcomes", {})
+    evidence = wire.get("evidence", {})
+    if not isinstance(outcomes, Mapping) or not isinstance(evidence, Mapping):
+        return None
+    try:
+        parsed_outcomes = {
+            Capability(str(capability)): CapabilityOutcome(str(outcome))
+            for capability, outcome in outcomes.items()
+        }
+    except ValueError:
+        return None
+    return ProviderCapabilities.from_outcomes(
+        endpoint_fingerprint=str(wire.get("endpoint_fingerprint", fingerprint)),
+        model=str(wire.get("model", settings.model)),
+        protocol=str(wire.get("protocol", settings.protocol_label)),
+        outcomes=parsed_outcomes,
+        unsupported_reason=_evidence_by_capability(evidence),
+    )
+
+
+def _evidence_by_capability(evidence: Mapping[Any, Any]) -> dict[Capability, str]:
+    """The probe's evidence, keyed by the capability it explains.
+
+    An entry whose key is not a capability this build knows is dropped rather
+    than guessed at: the reason is only meaningful against the capability it
+    was observed for, and a reason attached to the wrong one would be a claim
+    about something nobody measured.
+    """
+    reasons: dict[Capability, str] = {}
+    for key, value in evidence.items():
+        try:
+            capability = Capability(str(key))
+        except ValueError:
+            continue
+        reasons[capability] = str(value)
+    return reasons
+
+
+def _capability_findings(
+    capabilities: ProviderCapabilities | None,
+    *,
+    assume_capability: tuple[str, ...],
+) -> tuple[CapabilityFinding, ...]:
+    """One finding per capability, in the provider layer's own order."""
+    if capabilities is None:
+        capabilities = ProviderCapabilities.unverified(
+            endpoint_fingerprint="unprobed",
+            model="unprobed",
+            protocol="unprobed",
+        )
+
+    findings: list[CapabilityFinding] = []
+    for capability in ALL_CAPABILITIES:
+        outcome = capabilities.outcome_for(capability)
+        assumed = capability.value in assume_capability
+        reason = capabilities.unsupported_reason.get(capability)
+        findings.append(
+            CapabilityFinding(
+                capability=capability.value,
+                outcome=outcome.value,
+                reason=reason,
+                assumed=assumed,
+                usable=outcome.usable or assumed,
+            )
+        )
+    return tuple(findings)
+
+
+# --------------------------------------------------------------------------- #
+# task
+# --------------------------------------------------------------------------- #
+
+
+@task_app.command("create")
+def task_create(
+    ctx: typer.Context,
+    title: Annotated[str, typer.Option("--title", help="What the task is called.")],
+    objective: Annotated[
+        str,
+        typer.Option("--objective", help="What the task is trying to establish."),
+    ],
+    criterion: Annotated[
+        str,
+        typer.Option("--criterion", help="What would count as having established it."),
+    ],
+    source_dir: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--source-dir",
+            help=(
+                "A directory of supplied material, inside the workspace, to bind as a "
+                "source root. May be given more than once."
+            ),
+        ),
+    ] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Make a task, its workspace, and its first event.
+
+    The task's output area is created and the task's first event is written
+    in one transaction by the layer, so a task that exists has a history.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        sources = _resolve_source_dirs(location, config, tuple(source_dir or ()), as_json=as_json)
+        if sources != config.source_dirs:
+            config = config.model_copy(update={"source_dirs": sources})
+
+        engine = create_db_engine(location.root / config.database)
+        factory = create_session_factory(engine)
+        try:
+            with session_scope(factory) as session:
+                created = create_task(
+                    store=TaskStore(session),
+                    policy=load_policy(location),
+                    workspace_root=location.root,
+                    title=title,
+                    goal=TaskGoal(objective=objective, success_criterion=criterion),
+                    source_dirs=source_paths(location, config),
+                )
+        finally:
+            engine.dispose()
+
+        write_config(
+            location, config.model_copy(update={"current_task": str(created.task.task_id)})
+        )
+        model = created.task
+    if as_json:
+        emit_model(model)
+    else:
+        output_area = location.output_path / str(model.task_id)
+        _console().print(render.render_task(model, output_area))
+
+
+def _resolve_source_dirs(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig,
+    requested: tuple[str, ...],
+    *,
+    as_json: bool,
+) -> tuple[str, ...]:
+    """The source roots, after the operator's additions.
+
+    A source directory the workspace does not contain is refused rather than
+    silently dropped: a source root outside the workspace is a root the
+    operator's selection of the workspace does not govern, and the layer
+    refuses it too — but the layer cannot say which directory the operator
+    named.
+    """
+    directories = list(config.source_dirs)
+    for entry in requested:
+        candidate = (location.root / entry).resolve()
+        if not candidate.is_relative_to(location.root):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the source directory {entry!r} resolves to {candidate}, which is "
+                f"outside the workspace {location.root}. A source root the workspace "
+                "does not contain is a root the operator's selection does not govern.",
+                as_json=as_json,
+            )
+        if not candidate.is_dir():
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the source directory {entry!r} is {candidate}, which is not a "
+                "directory. `task create` binds directories that are there; it does "
+                "not make them.",
+                as_json=as_json,
+            )
+        relative = candidate.relative_to(location.root).as_posix()
+        if relative not in directories:
+            directories.append(relative)
+    return tuple(directories)
+
+
+@task_app.command("status")
+def task_status(
+    ctx: typer.Context,
+    task: TaskOption = None,
+    plan: Annotated[
+        bool,
+        typer.Option(
+            "--plan",
+            help=(
+                "Report the declared workflow and how far the task has got through it, "
+                "instead of the task's current state."
+            ),
+        ),
+    ] = False,
+    as_json: JsonOption = False,
+) -> None:
+    """Report where a task is.
+
+    The state is one value and the plan is another, and the layer keeps them
+    apart because neither is derived from the other: the plan is what should
+    happen, the state is what did. ``--plan`` says which one to report.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            if plan:
+                model: TaskState | TaskPlan = read_plan(context)
+            else:
+                model = read_task_state(context)
+    if as_json:
+        emit_model(model)
+    else:
+        console = _console()
+        if isinstance(model, TaskPlan):
+            console.print(render.render_task_plan(model))
+        else:
+            console.print(render.render_task_state(model))
+
+
+@task_app.command("run")
+def task_run(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to inventory.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Run a stage, in the task's current run.
+
+    The stage this build can run is ``inventory``: the work is the layer's own
+    ``inspect_source``, and the stage's output hash is the material's content
+    hash. The other declared stages have bodies in LC-P1-08, LC-P1-09,
+    LC-P1-10 and LC-P1-11, and this command does not pretend to have them.
+    """
+    _run_a_stage(ctx, source=source, task=task, as_json=as_json, resume=False)
+
+
+@task_app.command("resume")
+def task_resume(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to inventory.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Start a new attempt against the task, and run a stage in it.
+
+    A resume is a **new Run against the same Task** and never a new Task
+    (ADR-0003 C1, R-02): the task's identity survives every attempt, and the
+    attempt number is what says how many there have been. ``task run``
+    continues the current run instead.
+    """
+    _run_a_stage(ctx, source=source, task=task, as_json=as_json, resume=True)
+
+
+def _run_a_stage(
+    ctx: typer.Context,
+    *,
+    source: str,
+    task: str | None,
+    as_json: bool,
+    resume: bool,
+) -> None:
+    """The stage run both ``task run`` and ``task resume`` perform.
+
+    The difference is the run the stage belongs to, and nothing else: a
+    resume names no run, so the layer opens a new one, and a run names the
+    task's current one.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            view = inspect_source(context, source)
+            resource = context.resource_for(view.source.relative_path)
+            run_id = None
+            if not resume:
+                state = read_task_state(context)
+                if state.runs:
+                    run_id = state.runs[-1].run_id
+            request = StageRequest(
+                stage_name=StageName.INVENTORY.value,
+                capability=CapabilityId.SOURCE_INVENTORY,
+                arguments={},
+                root_id=resource.root_id,
+                resource_key=resource.resolved_key,
+                run_id=run_id,
+            )
+            outcome = run_stage(context, request, _inventory_work(context, source))
+    if as_json:
+        emit_model(outcome)
+    else:
+        _console().print(render.render_stage_run(outcome))
+
+
+def _inventory_work(context: Any, source_id: str) -> Any:
+    """The ``inventory`` stage's body.
+
+    A composition of the layer's own ``inspect_source`` and nothing else: the
+    stage reads the material through the capability model, exactly as every
+    other read does, and records the content hash it saw. The stage bodies
+    for the other declared stages belong to the packages that own them, and
+    this one is here only because the CLI has to give ``run_stage`` something
+    to run.
+    """
+
+    def work(resource: CanonicalPath) -> StageOutcome:
+        del resource
+        inspected = inspect_source(context, source_id)
+        return StageOutcome(output_hashes=(inspected.source.content_sha256,))
+
+    return work
+
+
+# --------------------------------------------------------------------------- #
+# sources
+# --------------------------------------------------------------------------- #
+
+
+@sources_app.command("inspect")
+def sources_inspect(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to inspect.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Report one source, as the ledger holds it.
+
+    The layer inventories the ledger and does not read the material: what a
+    source *is* — its kind, its hash, its size, and the disclosure that says
+    why it could not be read — is one operation, and reading its bytes is
+    another.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            model: SourceView = inspect_source(context, source)
+    if as_json:
+        emit_model(model)
+    else:
+        _console().print(render.render_source(model))
+
+
+# --------------------------------------------------------------------------- #
+# artifacts
+# --------------------------------------------------------------------------- #
+
+
+@artifacts_app.command("list")
+def artifacts_list(
+    ctx: typer.Context,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """List what a task has produced.
+
+    The receipts, oldest revision first. The list is of what the store holds
+    — an artefact that was written and not recorded is not one the task has
+    produced.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            models = list_artifacts(context)
+    if as_json:
+        emit_models(models, ArtifactView)
+    else:
+        _console().print(render.render_artifacts(models))
+
+
+__all__ = [
+    "EXIT_REFUSED",
+    "EXIT_USAGE",
+    "app",
+    "artifacts_app",
+    "sources_app",
+    "task_app",
+]
