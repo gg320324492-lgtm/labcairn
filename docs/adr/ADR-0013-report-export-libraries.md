@@ -447,7 +447,7 @@ and one the owner has already declined to pin.
   records the fact and the text; it does not decide the legal question.
 - **The Markdown escape table is this ADR's business only in shape.** The
   implementing subtask owns the table and its test; the table is written —
-  **nineteen characters, one table, pinned by a test of its own** — and this
+  **eighteen characters, one table, pinned by a test of its own** — and this
   ADR fixes only that it must be one table and must be tested.
 - **A report has been exported since this ADR was written.** Everything above
   says the libraries can produce the four forms; the first real export was
