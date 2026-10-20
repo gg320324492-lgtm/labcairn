@@ -107,7 +107,7 @@ The research workflow behind these commands is still under construction, and mos
 uv run labcairn --help
 ```
 
-The commands the Phase 1 work order names, and what each can do today:
+The commands, and what each can do today:
 
 | Command | What it does | State today |
 |---|---|---|
