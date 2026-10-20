@@ -44,6 +44,7 @@ Operation                  Capability
 =========================  ===========================================
 ``create_task``            ``fs.write``
 ``read_task_state``        ``fs.read``
+``read_events``            ``fs.read``
 ``list_tasks``             ``fs.list``
 ``run_stage``              the caller's
 ``read_plan``              ``fs.read``
@@ -78,6 +79,7 @@ from labcairn.application.artifacts import (
     read_artifact,
 )
 from labcairn.application.context import ApplicationContext
+from labcairn.application.events import EventPage, read_events
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.reports import ReportRendered, ReportRequest, render_report
@@ -113,6 +115,7 @@ __all__ = [
     "ApprovalUse",
     "ArtifactContent",
     "ArtifactView",
+    "EventPage",
     "PlanStage",
     "ReportRendered",
     "ReportRequest",
@@ -134,6 +137,7 @@ __all__ = [
     "list_sources",
     "list_tasks",
     "read_artifact",
+    "read_events",
     "read_plan",
     "read_steps",
     "read_task_state",
