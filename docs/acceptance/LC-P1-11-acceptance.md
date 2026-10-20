@@ -44,6 +44,14 @@ reviews carry.
   finding, and three of the reviewer's own mistakes were corrected in the
   process — one of them had been reported to the owner as a gap before it was
   found to be wrong. The corrections are recorded in the pull requests.
+- **The table above was re-run against the merged `main` after the review was
+  written**, so that the figures are not the reviewer's recollection of its own
+  work: **T12's ten** — seven in the builder, three in the interpretation —
+  and **T13's seven**, and every one was caught again. The re-check also
+  closed a gap in the reviewer's own bookkeeping: T13's seventh mutation, the
+  `artifact_recorded` event without which the receipts would be rows nobody
+  had been told about, had never been written down, so it was written for the
+  re-check rather than the count being edited down to six.
 - **The status board's own consistency test** — 116 tests on `main` at
   `2e485b0`, 117 with this review's own document added to the tree, since the
   test checks every document under `docs/` — after every change to the board,
