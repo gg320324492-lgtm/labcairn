@@ -43,6 +43,15 @@ and the interpretation marker are constants, not text that came from a
 source, so they are not escaped: they are the product's sentences, and
 there is one spelling of each in the tree. Everything the model holds is
 escaped, including the report's own title and headings.
+
+**A paragraph that starts with four spaces is not allowed to become a
+code block.** CommonMark opens an indented code block with four spaces
+or a tab at the start of a line, and the narrative and the
+interpretation are written at the start of a line. Their leading indent
+is written as a character reference, which the reader decodes back to
+the same spaces: the text is unchanged and the paragraph stays a
+paragraph, so the export's structure is a function of the model rather
+than of where the text happens to begin.
 """
 
 from __future__ import annotations
@@ -112,6 +121,15 @@ MARKDOWN_ESCAPE_TABLE: Final[dict[str, str]] = {
 #: here, so the rule stays decidable by looking at the text.
 _ASCII_DIGITS: Final[str] = "0123456789"
 
+#: The character reference each whitespace character is written as, when
+#: it would otherwise open an indented code block.
+#:
+#: A character reference is the one way to write a space at the start of a
+#: line without starting a code block: the block structure is decided on
+#: the raw line, and the reference is decoded afterwards, so the reader
+#: sees the same space and the paragraph stays a paragraph.
+_WHITESPACE_REFERENCES: Final[dict[str, str]] = {" ": "&#32;", "\t": "&#9;"}
+
 
 def escape_markdown(text: str) -> str:
     """Escape one text value, so that it cannot become Markdown structure.
@@ -134,6 +152,36 @@ def escape_markdown(text: str) -> str:
             continue
         out.append(MARKDOWN_ESCAPE_TABLE.get(character, character))
     return "".join(out)
+
+
+def _protect_leading_indent(text: str) -> str:
+    """A paragraph that would open a code block, written so that it does not.
+
+    CommonMark opens an **indented code block** with four spaces or a tab
+    at the start of a line, so a paragraph whose text begins that way is
+    drawn as code rather than as prose. The narrative and the
+    interpretation are the report's own prose and are written at the
+    start of a line, so they are the two blocks where this can happen;
+    a caption, a claim and a citation are all prefixed by the writer and
+    cannot open one.
+
+    The leading whitespace is written as a character reference instead.
+    The text the reader sees is unchanged — the same spaces, in the same
+    place — and the paragraph stays a paragraph, so the export's
+    structure is a function of the model and not of where the text
+    happens to start.
+
+    :param text: the escaped text of one paragraph.
+    :returns: the text, with a leading indent written as references when
+        that indent would open a code block.
+    """
+    indent = text[: len(text) - len(text.lstrip(" \t"))]
+    if not indent:
+        return text
+    if "\t" not in indent and len(indent) < 4:
+        return text
+    reference = "".join(_WHITESPACE_REFERENCES[character] for character in indent)
+    return reference + text[len(indent) :]
 
 
 def _is_digit(character: str) -> bool:
@@ -205,6 +253,11 @@ def _draw_item(item: ReportItem) -> list[str]:
     The interpretation marker is the one piece of the product's own words
     that appears inside a line, and it is appended **after** the escaping,
     so that it appears in the file exactly as the product spells it.
+
+    A narrative and an interpretation are written at the start of a line,
+    so they are the two kinds whose leading indent could open a code
+    block, and their leading indent is protected. A caption, a claim and
+    a citation are prefixed by the writer and cannot open one.
     """
     lines = with_interpretation_marker(
         [escape_markdown(line) for line in item.lines], item.is_interpretation
@@ -213,4 +266,6 @@ def _draw_item(item: ReportItem) -> list[str]:
         return [f"- {line}" for line in lines]
     if item.kind in (BlockKind.FIGURE, BlockKind.TABLE):
         return [lines[0], "", lines[1]]
+    if item.kind in (BlockKind.NARRATIVE, BlockKind.INTERPRETATION):
+        return [_protect_leading_indent(line) for line in lines]
     return lines

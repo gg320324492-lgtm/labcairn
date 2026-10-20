@@ -37,10 +37,17 @@ the model, so the export names the artefact rather than embedding it.
 **The text is escaped for reportlab's markup, and a character reportlab
 cannot draw is refused rather than mangled.** reportlab's ``Paragraph`` is
 a small markup language, so ``&`` and ``<`` are escaped the way the
-library's own parser expects. The faces are WinAnsi-encoded, and a
-character outside that encoding is **refused by name**: reportlab
-substitutes a placeholder silently, and a report that says one thing and
-prints another is worse than a report that refuses to be printed.
+library's own parser expects. The escaping happens **once**, at the call
+site, and nowhere else: a paragraph that escaped its own text as well
+would escape it twice, and reportlab would print the escape sequence
+instead of the text. The DOCX escapes nothing at all, because OOXML text
+is not a markup language, and the PDF is the one form that has to get
+this right — it is the form people print and forward.
+
+The faces are WinAnsi-encoded, and a character outside that encoding is
+**refused by name**: reportlab substitutes a placeholder silently, and a
+report that says one thing and prints another is worse than a report that
+refuses to be printed.
 """
 
 from __future__ import annotations
@@ -116,16 +123,16 @@ def render_pdf(document: ReportDocument) -> bytes:
     styles = getSampleStyleSheet()
     story: list[Flowable] = []
 
-    story.append(_paragraph(styles, report.title, style="Title"))
+    story.append(_paragraph(styles, _escape(report.title), style="Title"))
     story.append(_paragraph(styles, FIRST_PASS_NOTICE))
     story.append(_paragraph(styles, REPRODUCIBILITY_NOTICE))
-    story.append(_paragraph(styles, f"Snapshot: {report.as_of.isoformat()}"))
+    story.append(_paragraph(styles, f"Snapshot: {_escape(report.as_of.isoformat())}"))
     if report.record_ids:
-        records = ", ".join(report.record_ids)
+        records = ", ".join(_escape(record_id) for record_id in report.record_ids)
         story.append(_paragraph(styles, f"Records: {records}"))
 
     for section in report.sections:
-        story.append(_paragraph(styles, section.heading, style="Heading1"))
+        story.append(_paragraph(styles, _escape(section.heading), style="Heading1"))
         for item in section.items:
             story.extend(_draw_item(styles, item))
 
@@ -138,7 +145,7 @@ def render_pdf(document: ReportDocument) -> bytes:
     story.append(_paragraph(styles, "Provenance", style="Heading1"))
     for footnote in report.footnotes:
         for line in footnote.lines:
-            story.append(_paragraph(styles, line, bullet=True))
+            story.append(_paragraph(styles, _escape(line), bullet=True))
 
     buffer = io.BytesIO()
     document_template = SimpleDocTemplate(
@@ -157,6 +164,10 @@ def _draw_item(styles: Mapping[str, ParagraphStyle], item: ReportItem) -> list[F
     The wording is the item's own, so the PDF says what the Markdown and
     the HTML and the DOCX say. A finding and a disclosure are drawn as
     bullets, because they are entries in a list.
+
+    The item's lines are escaped **here**, once, and the interpretation
+    marker is appended after that escaping — the marker is the product's
+    own sentence and is not the model's text.
     """
     lines = with_interpretation_marker(
         [_escape(line) for line in item.lines], item.is_interpretation
@@ -172,12 +183,19 @@ def _paragraph(
     style: str = "BodyText",
     bullet: bool = False,
 ) -> Flowable:
-    """One paragraph, with the text escaped for reportlab's markup."""
+    """One paragraph, with the text already escaped for reportlab's markup.
+
+    The escaping happens at the call site and **only** there: a paragraph
+    that escaped its own text would escape the text twice, and reportlab
+    would print the escape sequence instead of the text. The PDF is the
+    form people print and forward, so it is the worst place for that to
+    be wrong.
+    """
     from reportlab.platypus import Paragraph
 
     if bullet:
-        return Paragraph(_escape(text), styles[style], bulletText=_BULLET)
-    return Paragraph(_escape(text), styles[style])
+        return Paragraph(text, styles[style], bulletText=_BULLET)
+    return Paragraph(text, styles[style])
 
 
 def _escape(text: str) -> str:

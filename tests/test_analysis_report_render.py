@@ -40,7 +40,7 @@ import time
 import zipfile
 from datetime import datetime
 from html.parser import HTMLParser
-from typing import Any
+from typing import Any, Final
 from xml.etree import ElementTree
 
 import pdfplumber
@@ -136,6 +136,48 @@ MARKDOWN_HOSTILE: tuple[str, ...] = (
 #: message that quotes it can still be read.
 UNENCODABLE: str = "Ж"
 
+#: What each escapable character could open, if it were not escaped.
+#:
+#: One entry per character in :data:`MARKDOWN_ESCAPE_TABLE`, and the
+#: strings in which that character opens something. The keys of this table
+#: and the keys of the escape table are asserted to be the same set, so a
+#: character removed from the escape table is caught here: a test that
+#: only *walked* the escape table would walk it without the removed
+#: character and see nothing wrong.
+ATTACKS: dict[str, tuple[str, ...]] = {
+    # A backslash before a sign is the one case where the escape
+    # character itself is observable: the writer does not escape a sign
+    # that belongs to a number, so a raw backslash in front of it would
+    # be read as an escape and the reader would lose the backslash.
+    "\\": ("a\\-4",),
+    "`": ("`code`",),
+    "*": ("*emphasis*",),
+    "_": ("_emphasis_",),
+    "[": ("[text](url)",),
+    "]": ("[text](url)",),
+    "!": ("![image](url)",),
+    "(": ("[text](url)",),
+    ")": ("[text](url)",),
+    "<": ("<b>bold</b>",),
+    ">": ("> quote",),
+    "&": ("&amp;",),
+    "#": ("# heading",),
+    "+": ("+ bullet",),
+    "-": ("- bullet",),
+    "=": ("text\n===",),
+    ".": ("1. item",),
+    # A fence is what CommonMark opens with a tilde. The strikethrough
+    # that GitHub's flavour opens with it is not in CommonMark, and the
+    # parser this file uses does not have it — so the fence is the
+    # attack a CommonMark reader can be shown opening.
+    "~": ("~~~",),
+}
+
+#: The HTML elements that would mean a text value had opened something.
+_STRUCTURAL_PATTERN: Final = re.compile(
+    r"<(em|code|a|img|b|blockquote|ul|ol|h[1-6]|hr|pre|table|s|del)\b"
+)
+
 
 def _manifest() -> ReproducibilityManifest:
     """A valid reproducibility manifest for one figure."""
@@ -213,11 +255,10 @@ def _document(
     narrative: str = "The dataset contained 120 rows.",
     interpretation: str = "The catalyst therefore improves yield.",
     statement: str = "The material reports a yield of 4.253%.",
+    status: VerificationStatus = VerificationStatus.VERIFIED_BY_RULE,
 ) -> ReportDocument:
     """A report with one of everything, so that no kind goes untested."""
-    numeric = _numeric_record(
-        record_id="rec-1", value=LEDGER_VALUE, status=VerificationStatus.VERIFIED_BY_RULE
-    )
+    numeric = _numeric_record(record_id="rec-1", value=LEDGER_VALUE, status=status)
     textual = _text_record(record_id="rec-2", text=statement)
     conflict = _numeric_record(
         record_id="rec-9", value=CONFLICT_VALUE, status=VerificationStatus.CONFLICTED
@@ -281,6 +322,42 @@ def _document(
 def document(frozen_now: datetime) -> ReportDocument:
     """A report with one of every kind of block."""
     return _document(as_of=frozen_now)
+
+
+def _document_with_hostile_ids(as_of: datetime) -> ReportDocument:
+    """A report whose ids carry characters that must be escaped.
+
+    The ids are free text in the model, so a claim id, a record id, a
+    citation id and a source id can each carry a character that opens
+    something. A fixture whose ids are ``rec-1`` and ``fn-1`` cannot show
+    that the writer escapes them, because there is nothing to escape.
+    """
+    record = _numeric_record(
+        record_id="rec-1&2", value=LEDGER_VALUE, status=VerificationStatus.VERIFIED_BY_RULE
+    )
+    return ReportDocument(
+        title="A first-pass report",
+        snapshot=LedgerSnapshot(as_of=as_of, record_ids=("rec-1&2",)),
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(ClaimBlock(claim_id="clm-1*"),),
+            ),
+        ),
+        claims=(ReportClaim(claim_id="clm-1*", record=record, footnote_ids=("fn-1#",)),),
+        figures=(),
+        tables=(),
+        footnotes=(
+            ProvenanceFootnote(
+                footnote_id="fn-1#",
+                source_id="src<1>",
+                locator=PdfLocator(page=3),
+                content_sha256=SOURCE_HASH,
+            ),
+        ),
+        unresolved_records=(),
+    )
 
 
 @pytest.fixture
@@ -350,12 +427,29 @@ def _read_markdown(blob: bytes) -> str:
     punctuation, so the file says ``4\\.25`` where the model says
     ``4.25``. The **rendered** file is the report, and that is what a
     reader gets.
+
+    The parser is the **default** preset rather than the CommonMark one,
+    because the default is the stricter of the two: it recognises raw
+    HTML, strikethrough and tables, so a text value that opened one of
+    them would be visible here rather than silently escaped by the
+    parser. It is also the preset GitHub uses, which is the most likely
+    reader of a Markdown report.
     """
-    rendered = MarkdownIt("commonmark").render(blob.decode("utf-8"))
     reader = _TextReader()
-    reader.feed(rendered)
+    reader.feed(MarkdownIt().render(blob.decode("utf-8")))
     reader.close()
     return reader.text
+
+
+def _rendered_markdown(document: ReportDocument) -> str:
+    """The Markdown, rendered — the document a reader actually sees."""
+    rendered: str = MarkdownIt().render(render_markdown(document).decode("utf-8"))
+    return rendered
+
+
+def _structural_tags(html: str) -> list[str]:
+    """The structural elements an HTML document carries."""
+    return _STRUCTURAL_PATTERN.findall(html)
 
 
 def _read_docx(blob: bytes) -> str:
@@ -589,7 +683,7 @@ def test_the_markdown_gives_the_text_no_structure(hostile_document: ReportDocume
     has not opened one, and it has not become an emphasis, a link or a
     code span either.
     """
-    rendered = MarkdownIt("commonmark").render(render_markdown(hostile_document).decode("utf-8"))
+    rendered = _rendered_markdown(hostile_document)
 
     headings = re.findall(r"<h[1-6]>.*?</h[1-6]>", rendered, re.DOTALL)
     assert headings, "the report has no headings at all"
@@ -597,6 +691,56 @@ def test_the_markdown_gives_the_text_no_structure(hostile_document: ReportDocume
     assert "<em>" not in rendered
     assert "<a " not in rendered
     assert "<code>" not in rendered
+    assert "<b>" not in rendered
+
+
+@pytest.mark.unit
+def test_the_markdown_escapes_the_title(hostile_document: ReportDocument) -> None:
+    """The title is a text value too, and it is escaped.
+
+    A title that reached the file raw would carry a ``<b>`` into every
+    Markdown reader that allows raw HTML, and the report's own first
+    heading is the last place to look for an unescaped tag.
+    """
+    markdown = render_markdown(hostile_document).decode("utf-8")
+
+    assert "A \\<b\\>title\\</b\\> \\& more" in markdown
+    assert HOSTILE_TITLE not in markdown
+
+
+@pytest.mark.unit
+def test_the_markdown_escapes_the_ids_it_carries(frozen_now: datetime) -> None:
+    """The ids are text values too.
+
+    A claim id, a record id, a citation id and a source id are free text
+    in the model, and a fixture whose ids are ``rec-1`` and ``fn-1``
+    cannot show that the writer escapes them — there is nothing in them
+    to escape.
+    """
+    document = _document_with_hostile_ids(frozen_now)
+    markdown = render_markdown(document).decode("utf-8")
+
+    assert "clm-1\\*" in markdown
+    assert "rec-1\\&2" in markdown
+    assert "fn-1\\#" in markdown
+    assert "src\\<1\\>" in markdown
+
+    text = _normalise(_read_markdown(markdown.encode("utf-8")))
+    assert "clm-1*" in text
+    assert "rec-1&2" in text
+    assert "fn-1#" in text
+    assert "src<1>" in text
+
+
+@pytest.mark.unit
+def test_the_html_escapes_the_ids_it_carries(frozen_now: datetime) -> None:
+    """And the HTML escapes them too."""
+    document = _document_with_hostile_ids(frozen_now)
+    html = render_html(document).decode("utf-8")
+
+    assert "rec-1&amp;2" in html
+    assert "src&lt;1&gt;" in html
+    assert "rec-1&2" not in html
 
 
 @pytest.mark.unit
@@ -627,6 +771,75 @@ def test_the_markdown_escape_table_escapes_every_character_in_it() -> None:
         assert escape_markdown(character) == "\\" + character, (
             f"{character!r} is in the escape table and is not escaped"
         )
+
+
+@pytest.mark.unit
+def test_the_escape_table_and_the_attacks_agree() -> None:
+    """The table's **set** is pinned, not only its behaviour.
+
+    A test that walks the escape table cannot catch a character *removed*
+    from it: the removed character is simply not walked, and nothing
+    fails. The attacks table names every character the escape table is
+    supposed to hold, and the two sets are asserted to be the same — so
+    ``~``, ``!``, ``=`` and ``\\`` are each pinned, and so is any
+    character a future change adds.
+    """
+    assert set(ATTACKS) == set(MARKDOWN_ESCAPE_TABLE)
+
+
+@pytest.mark.integration
+def test_no_escaped_character_can_open_structure(frozen_now: datetime) -> None:
+    """Each character in the table is shown to open nothing.
+
+    The table says which characters can open a span or a block; this
+    test says it, one character at a time, by putting the character into
+    a narrative — the one place the writer does not prefix — and checking
+    that the parsed Markdown has no emphasis, no code span, no link, no
+    image, no heading, no quote, no list and no rule where the
+    baseline has none.
+
+    The text must also come back **verbatim**: a character that was
+    swallowed rather than escaped is a character the reader never saw.
+
+    A character whose attack needs a partner — the image's ``!`` needs
+    the link's ``[`` — cannot be shown opening anything on its own,
+    because the escaping is layered and the partner is still escaped.
+    Those are pinned by the key-set test above rather than by this one.
+    """
+    baseline = _structural_tags(_rendered_markdown(_document(as_of=frozen_now)))
+    for character, attacks in ATTACKS.items():
+        for attack in attacks:
+            document = _document(as_of=frozen_now, narrative=attack)
+            rendered = _rendered_markdown(document)
+            assert _structural_tags(rendered) == baseline, (
+                f"{character!r} opened structure with {attack!r}"
+            )
+            assert _normalise(attack) in _normalise(_read_markdown(rendered.encode("utf-8"))), (
+                f"{character!r} swallowed {attack!r} instead of escaping it"
+            )
+
+
+@pytest.mark.unit
+def test_a_narrative_that_starts_with_four_spaces_is_not_a_code_block(
+    frozen_now: datetime,
+) -> None:
+    """The prose stays prose.
+
+    CommonMark opens an indented code block with four spaces at the start
+    of a line, and a narrative is written at the start of a line. The
+    leading indent is written as a character reference, so the reader
+    sees the same spaces and the paragraph stays a paragraph — the
+    export's structure is a function of the model and not of where the
+    text happens to begin.
+    """
+    document = _document(as_of=frozen_now, narrative="    four spaces then prose")
+    markdown = render_markdown(document).decode("utf-8")
+    rendered = _rendered_markdown(document)
+
+    assert "&#32;&#32;&#32;&#32;four spaces then prose" in markdown
+    assert "code_block" not in rendered
+    assert "<pre>" not in rendered
+    assert "four spaces then prose" in _normalise(_read_markdown(markdown.encode("utf-8")))
 
 
 @pytest.mark.unit
@@ -937,9 +1150,62 @@ def test_the_four_forms_say_the_same_words(document: ReportDocument) -> None:
             assert line in text, f"the {form} form does not carry {line!r}"
 
 
+@pytest.mark.integration
+def test_every_form_reads_back_the_hosts_text(hostile_document: ReportDocument) -> None:
+    """All four forms, read back, show the text and not an escape sequence.
+
+    The hostile document is rendered to **every** form here, not only to
+    the HTML and the Markdown: a form that was never rendered from it
+    cannot be observed to mangle it, and the DOCX and the PDF are exactly
+    the two forms that had never seen it.
+
+    What the reader sees is the model's text. A form that escaped its
+    text twice would show the reader ``&amp;`` where the model says
+    ``&``, and comparing the forms' *bytes* would not have noticed.
+    """
+    for form, text in _texts(hostile_document).items():
+        for hostile in HTML_HOSTILE:
+            assert hostile in text, f"the {form} form does not read back {hostile!r}"
+
+
+@pytest.mark.integration
+def test_the_pdf_does_not_print_the_escape_sequence(hostile_document: ReportDocument) -> None:
+    """The PDF is the fixed form, and it must not print the escaping.
+
+    reportlab's paragraph markup is escaped once, at the call site. A
+    paragraph that escaped its own text as well would escape it twice,
+    and the reader would be shown ``&amp;`` where the model says ``&``.
+    """
+    text = _read_pdf(render_pdf(hostile_document))
+
+    assert "&amp;" not in text
+    assert "&lt;" not in text
+    assert "&gt;" not in text
+    assert "&amp;amp;" not in text
+
+
 # ---------------------------------------------------------------------------
 # Rule 1 — a renderer draws; it does not decide
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_status_printed_is_the_model_status_whatever_it_is(
+    frozen_now: datetime,
+) -> None:
+    """The renderer prints the model's status and does not judge it.
+
+    The ledger's status is the ceiling on what a report may say about a
+    record, and the check that enforces the ceiling is the content
+    check's, not the renderer's. What the renderer must not do is
+    *assume* a status: a record the ledger has only extracted is
+    printed as extracted, and the export does not strengthen it.
+    """
+    document = _document(as_of=frozen_now, status=VerificationStatus.EXTRACTED)
+
+    for form, text in _texts(document).items():
+        assert "(extracted)" in text, f"the {form} form does not carry the model's status"
+        assert "verified_by_rule" not in text, f"the {form} form strengthens the status"
 
 
 @pytest.mark.unit
