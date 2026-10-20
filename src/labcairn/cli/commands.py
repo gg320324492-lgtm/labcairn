@@ -1,4 +1,4 @@
-"""The eight commands, and the plumbing they share.
+"""The commands, and the plumbing they share.
 
 Every command's data comes from the application layer. A command here decides
 *what* to ask and *how to draw the answer*; it never reads the store, never
