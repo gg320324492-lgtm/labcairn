@@ -13,11 +13,19 @@ reviews carry.
 
 ## Verification actually run
 
-- **The whole suite on the merged `main`:** 2720 passed, 2 skipped, 386 s
-  (`uv run pytest -q --basetemp=…/lcp110-accept11`, exit 0). The two skips
-  are pre-existing and explain themselves: a provider credential this machine
-  does not have, and a Windows-drive assertion that is meaningless on POSIX.
-- **`ruff check`, `ruff format --check`, `mypy` (strict, 201 files):** clean.
+- **The whole suite on the merged `main` at `2e485b0`:** 3050 passed, 3
+  skipped, 610 s. The three skips are pre-existing and explain themselves: a
+  POSIX permission-bit assertion that is meaningless on Windows, a provider
+  credential this machine does not have, and a Windows-drive assertion that is
+  meaningless on POSIX.
+  **An earlier measurement of this suite was red**, and its number is not the
+  one above: `test_readme_commands_run` failed on a decode — a byte this
+  machine's encoding could not read killed the reader thread and truncated the
+  capture. That run reported *2720 passed, 1 failed*; the fix is on `main`
+  since `99c3d49` (PR #76), and the figure quoted here is a run that was
+  green, re-measured on the merged `main` rather than taken from a report.
+- **`ruff check`, `ruff format --check` (251 files already formatted), `mypy`
+  (strict, 235 source files):** clean.
 - **One hundred and thirty-six independent mutations** written by the reviewer
   against the merged branches, and not from the branches' own reports:
 
@@ -36,8 +44,10 @@ reviews carry.
   finding, and three of the reviewer's own mistakes were corrected in the
   process — one of them had been reported to the owner as a gap before it was
   found to be wrong. The corrections are recorded in the pull requests.
-- **The status board's own consistency test** (116 tests) after every change
-  to the board, the handoff file and the plan.
+- **The status board's own consistency test** — 116 tests on `main` at
+  `2e485b0`, 117 with this review's own document added to the tree, since the
+  test checks every document under `docs/` — after every change to the board,
+  the handoff file and the plan.
 
 ## The clause
 
