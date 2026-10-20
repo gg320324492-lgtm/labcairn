@@ -40,12 +40,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import Select, func, select, update
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
-from labcairn.core.ids import OperationId, RunId, StageId, TaskId
+from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, StageId, TaskId
 from labcairn.db.models import (
     LOCAL_USER_ID,
     ApprovalRow,
@@ -54,13 +55,27 @@ from labcairn.db.models import (
     EventRow,
     OperationRow,
     RunRow,
+    SourceRow,
     StageRow,
     TaskRow,
 )
-from labcairn.reports.receipt import ArtifactReceipt
+from labcairn.reports.receipt import (
+    ArtifactKind,
+    ArtifactProducerKind,
+    ArtifactReceipt,
+    ArtifactStaleness,
+    DerivationRef,
+)
 from labcairn.runtime.event import Event, EventTransition, EventType
-from labcairn.runtime.lifecycle import Run, Stage, Task
-from labcairn.runtime.operation import Approval, Checkpoint, Operation
+from labcairn.runtime.lifecycle import Run, RunStatus, Stage, StageStatus, Task, TaskGoal
+from labcairn.runtime.operation import (
+    Approval,
+    ApprovalState,
+    Checkpoint,
+    Operation,
+    OperationState,
+)
+from labcairn.sources.source import Source, SourceIdentifier, SourceKind, SourceReadability
 
 #: A clock returning an aware UTC datetime. Injected so tests can freeze time
 #: instead of asserting against a wall clock that moves.
@@ -566,6 +581,326 @@ def last_seq(session: Session, task_id: TaskId) -> int:
     return 0 if found is None else int(found)
 
 
+# --------------------------------------------------------------------------- #
+# the list queries
+# --------------------------------------------------------------------------- #
+#
+# LC-P1-12's three surfaces — the CLI's task list, the API's index and the UI's
+# task list — all need the same four answers, and there was nowhere in the
+# store to get them: only ``create_task``, the unit of work and the event
+# readers existed. These are that surface, added once.
+#
+# Two conventions hold across all of them, and both are properties of the data
+# rather than of how SQLite happens to lay out a table.
+#
+# **The order is a total order, and it is stated.** A list whose order depends
+# on the query plan is a list that reshuffles between two reads of the same
+# state, and a reader reports that as "it shuffled". Each list leads with the
+# column that carries the project's own notion of sequence for that kind — the
+# Task's ``created_at``, the Run's ``attempt``, the artefact's ``revision`` —
+# and every list ends with the row's unique natural key, so no two rows can
+# tie. Where the kind has no sequence column of its own, the id leads: ids are
+# UUIDv7, which the project mints monotonically, so id order is creation order.
+#
+# **A Task that does not exist is not an empty list.** :meth:`UnitOfWork.task_row`
+# already draws the line — "a unit of work without a Task is a caller bug and
+# ``None`` would push that check into every call site where nobody writes it" —
+# and these readers keep it. A task-scoped read of a task that was never
+# created raises :class:`UnknownTaskError`; a task-scoped read of a task that
+# exists and holds nothing returns an empty tuple. Those are two different
+# facts, and a caller that cannot tell them apart will report "no stages" for a
+# task id it mistyped.
+
+
+def list_tasks(session: Session) -> tuple[Task, ...]:
+    """Every Task the store holds, oldest first.
+
+    Ordered by ``(created_at, task_id)``. ``created_at`` is when the Task came
+    into being, and ``task_id`` breaks the tie, because two Tasks created in the
+    same instant are as common as two files written in the same second and a
+    list that leaves their order to the query plan is a list that reshuffles.
+
+    Not task-scoped: this is the only one of the four that is not, because a
+    Task is the root of the hierarchy rather than something inside one.
+    """
+    rows = session.execute(
+        select(TaskRow).order_by(TaskRow.created_at.asc(), TaskRow.task_id.asc())
+    ).scalars()
+    return tuple(_task_from_row(row) for row in rows)
+
+
+def load_task(session: Session, task_id: TaskId) -> Task:
+    """One Task by its domain id.
+
+    :raises UnknownTaskError: the store holds no Task with that id. The same
+        refusal the unit of work raises, because a Task id that was never
+        created is a caller bug rather than an empty answer.
+    """
+    row = session.execute(
+        select(TaskRow).where(TaskRow.task_id == str(task_id))
+    ).scalar_one_or_none()
+    if row is None:
+        raise UnknownTaskError(f"no Task row for {task_id}")
+    return _task_from_row(row)
+
+
+def list_runs(session: Session, task_id: TaskId) -> tuple[Run, ...]:
+    """A Task's Runs, earliest attempt first.
+
+    Ordered by ``(attempt, run_id)``. ``attempt`` is the project's own notion
+    of sequence for a Run — a resume is a *new* Run against the same Task with
+    the next attempt number — so it leads, and ``run_id`` breaks the tie.
+
+    :raises UnknownTaskError: the store holds no Task with that id.
+    """
+    _require_task(session, task_id)
+    rows = session.execute(
+        select(RunRow)
+        .where(RunRow.task_id == str(task_id))
+        .order_by(RunRow.attempt.asc(), RunRow.run_id.asc())
+    ).scalars()
+    return tuple(
+        Run(
+            run_id=RunId(UUID(row.run_id)),
+            task_id=TaskId(UUID(row.task_id)),
+            status=RunStatus(row.status),
+            attempt=row.attempt,
+            started_at=row.started_at,
+            finished_at=row.finished_at,
+        )
+        for row in rows
+    )
+
+
+def list_stages(session: Session, task_id: TaskId) -> tuple[Stage, ...]:
+    """A Task's Stages, in the order they were created.
+
+    Ordered by ``stage_id``. A Stage has no sequence column of its own — the
+    runtime identifies a stage by a UUID precisely because a stage belongs to
+    one Run and two Runs of the same Task must not collide — and UUIDv7 ids are
+    minted monotonically, so the id order is the creation order. This is the
+    same ordering :mod:`labcairn.recovery.resume` already uses to read a Task's
+    stages, so the two readers cannot disagree about what "the stages" are.
+
+    :raises UnknownTaskError: the store holds no Task with that id.
+    """
+    _require_task(session, task_id)
+    rows = session.execute(
+        select(StageRow).where(StageRow.task_id == str(task_id)).order_by(StageRow.stage_id.asc())
+    ).scalars()
+    return tuple(
+        Stage(
+            stage_id=StageId(UUID(row.stage_id)),
+            task_id=TaskId(UUID(row.task_id)),
+            run_id=RunId(UUID(row.run_id)),
+            name=row.name,
+            status=StageStatus(row.status),
+            input_hashes=tuple(row.input_hashes),
+            output_hashes=tuple(row.output_hashes),
+            blocked_reason=row.blocked_reason,
+        )
+        for row in rows
+    )
+
+
+def list_artifacts(session: Session, task_id: TaskId) -> tuple[ArtifactReceipt, ...]:
+    """A Task's artefact receipts, oldest first.
+
+    Ordered by ``(revision, artifact_id)``, which is the ordering
+    :mod:`labcairn.recovery.persistence` already uses for the same rows.
+    ``revision`` is LC-P1-11's own version counter, so v1 of a report comes
+    before v2 of it, and ``artifact_id`` breaks the tie.
+
+    :raises UnknownTaskError: the store holds no Task with that id.
+    """
+    _require_task(session, task_id)
+    rows = session.execute(
+        select(ArtifactRow)
+        .where(ArtifactRow.task_id == str(task_id))
+        .order_by(ArtifactRow.revision.asc(), ArtifactRow.artifact_id.asc())
+    ).scalars()
+    return tuple(_receipt_from_row(row) for row in rows)
+
+
+def list_operations(session: Session, task_id: TaskId) -> tuple[Operation, ...]:
+    """A Task's operations, oldest first.
+
+    Ordered by ``operation_id``. An operation has no sequence column, and
+    UUIDv7 ids are minted monotonically, so the id order is the order they
+    were planned in — the same reasoning
+    :func:`labcairn.recovery.persistence.find_operations_in_state` gives for
+    the subset it reads.
+
+    :raises UnknownTaskError: the store holds no Task with that id.
+    """
+    _require_task(session, task_id)
+    rows = session.execute(
+        select(OperationRow)
+        .where(OperationRow.task_id == str(task_id))
+        .order_by(OperationRow.operation_id.asc())
+    ).scalars()
+    return tuple(
+        Operation(
+            operation_id=OperationId(UUID(row.operation_id)),
+            task_id=TaskId(UUID(row.task_id)),
+            run_id=RunId(UUID(row.run_id)),
+            stage_id=StageId(UUID(row.stage_id)),
+            state=OperationState(row.state),
+            capability=row.capability,
+            resource_key=row.resource_key,
+            depends_on=tuple(row.depends_on),
+            args_digest=row.args_digest,
+        )
+        for row in rows
+    )
+
+
+def list_approvals(session: Session, task_id: TaskId) -> tuple[Approval, ...]:
+    """A Task's approvals, oldest first.
+
+    Ordered by ``approval_id``: an approval has no sequence column, and
+    UUIDv7 ids are minted monotonically, so the id order is the order they
+    were requested in.
+
+    :raises UnknownTaskError: the store holds no Task with that id.
+    """
+    _require_task(session, task_id)
+    rows = session.execute(
+        select(ApprovalRow)
+        .where(ApprovalRow.task_id == str(task_id))
+        .order_by(ApprovalRow.approval_id.asc())
+    ).scalars()
+    return tuple(
+        Approval(
+            approval_id=ApprovalId(UUID(row.approval_id)),
+            task_id=TaskId(UUID(row.task_id)),
+            operation_id=OperationId(UUID(row.operation_id)),
+            capability=row.capability,
+            resource_key=row.resource_key,
+            args_digest=row.args_digest,
+            state=ApprovalState(row.state),
+            expires_at=row.expires_at,
+            granted_at=row.granted_at,
+            consumed_at=row.consumed_at,
+        )
+        for row in rows
+    )
+
+
+def list_sources(session: Session) -> tuple[Source, ...]:
+    """Every source in the ledger, oldest ingest first.
+
+    Ordered by ``(ingested_at, source_id)``. The ledger holds **no** ``task_id``
+    column — a material belongs to the workspace and must outlive the Tasks
+    that cite it — so this is the one query that is not task-scoped. Which of
+    these a Task is bound to is the Task's own binding, not a column.
+
+    The ledger is the workspace's, not this store's, and
+    :mod:`labcairn.db.materials` writes it; this reader is here because the
+    application layer is not allowed to reach into a table it does not own, and
+    a source a Task is bound to has to be readable somewhere.
+    """
+    rows = session.execute(
+        select(SourceRow).order_by(SourceRow.ingested_at.asc(), SourceRow.source_id.asc())
+    ).scalars()
+    return tuple(_source_from_row(row) for row in rows)
+
+
+def load_source(session: Session, source_id: str) -> Source | None:
+    """One source by its id, or ``None`` when the ledger holds no such row.
+
+    ``None`` rather than a refusal, because a missing source is an **empty
+    answer** and not a caller bug: the ledger holds material, and a caller
+    asking for material that was never ingested is asking a question with a
+    legitimate empty answer. The refusal lives in the layer above, which knows
+    whether a missing source is fatal for the operation being performed.
+    """
+    row = session.execute(
+        select(SourceRow).where(SourceRow.source_id == str(source_id))
+    ).scalar_one_or_none()
+    return None if row is None else _source_from_row(row)
+
+
+# --------------------------------------------------------------------------- #
+# row -> contract
+# --------------------------------------------------------------------------- #
+
+
+def _require_task(session: Session, task_id: TaskId) -> None:
+    """Refuse a task-scoped read of a Task that does not exist.
+
+    A separate statement rather than a join on the first query, because the
+    answer differs: an empty list means "this Task holds nothing of that kind"
+    and a refusal means "this Task id names nothing". Folding the two together
+    would make a mistyped id look like a Task with no stages.
+    """
+    found = session.execute(
+        select(TaskRow.task_id).where(TaskRow.task_id == str(task_id))
+    ).scalar_one_or_none()
+    if found is None:
+        raise UnknownTaskError(f"no Task row for {task_id}")
+
+
+def _task_from_row(row: TaskRow) -> Task:
+    """Rebuild the Task contract from its row."""
+    return Task(
+        task_id=TaskId(UUID(row.task_id)),
+        title=row.title,
+        goal=TaskGoal(objective=row.objective, success_criterion=row.success_criterion),
+        bound_source_ids=tuple(SourceId(UUID(source_id)) for source_id in row.bound_source_ids),
+        revision=row.revision,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _receipt_from_row(row: ArtifactRow) -> ArtifactReceipt:
+    """Rebuild the frozen receipt contract from its row.
+
+    ``derived_from`` is stored as already-dumped JSON, so it round-trips
+    through :class:`DerivationRef` validation here. A row this build cannot
+    read raises, which is the intended behaviour: the store is the authority
+    and a receipt it cannot load is a receipt nobody may claim to have produced.
+    """
+    return ArtifactReceipt(
+        receipt_id=row.artifact_id,
+        task_id=row.task_id,
+        kind=ArtifactKind(row.kind),
+        relative_path=row.relative_path,
+        content_sha256=row.content_sha256,
+        size_bytes=row.size_bytes,
+        revision=row.revision,
+        produced_by=ArtifactProducerKind(row.produced_by),
+        producer_id=row.producer_id,
+        derived_from=tuple(DerivationRef.model_validate(ref) for ref in row.derived_from),
+        staleness=ArtifactStaleness(row.staleness),
+        staleness_reason=row.staleness_reason,
+        media_type=row.media_type,
+        created_at=row.created_at,
+    )
+
+
+def _source_from_row(row: SourceRow) -> Source:
+    """Rebuild the source contract from its row.
+
+    ``identifiers`` round-trips through the contract's own validation, so a row
+    carrying an identifier this build cannot read is refused rather than
+    silently carried through as an opaque string.
+    """
+    return Source(
+        source_id=row.source_id,
+        kind=SourceKind(row.kind),
+        display_name=row.display_name,
+        relative_path=row.relative_path,
+        content_sha256=row.content_sha256,
+        size_bytes=row.size_bytes,
+        readability=SourceReadability(row.readability),
+        readability_disclosure=row.readability_disclosure,
+        identifiers=tuple(SourceIdentifier.model_validate(item) for item in row.identifiers),
+        ingested_at=row.ingested_at,
+    )
+
+
 __all__ = [
     "Clock",
     "StoreError",
@@ -575,6 +910,15 @@ __all__ = [
     "count_events",
     "events_after",
     "last_seq",
+    "list_approvals",
+    "list_artifacts",
+    "list_operations",
+    "list_runs",
+    "list_sources",
+    "list_stages",
+    "list_tasks",
+    "load_source",
+    "load_task",
     "select_events",
     "utc_now",
 ]
