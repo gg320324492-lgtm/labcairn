@@ -283,6 +283,22 @@ def _burst_main(report: Path) -> int:
     return 0
 
 
+def _how_it_died(returncode: int) -> str:
+    """How the burst's process ended, in words.
+
+    A process killed by a signal reports a negative status on POSIX, and
+    Windows gives the same death the NTSTATUS name ``0xC0000005`` — an
+    access violation, which is what a segmentation fault is called there.
+    Both are the SQLite driver taking the process down, and both are a
+    *finding* rather than a dead test runner.
+    """
+    if returncode < 0:
+        return f"signal {-returncode}"
+    if returncode == 0xC0000005:
+        return "STATUS_ACCESS_VIOLATION (0xC0000005), the Windows name for a segmentation fault"
+    return ""
+
+
 def test_the_workbench_s_first_load_is_answered_correctly_under_concurrency(
     tmp_path: Path,
 ) -> None:
@@ -317,9 +333,10 @@ def test_the_workbench_s_first_load_is_answered_correctly_under_concurrency(
         env=environment,
         timeout=900,
     )
+    died = _how_it_died(result.returncode)
     assert result.returncode == 0, (
         f"the concurrent burst did not survive: exit {result.returncode}"
-        + (f", signal {-result.returncode}" if result.returncode < 0 else "")
+        + (f", {died}" if died else "")
         + f"\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
     )
     assert report.is_file(), (
