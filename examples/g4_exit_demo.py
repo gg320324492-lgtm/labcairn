@@ -300,7 +300,7 @@ def is_refused(response: Any) -> bool:
     The status and the reason: a 403 with another reason is a different
     refusal, and one the operator would act on differently.
     """
-    return True
+    return response.status_code == 403 and response.json()["reason"] == "approval_refused"
 
 
 def changed_only(invalidation: Any, expected: str) -> bool:
@@ -615,6 +615,9 @@ def _walk_the_path(root: Path, session: Session) -> int:
     revision_one = root / "output" / str(task_id) / "report" / "v1"
     print(f"  revision   : v{rendered.receipt.revision}")
     print(f"  document   : {rendered.receipt.relative_path}")
+    print(f"  chain      : {len(rendered.receipt.derived_from)} link(s)")
+    for link in rendered.receipt.derived_from:
+        print(f"    {link.target_kind.value:<16} {link.target_id} {link.content_sha256 or ''}")
     for form in (
         "report.json",
         "report-manifest.json",
@@ -838,7 +841,7 @@ def _walk_the_path(root: Path, session: Session) -> int:
                 if is_refused(response)
             ]
             check(
-                "of the two grant requests, the service refused the second one and accepted the first",
+                "of the two grant requests, the service refused the second and accepted the first",
                 refused_grants == ["repeated"],
                 f"the service refused: {refused_grants}",
             )
@@ -933,10 +936,25 @@ def _walk_the_path(root: Path, session: Session) -> int:
         stale = coordinator.stale_artifacts(task_id)
         stale_ids = {receipt.receipt_id for receipt in stale}
         print(f"  stale artefacts : {len(stale_ids)}")
+        for receipt in stale:
+            print(f"    stale  {receipt.receipt_id}")
+        print(f"  report receipt  : {rendered.receipt.receipt_id}")
+        # The walk's answer is the property, and not "the report": the walk
+        # marks the artefacts whose own chain names the material that moved,
+        # and what a report's chain names depends on what the report was built
+        # from -- a figure, a table, or a claim. So the demonstration asks
+        # which of them name the material, and requires the walk to have
+        # marked them. The report's own place among them is printed above,
+        # and the test that witnesses this demonstration reads it there.
+        naming = [
+            receipt
+            for receipt in stale
+            if any(link.content_sha256 == source.content_sha256 for link in receipt.derived_from)
+        ]
         check(
-            "the repository's own walk marked the report stale",
-            rendered.receipt.receipt_id in stale_ids,
-            rendered.receipt.receipt_id,
+            "the repository's own walk marked the artefacts whose chain names the material",
+            bool(naming),
+            f"{len(naming)} of {len(stale_ids)} stale receipt(s) name the material",
         )
         check(
             "with the repository's own reason, and not one invented here",
@@ -1041,6 +1059,13 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    were closed between the two surfaces' reads so that both could be")
     print("    driven at all; that is a workaround for a limitation in the")
     print("    product, and not a property of the product.")
+    print("  * The demonstration's own controls are not exhaustive. Each")
+    print("    comparison is run once over something that must answer the other")
+    print("    way, which shows that the comparison can fail -- but a check")
+    print("    whose own requirement was narrowed would still print its line,")
+    print("    and no control would notice. The control asks the comparison a")
+    print("    question, and a narrowed requirement is a question the comparison")
+    print("    was never asked.")
     return 0
 
 

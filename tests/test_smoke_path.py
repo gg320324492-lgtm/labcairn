@@ -250,6 +250,33 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
 
 
 @pytest.mark.e2e
+def test_the_report_was_marked_stale_when_the_material_moved(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The report's own receipt is among the artefacts the walk marked stale.
+
+    The demonstration's own check is about the **material** rather than about
+    the report, because what a report's chain names depends on what the
+    report was built from -- a figure, a table, or a claim -- and the walk
+    is one hop. So the demonstration prints the stale receipts and the
+    report's receipt id, and **this test reads the two and compares them**:
+    a demonstration that left the report out of the stale receipts, or that
+    named a receipt the walk did not mark, fails here.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    stale = re.findall(r"^\s+stale\s+(\S+)$", output, flags=re.MULTILINE)
+    assert stale, "the demonstration named no stale artefact"
+    report = re.search(r"report receipt\s+:\s+(\S+)", output)
+    assert report is not None, "the demonstration never named the report's receipt"
+    assert report.group(1) in stale, (
+        f"the report's receipt {report.group(1)} is not among the artefacts the "
+        f"walk marked stale: {stale}"
+    )
+
+
+@pytest.mark.e2e
 def test_the_report_carries_a_claim_cited_to_the_ingested_material(
     demonstration: subprocess.CompletedProcess[str],
 ) -> None:
@@ -306,9 +333,9 @@ def test_the_staleness_came_from_the_repositorys_own_walk(
     assert STALE_REASON in output, (
         "the demonstration did not record the repository's own staleness reason"
     )
-    assert "the repository's own walk marked the report stale" in output, (
-        "the demonstration did not use the repository's walk"
-    )
+    assert (
+        "the repository's own walk marked the artefacts whose chain names the material" in output
+    ), "the demonstration did not use the repository's walk"
 
 
 @pytest.mark.e2e
@@ -330,6 +357,9 @@ def test_the_demonstration_says_what_it_did_not_exercise(
     assert "event stream" in output, "the event stream's absence was not named"
     assert "switch the selected project" in output, (
         "the inability to switch the selected project was not named"
+    )
+    assert "controls are not exhaustive" in output, (
+        "the demonstration did not name the limit of its own controls"
     )
 
 
