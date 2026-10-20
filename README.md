@@ -71,7 +71,7 @@ The project is currently at **Phase 1 / Foundation & MVP**. Installation instruc
 
 ## Developer setup (what exists today)
 
-This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application — there is no CLI, no server, no database and no research feature to use yet. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
+This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application — there is no server and no research feature to use yet. There **is** a command line, and it is described below; it is a developer-facing surface, not a finished product. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
 
 Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) and, for the web baseline only, Node ≥ 24.16 with pnpm ≥ 9.15.9.
 
@@ -95,7 +95,36 @@ pnpm lint
 pnpm format:check
 ```
 
-`uv run pytest` runs the Python suite and `pnpm test` runs the Vitest suite. Neither needs an API key, a network call or a paid provider: the only executable product code today is the deterministic `FakeProvider` under `src/labcairn/core/providers/`, and it is exercised entirely from tests.
+`uv run pytest` runs the Python suite and `pnpm test` runs the Vitest suite. Neither needs an API key, a network call or a paid provider: the executable product code today is the deterministic `FakeProvider` under `src/labcairn/core/providers/`, which is exercised entirely from tests, and the `labcairn` command line, which talks only to a local workspace.
+
+## The command line (what exists today)
+
+`labcairn` is a real console script, installed by `uv sync`, and it is the developer-facing surface on the same application layer the local API and the web workbench will call — so what it reports is what they will report.
+
+The research workflow behind these commands is still under construction, and most of what the Phase 1 work orders promise is still to come. The command line is here because the surface, its machine-readable form and its exit codes are settled, and the work that fills them in is still ahead.
+
+```bash
+uv run labcairn --help
+```
+
+The eight commands the Phase 1 work order names, and what each can do today:
+
+| Command | What it does | State today |
+|---|---|---|
+| `labcairn init` | Creates a workspace — the directory, a migrated SQLite database, a source directory and a policy file — and reports what it made; it refuses to overwrite a workspace that is already there | works |
+| `labcairn doctor` | Reports the workspace, the database's revision, the policy's rules and each model provider's declared capabilities | works, and it only *reports*: it repairs nothing |
+| `labcairn task create` | Makes a task, its output area and its first event | works |
+| `labcairn task run` | Runs the `inventory` stage over a bound material, in the task's current run | works for the `inventory` stage only; the other declared stages belong to later work orders |
+| `labcairn task resume` | The same stage in a **new** attempt — a new Run against the same Task, never a new Task | works for the `inventory` stage only |
+| `labcairn task status` | Reports the task's state: its runs, stages, artefacts, approvals and event cursor; `--plan` reports the declared workflow instead | works |
+| `labcairn sources inspect` | Reports one source as the ledger holds it | needs a material that is already in the ledger — the application layer has no ingestion operation yet, so no command can put one there |
+| `labcairn artifacts list` | Lists the receipts a task has produced | works |
+
+**Every command has a machine-readable form.** `--json` prints the same model the rendered output draws, byte for byte, so a script depends on the JSON and not on the prose. The two commands that report on a workspace rather than on a task — `init` and `doctor` — carry their own models, because the application layer has no operation that reports a workspace.
+
+**Exit codes are part of the contract.** `0` is a result, `2` is a usage error, `3` is a refusal by the application layer, and `1` is a crash, so a script tells a refusal from a crash by the exit code alone. A refusal is rendered rather than raised: it names what was refused, carries the layer's `reason` and `message` in the JSON form, and writes nothing to standard output.
+
+**`doctor` reports; it does not repair.** It says what it found. It will not fix a broken database, write a missing policy, or reach a paid model endpoint unless `--probe` says so.
 
 ## Principles
 
