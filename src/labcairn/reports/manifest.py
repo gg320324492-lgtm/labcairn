@@ -7,6 +7,12 @@ makes a report **checkable** — a reader who has the manifest can name the
 part that changed, and a reader who has the report can recompute the digest
 that ties the two together.
 
+Not to be confused with :mod:`labcairn.analysis.manifest`. That module is
+**one computation's** manifest — the derivation of a single number, which
+the report model holds by value inside each figure. This one is **a report's**
+manifest: the list of what the report is made of. The two share a name and
+nothing else.
+
 The form, and why it is this form
 ---------------------------------
 **The manifest is a document with canonical bytes of its own; the receipt is
