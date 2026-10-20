@@ -452,6 +452,97 @@ def test_each_service_gets_its_own_token(context: ApplicationContext) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# the two absences the session endpoint depends on
+# --------------------------------------------------------------------------- #
+
+
+#: The media types a browser will run as a classic script. The list is the
+#: HTML standard's JavaScript MIME types, and it is spelled out here rather
+#: than imported because the point of the test is what the browser does with
+#: a type, not what a library calls one.
+_JAVASCRIPT_MEDIA_TYPES = frozenset(
+    {
+        "application/ecmascript",
+        "application/javascript",
+        "application/x-ecmascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript",
+        "text/javascript1.0",
+        "text/javascript1.1",
+        "text/javascript1.2",
+        "text/javascript1.3",
+        "text/javascript1.4",
+        "text/javascript1.5",
+        "text/jscript",
+        "text/livescript",
+        "text/x-ecmascript",
+        "text/x-javascript",
+    }
+)
+
+
+def test_no_response_carries_an_access_control_allow_origin(client: TestClient) -> None:
+    """The browser's cross-origin read rule is what stands between a page and the token.
+
+    A response with no ``Access-Control-Allow-Origin`` is one a browser will
+    not let another origin's script read, and that absence is the *whole*
+    defence of the session endpoint against a page on another site. The
+    origin guard refuses a request that **carries** a foreign origin, which
+    stops a page that would ask; this stops a page that loads the response
+    as a subresource and reads what it can.
+
+    An absence is not a property until something watches it. One line of
+    ``app.add_middleware(CORSMiddleware, allow_origins=["*"])`` — which is
+    exactly what somebody would add to make the development server work —
+    would let every page on the internet read this service's session token,
+    and nothing else in this suite would notice.
+
+    The token endpoint, a read and a refusal are all checked, because the
+    property is about the service and not about one route.
+
+    The requests carry an ``Origin``, and that is load-bearing rather than
+    incidental: a CORS middleware only answers a request that has an origin
+    to answer about, so a check made without one would see no header
+    whether the middleware was installed or not. The service's own origin is
+    used for the two that are served, because that is the request a
+    permissive middleware would answer with ``Access-Control-Allow-Origin:
+    *``.
+    """
+    for response in (
+        client.get("/session", headers={"Origin": OWN_ORIGIN}),
+        client.get("/task", headers={"Origin": OWN_ORIGIN}),
+        client.get("/task", headers={"Origin": FOREIGN_ORIGIN}),
+    ):
+        assert "access-control-allow-origin" not in response.headers
+        assert "access-control-allow-credentials" not in response.headers
+
+
+def test_the_session_response_is_not_a_javascript_type(client: TestClient) -> None:
+    """A classic script load is not a CORS-restricted fetch, so the MIME type is what stops it.
+
+    ``<script src=".../session">`` is not a CORS request: the browser
+    fetches it and, if the media type is a JavaScript type, runs it in the
+    page that asked for it. The session response is ``application/json``,
+    which the browser refuses to execute, and that refusal is the second of
+    the two things the session endpoint's safety rests on.
+
+    The check is on the *type*, not on the one value it happens to have
+    today, so a change of content type to something a browser would run is
+    caught whatever it is called.
+
+    The artefact content route is deliberately not in this list: it serves
+    the artefact's own media type, because the bytes are the artefact's. An
+    artefact is a document, not a script, and the type it declares is the
+    caller's business.
+    """
+    response = client.get("/session")
+    media_type = response.headers["content-type"].split(";")[0].strip().lower()
+    assert media_type not in _JAVASCRIPT_MEDIA_TYPES
+    assert media_type == "application/json"
+
+
+# --------------------------------------------------------------------------- #
 # the token does not leak
 # --------------------------------------------------------------------------- #
 

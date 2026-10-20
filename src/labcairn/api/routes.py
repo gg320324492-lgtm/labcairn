@@ -127,11 +127,25 @@ def get_health(request: Request) -> Health:
 def get_session(request: Request) -> SessionInfo:
     """The token a client presents, and where the token was written.
 
-    **The one response that carries the token.** The origin guard is what
-    makes it safe: a request from a page on another site is refused before it
-    reaches this handler, and a cross-origin read is blocked by the browser
-    besides. A client that cannot be at the service's own origin has no way to
-    ask for it.
+    **The one response that carries the token**, and its safety rests on two
+    things this service does *not* do — so they are named here rather than
+    left to the reader to work out:
+
+    * it sends no ``Access-Control-Allow-Origin``, so the browser's
+      cross-origin read rule applies and a page on another site cannot read
+      this response; and
+    * the response is ``application/json``, which a browser refuses to run
+      as a classic script, so ``<script src=".../session">`` in another
+      page executes nothing.
+
+    The origin guard is the third thing, and it is the one that refuses a
+    request outright: a request that *carries* a foreign origin never
+    reaches this handler. The two absences above cover the request that
+    carries none — a subresource load, which the browser does not put an
+    origin on.
+
+    Both are absences, and an absence is not a property until something
+    watches it, which is why ``tests/test_api.py`` has a test for each.
     """
     token = cast(SessionToken, request.app.state.session)
     return SessionInfo(token=token.value, path=str(token.path))
