@@ -3,10 +3,12 @@
 **Gate:** G3 (Evidence path)
 **Work orders:** LC-P1-08, LC-P1-09, LC-P1-10
 **Subject:** `main` @ `15a729f` — 303 tracked files
+**Independent review:** `d114810` — **PASS WITH NOTES**, the section
+[Independent cross-review](#independent-cross-review) below
 **Date:** 2026-10-20
 **Scope of this document:** the gate's exit test, with the evidence for each of
-the three work orders it spans, what the work found and fixed, and the one
-rule of this repository's board that the gate cannot satisfy on its own.
+the three work orders it spans, what the work found and fixed, and the
+independent review that discharged the board's rule.
 
 ## Gate exit test
 
@@ -36,7 +38,7 @@ needed: [ADR-0009](../adr/ADR-0009-material-and-extracted-text-storage.md) and
 [ADR-0011](../adr/ADR-0011-canonical-policy-matching.md) closing the seam
 between them.
 
-## Verification actually run at this commit
+## Verification actually run
 
 | Check | Result |
 |---|---|
@@ -46,6 +48,7 @@ between them.
 | The four exit demonstrations | all exit 0, 87 checks between them |
 | The status board's own consistency test | 113 passed, after every change to the board, the handoff file and the breakdown |
 | Independent mutation checks | **71** written against the merged branches for LC-P1-10 alone, 63 caught; every survivor checked by hand before it was called a finding |
+| The independent review's own re-run, at `d114810` | `ruff check` clean · `ruff format --check`, 217 files · `mypy` clean, 201 files · `pytest` **2721 passed, 2 skipped** (451 s) · the four exit demonstrations green — 36 / 14 / 18 / 19 checks, exit 0 |
 
 ## LC-P1-08 — Material inventory and source locators
 
@@ -65,8 +68,15 @@ green; CSV row locators counted records rather than physical rows; and
 `ingest_into_store` could not be called twice on an edited file.
 
 The two-column gap was decided by the owner — **detect and refuse**, not
-record-only — and the thresholds are bracketed by measurement against the
-three real fixture papers in both directions.
+record-only — and the threshold is bracketed by measurement against the three
+real fixture papers in the false-positive direction; the two-column direction
+is asserted rather than measured, and the band below the threshold is a
+residual the independent review found stated nowhere (F2 below).
+
+**The independent review broke this work order's fixes and no mutation
+survived.** It added two findings: the PDF adapter's own docstring still
+denied the detector it implements (F1), and the coverage band below the
+threshold was unstated (F2). Both are fixed in `37f7d77`.
 
 ## LC-P1-09 — Local retrieval and evidence ledger
 
@@ -85,6 +95,12 @@ LC-P1-10's to fix: the *fabricated DOI* half has no implementation, and the
 gap is structural — no record can carry an identifier, nothing resolves one,
 and ingestion records none; and *source provenance preserved through report
 generation* is LC-P1-11's.
+
+**The independent review broke this work order's three fixes and no mutation
+survived**: `test_a_query_the_index_cannot_serve_is_a_failure_not_a_miss`;
+`test_the_two_negatives_cannot_be_the_same_value`, which is the *sole* guard on
+the miss message's scope and holds in both directions; and the two
+`superseded_by` tests. The review did not check the two undischarged clauses.
 
 ## LC-P1-10 — Bounded scientific analysis and plots
 
@@ -110,6 +126,14 @@ operator, recipe and environment can differ in their bytes because the
 renderer changed between them; and the aggregate's numbers are not re-checked
 by C1, C2 or C3, which is the work order's most important limitation and a
 narrowing of the product's central promise.
+
+**The independent review broke this work order's fixes and no mutation
+survived** — the declared unit, the four unobserved properties, the caption
+layout, and the two more that sit in the fixes table rather than among the
+fourteen. It looked at the two limits above and found the manifest's missing
+renderer version and the recipe check's byte comparison to be **stated limits
+rather than defects**: deliberate, written down in the plan's §5, and in the
+second case with the owner named.
 
 ## Cross-line integration
 
@@ -150,63 +174,220 @@ labels); and **a published claim that the measurement contradicted** (the
 plan's T07 table said matplotlib writes a creation date into PNG metadata; it
 does not, and PNG needs neither determinism control).
 
+**The independent review added three more**, of a kind the fourteen already
+were — a docstring that denied a detector the code implements, a coverage band
+whose consequence was nowhere stated, and an ADR credit in two test
+docstrings. They are recorded in their own section below.
+
 ## Independent cross-review
 
-**There is none, for any of the three work orders, and that is the gate's one
-unmet condition.**
+**There is one, at `d114810`, and its verdict is PASS WITH NOTES.** The
+reviewer wrote none of G3's fixes. The board's rule — a row is marked done
+only when an **independent** review at a named commit says so — is satisfied
+for all three work orders.
 
-The board's rule is that a row is marked done only when an **independent**
-review at a named commit says so. The reviews that produced these findings
-and the fixes that answered them were the same party in all three cases. The
-owner has already recorded one decision of this kind — LC-P1-08 proceeded to
-LC-P1-09 without an independent review, on 2026-10-18, and the board says so
-rather than dressing it up as a review.
+The reviewer's own report is a document outside this repository; what it holds
+is recorded here, so that the review the gate closes on can be read in the
+repository.
 
-What an independent reviewer would still want to look at, in the order the
-reviewers themselves named it:
+**The method: every fix broken, and the test never touched.** Each of the
+gate's fourteen fixes was reverted to its pre-fix behaviour by mutating the
+implementation only — never the test — and the reviewer's claim was that a
+named test fails. **No mutation survived.** Where a second guard also fires,
+the reviewer says so rather than calls it a finding: for #12 the corpus tests
+fire too, and for #10 that one test is the *sole* guard, in both directions.
 
-- LC-P1-08's two-column detector's 35% threshold, which is bracketed against
-  single-column fixtures rather than calibrated against two-column ones;
-- LC-P1-10's manifest not naming a version for the renderer, and the recipe
-  check comparing the file's bytes rather than the parsed models;
-- the exit demonstrations of G1 and G2, which **no test and no CI job runs**,
-  so they can rot without anyone noticing — LC-P1-10's demonstration is
-  covered by a test, and the earlier ones are not.
+### The mutation table
+
+Every fix broken — implementation only, never the test.
+
+| # | Fix | Mutation | Named test that caught it |
+|---|---|---|---|
+| 1 | Two-column refusal | share 0.35→0.60; →0.20 | `test_a_two_column_page_is_refused_rather_than_spliced` + `test_a_refused_page_does_not_become_a_citable_source`; `test_no_real_paper_is_refused_as_two_column` |
+| 2 | `UNREADABLE_NO_OCR` live | `_NO_TEXT_LAYER` emptied | `test_a_page_with_no_text_is_unreadable_not_empty` |
+| 3 | Page anchors bound | page N's text read from page N−1 | `test_each_page_number_carries_that_pages_own_text` |
+| 4 | CSV physical rows | `previous_end+1` → record ordinal | `test_a_row_is_numbered_by_where_it_sits_in_the_file_not_by_its_ordinal` |
+| 5 | `walk.py` cross_root | docstring only — `CROSS_ROOT` is still only in `security/paths.py`, never consulted by `list_dir` | none (documentation fix) |
+| 6 | `source_id` from path | content-derived id restored | `test_editing_a_file_does_not_make_it_a_new_material` |
+| 7 | Three docstrings | 2 of 3 corrected; the PDF adapter's is **not** — F1 | n/a |
+| 8 | ADR credit | **half closed** — F3 | n/a |
+| 9 | Refused ≠ miss | `query_is_servable` guard removed | `test_a_query_the_index_cannot_serve_is_a_failure_not_a_miss` |
+| 10 | Miss-message scope | "lexical" dropped; overclaim restored | `test_the_two_negatives_cannot_be_the_same_value` (sole guard, both directions) |
+| 11 | `superseded_by` | UPDATE removed; replacement unwritten; cross-task guard dropped | `test_superseding_keeps_the_old_record_and_marks_it`; `test_a_record_cannot_be_superseded_across_tasks` |
+| 12 | Declared unit | `declaration_disagreement`→`None`; no-token cell contradicts | 9 and 10 tests respectively |
+| 13 | Four unobserved properties | excluded-count check removed; filtered count→0; id grammar removed; value+reason validator removed | `test_the_excluded_count_must_agree_with_the_groups`; `test_the_result_counts_the_rows_the_selection_did_not_name`; `test_a_malformed_reference_is_refused`; `test_a_group_may_not_carry_a_value_and_a_reason_at_once` |
+| 14 | Caption layout | old constant `_TEXT_TOP=0.33` restored | `test_the_caption_does_not_overlap_the_axis_labels`; `test_a_taller_axis_label_pushes_the_caption_down_rather_than_under_it` |
+
+The share in row 1 is the threshold as it stood at the commit reviewed; it is
+**30%** now, after `37f7d77` (F2 below).
+
+Two more, in the LC-P1-10 fixes table rather than the fourteen, were broken
+too and caught: the policy-denial message
+(`test_a_denied_policy_is_refused`) and the manifest's emptied `parameters`
+(`test_the_manifests_parameters_are_the_operators_own_arguments`).
+
+### The three named items
+
+The three things this document said an independent reviewer would want to look
+at, in the order the reviewers themselves named them.
+
+**1 — the 35% threshold.** Not calibrated; the rule is correct, but the
+**consequence** of a page below the band was stated nowhere. `share_needed =
+ceil(n*0.35)`, so a rival must hold **more than 35%** of the line starts. The reviewer's hand-built PDFs (248 pt gutter,
+the repository's own geometry): 50/44/40% refused; **35% and below not
+refused**. A 6-line-left / 24-line-right two-column page is stored `readable`
+and citable with its columns spliced into `'LEFT … 0 RIGHT … 0'` — the
+original fabrication, in a narrower band. ADR-0008 states the rule and states
+the band; what it did not state was the **consequence** of a page below the
+band, and this acceptance stated only the sub-80 pt gutter and rotated text.
+The justification "a genuine two-column page splits near evenly" is asserted,
+never measured. — **F2**, below.
+
+**2 — manifest / recipe check.** The manifest carries no renderer version and
+none of the renderer's build parameters (figure size, bin count,
+declared-settings digest); `RenderEnvironment` holds only matplotlib's
+version, salt, fonts, platform. This is a **stated** limit
+(`RenderEnvironment`'s docstring and the plan's §5), not a quiet gap. The
+recipe check compares file bytes, so a caller handing the renderer a different
+parsed recipe is unnoticed — also **stated** in the plan's §5, with the owner
+named ("the one who calls the renderer is the one who would have to lie").
+Deliberate limit, not a defect. The figure's own receipt carries its bytes'
+hash.
+
+**3 — G1/G2 exit demonstrations.** The claim is **true**: no test and no CI job
+runs them; only a comment in `test_analysis_demo.py` mentions them. They have
+not rotted — 36, 14 and 18 checks, exit 0, today.
+
+### Three findings the acceptance documents did not record
+
+All three are fixed in `37f7d77`, on branch `fix/g3-two-column-band`, which is
+on its way into the repository as its own pull request.
+
+**F1 — the PDF adapter's docstring denied the detector it implements.**
+`src/labcairn/material/pdf.py`'s module docstring still said *"Why no column
+detection … so there is no such rule here … This adapter cannot detect that
+page and does not pretend to"*, while the same module implements
+`_two_column_evidence` and refuses such pages. The paragraph dates from
+`221bd91`; the detector was added in `d5e9d89` without updating it. This is
+LC-P1-08 defect 7's own family, reopened by its own fix. **Fixed in
+`37f7d77`:** the docstring now says what the code does, names the threshold
+and the band, and states the residual. The same document in ADR-0008 carried
+two more claims of the same kind — "the adapter cannot detect the page it
+happens on" and a heading "Why there is no detector" — and both were corrected
+in the same commit.
+
+**F2 — the coverage band below the threshold.** The review's wording was that
+"ADR-0008 states the rule but not the band", and the band was in fact stated
+there; what was missing was the **consequence** of a page below it. The band,
+plainly: at the commit reviewed, a rival column holding **35% or below** of the
+page's line starts was not a two-column page. The consequence, plainly:
+such a page was stored `readable` and was citable, and its columns were
+spliced into the extracted text — the fabrication the refusal exists to
+prevent.
+
+**The owner decided on 2026-10-20 to price the residual and narrow the
+band.** The threshold drops from 35% to **30%**, the lowest share that refuses
+nothing in the real corpus — the corpus's own single-column pages cluster at
+20–26%, so 30% is the edge of the measured band rather than a point chosen
+inside it. The residual below it is now **stated** in ADR-0008 and in the
+adapter's docstring rather than implied — a two-column page whose rival column
+holds **under 30%** of the page's line starts is stored `readable`, with its
+columns interleaved — and it is **pinned by a test of its own**,
+so it is a limit that is visible.
+
+**The band cannot be closed with this signal.** The real single-column pages
+the same rule would also catch cluster at 20–26% of their line starts, in the
+same place, so any threshold that closed the residual would refuse seven
+pages of good prose. The one thing that would calibrate the other direction —
+two-column CC-licensed material — could not be obtained; ADR-0008 records the
+search. **Fixed in `37f7d77`**, with the residual's own test.
+
+**F3 — the ADR credit in two test docstrings.** `tests/test_material_walk.py`
+(lines 367 and 410) still credited "ADR-0004 A2" for old text surviving. A2
+(ADR-0004, line 349) says only that drift makes C1 return `fail`; the clause
+that says the old text survives is ADR-0009's item 2. `test_material_indexing.py`
+had been corrected; this one had not. **Fixed in `37f7d77`:** both docstrings
+credit ADR-0009's item 2, and they say what A2 is about.
+
+### What the review did not check
+
+The fabricated-DOI half and report-generation provenance (both recorded as
+undischarged); C1/C2/C3 arithmetic; ADR-0004's twelve conditions re-derived;
+G1/G2's own work; ADR-0008's eleven-paper corpus claim; the G4
+application/report layer; `docs/handoff/`.
+
+The reviewer's tree was left clean — mutated, run, and reverted with
+`git checkout --`; no commits, no stash.
 
 ## Gate verdict
 
-**The gate's exit test is met, and the gate's work is complete.** Three work
-orders, each accepted with notes; the locators, the ledger and the
-deterministic plot are all in place and demonstrated end to end; the evidence
-design ADR exists and the three work orders are readings of it.
+**The gate is closed.** Two things are true, and this document has kept them
+apart for months because only one of them was ever in question.
 
-**The gate cannot be marked closed by this document, because the board's rule
-is not satisfied and only the owner can decide to set it aside.** That is the
-same situation LC-P1-08's row records, and the recommendation is the same: the
-exit test is met, the work is done, and the condition that is outstanding is a
-review by someone who did not write the fixes. **The review recommends that the
-owner close G3, and records that the closure rests on that decision rather than
-on an independent review.**
+**The exit test is met, and the gate's work is complete.** Three work orders,
+each accepted with notes; the locators, the ledger and the deterministic plot
+are all in place and demonstrated end to end; the evidence design ADR exists
+and the three work orders are readings of it. That was true at `15a729f` and
+is true now.
 
-**And on 2026-10-20 the owner declined the exemption.** G3 is to be closed
-**after an independent review**, not instead of one — the rule is to be
-satisfied, not waived, and the difference from LC-P1-08 is deliberate. G4
-proceeds in the meantime; the gate's closure waits for a review by someone who
-did not write the fixes. The three things such a reviewer would want to look at
-are named above, and the verification this document records is written so that
-they can be re-run rather than taken on trust.
+**The condition that was outstanding is now discharged.** On 2026-10-20 the
+owner declined the exemption and decided that G3 closes **after an independent
+review**, not instead of one — the rule is to be satisfied, not waived. The
+review has happened: at `d114810`, by a reviewer that wrote none of the fixes,
+verdict **PASS WITH NOTES**, and **no mutation surviving** — each of the
+gate's fourteen fixes was broken and every one was caught by the test it names.
+The three things such a reviewer would want to look at are answered above: the
+two-column band by a finding and a fix, the manifest and recipe limits by the
+finding that they are deliberate and stated rather than quiet, and the exit
+demonstrations by the finding that the claim is true and they have not rotted.
+The three findings the review added are fixed in `37f7d77`.
+
+**The closure therefore rests on the independent review and not on an
+exemption**, and the board's rule — a row is marked done only when an
+independent review at a named commit says so — is satisfied for LC-P1-08,
+LC-P1-09 and LC-P1-10.
+
+**What is carried forward is what the review confirmed as a limit rather than
+a defect**, and it is listed below: the manifest's missing renderer version,
+the exit demonstrations of G1 and G2 that nothing runs, the aggregate's numbers
+that C1, C2 and C3 do not re-check, and the two-column residual under 30%.
+The review did not check the fabricated-DOI half, report-generation
+provenance, C1/C2/C3 arithmetic, ADR-0004's twelve conditions re-derived,
+G1/G2's own work, ADR-0008's eleven-paper corpus claim, the G4 layer, or
+`docs/handoff/`.
 
 ## Open items carried beyond G3
 
 - **The fabricated-DOI half of LC-P1-09's clause** — still no implementation,
-  and the gap is structural rather than a missing line.
+  and the gap is structural rather than a missing line. The independent review
+  did not check it.
 - **Source provenance preserved through report generation** — LC-P1-11's, and
-  the reason the ledger's records reach a report is not yet built.
+  the reason the ledger's records reach a report is not yet built. The
+  independent review did not check it.
 - **An aggregate's numbers are not re-checked by C1, C2 or C3** — traceable to
-  the file and to the manifest, and not re-derived at gate time.
+  the file and to the manifest, and not re-derived at gate time. The
+  independent review did not re-derive C1, C2 or C3's arithmetic.
 - **The manifest names no version for the renderer** — and the recipe check
-  compares the file's bytes rather than the parsed models.
-- **The exit demonstrations of G1 and G2 are run by nothing.**
-- **No independent review of any of the three work orders.**
+  compares the file's bytes rather than the parsed models. The independent
+  review looked at this and found it a **stated limit rather than a defect**:
+  the manifest carries no renderer version and none of the renderer's build
+  parameters (figure size, bin count, declared-settings digest), and
+  `RenderEnvironment` holds only matplotlib's version, salt, fonts and
+  platform. Both facts are written down — `RenderEnvironment`'s docstring and
+  the plan's §5 — and the second is written down with the owner named: *"the
+  one who calls the renderer is the one who would have to lie."* The figure's
+  own receipt carries its bytes' hash.
+- **The exit demonstrations of G1 and G2 are run by nothing** — the claim holds.
+  No test and no CI job runs them; only a comment in `test_analysis_demo.py`
+  mentions them. They have not rotted — 36, 14 and 18 checks, exit 0, at
+  `d114810` — but nothing runs them, so they still can.
+- **A two-column page whose rival column holds less than 30% of the page's
+  line starts is not refused** — it is stored `readable`, it is citable, and
+  its columns are interleaved in the extracted text. The band **cannot be
+  closed with this signal**: the real single-column pages the same rule would
+  also catch cluster at 20–26%, in the same place, and the two-column
+  CC-licensed material that would calibrate the other direction could not be
+  obtained (ADR-0008 records the search). The residual is stated in ADR-0008
+  and in the adapter's docstring and pinned by a test of its own.
 - **The repository still has no LICENSE file**, and matplotlib's bundled fonts
   bring an obligation the root licence line does not cover — both are G5's.

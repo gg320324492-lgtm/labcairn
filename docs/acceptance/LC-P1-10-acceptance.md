@@ -218,8 +218,19 @@ reading them, and two of the three "gaps" the agents reported were corrections
 to the reviewer's own findings — but independence from the *implementers* is
 not independence in the sense ADR-0004 and LC-P1-09's review mean. The
 requirement that this work be reviewed by someone other than the party that
-wrote it is **not discharged**, and it is the same open item LC-P1-09's
-acceptance carries.
+wrote it was **not discharged** at the time, and it was the same open item
+LC-P1-09's acceptance carried.
+
+**That requirement is now discharged, by a review this document did not
+have.** The independent review of the gate, at `d114810`, was carried out by
+a reviewer that wrote none of G3's fixes: it broke each of the gate's
+fourteen fixes, implementation only and never the test, and **no mutation
+survived** — the verdict is **PASS WITH NOTES**. Its mutation table, the three
+named items it answered and the three findings it added are recorded in the
+[gate review](G3-acceptance.md), and the three findings are fixed in
+`37f7d77`. What that adds is a second pair of eyes on the fixes, not a
+rewriting of the review above — and the caveat above stands for the review
+above.
 
 ## Not covered by this review
 
@@ -236,5 +247,6 @@ acceptance carries.
   `g2_exit_demo.py` are run by nothing — no test, no CI job — so they can
   rot without anyone noticing. LC-P1-10's demonstration is covered by a test;
   the earlier ones are not, and nothing here fixes that.
-- **A second opinion.** The review is one party's, and a reader who wants a
-  different one has not had one.
+- **A second opinion.** The review above is one party's; a reader who wants a
+  different one now has the independent review at `d114810`, recorded in the
+  [gate review](G3-acceptance.md).
