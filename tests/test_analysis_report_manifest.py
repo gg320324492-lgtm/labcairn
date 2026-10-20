@@ -990,6 +990,40 @@ def test_the_chain_refuses_one_upstream_named_twice_with_different_hashes(
 
 
 @pytest.mark.unit
+def test_a_contradicting_chain_is_refused_before_anything_is_written(
+    tmp_path: Path, frozen_now: datetime
+) -> None:
+    """The refusal comes first, and the output area is left empty.
+
+    The chain is assembled before the file is written, so a manifest whose
+    chain contradicts itself is refused without a byte landing. Both halves
+    are asserted here, because either alone would pass by accident: a test
+    that only checked the raising would pass even when a file had been
+    written and then abandoned, and a generated file that no receipt names
+    is an artefact nothing can account for.
+    """
+    workspace = _workspace(tmp_path)
+    manifest = _manifest(
+        _document(as_of=frozen_now),
+        upstreams={
+            "fig-1": (_upstream(content_sha256=_hash("one-reading")),),
+            "tab-1": (_upstream(content_sha256=_hash("another-reading")),),
+        },
+    )
+
+    with pytest.raises(ReportManifestRefusedError, match="twice with different"):
+        write_report_manifest(
+            workspace,
+            key="report-manifest.json",
+            manifest=manifest,
+            receipt_id="receipt-1",
+            created_at=frozen_now,
+        )
+
+    assert list(workspace.output_root.path.iterdir()) == []
+
+
+@pytest.mark.unit
 def test_the_writer_honours_the_receipt_id_the_producer_and_the_revision(
     tmp_path: Path, frozen_now: datetime
 ) -> None:
@@ -1057,8 +1091,8 @@ def test_a_manifest_may_not_hold_two_document_parts(frozen_now: datetime) -> Non
 
     Two document parts would make "which report is this" answerable two
     ways, and the whole point of the digest is that it answers it. The
-    message is the one that says *how many* there are, so that a reader of a
-    failure is told which of the manifest's two guards spoke.
+    message says *how many* there are, so a reader of a failure is told
+    what the manifest got wrong.
     """
     manifest = _manifest(_document(as_of=frozen_now))
     payload = json.loads(manifest.canonical_bytes().decode("utf-8"))

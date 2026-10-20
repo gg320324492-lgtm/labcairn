@@ -349,16 +349,18 @@ class ReportManifest(LabCairnModel):
     def _document_part(self) -> ManifestPart:
         """The one document part.
 
-        The count is checked by :meth:`_there_is_one_document_part`, which
-        runs first; the refusal here is the belt to that braces, and it is
-        raised rather than asserted because a validator that asserts can be
-        made to fail the wrong way.
+        The count guard, :meth:`_there_is_one_document_part`, runs first and
+        is the one that speaks in the code as written; this refusal is the
+        belt to that braces, for a model that reaches this method by a path
+        that does not run the count guard. It is raised rather than asserted
+        because a validator that asserts can be made to fail the wrong way.
 
-        Its wording deliberately differs from that guard's. The two say
-        different things — *how many* document parts there are, and *that
-        there is no single one* — so a reader of a failure is told which
-        guard spoke instead of being left with one message that could have
-        come from either.
+        Its wording differs from the count guard's **on purpose**. The count
+        guard's message is a published behaviour and the test suite pins it,
+        so a belt that said the same thing would answer for a count guard
+        that had stopped working: the manifest would still be refused, the
+        message would still match, and nothing would have noticed that the
+        first guard was gone.
         """
         document_parts = [
             part for part in self.parts if part.part_kind is ManifestPartKind.DOCUMENT
