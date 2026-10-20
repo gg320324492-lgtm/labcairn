@@ -32,8 +32,9 @@ The five checks
 ---------------
 1. :func:`check_numbers_agree_with_the_ledger` — every number in the report
    is the ledger's number, compared exactly.
-2. :func:`check_figures_carry_their_captions_and_their_bytes` — every figure
-   is captioned, and the bytes on disk are the bytes the model names.
+2. :func:`check_figures_and_tables_are_the_artefacts_on_disk` — every
+   artefact the report references is the artefact on disk, and every figure is
+   captioned.
 3. :func:`check_links_resolve` — every citation is an address the index can
    resolve, and the check is a resolution rather than a comparison of strings.
 4. :func:`check_claims_rest_on_records_that_may_be_stated` — every claim names
@@ -84,7 +85,7 @@ __all__ = [
     "LedgerReader",
     "ReportRefusedError",
     "check_claims_rest_on_records_that_may_be_stated",
-    "check_figures_carry_their_captions_and_their_bytes",
+    "check_figures_and_tables_are_the_artefacts_on_disk",
     "check_links_resolve",
     "check_numbers_agree_with_the_ledger",
     "check_report",
@@ -212,6 +213,17 @@ def check_claims_rest_on_records_that_may_be_stated(
     ledger have to be the same text. The number and the sentence are the same
     kind of obligation, and the model keeps them apart only because one of
     them is a quantity and the other is a statement.
+
+    **Drift is not a content failure, and the record's
+    ``source_content_hash`` is deliberately not compared.** The report was
+    true when it was written, and what makes it untrue is the *material
+    moving* — a fact about time and not about the report's content. ADR-0004's
+    I4 says a changed source invalidates what was derived from it, and that
+    invalidation is marked on the receipt (LC-P1-11's revisions), not refused
+    here: a check that refused a report whose material had since changed would
+    turn "this was true then" into "this was never written", and a report
+    that was true has to stay readable. So the comparison is left out on
+    purpose, and it should stay left out.
     """
     problems: list[str] = []
     for claim in document.claims:
@@ -266,6 +278,16 @@ def check_links_resolve(document: ReportDocument, *, index: SourceIndex) -> None
     resolved through that record's own anchors: the ledger's registered
     addresses are the ones the record was read from, and a citation that
     names another address is a citation to something else.
+
+    **The report may cite only the address the ledger holds.** A locator may
+    not be widened on the way into the report: a citation to the page when the
+    record was read from the page's characters is a *different* address, and
+    resolving it would be claiming the ledger says something at an address it
+    never recorded. So the refusal a builder meets when it widens a locator
+    is on purpose and not a defect — and if the report needs a wider span,
+    the **ledger** has to record that wider span first. The anchor is the
+    record of where the material was read, and the report cites what the
+    ledger holds.
     """
     problems: list[str] = []
     footnotes = {footnote.footnote_id: footnote for footnote in document.footnotes}
@@ -340,12 +362,26 @@ def _resolve_citation(
     return problems
 
 
-def check_figures_carry_their_captions_and_their_bytes(
+def check_figures_and_tables_are_the_artefacts_on_disk(
     document: ReportDocument, *, workspace_root: Path
 ) -> None:
-    """Every figure is captioned, and the bytes on disk are the bytes it names.
+    """Every artefact the report references is the artefact on disk.
 
-    Two things, and the second is the one that can be done wrong.
+    **A table's bytes are checked the way a figure's are, because a table is
+    a reference in the same shape as a figure.** The model carries a figure
+    and a table the same way — a workspace-relative path and the hash of the
+    bytes at it — and both are references to a file rather than copies of one.
+    Verifying one and not the other would have no principle behind it: a
+    reader of the checks would reasonably assume that the table the report
+    includes is the table on disk, and the answer would be that nobody
+    checked. So the same comparison is made for both, by the same code.
+
+    The one thing a figure has and a table does not is a **caption**, and
+    that asymmetry is the model's own: a figure is drawn into the report and
+    a table is included in it, so the figure needs a caption beside it and
+    the table's heading is part of the table artefact.
+
+    Two things, then, and the second is the one that can be done wrong.
 
     **The caption is the model's.** A figure without a caption is a picture
     the reader has to interpret alone, and a caption invented by a renderer is
@@ -354,13 +390,14 @@ def check_figures_carry_their_captions_and_their_bytes(
     so does this check, because the model is the rule a document meets when it
     is built and this is the rule a document meets when it is written out.
 
-    **The bytes are read, not believed.** The figure's ``content_sha256`` is
+    **The bytes are read, not believed.** The artefact's ``content_sha256`` is
     the model's *claim* about the file; the file's own hash is the fact. A
     check that compared the model's hash with the model's hash would pass on
-    a figure that was never drawn, and the report would show a picture of
-    something else. So the file is opened and hashed here, and the two are
-    compared — the same way the ledger compares a recorded hash with the
-    source as it now stands, and never the other way round.
+    an artefact that was never produced, and the report would show a picture
+    of something else or a table of something else. So the file is opened and
+    hashed here, and the two are compared — the same way the ledger compares
+    a recorded hash with the source as it now stands, and never the other way
+    round.
     """
     problems: list[str] = []
     root = workspace_root.resolve()
@@ -371,33 +408,27 @@ def check_figures_carry_their_captions_and_their_bytes(
                 "model's, and a renderer that has to invent one invents a different "
                 "one for every format"
             )
-        target = root / figure.relative_path
-        resolved = target.resolve()
-        if not resolved.is_relative_to(root):
-            problems.append(
-                f"the figure {figure.figure_id!r} names {figure.relative_path!r}, which "
-                "resolves outside the workspace. A figure is a file in the workspace, "
-                "and one somewhere else is not it"
+        problems.extend(
+            _artefact_bytes(
+                root,
+                figure.relative_path,
+                figure.content_sha256,
+                label=figure.figure_id,
+                kind="figure",
             )
-            continue
-        try:
-            observed = content_hash(resolved)
-        except OSError as error:
-            problems.append(
-                f"the figure {figure.figure_id!r} names {figure.relative_path!r}, which "
-                f"cannot be read: {error}. A figure the report cannot find is a "
-                "picture of nothing"
+        )
+    for table in document.tables:
+        problems.extend(
+            _artefact_bytes(
+                root,
+                table.relative_path,
+                table.content_sha256,
+                label=table.table_id,
+                kind="table",
             )
-            continue
-        if observed != figure.content_sha256:
-            problems.append(
-                f"the figure {figure.figure_id!r} names {figure.relative_path!r}, whose "
-                f"bytes hash to {observed}, but the report records "
-                f"{figure.content_sha256}. The figure in the report is not the figure "
-                "on disk"
-            )
+        )
     if problems:
-        raise ReportRefusedError("figures", "; ".join(problems))
+        raise ReportRefusedError("artefacts", "; ".join(problems))
 
 
 def check_the_snapshot_names_the_records_the_report_carries(document: ReportDocument) -> None:
@@ -412,7 +443,7 @@ def check_the_snapshot_names_the_records_the_report_carries(document: ReportDocu
 
     The model refuses both on construction, and this check says them again
     for the reason
-    :func:`check_figures_carry_their_captions_and_their_bytes` gives: a check
+    :func:`check_figures_and_tables_are_the_artefacts_on_disk` gives: a check
     that leaned on the model's validators would be a check that could not
     fail on its own.
     """
@@ -438,6 +469,40 @@ def check_the_snapshot_names_the_records_the_report_carries(document: ReportDocu
         )
     if problems:
         raise ReportRefusedError("snapshot", "; ".join(problems))
+
+
+def _artefact_bytes(
+    root: Path, relative_path: str, content_sha256: str, *, label: str, kind: str
+) -> list[str]:
+    """Whether the bytes at *relative_path* are the bytes the model names.
+
+    One comparison, made for a figure and for a table alike: the artefact is
+    on disk, it is inside the workspace, and it hashes to what the model
+    records. The sentences are returned rather than raised, so that a report
+    with two wrong artefacts says so twice rather than once.
+    """
+    target = root / relative_path
+    resolved = target.resolve()
+    if not resolved.is_relative_to(root):
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, which resolves outside the "
+            f"workspace. A {kind} is a file in the workspace, and one somewhere else "
+            "is not it"
+        ]
+    try:
+        observed = content_hash(resolved)
+    except OSError as error:
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, which cannot be read: "
+            f"{error}. The artefact the report names is not on disk"
+        ]
+    if observed != content_sha256:
+        return [
+            f"the {kind} {label!r} names {relative_path!r}, whose bytes hash to "
+            f"{observed}, but the report records {content_sha256}. The artefact in the "
+            "report is not the one on disk"
+        ]
+    return []
 
 
 def check_report(
@@ -466,4 +531,4 @@ def check_report(
     check_numbers_agree_with_the_ledger(document, ledger=ledger)
     check_claims_rest_on_records_that_may_be_stated(document, ledger=ledger)
     check_links_resolve(document, index=index)
-    check_figures_carry_their_captions_and_their_bytes(document, workspace_root=workspace_root)
+    check_figures_and_tables_are_the_artefacts_on_disk(document, workspace_root=workspace_root)

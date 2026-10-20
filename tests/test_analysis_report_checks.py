@@ -67,7 +67,7 @@ from labcairn.reports.checks import (
     LedgerReader,
     ReportRefusedError,
     check_claims_rest_on_records_that_may_be_stated,
-    check_figures_carry_their_captions_and_their_bytes,
+    check_figures_and_tables_are_the_artefacts_on_disk,
     check_links_resolve,
     check_numbers_agree_with_the_ledger,
     check_report,
@@ -85,6 +85,8 @@ from labcairn.reports.model import (
     ReportDocument,
     ReportFigure,
     ReportSection,
+    ReportTable,
+    TableBlock,
 )
 from labcairn.security.approval import content_hash
 from labcairn.sources.locators import ComputationLocator, PdfLocator
@@ -114,6 +116,12 @@ FIGURE_BYTES = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='10' height
 #: The figure's path, workspace-relative.
 FIGURE_PATH = "outputs/figures/fig-1.svg"
 
+#: The table's bytes on disk.
+TABLE_BYTES = b"run,yield\n1,4.253\n"
+
+#: The table's path, workspace-relative.
+TABLE_PATH = "outputs/tables/tab-1.csv"
+
 
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -128,6 +136,7 @@ class World:
     index: LabCairnIndex
     ledger: LedgerReader
     figure_hash: str
+    table_hash: str
 
 
 def _insert_source(connection: Connection, source_id: str, sha: str) -> None:
@@ -248,6 +257,9 @@ def world(tmp_path: Path) -> Iterator[World]:
     figure_file = root / FIGURE_PATH
     figure_file.parent.mkdir(parents=True)
     figure_file.write_bytes(FIGURE_BYTES)
+    table_file = root / TABLE_PATH
+    table_file.parent.mkdir(parents=True)
+    table_file.write_bytes(TABLE_BYTES)
 
     database = tmp_path / "checks.db"
     upgrade_to_head(database)
@@ -266,6 +278,7 @@ def world(tmp_path: Path) -> Iterator[World]:
         index=LabCairnIndex(connection),
         ledger=ledger_reader(connection),
         figure_hash=content_hash(figure_file),
+        table_hash=content_hash(table_file),
     )
     engine.dispose()
 
@@ -384,6 +397,20 @@ def _figure(
     )
 
 
+def _table(
+    *,
+    table_id: str = "tab-1",
+    relative_path: str = TABLE_PATH,
+    content_sha256: str = "c" * 64,
+) -> ReportTable:
+    """A table artefact, by path and hash — and, unlike a figure, no caption."""
+    return ReportTable(
+        table_id=table_id,
+        relative_path=relative_path,
+        content_sha256=content_sha256,
+    )
+
+
 def _section(
     *,
     section_id: str = "sec-1",
@@ -400,6 +427,7 @@ def _document(
     *,
     claims: tuple[ReportClaim, ...] | None = None,
     figures: tuple[ReportFigure, ...] = (),
+    tables: tuple[ReportTable, ...] = (),
     footnotes: tuple[ProvenanceFootnote, ...] | None = None,
     sections: tuple[ReportSection, ...] | None = None,
     record_ids: tuple[str, ...] | None = None,
@@ -419,6 +447,7 @@ def _document(
         sections=sections,
         claims=claims,
         figures=figures,
+        tables=tables,
         footnotes=footnotes,
     )
 
@@ -431,12 +460,14 @@ def _report(world: World) -> ReportDocument:
     return _document(
         claims=(_claim(),),
         figures=(_figure(content_sha256=world.figure_hash),),
+        tables=(_table(content_sha256=world.table_hash),),
         footnotes=(_footnote(),),
         sections=(
             _section(
                 blocks=(
                     ClaimBlock(claim_id="clm-1"),
                     FigureBlock(figure_id="fig-1"),
+                    TableBlock(table_id="tab-1"),
                 )
             ),
         ),
@@ -489,7 +520,7 @@ def test_every_check_takes_the_model_and_the_material_it_is_checked_against() ->
         check_numbers_agree_with_the_ledger,
         check_claims_rest_on_records_that_may_be_stated,
         check_links_resolve,
-        check_figures_carry_their_captions_and_their_bytes,
+        check_figures_and_tables_are_the_artefacts_on_disk,
         check_the_snapshot_names_the_records_the_report_carries,
     )
     for check in checks:
@@ -588,7 +619,7 @@ def test_a_figure_whose_bytes_are_not_the_ones_on_disk_is_refused(world: World) 
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "figures"
+    assert refusal.value.check == "artefacts"
 
 
 @pytest.mark.unit
@@ -604,7 +635,7 @@ def test_a_figure_that_is_not_on_disk_is_refused(world: World) -> None:
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "figures"
+    assert refusal.value.check == "artefacts"
 
 
 @pytest.mark.unit
@@ -624,7 +655,45 @@ def test_a_figure_without_a_caption_is_refused(world: World) -> None:
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, blank)
 
-    assert refusal.value.check == "figures"
+    assert refusal.value.check == "artefacts"
+
+
+@pytest.mark.unit
+def test_a_table_whose_bytes_are_not_the_ones_on_disk_is_refused(world: World) -> None:
+    """A table is a reference in the same shape as a figure, so it is checked
+    the same way.
+
+    The model carries the table by path and by hash, exactly as it carries
+    the figure, and the file on disk is replaced after the report names it.
+    Verifying a figure's bytes and leaving a table's alone would have no
+    principle behind it: a reader of the checks would assume the table the
+    report includes is the table on disk, and the answer would be that
+    nobody looked.
+    """
+    (world.root / TABLE_PATH).write_bytes(b"run,yield\n1,9.999\n")
+    document = _report(world)
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "artefacts"
+
+
+@pytest.mark.unit
+def test_a_table_that_is_not_on_disk_is_refused(world: World) -> None:
+    """And a table that cannot be found is refused the same way.
+
+    The report includes a table that is not there, which is a reference to
+    nothing — the same failure as a figure that is not there, and the same
+    refusal.
+    """
+    (world.root / TABLE_PATH).unlink()
+    document = _report(world)
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "artefacts"
 
 
 # ---------------------------------------------------------------------------
