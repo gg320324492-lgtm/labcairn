@@ -29,6 +29,37 @@ still has to present the session token, which is not guessable. The origin
 check is what stops a page on another site; the session check is what stops
 everything else.
 
+The browser says more, and the service listens
+-----------------------------------------------
+
+A subresource load carries no ``Origin``, and that is exactly the request a
+page on another site makes when it embeds this service: ``<img src=...>``,
+``<script src=...>``, ``<embed src=...>``. The origin check waves those
+through, because there is no origin to judge.
+
+The browser's own fetch metadata closes that, and the owner's rule is:
+
+    **Refuse a request that carries no ``Origin`` header when its
+    ``Sec-Fetch-Site`` is ``cross-site`` and its ``Sec-Fetch-Mode`` is not
+    ``navigate``.**
+
+Each part is load-bearing:
+
+* it applies to the requests that carry **no** ``Origin``, because a request
+  that carries one is already judged by the origin check — and a request that
+  carries an *allow-listed* one, the development web server, must keep
+  working;
+* ``navigate`` is permitted, so that a link the user clicks from another
+  site still opens the workbench. A navigation is a thing the user did; a
+  subresource load is something a page did to the user;
+* ``Sec-Fetch-Site: none`` and an absent header are permitted — a user
+  typing the URL, and every client that is not a browser.
+
+This is a *strengthening* of the origin check and not a change to it: the
+allow-list is still the authority on which origins are answered to, and
+``localhost:5173`` is ``cross-site`` to ``127.0.0.1:8000`` precisely because
+an address is its own site.
+
 The session check
 -----------------
 
@@ -67,6 +98,9 @@ class GuardRefusal(StrEnum):
     ORIGIN_REFUSED = "origin_refused"
     #: The request changes something and did not present the session token.
     SESSION_REQUIRED = "session_required"
+    #: The request carries no ``Origin``, and the browser says it came from
+    #: another site and was not a navigation.
+    CROSS_SITE_REFUSED = "cross_site_refused"
 
 
 #: The status each guard refusal is answered with.
@@ -80,6 +114,7 @@ class GuardRefusal(StrEnum):
 GUARD_STATUS_CODES: dict[GuardRefusal, int] = {
     GuardRefusal.ORIGIN_REFUSED: 403,
     GuardRefusal.SESSION_REQUIRED: 401,
+    GuardRefusal.CROSS_SITE_REFUSED: 403,
 }
 
 
@@ -123,6 +158,54 @@ class OriginPolicy:
         if origin is None:
             return True
         return origin in self.allowed
+
+
+@dataclass(frozen=True, slots=True)
+class FetchMetadata:
+    """What the browser said about where a request came from.
+
+    ``Sec-Fetch-Site`` and ``Sec-Fetch-Mode`` are **forbidden header
+    names**: a page's script cannot set them, so the browser's word is the
+    browser's — the same trust property ``Origin`` has, and the reason this
+    is a guard rather than a hint.
+
+    What the browser sends:
+
+    * ``Sec-Fetch-Site`` is ``same-origin``, ``same-site``, ``cross-site``
+      or ``none``. It is sent on *every* request, including the
+      subresource loads that carry no ``Origin`` at all — which is the gap
+      the origin check leaves open.
+    * ``Sec-Fetch-Mode`` is ``navigate``, ``no-cors``, ``cors`` or
+      ``same-origin``. A *navigation* is something the user did — they
+      clicked a link, or typed a URL — and it is permitted even from
+      another site. A subresource load is something a page did to the user.
+    """
+
+    site: str | None
+    mode: str | None
+
+    @classmethod
+    def from_headers(cls, headers: Mapping[str, str]) -> FetchMetadata:
+        """The metadata a request carries, if any.
+
+        The headers are read in lower case, because a header name is case
+        insensitive and a browser that spelled it differently would
+        otherwise be read as having said nothing.
+        """
+        return cls(
+            site=headers.get("sec-fetch-site"),
+            mode=headers.get("sec-fetch-mode"),
+        )
+
+    def is_cross_site_subresource(self) -> bool:
+        """Whether this is another site's page pulling a subresource from us.
+
+        ``cross-site`` and not a navigation. ``none`` — a request the user
+        made directly — is not this, and an absent header is not this: a
+        client that is not a browser says nothing about where it is, and the
+        origin check is what judges it.
+        """
+        return self.site == "cross-site" and self.mode != "navigate"
 
 
 @dataclass(frozen=True, slots=True)

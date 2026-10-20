@@ -124,7 +124,7 @@ def get_health(request: Request) -> Health:
 
 
 @router.get("/session", response_model=SessionInfo, tags=["service"])
-def get_session(request: Request) -> SessionInfo:
+def get_session(request: Request, response: Response) -> SessionInfo:
     """The token a client presents, and where the token was written.
 
     **The one response that carries the token**, and its safety rests on two
@@ -138,15 +138,19 @@ def get_session(request: Request) -> SessionInfo:
       as a classic script, so ``<script src=".../session">`` in another
       page executes nothing.
 
-    The origin guard is the third thing, and it is the one that refuses a
-    request outright: a request that *carries* a foreign origin never
-    reaches this handler. The two absences above cover the request that
-    carries none — a subresource load, which the browser does not put an
-    origin on.
+    ``X-Content-Type-Options: nosniff`` is the third: the browser must not
+    decide that the bytes are something else and run them.
 
-    Both are absences, and an absence is not a property until something
+    The origin guard is the fourth, and it is the one that refuses a request
+    outright: a request that *carries* a foreign origin never reaches this
+    handler. The absences above cover the request that carries none — a
+    subresource load, which the browser does not put an origin on; the
+    fetch-metadata rule is what refuses that one.
+
+    All of it is absences, and an absence is not a property until something
     watches it, which is why ``tests/test_api.py`` has a test for each.
     """
+    response.headers["X-Content-Type-Options"] = "nosniff"
     token = cast(SessionToken, request.app.state.session)
     return SessionInfo(token=token.value, path=str(token.path))
 
@@ -239,10 +243,33 @@ def get_artifact_content(
     ``/artifacts/{id}``; this route is the content and nothing else, so a
     caller that wants to know whether the file still matches the receipt can
     compare the two.
+
+    **The content type is the receipt's own**, never guessed from the file's
+    name. A route that guessed would turn a ``.html`` artefact into a
+    document, and a document loaded in a frame runs *in this service's
+    origin* — where every guard passes and ``/session`` is readable.
+
+    Which is why the response carries ``Content-Security-Policy: sandbox``:
+    the document is put in an opaque origin, so it cannot read this
+    service's origin, cannot script it and cannot reach the token. The bytes
+    are unchanged — the header is on the response, not in the content — so
+    the report's own HTML form, which is self-contained with no scripts and
+    no external assets, renders exactly as it did.
+
+    ``X-Content-Type-Options: nosniff`` is here for the same reason the
+    session response carries it: a browser must not decide that the bytes
+    are something else.
     """
     content = read_artifact(context, artifact_id)
     media_type = content.receipt.media_type or "application/octet-stream"
-    return Response(content=content.content, media_type=media_type)
+    return Response(
+        content=content.content,
+        media_type=media_type,
+        headers={
+            "Content-Security-Policy": "sandbox",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 # --------------------------------------------------------------------------- #

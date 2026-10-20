@@ -100,6 +100,7 @@ from labcairn.api.contracts import RefusalBody
 from labcairn.api.events import EventSource, UnwiredEventSource
 from labcairn.api.guards import (
     GUARD_STATUS_CODES,
+    FetchMetadata,
     GuardRefusal,
     GuardRefusedError,
     OriginPolicy,
@@ -156,12 +157,17 @@ def refusal_response(refusal: _Refusal, status_code: int) -> JSONResponse:
 
 
 def _enforce_guards(request: Request) -> None:
-    """Apply the origin guard and then the session guard.
+    """Apply the origin guard, the fetch-metadata rule, and then the session guard.
 
     The order matters and is the order of the plan: a request from a foreign
     origin is refused *before* the session is looked at, so a request with a
     valid token and a foreign origin is still refused. A token is not a pass
     to a page on another site.
+
+    The fetch-metadata rule sits between the two because it answers a
+    question the origin check cannot: the request carries **no** origin, so
+    there is nothing there to judge, and the browser's own metadata says
+    where it came from instead.
     """
     origins = cast(OriginPolicy, request.app.state.origins)
     origin = request.headers.get("origin")
@@ -173,6 +179,17 @@ def _enforce_guards(request: Request) -> None:
             "drive a local service, and the browser sends the origin whether the "
             "page means to or not.",
         )
+    if origin is None:
+        fetch = FetchMetadata.from_headers(request.headers)
+        if fetch.is_cross_site_subresource():
+            raise GuardRefusedError(
+                GuardRefusal.CROSS_SITE_REFUSED,
+                "the request carries no origin, and the browser says it came from "
+                "another site and was not a navigation. A page on another site can "
+                "load a resource from a local service without an origin, and this "
+                "is the request that is: a link the user clicks is a navigation and "
+                "is still served.",
+            )
     guard = cast(SessionGuard, request.app.state.session_guard)
     presented = SessionGuard.read(request.headers)
     if not guard.permits(request.method, presented):

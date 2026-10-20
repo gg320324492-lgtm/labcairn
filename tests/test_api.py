@@ -32,9 +32,10 @@ the layer would fail here as well as there.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,7 @@ from labcairn.application import (
 from labcairn.application.refusal import ApplicationRefusal
 from labcairn.core.ids import TaskId, new_id
 from labcairn.db.repository import events_after
+from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
@@ -449,6 +451,195 @@ def test_each_service_gets_its_own_token(context: ApplicationContext) -> None:
     first = create_app(context)
     second = create_app(context)
     assert first.state.session.value != second.state.session.value
+
+
+# --------------------------------------------------------------------------- #
+# the browser's fetch metadata
+# --------------------------------------------------------------------------- #
+
+
+#: A request that another site's page made, as a subresource load. It carries
+#: no ``Origin``, which is what the origin check permits by omission.
+_CROSS_SITE_SUBRESOURCE = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors"}
+
+#: The same request, made by a link the user clicked.
+_CROSS_SITE_NAVIGATION = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"}
+
+
+def test_a_cross_site_subresource_with_no_origin_is_refused(client: TestClient) -> None:
+    """The subresource load is the request the origin check waves through.
+
+    A page on another site embeds this service with an ``<img>``, a
+    ``<script>`` or an ``<embed>``, and the browser puts no ``Origin`` on
+    any of them — so there is nothing for the origin check to judge. The
+    browser's own metadata says where it came from, and the rule refuses it.
+
+    Checked on the token endpoint as well as on a read: the subresource load
+    of ``/session`` is the one that would hand a page the token.
+    """
+    for path in ("/session", "/task"):
+        response = client.get(path, headers=_CROSS_SITE_SUBRESOURCE)
+        assert response.status_code == 403, f"{path} was served to a cross-site subresource"
+        assert response.json()["reason"] == "cross_site_refused"
+
+
+def test_a_cross_site_navigation_is_served(tmp_path: Path, context: ApplicationContext) -> None:
+    """A link the user clicked still opens the workbench.
+
+    A navigation is a thing the *user* did; a subresource load is something a
+    page did to the user. The rule permits the first, and this is what
+    ``Sec-Fetch-Mode: navigate`` buys — the workbench page and the API's own
+    reads are both served.
+    """
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<!doctype html><title>workbench</title>", encoding="utf-8")
+    with TestClient(create_app(context, static_dir=dist)) as wired:
+        for path in ("/", "/task", "/health"):
+            response = wired.get(path, headers=_CROSS_SITE_NAVIGATION)
+            assert response.status_code == 200, f"{path} refused a navigation the user made"
+
+
+def test_an_allow_listed_origin_is_judged_by_the_origin_check_alone(
+    context: ApplicationContext,
+) -> None:
+    """The development web server keeps working, cross-site metadata and all.
+
+    ``http://localhost:5173`` is **cross-site** to ``http://127.0.0.1:8000`` —
+    an address is its own site — so the request carries ``cross-site`` even
+    though the origin is the one the operator allow-listed. The rule does not
+    touch a request that carries an origin, and this is what says so: the
+    fetch metadata is sent, and the request is still served.
+    """
+    development = "http://localhost:5173"
+    with TestClient(create_app(context, extra_origins=[development])) as wired:
+        response = wired.get(
+            "/task",
+            headers={"Origin": development, **_CROSS_SITE_SUBRESOURCE},
+        )
+        assert response.status_code == 200
+
+
+def test_a_request_with_no_fetch_metadata_is_judged_by_the_origin_check_alone(
+    client: TestClient,
+) -> None:
+    """A client that says nothing about where it is is judged by the origin.
+
+    That is every client that is not a browser, and it is also the request
+    the rule must not touch. The second assertion is the one that gives the
+    first its meaning: the origin check is still in force, and a foreign
+    origin is still refused.
+    """
+    assert client.get("/task").status_code == 200
+    assert client.get("/task", headers={"Origin": FOREIGN_ORIGIN}).status_code == 403
+    assert client.get("/task", headers={"Sec-Fetch-Site": "same-origin"}).status_code == 200
+    assert client.get("/task", headers={"Sec-Fetch-Site": "none"}).status_code == 200
+
+
+# --------------------------------------------------------------------------- #
+# what the artefact route serves
+# --------------------------------------------------------------------------- #
+
+
+def _media_type(headers: Mapping[str, str]) -> str:
+    """The media type in a response's headers, without the parameters.
+
+    ``text/markdown; charset=utf-8`` is the same media type as
+    ``text/markdown``, and a test that compared the whole header would be
+    asserting the charset as well.
+    """
+    return headers["content-type"].split(";")[0].strip().lower()
+
+
+def _put_artifact(
+    context: ApplicationContext, *, name: str, body: bytes, media_type: str | None
+) -> str:
+    """An artefact in the store, with its bytes on disk and its receipt.
+
+    The receipt is written the way the store holds one, and the file is put
+    where the receipt says it is, so the layer's own read finds both.
+    """
+    relative = f"output/{context.task_id}/{name}"
+    path = context.workspace.selected_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    receipt = ArtifactReceipt(
+        receipt_id=f"artifact-{new_id()}",
+        task_id=str(context.task_id),
+        kind=ArtifactKind.REPORT,
+        relative_path=relative,
+        content_sha256=hashlib.sha256(body).hexdigest(),
+        size_bytes=len(body),
+        produced_by=ArtifactProducerKind.STAGE,
+        producer_id="draft",
+        media_type=media_type,
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    with context.store.unit(context.task_id) as work:
+        work.put_artifact(receipt, run_id=None)
+    return receipt.receipt_id
+
+
+def test_the_artefact_route_serves_a_sandboxed_response(
+    context: ApplicationContext, client: TestClient
+) -> None:
+    """An artefact is a document, and a document must not run in our origin.
+
+    ``Content-Security-Policy: sandbox`` puts the document in an opaque
+    origin: it cannot read this service's origin, cannot script it, and
+    cannot reach the token. Without it, a page on another site could frame
+    an HTML or SVG artefact, and the framed document — running in *our*
+    origin, where every guard passes — could fetch ``/session`` and hand
+    the token back.
+
+    The bytes are unchanged, so the report's own HTML form renders as it
+    did; a frame cannot be rendered in this suite, so the checkable form of
+    the property is the header.
+    """
+    body = b"<html><body>report</body></html>"
+    receipt_id = _put_artifact(context, name="sandboxed.html", body=body, media_type="text/html")
+    response = client.get(f"/artifacts/{receipt_id}/content")
+    assert response.status_code == 200
+    assert response.headers["content-security-policy"] == "sandbox"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.content == body
+
+
+def test_the_artefact_content_type_is_the_receipt_s_own(
+    context: ApplicationContext, client: TestClient
+) -> None:
+    """The content type is declared, not guessed from the file's name.
+
+    A route that guessed would call an artefact called ``.html`` a document,
+    and a document loaded in a frame runs in this service's origin. The
+    names here end in ``.html`` and the receipts say otherwise, and the
+    receipt is what the response carries — the receipt's own contract says
+    the media type is "not inferred from the extension".
+
+    The second case is the one that matters for a receipt that declares
+    nothing: the fallback is an opaque type, not a guess.
+    """
+    declared = _put_artifact(
+        context, name="declared.html", body=b"# Report\n", media_type="text/markdown"
+    )
+    response = client.get(f"/artifacts/{declared}/content")
+    assert _media_type(response.headers) == "text/markdown"
+
+    undeclared = _put_artifact(context, name="undeclared.html", body=b"# Report\n", media_type=None)
+    fallback = client.get(f"/artifacts/{undeclared}/content")
+    assert _media_type(fallback.headers) == "application/octet-stream"
+
+
+def test_the_session_response_is_not_sniffable(client: TestClient) -> None:
+    """The browser must not decide that the token is something else.
+
+    The session response is ``application/json`` already, and
+    ``nosniff`` says the browser must not decide otherwise — which is the
+    difference between a media type that is right and a media type that is
+    merely declared.
+    """
+    response = client.get("/session")
+    assert response.headers["x-content-type-options"] == "nosniff"
 
 
 # --------------------------------------------------------------------------- #
