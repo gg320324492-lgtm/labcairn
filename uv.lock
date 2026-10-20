@@ -1137,7 +1137,9 @@ dependencies = [
     { name = "pydantic-ai" },
     { name = "python-docx" },
     { name = "reportlab" },
+    { name = "rich" },
     { name = "sqlalchemy" },
+    { name = "typer" },
     { name = "uvicorn" },
 ]
 
@@ -1162,7 +1164,9 @@ requires-dist = [
     { name = "pydantic-ai", specifier = ">=1,<2" },
     { name = "python-docx", specifier = ">=1.2,<2" },
     { name = "reportlab", specifier = ">=4.0,<6" },
+    { name = "rich", specifier = ">=15,<16" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
+    { name = "typer", specifier = ">=0.25,<1" },
     { name = "uvicorn", specifier = ">=0.30,<1" },
 ]
 
