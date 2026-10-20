@@ -47,23 +47,6 @@ dependencies = [
     # T07), so the text, Markdown, CSV and XLSX paths do not need it.
     "matplotlib>=3.9,<4",
     "alembic>=1.13,<2",
-    # LC-P1-11 report export. The decision record is
-    # docs/adr/ADR-0013-report-export-libraries.md, which measured both
-    # candidates as installed rather than assuming. The licences were read
-    # from each distribution's own licence file rather than from package
-    # metadata: python-docx 1.2.0 is MIT ("Copyright (c) 2013 Steve Canny")
-    # and reportlab 5.0.1 is BSD 3-clause ("Copyright (c) 2000-2024,
-    # ReportLab Inc."), so the root licence lines are permissive -- BUT
-    # reportlab's wheel also BUNDLES FONTS under two further licences
-    # (Bitstream Vera, and DarkGarden under GPL-2.0-or-later with the font
-    # exception), so the G5 licence audit must cover reportlab/fonts/ and
-    # not the root licence line alone. That is the paper-qa failure mode
-    # ADR-0004 records, and it is the same obligation ADR-0012 recorded for
-    # matplotlib's DejaVu fonts. Both must be loaded lazily by
-    # labcairn.reports.render, so a report exported only as Markdown or HTML
-    # does not pay for lxml or reportlab.
-    "python-docx>=1.2,<2",
-    "reportlab>=4.0,<6",
 ]
 
 [dependency-groups]
@@ -85,6 +68,11 @@ dev = [
     "types-openpyxl>=3.1,<4",
     "pytest>=8.3,<9",
     "ruff>=0.8,<1",
+    # LC-P1-12 T07. The API's tests drive the service over HTTP, which is the
+    # only way to observe what a browser would observe -- an origin header, a
+    # bearer token and a status code are all properties of the wire, not of a
+    # function call. httpx is what Starlette's TestClient is built on.
+    "httpx>=0.27,<1",
 ]
 
 # ---------------------------------------------------------------------------
@@ -282,3 +270,27 @@ norecursedirs = [
     "benchmarks",
     "examples",
 ]
+    # LC-P1-11 report export. The decision record is
+    # docs/adr/ADR-0013-report-export-libraries.md, which measured both
+    # candidates as installed rather than assuming. The licences were read
+    # from each distribution's own licence file rather than from package
+    # metadata: python-docx 1.2.0 is MIT ("Copyright (c) 2013 Steve Canny")
+    # and reportlab 5.0.1 is BSD 3-clause ("Copyright (c) 2000-2024,
+    # ReportLab Inc."), so the root licence lines are permissive -- BUT
+    # reportlab's wheel also BUNDLES FONTS under two further licences
+    # (Bitstream Vera, and DarkGarden under GPL-2.0-or-later with the font
+    # exception), so the G5 licence audit must cover reportlab/fonts/ and
+    # not the root licence line alone. That is the paper-qa failure mode
+    # ADR-0004 records, and it is the same obligation ADR-0012 recorded for
+    # matplotlib's DejaVu fonts. Both must be loaded lazily by
+    # labcairn.reports.render, so a report exported only as Markdown or HTML
+    # does not pay for lxml or reportlab.
+    "python-docx>=1.2,<2",
+    "reportlab>=4.0,<6",
+
+    # LC-P1-12 T07. The localhost API. FastAPI is the framework ARCHITECTURE.md
+    # names; uvicorn is the server that runs it, because the bind address is
+    # the API's own decision and a service that cannot choose where it listens
+    # cannot refuse to listen anywhere else.
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",

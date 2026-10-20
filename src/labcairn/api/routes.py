@@ -1,0 +1,414 @@
+"""The routes: parse, call the layer, render.
+
+Every handler here is three lines of work. It reads what it needs from the
+request, calls one operation of :mod:`labcairn.application`, and returns what
+that operation returned. A handler that reached past the layer would be a
+handler that could grant itself a permission the CLI would not — the seam
+exists so that a guard applied to an operation reaches every caller, and a
+route that reads the store itself is a caller the guard does not reach.
+
+**The response models are the layer's models.** Not copies of them: the same
+classes. §1.4.2's decision is that the CLI and the API serve the same bytes,
+and the way to keep that true is for there to be one model rather than two
+that agree until somebody changes one of them. A route that returned a
+bespoke "API view" of a task would be the second spelling the plan warns
+about, and the web app would then be showing the API's idea of a task rather
+than the task.
+
+The request bodies are the exception, and they are the API's own because the
+CLI has no request bodies to share: a web request has to say what it wants in
+a shape the wire can carry.
+
+The refusals
+------------
+
+A handler does not catch a refusal. :class:`~labcairn.application.refusal.ApplicationRefusedError`
+is turned into a response by the application's own handler, so every refusal
+from every route is the same status code and the same two fields — and a
+handler that caught one and re-rendered it would be a second spelling of the
+refusal as well.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Iterator
+from typing import Annotated, cast
+
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import StreamingResponse
+
+from labcairn.api.contracts import (
+    ApprovalBody,
+    ApprovalUseBody,
+    Health,
+    SessionInfo,
+    StageBody,
+)
+from labcairn.api.events import EventSource, sse_frame
+from labcairn.api.guards import OriginPolicy
+from labcairn.api.session import SessionToken
+from labcairn.application import (
+    ApplicationContext,
+    ApprovalConsumed,
+    ApprovalGranted,
+    ApprovalRequested,
+    ArtifactView,
+    SourceView,
+    StageRun,
+    TaskPlan,
+    TaskState,
+    TaskStep,
+    consume_approval,
+    grant_approval,
+    inspect_source,
+    list_artifacts,
+    list_sources,
+    list_tasks,
+    read_artifact,
+    read_plan,
+    read_steps,
+    read_task_state,
+    request_approval,
+    run_stage,
+)
+from labcairn.application.approvals import ApprovalRequest, ApprovalUse
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.stages import StageRequest, StageWork
+from labcairn.core.ids import ApprovalId
+from labcairn.runtime.event import EventStreamPage, EventStreamRequest
+from labcairn.runtime.lifecycle import Task
+
+#: The routes of the local API. A router rather than a set of decorators on
+#: one app, so that the contract can be read from an app that carries the
+#: routes and none of the state.
+router = APIRouter()
+
+
+def _context(request: Request) -> ApplicationContext:
+    """The application context this request is about.
+
+    Read from the app's state rather than closed over, so that the same
+    router serves the running service and the contract document.
+    """
+    return cast(ApplicationContext, request.app.state.context)
+
+
+def _event_source(request: Request) -> EventSource:
+    """Where the event stream reads from."""
+    return cast(EventSource, request.app.state.event_source)
+
+
+# --------------------------------------------------------------------------- #
+# the service
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/health", response_model=Health, tags=["service"])
+def get_health(request: Request) -> Health:
+    """What the service is, and where it listens.
+
+    Dull on purpose: it is the one response a person may read aloud, so it
+    carries the address and the origins and the task, and no token.
+    """
+    state = request.app.state
+    context = cast(ApplicationContext, state.context)
+    origins = cast(OriginPolicy, state.origins)
+    return Health(
+        status="ok",
+        host=cast(str, state.host),
+        port=cast(int, state.port),
+        origins=tuple(sorted(origins.allowed)),
+        task_id=str(context.task_id),
+    )
+
+
+@router.get("/session", response_model=SessionInfo, tags=["service"])
+def get_session(request: Request) -> SessionInfo:
+    """The token a client presents, and where the token was written.
+
+    **The one response that carries the token.** The origin guard is what
+    makes it safe: a request from a page on another site is refused before it
+    reaches this handler, and a cross-origin read is blocked by the browser
+    besides. A client that cannot be at the service's own origin has no way to
+    ask for it.
+    """
+    token = cast(SessionToken, request.app.state.session)
+    return SessionInfo(token=token.value, path=str(token.path))
+
+
+# --------------------------------------------------------------------------- #
+# the task
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/tasks", response_model=list[Task], tags=["task"])
+def get_tasks(context: Annotated[ApplicationContext, Depends(_context)]) -> list[Task]:
+    """Every task in this workspace's store, oldest first."""
+    return list(list_tasks(context))
+
+
+@router.get("/task", response_model=TaskState, tags=["task"])
+def get_task_state(context: Annotated[ApplicationContext, Depends(_context)]) -> TaskState:
+    """The task, its runs, its stages, its artefacts and its approvals.
+
+    One value, one read — the layer's :class:`~labcairn.application.tasks.TaskState`,
+    which is the same value the CLI's ``task status --json`` prints.
+    """
+    return read_task_state(context)
+
+
+@router.get("/plan", response_model=TaskPlan, tags=["task"])
+def get_plan(context: Annotated[ApplicationContext, Depends(_context)]) -> TaskPlan:
+    """The declared workflow and how far this task has got through it."""
+    return read_plan(context)
+
+
+@router.get("/steps", response_model=list[TaskStep], tags=["task"])
+def get_steps(context: Annotated[ApplicationContext, Depends(_context)]) -> list[TaskStep]:
+    """The runtime stages the store holds, with the run each belonged to."""
+    return list(read_steps(context))
+
+
+# --------------------------------------------------------------------------- #
+# the material
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/sources", response_model=list[SourceView], tags=["source"])
+def get_sources(context: Annotated[ApplicationContext, Depends(_context)]) -> list[SourceView]:
+    """The material this task is bound to, in the order it bound them."""
+    return list(list_sources(context))
+
+
+@router.get("/sources/{source_id}", response_model=SourceView, tags=["source"])
+def get_source(
+    source_id: str, context: Annotated[ApplicationContext, Depends(_context)]
+) -> SourceView:
+    """One material, as the ledger holds it."""
+    return inspect_source(context, source_id)
+
+
+# --------------------------------------------------------------------------- #
+# the products
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/artifacts", response_model=list[ArtifactView], tags=["artifact"])
+def get_artifacts(context: Annotated[ApplicationContext, Depends(_context)]) -> list[ArtifactView]:
+    """The artefacts this task has produced, oldest revision first."""
+    return list(list_artifacts(context))
+
+
+@router.get("/artifacts/{artifact_id}", response_model=ArtifactView, tags=["artifact"])
+def get_artifact(
+    artifact_id: str, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ArtifactView:
+    """One artefact's receipt: what it is, its hash, its lineage, its staleness."""
+    for view in list_artifacts(context):
+        if view.receipt.receipt_id == artifact_id:
+            return view
+    raise ApplicationRefusedError(
+        ApplicationRefusal.ARTIFACT_NOT_FOUND,
+        f"the store holds no artefact with the id {artifact_id!r} for this task.",
+    )
+
+
+@router.get("/artifacts/{artifact_id}/content", response_class=Response, tags=["artifact"])
+def get_artifact_content(
+    artifact_id: str, context: Annotated[ApplicationContext, Depends(_context)]
+) -> Response:
+    """An artefact's bytes, exactly as they are on disk.
+
+    The same bytes the CLI writes and the report's manifest hashes — §1.4.2's
+    *"the API serves the same bytes"*. The receipt is at
+    ``/artifacts/{id}``; this route is the content and nothing else, so a
+    caller that wants to know whether the file still matches the receipt can
+    compare the two.
+    """
+    content = read_artifact(context, artifact_id)
+    media_type = content.receipt.media_type or "application/octet-stream"
+    return Response(content=content.content, media_type=media_type)
+
+
+# --------------------------------------------------------------------------- #
+# consent
+# --------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/approvals",
+    response_model=ApprovalRequested,
+    status_code=201,
+    tags=["approval"],
+)
+def post_approval(
+    body: ApprovalBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ApprovalRequested:
+    """Ask for consent, and record the question."""
+    return request_approval(
+        context,
+        ApprovalRequest(
+            use=ApprovalUse(
+                capability=body.capability,
+                arguments=body.arguments,
+                root_id=body.root_id,
+                resource_key=body.resource_key,
+                depends_on=body.depends_on,
+            ),
+            expires_at=body.expires_at,
+            run_id=body.run_id,
+            stage_name=body.stage_name,
+        ),
+    )
+
+
+@router.post("/approvals/{approval_id}/grant", response_model=ApprovalGranted, tags=["approval"])
+def post_approval_grant(
+    approval_id: ApprovalId, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ApprovalGranted:
+    """Record the human's answer to the question."""
+    return grant_approval(context, approval_id)
+
+
+@router.post(
+    "/approvals/{approval_id}/consume",
+    response_model=ApprovalConsumed,
+    tags=["approval"],
+)
+def post_approval_consume(
+    approval_id: ApprovalId,
+    body: ApprovalUseBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ApprovalConsumed:
+    """Spend a granted approval on one request."""
+    return consume_approval(
+        context,
+        approval_id,
+        ApprovalUse(
+            capability=body.capability,
+            arguments=body.arguments,
+            root_id=body.root_id,
+            resource_key=body.resource_key,
+            depends_on=body.depends_on,
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the work
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/stages", response_model=StageRun, tags=["stage"])
+def post_stage(
+    request: Request, body: StageBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> StageRun:
+    """Run one stage: consent, bookkeeping, the effect, the record.
+
+    The *effect* is not something a web request can supply — the stage bodies
+    belong to the packages that own them — so it is the host's, and the
+    layer calls it only after the policy has allowed the capability and any
+    approval has been consumed.
+    """
+    return run_stage(
+        context,
+        StageRequest(
+            stage_name=body.stage_name,
+            capability=body.capability,
+            arguments=body.arguments,
+            root_id=body.root_id,
+            resource_key=body.resource_key,
+            run_id=body.run_id,
+            approval_id=body.approval_id,
+            depends_on=body.depends_on,
+        ),
+        _stage_work(request),
+    )
+
+
+def _stage_work(request: Request) -> StageWork:
+    """The stage work this service was given, or a refusal.
+
+    There is no default, and there is deliberately no placeholder that does
+    nothing: a stage that "ran" and produced nothing would be recorded as a
+    stage that ran, and the record would be a lie.
+    """
+    work = cast(StageWork | None, request.app.state.stage_work)
+    if work is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.NOT_IMPLEMENTED,
+            "this service was not given a stage work to perform. The effect a "
+            "stage performs belongs to the package that owns it, and a web "
+            "request cannot supply one; the host that starts the service is "
+            "given the work when it starts.",
+        )
+    return work
+
+
+# --------------------------------------------------------------------------- #
+# the events
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/events", response_model=EventStreamPage, tags=["events"])
+def get_events(
+    request: Request,
+    after_seq: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=5000),
+) -> EventStreamPage:
+    """A page of the task's events, and the cursor to resume from.
+
+    The page is the runtime's own
+    :class:`~labcairn.runtime.event.EventStreamPage`, and every event in it is
+    an :class:`~labcairn.runtime.event.Event` — a fact about what happened.
+    There is no field in the page that could carry a command, which is what
+    makes a reconnecting browser safe: it can ask for what it missed and
+    cannot ask for anything to be done.
+    """
+    context = _context(request)
+    return _event_source(request).page(
+        EventStreamRequest(task_id=context.task_id, after_seq=after_seq, limit=limit)
+    )
+
+
+@router.get("/events/stream", tags=["events"])
+def get_event_stream(
+    request: Request,
+    after_seq: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=5000),
+    follow: bool = Query(True),
+    poll_seconds: float = Query(0.25, ge=0.01, le=5.0),
+) -> Response:
+    """The same page, delivered as a server-sent event stream.
+
+    ``follow=false`` sends what there is and closes; ``follow=true`` keeps
+    reading until the client goes away. The frames are the same page the JSON
+    endpoint returns, serialised by the same model, so a client that
+    reconnects reads the same cursor either way.
+    """
+    context = _context(request)
+    source = _event_source(request)
+
+    def frames() -> Iterator[str]:
+        cursor = after_seq
+        while True:
+            page = source.page(
+                EventStreamRequest(task_id=context.task_id, after_seq=cursor, limit=limit)
+            )
+            if page.events:
+                cursor = page.next_after_seq
+                yield sse_frame(page)
+            if not follow:
+                return
+            if not page.events:
+                time.sleep(poll_seconds)
+
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+__all__ = ["router"]
