@@ -67,6 +67,7 @@ workspace-relative path itself.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -218,7 +219,7 @@ def ingest_material(
     bound = _bind(
         context, [outcome.material.source.source_id for outcome in outcomes], moment=moment
     )
-    return _the_report(outcomes, failures, skipped, bound)
+    return _the_report(outcomes, failures, skipped, bound, renames)
 
 
 def _one_root_workspace(workspace: Workspace, root: AllowedRoot) -> Workspace:
@@ -333,16 +334,22 @@ def _the_report(
     failures: list[tuple[str, str]],
     skipped: list[str],
     bound: tuple[SourceId, ...],
+    renames: Mapping[str, str],
 ) -> MaterialIngested:
     """The walk's outcome, as the operation reports it.
 
     The three totals are counted from the files rather than kept beside them,
-    so a count cannot disagree with the list it counts.
+    so a count cannot disagree with the list it counts. And the source each
+    file carries is the one **the ledger holds**: a report that named the
+    path the walk happened to use would say something the ledger does not.
     """
     files: list[IngestedFile] = []
     for outcome in outcomes:
         material = outcome.material
         source = material.source
+        relocated = renames.get(source.source_id)
+        if relocated is not None:
+            source = source.model_copy(update={"relative_path": relocated})
         files.append(
             IngestedFile(
                 source=source,

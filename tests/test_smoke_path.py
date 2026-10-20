@@ -174,6 +174,103 @@ def test_the_report_bytes_were_compared_by_hash(
 
 
 @pytest.mark.e2e
+def test_the_material_was_ingested_through_the_cli(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The demonstration put the material in the ledger through the CLI.
+
+    A demonstration that called the material module directly would still
+    work, and would still print its "ok" lines; what it would not be is a
+    demonstration of the surfaces agreeing. So the two lines that say the CLI
+    did it are asserted here.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    assert "the task holds the material the CLI was told about" in output, (
+        "the demonstration did not bind the material through the CLI"
+    )
+    assert "the CLI can report the material it ingested" in output, (
+        "the demonstration did not report the material through the CLI"
+    )
+
+
+@pytest.mark.e2e
+def test_every_comparison_was_shown_a_difference_it_had_to_find(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """Each comparison in the demonstration can fail, and this is the evidence.
+
+    A comparison that compares nothing also reports "no differences", so a
+    demonstration whose comparisons had been narrowed would still print its
+    "ok" lines and still pass the test above. The demonstration therefore runs
+    each comparison once over something that must answer the other way, and
+    insists it finds the difference.
+
+    **This test reads the demonstration's output for that evidence**, because
+    a control inside the demonstration that the test cannot see is the same
+    defect one level down.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    for control in (
+        "the field-by-field comparison finds the difference it was given",
+        "the byte comparison finds the difference it was given",
+        "the refusal comparison finds the difference it was given",
+        "the refusal comparison tells this refusal from another",
+        "the staleness comparison finds the difference it was given",
+        "the staleness comparison says no about a receipt the walk did not mark",
+        "the changed-hash comparison finds the difference it was given",
+        "the staleness walk says nothing is stale while the material is unchanged",
+    ):
+        assert control in output, (
+            f"the demonstration never ran the control {control!r}, so its comparison "
+            "cannot be told from one that compares nothing"
+        )
+
+    # And the evidence itself: the planted difference was found, and it was
+    # one field.
+    planted = re.search(r"control\s+:\s+(\d+) field\(s\) differ in the altered copy", output)
+    assert planted is not None, "the demonstration never reported the control's finding"
+    assert int(planted.group(1)) == 1, (
+        f"the control found {planted.group(1)} difference(s) in the altered copy; "
+        "exactly one was planted"
+    )
+
+    # The refusal requirement, over the two grant requests: the service
+    # refused one of them, and it was the second. A demonstration that only
+    # said "the second was refused" would not say how many were refused.
+    refused = re.search(r"the service refused: \[(.+)\]", output)
+    assert refused is not None, "the demonstration never reported which grant requests were refused"
+    assert refused.group(1) == "'repeated'", (
+        f"the demonstration reported that the service refused {refused.group(1)}; "
+        "the repeated grant is the only one of the two that should be refused"
+    )
+
+
+@pytest.mark.e2e
+def test_the_report_carries_a_claim_cited_to_the_ingested_material(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The report carries a claim, and the claim rests on the ingested material.
+
+    A claim rests on a cited record, and a citation points into material the
+    task holds. The task holds the material because the CLI ingested it, so
+    the report is not carrying disclosures only.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    assert "the report carries the claim, and cites the address it rests on" in output, (
+        "the demonstration's report carried no claim"
+    )
+    claims = re.search(r"claims\s+:\s+(\d+)", output)
+    assert claims is not None, "the demonstration never reported how many claims it carried"
+    assert int(claims.group(1)) >= 1, "the demonstration's report carried no claim"
+
+
+@pytest.mark.e2e
 def test_the_refusals_were_refusals_with_a_reason(
     demonstration: subprocess.CompletedProcess[str],
 ) -> None:

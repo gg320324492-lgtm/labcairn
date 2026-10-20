@@ -781,6 +781,118 @@ def test_a_source_dir_outside_the_workspace_is_refused(workspace: Path, tmp_path
     assert "Traceback" not in result.stderr
 
 
+def test_task_create_binds_the_material_it_ingested(workspace: Path) -> None:
+    """``task create`` puts the material in the ledger and binds it to the task.
+
+    The task holds the ids of the materials it ingested, so the layer's
+    ``list_sources`` finds them: a task that holds no material can carry
+    disclosures and never a claim.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Bound to real material",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--source-dir",
+        "materials",
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+    task = result.json()
+    assert task["bound_source_ids"], "the task holds no material"
+
+    # And the material can be inspected, which it could not be before the
+    # ingestion: the ledger holds it under the path the layer resolves.
+    inspected = run_cli(
+        "--workspace",
+        str(workspace),
+        "sources",
+        "inspect",
+        "--source",
+        task["bound_source_ids"][0],
+        "--json",
+    )
+    assert inspected.returncode == 0, inspected.stderr
+    assert inspected.json()["source"]["readability"] == "readable"
+
+
+def test_sources_ingest_json_is_the_layers_ingestion_report(workspace: Path) -> None:
+    """``sources ingest --json`` is the layer's own report.
+
+    The model, byte for byte: a script depends on the JSON and not on the
+    prose, so the JSON *is* the model and not a rendering of it.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Ingested twice",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+
+    result = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert result.returncode == 0, result.stderr
+    report = result.json()
+    assert report["source_ids"], "the CLI ingested nothing"
+    assert report["bound_source_ids"] == report["source_ids"]
+    assert report["failures"] == []
+    assert report["readable"] == 1
+    assert report["files"][0]["source"]["relative_path"] == "materials/one.csv"
+
+    # And the second run writes nothing: the same material, ingested again.
+    again = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert again.returncode == 0, again.stderr
+    assert again.json()["source_ids"] == report["source_ids"]
+    assert again.json()["files"][0]["rows_written"] == 0
+
+
+def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: Path) -> None:
+    """A file the walk could not read is reported, and the command refuses.
+
+    Two source roots holding a file of the same name: the ledger's
+    ``relative_path`` is unique, so the second one cannot be stored. The
+    command refuses rather than reporting a task that quietly holds less than
+    the material it was given, and the refusal names the file.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (workspace / "other").mkdir()
+    (workspace / "other" / "one.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Two roots, one name",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--source-dir",
+        "other",
+        "--json",
+    )
+    assert created.returncode == EXIT_REFUSED
+    refusal = created.json()
+    assert refusal["reason"] == "material_incomplete"
+    assert "one.csv" in refusal["message"]
+
+
 def test_the_plan_option_reports_the_plan_and_not_the_state(workspace: Path, task_id: str) -> None:
     """``--plan`` changes what is reported, in the prose as well as the JSON.
 

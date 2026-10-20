@@ -312,7 +312,7 @@ def test_a_denied_subtree_is_invisible(env: StoreEnv, workspace_root: Path) -> N
 
     result = ingest_material(context, now=_MOMENT)
 
-    assert [item.source.relative_path for item in result.files] == ["open.md"]
+    assert [item.source.relative_path for item in result.files] == ["materials/open.md"]
     assert result.failures == ()
     reported = json.dumps(result.model_dump(mode="json"))
     assert "secret" not in reported, "the report named a file the policy denied"
@@ -335,7 +335,7 @@ def test_unreadable_empty_and_readable_material_are_kept_apart(
 
     result = ingest_material(context, now=_MOMENT)
 
-    by_path = {item.source.relative_path: item for item in result.files}
+    by_path = {item.source.relative_path.rsplit("/", 1)[-1]: item for item in result.files}
     assert by_path["open.md"].source.readability is SourceReadability.READABLE
     assert by_path["open.md"].empty is False
     assert by_path["empty.md"].source.readability is SourceReadability.READABLE
