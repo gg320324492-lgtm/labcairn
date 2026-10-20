@@ -38,7 +38,7 @@ Status vocabulary: `NOT STARTED` · `IN PROGRESS` · `PASS` · `PASS WITH NOTES`
 | LC-P1-13 | P0 | G5 | NOT STARTED | |
 | LC-P1-14 | P0 | G5 | NOT STARTED | |
 
-**Gate status:** G0, G1 and **G2 closed**. **G3 in progress** — LC-P1-08 accepted with notes by owner decision, LC-P1-09 implemented and reviewed (PASS WITH NOTES), LC-P1-10 decomposed. G4–G5 not started. G3 cannot close while LC-P1-10 is outstanding.
+**Gate status:** G0, G1 and **G2 closed**. **G3 — the exit test is met and the [gate review](acceptance/G3-acceptance.md) recommends closure; the owner's decision is outstanding**: LC-P1-08 accepted with notes by owner decision, LC-P1-09 and LC-P1-10 both reviewed and **PASS WITH NOTES**. G4–G5 not started. The board's rule — a row is marked done only when an **independent** review at a named commit says so — is not satisfied for any of G3's three work orders, so the closure is the owner's decision and not this document's.
 
 G2 closed with notes, all carried rather than dropped: the concurrency *behaviour* tests pass with `BEGIN IMMEDIATE` downgraded, so the SQL assertion is the load-bearing element rather than the behaviour suite; three of LC-P1-07's four placeholder conditions are textual heuristics; and `ArtifactLedger` is in memory. Full list in the acceptance document.
 
