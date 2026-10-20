@@ -1,11 +1,12 @@
 """The material a task is bound to: listing it, and inspecting one.
 
-A Task binds its material by **content hash**, not by path — the runtime's own
-note is that "a path moves, a content hash does not, and binding by path is how
-a Task silently ends up describing a different file than it started with". So
-"the sources of a task" is the task's own binding, resolved against the
-ledger, and the ordering is the binding's own order: the order the researcher
-bound them in.
+A Task binds its material by **source id** — the id the ingestion path mints,
+which is derived from the material's *location*, so that an edited file keeps
+its identity and takes the refresh branch. It is not bound by content hash:
+the content hash is what the staleness walk compares, and it lives on the
+receipt's chain, not in the binding. So "the sources of a task" is the task's
+own binding, resolved against the ledger, and the ordering is the binding's own
+order: the order the researcher bound them in.
 
 Denied sources are dropped, not refused
 ---------------------------------------
