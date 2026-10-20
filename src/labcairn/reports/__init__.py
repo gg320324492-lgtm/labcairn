@@ -2,10 +2,12 @@
 
 :docs:`ARCHITECTURE.md` ("Identity and authority") puts the artifact boundary in
 one line: *"ArtifactReceipt records generated outputs and their provenance."*
-This package is that, and nothing else — no rendering, no export, no report
-assembly. LC-P1-11 owns those, and its format scope is explicit: **DOCX and PDF
-are not Phase 1**; Markdown and HTML preview land there, with basic editable
-DOCX/PDF after.
+This package is that — and, since LC-P1-11, the report's **document model**: the
+content of a report as data. There is still **no rendering and no export** here;
+those are the renderers LC-P1-11 adds alongside it. The format scope is
+explicit: **Markdown and HTML preview, with basic editable DOCX and PDF** — all
+four in that work order, of which only the first two are byte-reproducible,
+because a DOCX is a ZIP and a PDF carries a creation date.
 
 What is here is the part that has to be right regardless of format: where the
 bytes are, what they hashed to, which task they belong to, which stage or

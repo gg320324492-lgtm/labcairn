@@ -13,9 +13,12 @@ The import direction is deliberate and one-way::
 
 `evidence` additionally imports `sources` proper, because
 :class:`~labcairn.sources.source.SourceAnchor` is a parameter of the cite-support
-contracts. That edge is real and unavoidable; an edge from `reports` into
-`sources` would not be, which is why `reports` takes only :data:`ContentHash`
-and :data:`NonEmptyText` from here.
+contracts, and `reports` does the same for
+:class:`~labcairn.sources.locators.SourceLocator`, because a report's footnote
+cites a locator. Both edges are real and unavoidable. What `reports` still
+takes only :data:`ContentHash` and :data:`NonEmptyText` from **here** is the
+point: these three shapes are the shared vocabulary, and a report that needed
+a whole source model would be reaching past it.
 
 Three primitives, each chosen to **reject** rather than to coerce:
 
