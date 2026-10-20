@@ -85,7 +85,6 @@ from pydantic import (
     model_validator,
 )
 
-from labcairn.analysis.catalog import operator_for
 from labcairn.analysis.operators import OperatorIdError, parse_operator_reference
 from labcairn.analysis.selection import MissingPolicy, RowFilter, RowRange, RowSet, Selection
 from labcairn.core.schema import LabCairnModel
@@ -329,6 +328,13 @@ class DataRecipe(_Part):
         against another build, and a rejected parameter is a parameter the
         operator does not take.
         """
+        # The import is inside the function rather than at module level: the
+        # catalogue holds the chart operator among the ones it registers, and
+        # the chart operator's module needs this one for the recipe's types,
+        # so a top-level import here would close a cycle. The same remedy
+        # ``operators/grouped.py`` uses for the same shape.
+        from labcairn.analysis.catalog import operator_for
+
         operator_id, version = _reference_parts(self.operator)
         registered = operator_for(operator_id)
         if registered is None:

@@ -176,12 +176,23 @@ class FileRef(LabCairnModel):
 class RenderEnvironment(LabCairnModel):
     """The environment a derivation ran in, in enough detail to scope a claim.
 
-    The four facts that decide whether a render is byte-reproducible, and
-    nothing else. The salt is the one that is easy to miss: left unset,
-    matplotlib generates a fresh random salt per render, so two renders in
-    one environment differ and the "same inputs, same bytes" claim is false
-    for a reason no manifest recorded. :func:`current_environment` reads all
-    four from the live process.
+    The four facts this work order records, and the scope of the claim they
+    scope: byte-identity **inside one recorded environment**. The salt is the
+    one that is easy to miss: left unset, matplotlib generates a fresh random
+    salt per render, so two renders in one environment differ and the "same
+    inputs, same bytes" claim is false for a reason no manifest recorded.
+    :func:`current_environment` reads all four from the live process.
+
+    **They are not everything that changes the bytes, and they are not
+    everything that identifies a build.** The renderer's declared drawing
+    parameters -- the figure's size, the histogram's bin count, the digest of
+    the declared settings -- are facts about the renderer's build rather than
+    about the environment, and the manifest records no version for the
+    renderer at all. So two figures whose manifests name the same operator,
+    the same recipe and the same environment can still differ in their bytes
+    because the renderer changed between them. The figure's own hash is what
+    records the bytes, and the task breakdown's §5 records the gap, and the
+    two ways to close it, as something this work order does not deliver.
     """
 
     #: The matplotlib that would draw the figure.

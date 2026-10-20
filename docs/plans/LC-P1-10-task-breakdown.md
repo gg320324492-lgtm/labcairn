@@ -1101,6 +1101,22 @@ Named now so they are not discovered as surprises.
   otherwise would be the worst kind of gloss.
 - **Cross-environment byte-identical figures.** §1.4.3, and the cost is
   recorded there.
+- **The manifest records no version for the renderer.** The manifest names the
+  **operator** that computed the numbers, with its version — but the code that
+  *drew* the figure is named by nothing. The renderer's declared drawing
+  parameters — the figure's size, the histogram's bin count, the digest of the
+  declared `rcParams` — are facts about that build rather than about the
+  environment, and the renderer publishes them as constants; the manifest
+  carries neither them nor the renderer's version. So two figures drawn by
+  the same operator, from the same recipe, in the same recorded environment
+  can differ in their bytes because the renderer changed between them, and a
+  reader cannot tell from the manifests alone why. **Two ways to close it, and
+  this work order chooses neither**: record the renderer's version and its
+  published digest alongside the operator's, which is narrow, or widen
+  `RenderEnvironment` into a place for drawing parameters, which is wide and
+  is a decision about what the work order promises. The byte-identity claim
+  is therefore scoped to *one renderer's build* as well as to one recorded
+  environment, and the figure's own hash is what records the bytes.
 - **A unit algebra.** §1.4.1. `kg` and `kilograms` are one unit spelled two
   ways and a selection containing both is refused.
 - **Inferential statistics.** No p-value, no confidence interval, no

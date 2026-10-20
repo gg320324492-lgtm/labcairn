@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+from labcairn.analysis.chart.render import CHART
 from labcairn.analysis.operators import RegisteredOperator
 from labcairn.analysis.operators.descriptive import (
     COUNT,
@@ -50,7 +51,7 @@ __all__ = [
 #: ``analysis.run`` carries them as an untyped mapping and the operator's
 #: argument model validates them.
 OPERATORS: Final[frozenset[RegisteredOperator[Any, Any]]] = frozenset(
-    {AGGREGATE, COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM}
+    {AGGREGATE, CHART, COUNT, MAX, MEAN, MEDIAN, MIN, STDEV, SUM}
 )
 
 

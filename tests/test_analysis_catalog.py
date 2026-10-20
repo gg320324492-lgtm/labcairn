@@ -28,6 +28,7 @@ from labcairn.analysis.catalog import (
     operator_for,
     operator_version,
 )
+from labcairn.analysis.chart.render import CHART
 from labcairn.analysis.operators.descriptive import (
     COUNT,
     MAX,
@@ -44,7 +45,7 @@ DESCRIPTIVE = (MEAN, SUM, MIN, MAX, MEDIAN, STDEV, COUNT)
 #: Every operator this build ships. The catalogue is compared against the
 #: modules' own constants, so an operator that is shipped but not registered
 #: -- or registered but not shipped -- is caught here.
-SHIPPED = (*DESCRIPTIVE, AGGREGATE)
+SHIPPED = (*DESCRIPTIVE, AGGREGATE, CHART)
 
 
 @pytest.mark.unit
