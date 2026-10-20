@@ -68,7 +68,7 @@ from labcairn.material.addressing import render_locator_key
 from labcairn.reports.checks import (
     LedgerReader,
     ReportRefusedError,
-    check_claims_rest_on_records_that_may_be_stated,
+    check_claims_and_disclosures_rest_on_records_the_ledger_holds,
     check_figures_and_tables_are_the_artefacts_on_disk,
     check_links_resolve,
     check_numbers_agree_with_the_ledger,
@@ -324,24 +324,132 @@ def _claim_view(*, record_id: str = "rec-2", text: str = CLAIM_TEXT) -> LedgerRe
     )
 
 
-def _conflicted_view(*, record_id: str = "rec-9") -> LedgerRecordView:
+def _unresolved_view(
+    *,
+    record_id: str = "rec-9",
+    status: VerificationStatus = VerificationStatus.CONFLICTED,
+    value: float = LEDGER_VALUE,
+) -> LedgerRecordView:
     """The model's copy of a record the report discloses rather than states."""
     return LedgerRecordView(
         record_id=record_id,
         record_kind=EvidenceKind.NUMERIC,
-        value=LEDGER_VALUE,
+        value=value,
         unit="%",
-        status=VerificationStatus.CONFLICTED,
+        status=status,
         anchor_ids=("anc-1",),
         source_content_hash=SOURCE_HASH,
     )
 
 
-def _unresolved(*, record_id: str = "rec-9") -> UnresolvedRecord:
-    """A conflict, disclosed with its reason."""
+def _unresolved(
+    *,
+    record_id: str = "rec-9",
+    status: VerificationStatus = VerificationStatus.CONFLICTED,
+    value: float = LEDGER_VALUE,
+) -> UnresolvedRecord:
+    """An unresolved record, disclosed with the report's own reason for it.
+
+    The reason is prose the ledger does not hold, and nothing compares the
+    two: the ledger records *that* a record could not be resolved, and the
+    report says *why*.
+    """
     return UnresolvedRecord(
-        record=_conflicted_view(record_id=record_id),
+        record=_unresolved_view(record_id=record_id, status=status, value=value),
         reason="Two readings of the same cell disagree beyond the declared tolerance.",
+    )
+
+
+def _conflicted_in_the_ledger(world: World, record_id: str = "rec-1") -> None:
+    """Put a record into the ledger's conflicted state, the way the ledger does it.
+
+    Two records on the same cell whose C3 verdicts disagree, and then the
+    transition the state machine allows: ADR-0004's A5 says neither reading
+    wins by recency, and the conflict is displayed instead.
+    """
+    append_verification(
+        world.connection,
+        record_id,
+        VerificationRecord(
+            check=CheckKind.C3,
+            checker_id=C3_CHECKER_ID,
+            outcome=CheckOutcome.PASS,
+            detail="the cell holds 4.253",
+            checked_at=NOW,
+        ),
+    )
+    append_record(world.connection, _numeric_ledger_record(record_id="rec-3", value=4.5))
+    append_verification(
+        world.connection,
+        "rec-3",
+        VerificationRecord(
+            check=CheckKind.C3,
+            checker_id=C3_CHECKER_ID,
+            outcome=CheckOutcome.FAIL,
+            detail="the cell holds 4.5",
+            checked_at=NOW,
+        ),
+    )
+    world.connection.commit()
+    advance(
+        world.connection,
+        record_id,
+        VerificationStatus.CONFLICTED,
+        index=world.index,
+        checked_at=NOW,
+    )
+    world.connection.commit()
+
+
+def _unsupported_in_the_ledger(world: World, record_id: str = "rec-1") -> None:
+    """Put a record into the ledger's unsupported state, the way the ledger does it.
+
+    ``unsupported`` is reached when a check failed, so the log says which one.
+    It is reachable from every other state, which is why a report may not
+    disclose a conflict about a record the ledger holds as unsupported: the
+    record may never have had one.
+    """
+    append_verification(
+        world.connection,
+        record_id,
+        VerificationRecord(
+            check=CheckKind.C3,
+            checker_id=C3_CHECKER_ID,
+            outcome=CheckOutcome.FAIL,
+            detail="the cell does not support the record",
+            checked_at=NOW,
+        ),
+    )
+    world.connection.commit()
+    advance(
+        world.connection,
+        record_id,
+        VerificationStatus.UNSUPPORTED,
+        index=world.index,
+        checked_at=NOW,
+    )
+    world.connection.commit()
+
+
+def _disclosure_report(
+    *,
+    record_id: str = "rec-1",
+    status: VerificationStatus = VerificationStatus.CONFLICTED,
+    value: float = LEDGER_VALUE,
+    snapshot_record_ids: tuple[str, ...] | None = None,
+) -> ReportDocument:
+    """A report that discloses one unresolved record and states nothing else.
+
+    A disclosure carries no citation: the model gives citations to claims
+    only, so a report that discloses and states nothing has no footnote
+    either, and one it does not cite would be a link with nothing behind it.
+    """
+    return _document(
+        claims=(),
+        footnotes=(),
+        sections=(_section(blocks=(UnresolvedBlock(record_id=record_id),)),),
+        unresolved_records=(_unresolved(record_id=record_id, status=status, value=value),),
+        record_ids=snapshot_record_ids,
     )
 
 
@@ -487,7 +595,12 @@ def _document(
     if sections is None:
         sections = (_section(),)
     if record_ids is None:
-        record_ids = tuple(sorted({claim.record.record_id for claim in claims}))
+        record_ids = tuple(
+            sorted(
+                {claim.record.record_id for claim in claims}
+                | {record.record.record_id for record in unresolved_records}
+            )
+        )
     return ReportDocument(
         title="A first-pass report",
         snapshot=LedgerSnapshot(as_of=NOW, record_ids=record_ids),
@@ -566,7 +679,7 @@ def test_every_check_takes_the_model_and_the_material_it_is_checked_against() ->
     checks = (
         check_report,
         check_numbers_agree_with_the_ledger,
-        check_claims_rest_on_records_that_may_be_stated,
+        check_claims_and_disclosures_rest_on_records_the_ledger_holds,
         check_links_resolve,
         check_figures_and_tables_are_the_artefacts_on_disk,
         check_the_snapshot_names_the_records_the_report_carries,
@@ -843,46 +956,14 @@ def test_a_claim_whose_record_has_since_become_a_conflict_is_refused(world: Worl
     same cell with the opposite C3 verdict, and the transition the state
     machine allows.
     """
-    append_verification(
-        world.connection,
-        "rec-1",
-        VerificationRecord(
-            check=CheckKind.C3,
-            checker_id=C3_CHECKER_ID,
-            outcome=CheckOutcome.PASS,
-            detail="the cell holds 4.253",
-            checked_at=NOW,
-        ),
-    )
-    sibling = _numeric_ledger_record(record_id="rec-3", value=4.5)
-    append_record(world.connection, sibling)
-    append_verification(
-        world.connection,
-        "rec-3",
-        VerificationRecord(
-            check=CheckKind.C3,
-            checker_id=C3_CHECKER_ID,
-            outcome=CheckOutcome.FAIL,
-            detail="the cell holds 4.5",
-            checked_at=NOW,
-        ),
-    )
-    world.connection.commit()
-    advance(
-        world.connection,
-        "rec-1",
-        VerificationStatus.CONFLICTED,
-        index=world.index,
-        checked_at=NOW,
-    )
-    world.connection.commit()
+    _conflicted_in_the_ledger(world)
 
     document = _report(world)
 
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
 
 
 @pytest.mark.unit
@@ -901,7 +982,7 @@ def test_a_claim_whose_record_the_ledger_does_not_hold_is_refused(world: World) 
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
 
 
 @pytest.mark.unit
@@ -927,7 +1008,7 @@ def test_a_claim_that_states_words_the_ledger_does_not_hold_is_refused(world: Wo
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
 
 
 # ---------------------------------------------------------------------------
@@ -1000,7 +1081,7 @@ def test_a_report_that_overstates_the_record_verification_is_refused(world: Worl
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
 
 
 @pytest.mark.unit
@@ -1066,7 +1147,7 @@ def test_a_claim_that_says_a_numeric_record_is_a_claim_is_refused(world: World) 
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
     assert "states a 'numeric' record" in refusal.value.reason
     assert "is a 'claim' one" in refusal.value.reason
 
@@ -1087,7 +1168,7 @@ def test_a_claim_that_says_a_claim_record_is_a_number_is_refused(world: World) -
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, document)
 
-    assert refusal.value.check == "claims"
+    assert refusal.value.check == "records"
     assert "states a 'claim' record" in refusal.value.reason
     assert "is a 'numeric' one" in refusal.value.reason
 
@@ -1124,22 +1205,9 @@ def test_a_snapshot_that_does_not_name_an_unresolved_record_is_refused(world: Wo
     The document is built **without** the model's validators — Pydantic's
     ``model_copy`` does not run them — so that the *check* is what refuses.
     """
-    document = _document(
-        claims=(_claim(),),
-        sections=(
-            _section(
-                blocks=(
-                    ClaimBlock(claim_id="clm-1"),
-                    UnresolvedBlock(record_id="rec-9"),
-                )
-            ),
-        ),
-        unresolved_records=(_unresolved(),),
-        record_ids=("rec-1", "rec-9"),
-    )
-    short = document.model_copy(
-        update={"snapshot": LedgerSnapshot(as_of=NOW, record_ids=("rec-1",))}
-    )
+    _conflicted_in_the_ledger(world)
+    document = _disclosure_report(record_id="rec-1", snapshot_record_ids=("rec-1",))
+    short = document.model_copy(update={"snapshot": LedgerSnapshot(as_of=NOW, record_ids=())})
 
     with pytest.raises(ReportRefusedError) as refusal:
         _gate(world, short)
@@ -1195,3 +1263,102 @@ def test_a_figure_reached_through_a_link_out_of_the_workspace_is_refused(world: 
 
     assert refusal.value.check == "artefacts"
     assert "outside the workspace" in refusal.value.reason
+
+
+# ---------------------------------------------------------------------------
+# A disclosure is the ledger's own state, and the two directions are both
+# refused
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_matches_the_ledger_is_accepted(world: World) -> None:
+    """The positive control for the disclosure rule.
+
+    The ledger holds the record as ``conflicted`` and the report discloses it
+    as ``conflicted``. Nothing refuses that, and nothing should: a disclosure
+    that says what the ledger says is the whole of what a disclosure is.
+    """
+    _conflicted_in_the_ledger(world)
+    document = _disclosure_report(record_id="rec-1")
+
+    _gate(world, document)
+
+
+@pytest.mark.unit
+def test_a_disclosure_of_a_conflict_the_ledger_does_not_record_is_refused(
+    world: World,
+) -> None:
+    """A conflict the ledger does not record is a conflict the report invented.
+
+    ``unsupported`` is reachable from ``planned``, ``extracted``,
+    ``verified_by_rule`` and ``user_attested`` as well as from ``conflicted``,
+    so a record the ledger holds as unsupported may never have had a conflict
+    at all. Disclosing one is a statement the ledger does not make.
+    """
+    _unsupported_in_the_ledger(world)
+    document = _disclosure_report(
+        record_id="rec-1",
+        status=VerificationStatus.CONFLICTED,
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_hides_a_conflict_is_refused(world: World) -> None:
+    """And a conflict the ledger records may not be disclosed as anything else.
+
+    The ledger says two readings disagree beyond tolerance, and ADR-0004's
+    A5 says the conflict is *displayed* rather than resolved. A disclosure
+    that says ``unsupported`` about it displays the absence of support
+    instead, which is a different and weaker statement.
+    """
+    _conflicted_in_the_ledger(world)
+    document = _disclosure_report(
+        record_id="rec-1",
+        status=VerificationStatus.UNSUPPORTED,
+    )
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+
+
+@pytest.mark.unit
+def test_a_disclosure_of_a_record_the_ledger_does_not_hold_is_refused(world: World) -> None:
+    """A disclosure is a record the ledger carries and could not resolve.
+
+    The report discloses a record the ledger has never heard of, which is a
+    conflict with nothing behind it — and the ledger's own answer to "could
+    this be resolved?" is a fact about a record it holds.
+    """
+    document = _disclosure_report(record_id="rec-absent")
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "records"
+
+
+@pytest.mark.unit
+def test_a_disclosure_that_states_a_number_the_ledger_does_not_hold_is_refused(
+    world: World,
+) -> None:
+    """A number printed beside a conflict is a number the ledger holds.
+
+    The disclosure carries the quantity the conflict is about, and the report
+    prints it. So the number is compared like any other number in the report,
+    and the comparison is the exact one.
+    """
+    _conflicted_in_the_ledger(world)
+    document = _disclosure_report(record_id="rec-1", value=ROUNDED_VALUE)
+
+    with pytest.raises(ReportRefusedError) as refusal:
+        _gate(world, document)
+
+    assert refusal.value.check == "numbers"
