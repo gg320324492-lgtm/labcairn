@@ -1,19 +1,27 @@
-/* LabCairn web baseline — minimal, offline, no web fonts, no remote assets. */
+/* LabCairn workbench — local, offline, no web fonts, no remote assets.
+ *
+ * The font stack is the system's own. A web font would be a request to
+ * somebody else's server, and a local-first tool that phones home is not
+ * local-first. */
 
 :root {
   color-scheme: light dark;
-  --baseline-fg: #1c1c1e;
-  --baseline-bg: #fbfbfa;
-  --baseline-muted: #5b5b60;
-  --baseline-rule: #d8d8d4;
+  --labcairn-fg: #1c1c1e;
+  --labcairn-bg: #fbfbfa;
+  --labcairn-muted: #5b5b60;
+  --labcairn-rule: #d8d8d4;
+  --labcairn-panel: #ffffff;
+  --labcairn-warn: #8a4b12;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --baseline-fg: #e8e8e6;
-    --baseline-bg: #17171a;
-    --baseline-muted: #a0a0a6;
-    --baseline-rule: #3a3a40;
+    --labcairn-fg: #e8e8e6;
+    --labcairn-bg: #17171a;
+    --labcairn-muted: #a0a0a6;
+    --labcairn-rule: #3a3a40;
+    --labcairn-panel: #1e1e22;
+    --labcairn-warn: #e0a458;
   }
 }
 
@@ -23,8 +31,8 @@
 
 body {
   margin: 0;
-  background: var(--baseline-bg);
-  color: var(--baseline-fg);
+  background: var(--labcairn-bg);
+  color: var(--labcairn-fg);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -36,57 +44,185 @@ body {
   line-height: 1.55;
 }
 
-.baseline-notice {
-  max-width: 46rem;
+.workbench {
+  max-width: 62rem;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
+  padding: 2rem 1.25rem 4rem;
 }
 
-.baseline-notice__title {
-  margin: 0 0 0.75rem;
-  font-size: 1.6rem;
+.workbench__header {
+  margin-bottom: 2rem;
+}
+
+.workbench__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.7rem;
   letter-spacing: -0.01em;
 }
 
-.baseline-notice__badge {
-  display: inline-block;
-  margin: 0 0 1rem;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid var(--baseline-rule);
-  border-radius: 999px;
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--baseline-muted);
+.workbench__goal {
+  margin: 0;
+  color: var(--labcairn-muted);
 }
 
-.baseline-notice__summary {
-  margin: 0 0 2rem;
+.workbench__criterion {
+  display: block;
+  font-size: 0.9rem;
 }
 
-.baseline-notice__subtitle {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
+.workbench__banner {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.35rem;
+  color: var(--labcairn-warn);
+}
+
+.workbench__footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--labcairn-rule);
+  font-size: 0.85rem;
+  color: var(--labcairn-muted);
+}
+
+.workbench__footer p {
+  margin: 0 0 0.4rem;
+}
+
+.panel {
+  margin-bottom: 1.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.5rem;
+  background: var(--labcairn-panel);
+}
+
+.panel__title {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.panel__subtitle {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--labcairn-muted);
+}
+
+.panel__note,
+.panel__status,
+.panel__pending {
+  margin: 0 0 0.6rem;
+  color: var(--labcairn-muted);
+  font-size: 0.9rem;
+}
+
+.panel__error {
+  margin: 0;
+  color: var(--labcairn-warn);
+  font-size: 0.9rem;
+}
+
+.records {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--labcairn-rule);
+}
+
+.record:first-child {
+  border-top: none;
+}
+
+.record--artefact {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.record__name {
   font-weight: 600;
 }
 
-.baseline-notice__list {
-  margin: 0 0 2rem;
-  padding-left: 1.2rem;
-  color: var(--baseline-muted);
-}
-
-.baseline-notice__list li {
-  margin-bottom: 0.25rem;
-}
-
-.baseline-notice__footer {
-  padding-top: 1rem;
-  border-top: 1px solid var(--baseline-rule);
+.record__key,
+.record__detail {
   font-size: 0.85rem;
-  color: var(--baseline-muted);
+  color: var(--labcairn-muted);
+  overflow-wrap: anywhere;
 }
 
-.baseline-notice__footer code {
-  font-size: 0.85em;
+.record__flag {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--labcairn-muted);
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.record__flag--stale,
+.record__flag--failed,
+.record__flag--blocked,
+.record__flag--denied {
+  color: var(--labcairn-warn);
+  border-color: var(--labcairn-warn);
+}
+
+.record__notice {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--labcairn-warn);
+}
+
+.button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--labcairn-muted);
+  cursor: progress;
+}
+
+.preview {
+  display: block;
+  margin-top: 0.5rem;
+  border: 1px solid var(--labcairn-rule);
+  border-radius: 0.3rem;
+  background: transparent;
+}
+
+.preview--image {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview--frame {
+  width: 100%;
+  height: 30rem;
+}
+
+.preview--link {
+  display: inline-block;
+  color: inherit;
+}
+
+.revisions__group {
+  margin-bottom: 0.5rem;
 }
