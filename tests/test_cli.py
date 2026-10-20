@@ -24,6 +24,13 @@ warns about.
 **A refusal must be distinguishable from a crash by the exit code alone.**
 That is the property a script depends on, so it is asserted against both: a
 refusal carries :data:`EXIT_REFUSED`, and a crash carries Python's own 1.
+
+**Loading the CLI must be cheap.** ``labcairn --help`` is the first thing a
+person types, and this file spawns the command more than forty times, so
+every second the CLI spends loading is paid for more than forty times over.
+The cost is measured in a subprocess — it is invisible from inside one,
+because this process has already imported everything the CLI would import —
+and it is bounded, because a cost nobody measures is a cost that comes back.
 """
 
 from __future__ import annotations
@@ -33,6 +40,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -1198,6 +1206,129 @@ def test_every_command_the_plan_names_is_reachable() -> None:
 
     assert "inspect" in run_cli("sources", "--help").stdout
     assert "list" in run_cli("artifacts", "--help").stdout
+
+
+# --------------------------------------------------------------------------- #
+# the cost of loading the CLI
+# --------------------------------------------------------------------------- #
+
+#: The packages the CLI must not load when it is loaded.
+#:
+#: These are the ones that cost. The application layer pulls the store, the
+#: evidence readers and the provider stack; the store pulls SQLAlchemy and
+#: Alembic; and the security and skills packages pull the observability
+#: stack. Loading any of them is what made ``labcairn --help`` take two
+#: seconds, so a CLI that loads one has paid for the whole application to
+#: print a list of commands.
+_LAYER_PACKAGES = (
+    "labcairn.application",
+    "labcairn.core",
+    "labcairn.db",
+    "labcairn.evidence",
+    "labcairn.providers",
+    "labcairn.runtime",
+    "labcairn.security",
+    "labcairn.skills",
+    "labcairn.sources",
+)
+
+#: The most the CLI's import may cost, as a multiple of the bare
+#: interpreter's own start-up on the same machine.
+#:
+#: A multiple rather than a number of seconds, because a number of seconds
+#: is a fact about the machine the bound was measured on: a CI runner two or
+#: three times slower than a development machine would fail a bound set in
+#: seconds, and a test that fails on a slow machine teaches nothing but that
+#: the machine is slow. The multiple is the property that holds everywhere —
+#: the CLI's import is a small multiple of starting Python, not a multiple of
+#: loading the application. Before the imports were deferred the ratio was
+#: about forty.
+_IMPORT_BUDGET_FACTOR = 10
+
+#: The most the CLI's import may cost in seconds, whatever the machine.
+#:
+#: The floor under the multiple above, so that a machine whose bare start-up
+#: is itself slow cannot excuse a slow import. It sits well above what the
+#: CLI costs and well below what it used to cost: about two seconds.
+_IMPORT_BUDGET_SECONDS = 1.5
+
+#: The program that reports what loading the CLI left in the interpreter.
+_REPORT_LOADED = (
+    "import sys, json, labcairn.cli; "
+    "print(json.dumps(sorted(m for m in sys.modules if m.startswith('labcairn'))))"
+)
+
+
+def _wall_seconds(command: list[str], runs: int = 5) -> float:
+    """How long *command* takes, at its fastest.
+
+    The minimum of several runs, not the mean: the slowest run of an import
+    is the machine's noise — another test's subprocess, a virus scanner, a
+    machine that is busy with something else — and a bound must not be set
+    against the noise.
+    """
+    timings: list[float] = []
+    for _ in range(runs):
+        started = time.perf_counter()
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        timings.append(time.perf_counter() - started)
+        assert completed.returncode == 0, completed.stderr
+    return min(timings)
+
+
+def test_loading_the_cli_does_not_load_the_layer() -> None:
+    """The CLI loads without the layer, the store or the provider stack.
+
+    Measured rather than read off the source: the property is about what the
+    interpreter ends up holding, and a source reading can only say what
+    somebody wrote down. A layer type imported at runtime instead of under
+    ``TYPE_CHECKING`` works perfectly well — and costs a second and a half.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-c", _REPORT_LOADED],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert completed.returncode == 0, completed.stderr
+    loaded: list[str] = json.loads(completed.stdout)
+    offenders = [
+        module
+        for module in loaded
+        if any(module == package or module.startswith(f"{package}.") for package in _LAYER_PACKAGES)
+    ]
+    assert not offenders, (
+        f"loading the CLI loaded {offenders}. The CLI imports the layer when a "
+        "command needs it, not when the CLI is loaded, so that `labcairn --help` "
+        "does not pay for the whole application."
+    )
+
+
+def test_loading_the_cli_costs_less_than_the_budget() -> None:
+    """Importing the CLI costs a fraction of what it used to.
+
+    ``labcairn --help`` is the first thing a person types, and it is paid for
+    by more than forty of this file's tests. The cost is measured in a
+    subprocess because it is invisible from inside one: this process has
+    already imported everything the CLI would import, so the import the CLI
+    would do has already happened here.
+    """
+    bare = _wall_seconds([sys.executable, "-c", "pass"])
+    cost = _wall_seconds([sys.executable, "-c", "import labcairn.cli"])
+    net = cost - bare
+    budget = min(_IMPORT_BUDGET_SECONDS, _IMPORT_BUDGET_FACTOR * bare)
+    assert net < budget, (
+        f"importing labcairn.cli took {net:.3f}s over the interpreter's own "
+        f"start-up of {bare:.3f}s, which is over the {budget:.3f}s budget. The "
+        "CLI loads without the application layer; something has put it back."
+    )
 
 
 # --------------------------------------------------------------------------- #
