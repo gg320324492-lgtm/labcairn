@@ -3,8 +3,8 @@
 **Gate:** G3 (Evidence path)
 **Work orders:** LC-P1-08, LC-P1-09, LC-P1-10
 **Subject:** `main` @ `15a729f` — 303 tracked files
-**Independent review:** `d114810` — **PASS WITH NOTES**, the section
-[Independent cross-review](#independent-cross-review) below
+**Independent review:** of the tree at `d114810` — **PASS WITH NOTES**, the
+section [Independent cross-review](#independent-cross-review) below
 **Date:** 2026-10-20
 **Scope of this document:** the gate's exit test, with the evidence for each of
 the three work orders it spans, what the work found and fixed, and the
@@ -40,6 +40,15 @@ between them.
 
 ## Verification actually run
 
+**Two runs, at two named commits, and neither of them is the current tip.**
+This document's own numbers were run at `15a729f`, the subject of the gate.
+The second table is the **independent reviewer's own run at `d114810`** — the
+tree the review saw — and its numbers are the reviewer's evidence, not this
+repository's current state. `main` has moved since `d114810`, so nothing in
+this section is a claim about the tip.
+
+**This document's own run, at `15a729f`:**
+
 | Check | Result |
 |---|---|
 | The whole suite | **2600 passed, 2 skipped** (`uv run pytest -q`, 361 s, exit 0). The two skips are pre-existing and explain themselves: a provider credential this machine does not have, and a Windows-drive assertion that is meaningless on POSIX |
@@ -48,7 +57,16 @@ between them.
 | The four exit demonstrations | all exit 0, 87 checks between them |
 | The status board's own consistency test | 113 passed, after every change to the board, the handoff file and the breakdown |
 | Independent mutation checks | **71** written against the merged branches for LC-P1-10 alone, 63 caught; every survivor checked by hand before it was called a finding |
-| The independent review's own re-run, at `d114810` | `ruff check` clean · `ruff format --check`, 217 files · `mypy` clean, 201 files · `pytest` **2721 passed, 2 skipped** (451 s) · the four exit demonstrations green — 36 / 14 / 18 / 19 checks, exit 0 |
+
+**The independent review's own re-run, at `d114810`:**
+
+| Check | Result |
+|---|---|
+| `ruff check` | clean |
+| `ruff format --check` | 217 files |
+| `mypy` (strict) | clean, 201 files |
+| The whole suite | **2721 passed, 2 skipped** (451 s) |
+| The four exit demonstrations | all exit 0 — 36 / 14 / 18 / 19 checks |
 
 ## LC-P1-08 — Material inventory and source locators
 
@@ -181,10 +199,10 @@ docstrings. They are recorded in their own section below.
 
 ## Independent cross-review
 
-**There is one, at `d114810`, and its verdict is PASS WITH NOTES.** The
-reviewer wrote none of G3's fixes. The board's rule — a row is marked done
-only when an **independent** review at a named commit says so — is satisfied
-for all three work orders.
+**There is one, of the tree at `d114810`, and its verdict is PASS WITH
+NOTES.** The reviewer wrote none of G3's fixes. The board's rule — a row is
+marked done only when an **independent** review at a named commit says so — is
+satisfied for all three work orders.
 
 The reviewer's own report is a document outside this repository; what it holds
 is recorded here, so that the review the gate closes on can be read in the
@@ -196,6 +214,8 @@ implementation only — never the test — and the reviewer's claim was that a
 named test fails. **No mutation survived.** Where a second guard also fires,
 the reviewer says so rather than calls it a finding: for #12 the corpus tests
 fire too, and for #10 that one test is the *sole* guard, in both directions.
+The reviewer's own re-run of the gates, at `d114810`, is the second table in
+"Verification actually run" above.
 
 ### The mutation table
 
@@ -256,7 +276,7 @@ hash.
 
 **3 — G1/G2 exit demonstrations.** The claim is **true**: no test and no CI job
 runs them; only a comment in `test_analysis_demo.py` mentions them. They have
-not rotted — 36, 14 and 18 checks, exit 0, today.
+not rotted — 36, 14 and 18 checks, exit 0, at `d114810`.
 
 ### Three findings the acceptance documents did not record
 
@@ -327,8 +347,9 @@ apart for months because only one of them was ever in question.
 **The exit test is met, and the gate's work is complete.** Three work orders,
 each accepted with notes; the locators, the ledger and the deterministic plot
 are all in place and demonstrated end to end; the evidence design ADR exists
-and the three work orders are readings of it. That was true at `15a729f` and
-is true now.
+and the three work orders are readings of it. That was true at `15a729f`, and
+the independent review re-ran all four exit demonstrations green at `d114810`
+— the tree it reviewed, which is not the tip.
 
 **The condition that was outstanding is now discharged.** On 2026-10-20 the
 owner declined the exemption and decided that G3 closes **after an independent
