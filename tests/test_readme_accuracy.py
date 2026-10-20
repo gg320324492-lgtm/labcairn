@@ -207,6 +207,12 @@ def _run(argv: tuple[str, ...], cwd: Path, timeout_s: float) -> subprocess.Compl
         cwd=cwd,
         capture_output=True,
         text=True,
+        # Never fail on a decode. The output is read with this machine's
+        # encoding, and a byte that encoding cannot read — a UTF-8 sequence
+        # read as GBK, say — kills the reader thread, truncates the capture and
+        # fails the test at random. Only the exit code is asserted, so a
+        # replaced character costs nothing.
+        errors="replace",
         timeout=timeout_s,
         check=False,
         shell=False,

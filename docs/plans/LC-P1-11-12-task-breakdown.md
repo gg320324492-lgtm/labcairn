@@ -405,11 +405,13 @@ docstring warns about.
 | `labcairn/reports/manifest.py` | **T02** — the report artefact manifest |
 | `labcairn/reports/revisions.py` | **T03** — revisions and staleness |
 | `labcairn/reports/checks.py` | **T04** — the content checks |
+| `labcairn/reports/build.py` | **T12** — the document builder: the ledger turned into a report |
 | `labcairn/application/` | **T05** — the one application layer, and the store queries it needs |
 | `labcairn/cli/` | **T06** — the Typer CLI |
 | `labcairn/api/` | **T07** — the FastAPI service and its contracts |
 | `web/src/` | **T08** — the React workbench |
 | `examples/` | **T09** — the end-to-end smoke path |
+| `labcairn/application/reports.py` | **T13** — the layer operation that renders a report and records it |
 
 **The two contracts that must be frozen before anything is branched** are
 `labcairn/reports/model.py` (T00) and the operation list in
@@ -533,6 +535,41 @@ working smoke path, and the three surfaces producing the same report bytes.
 It is run by a test, because the G1 and G2 demonstrations are run by nothing
 and that is a hole the G3 review named.
 
+### T12 — the report document builder
+
+**Added after this plan was first written**, and the gap it fills is visible
+only from the whole: T00 built the report's **classes**, and T01 through T04
+built the renderers, the manifest, the revisions and the checks — but nothing
+assembled a `ReportDocument` out of what a task actually has. The model could
+hold any content at all, and the checks could only say whether that content
+agreed with the ledger.
+
+The builder is what makes the content **the ledger's**: a record that may be
+stated becomes a claim and one that may not becomes a disclosure, a figure
+carries its caption and its own manifest, a citation names the address the
+record was read from, and the snapshot names exactly what the report carries.
+It **refuses** rather than guessing — a record that cannot be cited refuses
+the build, because dropping it would omit a verified finding and disclosing it
+would state a conflict that is not one.
+
+### T13 — the layer's report operation
+
+**Added with T12, and for the same reason.** T05's `render_report` was a stub
+that refused everything, because at the time the report path had nothing to
+render. It now gathers what the task has, builds the document, checks it,
+renders the four forms **from that document**, writes the revision — with the
+chain as a flat ancestor closure, so the existing one-hop staleness walk can
+reach the report — and records the receipts and the event.
+
+Its refusals carry their own reason (`report_content_refused`), because a
+stage that failed *ran* and may be worth retrying, while a report whose
+content was refused never ran.
+
+**About the numbering.** T12 and T13 are named for the two gaps the first ten
+subtasks left between them, and they are the numbers their pull requests
+carry. T10 and T11 in this plan were left free — not renamed away, and not
+skipped by accident.
+
 ---
 
 ## 4. The acceptance mapping
@@ -545,12 +582,12 @@ and that is a hole the G3 review named.
 
 | # | Clause | Carried by | The test that proves it |
 |---|---|---|---|
-| 1 | exports are openable | T01 | each of the four forms is parsed back by something that is not the writer — the DOCX and the PDF by a reader, the Markdown and the HTML by a parser — and the content it reads back is the model's |
-| 2 | numeric values agree with ledger | T00, T04 | every number in the report is compared with the ledger record it came from, and a report that says 4.25 where the ledger says 4.5 is refused |
-| 3 | figures/captions intact | T00, T01, T04 | the figure's bytes in the report are the figure artefact's bytes, and the caption beside it is the caption in the model |
-| 4 | links resolve | T04 | every link in the report points at a locator that the index can resolve, and the check is a resolution, not a string comparison |
-| 5 | output hash/lineage retained | T02 | the manifest records each part's hash and its lineage, and the receipt records the manifest's hash, so the chain from the ledger to the exported file is one line of hashes |
-| 6 | re-rendering after material change invalidates stale output | T03 | the invalidation walk marks the report `STALE` with a reason, and the re-render is a new revision that does not alter the old one |
+| 1 | exports are openable | T01, T13 | each of the four forms is parsed back by something that is not the writer — the DOCX and the PDF by a reader, the Markdown and the HTML by a parser — and the content it reads back is the model's |
+| 2 | numeric values agree with ledger | T00, T04, **T12** | every number in the report is compared with the ledger record it came from, and a report that says 4.25 where the ledger says 4.5 is refused — and the number in the report is the record's, because the builder is what put it there |
+| 3 | figures/captions intact | T00, T01, T04, **T12** | the figure's bytes in the report are the figure artefact's bytes, and the caption beside it is the caption in the model |
+| 4 | links resolve | T04, **T12** | every link in the report points at a locator that the index can resolve, and the check is a resolution, not a string comparison |
+| 5 | output hash/lineage retained | T02, T03, **T13** | the manifest records each part's hash and its lineage, and the receipt records the manifest's hash, so the chain from the ledger to the exported file is one line of hashes |
+| 6 | re-rendering after material change invalidates stale output | T03, **T13** | the invalidation walk marks the report `STALE` with a reason, and the re-render is a new revision that does not alter the old one |
 
 ### 4.2 LC-P1-12's own acceptance clause
 
