@@ -44,6 +44,7 @@ Operation                  Capability
 =========================  ===========================================
 ``create_task``            ``fs.write``
 ``read_task_state``        ``fs.read``
+``read_events``            ``fs.read``
 ``list_tasks``             ``fs.list``
 ``run_stage``              the caller's
 ``read_plan``              ``fs.read``

@@ -983,15 +983,23 @@ def test_reading_the_events_writes_nothing(env: StoreEnv, workspace_root: Path) 
     assert count_events(env.session, context.task_id) == before
 
 
-def test_the_page_carries_the_stores_events_and_not_copies(
+def test_the_page_carries_the_stores_events_by_value_and_by_type(
     env: StoreEnv, workspace_root: Path
 ) -> None:
     """The port's contract is a layer model, and the events in it are the store's.
 
     Two properties in one test, because they are one decision: the layer
-    returns a model of its own, and that model carries the store's events
-    rather than copies of them. An event is a fact about what happened, and
-    a second spelling of it would be a second thing to keep true.
+    returns a model of its own, and that model carries **the store's events**
+    -- by value and by type -- rather than a re-spelling of them. An event is
+    a fact about what happened, and a second shape for it would be a second
+    thing to keep true.
+
+    **By value and by type, and not by identity.** The store's readers read
+    the log afresh on every call, so the events a caller holds and the ones
+    the layer holds are never the same objects even when they are the same
+    events. Identity is not a property the layer could satisfy, so it is not
+    the property; what would be wrong is a layer that re-shaped the event
+    into a model of its own, and that is what the type assertion rules out.
     """
     context = _make_context(env, workspace_root, _allow_all())
     page = read_events(context)

@@ -17,11 +17,17 @@ past the end", and those two are different answers to different questions.
 The events are the store's events
 ---------------------------------
 
-The page carries the :class:`~labcairn.runtime.event.Event` objects as they
-are. An event is a fact about what happened, and a copy of it in a shape of
-the layer's own would be a second spelling of a fact the store has already
-spelled once: two spellings of one event, and a client that compared them
-would be comparing a fact with a copy of it.
+The page carries the :class:`~labcairn.runtime.event.Event` objects **by value
+and by type**. An event is a fact about what happened, and a copy of it in a
+shape of the layer's own would be a second spelling of a fact the store has
+already spelled once: two spellings of one event, and a client that compared
+them would be comparing a fact with a copy of it.
+
+The store's readers read the log afresh on every call, so the objects a caller
+holds and the ones the page holds are never the same objects even when they
+are the same events. Identity is therefore not a property the layer could
+satisfy, and it is not the property; the one that matters is that the layer
+does not re-shape the event.
 
 A task that does not exist is not a task with no events
 --------------------------------------------------------
