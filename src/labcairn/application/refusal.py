@@ -68,6 +68,22 @@ class ApplicationRefusal(StrEnum):
     STAGE_FAILED = "stage_failed"
     #: The operation would read more than the capability's own bound allows.
     LIMITS_EXCEEDED = "limits_exceeded"
+    #: The report's content was refused: the material it names does not
+    #: support it, and nothing was written.
+    #:
+    #: Its own member, and not ``STAGE_FAILED``, because the two are
+    #: different situations and a caller that cannot tell them apart cannot
+    #: tell what to do. **A stage that failed ran and failed**: there is an
+    #: execution to look at, and the work may be worth retrying. **A report
+    #: whose content was refused never ran**: the checks read the ledger and
+    #: the material, found that the document says something they do not
+    #: support, and stopped — so there is nothing to retry and the ledger is
+    #: what has to change.
+    #:
+    #: The message names what refused and why — the check that refused, and
+    #: the reason it gave — because a reason nobody can act on is the same as
+    #: no reason.
+    REPORT_CONTENT_REFUSED = "report_content_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
 
