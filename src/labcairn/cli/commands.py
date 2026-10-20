@@ -1,4 +1,4 @@
-"""The eight commands, and the plumbing they share.
+"""The commands, and the plumbing they share.
 
 Every command's data comes from the application layer. A command here decides
 *what* to ask and *how to draw the answer*; it never reads the store, never
@@ -27,18 +27,36 @@ beside it, and it is the form this project's lint rules can be left to.
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 import uuid
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, NoReturn, cast
+from urllib.parse import urlsplit
 
 import typer
-from rich.console import Console
+from fastapi import FastAPI
+from rich.console import Console, RenderableType
+from rich.panel import Panel
+from rich.table import Table
 
+from labcairn.api import (
+    DEFAULT_BIND_HOST,
+    DEFAULT_BIND_PORT,
+    BindRefusedError,
+    OriginPolicy,
+    SessionToken,
+    create_app,
+    ensure_loopback,
+)
+from labcairn.api import serve as run_service
+from labcairn.api.bind import own_origin
 from labcairn.application import (
+    ApplicationContext,
     ApplicationRefusedError,
     StageOutcome,
     StageRequest,
@@ -66,6 +84,7 @@ from labcairn.cli.models import (
     DoctorReport,
     PolicyFinding,
     ProviderFinding,
+    ServiceStarting,
     WorkspaceFinding,
     WorkspaceInitialised,
     emit_model,
@@ -955,11 +974,337 @@ def artifacts_list(
         _console().print(render.render_artifacts(models))
 
 
+# --------------------------------------------------------------------------- #
+# serve
+# --------------------------------------------------------------------------- #
+
+
+#: The origins the development web server is served from.
+#:
+#: ``web/vite.config.ts`` binds the development server to ``127.0.0.1:5173``,
+#: and a request the workbench makes from that page carries that page's
+#: origin — so the service has to answer to it, or the workbench cannot
+#: change anything and does not know why.
+#:
+#: **Both spellings are here, and both are needed.** A developer who types
+#: ``localhost:5173`` into the browser is on a page whose origin is
+#: ``http://localhost:5173``, and the browser sends that string; the address
+#: the server bound is not what travels. Both reach the same server, so
+#: allowing one and not the other would refuse the same page for a spelling.
+#:
+#: **This is a widening of the allow-list, and it is deliberate.** The
+#: alternative — an empty list and an explicit ``--origin`` — would make
+#: ``labcairn serve`` and ``pnpm dev`` a pair that fails at the first write
+#: with an origin refusal that reads like a bug. The cost is that whatever
+#: is listening on the development port may drive the service, so the
+#: command prints the allow-list it will answer to.
+DEVELOPMENT_ORIGINS: tuple[str, ...] = (
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+)
+
+
+@app.command()
+def serve(
+    ctx: typer.Context,
+    task: TaskOption = None,
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            help=(
+                "The address to bind. A loopback address and nothing else: the "
+                "service refuses to start on any other."
+            ),
+        ),
+    ] = DEFAULT_BIND_HOST,
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            help="The port to bind, and the port the service's own origin carries.",
+        ),
+    ] = DEFAULT_BIND_PORT,
+    origin: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--origin",
+            help=(
+                "An origin to answer to besides the service's own and the "
+                "development server's. May be given more than once."
+            ),
+        ),
+    ] = None,
+    static_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--static-dir",
+            help=(
+                "The built workbench to serve from the service's own origin, so "
+                "the browser and the API share one."
+            ),
+        ),
+    ] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Start the local service, and serve the workspace's current task.
+
+    The service is the local API, and the API is task-scoped: it serves one
+    task's state, so the workspace must have a current task and the command
+    refuses rather than guess which task was meant.
+
+    The bind address is refused and not warned about, and the port is 8000
+    because that is where the workbench's proxy points. The token the
+    service mints is written to the workspace and never printed, and the
+    development web server's origins are answered to by default — with the
+    allow-list printed, so that the decision is visible rather than buried.
+
+    The event stream and the stage bodies belong to the packages that own
+    them, so a request for either is refused in the layer's own vocabulary
+    rather than answered with something that looks like a result.
+    """
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        _check_host(host, as_json=as_json)
+        _check_port(port, as_json=as_json)
+        origins = _resolve_origins(tuple(origin or ()), as_json=as_json)
+        workbench = _resolve_static_dir(static_dir, as_json=as_json)
+        _check_port_free(host, port, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            app = service_app(
+                context,
+                host=host,
+                port=port,
+                extra_origins=origins,
+                static_dir=workbench,
+            )
+            model = _service_report(
+                app, host=host, port=port, task_id=task_id, static_dir=workbench
+            )
+            if as_json:
+                emit_model(model)
+            else:
+                _console().print(_render_service_starting(model))
+            _run_service(app, host=host, port=port, as_json=as_json)
+
+
+def service_app(
+    context: ApplicationContext,
+    *,
+    host: str,
+    port: int,
+    extra_origins: Sequence[str],
+    static_dir: Path | None,
+) -> FastAPI:
+    """The service, as this command builds it.
+
+    Named apart from the command so that what the command starts can be
+    looked at without starting it. The wiring — the bind address, the port,
+    the origins and the task — is the thing worth looking at, and a test
+    that had to bind a socket to look at it would be a test that fails when
+    the machine's ports are busy.
+    """
+    return create_app(
+        context,
+        host=host,
+        port=port,
+        extra_origins=extra_origins,
+        static_dir=static_dir,
+    )
+
+
+def _service_report(
+    app: FastAPI,
+    *,
+    host: str,
+    port: int,
+    task_id: TaskId,
+    static_dir: Path | None,
+) -> ServiceStarting:
+    """What the service is, read from the service.
+
+    The origins and the token's path are the service's own and not a second
+    spelling of them: the command composed the origins once and the service
+    holds them, and the path the token was written to is the service's fact
+    and not the command's arithmetic.
+    """
+    origins = cast(OriginPolicy, app.state.origins)
+    token = cast(SessionToken, app.state.session)
+    return ServiceStarting(
+        host=host,
+        port=port,
+        origin=own_origin(host, port),
+        origins=tuple(sorted(origins.allowed)),
+        task_id=str(task_id),
+        token_path=str(token.path),
+        static_dir=str(static_dir) if static_dir is not None else None,
+    )
+
+
+def _render_service_starting(model: ServiceStarting) -> RenderableType:
+    """What ``serve`` is about to serve.
+
+    Drawn here rather than in :mod:`labcairn.cli.render` because the service
+    is the one thing this CLI starts rather than reports on, and the model
+    it draws is the one this command builds.
+    """
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    table.add_row("service", model.origin)
+    table.add_row("task", model.task_id)
+    table.add_row("origins", ", ".join(model.origins))
+    table.add_row("token", model.token_path)
+    if model.static_dir is not None:
+        table.add_row("workbench", model.static_dir)
+    return Panel(table, title="service starting", expand=False)
+
+
+def _check_host(host: str, *, as_json: bool) -> None:
+    """The bind address, if it is one the service may bind.
+
+    The service's own check is asked first and its own words are used, so
+    the refusal a developer reads here is the refusal the service would have
+    given. It is asked here rather than left to
+    :func:`~labcairn.api.app.create_app` because **nothing may be bound
+    before it has been answered**, and the command binds the address once to
+    find out whether it can.
+    """
+    try:
+        ensure_loopback(host)
+    except BindRefusedError as error:
+        _refuse(CLI_REFUSAL_INVALID_ARGUMENTS, str(error), as_json=as_json)
+
+
+def _check_port(port: int, *, as_json: bool) -> None:
+    """The port, if it is one a socket can carry.
+
+    Zero is refused with the rest: it would let the operating system choose
+    the port, and the service's own origin is computed from the port it was
+    told — so the origin would name a port nothing is listening on.
+    """
+    if not 1 <= port <= 65535:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"{port} is not a port number. A port is between 1 and 65535, and the "
+            "service's own origin is computed from the port it is given.",
+            as_json=as_json,
+        )
+
+
+def _check_port_free(host: str, port: int, *, as_json: bool) -> None:
+    """Whether the address can be bound.
+
+    Checked before the command prints anything, so that its output is not a
+    claim that the service is running when the address was already taken.
+    The socket is bound and let go without ever listening, and the service
+    binds the address again a moment later.
+    """
+    version = ipaddress.ip_address(host).version
+    family = socket.AF_INET6 if version == 6 else socket.AF_INET
+    try:
+        with socket.socket(family, socket.SOCK_STREAM) as probe:
+            probe.bind((host, port))
+    except OSError as error:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the service could not bind {host}:{port}: {error}. Something else may "
+            "be listening there.",
+            as_json=as_json,
+        )
+
+
+def _resolve_origins(requested: tuple[str, ...], *, as_json: bool) -> tuple[str, ...]:
+    """The origins the service will answer to.
+
+    The development server's origins are in the list whatever was asked for,
+    and every other origin is one somebody named.
+    """
+    origins = list(DEVELOPMENT_ORIGINS)
+    for entry in requested:
+        if entry in origins:
+            continue
+        _check_origin(entry, as_json=as_json)
+        origins.append(entry)
+    return tuple(origins)
+
+
+def _check_origin(entry: str, *, as_json: bool) -> None:
+    """An origin, if it is spelled as one.
+
+    An origin is a scheme, a host and a port and nothing else, because that
+    is what the browser sends and what the guard compares. A path or a
+    trailing slash would never match a header, so accepting one would be
+    accepting an origin that does nothing.
+    """
+    parts = urlsplit(entry)
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"{entry!r} is not an origin. An origin is a scheme, a host and a port "
+            "— 'http://localhost:5173' — and nothing else.",
+            as_json=as_json,
+        )
+    if parts.path or parts.query or parts.fragment:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"{entry!r} is not an origin. An origin carries no path, no query and no "
+            "fragment: 'http://localhost:5173' is one, and "
+            f"{entry!r} is not.",
+            as_json=as_json,
+        )
+
+
+def _resolve_static_dir(static_dir: Path | None, *, as_json: bool) -> Path | None:
+    """The built workbench the service will serve, if one was named.
+
+    A directory that is not there is refused rather than ignored: the
+    service would answer to the same origin with no workbench on it, and the
+    developer would be left with a service that serves nothing and no reason
+    why.
+    """
+    if static_dir is None:
+        return None
+    resolved = static_dir.expanduser().resolve()
+    if not resolved.is_dir():
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"{resolved} is not a directory, so there is no built workbench there to serve.",
+            as_json=as_json,
+        )
+    return resolved
+
+
+def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
+    """Run the service until it is stopped.
+
+    The refusal is rendered rather than raised, because a service that could
+    not start is not a crash: it is a service that declined, and the two are
+    told apart by their exit code.
+    """
+    try:
+        run_service(app, host=host, port=port)
+    except BindRefusedError as error:
+        _refuse(CLI_REFUSAL_INVALID_ARGUMENTS, str(error), as_json=as_json)
+    except SystemExit:
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the service could not start on {host}:{port}. The address may have been "
+            "taken between the check and the bind.",
+            as_json=as_json,
+        )
+
+
 __all__ = [
     "EXIT_REFUSED",
     "EXIT_USAGE",
     "app",
     "artifacts_app",
+    "serve",
+    "service_app",
     "sources_app",
     "task_app",
 ]
