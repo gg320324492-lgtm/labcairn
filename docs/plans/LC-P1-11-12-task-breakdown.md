@@ -4,8 +4,8 @@
 **Work orders:** [LC-P1-11](../PHASE_1_WORKORDERS.md) — report assembly, export
 and artefact versioning · [LC-P1-12](../PHASE_1_WORKORDERS.md) — CLI and local
 Web research workbench
-**Status:** written, not implemented. The decisions in §1.4 are the owner's and
-are not yet taken.
+**Status:** written, not implemented. **The four decisions in §1.4 were taken by the
+owner on 2026-10-20**; each one is recorded below with what it costs.
 **Date:** 2026-10-20
 
 ---
@@ -91,11 +91,12 @@ Concretely, by the end:
 - **The fabricated-DOI clause.** It is LC-P1-09's and it is still open; see
   §1.4.1.
 
-### 1.4 Four decisions the owner takes, and what each one costs
+### 1.4 Four decisions the owner took, and what each one costs
 
 These are the decisions that change what the work orders deliver, and each of
-them has a cost that is not obvious until it is stated. **The recommendations
-below are mine; the decisions are the owner's.**
+them has a cost that is not obvious until it is stated. **All four were taken
+on 2026-10-20, and all four took the recommended option** — which is not
+the same as the costs being free, and each cost is stated below.
 
 #### 1.4.1 What a report may cite
 
@@ -109,12 +110,12 @@ identifier to a source**. So an identifier in the model is a slot that nothing
 fills and nothing checks, and LC-P1-09's *fabricated source fails* clause is
 open for exactly that reason.
 
-- **Option A (recommended): a report cites locators only.** A claim's citation
+- **Option A — TAKEN (2026-10-20): a report cites locators only.** A claim's citation
   is *what the text said and where it was*: file, page, span, line or cell,
   with the content hash. A report never prints an identifier as if it were a
   citation, because nothing could verify it — and an unverified identifier is
   exactly the fabrication the clause refuses.
-- **Option B: G4 makes identifiers real.** Ingestion extracts them from the
+- **Option B — not taken.** G4 would have made identifiers real: Ingestion extracts them from the
   material, the report cites them, and the bibliography is CSL-shaped
   (`ARCHITECTURE.md` names pybtex for this). This closes the *fabricated
   DOI* half of LC-P1-09's clause — **but only if something verifies the
@@ -139,11 +140,11 @@ report's.**
 
 G4's exit test is *"CLI and Web produce same versioned report"*.
 
-- **Option A (recommended): one renderer, and both surfaces serve the same
-  bytes.** The report is rendered once into bytes; the CLI writes that file and
+- **Option A — TAKEN (2026-10-20): one renderer, and both surfaces serve the
+  same bytes.** The report is rendered once into bytes; the CLI writes that file and
   the UI serves exactly those bytes. "Same" is **byte-identical**, and the
   acceptance test compares hashes.
-- **Option B: each surface renders its own copy.** The CLI renders a file, the
+- **Option B — not taken.** Each surface would have rendered its own copy: The CLI renders a file, the
   UI renders in the browser from the same model. "Same" is *the same content*,
   checked by comparing the two renderings' structure.
 
@@ -160,11 +161,11 @@ fonts. Both are containers with metadata that a naive exporter fills with the
 current time, so by default **neither is byte-reproducible** — while Markdown
 and HTML are.
 
-- **Option A (recommended): the report's reproducible form is Markdown and
+- **Option A — TAKEN (2026-10-20): the report's reproducible form is Markdown and
   HTML; DOCX and PDF are exports whose bytes are recorded but not claimed
   reproducible.** The artefact manifest records the hash of what was written,
   and the report says which of its forms is reproducible.
-- **Option B: the exporters pin the container metadata** — a fixed timestamp
+- **Option B — not taken.** The exporters would have pinned the container metadata: — a fixed timestamp
   in the DOCX's ZIP entries, a fixed creation date and no variable IDs in the
   PDF — so that all four forms are byte-reproducible.
 
@@ -179,12 +180,13 @@ whose creation date is fixed is lying about when it was made.
 restrictions and a local authenticated session or token, even when launched on
 loopback**, and LC-P1-12 adds a CSRF guard.
 
-- **Option A (recommended): both, and the origin check is the real defence.**
+- **Option A — TAKEN (2026-10-20): both, and the origin check is the real defence.**
   The service binds `127.0.0.1`, refuses any request whose `Origin` is not
   its own, and requires a bearer token minted at start-up, written to a
   workspace file the CLI prints. The UI obtains the token through a
   same-origin request.
-- **Option B: a cookie session with a one-time bootstrap token.** The CLI
+- **Option B — not taken.** A cookie session with a one-time bootstrap token would
+  have been the alternative: The CLI
   prints a one-time URL the user opens; the server sets a session cookie.
 
 *Cost of A:* the token has to reach the browser, and a bearer token in a
