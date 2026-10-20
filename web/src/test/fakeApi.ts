@@ -51,6 +51,16 @@ export interface RecordedRequest {
   readonly headers: Record<string, string>
   /** The body the client sent, when it sent one. */
   readonly body: string | null
+  /**
+   * What the client asked the browser to do about credentials.
+   *
+   * Recorded because the setting is the client's decision and the browser's
+   * behaviour is not: a request that says `include` sends whatever cookie
+   * the origin happens to hold, and the request itself would not show it.
+   */
+  readonly credentials: string | null
+  /** What the client asked the browser to do about the referrer. */
+  readonly referrerPolicy: string | null
 }
 
 /** What the fake service knows. Every field can be changed between reads. */
@@ -246,6 +256,8 @@ export class FakeApi {
       method,
       headers: headersOf(init?.headers),
       body: typeof init?.body === 'string' ? init.body : null,
+      credentials: init?.credentials ?? null,
+      referrerPolicy: init?.referrerPolicy ?? null,
     })
 
     if (method === 'POST' && path.endsWith('/grant')) {

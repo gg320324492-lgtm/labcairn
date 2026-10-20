@@ -10,6 +10,15 @@
  * declares them — `/task` and not `/tasks/current`, `/plan` and not
  * `/task/plan` — because a path the service does not serve is a 404 that
  * looks like an empty workspace.
+ *
+ * **The event stream is not among them.** The service offers `/events` and
+ * `/events/stream`, and the workbench reads neither. The workbench shows the
+ * task's state and reads it again when something changes; a long-lived
+ * stream would be a second way to watch the task move, and the workbench's
+ * rule is that the screen shows what the API says rather than what the page
+ * has been told. The omission is a decision, and it is named here because a
+ * missing path in this list is exactly where a reader would look for a
+ * forgotten one.
  */
 
 /** The paths the workbench reads, keyed by what they are for. */

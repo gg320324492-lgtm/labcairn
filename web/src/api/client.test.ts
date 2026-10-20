@@ -45,6 +45,16 @@ describe('changes', () => {
 
     const request = fake.requests.find((entry) => entry.method === 'POST')
     expect(request?.headers['authorization']).toBe(`Bearer ${FAKE_TOKEN}`)
+
+    // Every header, not only the one the client is supposed to use: a second
+    // header carrying the token is the kind of thing that gets added for a
+    // debugging reason and forgotten, and the name of this test says there
+    // is nowhere else for it to be.
+    const carrying = Object.entries(request?.headers ?? {}).filter(([, value]) =>
+      value.includes(FAKE_TOKEN),
+    )
+    expect(carrying.map(([name]) => name)).toEqual(['authorization'])
+
     expect(request?.url).not.toContain(FAKE_TOKEN)
     expect(request?.body ?? '').not.toContain(FAKE_TOKEN)
   })
@@ -57,12 +67,24 @@ describe('changes', () => {
     expect(sessionToken()).toBe(FAKE_TOKEN)
   })
 
-  it('sends no cookie', async () => {
+  it('asks the browser for no cookie, so that none can be sent', async () => {
     await client.post(`/approvals/${APPROVAL_ID}/grant`)
 
     const request = fake.requests.find((entry) => entry.method === 'POST')
     expect(request).toBeDefined()
+    // The setting, not the effect. The page and the API share an origin in
+    // production, so a request that said `include` would carry whatever
+    // cookie the origin happened to hold — and a request that carries no
+    // cookie header today would still not show that.
+    expect(request?.credentials).toBe('omit')
     expect(request?.headers['cookie']).toBeUndefined()
+  })
+
+  it('asks the browser for no referrer', async () => {
+    await client.post(`/approvals/${APPROVAL_ID}/grant`)
+
+    const request = fake.requests.find((entry) => entry.method === 'POST')
+    expect(request?.referrerPolicy).toBe('no-referrer')
   })
 })
 

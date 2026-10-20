@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -18,16 +18,54 @@ import { API_PATHS, APPROVAL_GRANT_PATH, ARTIFACT_CONTENT_PATH } from './paths'
  * something is wrong. So the check reads the service's own route table and
  * compares it with the client's, and the two cannot drift apart without a
  * test failing.
+ *
+ * **This is a cross-language check, and it is a text scan.** The service's
+ * routes are written in Python and this test is written in TypeScript, so
+ * the only thing the two share is the file. The scan is therefore written to
+ * fail *loudly* rather than to find fewer routes quietly:
+ *
+ * * the file's absence raises, with a message that says the check could not
+ *   run, rather than leaving an empty set to compare against;
+ * * a route written in a shape this scan does not recognise is reported
+ *   **missing**, so the comparison below fails and names the path — a
+ *   changed decorator style produces a loud false failure, not a silent
+ *   pass;
+ * * the scanner is checked against routes the workbench **never asks for**,
+ *   so a scanner that had somehow learned only the paths in `paths.ts`
+ *   cannot pass.
+ *
+ * The machine-readable alternative is the OpenAPI document the API already
+ * serves, and it is the better source: it is generated from the routes
+ * rather than read out of them. It is not reachable from this test suite
+ * today — the document is built by importing the Python models, and the web
+ * CI job installs Node and pnpm and nothing else — so the scan stays, with
+ * the controls above.
  */
 
 /** The repository root, from this file's own location. */
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
-/** The service's route table, as it is written. */
-const routesSource = readFileSync(resolve(repoRoot, 'src', 'labcairn', 'api', 'routes.py'), 'utf-8')
+/** Where the service's route table is written. */
+const routesPath = resolve(repoRoot, 'src', 'labcairn', 'api', 'routes.py')
 
-/** A route as the service writes it: `@router.get("/artifacts/{artifact_id}")`. */
-const ROUTE_PATTERN = /@router\.(get|post)\(\s*"([^"]+)"/g
+if (!existsSync(routesPath)) {
+  throw new Error(
+    `the service's routes are not where this test looks for them (${routesPath}). ` +
+      'The path check cannot run, and a check that cannot run is not a check. ' +
+      'Point this test at the new file rather than deleting the assertion.',
+  )
+}
+
+/** The service's route table, as it is written. */
+const routesSource = readFileSync(routesPath, 'utf-8')
+
+/**
+ * A route as the service writes it: `@router.get("/artifacts/{artifact_id}")`.
+ *
+ * The method is matched as a word rather than as a list, so that a route
+ * added with a verb this file has never heard of is still seen.
+ */
+const ROUTE_PATTERN = /@router\.([a-z]+)\(\s*"([^"]+)"/g
 
 /** A path with its parameters made anonymous, so two spellings can be compared. */
 function anonymous(path: string): string {
@@ -53,6 +91,12 @@ describe('the route scanner', () => {
     expect([...routes].sort()).toEqual(['/approvals/{param}/grant', '/task'])
   })
 
+  it('reads a verb it has not seen before', () => {
+    const routes = serviceRoutes('@router.put("/task/{task_id}", response_model=Task)\n')
+
+    expect([...routes]).toEqual(['/task/{param}'])
+  })
+
   it('finds the routes in the real service, so the comparison is not vacuous', () => {
     const routes = serviceRoutes(routesSource)
 
@@ -60,6 +104,10 @@ describe('the route scanner', () => {
     expect(routes.has('/session')).toBe(true)
     expect(routes.has('/task')).toBe(true)
     expect(routes.has('/artifacts/{param}/content')).toBe(true)
+    // Routes the workbench never asks for. Without these, a scanner that
+    // had somehow learned only the paths in `paths.ts` would pass.
+    expect(routes.has('/events')).toBe(true)
+    expect(routes.has('/stages')).toBe(true)
     expect(routes.size).toBeGreaterThan(10)
   })
 })
@@ -72,7 +120,13 @@ describe('the paths the workbench asks for', () => {
     )
 
     const missing = asked.filter((path) => !routes.has(path))
-    expect(missing).toEqual([])
+    expect(
+      missing,
+      `the workbench asks for paths the service does not declare: ${missing.join(', ')}. ` +
+        'Either the path is wrong, or the route is written in a shape this test ' +
+        'does not recognise — which is a loud false failure, and the fix is to ' +
+        'widen the scan rather than to delete the assertion.',
+    ).toEqual([])
   })
 })
 

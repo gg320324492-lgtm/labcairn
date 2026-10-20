@@ -113,6 +113,10 @@ export function Workbench(): JSX.Element {
           This page talks to the local API and to nothing else. It loads no remote font, no remote
           script and no analytics.
         </p>
+        <p>
+          The service&rsquo;s event stream is not read here. This page shows the task&rsquo;s state
+          and reads it again when something changes.
+        </p>
       </footer>
     </main>
   )

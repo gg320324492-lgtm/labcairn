@@ -63,6 +63,15 @@ describe('the views', () => {
     expect(screen.getByText(/Declared by research-report/)).toBeInTheDocument()
     expect(screen.getAllByText('retrieve').length).toBeGreaterThan(0)
   })
+
+  it('says that the event stream is not read', async () => {
+    render(<App />)
+
+    // The service offers a stream and the workbench does not read it. A
+    // reader who found the omission and no note about it would assume it
+    // had been forgotten, so the note is on the screen and watched here.
+    expect(await screen.findByText(/event stream is not read/)).toBeInTheDocument()
+  })
 })
 
 describe('the UI holds no state', () => {
