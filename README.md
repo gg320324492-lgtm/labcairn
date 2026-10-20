@@ -61,7 +61,7 @@ Tool execution and network disclosure are subject to explicit capabilities and p
 
 ## Project development status
 
-The project is currently at **Phase 1 / Foundation & MVP**. Installation instructions and executable demos will be added only after the corresponding paths are implemented and verified.
+The project is currently at **Phase 1 / Foundation & MVP**. The research workflow is still under construction; the command line below is what exists today, and the rest arrives as its paths are implemented and verified.
 
 - [Four-stage roadmap](docs/ROADMAP.md)
 - [Phase 1 development work orders and acceptance gates](docs/PHASE_1_WORKORDERS.md)
@@ -73,7 +73,7 @@ The project is currently at **Phase 1 / Foundation & MVP**. Installation instruc
 
 This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application — there is no server and no research feature to use yet. There **is** a command line, and it is described below; it is a developer-facing surface, not a finished product. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
 
-Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) and, for the web baseline only, Node ≥ 24.16 with pnpm ≥ 9.15.9.
+Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) and, for the web package, Node ≥ 24.16 with pnpm ≥ 9.15.9.
 
 Python side, from the repository root:
 
