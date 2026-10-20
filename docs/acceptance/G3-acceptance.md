@@ -184,9 +184,17 @@ design ADR exists and the three work orders are readings of it.
 is not satisfied and only the owner can decide to set it aside.** That is the
 same situation LC-P1-08's row records, and the recommendation is the same: the
 exit test is met, the work is done, and the condition that is outstanding is a
-review by someone who did not write the fixes. **The review recommends that
-the owner close G3, and records that the closure rests on that decision
-rather than on an independent review.**
+review by someone who did not write the fixes. **The review recommends that the
+owner close G3, and records that the closure rests on that decision rather than
+on an independent review.**
+
+**And on 2026-10-20 the owner declined the exemption.** G3 is to be closed
+**after an independent review**, not instead of one — the rule is to be
+satisfied, not waived, and the difference from LC-P1-08 is deliberate. G4
+proceeds in the meantime; the gate's closure waits for a review by someone who
+did not write the fixes. The three things such a reviewer would want to look at
+are named above, and the verification this document records is written so that
+they can be re-run rather than taken on trust.
 
 ## Open items carried beyond G3
 

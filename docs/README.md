@@ -87,7 +87,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | Item | Value |
 |---|---|
 | Latest gate | **G2 closed** — LC-P1-05/06/07 all `PASS WITH NOTES`. [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
-| Gate G3 | **the exit test is met; the [gate review](acceptance/G3-acceptance.md) recommends closure, and the owner's decision is outstanding** — spans LC-P1-08…10. LC-P1-08 `PASS WITH NOTES` by owner decision; [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`); [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged |
+| Gate G3 | **the exit test is met; the [gate review](acceptance/G3-acceptance.md) recommends closure, and the owner decided on 2026-10-20 that G3 closes only after an **independent review**; G4 proceeds in the meantime** [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`); [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged |
 | Independent re-review | [PR #1 re-review](acceptance/PR-1-independent-review.md) — C-1/C-2/R-01/R-02 reproduced, not assumed |
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
