@@ -35,11 +35,21 @@ anything would be a service that looked alive and was not.
 The port's contract is the runtime's, not this package's, so the thing that
 implements it is small: read the events after a cursor, and say whether the
 caller is caught up.
+
+**The source is handed the session to read on, and holds none.** A
+SQLAlchemy ``Session`` is not thread-safe, and the service serves several
+requests at once; a source that held one would be a session shared by every
+request that read the stream, which is the defect the service's per-request
+sessions exist to remove. So the caller owns the session, passes it in, and
+closes it when the read is over — and the source is left with nothing to
+share.
 """
 
 from __future__ import annotations
 
 from typing import Protocol
+
+from sqlalchemy.orm import Session
 
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
@@ -51,10 +61,15 @@ class EventSource(Protocol):
     One method, and the method is the runtime's own request and the runtime's
     own page. An implementation that had to translate would be a second
     spelling of the cursor.
+
+    **The session is an argument, and the source keeps none.** The caller
+    opens one per request and closes it when the request is over, so two
+    readers of the stream never share a session and neither can discard the
+    other's work.
     """
 
-    def page(self, request: EventStreamRequest) -> EventStreamPage:
-        """The events after the request's cursor, and the cursor to resume from."""
+    def page(self, session: Session, request: EventStreamRequest) -> EventStreamPage:
+        """The events after the request's cursor, read on *session*."""
         ...
 
 
@@ -69,12 +84,12 @@ class UnwiredEventSource:
     state of the work.
     """
 
-    def page(self, request: EventStreamRequest) -> EventStreamPage:
+    def page(self, session: Session, request: EventStreamRequest) -> EventStreamPage:
         """Refuse, and say which piece is missing.
 
         :raises ApplicationRefusedError: always.
         """
-        del request
+        del session, request
         raise ApplicationRefusedError(
             ApplicationRefusal.NOT_IMPLEMENTED,
             "the event stream was not given a source to read from. The service "

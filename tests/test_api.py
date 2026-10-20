@@ -40,6 +40,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -151,9 +152,7 @@ def context(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
 @pytest.fixture
 def client(context: ApplicationContext) -> Iterator[TestClient]:
     """A client for the service, with the event stream wired to the store."""
-    app = create_app(
-        context, event_source=_StoreEventSource(context.store.session, context.task_id)
-    )
+    app = create_app(context, event_source=_StoreEventSource())
     with TestClient(app) as wired:
         yield wired
 
@@ -194,16 +193,15 @@ class _StoreEventSource:
     in this file because the API package may not reach the store: the
     application layer is the only way to the store, and the layer's frozen
     operation list has no event read for the port to sit on yet.
+
+    **It holds no session.** The caller hands it the session to read on, so
+    two requests that read the stream never share one.
     """
 
-    def __init__(self, session: Session, task_id: TaskId) -> None:
-        self._session = session
-        self._task_id = task_id
-
-    def page(self, request: EventStreamRequest) -> EventStreamPage:
+    def page(self, session: Session, request: EventStreamRequest) -> EventStreamPage:
         """The events after the request's cursor, and the cursor to resume from."""
         events = events_after(
-            self._session, request.task_id, after_seq=request.after_seq, limit=request.limit
+            session, request.task_id, after_seq=request.after_seq, limit=request.limit
         )
         return EventStreamPage(
             task_id=request.task_id,
@@ -1024,6 +1022,12 @@ def test_the_task_response_is_the_layer_s_own_value(
     )
     expected = read_task_state(context)
     assert expected.runs and expected.stages and expected.artifacts and expected.approvals
+    # The layer's read left a transaction open on the test's own session, and
+    # the store's engine opens every transaction with ``BEGIN IMMEDIATE``: that
+    # session holds SQLite's write lock. The service reads on a session of its
+    # own, so it would wait for the lock this one holds. The value is already
+    # materialised, so the transaction can end here.
+    context.store.session.rollback()
     response = client.get("/task")
     assert response.status_code == 200
     assert response.json() == json.loads(expected.model_dump_json())
@@ -1141,7 +1145,7 @@ def test_the_unwired_source_refuses_rather_than_returning_an_empty_page() -> Non
     source = UnwiredEventSource()
     request = EventStreamRequest(task_id=TaskId(new_id()), after_seq=0)
     with pytest.raises(ApplicationRefusedError) as caught:
-        source.page(request)
+        source.page(MagicMock(spec=Session), request)
     assert caught.value.reason.value == "not_implemented"
 
 
