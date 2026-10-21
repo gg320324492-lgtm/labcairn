@@ -32,7 +32,7 @@ reviews carry.
   | Subtask | Mutations | Caught | What the survivors were |
   |---|---|---|---|
   | T00, the document model | 6 | 6 | none |
-  | T01, the four renderers | 30 | 30 | four were **real gaps** and one was the reviewer's **own error**: the PDF form escaped every value **twice** and so printed `&amp;` where the model said `&`; the escape table's nineteen characters were pinned for only the fourteen a test happened to use; the Markdown's title and ids were not observed to be escaped; and a narrative beginning with four spaces became an indented code block. The reviewer's error was calling a second guard "unreachable" — it is reached exactly when the first guard fails to fire, and it is that guard's distinct wording that makes the first observable |
+  | T01, the four renderers | 30 | 30 | four were **real gaps** and one was the reviewer's **own error**: the PDF form escaped every value **twice** and so printed `&amp;` where the model said `&`; the escape table's eighteen characters were pinned for only the fourteen a test happened to use; the Markdown's title and ids were not observed to be escaped; and a narrative beginning with four spaces became an indented code block. The reviewer's error was calling a second guard "unreachable" — it is reached exactly when the first guard fails to fire, and it is that guard's distinct wording that makes the first observable |
   | T02, the artefact manifest | 34 | 34 | six were **real gaps**: the writer accepted `revision`, `producer_id`, `produced_by` and `receipt_id` and dropped all four, and the tests asserted only the defaults, so "honoured" and "hardcoded" were indistinguishable; a figure's manifest link's id was unpinned; a caller's supplied upstream for a figure was silently dropped; the chain's own contradiction refusal was unobserved; the document part's path was not proved to be the caller's; and the manifest was not observed to be written inside the task's output area. A seventh was the module docstring **overstating** rule 1 |
   | T03, the revisions and the staleness | 8 | 8 | none |
   | T04, the content checks | 34 | 34 | five were **real gaps**: the report could **overstate a record's verification state**, because nothing compared the status the report *prints* with the ledger's; the record's kind and the disclosure's kind and text were compared in the code and compared by nothing in the tests; an artefact outside the workspace was accepted; an unresolved record need not be in the snapshot; and an anchor the ledger had never heard of was accepted |
@@ -44,6 +44,16 @@ reviews carry.
   finding, and three of the reviewer's own mistakes were corrected in the
   process — one of them had been reported to the owner as a gap before it was
   found to be wrong. The corrections are recorded in the pull requests.
+- **The escape table holds eighteen characters, and this review said
+  nineteen.** The independent review of the gate counted them and found the
+  off-by-one: the table is the seventeen CommonMark ASCII punctuation
+  characters that can open a span or a block, plus `&`. **The set is
+  complete** — the reviewer checked the fourteen ASCII punctuation characters
+  that are *not* in the table against seven attack shapes each, and none of
+  them opens structure — so the defect this review reported was the
+  *unpinned* characters, not a missing one, and the count was the reviewer's
+  own miscount. The number in this document is corrected, and so are the
+  three other records that repeated it.
 - **The table above was re-run against the merged `main` after the review was
   written**, so that the figures are not the reviewer's recollection of its own
   work: **T12's ten** — seven in the builder, three in the interpretation —
@@ -96,7 +106,7 @@ are fixed:
   where the model said `&`. Every assertion about escaping was true — the
   value *was* escaped — so no source-level check saw it; only reading the
   rendered text back did.
-- the Markdown's escape table named nineteen characters and the tests
+- the Markdown's escape table named eighteen characters and the tests
   exercised fourteen of them, so `~`, `!`, `=` and `\` could each be deleted
   with nothing noticing.
 - the report could **overstate a record's verification state**: the status the

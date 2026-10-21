@@ -84,7 +84,7 @@ import zipfile
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Final
+from typing import Any, Final
 
 import pytest
 import yaml
@@ -231,8 +231,34 @@ def is_reference_path(name: str) -> bool:
     return any(part.lower().startswith(REFERENCE_SEGMENT_PREFIXES) for part in parts)
 
 
+#: How long a subprocess in this module may take before it is killed.
+#:
+#: The ``uv`` calls reach the network -- ``uv build`` fetches a build backend
+#: and ``uv pip install`` an index -- and a fetch that stalls on a CI runner
+#: holds the job until GitHub's six-hour limit: no output, no failure, and a
+#: runner spent. A timeout turns a stall into a named failure that says what
+#: was being waited for.
+SUBPROCESS_TIMEOUT_S: Final = 900
+
+
+def _run(argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+    """Run *argv*, and fail the test by name if it takes too long.
+
+    ``TimeoutExpired`` becomes a failure rather than an error, and the message
+    names the command, because "the job hung" is the one thing a reader of a CI
+    log cannot work out for themselves.
+    """
+    try:
+        return subprocess.run(argv, timeout=SUBPROCESS_TIMEOUT_S, **kwargs)
+    except subprocess.TimeoutExpired:
+        pytest.fail(
+            f"the command took longer than {SUBPROCESS_TIMEOUT_S}s and was killed: "
+            f"{' '.join(argv[:4])}"
+        )
+
+
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
+    return _run(
         ["git", "-C", str(repo_root), *args],
         capture_output=True,
         check=False,
@@ -389,7 +415,7 @@ def built_artifacts(
 
     out_dir = base / "dist"
     out_dir.mkdir()
-    proc = subprocess.run(
+    proc = _run(
         [uv, "build", "--out-dir", str(out_dir)],
         cwd=project,
         capture_output=True,
@@ -534,9 +560,7 @@ def _archive_file_paths(git_checkout: Path) -> list[str]:
         f"git archive HEAD failed ({proc.returncode}): "
         f"{proc.stderr.decode('utf-8', 'replace').strip()}"
     )
-    listing = subprocess.run(
-        ["tar", "-tf", "-"], input=proc.stdout, capture_output=True, check=False
-    )
+    listing = _run(["tar", "-tf", "-"], input=proc.stdout, capture_output=True, check=False)
     if listing.returncode != 0:
         pytest.fail(
             "could not list the members of `git archive HEAD` output "
@@ -808,7 +832,7 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
     """
     uv = _require_uv()
     venv_dir = tmp_path / "clean-room"
-    created = subprocess.run(
+    created = _run(
         [
             uv,
             "venv",
@@ -825,7 +849,7 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
     python_exe = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     assert python_exe.is_file(), f"expected an interpreter at {python_exe}"
 
-    installed = subprocess.run(
+    installed = _run(
         [
             uv,
             "pip",
@@ -844,7 +868,7 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
         f"{installed.stdout}\n{installed.stderr}"
     )
 
-    probe = subprocess.run(
+    probe = _run(
         [
             str(python_exe),
             "-c",
