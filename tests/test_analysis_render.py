@@ -41,6 +41,7 @@ second place for them to drift.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -49,7 +50,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import IO, Any, Protocol, runtime_checkable
 
 import pytest
 from analysis_fixtures import corpus_selection, corpus_source
@@ -141,6 +142,97 @@ if payload.get("unset_salt"):
 data = renderer.render(payload["operator_id"], result)
 sys.stdout.write(hashlib.sha256(data).hexdigest())
 """
+
+
+#: The program that prepares the render environment in **another
+#: interpreter**, once per round, on a signal from the parent.
+#:
+#: The signal is what makes this a test of the race rather than of luck:
+#: the interpreters are released together, so their preparations overlap,
+#: and the window in which one process can read a settings file another
+#: process has truncated is only a few microseconds wide.
+#:
+#: The environment directory is **given to it**, so that the interpreters
+#: share a directory of their own rather than the machine's: the property
+#: under test is about two processes sharing one environment, and sharing
+#: the machine's would make the test depend on whatever else on the machine
+#: is rendering.
+_PREPARING = """
+import hashlib, json, sys
+from pathlib import Path
+
+from labcairn.analysis.chart import render as render_module
+from labcairn.analysis.chart.recipe import ChartRecipe
+from labcairn.analysis.manifest import read_recipe
+from labcairn.analysis.operators.grouped import GroupedResult
+
+payload = json.loads(sys.stdin.readline())
+render_module.MPL_CONFIG_DIR = Path(payload["config_dir"])
+recipe = ChartRecipe.model_validate(payload["recipe"])
+result = GroupedResult.model_validate(payload["result"])
+root = Path(payload["root"])
+reference = read_recipe(root, payload["recipe_path"])
+renderer = render_module.MatplotlibFigureRenderer(
+    recipe=recipe, recipe_ref=reference, workspace_root=root
+)
+
+out = sys.stdout
+for _ in range(payload["rounds"]):
+    sys.stdin.readline()
+    renderer.prepare()
+    data = renderer.render(payload["operator_id"], result)
+    out.write(hashlib.sha256(data).hexdigest() + chr(10))
+    out.flush()
+"""
+
+
+#: The program that **watches** the recorded settings file while the
+#: interpreters above prepare the environment.
+#:
+#: It looks at the file's **size** and at nothing else: the question it
+#: answers is whether the file was ever caught holding less than the whole
+#: declaration, and a size says that without opening the file -- which
+#: would itself be a reader holding the file open, and would make the
+#: writers on the other side wait for it.
+#:
+#: It writes its findings to a file rather than to its output, because the
+#: parent stops it when the rounds are over and a stopped process says
+#: nothing on its way out. The findings are **appended**, one line at a
+#: time, so that a watcher stopped in the middle of a write leaves a
+#: partial line rather than a half-written file the parent cannot read.
+_WATCHING = """
+import json, os, sys, time
+from pathlib import Path
+
+payload = json.loads(sys.stdin.readline())
+path = Path(payload["path"])
+report = Path(payload["report"])
+wanted = payload["wanted"]
+
+samples = 0
+short = 0
+deadline = time.perf_counter() + payload["seconds"]
+while time.perf_counter() < deadline:
+    try:
+        size = os.stat(path).st_size
+    except FileNotFoundError:
+        continue
+    samples += 1
+    if size < wanted:
+        short += 1
+    if samples % 500 == 0 or (short > 0 and short % 50 == 0):
+        with report.open("a", encoding="utf-8") as log:
+            log.write(json.dumps({"samples": samples, "short": short}) + chr(10))
+"""
+
+#: How many interpreters prepare the environment at once, and how many
+#: rounds they go through.
+#:
+#: Four is enough because the rounds are released together: every round
+#: gives every pair of interpreters a chance to overlap, and twenty rounds
+#: give the property twenty chances to break.
+_PREPARING_COUNT: int = 4
+_PREPARING_ROUNDS: int = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,6 +519,118 @@ def _out_of_process(drawn: _Drawn, *, unset_salt: bool = False) -> str:
         f"{done.stderr.strip()[-800:]}"
     )
     return done.stdout.strip()
+
+
+def _preparing_processes(
+    drawn: _Drawn,
+    *,
+    environment: Path,
+    rounds: int,
+    count: int,
+) -> list[str]:
+    """The digests of the figures drawn by processes preparing at once.
+
+    The processes are **released together**, round by round: the window in
+    which one of them can read a settings file another has truncated is a
+    few microseconds wide, and processes that merely ran side by side would
+    be testing luck rather than the property.
+    """
+    payload = json.dumps(
+        {
+            "recipe": drawn.recipe.model_dump(mode="json"),
+            "result": drawn.result.model_dump(mode="json"),
+            "root": str(drawn.root),
+            "recipe_path": "recipes/figure.json",
+            "operator_id": "labcairn.analysis.grouped_aggregate",
+            "config_dir": str(environment),
+            "rounds": rounds,
+        }
+    )
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", _PREPARING],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        for _ in range(count)
+    ]
+    streams: list[tuple[IO[str], IO[str], IO[str]]] = []
+    for process in processes:
+        source, sink, errors = process.stdin, process.stdout, process.stderr
+        assert source is not None and sink is not None and errors is not None
+        streams.append((source, sink, errors))
+        source.write(payload + "\n")
+        source.flush()
+    digests: list[str] = []
+    try:
+        for _ in range(rounds):
+            for source, _sink, _errors in streams:
+                source.write("\n")
+                source.flush()
+            for _source, sink, errors in streams:
+                line = sink.readline()
+                if not line:
+                    raise AssertionError(
+                        "a preparing process stopped before its round was over: "
+                        f"{errors.read()[-800:]}"
+                    )
+                digests.append(line.strip())
+    finally:
+        for process, (source, _sink, _errors) in zip(processes, streams, strict=True):
+            with contextlib.suppress(OSError):
+                source.close()
+            process.wait(timeout=60)
+    return digests
+
+
+def _watching(settings: Path, report: Path) -> subprocess.Popen[str]:
+    """A process that watches the recorded settings file, and says so.
+
+    It is stopped by the caller, and it leaves its findings in *report*.
+    """
+    watcher = subprocess.Popen(
+        [sys.executable, "-c", _WATCHING],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    stream = watcher.stdin
+    assert stream is not None, "the watcher was given a pipe for its input"
+    stream.write(
+        json.dumps(
+            {
+                "path": str(settings),
+                "report": str(report),
+                "wanted": len(RC_PARAMS_SOURCE.encode("utf-8")),
+                "seconds": 600,
+            }
+        )
+        + "\n"
+    )
+    stream.flush()
+    return watcher
+
+
+def _findings(report: Path) -> dict[str, int]:
+    """What the watcher saw, from the last line it managed to write.
+
+    A line the watcher was stopped in the middle of is not a finding, so it
+    is passed over rather than read as one.
+    """
+    findings: dict[str, int] = {"samples": 0, "short": 0}
+    if not report.exists():
+        return findings
+    for line in report.read_text(encoding="utf-8").splitlines():
+        try:
+            written = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        findings = {"samples": int(written["samples"]), "short": int(written["short"])}
+    return findings
 
 
 # ---------------------------------------------------------------------------
@@ -1129,6 +1333,95 @@ def test_the_svg_carries_no_creation_date(tmp_path: Path) -> None:
     svg = _svg(tmp_path, _recipe(), _grouped())
     assert "<dc:date>" not in svg
     assert "dc:date" not in svg
+
+
+@pytest.mark.unit
+def test_two_processes_preparing_the_environment_at_once_render_the_same_bytes(
+    tmp_path: Path,
+) -> None:
+    """The render environment is shared, and sharing it must not change the bytes.
+
+    The render environment is a **shared directory**: every process that
+    prepares it writes the declared settings into it and reads them back.
+    A write that truncates before it writes leaves a window -- a few
+    microseconds wide -- in which another process reads a file that holds
+    nothing, and an rc file with no settings in it is an rc file whose salt
+    fell back to matplotlib's default. The figure's element ids are then
+    salted with a fresh random value, and two renders of one recipe stop
+    being byte-identical: a difference neither process can explain, because
+    each of them did exactly what it was told.
+
+    So the preparation is done by several interpreters **at once**, and the
+    bytes they draw are compared. They are released together round by
+    round, because the window is a few microseconds wide and processes that
+    merely ran side by side would be testing luck.
+
+    The environment directory is **their own**, because the property is
+    about two processes sharing one environment: sharing the machine's would
+    make this test depend on whatever else on the machine is rendering.
+
+    The recorded settings file is **watched** while they work, because that
+    file is where the failure happens. A file caught holding less than the
+    whole declaration is a file a process could have read, and the render
+    that process went on to draw is not the declared one.
+    """
+    recipe = _recipe()
+    result = _grouped()
+    drawn = _drawn(tmp_path, recipe, result)
+    environment = tmp_path / "render-environment"
+    environment.mkdir()
+
+    report = tmp_path / "watcher.json"
+    watcher = _watching(environment / "labcairn-matplotlibrc", report)
+    try:
+        digests = _preparing_processes(
+            drawn,
+            environment=environment,
+            rounds=_PREPARING_ROUNDS,
+            count=_PREPARING_COUNT,
+        )
+    finally:
+        watcher.terminate()
+        watcher.wait(timeout=60)
+
+    assert len(set(digests)) == 1, (
+        f"{len(digests)} renders of one recipe in {_PREPARING_COUNT} processes "
+        f"preparing the environment at once came out as "
+        f"{len(set(digests))} different figures: "
+        f"{sorted(set(digests))}. Two processes preparing the same render "
+        f"environment must draw the same bytes."
+    )
+
+    assert report.exists(), "the watcher never wrote its findings"
+    findings = _findings(report)
+    assert findings["short"] == 0, (
+        f"the recorded settings file was caught holding less than the whole "
+        f"declaration {findings['short']} time(s) in {findings['samples']} "
+        f"sightings. A file that a process can catch half-written is a file "
+        f"that process can read without the declared settings in it, and "
+        f"without the salt the figure's element ids are salted afresh."
+    )
+
+
+@pytest.mark.unit
+def test_the_recorded_settings_file_hashes_to_the_declared_digest() -> None:
+    """The file in the pinned directory is the declaration, byte for byte.
+
+    The digest is published so that a reader can check what a figure was
+    drawn under without trusting the code that drew it, and that check is
+    only worth anything if the file on disk hashes to it. The settings are
+    written as bytes rather than as text, so the platform's newline
+    translation cannot put a carriage return into a file whose digest is
+    the digest of the declaration.
+    """
+    drawn = MatplotlibFigureRenderer(
+        recipe=_recipe(),
+        recipe_ref=_reference(),
+        workspace_root=Path(),
+    )
+    drawn.prepare()
+    recorded = MPL_CONFIG_DIR / "labcairn-matplotlibrc"
+    assert hashlib.sha256(recorded.read_bytes()).hexdigest() == RC_PARAMS_SHA256
 
 
 @pytest.mark.unit

@@ -64,6 +64,17 @@ defaults file** (:data:`RC_PARAMS_SOURCE`), because an ambient
 ``matplotlibrc`` is an input nobody put in the manifest, and an unrecorded
 input is an input the reproducibility claim cannot cover.
 
+The pinned directory is **shared**, and that is a second thing these
+controls have to answer. Every process on the machine writes the declared
+settings there and reads them back, so a write that truncates before it
+writes leaves a window in which another process reads a file that holds
+nothing -- and an rc file with no settings in it is an rc file whose salt
+fell back to matplotlib's default, which is two renders of one recipe that
+are not byte-identical. The files are therefore **put into place whole**:
+the bytes go to a temporary file beside the target and are moved onto it
+with :func:`os.replace`, which is atomic within a volume. A reader sees the
+whole settings or the whole of what was there before, never half of either.
+
 The claim is byte-identity **inside one recorded environment**, and never
 across machines: a different machine may resolve different fonts. The
 environment fingerprint in the manifest is what makes "identical inputs"
@@ -98,6 +109,8 @@ import os
 import re
 import tempfile
 import textwrap
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final, NamedTuple, cast
 
@@ -115,6 +128,7 @@ from labcairn.analysis.operators import (
 from labcairn.analysis.operators.grouped import GroupedResult
 from labcairn.analysis.units import declared_unit_for
 from labcairn.analysis.values import CellAddress, ValueSource
+from labcairn.core.ids import new_id
 from labcairn.sources.primitives import NonEmptyText
 
 __all__ = [
@@ -245,7 +259,24 @@ RC_PARAMS_SHA256: Final[str] = "4445af10222192a326d7d76a703698605d2564b54b17d824
 #: Pinned, because both the ambient ``matplotlibrc`` and the font cache are
 #: inputs, and an input at an unrecorded location is an input the
 #: reproducibility claim cannot cover.
+#:
+#: Pinned **does not mean private**: the directory is shared by every
+#: process on the machine, so what is written into it is written where
+#: another process may be reading it at that very moment. That is what the
+#: writing here is careful about -- see :func:`_write_through_a_temporary_file`.
 MPL_CONFIG_DIR: Final[Path] = Path(tempfile.gettempdir()) / "labcairn-matplotlib"
+
+#: How many times a file is put into place -- or read back -- before the
+#: attempt gives up, and how long it waits between attempts.
+#:
+#: On Windows a file that another process has open **cannot be replaced**:
+#: the rename is refused while the reader holds it. The other side of the
+#: same rule bites too: while a replacement is under way the file is marked
+#: for deletion, and an open of it in that moment is refused as well. So
+#: both the write and the read wait for the other process rather than
+#: failing a render over a file that is being shared on purpose.
+_REPLACE_ATTEMPTS: Final[int] = 10
+_REPLACE_PAUSE: Final[float] = 0.005
 
 #: The figure's size, in inches.
 #:
@@ -550,6 +581,11 @@ class MatplotlibFigureRenderer:
         manifest's fingerprint reads the salt, the fonts and the platform
         from the live process: a fingerprint taken before the environment
         was put into its declared state would record the ambient one.
+
+        The declared settings are **put into place whole**: they are
+        replaced rather than rewritten, so that a process preparing the
+        environment at the same moment as this one cannot read a file that
+        holds half of them. See :func:`_write_the_settings`.
         """
         os.environ["MPLBACKEND"] = "Agg"
         os.environ["MPLCONFIGDIR"] = str(MPL_CONFIG_DIR)
@@ -565,8 +601,8 @@ class MatplotlibFigureRenderer:
         # renderer never inherits.
         matplotlib.rcdefaults()
         declared = MPL_CONFIG_DIR / "labcairn-matplotlibrc"
-        declared.write_text(RC_PARAMS_SOURCE, encoding="utf-8")
-        matplotlib.rc_file(str(declared))
+        _write_the_settings(declared)
+        _apply_the_settings(matplotlib, declared)
         matplotlib.use("Agg")
         _build_the_font_cache(matplotlib)
 
@@ -1039,6 +1075,14 @@ def _build_the_font_cache(matplotlib: Any) -> None:
     inherited cache is an inherited input. Building it once in the pinned
     directory means the render reads a font list this project chose where
     to keep, rather than one left wherever an earlier session put it.
+
+    It is put into place **whole**, the same way the declared settings are,
+    because it is the same shared directory: a reader that caught the file
+    half-written would find something that is not a font list, and
+    matplotlib answers that by scanning every font on the machine again.
+    (matplotlib writes this file itself when it is missing, and it writes
+    it in place; what is claimed here is about the write this function
+    makes.)
     """
     from matplotlib import font_manager
 
@@ -1047,4 +1091,104 @@ def _build_the_font_cache(matplotlib: Any) -> None:
     path = cachedir / f"fontlist-v{font_manager.FontManager.__version__}.json"
     if path.exists():
         return
-    font_manager.json_dump(font_manager.FontManager(), path)
+    _write_through_a_temporary_file(
+        path,
+        lambda temporary: font_manager.json_dump(font_manager.FontManager(), temporary),
+    )
+
+
+def _write_the_settings(path: Path) -> None:
+    """The declared settings, in the recorded file, whole or not at all.
+
+    The bytes go to a temporary file in the **same directory** and are moved
+    into place with :func:`os.replace`, which is atomic within a volume.
+    Same-directory matters: :func:`os.replace` is atomic only within a
+    volume, so a temporary file in the system temp directory would silently
+    give up the guarantee. This is the shape
+    :meth:`labcairn.workspace.outputs.TaskOutputArea.write` uses, for the
+    same reason -- minus its ``fsync``, because these settings are written
+    down again from the declaration on the next run, so surviving a power
+    loss is not a claim this file makes.
+
+    Why the render environment needs it at all: the pinned directory is
+    **shared by every process on the machine**, and each of them writes the
+    declared settings there and reads them back to apply them. A write that
+    truncates first leaves a window -- a few microseconds wide -- in which
+    the file holds nothing at all, and a process that reads it inside that
+    window gets an rc file with no settings in it. ``svg.hashsalt`` then
+    falls back to matplotlib's default, the figure's element ids are salted
+    with a fresh random value, and two renders of one recipe stop being
+    byte-identical. Neither process can explain the difference, because
+    each of them did exactly what it was told.
+
+    A replacement has no such window: a reader sees the whole of the
+    settings or the whole of what was there before, never half of either.
+
+    The settings are written **as bytes**, so the file holds the declaration
+    exactly as :data:`RC_PARAMS_SOURCE` spells it -- the line endings
+    included. Writing them as text would let the platform's newline
+    translation into the file, and the file's digest would then no longer
+    be the digest the project published.
+    """
+
+    def write(temporary: Path) -> None:
+        with temporary.open("xb") as handle:
+            handle.write(RC_PARAMS_SOURCE.encode("utf-8"))
+            handle.flush()
+
+    _write_through_a_temporary_file(path, write)
+
+
+def _write_through_a_temporary_file(path: Path, write: Callable[[Path], None]) -> None:
+    """Put a file into place by way of a temporary file beside it.
+
+    The temporary file is a **sibling** of the target rather than a file in
+    the system temp directory: :func:`os.replace` is atomic only within a
+    volume, and a temporary file elsewhere would give up that guarantee
+    silently. The temporary file is removed if anything goes wrong, so a
+    failed write leaves neither a half-written file nor a stray one.
+    """
+    temporary = path.parent / f".lc-render-{new_id().hex}.tmp"
+    try:
+        write(temporary)
+        _waiting_for_the_other_process(lambda: temporary.replace(path))
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _waiting_for_the_other_process(action: Callable[[], object]) -> None:
+    """Run *action*, waiting out a process that holds the shared file.
+
+    Windows refuses to replace a file that another process has open, and
+    refuses an open of a file whose replacement is under way. The file in
+    the pinned directory is **shared on purpose** -- every process on the
+    machine reads the declared settings out of it -- so the refusal is not
+    a defect to report but a rule to wait out: the process on the other
+    side is reading a file that is about to be replaced, so it is nearly
+    done.
+
+    The action is retried, so it has to be one that can be run twice. Both
+    of the ones it wraps are: a replacement of the same bytes, and a read
+    of a file that holds the same bytes either way.
+    """
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            action()
+            return
+        except PermissionError:
+            if attempt + 1 == _REPLACE_ATTEMPTS:
+                raise
+            time.sleep(_REPLACE_PAUSE)
+
+
+def _apply_the_settings(matplotlib: Any, path: Path) -> None:
+    """Put the recorded settings into force.
+
+    The settings are read from the **recorded file** rather than from the
+    declaration in this module, so that what is in force is what the file
+    says -- and the file's digest is the digest the project published. The
+    read is retried for the same reason the write is: another process may
+    be replacing that file at this moment.
+    """
+    _waiting_for_the_other_process(lambda: matplotlib.rc_file(str(path)))
