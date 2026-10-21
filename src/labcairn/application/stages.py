@@ -51,6 +51,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from labcairn.application import consent, records
+from labcairn.application.approvals import spendable_approval
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
@@ -172,7 +173,8 @@ def run_stage(
 
     :raises ApplicationRefusedError: the policy denied the capability, the
         policy asked and no approval was supplied, the approval does not cover
-        this request, or the stage's work failed.
+        this request, the approval cannot be spent at this moment, or the
+        stage's work failed.
     """
     moment = now if now is not None else datetime.now(UTC)
     resource = context.resource_in(request.root_id, request.resource_key)
@@ -187,7 +189,12 @@ def run_stage(
     # -- the consent --------------------------------------------------------- #
     approval: Approval | None = None
     if request.approval_id is not None:
-        grant = consent.consume(
+        # The approval is read and checked *before* the ledger is spent: an
+        # approval cannot be spent at a moment before it was granted, and a
+        # refusal that arrived after the spend would have spent the approval
+        # and refused the request at the same time.
+        approval = spendable_approval(context, request.approval_id, now=moment)
+        consent.consume(
             context,
             authorisation=authorisation,
             capability=request.capability,
@@ -195,7 +202,6 @@ def run_stage(
             now=moment,
             depends_on=request.depends_on,
         )
-        approval = grant.approval
     elif authorisation.permission is Permission.ASK:
         raise ApplicationRefusedError(
             ApplicationRefusal.POLICY_ASKED,
@@ -230,7 +236,6 @@ def run_stage(
             to_state=ApprovalState.CONSUMED,
             run_id=run.run_id,
             now=moment,
-            consumed_at=moment,
         )
     if operation.state is not OperationState.AUTHORIZED:
         operation = records.move_operation(
@@ -402,6 +407,7 @@ def _find_operation(
     when it does, the older is left where it was rather than adopted, and it
     stays visible in the ledger as an operation that was authorised and never
     attempted.
+
     """
     with store_refusals():
         operations = list_operations(context.store.session, context.task_id)
