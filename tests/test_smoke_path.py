@@ -12,15 +12,28 @@ so a non-zero exit means a guard stopped working and a zero exit means every
 one of them still holds. A test that only read the output would be testing the
 prose.
 
+**And the exit code is asserted from both sides.** A zero exit says every
+claim held; on its own it says nothing about whether the run *could* have
+failed, and a demonstration that printed its lines and swallowed every failure
+would exit zero as readily. So this file also runs the demonstration with a
+claim planted false and requires a non-zero exit, and runs it again with a
+real defect in the product -- the service answering with bytes that are not
+the stored file's bytes -- and requires a non-zero exit there too. **Both
+faults are planted from outside:** the demonstration's own source is never
+edited, and it has no hook a test could use, because a hook inside the gate's
+exit test is a new way for the demonstration to lie about what it did.
+
 The output is asserted too, but for the things the exit code cannot say on
 its own: that the eight steps actually ran, that the refusals were refusals
 with a reason rather than crashes, that the two surfaces were compared against
 **one** store, and that the demonstration said what it did not exercise.
 
-**It runs once for the whole module.** The demonstration walks the whole path
--- a workspace, a database, a figure drawn by matplotlib, four exported forms
--- and takes about fifteen seconds. Running it again for every assertion would
-multiply that for no extra evidence.
+**It runs three times for the whole module, not once per assertion.** The
+demonstration walks the whole path -- a workspace, a database, a figure drawn
+by matplotlib, four exported forms -- and takes about fifteen seconds, so the
+runs are module-scoped: one clean run, one with a claim planted false, and one
+with a defect planted in the product. Running it again for every assertion
+would multiply that for no extra evidence.
 
 **The hour is this test's to choose.** The service records a grant with its
 own clock, so whether the demonstration works is a question about the hour,
@@ -75,10 +88,58 @@ STEPS: tuple[str, ...] = (
     "8. The material changes, and the report says so",
 )
 
-#: The floor on the number of checks. The demonstration makes thirty-nine; a
-#: demonstration that made fewer would have had whole claims removed, and the
+#: The number of checks the demonstration makes -- a count, not a floor. A
+#: claim that was removed shows up here, and so does a claim the
+#: demonstration *failed*: a failure it printed and carried on from is
+#: counted neither in the lines nor in the summary, so a run that had a claim
+#: fail and still said "every check held" would be counted at one fewer. The
 #: count is the only thing that would say so.
-MINIMUM_CHECKS: int = 30
+EXPECTED_CHECKS: int = 58
+
+#: The claim planted false, for the run that has to fail. It is a claim the
+#: demonstration makes in its first step, so the planted run stops early and
+#: the failure it produces is about the claim and not about the environment.
+PLANTED_CLAIM: str = "the database is at the newest migration"
+
+#: The demonstration, driven with a fault planted in it.
+#:
+#: The program is here rather than in a file of its own because the fault has
+#: to be planted *from outside*: the demonstration is loaded as a module, its
+#: own ``check()`` is wrapped, and its source is never edited. A seam inside
+#: the demonstration would be a new way for the gate's exit test to lie about
+#: what it did.
+DRIVER: str = """
+import importlib.util
+import sys
+
+demo_path, mode = sys.argv[1], sys.argv[2]
+spec = importlib.util.spec_from_file_location("g4_exit_demo", demo_path)
+demo = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(demo)
+
+if mode == "planted-claim":
+    target = sys.argv[3]
+    unplanted = demo.check
+
+    def check(label, condition, detail=""):
+        if label == target:
+            condition = False
+        return unplanted(label, condition, detail)
+
+    demo.check = check
+elif mode == "altered-bytes":
+    import labcairn.api.routes as routes
+
+    unaltered = routes.read_artifact
+
+    def read_artifact(context, artifact_id, **kwargs):
+        content = unaltered(context, artifact_id, **kwargs)
+        return content.model_copy(update={"content": content.content + b"!"})
+
+    routes.read_artifact = read_artifact
+
+sys.exit(demo.main())
+"""
 
 #: The hours the demonstration must mean the same thing at.
 #:
@@ -183,27 +244,28 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def run_at(repo_root: Path, moment: datetime) -> subprocess.CompletedProcess[str]:
-    """The demonstration, with every clock in it pinned to ``moment``.
+@pytest.fixture(scope="module")
+def planted_claim_run(repo_root: Path) -> subprocess.CompletedProcess[str]:
+    """The demonstration's run, with one of its claims planted false.
 
-    The same subprocess the module's own fixture runs, with the hour
-    changed. Pinning the clock does not change what the demonstration does
-    -- only what hour it does it at -- so a run here is evidence about the
-    hour and about nothing else.
+    The fault is planted from outside the demonstration: its own ``check()``
+    is wrapped, so the claim's *condition* is false while the demonstration's
+    source is untouched. What the test then observes is the demonstration's
+    exit code, which is the thing the run is for.
     """
-    environment = dict(os.environ)
-    environment["PYTHONIOENCODING"] = "utf-8"
-    environment["COLUMNS"] = "200"
-    return subprocess.run(
-        [sys.executable, "-c", PINNED_CLOCK_PROGRAM, str(DEMO), moment.isoformat()],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=environment,
-        timeout=900,
-        cwd=repo_root,
-    )
+    return _run_with_a_fault(repo_root, "planted-claim", PLANTED_CLAIM)
+
+
+@pytest.fixture(scope="module")
+def altered_bytes_run(repo_root: Path) -> subprocess.CompletedProcess[str]:
+    """The demonstration's run, with the service serving the wrong bytes.
+
+    The defect is planted from outside the demonstration: the API route's own
+    read of the artefact is wrapped, so the service answers with the stored
+    bytes and one more. Nothing in the repository is edited, and the
+    demonstration is run exactly as it is run everywhere else.
+    """
+    return _run_with_a_fault(repo_root, "altered-bytes")
 
 
 @pytest.mark.e2e
@@ -216,6 +278,11 @@ def test_the_exit_demonstration_runs_and_every_check_holds(
     demonstration's environment: it exits non-zero because a ``check()``
     raised, and the assertion prints the whole of its output so the failing
     claim is the first thing a reader sees.
+
+    **The count of its checks is compared with the count it should make.** A
+    claim the demonstration failed and then carried on from is counted
+    neither in the lines it printed nor in its own summary, so a floor would
+    not see it: the count is the number, and the number is the witness.
     """
     assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
     output = demonstration.stdout
@@ -225,9 +292,11 @@ def test_the_exit_demonstration_runs_and_every_check_holds(
 
     checks = [line for line in output.splitlines() if line.strip().startswith("[ok]")]
     assert checks, "the demonstration printed no checks at all"
-    assert len(checks) >= MINIMUM_CHECKS, (
-        f"the demonstration made only {len(checks)} check(s); at least "
-        f"{MINIMUM_CHECKS} were expected, so a claim was removed"
+    assert len(checks) == EXPECTED_CHECKS, (
+        f"the demonstration made {len(checks)} check(s); it makes "
+        f"{EXPECTED_CHECKS}, so a claim was removed -- or a claim failed and "
+        "the demonstration carried on from it, which is counted by neither "
+        "the lines nor the summary"
     )
     assert f"{len(checks)} checks passed." in output, (
         "the demonstration's own count of its checks does not match the number "
@@ -316,6 +385,71 @@ def test_the_demonstration_means_the_same_thing_at_any_hour(repo_root: Path) -> 
         f"the approval the demonstration asked for lapses {moved} apart in the two "
         f"runs, but the two hours are {apart} apart: the expiry did not move with "
         "the clock"
+    )
+
+
+@pytest.mark.e2e
+def test_a_claim_that_does_not_hold_makes_the_run_fail(
+    planted_claim_run: subprocess.CompletedProcess[str],
+) -> None:
+    """A claim the demonstration cannot support makes the run fail.
+
+    **The converse of what the clean run asserts.** The clean run says a zero
+    exit means every claim held; this says a claim that does not hold means a
+    non-zero exit, which is the half the clean run cannot see. A
+    demonstration that printed its lines and swallowed every failure would
+    still exit zero, and the clean run would still be green.
+
+    The claim is planted from outside -- the demonstration's ``check()`` is
+    wrapped, so the condition is false while the demonstration's own source
+    is untouched -- and the failure has to name the claim that was planted,
+    so that a run which died for some other reason does not pass here.
+    """
+    output = planted_claim_run.stdout
+    error = planted_claim_run.stderr
+
+    assert planted_claim_run.returncode != 0, (
+        "the demonstration exited zero with a claim planted false, so its exit "
+        "code says nothing about whether its claims hold: " + output
+    )
+    assert f"FAILED: {PLANTED_CLAIM}" in error, (
+        f"the run failed, but not on the claim that was planted false: {error}"
+    )
+    assert "checks passed." not in output, (
+        "the demonstration reported that every one of its checks held, so the "
+        "planted claim did not stop the run"
+    )
+    assert "[ok] the command succeeded" in output, (
+        "the demonstration never reached the claim that was planted false, so "
+        "the run failed before the plant could do anything"
+    )
+
+
+@pytest.mark.e2e
+def test_the_demonstration_fails_when_the_service_serves_the_wrong_bytes(
+    altered_bytes_run: subprocess.CompletedProcess[str],
+) -> None:
+    """A real defect in the product makes the run fail.
+
+    The claim this witnesses is the one the exit test is named for -- "CLI and
+    Web produce the same versioned report" -- and it is witnessed by the
+    demonstration's own comparison of the file the CLI names against the bytes
+    the service serves. A demonstration that swallowed its failures would exit
+    zero here, with a service that was serving bytes the file did not hold.
+    """
+    output = altered_bytes_run.stdout
+    error = altered_bytes_run.stderr
+
+    assert altered_bytes_run.returncode != 0, (
+        "the demonstration exited zero with the service serving bytes that are "
+        "not the stored file's bytes, so the report's bytes were never really "
+        "compared: " + output
+    )
+    assert "FAILED: the report.md the CLI names is the bytes the API serves" in error, (
+        "the run failed, but not on the report's bytes: " + error
+    )
+    assert "5. The three surfaces agree" in output, (
+        "the demonstration never reached the comparison of the report's bytes"
     )
 
 
@@ -421,7 +555,9 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
 
     **This test reads the demonstration's output for that evidence**, because
     a control inside the demonstration that the test cannot see is the same
-    defect one level down.
+    defect one level down. The assertion is on the control's own "[ok]" line,
+    so what is witnessed is a control that *passed*, not one that was merely
+    named.
     """
     assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
     output = demonstration.stdout
@@ -429,6 +565,10 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
     for control in (
         "the field-by-field comparison finds the difference it was given",
         "the byte comparison finds the difference it was given",
+        "the re-read comparison finds the difference it was given",
+        "the unchanged-bytes comparison finds the difference it was given",
+        "the staleness requirement finds the difference it was given",
+        "the resolution comparison finds the difference it was given",
         "the refusal comparison finds the difference it was given",
         "the refusal comparison tells this refusal from another",
         "the staleness comparison finds the difference it was given",
@@ -436,7 +576,7 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
         "the changed-hash comparison finds the difference it was given",
         "the staleness walk says nothing is stale while the material is unchanged",
     ):
-        assert control in output, (
+        assert f"[ok] {control}" in output, (
             f"the demonstration never ran the control {control!r}, so its comparison "
             "cannot be told from one that compares nothing"
         )
@@ -458,6 +598,78 @@ def test_every_comparison_was_shown_a_difference_it_had_to_find(
     assert refused.group(1) == "'repeated'", (
         f"the demonstration reported that the service refused {refused.group(1)}; "
         "the repeated grant is the only one of the two that should be refused"
+    )
+
+
+@pytest.mark.e2e
+def test_the_re_read_comparison_was_shown_a_difference_it_had_to_find(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The workbench's re-read was compared against something that must differ.
+
+    The comparison the re-read makes is "the first read is the second read",
+    and a comparison that compares nothing also reports "the same". The
+    demonstration therefore runs that comparison once over a copy of the
+    second read with a difference planted in it, and insists the comparison
+    finds it.
+
+    **The test reads the demonstration's output for that evidence**, because
+    a control the test cannot see is the same defect one level down. A
+    comparison narrowed to "the first read is the first read" would fail this
+    control, and the run would not reach the end of the path.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+    assert "[ok] the re-read comparison finds the difference it was given" in output, (
+        "the demonstration never ran the re-read's control, so the comparison "
+        "cannot be told from one that compares nothing"
+    )
+
+
+@pytest.mark.e2e
+def test_the_revision_bytes_comparison_was_shown_a_difference_it_had_to_find(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The first revision's bytes were compared against bytes that must differ.
+
+    The claim is that the re-render left the first revision alone, and it is
+    witnessed by measuring the revision twice: a comparison that compares
+    nothing also reports "the same". The demonstration therefore measures a
+    copy of the revision with a file's bytes altered, and insists the
+    comparison finds the difference.
+
+    A comparison narrowed to "the first measurement is the first
+    measurement" would fail this control, and the run would not reach the end
+    of the path.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+    assert "[ok] the unchanged-bytes comparison finds the difference it was given" in output, (
+        "the demonstration never ran the revision-bytes control, so the "
+        "comparison cannot be told from one that compares nothing"
+    )
+
+
+@pytest.mark.e2e
+def test_the_staleness_requirement_was_shown_a_difference_it_had_to_find(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The requirement over the walk's receipts was asked about one that does not qualify.
+
+    The claim is that every receipt the walk marked stale is stale by the
+    repository's own reason, and a requirement that compares nothing also
+    reports "every one of them". The demonstration therefore asks the same
+    requirement about the walk's receipts with one of them given another
+    reason, and insists the requirement says no.
+
+    A requirement narrowed to a constant would fail this control, and the run
+    would not reach the end of the path.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+    assert "[ok] the staleness requirement finds the difference it was given" in output, (
+        "the demonstration never ran the staleness requirement's control, so "
+        "the requirement cannot be told from one that compares nothing"
     )
 
 
@@ -673,3 +885,32 @@ def _leaves(document: Any, path: str = "") -> dict[str, Any]:
             found.update(_leaves(value, f"{path}[{index}]"))
         return found
     return {path: document}
+
+
+def _run_with_a_fault(
+    repo_root: Path, mode: str, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    """The demonstration, run as a person runs it, with a fault planted in it.
+
+    The child is the demonstration itself -- the same file, the same command
+    line -- and the fault is planted by the driver before the demonstration
+    runs. So what the test observes is the demonstration's own behaviour under
+    the fault, and the thing it observes is the exit code.
+
+    ``PYTHONIOENCODING`` and ``COLUMNS`` are set for the same reason the
+    clean run sets them: the child's output encoding and terminal width are
+    the machine's business, and neither is a fact about the demonstration.
+    """
+    environment = dict(os.environ)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["COLUMNS"] = "200"
+    return subprocess.run(
+        [sys.executable, "-c", DRIVER, str(DEMO), mode, *arguments],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        timeout=900,
+        cwd=repo_root,
+    )
