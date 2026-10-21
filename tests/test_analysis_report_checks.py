@@ -44,13 +44,21 @@ from typing import Any
 import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
+from test_application_layer import report_world as _report_world_fixture
+from test_application_layer import workspace_root as _workspace_root_fixture
+from test_store_support import StoreEnv
+from test_store_support import env as _shared_env
 
 from labcairn.analysis.manifest import (
     FileRef,
     RenderEnvironment,
     ReproducibilityManifest,
     canonical_digest,
+    write_manifest,
 )
+from labcairn.application.artifacts import list_artifacts
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.reports import ReportRequest, render_report
 from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c3 import C3_CHECKER_ID
@@ -92,12 +100,30 @@ from labcairn.reports.model import (
     UnresolvedBlock,
     UnresolvedRecord,
 )
+from labcairn.reports.receipt import ArtifactKind
 from labcairn.security.approval import content_hash
 from labcairn.sources.locators import ComputationLocator, PdfLocator
 
 # ---------------------------------------------------------------------------
 # The material the report is checked against
 # ---------------------------------------------------------------------------
+
+#: The store fixture, re-exported under the name pytest looks for.
+#:
+#: It lives in ``test_store_support`` because LC-P1-05 owns it, and a
+#: fixture that has to be imported under another name is a fixture this
+#: file cannot reason about; so it is imported once, here, and named.
+env = _shared_env
+
+#: The application layer's own fixtures, named for pytest.
+#:
+#: The layer's test file holds the world the layer's refusals are
+#: exercised against — a real material, a real record, a real figure with
+#: its manifest and its recipe — and a second copy of that world here
+#: would be a second account of it. So the fixtures are imported and
+#: named, and the world is the one the layer's own tests use.
+report_world = _report_world_fixture
+workspace_root = _workspace_root_fixture
 
 NOW = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)
 
@@ -1458,3 +1484,182 @@ def test_a_disclosure_that_states_words_the_ledger_does_not_hold_is_refused(
 
     assert refusal.value.check == "records"
     assert "but the ledger's record says" in refusal.value.reason
+
+
+# ---------------------------------------------------------------------------
+# the layer's own refusals
+# ---------------------------------------------------------------------------
+#
+# The application layer gathers what the report is made of — the figure's
+# manifest artefact, the recipe the caption is written in — and refuses
+# what it cannot gather. Its refusals are the report path's refusals at
+# the surface a caller meets, and they are watched from here because the
+# layer's own test file is one the other work in this gate may be
+# touching.
+
+#: The moment the report is a view of.
+_LAYER_MOMENT: dt.datetime = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
+
+
+def _the_manifest_file(context: Any) -> Path:
+    """Where the figure's manifest artefact is written."""
+    return Path(context.workspace.selected_root / f"output/{context.task_id}/figures/manifest.json")
+
+
+def _the_recipe_file(context: Any) -> Path:
+    """Where the chart recipe is written."""
+    return Path(context.workspace.selected_root / "recipes" / "chart.json")
+
+
+def _put(receipt: Any, context: Any) -> None:
+    """Put a receipt back in the ledger, as the ledger holds it."""
+    with context.store.unit(context.task_id) as work:
+        work.put_artifact(receipt)
+
+
+def _render(context: Any) -> None:
+    """Render the report, and let the layer refuse if it cannot."""
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_LAYER_MOMENT,
+    )
+
+
+@pytest.mark.integration
+def test_a_manifest_artefact_whose_bytes_changed_under_its_receipt_is_refused(
+    env: StoreEnv, report_world: Any
+) -> None:
+    """The manifest the report carries is the artefact's own.
+
+    The layer reads the manifest artefact back from its own bytes and
+    hashes them, and the hash it computes has to be the one the ledger
+    recorded. A file that has changed under the receipt describes a
+    derivation nobody can reproduce.
+    """
+    context = report_world.context
+    _the_manifest_file(context).write_bytes(b'{"not": "a manifest"}')
+
+    with pytest.raises(ApplicationRefusedError) as refusal:
+        _render(context)
+
+    assert refusal.value.reason is ApplicationRefusal.REPORT_CONTENT_REFUSED
+    assert "is not the artefact the ledger recorded" in refusal.value.detail
+
+
+@pytest.mark.integration
+def test_a_manifest_artefact_that_holds_no_manifest_is_refused(
+    env: StoreEnv, report_world: Any
+) -> None:
+    """A manifest artefact that does not hold a manifest is refused.
+
+    The bytes are the ledger's own — the receipt is updated to match —
+    so the layer gets past the hash and finds that what it read is not
+    a manifest at all. A figure whose derivation cannot be read is a
+    figure nobody can check.
+    """
+    context = report_world.context
+    _the_manifest_file(context).write_bytes(b'{"not": "a manifest"}')
+    receipt = next(
+        view.receipt
+        for view in list_artifacts(context)
+        if view.receipt.kind is ArtifactKind.MANIFEST
+    )
+    _put(
+        receipt.model_copy(
+            update={
+                "content_sha256": hashlib.sha256(b'{"not": "a manifest"}').hexdigest(),
+            }
+        ),
+        context,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as refusal:
+        _render(context)
+
+    assert refusal.value.reason is ApplicationRefusal.REPORT_CONTENT_REFUSED
+    assert "does not hold a reproducibility manifest" in refusal.value.detail
+
+
+@pytest.mark.integration
+def test_a_recipe_that_cannot_be_read_is_refused(env: StoreEnv, report_world: Any) -> None:
+    """A recipe whose bytes cannot be read is refused.
+
+    The caption is the author's words and they live in the recipe, so a
+    recipe nobody can read is a caption nobody can check.
+    """
+    context = report_world.context
+    _the_recipe_file(context).unlink()
+
+    with pytest.raises(ApplicationRefusedError) as refusal:
+        _render(context)
+
+    assert refusal.value.reason is ApplicationRefusal.REPORT_CONTENT_REFUSED
+    assert "its bytes could not be read" in refusal.value.detail
+
+
+@pytest.mark.integration
+def test_a_recipe_that_is_not_a_chart_recipe_is_refused(env: StoreEnv, report_world: Any) -> None:
+    """A recipe that is not a chart recipe is refused rather than read for what it might have.
+
+    The caption and the interpretation live in the chart recipe, and a
+    recipe of another kind holds no caption. Reading it for what it
+    might have would be a report whose caption changes with the format.
+    """
+    context = report_world.context
+    recipe_bytes = b'{"not": "a chart recipe"}'
+    _the_recipe_file(context).write_bytes(recipe_bytes)
+
+    manifest = next(
+        view.receipt
+        for view in list_artifacts(context)
+        if view.receipt.kind is ArtifactKind.MANIFEST
+    )
+    source = ReproducibilityManifest.model_validate_json(_the_manifest_file(context).read_bytes())
+    rewritten = write_manifest(
+        context.workspace,
+        key="figures/manifest.json",
+        manifest=source.model_copy(
+            update={
+                "recipe": FileRef(
+                    relative_path=source.recipe.relative_path,
+                    content_sha256=hashlib.sha256(recipe_bytes).hexdigest(),
+                )
+            }
+        ),
+        receipt_id=manifest.receipt_id,
+        created_at=manifest.created_at,
+    )
+    _put(rewritten, context)
+
+    with pytest.raises(ApplicationRefusedError) as refusal:
+        _render(context)
+
+    assert refusal.value.reason is ApplicationRefusal.REPORT_CONTENT_REFUSED
+    assert "it is not a chart recipe" in refusal.value.detail
+
+
+@pytest.mark.integration
+def test_a_report_that_cannot_be_written_as_a_revision_is_refused(
+    env: StoreEnv, report_world: Any
+) -> None:
+    """A report the machinery refuses is refused, and nothing is written.
+
+    A table's receipt names what computed it, and the manifest builder
+    refuses a table that names no upstream — a table nobody can say is
+    current. The refusal reaches the caller as the layer's own, and the
+    output area is left empty: a report that was half written is worse
+    than no report, because it looks like a finding.
+    """
+    context = report_world.context
+    table = next(
+        view.receipt for view in list_artifacts(context) if view.receipt.kind is ArtifactKind.TABLE
+    )
+    _put(table.model_copy(update={"derived_from": ()}), context)
+
+    with pytest.raises(ApplicationRefusedError) as refusal:
+        _render(context)
+
+    assert refusal.value.reason is ApplicationRefusal.REPORT_CONTENT_REFUSED
+    assert "refused before it could be written as a revision" in refusal.value.detail
+    assert not (context.workspace.output_root.path / "report").exists()

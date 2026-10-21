@@ -16,13 +16,16 @@ rendering of a rendering, with two escaping layers instead of one.
 retrieved text, and retrieved text is data and never instructions: a caption
 that says ``# Not a heading`` must not become a heading, and a caption that
 says ``[click](javascript:...)`` must not become a link. So every text value
-that reaches the Markdown is escaped, and the set of characters that are
+that reaches the Markdown is escaped, and the set of **punctuation** that is
 escaped is **one table in one module** — the CommonMark ASCII punctuation
 that can open a span or a block, plus ``&``, ``<`` and ``>`` so the Markdown
 is also safe where it is embedded in HTML. A table rather than a regular
 expression, because the set is a set: a regular expression for "characters
 that can open a span or a block" is a regular expression for a parser's
 opinion, and the opinion changes with the parser.
+
+**Whitespace is not punctuation, and it is not in the table.** It has its
+own rule, and it is at the end of this list.
 
 **Two characters are not escaped in one situation, and the situation is
 the number.** A full stop between two digits is a decimal point, and a sign
@@ -44,18 +47,30 @@ source, so they are not escaped: they are the product's sentences, and
 there is one spelling of each in the tree. Everything the model holds is
 escaped, including the report's own title and headings.
 
-**A paragraph that starts with four spaces is not allowed to become a
-code block.** CommonMark opens an indented code block with four spaces
-or a tab at the start of a line, and the narrative and the
-interpretation are written at the start of a line. Their leading indent
-is written as a character reference, which the reader decodes back to
-the same spaces: the text is unchanged and the paragraph stays a
-paragraph, so the export's structure is a function of the model rather
-than of where the text happens to begin.
+**No line of the file may open a code block.** CommonMark opens an
+indented code block with four spaces or a tab at the start of a line,
+and only where a blank line comes before it. The escape table covers the
+punctuation that can open a span or a block, and **whitespace is not
+punctuation** — so the whitespace is handled here as well, and it is
+handled for **every line** of a text value rather than for the first one
+alone.
+
+That "every line" is the whole of it. A text value may carry a line
+break, and a line break in the value is a line break in the file: the
+writer's prefix — ``Figure 1. ``, ``- `` — protects the **first** line of
+a value and no other. So a caption that carries a blank line and four
+spaces puts four spaces at the start of a line of the file, with a blank
+line before it, and a reader would be shown the caption as code. The
+leading whitespace of every line is therefore written as a character
+reference, which the reader decodes back to the same spaces: the text is
+unchanged and the paragraph stays a paragraph, so the export's structure
+is a function of the model rather than of where the text happens to
+begin.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Final
 
 from labcairn.reports.model import BlockKind, ReportDocument
@@ -130,14 +145,59 @@ _ASCII_DIGITS: Final[str] = "0123456789"
 #: sees the same space and the paragraph stays a paragraph.
 _WHITESPACE_REFERENCES: Final[dict[str, str]] = {" ": "&#32;", "\t": "&#9;"}
 
+#: The number of spaces that opens an indented code block.
+#:
+#: CommonMark's threshold, and the smaller of the two thresholds the
+#: writer has to satisfy: a claim is written as a bullet, and a bullet's
+#: content is indented by two, so a claim needs six spaces where a
+#: paragraph needs four. Four therefore covers every place the writer
+#: puts a text value.
+_CODE_BLOCK_INDENT: Final[int] = 4
+
+#: The three ways CommonMark ends a line.
+#:
+#: LF, CR and CRLF are all line endings, and a text value that came out
+#: of a PDF or a CSV may hold any of them. A line break is what puts the
+#: rest of a text value at the start of a line of the file, so the writer
+#: has to know where the lines are — and the reader's idea of a line is
+#: the one here, not the writer's.
+_LINE_BREAK: Final[re.Pattern[str]] = re.compile(r"\r\n|\r|\n")
+
 
 def escape_markdown(text: str) -> str:
     """Escape one text value, so that it cannot become Markdown structure.
 
+    Two things are done to the value, and both are about structure.
+
+    **The punctuation is backslash-escaped**, by the one table in
+    :data:`MARKDOWN_ESCAPE_TABLE`, except where the character is part of
+    a number and therefore cannot be a list marker.
+
+    **The leading whitespace of every line is written as a character
+    reference**, where that whitespace would open an indented code block.
+    This is not a small addition: a text value may carry a line break,
+    and a line break in the value is a line break in the file. The
+    writer's prefix — "Figure 1. ", "- " — protects the **first** line
+    of a value and no other, so a caption that carries a blank line and
+    four spaces puts four spaces at the start of a line of the file, and
+    a reader would be shown the caption as code.
+
     :param text: the value, exactly as the model holds it.
     :returns: the value with every character in
         :data:`MARKDOWN_ESCAPE_TABLE` backslash-escaped, except where the
-        character is part of a number and therefore cannot be a list marker.
+        character is part of a number, and with the leading whitespace of
+        every line written as a character reference where that whitespace
+        would open a code block.
+    """
+    return _protect_line_indents(_escape_punctuation(text))
+
+
+def _escape_punctuation(text: str) -> str:
+    """The value with the table's punctuation backslash-escaped.
+
+    The numbers are the exception: a full stop between two digits is a
+    decimal point and a sign immediately before a digit is a sign, and in
+    both cases the character cannot be a list marker.
     """
     out: list[str] = []
     length = len(text)
@@ -154,34 +214,53 @@ def escape_markdown(text: str) -> str:
     return "".join(out)
 
 
-def _protect_leading_indent(text: str) -> str:
-    """A paragraph that would open a code block, written so that it does not.
+def _protect_line_indents(text: str) -> str:
+    """Every line's leading indent, written so that it cannot open a block.
 
     CommonMark opens an **indented code block** with four spaces or a tab
-    at the start of a line, so a paragraph whose text begins that way is
-    drawn as code rather than as prose. The narrative and the
-    interpretation are the report's own prose and are written at the
-    start of a line, so they are the two blocks where this can happen;
-    a caption, a claim and a citation are all prefixed by the writer and
-    cannot open one.
+    at the start of a line, and only where a blank line comes before it:
+    an indented line that follows a paragraph is a continuation of that
+    paragraph and opens nothing. So the danger is an indent at the start
+    of a line that follows a blank one — and the writer's own prefix
+    makes the threshold different in different places, which is why the
+    rule is written for the **file's** lines rather than for the text
+    value's.
 
-    The leading whitespace is written as a character reference instead.
-    The text the reader sees is unchanged — the same spaces, in the same
-    place — and the paragraph stays a paragraph, so the export's
-    structure is a function of the model and not of where the text
-    happens to start.
+    The rule is the same everywhere: a leading run of whitespace is
+    written as a character reference when it is four spaces or more, or
+    when it holds a tab. Four is the smaller of the two thresholds, so
+    the rule holds in every place the writer puts a text value — the
+    title, a heading, a caption, an interpretation, a claim's own words,
+    a citation, and the report's own prose.
 
-    :param text: the escaped text of one paragraph.
-    :returns: the text, with a leading indent written as references when
-        that indent would open a code block.
+    A line of nothing but whitespace is left alone: it is a blank line,
+    and a blank line is a blank line however it is written.
     """
-    indent = text[: len(text) - len(text.lstrip(" \t"))]
-    if not indent:
-        return text
-    if "\t" not in indent and len(indent) < 4:
-        return text
+    pieces: list[str] = []
+    position = 0
+    for match in _LINE_BREAK.finditer(text):
+        pieces.append(_protect_one_indent(text[position : match.start()]))
+        pieces.append(match.group(0))
+        position = match.end()
+    pieces.append(_protect_one_indent(text[position:]))
+    return "".join(pieces)
+
+
+def _protect_one_indent(line: str) -> str:
+    """One line's leading indent, written as references where it is a risk.
+
+    :param line: one line of the escaped text, without its line ending.
+    :returns: the line, with its leading indent written as character
+        references when that indent is four spaces or more, or holds a tab.
+    """
+    body = line.lstrip(" \t")
+    if not body:
+        return line
+    indent = line[: len(line) - len(body)]
+    if "\t" not in indent and len(indent) < _CODE_BLOCK_INDENT:
+        return line
     reference = "".join(_WHITESPACE_REFERENCES[character] for character in indent)
-    return reference + text[len(indent) :]
+    return reference + body
 
 
 def _is_digit(character: str) -> bool:
@@ -254,10 +333,13 @@ def _draw_item(item: ReportItem) -> list[str]:
     that appears inside a line, and it is appended **after** the escaping,
     so that it appears in the file exactly as the product spells it.
 
-    A narrative and an interpretation are written at the start of a line,
-    so they are the two kinds whose leading indent could open a code
-    block, and their leading indent is protected. A caption, a claim and
-    a citation are prefixed by the writer and cannot open one.
+    **No kind is exempt from the whitespace rule.** The writer's prefix —
+    "Figure 1. ", "- " — covers the **first** line of a value and no
+    other, so a caption, a claim and a citation are no more protected
+    against an indented code block than a narrative is: a value that
+    carries a line break puts the rest of itself at the start of a line
+    of the file. The protection is therefore in
+    :func:`escape_markdown`, where it covers every line of every value.
     """
     lines = with_interpretation_marker(
         [escape_markdown(line) for line in item.lines], item.is_interpretation
@@ -266,6 +348,4 @@ def _draw_item(item: ReportItem) -> list[str]:
         return [f"- {line}" for line in lines]
     if item.kind in (BlockKind.FIGURE, BlockKind.TABLE):
         return [lines[0], "", lines[1]]
-    if item.kind in (BlockKind.NARRATIVE, BlockKind.INTERPRETATION):
-        return [_protect_leading_indent(line) for line in lines]
     return lines

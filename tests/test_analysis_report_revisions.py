@@ -125,6 +125,13 @@ FIGURE_PATH: str = "outputs/figures/fig-1.svg"
 TABLE_PATH: str = "outputs/tables/tab-1.csv"
 #: Where the material the table was computed from is.
 MATERIAL_PATH: str = "material/exp1.csv"
+#: Where the source the claims were read from is.
+#:
+#: A different file from the material above, and for a different reason:
+#: the material is what the *table* was computed from, and the source is
+#: what the *claims* were read from. A report that carries only claims
+#: rests on the source and on nothing else.
+SOURCE_PATH: str = "materials/one.pdf"
 
 #: The caption of the figure.
 CAPTION: str = "Mean yield across the five measured runs."
@@ -235,6 +242,54 @@ def _document(
         claims=(ReportClaim(claim_id="clm-1", record=record, footnote_ids=("fn-1",)),),
         figures=(figure,),
         tables=(table,),
+        footnotes=(footnote,),
+    )
+
+
+def _claims_only_document(
+    *,
+    as_of: datetime,
+    source_hash: str = SOURCE_HASH,
+) -> ReportDocument:
+    """A valid document with one claim, and **no figure and no table**.
+
+    The shape the report path had no answer for. Every other staleness
+    test in this file builds a document with a figure, and the figure's
+    receipt names the material — so the material reached the chain through
+    the *parts*, and a report with no parts had no way to name it at all.
+
+    A report is not obliged to carry a figure or a table: a task whose
+    records can be stated produces a report of claims, and that report
+    rests on the source its claims were read from.
+    """
+    record = LedgerRecordView(
+        record_id="rec-1",
+        record_kind=EvidenceKind.NUMERIC,
+        value=4.253,
+        unit="%",
+        status=VerificationStatus.VERIFIED_BY_RULE,
+        anchor_ids=("anc-1",),
+        source_content_hash=source_hash,
+    )
+    footnote = ProvenanceFootnote(
+        footnote_id="fn-1",
+        source_id="src-1",
+        locator=PdfLocator(page=3),
+        content_sha256=source_hash,
+    )
+    return ReportDocument(
+        title="A first-pass report",
+        snapshot=LedgerSnapshot(as_of=as_of, record_ids=("rec-1",)),
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(ClaimBlock(claim_id="clm-1"),),
+            ),
+        ),
+        claims=(ReportClaim(claim_id="clm-1", record=record, footnote_ids=("fn-1",)),),
+        figures=(),
+        tables=(),
         footnotes=(footnote,),
     )
 
@@ -583,6 +638,59 @@ def test_the_second_revision_does_not_alter_the_first(tmp_path: Path, frozen_now
     for receipt in first.receipts:
         now = (tmp_path / receipt.relative_path).read_bytes()
         assert receipt.content_sha256 == hashlib.sha256(now).hexdigest()
+
+
+@pytest.mark.unit
+def test_a_revision_number_below_one_is_refused(tmp_path: Path, frozen_now: datetime) -> None:
+    """A revision numbered zero is a revision with no first.
+
+    The receipt's own model counts revisions from one, and the writer holds
+    to it: a revision numbered zero would be a revision with nothing
+    before it, and the number would then answer "which revision is this"
+    two ways.
+
+    This is the **other** half of the immutability refusal above, and it is
+    a different one: that one is about a number that has been used, and
+    this one is about a number that is not a number at all.
+    """
+    workspace = _workspace(tmp_path)
+
+    with pytest.raises(ReportRevisionRefusedError, match="not a revision number"):
+        _write(workspace, _document(as_of=frozen_now), created_at=frozen_now, revision=0)
+
+    assert list(workspace.output_root.path.iterdir()) == []
+
+
+@pytest.mark.unit
+def test_the_revision_refuses_a_manifest_the_chain_does_not_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, frozen_now: datetime
+) -> None:
+    """The chain must name the manifest that was written.
+
+    The chain's manifest link is built from the manifest's canonical bytes
+    before anything is written, and the receipt's hash is taken over the
+    bytes on disk — the same bytes, so this cannot fail. It is said out
+    loud anyway, because a chain that named a manifest nobody wrote would
+    leave the report's lineage pointing at bytes that are not there, and
+    nothing downstream would notice.
+
+    The writer is made to hand back a receipt for a manifest that is not
+    the one it wrote, so that the belt is seen to hold rather than merely
+    to be there.
+    """
+    from labcairn.reports.manifest import write_report_manifest as real_writer
+
+    def a_manifest_that_is_not_the_one(*args: Any, **kwargs: Any) -> ArtifactReceipt:
+        receipt = real_writer(*args, **kwargs)
+        return receipt.model_copy(update={"content_sha256": _hash("not the manifest")})
+
+    monkeypatch.setattr(
+        "labcairn.reports.revisions.write_report_manifest", a_manifest_that_is_not_the_one
+    )
+    workspace = _workspace(tmp_path)
+
+    with pytest.raises(ReportRevisionRefusedError, match="point at bytes that are not there"):
+        _write(workspace, _document(as_of=frozen_now), created_at=frozen_now)
 
 
 @pytest.mark.unit
@@ -944,6 +1052,103 @@ def test_a_changed_material_marks_the_report_the_manifest_and_the_figure_stale(
         "ADR-0004 I4: a stale mark nobody can act on is decoration. The reason "
         "is the repository's own, so a reader can act on it."
     )
+
+
+@pytest.mark.unit
+def test_a_claims_only_report_names_the_material_in_its_own_chain(
+    tmp_path: Path, frozen_now: datetime
+) -> None:
+    """A report with claims and no parts still names the material.
+
+    The mirror image of the test above, and the one that was missing. Every
+    other staleness test in this file builds a document with a figure, and
+    the figure's receipt names the material — so the material reached the
+    chain through the report's **parts**. A report with claims and no
+    figure and no table has no parts, and nothing else used to put the
+    material in its chain.
+
+    The consequence was not a small one: the walk is one hop, so a report
+    whose chain named nothing but its own files could **never** be marked
+    stale. It would sit there saying ``CURRENT`` about bytes whose material
+    had moved, and nothing would notice.
+
+    So the material's hash is in the report's own chain, for a report with
+    no parts as well as one with, and it is *directly* there rather than
+    one hop away — the owner's fifth decision, and the reason the chain is
+    a flat ancestor closure.
+    """
+    workspace = _workspace(tmp_path)
+
+    revision = _write(
+        workspace,
+        _claims_only_document(as_of=frozen_now),
+        created_at=frozen_now,
+        upstreams={},
+    )
+
+    for receipt in revision.receipts:
+        hashes = {link.content_sha256 for link in receipt.derived_from}
+        assert SOURCE_HASH in hashes, (
+            f"{receipt.receipt_id} does not name the material's hash, so the "
+            "staleness walk cannot reach it"
+        )
+
+    named = _named(revision.document)
+    assert named[(DerivationTargetKind.SOURCE, "src-1")] == SOURCE_HASH, (
+        "the report's chain names the source its claim was read from, and the "
+        "bytes it was read from"
+    )
+
+
+@pytest.mark.integration
+def test_a_changed_material_marks_a_claims_only_report_and_its_manifest_stale(
+    env: StoreEnv, tmp_path: Path, frozen_now: datetime
+) -> None:
+    """The ledger notices, for a report that has no parts to notice through.
+
+    The same walk, the same reason, and the same one pass — but the report
+    here carries **claims only**: no figure, no table, and so no part
+    whose receipt names the material. The source the claim was read from is
+    the only thing the report rests on, and when it moves the report and
+    its manifest must both go stale.
+
+    This is the acceptance clause, *"Re-rendering after material change
+    invalidates stale output"*, discharged for that shape.
+    """
+    scenario = build_scenario(env, tmp_path)
+    workspace = Workspace.bind(scenario.root, task_id=scenario.task_id)
+    source = scenario.root.joinpath(*SOURCE_PATH.split("/"))
+    source.parent.mkdir(parents=True, exist_ok=True)
+    body = b"%PDF-1.7\nthe source the claim was read from\n"
+    source.write_bytes(body)
+    source_hash = hashlib.sha256(body).hexdigest()
+
+    document = _claims_only_document(as_of=frozen_now, source_hash=source_hash)
+    revision = _write(
+        workspace,
+        document,
+        created_at=frozen_now,
+        upstreams={},
+        source_hash=source_hash,
+    )
+    _record(scenario, revision.receipts)
+
+    before = MaterialResolver(scenario.root).snapshot([SOURCE_PATH])
+    _rewrite_preserving_mtime(source, b"%PDF-1.7\nthe source, changed\n")
+    after = MaterialResolver(scenario.root).snapshot([SOURCE_PATH])
+    changed = sorted(set(before.values()) - set(after.values()))
+
+    report = scenario.resume().invalidate_on_source_change(scenario.task_id, changed)
+
+    expected = {receipt.receipt_id for receipt in revision.receipts}
+    assert set(report.stale_artifact_ids) == expected, (
+        "the report and the manifest must both go stale: the walk is one hop, "
+        "so the report's own chain has to carry the material's hash"
+    )
+    stale = scenario.resume().stale_artifacts(scenario.task_id)
+    assert {receipt.receipt_id for receipt in stale} == expected
+    assert all(receipt.staleness is ArtifactStaleness.STALE for receipt in stale)
+    assert all(receipt.staleness_reason == STALE_REASON for receipt in stale)
 
 
 @pytest.mark.integration

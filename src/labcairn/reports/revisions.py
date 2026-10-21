@@ -64,12 +64,18 @@ second implementation of the ancestor closure.
 **The material has to be in that closure.** A link with no hash is a link
 nothing can invalidate, so every link in the chain carries one; and the chain
 must reach *outside* the report's own files, because the report's own files
-never change when the material does. The material reaches the chain through the
-``upstreams`` the caller hands to the manifest builder: a table's upstream is
-what produced it, and that link is what names the material. A report whose
+never change when the material does. The material reaches the chain twice
+over, and both routes are needed. The **parts**' material reaches it through
+the ``upstreams`` the caller hands to the manifest builder: a table's
+upstream is what produced it, and that link is what names the material. The
+**report's own** material — the sources its claims were read from — reaches
+it through the document part of the manifest, which names them.
+
+The second route is not a nicety. A report with no parts has no upstreams to
+hand over, so the first route names nothing for it at all; and a report whose
 chain names nothing but its own files cannot be marked stale when the material
-moves, and nothing in this module would notice — the walk would have nothing
-to match.
+moves. The walk would have nothing to match, and nothing in this module would
+notice.
 
 What the report's own face cannot know
 --------------------------------------
@@ -244,6 +250,13 @@ def report_chain(
     and the figure in one pass, with no new mechanism and without a change to
     G3's accepted code.
 
+    **The material is in the manifest, so it is in the closure.** The
+    manifest's document part names the parts of the report *and* the sources
+    the report's claims were read from, so a report with claims and no
+    figure and no table names its material all the same — and the material's
+    hash is **directly** in the report's chain, which is what the one-hop
+    walk needs.
+
     The closure is :func:`labcairn.reports.manifest.manifest_chain` — the same
     builder that gives the manifest receipt its chain — so the two cannot
     drift apart, and this is not a second implementation of the closure.
@@ -332,10 +345,13 @@ def write_report_revision(
         Required, and called before anything is written, because a report that
         says something the ledger does not support must not be written at all.
     :param upstreams: what produced each part of the report, by part id. It
-        is how the **material** reaches the chain: a table's upstream is what
-        computed it, and that link is the one the staleness walk matches when
-        the material moves. A report whose chain names nothing outside its own
-        files cannot be marked stale, and nothing here would notice.
+        is how the **parts'** material reaches the chain: a table's upstream
+        is what computed it, and that link is the one the staleness walk
+        matches when the material moves. The report's *own* material — the
+        sources its claims were read from — reaches the chain through the
+        manifest's document part, so a report with no parts is marked stale
+        as well; a report whose chain names nothing outside its own files
+        cannot be marked stale at all.
     :param revision: the revision number. Left out, it is one beyond the
         highest this task's output area holds. Given, it must be beyond that
         too — a revision that has been written is immutable, and re-rendering
