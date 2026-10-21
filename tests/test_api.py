@@ -36,13 +36,16 @@ import hashlib
 import json
 import logging
 import os
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Connection, Engine, select, text
+from sqlalchemy import event as sa_event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from test_store_support import StoreEnv, make_receipt
 from test_store_support import env as _shared_env
@@ -66,6 +69,8 @@ from labcairn.application import (
 )
 from labcairn.application.refusal import ApplicationRefusal
 from labcairn.core.ids import TaskId, new_id
+from labcairn.db import create_db_engine
+from labcairn.db.models import TaskRow
 from labcairn.db.repository import events_after
 from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest, EventType
@@ -384,6 +389,77 @@ def test_a_mutation_with_the_token_is_applied(client: TestClient, token: str) ->
     assert state["approvals"][0]["state"] == "pending"
 
 
+def test_a_mutation_with_the_wrong_token_is_refused(client: TestClient, token: str) -> None:
+    """The token's *identity* is checked, and not only its presence.
+
+    The origin guard trusts a header that only a browser sets honestly, and
+    **a local process is not a browser**: it can send the service's own
+    origin freely. So the token is the only barrier between a local process
+    and the store's mutations, and what makes it a barrier is that it is
+    *this service's* token. A check that only asked whether a token was
+    present would let any local process through, and the acceptance clause
+    — *"a local authenticated session/token even if launched on loopback"* --
+    would be prose.
+
+    The right token is sent afterwards, because a guard that refused every
+    mutation would pass this test too.
+    """
+    refused = client.post(
+        "/approvals",
+        json=_approval_body(),
+        headers={"Origin": OWN_ORIGIN, "Authorization": "Bearer not-this-service's-token"},
+    )
+    assert refused.status_code == 401
+    assert refused.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+    accepted = client.post(
+        "/approvals",
+        json=_approval_body(),
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert accepted.status_code == 201
+
+
+def test_the_token_is_read_only_from_the_authorization_header(
+    client: TestClient, token: str
+) -> None:
+    """One header, and one place to look for the token.
+
+    :meth:`SessionGuard.read` says it is *"the only reading of the
+    ``Authorization`` header in the service, so there is one place to look
+    when asking where a token could come from"*. That is a claim about
+    **which headers are read**, and it is watched here rather than asserted:
+    a token offered under any other name is not a token at all.
+
+    The scheme is the other half of the same claim: a scheme the service
+    does not use is a token the service did not issue.
+
+    The request is made over the wire as well as read directly, because the
+    claim is about the service and not about a function.
+    """
+    from labcairn.api.guards import SessionGuard
+
+    assert SessionGuard.read({"authorization": f"Bearer {token}"}) == token
+    for name in ("token", "x-token", "x-auth-token", "session-token", "x-api-key", "cookie"):
+        assert SessionGuard.read({name: f"Bearer {token}"}) is None, (
+            f"the token was read from the {name!r} header"
+        )
+
+    assert read_bearer("Bearer abc") == "abc"
+    assert read_bearer("bearer abc") == "abc"
+    assert read_bearer("Basic abc") is None
+    assert read_bearer("Bearer   ") is None
+    assert read_bearer(None) is None
+
+    offered_elsewhere = client.post(
+        "/approvals",
+        json=_approval_body(),
+        headers={"Origin": OWN_ORIGIN, "X-Token": token},
+    )
+    assert offered_elsewhere.status_code == 401
+    assert offered_elsewhere.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
 def test_a_read_needs_no_token(client: TestClient) -> None:
     """A read is served without a session.
 
@@ -410,20 +486,6 @@ def test_the_token_is_never_accepted_from_a_url(client: TestClient, token: str) 
     )
     assert response.status_code == 401
     assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
-
-
-def test_the_token_is_read_only_from_the_authorization_header() -> None:
-    """One reading of the header, so one place to look.
-
-    The header is the only channel, and the reader says so by refusing the
-    other schemes: a scheme the service does not use is a token the service
-    did not issue.
-    """
-    assert read_bearer("Bearer abc") == "abc"
-    assert read_bearer("bearer abc") == "abc"
-    assert read_bearer("Basic abc") is None
-    assert read_bearer("Bearer   ") is None
-    assert read_bearer(None) is None
 
 
 def test_the_token_is_written_to_a_file_the_client_can_point_at(
@@ -1283,3 +1345,217 @@ def test_the_service_refuses_a_bind_address_before_it_mints_anything(
     with pytest.raises(BindRefusedError):
         create_app(context, host="0.0.0.0")
     assert not (workspace / ".labcairn" / "session-token").exists()
+
+
+# --------------------------------------------------------------------------- #
+# the store between requests
+# --------------------------------------------------------------------------- #
+
+
+def _another_process(db_path: Path) -> Engine:
+    """An engine of its own on the same database, as a second process has.
+
+    Its own engine rather than a second session on the service's: a second
+    *process* has its own engine, and the lock this is about is a lock on the
+    file, not on the session.
+    """
+    return create_db_engine(db_path, busy_timeout_ms=250)
+
+
+def _event_seqs(connection: Connection, task_id: TaskId) -> list[int]:
+    """A Task's committed ``seq`` values, read through a plain connection."""
+    rows: Sequence[Any] = (
+        connection.execute(
+            text("SELECT seq FROM events WHERE task_id = :t ORDER BY seq"),
+            {"t": str(task_id)},
+        )
+        .scalars()
+        .all()
+    )
+    return [int(value) for value in rows]
+
+
+def _event_types(connection: Connection, task_id: TaskId) -> list[str]:
+    """A Task's committed event types, read through a plain connection."""
+    rows: Sequence[Any] = (
+        connection.execute(
+            text("SELECT type FROM events WHERE task_id = :t ORDER BY seq"),
+            {"t": str(task_id)},
+        )
+        .scalars()
+        .all()
+    )
+    return [str(value) for value in rows]
+
+
+def test_the_service_lets_go_of_the_write_lock_between_requests(
+    client: TestClient, env: StoreEnv
+) -> None:
+    """A second process may take the write lock while the service is idle.
+
+    **The store opens every transaction with ``BEGIN IMMEDIATE``** — ADR-0003
+    C3's clause, and the right one for a write, because two writers must not
+    interleave. A read is a transaction too, so a read takes SQLite's *write*
+    lock, and the session the service holds lives as long as the process
+    does. If the service did not end the transaction at the end of a request
+    it would hold that lock from its first read until its next commit, and
+    the other surface of the same workspace — the CLI — would be refused
+    with "database is locked".
+
+    The probe opens the transaction through the engine rather than issuing
+    ``BEGIN IMMEDIATE`` itself: the engine's ``begin`` event issues one
+    already, and a second one lands inside it and is refused with "cannot
+    start a transaction within a transaction" whether or not the service is
+    holding anything.
+    """
+    served = client.get("/task", headers={"Origin": OWN_ORIGIN})
+    assert served.status_code == 200, served.text
+
+    other = _another_process(env.db_path)
+    try:
+        with other.connect() as connection, connection.begin():
+            connection.exec_driver_sql("SELECT 1")
+    except OperationalError as error:
+        pytest.fail(f"the service holds the store's write lock: {error}")
+    finally:
+        other.dispose()
+
+
+def test_a_write_through_the_service_is_committed_exactly_once(
+    client: TestClient, env: StoreEnv, context: ApplicationContext, token: str
+) -> None:
+    """The service's write is committed, and it is committed once.
+
+    **Nothing is lost.** The approval is in the store afterwards, and a
+    second process reads it *there* — not from the service's memory of it.
+
+    **Nothing is written twice.** The log holds exactly one more
+    ``approval_requested`` event than it did, and the ledger holds exactly
+    one approval. A write applied twice would leave two of each, and the log
+    is append-only, so a second event is the only shape a duplicate can take.
+    """
+    other = _another_process(env.db_path)
+    try:
+        with other.connect() as before:
+            types_before = _event_types(before, context.task_id)
+            seqs_before = _event_seqs(before, context.task_id)
+    finally:
+        other.dispose()
+
+    response = client.post(
+        "/approvals",
+        json=_approval_body(),
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 201
+
+    other = _another_process(env.db_path)
+    try:
+        with other.connect() as after:
+            types_after = _event_types(after, context.task_id)
+            seqs_after = _event_seqs(after, context.task_id)
+            approvals: int = after.execute(
+                text("SELECT COUNT(*) FROM approvals WHERE task_id = :t"),
+                {"t": str(context.task_id)},
+            ).scalar_one()
+    finally:
+        other.dispose()
+
+    asked = EventType.APPROVAL_REQUESTED.value
+    assert types_after.count(asked) == types_before.count(asked) + 1, (
+        f"the request was recorded {types_after.count(asked) - types_before.count(asked)} "
+        f"times: {types_after}"
+    )
+    assert int(approvals) == 1, "the approval was not committed exactly once"
+    assert seqs_after[: len(seqs_before)] == seqs_before, "the log's earlier events changed"
+    assert seqs_after == list(range(1, len(seqs_after) + 1)), "the sequence has a hole in it"
+
+
+def test_the_next_request_reads_the_database_and_not_the_last_request_s_memory(
+    client: TestClient, env: StoreEnv, context: ApplicationContext
+) -> None:
+    """A change another process made is visible to the next request.
+
+    The service's session is long-lived, so the objects it loaded are
+    long-lived too, and the session's identity map answers a query with the
+    object it already holds rather than with the row. If those objects were
+    not let go of at the end of a request, the next request would be answered
+    from the last request's memory of the database — and the CLI's and the
+    web's answers would disagree about a task the CLI had just changed.
+
+    **The test holds the row itself, and that is the point of it.** A
+    session's identity map holds its objects *weakly*, so an object nothing
+    else refers to is collected and the map empties by itself: the property
+    would then hold by the garbage collector's cooperation rather than by the
+    code's doing. Holding the row keeps it in the map, and makes the
+    property the code's to keep.
+    """
+    session = context.store.session
+    held = session.execute(
+        select(TaskRow).where(TaskRow.task_id == str(context.task_id))
+    ).scalar_one()
+    # The test's own transaction ends here, so that the other process below
+    # can take the write lock. The row stays loaded: the session does not
+    # expire what it holds when it commits.
+    session.commit()
+    assert held.title == "API test task"
+
+    first = client.get("/task", headers={"Origin": OWN_ORIGIN}).json()
+    assert first["task"]["title"] == "API test task"
+
+    other = _another_process(env.db_path)
+    try:
+        with other.begin() as connection:
+            connection.execute(
+                text("UPDATE tasks SET title = :title WHERE task_id = :id"),
+                {"title": "changed by another process", "id": str(context.task_id)},
+            )
+    finally:
+        other.dispose()
+
+    second = client.get("/task", headers={"Origin": OWN_ORIGIN}).json()
+    assert second["task"]["title"] == "changed by another process"
+
+
+def test_the_write_path_still_opens_its_transaction_with_begin_immediate(
+    client: TestClient, env: StoreEnv, token: str
+) -> None:
+    """The write path's SQL is the one ADR-0003 C3 asks for.
+
+    Letting go of the transaction between requests must not have changed how
+    a write opens one: ``BEGIN IMMEDIATE``, the write lock taken up front,
+    and never a deferred ``BEGIN`` that would take the lock at the first
+    write and fail with ``SQLITE_BUSY`` instead of waiting for it.
+
+    Every ``BEGIN`` the request issued is checked, not the first one: a
+    transaction that began IMMEDIATE and a second that began deferred would
+    both have issued *a* ``BEGIN``.
+    """
+    statements: list[str] = []
+
+    def record(
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        statements.append(" ".join(statement.split()))
+
+    sa_event.listen(env.engine, "before_cursor_execute", record)
+    try:
+        response = client.post(
+            "/approvals",
+            json=_approval_body(),
+            headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+        )
+        assert response.status_code == 201
+    finally:
+        sa_event.remove(env.engine, "before_cursor_execute", record)
+
+    begins = [statement for statement in statements if statement.upper().startswith("BEGIN")]
+    assert begins, f"no BEGIN was issued at all; captured: {statements[:5]}"
+    assert all(statement.upper() == "BEGIN IMMEDIATE" for statement in begins), (
+        f"every transaction must begin IMMEDIATE, saw: {sorted(set(begins))}"
+    )

@@ -154,7 +154,8 @@ is a gap LC-P1-08 should record rather than assume is someone else's problem.
   times, in the direction that understates the problem. Two caveats on the
   measurement itself: it counts characters rather than UTF-8 bytes, so the
   stored ratio is *higher* than measured; and it is pdfplumber's extraction,
-  not LC-P1-08's, which does not exist yet.
+  not LC-P1-08's, which did not exist when this ADR was written and does
+  now.
 - **Compression is the cheapest mitigation and is not taken here.** Extracted
   text compresses several-fold, and the column could be a BLOB. Deferred
   rather than forgotten: it is premature for a working set and should be

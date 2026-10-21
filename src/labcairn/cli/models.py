@@ -10,15 +10,16 @@ prints an array of its
 pydantic's, produced by the same call the API will make, so the two surfaces
 serve the same bytes without anybody transcribing one into the other.
 
-**Two commands have no layer operation, and their models are the CLI's.**
+**Three commands have no layer operation, and their models are the CLI's.**
 ``init`` and ``doctor`` describe a *workspace* — a directory, a database, a
-policy, a provider — and the application layer has no operation that reports
-one, because a task is the layer's unit and a workspace is not a task. The two
-models below are therefore the CLI's, and the local API will need equivalents
-of its own or a layer operation that answers the same questions. That is
-recorded here rather than hidden, because a second surface that invented a
-second spelling of the same facts is exactly what §1.4.2 of the task
-breakdown forbids.
+policy, a provider — and ``serve`` describes a *service* — an address, an
+origin, a token's path — and the application layer has no operation that
+reports either, because a task is the layer's unit and a workspace and a
+service are not tasks. The models below are therefore the CLI's, and the
+local API will need equivalents of its own or a layer operation that answers
+the same questions. That is recorded here rather than hidden, because a second
+surface that invented a second spelling of the same facts is exactly what
+§1.4.2 of the task breakdown forbids.
 
 **The models exist so the two forms cannot disagree.** Every command builds one
 model and then either serialises it or draws it; there is no path where the
@@ -243,6 +244,32 @@ class DoctorReport(Result):
     api_session: ApiSessionFinding
 
 
+class ServiceStarting(Result):
+    """The service ``serve`` is about to run.
+
+    **The token is not here.** The service mints one at start-up and writes
+    it to the workspace; this names the *path* it was written to, which is
+    what a client needs in order to read it, and never the value. A secret
+    in a machine-readable form is a secret in whatever the form was pasted
+    into, which is the same reason ``doctor`` withholds the token unless the
+    operator asks for it.
+
+    ``origins`` is the allow-list the service will answer to, so the
+    decision about the development web server is visible in the command's own
+    output rather than only in a reading of its source. It is the service's
+    own list, read from the service, and not a list the command composed
+    twice.
+    """
+
+    host: str
+    port: int
+    origin: str
+    origins: tuple[str, ...]
+    task_id: str
+    token_path: str
+    static_dir: str | None = None
+
+
 __all__ = [
     "ApiSessionFinding",
     "CapabilityFinding",
@@ -250,6 +277,7 @@ __all__ = [
     "DoctorReport",
     "PolicyFinding",
     "ProviderFinding",
+    "ServiceStarting",
     "WorkspaceFinding",
     "WorkspaceInitialised",
     "dumps",
