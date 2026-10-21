@@ -20,6 +20,15 @@ against a workspace that did not exist a moment ago:
 Every step prints what it did and what it proved. A failure raises rather than
 prints a warning, so this exits non-zero if a guard stops working.
 
+**One moment is the wall clock's, and it is the service's.** Every moment the
+demonstration chooses is the fixed one below, so two runs of it differ only
+in what they measured -- but the moment a grant is recorded is not the
+demonstration's to choose. The service stamps it with its own clock, because
+a client that could name that moment could grant an approval that had
+already lapsed. The approval the demonstration asks the service for is
+therefore the one value here read from the wall clock, and it outlives the
+grant at any hour of the day.
+
 **The report is rendered once.** The layer's ``render_report`` renders it into
 bytes and writes it as a revision; the CLI's ``artifacts list`` names that file
 and its hash, and the API serves the same bytes from
@@ -134,9 +143,18 @@ MATERIALS_DIR: str = "materials"
 MATERIAL_KEY: str = "groups.csv"
 MATERIAL_PATH: str = f"{MATERIALS_DIR}/{MATERIAL_KEY}"
 
-#: A fixed moment. Nothing in this file reads the wall clock, so two runs of
-#: it differ only in what they measured.
+#: A fixed moment. Every moment the demonstration chooses is this one, so two
+#: runs of it differ only in what they measured -- except the one value that
+#: has to follow the clock the service stamps a grant with, which is
+#: :func:`live_expiry`.
 NOW: datetime = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
+
+#: How long the approval the demonstration asks the service for lives.
+#:
+#: Long enough that the human's answer arrives while the question is still
+#: live, and short enough that an answer nobody gives does not authorise
+#: anything for long. An hour is the ordinary span for a human answer.
+APPROVAL_WINDOW: timedelta = timedelta(hours=1)
 
 #: The claim the report carries, and the address it rests on.
 #:
@@ -336,6 +354,23 @@ def release(*sessions: Session) -> None:
     """
     for session in sessions:
         session.rollback()
+
+
+def live_expiry() -> datetime:
+    """When the approval the demonstration asks the service for lapses.
+
+    The service records a grant with its own clock, and the store refuses a
+    grant of an approval that has already lapsed. The demonstration cannot
+    name the moment the service will record -- that clock is the service's to
+    keep, because a client that could name it could grant an approval that
+    had lapsed -- so the approval is asked for the way a client asks for
+    one: it lives for an hour from now.
+
+    The wall clock is the one thing in this file that moves, and it moves
+    with the hour rather than against it: the approval asked for outlives a
+    grant at any hour of the day.
+    """
+    return datetime.now(UTC) + APPROVAL_WINDOW
 
 
 def main() -> int:
@@ -823,13 +858,20 @@ def _walk_the_path(root: Path, session: Session) -> int:
             )
 
             release(session)
+            expiry = live_expiry()
             body = {
                 "capability": CapabilityId.SOURCE_INVENTORY.value,
                 "arguments": {},
                 "root_id": root_id,
                 "resource_key": MATERIAL_KEY,
-                "expires_at": (NOW + timedelta(hours=1)).isoformat(),
+                "expires_at": expiry.isoformat(),
             }
+            print(f"  expiry     : {expiry.isoformat()} (an hour from the wall clock)")
+            check(
+                "the approval asked for outlives the wall clock's now",
+                expiry > datetime.now(UTC),
+                f"expires {expiry.isoformat()}",
+            )
             authorised = {"Origin": origin, "Authorization": f"Bearer {token}"}
             asked = client.post("/approvals", json=body, headers=authorised)
             check(
@@ -888,6 +930,13 @@ def _walk_the_path(root: Path, session: Session) -> int:
                 len(granted_approvals) == 1
                 and granted_approvals[0]["state"] == ApprovalState.GRANTED.value,
                 str([approval["state"] for approval in granted_approvals]),
+            )
+            granted_at = datetime.fromisoformat(granted_approvals[0]["granted_at"])
+            lapses_at = datetime.fromisoformat(granted_approvals[0]["expires_at"])
+            check(
+                "the grant was recorded inside the approval's own window",
+                granted_at < lapses_at,
+                f"granted {granted_at.isoformat()}, lapses {lapses_at.isoformat()}",
             )
 
             # -- 7. an approval cannot be spoofed --------------------------- #
@@ -1074,6 +1123,10 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    record that rests on it itself. The report carries a real claim,")
     print("    cited to a cell of the material the CLI ingested -- but the claim")
     print("    was made by the demonstration, not by the product.")
+    print("  * The demonstration did not ask for an approval that had already")
+    print("    lapsed. The service records a grant with its own clock, so the")
+    print("    approval it asks for is live by construction, and what the")
+    print("    service does with a lapsed one is not something this run showed.")
     print("  * The demonstration's own controls are not exhaustive. Each")
     print("    comparison is run once over something that must answer the other")
     print("    way, which shows that the comparison can fail -- but a check")
