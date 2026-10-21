@@ -86,7 +86,7 @@ from labcairn.reports.render import (
     resolve,
 )
 from labcairn.reports.render.markdown import MARKDOWN_ESCAPE_TABLE
-from labcairn.sources.locators import ComputationLocator, PdfLocator
+from labcairn.sources.locators import ComputationLocator, PdfLocator, describe_locator
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -583,6 +583,63 @@ def _texts(document: ReportDocument) -> dict[str, str]:
         "docx": _normalise(_read_docx(render_docx(document))),
         "pdf": _normalise(_read_pdf(render_pdf(document))),
     }
+
+
+def _record_statements(record: LedgerRecordView) -> list[str]:
+    """What the report states about a record: its quantity, or its sentence.
+
+    A numeric record's statement is its number, drawn with ``repr`` — the
+    same spelling the report draws it with — and a claim or result
+    record's statement is its text.
+    """
+    if record.value is not None:
+        return [repr(record.value)]
+    if record.text is not None:
+        return [record.text]
+    return []
+
+
+def _model_numbers(document: ReportDocument) -> set[str]:
+    """The numbers the document's own content holds.
+
+    The acceptance clause says *"numeric values agree with ledger"*, and the
+    numbers a report states are the ledger's: the quantities its records
+    hold, and the numbers that appear in the prose the model carries. This
+    is what an export is measured against, and it is read out of the
+    **document**, so that the expectation says "the model's numbers" and
+    not "the numbers the renderer happened to print".
+
+    Two things are deliberately not in here. The **figure's reproducibility
+    manifest**, because it is the figure's own account of how it was made
+    and an export names the artefact by path and hash rather than printing
+    the manifest — a manifest that carries ``matplotlib_version:
+    "3.11.2"`` would otherwise put numbers in the expectation that no
+    export carries. And the **hashes**, because a content hash is hex and a
+    hex digest has no decimal point in it.
+    """
+    texts: list[str] = [document.title]
+    for section in document.sections:
+        texts.append(section.heading)
+        for block in section.blocks:
+            if isinstance(block, (NarrativeBlock, InterpretationBlock)):
+                texts.append(block.text)
+    for claim in document.claims:
+        texts.append(claim.claim_id)
+        texts.extend(_record_statements(claim.record))
+    for figure in document.figures:
+        texts.extend((figure.figure_id, figure.caption, figure.relative_path))
+    for table in document.tables:
+        texts.extend((table.table_id, table.relative_path))
+    for unresolved in document.unresolved_records:
+        texts.append(unresolved.record.record_id)
+        texts.extend(_record_statements(unresolved.record))
+        texts.append(unresolved.reason)
+    for footnote in document.footnotes:
+        texts.extend((footnote.footnote_id, footnote.source_id, describe_locator(footnote.locator)))
+    numbers: set[str] = set()
+    for text in texts:
+        numbers.update(re.findall(r"\d+\.\d+", text))
+    return numbers
 
 
 # ---------------------------------------------------------------------------
@@ -1453,11 +1510,22 @@ def test_no_number_appears_that_the_model_does_not_hold(document: ReportDocument
     derived from two values, would put a number in the report that no
     record holds — and the check that compares numbers with the ledger
     would then be comparing against a number the ledger never said.
-    """
-    text = _normalise(_read_pdf(render_pdf(document)))
-    numbers = set(re.findall(r"\d+\.\d+", text))
 
-    assert numbers == {"4.253", "4.9"}
+    **All four forms are watched, not one.** The check that agrees the
+    numbers with the ledger runs on the *document*, before any form is
+    rendered, so it discharges the clause for the document and says
+    nothing about what a renderer then does with it. A renderer that added
+    a number of its own would produce an export that no check ever looks
+    at again, and the clause would hold for the document and not for the
+    file a reader opens.
+    """
+    expected = _model_numbers(document)
+
+    for form, text in _texts(document).items():
+        numbers = set(re.findall(r"\d+\.\d+", text))
+        assert numbers == expected, (
+            f"the {form} form carries {sorted(numbers)}, and the model holds {sorted(expected)}"
+        )
 
 
 # ---------------------------------------------------------------------------
