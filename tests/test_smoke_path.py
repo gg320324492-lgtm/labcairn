@@ -22,6 +22,14 @@ with a reason rather than crashes, that the two surfaces were compared against
 -- and takes about fifteen seconds. Running it again for every assertion would
 multiply that for no extra evidence.
 
+**The hour is this test's to choose.** The service records a grant with its
+own clock, so whether the demonstration works is a question about the hour,
+and a run at the hour the suite happened to start in cannot answer it. So
+the demonstration is run twice more with every clock in it pinned -- the
+demonstration's own and the product's -- at two hours eighteen apart, and
+the test that does it is the one that says the demonstration means the same
+thing at any hour.
+
 **The demonstration's workspace is outside the repository.** That is asserted
 here rather than assumed: a workspace inside the checkout would make the run
 depend on the tree it is running in, and the demonstration's own claim is that
@@ -36,6 +44,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +80,82 @@ STEPS: tuple[str, ...] = (
 #: count is the only thing that would say so.
 MINIMUM_CHECKS: int = 30
 
+#: The hours the demonstration must mean the same thing at.
+#:
+#: The service records a grant with its own clock, so whether the
+#: demonstration works is a question about the hour -- and a test that only
+#: ran it at the hour it happened to run at could not answer it. These two
+#: are eighteen hours apart, and they straddle the instant at which a window
+#: fixed to the demonstration's own moment closed for good: a
+#: demonstration that still fixed its window there would pass at the first
+#: and fail at the second. A window fixed there and *widened* would pass at
+#: both, which is why the two runs are compared with each other and not
+#: only with the exit code.
+EARLY_HOUR: datetime = datetime(2026, 10, 21, 3, 0, tzinfo=UTC)
+LATE_HOUR: datetime = datetime(2026, 10, 21, 21, 0, tzinfo=UTC)
+
+#: The program that runs the demonstration with its clock pinned.
+#:
+#: Every clock in the demonstration's process -- the demonstration's own and
+#: the product's -- reads a pinned instant instead of the wall clock's, so
+#: the hour the demonstration runs at is this test's to choose rather than
+#: the machine's. **The pinned clock advances a second per read**, because
+#: the clock a real service stamps a grant with moves on: the question and
+#: the answer are never the same instant, and a window that does not cover
+#: the distance between them is the defect this witness is for. It names the
+#: instant it pinned at, and it refuses to run at all unless the clock the
+#: service records a grant with really was pinned: a witness that ran the
+#: demonstration at the wall clock's hour while claiming to have pinned it
+#: would pass for the wrong reason.
+PINNED_CLOCK_PROGRAM: str = """
+import importlib.util
+import sys
+from datetime import datetime as _datetime, timedelta
+
+import labcairn.application.approvals as approvals
+
+pinned = _datetime.fromisoformat(sys.argv[2])
+step = timedelta(seconds=1)
+reads = [0]
+
+
+class _AnyDatetime(type):
+    def __instancecheck__(cls, instance):
+        return isinstance(instance, _datetime)
+
+
+class Pinned(_datetime, metaclass=_AnyDatetime):
+    @classmethod
+    def now(cls, tz=None):
+        reads[0] += 1
+        moment = pinned + step * reads[0]
+        return moment.replace(tzinfo=tz) if tz is not None else moment.replace(tzinfo=None)
+
+
+def pin(module):
+    if getattr(module, "datetime", None) is _datetime:
+        module.datetime = Pinned
+
+
+spec = importlib.util.spec_from_file_location("g4_exit_demo", sys.argv[1])
+demo = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(demo)
+
+for name, module in list(sys.modules.items()):
+    if module is not None and name.startswith("labcairn"):
+        pin(module)
+
+pin(demo)
+
+if getattr(approvals, "datetime", None) is not Pinned:
+    raise SystemExit("the clock the service records a grant with is not pinned")
+if getattr(demo, "datetime", None) is not Pinned:
+    raise SystemExit("the demonstration's own clock is not pinned")
+
+print(f"clock pinned at {pinned.isoformat()}, advancing a second per read")
+raise SystemExit(demo.main())
+"""
+
 
 @pytest.fixture(scope="module")
 def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
@@ -88,6 +173,29 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
     environment["COLUMNS"] = "200"
     return subprocess.run(
         [sys.executable, str(DEMO)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        timeout=900,
+        cwd=repo_root,
+    )
+
+
+def run_at(repo_root: Path, moment: datetime) -> subprocess.CompletedProcess[str]:
+    """The demonstration, with every clock in it pinned to ``moment``.
+
+    The same subprocess the module's own fixture runs, with the hour
+    changed. Pinning the clock does not change what the demonstration does
+    -- only what hour it does it at -- so a run here is evidence about the
+    hour and about nothing else.
+    """
+    environment = dict(os.environ)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["COLUMNS"] = "200"
+    return subprocess.run(
+        [sys.executable, "-c", PINNED_CLOCK_PROGRAM, str(DEMO), moment.isoformat()],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -124,6 +232,90 @@ def test_the_exit_demonstration_runs_and_every_check_holds(
     assert f"{len(checks)} checks passed." in output, (
         "the demonstration's own count of its checks does not match the number "
         "it printed, so its summary is not a fact about the run"
+    )
+
+    # The two claims about the approval the demonstration asked the service
+    # for: the exit code says the demonstration held every claim it made,
+    # but not that it made these two.
+    for claim in (
+        "the approval asked for outlives the wall clock's now",
+        "the grant was recorded inside the approval's own window",
+    ):
+        assert claim in output, f"the demonstration never made the claim {claim!r}"
+
+
+@pytest.mark.e2e
+def test_the_demonstration_means_the_same_thing_at_any_hour(repo_root: Path) -> None:
+    """The demonstration runs at an hour of this test's choosing, not only at this one.
+
+    The service records a grant with its own clock, and the store refuses a
+    grant of an approval that has lapsed -- so an approval the demonstration
+    asked for with a moment of its own would lapse before the service
+    stamped the grant, and the demonstration would work in the morning and
+    fail in the evening. **A demonstration whose outcome depends on the hour
+    is not a demonstration of the product**, and a test that only ran it at
+    the hour it happened to run at would not see that at all.
+
+    So the hour is this test's to choose: the demonstration is run twice,
+    with every clock in it -- the demonstration's own and the product's --
+    pinned to an instant, at two hours eighteen apart that straddle the
+    instant at which a window fixed to the demonstration's own moment closed
+    for good. A demonstration that still fixed its window there would pass
+    at the first and fail at the second.
+
+    **The pinned clock moves**, because the clock a real service stamps a
+    grant with moves on: the question and the answer are never the same
+    instant, and a window that does not cover the distance between them is
+    the defect this witness is for. So the grant is recorded strictly after
+    the moment the demonstration asked, and the approval the demonstration
+    asked for has to outlive that.
+
+    **The pin is checked, not assumed.** The program that pins the clocks
+    refuses to run unless the clock the service records a grant with really
+    was pinned, and says which instant it pinned at; a run that said
+    nothing about the hour would be evidence about nothing.
+
+    **And the expiry moved with the hour.** That is the claim that no
+    single run can make: a window fixed to a moment of the demonstration's
+    own would outlive the grant at every hour it was checked, and would be
+    caught only by waiting for the hour it closed at. Two runs eighteen
+    hours apart catch it at once, because a window that does not read the
+    clock does not move when the clock does.
+    """
+    expiries: dict[datetime, datetime] = {}
+    for moment in (EARLY_HOUR, LATE_HOUR):
+        run = run_at(repo_root, moment)
+        assert run.returncode == 0, (
+            f"the demonstration failed with its clock pinned to {moment.isoformat()}:\n"
+            f"{run.stdout}\n{run.stderr}"
+        )
+        assert f"clock pinned at {moment.isoformat()}" in run.stdout, (
+            "the demonstration did not run with its clock pinned, so the run says "
+            "nothing about the hour"
+        )
+        expiry = re.search(r"expiry\s+:\s+(\S+)", run.stdout)
+        assert expiry is not None, (
+            "the demonstration never said when the approval it asked for lapses"
+        )
+        expiries[moment] = datetime.fromisoformat(expiry.group(1))
+        assert expiries[moment] > moment, (
+            f"the approval the demonstration asked for lapses at {expiry.group(1)}, "
+            f"which is not after the hour it was asked at ({moment.isoformat()})"
+        )
+        granted = re.search(r"granted (\S+), lapses (\S+)", run.stdout)
+        assert granted is not None, "the demonstration never said when the grant was recorded"
+        assert datetime.fromisoformat(granted.group(1)) > moment, (
+            f"the grant was recorded at {granted.group(1)}, which is not after the "
+            f"hour the demonstration was pinned to ({moment.isoformat()}); the clock "
+            "did not move between the question and the answer"
+        )
+
+    moved = expiries[LATE_HOUR] - expiries[EARLY_HOUR]
+    apart = LATE_HOUR - EARLY_HOUR
+    assert abs(moved - apart) <= timedelta(minutes=1), (
+        f"the approval the demonstration asked for lapses {moved} apart in the two "
+        f"runs, but the two hours are {apart} apart: the expiry did not move with "
+        "the clock"
     )
 
 
