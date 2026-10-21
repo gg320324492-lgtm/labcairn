@@ -71,7 +71,7 @@ The project is currently at **Phase 1 / Foundation & MVP**. The research workflo
 
 ## Developer setup (what exists today)
 
-This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application — there is no server and no research feature to use yet. There **is** a command line, and it is described below; it is a developer-facing surface, not a finished product. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
+This is the **engineering baseline only**: the pinned interpreter, the dependency lock, the quality gates and the test suites. It is not a product install, and running it does not give you a LabCairn application. There **is** a command line, and it is described below; it is a developer-facing surface, not a finished product. Every command below is a repository-maintenance command, and `tests/test_readme_accuracy.py` executes each one and fails if any stops working.
 
 Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) and, for the web package, Node ≥ 24.16 with pnpm ≥ 9.15.9.
 
@@ -99,7 +99,7 @@ pnpm format:check
 
 ## The command line (what exists today)
 
-`labcairn` is a real console script, installed by `uv sync`, and it is the developer-facing surface on the same application layer the local API and the web workbench will call — so what it reports is what they will report.
+`labcairn` is a real console script, installed by `uv sync`, and it is the developer-facing surface on the same application layer the local API and the web workbench call — so what it reports is what they report.
 
 The research workflow behind these commands is still under construction, and most of what the Phase 1 work orders promise is still to come. The command line is here because the surface, its machine-readable form and its exit codes are settled, and the work that fills them in is still ahead.
 
