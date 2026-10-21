@@ -74,16 +74,24 @@ Where the chain's upstreams come from
 
 The report's chain is a **flat ancestor closure**, and it reaches outside the
 report's own files because the report's own files never change when the
-material does. What puts the material in it is the ``upstreams`` this
-operation hands to the manifest builder — and they come from **the ledger's
-own account of each part**: the artefact receipt's ``derived_from``.
+material does. The material reaches it twice over, and the second route is
+the one that does the work this operation cannot do by itself.
 
-That is the right source because the ledger already holds it. A figure's
-receipt names the manifest artefact that describes it and, through it, the
-input file the derivation read; a table's receipt names what computed it.
-Both carry the material's hash, which is what the one-hop staleness walk
-matches: a report whose chain names nothing but its own files could not be
-marked stale when the material moves, and nothing would notice.
+**The parts' material** comes from the ``upstreams`` this operation hands to
+the manifest builder — and they come from **the ledger's own account of each
+part**: the artefact receipt's ``derived_from``. That is the right source
+because the ledger already holds it. A figure's receipt names the manifest
+artefact that describes it and, through it, the input file the derivation
+read; a table's receipt names what computed it. Both carry the material's
+hash, which is what the one-hop staleness walk matches.
+
+**The report's own material** — the sources its claims were read from — is
+read out of the **document** by the manifest builder, and needs nothing from
+here. It is the second route because a task with evidence records and no
+analysis artefacts has no parts at all: its report carries claims and
+nothing else, and the first route would name no material for it. A report
+whose chain names nothing but its own files could not be marked stale when
+the material moves, and nothing would notice.
 
 What is refused, and how
 ------------------------
@@ -691,7 +699,13 @@ def _the_upstreams(
     through it, the input file the derivation read; a table's receipt names
     what computed it. Both carry the material's hash, and the material's hash
     is what the one-hop staleness walk matches — so this is what lets a
-    report be marked stale when the material moves.
+    report with parts be marked stale when the material moves.
+
+    This is the **parts'** material, and it is not the whole of it: a report
+    with claims and no figure and no table has no part to name, and its
+    material is the source its claims were read from. The manifest builder
+    reads that out of the document, so a report of that shape is marked
+    stale as well.
 
     The part is matched to its receipt by the path and the hash the document
     records, both of which the builder copied out of the receipt, and by the

@@ -35,10 +35,12 @@ the only thing that stops it is a test that says the build is refused.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from labcairn.analysis.manifest import (
     FileRef,
@@ -63,11 +65,18 @@ from labcairn.reports.build import (
     ReportBuildRefusedError,
     build_report_document,
 )
+from labcairn.reports.manifest import (
+    DOCUMENT_PART_ID,
+    ReportManifest,
+    ReportManifestRefusedError,
+    build_report_manifest,
+)
 from labcairn.reports.model import (
     BlockKind,
     ClaimBlock,
     FigureBlock,
     InterpretationBlock,
+    LedgerRecordView,
     NarrativeBlock,
     ReportClaim,
     ReportDocument,
@@ -1134,3 +1143,425 @@ def test_the_locator_of_a_citation_is_the_structured_address(task: dict[str, Any
 
     locator: SourceLocator = document.footnotes[0].locator
     assert locator == PdfLocator(page=3)
+
+
+# --------------------------------------------------------------------------- #
+# the refusals the suite did not exercise
+# --------------------------------------------------------------------------- #
+#
+# Each of these is a guard the builder states and no test observed: the
+# refusal was there, and nothing ever produced the input that triggers it.
+# A guard nobody exercises is a guard nobody knows is still there, so each
+# one is exercised here — and each is a *named* refusal, not a crash.
+
+
+@dataclass(frozen=True)
+class _UnknownState:
+    """A state the six-state machine does not have.
+
+    The builder's last branch is the one that says "I do not know this
+    state", and the machine is closed, so the only way to reach it is to
+    put a state in that the machine does not have. It carries a ``value``
+    because the refusal quotes it.
+    """
+
+    value: str = "extracted_by_hand"
+
+
+def _artefact(task: dict[str, Any], receipt_id: str) -> ArtifactReceipt:
+    """The task's artefact with this id."""
+    artefacts: list[ArtifactReceipt] = task["artifacts"]
+    return next(receipt for receipt in artefacts if receipt.receipt_id == receipt_id)
+
+
+def test_two_artefacts_at_one_path_and_one_revision_are_refused(task: dict[str, Any]) -> None:
+    """One file, produced twice under one revision, has two answers.
+
+    The artefacts table is unique on (task, path, revision), so two
+    receipts at one path and one revision is a ledger that says the same
+    file was produced twice — and "which one is it" would have two
+    answers, and the report would show the same figure twice.
+    """
+    twin = _figure_receipt(
+        receipt_id="figure-2",
+        manifest_receipt=_artefact(task, "manifest-1"),
+        relative_path="analysis/mean/run1.figure.svg",
+    )
+    task["artifacts"] = [*task["artifacts"], twin]
+    task["captions"] = {**task["captions"], "figure-2": FIGURE_CAPTION}
+
+    with pytest.raises(ReportBuildRefusedError, match="at revision"):
+        _build(task)
+
+
+def test_one_path_claimed_by_two_artefact_kinds_is_refused(task: dict[str, Any]) -> None:
+    """One path, claimed by a figure and by a table, is two things to say.
+
+    One path is one file, and a report that carried it under two kinds
+    would have two answers to "what is this file in the report".
+    """
+    clash = ArtifactReceipt(
+        receipt_id="table-2",
+        task_id="task-1",
+        kind=ArtifactKind.TABLE,
+        relative_path="analysis/mean/run1.figure.svg",
+        content_sha256=TABLE_HASH,
+        size_bytes=128,
+        produced_by=ArtifactProducerKind.ANALYSIS_OPERATOR,
+        producer_id="labcairn.analysis.mean@1.0.0",
+        created_at=MOMENT,
+    )
+    task["artifacts"] = [*task["artifacts"], clash]
+
+    with pytest.raises(ReportBuildRefusedError, match="claimed by a"):
+        _build(task)
+
+
+def test_a_figures_chain_that_disagrees_with_the_manifest_artefact_is_refused(
+    task: dict[str, Any],
+) -> None:
+    """The figure's chain and the artefact it names must agree.
+
+    The figure's own chain names the manifest artefact and the hash it
+    believes that artefact holds. If the two disagree, the report would be
+    carrying a derivation nobody can check: one half says the manifest is
+    these bytes and the other says it is those.
+    """
+    figure = _artefact(task, "figure-1")
+    manifest_artefact = _artefact(task, "manifest-1")
+    disagreeing = figure.model_copy(
+        update={
+            "derived_from": (
+                DerivationRef(
+                    target_kind=DerivationTargetKind.ARTIFACT,
+                    target_id=manifest_artefact.receipt_id,
+                    content_sha256=_hash("another-manifest"),
+                ),
+                *figure.derived_from[1:],
+            )
+        }
+    )
+    task["artifacts"] = [
+        receipt if receipt.receipt_id != "figure-1" else disagreeing
+        for receipt in task["artifacts"]
+    ]
+
+    with pytest.raises(ReportBuildRefusedError, match="disagree about the manifest"):
+        _build(task)
+
+
+def test_a_caption_that_names_something_that_is_not_a_figure_is_refused(
+    task: dict[str, Any],
+) -> None:
+    """A caption for a table is a reading that would be dropped in silence.
+
+    The caption and the interpretation are the figure's own, and a reading
+    keyed by something the report does not draw as a figure would never
+    reach the report — and the report would be missing it without anything
+    saying so.
+    """
+    task["captions"] = {**task["captions"], "table-1": FIGURE_CAPTION}
+
+    with pytest.raises(ReportBuildRefusedError, match="not a figure"):
+        _build(task)
+
+
+def test_an_interpretation_that_names_something_that_is_not_a_figure_is_refused(
+    task: dict[str, Any],
+) -> None:
+    """And the same for an interpretation, which is the same rule.
+
+    The guard is one guard with two callers — the caption and the
+    interpretation — so both are exercised: a guard exercised for one
+    argument and not the other is a guard whose second branch nobody knows
+    is there.
+    """
+    task["interpretations"] = {**task["interpretations"], "table-1": FIGURE_INTERPRETATION}
+
+    with pytest.raises(ReportBuildRefusedError, match="not a figure"):
+        _build(task)
+
+
+def test_a_figure_whose_chain_names_no_manifest_is_refused(task: dict[str, Any]) -> None:
+    """A figure that names no manifest describes no derivation at all.
+
+    The manifest is found by **reading the figure's chain**, and a chain
+    that names no manifest leaves nothing to read. The builder refuses it
+    by name; without the refusal the lookup would be an ``IndexError``,
+    which is a crash rather than an answer, and a crash says nothing about
+    what was wrong.
+    """
+    figure = _artefact(task, "figure-1")
+    orphaned = figure.model_copy(update={"derived_from": ()})
+    task["artifacts"] = [
+        receipt if receipt.receipt_id != "figure-1" else orphaned for receipt in task["artifacts"]
+    ]
+
+    with pytest.raises(ReportBuildRefusedError, match="exactly one"):
+        _build(task)
+
+
+def test_a_figure_whose_chain_names_two_manifests_is_refused(task: dict[str, Any]) -> None:
+    """And one that names two is the same failure with the other number.
+
+    A figure's lineage runs file, result, manifest, figure: one manifest
+    describes it. A chain that names two leaves "which manifest describes
+    this figure" answerable two ways.
+    """
+    figure = _artefact(task, "figure-1")
+    manifest_artefact = _artefact(task, "manifest-1")
+    second = manifest_artefact.model_copy(
+        update={"receipt_id": "manifest-2", "relative_path": "analysis/mean/run2.manifest.json"}
+    )
+    doubled = figure.model_copy(
+        update={
+            "derived_from": (
+                *figure.derived_from,
+                DerivationRef(
+                    target_kind=DerivationTargetKind.ARTIFACT,
+                    target_id=second.receipt_id,
+                    content_sha256=second.content_sha256,
+                ),
+            )
+        }
+    )
+    task["artifacts"] = [
+        receipt if receipt.receipt_id != "figure-1" else doubled for receipt in task["artifacts"]
+    ]
+    task["artifacts"] = [*task["artifacts"], second]
+
+    with pytest.raises(ReportBuildRefusedError, match="exactly one"):
+        _build(task)
+
+
+def test_a_record_that_may_be_stated_but_carries_no_source_hash_is_refused(
+    task: dict[str, Any],
+) -> None:
+    """A finding that is not bound to bytes cannot be cited.
+
+    The ledger's rule is that a record past 'planned' must be located,
+    and the report's rule is the same one: a claim names the bytes it
+    was read from, and a claim that names no bytes is a claim no reader
+    can check. So the build is refused, and it says which record.
+
+    The record is unbound with ``model_copy``, which does not validate —
+    the ledger's own model would have refused it first, and the point
+    here is the **builder's** guard against a record that is not bound to
+    the bytes it claims to have been read from.
+    """
+    unbound = _record(record_id="rec-num").model_copy(update={"source_content_hash": None})
+    task["records"] = [unbound, *task["records"][1:]]
+
+    with pytest.raises(ReportBuildRefusedError, match="carries no source content hash"):
+        _build(task)
+
+
+def test_a_record_in_a_state_the_machine_does_not_have_is_refused(
+    task: dict[str, Any],
+) -> None:
+    """A state the builder does not know is refused, not dropped.
+
+    The six states are closed, so this is the branch that says "a state
+    appeared that this build does not know how to route". The record is
+    given that state with ``model_copy``, which does not validate — the
+    point is the builder's guard, and the ledger's own model would have
+    refused the record first.
+
+    Dropping the record would leave the snapshot claiming an extent the
+    report does not have, so the build is refused instead.
+    """
+    odd = _record(record_id="rec-odd").model_copy(update={"status": _UnknownState()})
+    task["records"] = [odd, *task["records"]]
+
+    with pytest.raises(ReportBuildRefusedError, match="neither a state a report may state"):
+        _build(task)
+
+
+def test_two_records_with_one_id_are_refused(task: dict[str, Any]) -> None:
+    """Two records under one id make a document that contradicts itself.
+
+    The model's own rule is that one id is one thing, and the builder
+    does not get to decide otherwise: the two records would become two
+    claims under one claim id, and the report would say the same thing
+    twice with two different numbers.
+
+    The refusal is the builder's own rather than the model's, because the
+    operation above the builder raises **one** exception type — a refusal
+    that arrived as a validation error would be a second answer to "why
+    was the report not written".
+    """
+    task["records"] = [
+        _record(record_id="rec-num"),
+        _record(record_id="rec-num"),
+        *task["records"][1:],
+    ]
+
+    with pytest.raises(ReportBuildRefusedError, match="could not be built from these facts"):
+        _build(task)
+
+
+# --------------------------------------------------------------------------- #
+# the model's own refusals
+# --------------------------------------------------------------------------- #
+#
+# The report model's rules are the report path's rules: the builder
+# projects a ledger record into a view of it, and the view refuses what
+# the ledger already refuses. They are watched from here because a rule
+# nobody exercises is a rule nobody knows is still there.
+
+
+def test_a_numeric_record_view_with_no_value_is_refused() -> None:
+    """There is no quantity to state, so the view is refused.
+
+    A numeric record's value and its declared unit *are* the record; a
+    view without a value is a record with nothing in it.
+    """
+    with pytest.raises(ValidationError, match="must carry a value"):
+        LedgerRecordView(
+            record_id="rec-1",
+            record_kind=EvidenceKind.NUMERIC,
+            value=None,
+            unit="%",
+            status=VerificationStatus.VERIFIED_BY_RULE,
+        )
+
+
+def test_a_claim_record_view_with_no_text_is_refused() -> None:
+    """A record with nothing stated attests to nothing.
+
+    A claim or result record carries a sentence, and a sentence is the
+    whole of what it states.
+    """
+    with pytest.raises(ValidationError, match="must carry the text"):
+        LedgerRecordView(
+            record_id="rec-1",
+            record_kind=EvidenceKind.CLAIM,
+            text=None,
+            status=VerificationStatus.USER_ATTESTED,
+        )
+
+
+# --------------------------------------------------------------------------- #
+# the manifest's own refusals
+# --------------------------------------------------------------------------- #
+#
+# The manifest is what the report path writes about the report, and its
+# cross-checks are the report path's rules too. The builder builds a
+# manifest that satisfies them by construction, so they are exercised
+# here the only way they can be: from a manifest assembled by hand.
+
+
+def _a_manifest_payload(lineage: list[dict[str, str]]) -> dict[str, object]:
+    """A manifest with one document part, and the lineage it is given."""
+    return {
+        "report_sha256": _hash("report"),
+        "parts": [
+            {
+                "part_id": DOCUMENT_PART_ID,
+                "part_kind": "document",
+                "relative_path": "output/task-1/report/v1/report.json",
+                "content_sha256": _hash("report"),
+                "lineage": lineage,
+            }
+        ],
+    }
+
+
+def test_the_document_may_not_name_a_thing_that_is_neither_a_part_nor_a_source() -> None:
+    """The document's lineage is a closed list of what the report is made of.
+
+    The parts are files the report includes and the sources are files the
+    report was read from. A link of any other kind — an artefact, an
+    evidence record, an anchor — is a statement the manifest cannot
+    check, so it is refused rather than recorded.
+    """
+    payload = _a_manifest_payload(
+        [
+            {
+                "target_kind": "artifact",
+                "target_id": "art-1",
+                "content_sha256": _hash("artefact"),
+            }
+        ]
+    )
+
+    with pytest.raises(ValidationError, match="which is a 'artifact'"):
+        ReportManifest.model_validate(payload)
+
+
+def test_the_document_may_not_name_one_part_with_two_sets_of_bytes() -> None:
+    """One part is one file, and a file has one set of bytes.
+
+    The document's lineage is a list, so the same path twice is a
+    contradiction: the manifest would be recording two versions of one
+    part under one name, and a reader would have no way to tell which
+    was meant.
+    """
+    payload = _a_manifest_payload(
+        [
+            {
+                "target_kind": "material_file",
+                "target_id": "outputs/figures/fig-1.svg",
+                "content_sha256": _hash("one reading"),
+            },
+            {
+                "target_kind": "material_file",
+                "target_id": "outputs/figures/fig-1.svg",
+                "content_sha256": _hash("another reading"),
+            },
+        ]
+    )
+
+    with pytest.raises(ValidationError, match="twice, with different bytes"):
+        ReportManifest.model_validate(payload)
+
+
+def test_the_manifest_refuses_to_answer_for_a_document_it_does_not_hold() -> None:
+    """The belt to the count guard's braces.
+
+    The count guard refuses a manifest with two document parts, or with
+    none, when it is **built**. This is the second refusal, for a
+    manifest that reaches the lookup by a path that does not run the
+    count guard — and it says so in its own words, so that a test which
+    matched the count guard's message could not pass for it.
+    """
+    manifest = ReportManifest.model_construct(report_sha256=_hash("report"), parts=())
+
+    with pytest.raises(ValueError, match="no single document part"):
+        manifest._document_part()
+
+
+def test_the_manifest_builder_refuses_facts_that_contradict_each_other(
+    task: dict[str, Any],
+) -> None:
+    """A manifest that would contradict itself is refused, in the builder's words.
+
+    The builder assembles the parts and the model checks them; when the
+    two disagree — here, a figure's upstream that names the same thing
+    twice — the manifest cannot be built. The refusal is the builder's
+    own rather than a validation error, because the operation above the
+    builder raises **one** exception type, and a validation error
+    arriving from under it would be a second answer to "why was the
+    report not written".
+    """
+    document = _build(task)
+    upstream = DerivationRef(
+        target_kind=DerivationTargetKind.MATERIAL_FILE,
+        target_id="material/exp1.csv",
+        content_sha256=SOURCE_HASH,
+    )
+    table_upstream = DerivationRef(
+        target_kind=DerivationTargetKind.MATERIAL_FILE,
+        target_id="material/exp1.csv",
+        content_sha256=SOURCE_HASH,
+    )
+
+    with pytest.raises(ReportManifestRefusedError, match="could not be built from these facts"):
+        build_report_manifest(
+            document=document,
+            document_relative_path="output/task-1/report/v1/report.json",
+            upstreams={
+                document.figures[0].figure_id: (upstream, upstream),
+                document.tables[0].table_id: (table_upstream,),
+            },
+        )
