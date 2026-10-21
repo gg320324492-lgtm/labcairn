@@ -38,7 +38,7 @@ import subprocess
 import sys
 import time
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, Final
 from xml.etree import ElementTree
@@ -77,11 +77,13 @@ from labcairn.reports.render import (
     INTERPRETATION_MARKER,
     REPRODUCIBILITY_NOTICE,
     PdfTextRefusedError,
+    ReportRenderError,
     escape_markdown,
     render_docx,
     render_html,
     render_markdown,
     render_pdf,
+    resolve,
 )
 from labcairn.reports.render.markdown import MARKDOWN_ESCAPE_TABLE
 from labcairn.sources.locators import ComputationLocator, PdfLocator
@@ -135,6 +137,31 @@ MARKDOWN_HOSTILE: tuple[str, ...] = (
 #: — and inside the code page this machine's console writes, so a failure
 #: message that quotes it can still be read.
 UNENCODABLE: str = "Ж"
+
+#: The ways a text value can try to open an indented code block.
+#:
+#: A code block is opened by four spaces or a tab at the start of a line,
+#: and only where a **blank line** comes before it: an indented line that
+#: follows a paragraph is a continuation of that paragraph and cannot open
+#: anything. So the attack is a blank line and then an indent, and the
+#: indent is measured from the start of the *file* — which is why a claim,
+#: written as a bullet, needs two more spaces than a paragraph does.
+#:
+#: The first entry is the shape the review found: a caption that carries a
+#: blank line and four spaces. The rest are the same attack in the other
+#: places a text value reaches the file, and with the other indent the
+#: writer produces.
+CODE_BLOCK_ATTACKS: Final[tuple[tuple[str, str], ...]] = (
+    ("caption", "Mean yield across the five measured runs.\n\n    indented by four spaces"),
+    ("caption", "Mean yield across the five measured runs.\n\n\tindented by a tab"),
+    ("interpretation", "The catalyst therefore improves yield.\n\n    indented by four spaces"),
+    ("interpretation", "The catalyst therefore improves yield.\n\n\tindented by a tab"),
+    ("statement", "The material reports a yield of 4.253%.\n\n    indented by four spaces"),
+    ("statement", "The material reports a yield of 4.253%.\n\n      indented by six spaces"),
+    ("narrative", "The dataset contained 120 rows.\n\n    indented by four spaces"),
+    ("title", "A first-pass report\n\n    indented by four spaces"),
+    ("heading", "Findings\n\n    indented by four spaces"),
+)
 
 #: What each escapable character could open, if it were not escaped.
 #:
@@ -445,6 +472,52 @@ def _rendered_markdown(document: ReportDocument) -> str:
     """The Markdown, rendered — the document a reader actually sees."""
     rendered: str = MarkdownIt().render(render_markdown(document).decode("utf-8"))
     return rendered
+
+
+def _markdown_token_types(document: ReportDocument) -> list[str]:
+    """The parser's own tokens, so that a block is seen as a block.
+
+    The rendered HTML is what a reader sees, and a code block shows up
+    there as a ``<pre>``; the tokens say the same thing in the parser's
+    own words, and they say it before anything is rendered.
+    """
+    markdown = render_markdown(document).decode("utf-8")
+    return [token.type for token in MarkdownIt().parse(markdown)]
+
+
+def _an_unresolved_document(
+    *,
+    as_of: datetime,
+    sections: tuple[ReportSection, ...],
+    claims: tuple[ReportClaim, ...] = (),
+    figures: tuple[ReportFigure, ...] = (),
+    tables: tuple[ReportTable, ...] = (),
+    footnotes: tuple[ProvenanceFootnote, ...] = (),
+    unresolved_records: tuple[UnresolvedRecord, ...] = (),
+) -> ReportDocument:
+    """A document assembled **without** the model's own checks.
+
+    The model resolves every id when the document is built, so a document
+    that places something it does not carry cannot be made the usual
+    way — and the renderer's own refusals are for exactly that
+    document. ``model_construct`` is what makes one: it fills the
+    fields and skips the validators, which is the point.
+
+    A renderer that drew such a document would draw an empty space where
+    a finding should be, and nothing in the tree would notice, because
+    the export would be perfectly well formed. So the renderer refuses
+    it **by name** instead, and these tests are how that is watched.
+    """
+    return ReportDocument.model_construct(
+        title="A first-pass report",
+        snapshot=LedgerSnapshot(as_of=as_of, record_ids=()),
+        sections=sections,
+        claims=claims,
+        figures=figures,
+        tables=tables,
+        footnotes=footnotes,
+        unresolved_records=unresolved_records,
+    )
 
 
 def _structural_tags(html: str) -> list[str]:
@@ -842,6 +915,97 @@ def test_a_narrative_that_starts_with_four_spaces_is_not_a_code_block(
     assert "four spaces then prose" in _normalise(_read_markdown(markdown.encode("utf-8")))
 
 
+@pytest.mark.integration
+def test_no_text_value_can_open_an_indented_code_block(frozen_now: datetime) -> None:
+    """No text value, in any of the places the writer puts one.
+
+    The escape table covers the punctuation that can open a span or a
+    block, and **whitespace is not punctuation**: CommonMark opens an
+    indented code block with four spaces or a tab at the start of a line,
+    and only where a blank line comes before it. A text value that carries
+    a line break therefore carries a line of its own into the file, and
+    the writer's prefix — "Figure 1. ", "- " — protects only the **first**
+    line of the value, not the ones after it.
+
+    So the attack is a blank line and then an indent, and it is tried in
+    every place a text value reaches the file: the caption, the
+    interpretation, the claim's own words, the narrative, the title and
+    the heading. The claim is written as a bullet, so its indent is
+    measured from the bullet and two more spaces are needed; the attack
+    carries six.
+
+    The property is the **reader's**: the Markdown is parsed back, and the
+    parsed document holds no code block. A writer that escaped the
+    punctuation and left the whitespace alone would pass a test that only
+    looked at the table.
+    """
+    baseline = _structural_tags(_rendered_markdown(_document(as_of=frozen_now)))
+
+    for field, attack in CODE_BLOCK_ATTACKS:
+        overrides: dict[str, Any] = {field: attack}
+        document = _document(as_of=frozen_now, **overrides)
+        rendered = _rendered_markdown(document)
+
+        assert "code_block" not in _markdown_token_types(document), (
+            f"the {field} opened a code block"
+        )
+        assert "<pre>" not in rendered, f"the {field} opened a code block"
+        assert _structural_tags(rendered) == baseline, (
+            f"the {field} opened structure the report does not otherwise hold"
+        )
+
+
+@pytest.mark.unit
+def test_a_caption_with_a_blank_line_and_an_indent_is_not_a_code_block(
+    frozen_now: datetime,
+) -> None:
+    """The caption is a caption, and its own line break does not change that.
+
+    A caption is the author's words, and the writer prefixes the **first**
+    line of it with "Figure 1. ". A caption that carries a blank line and
+    four spaces therefore puts four spaces at the start of a line of the
+    file, with a blank line before it — which is exactly what CommonMark
+    reads as a code block. The reader would be shown the caption as code.
+
+    The indent is written as a character reference instead, so the reader
+    sees the same spaces and the caption stays a caption.
+    """
+    document = _document(
+        as_of=frozen_now,
+        caption="Mean yield across the five measured runs.\n\n    indented by four spaces",
+    )
+    markdown = render_markdown(document).decode("utf-8")
+
+    assert "&#32;&#32;&#32;&#32;indented by four spaces" in markdown
+    assert "code_block" not in _markdown_token_types(document)
+    assert "<pre>" not in _rendered_markdown(document)
+    assert "indented by four spaces" in _normalise(_read_markdown(markdown.encode("utf-8")))
+
+
+@pytest.mark.unit
+def test_an_interpretation_with_a_blank_line_and_an_indent_is_not_a_code_block(
+    frozen_now: datetime,
+) -> None:
+    """And the interpretation is an interpretation.
+
+    An interpretation is written at the start of a line, and its leading
+    indent was protected — but only the **leading** one. An interpretation
+    that carries a blank line and an indent puts an indented line at the
+    start of a later line of the file, and the reader would be shown the
+    reading as code.
+    """
+    document = _document(
+        as_of=frozen_now,
+        interpretation="The catalyst therefore improves yield.\n\n    indented by four spaces",
+    )
+    markdown = render_markdown(document).decode("utf-8")
+
+    assert "&#32;&#32;&#32;&#32;indented by four spaces" in markdown
+    assert "code_block" not in _markdown_token_types(document)
+    assert "<pre>" not in _rendered_markdown(document)
+    assert "indented by four spaces" in _normalise(_read_markdown(markdown.encode("utf-8")))
+
+
 @pytest.mark.unit
 def test_the_markdown_does_not_escape_a_number() -> None:
     """The number is the ledger's, spelled the ledger's way.
@@ -1062,6 +1226,48 @@ def test_the_docx_does_not_claim_python_docx_wrote_it(document: ReportDocument) 
 
     assert "<dc:creator>LabCairn</dc:creator>" in core
     assert "python-docx" not in core
+
+
+@pytest.mark.unit
+def test_the_docx_records_the_moment_the_report_is_a_view_of_in_utc(
+    frozen_now: datetime,
+) -> None:
+    """The dates are the moment, and they are in UTC.
+
+    python-docx writes the creation and modification dates with
+    ``strftime('%Y-%m-%dT%H:%M:%SZ')`` — the wall-clock time of whatever
+    datetime it is given, with a ``Z`` bolted on. The offset is *dropped*,
+    not applied, so a moment that is aware and not in UTC would be written
+    as its **local** time and would be hours wrong: ``12:00+08:00`` would
+    be recorded as ``12:00Z``, which is eight hours after the fact.
+
+    The moment is therefore converted to UTC before it is written, and the
+    ``Z`` is then true. The moment used here is deliberately **not** in
+    UTC, so that a writer that did not convert could not pass: the local
+    time and the UTC time are eight hours apart, and only one of them is
+    the right answer.
+
+    The package is read back with the standard library — ``zipfile`` and
+    ``ElementTree`` — because the reader must not be the writer.
+    """
+    moment = datetime(2026, 1, 1, 12, 0, tzinfo=timezone(timedelta(hours=8)))
+    document = _document(as_of=moment)
+
+    with zipfile.ZipFile(io.BytesIO(render_docx(document))) as archive:
+        core = archive.read("docProps/core.xml").decode("utf-8")
+
+    root = ElementTree.fromstring(core)
+    created = root.find("{http://purl.org/dc/terms/}created")
+    modified = root.find("{http://purl.org/dc/terms/}modified")
+    assert created is not None
+    assert modified is not None
+
+    assert created.text == "2026-01-01T04:00:00Z", (
+        "the creation date is the moment in UTC: 12:00+08:00 is 04:00Z, and "
+        "writing the local time under a Z would be eight hours wrong"
+    )
+    assert modified.text == "2026-01-01T04:00:00Z"
+    assert "2026-01-01T12:00:00Z" not in core
 
 
 @pytest.mark.unit
@@ -1394,3 +1600,176 @@ def test_the_render_package_exports_one_spelling_of_each_word() -> None:
     assert render.INTERPRETATION_MARKER is INTERPRETATION_MARKER
     assert render.FIRST_PASS_NOTICE is FIRST_PASS_NOTICE
     assert render.REPRODUCIBILITY_NOTICE is REPRODUCIBILITY_NOTICE
+
+
+# ---------------------------------------------------------------------------
+# The renderer's own refusals
+# ---------------------------------------------------------------------------
+#
+# The model resolves every id when it is built, so a document that places
+# something it does not carry cannot be made the usual way. The renderer
+# refuses such a document by name anyway, and these are the tests that
+# watch it: a renderer that drew one would draw an empty space where a
+# finding should be, and nothing would notice, because the export would
+# be perfectly well formed.
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "block",
+    [
+        ClaimBlock(claim_id="clm-missing"),
+        FigureBlock(figure_id="fig-missing"),
+        TableBlock(table_id="tab-missing"),
+        UnresolvedBlock(record_id="rec-missing"),
+    ],
+)
+def test_the_renderer_refuses_a_block_the_report_does_not_carry(
+    frozen_now: datetime, block: Any
+) -> None:
+    """A block that names something the report does not carry is refused.
+
+    Each kind of block names its thing by id, and the ids are resolved
+    by the model when the document is built. A document that slipped
+    past that would leave the renderer with nothing to draw, and a
+    renderer that drew an empty space would be indistinguishable from a
+    renderer that had nothing to say.
+    """
+    document = _an_unresolved_document(
+        as_of=frozen_now,
+        sections=(ReportSection(section_id="sec-1", heading="Findings", blocks=(block,)),),
+    )
+
+    with pytest.raises(ReportRenderError, match="the report does not carry"):
+        resolve(document)
+
+
+@pytest.mark.unit
+def test_the_renderer_refuses_a_citation_the_report_does_not_carry(
+    frozen_now: datetime,
+) -> None:
+    """A claim that cites a citation the report does not carry is refused.
+
+    A claim's citation ids are resolved by the model as well. A claim
+    that survived without one would be drawn with no address, and a
+    reader would be shown a finding they could not check.
+    """
+    record = LedgerRecordView(
+        record_id="rec-1",
+        record_kind=EvidenceKind.NUMERIC,
+        value=LEDGER_VALUE,
+        unit="%",
+        status=VerificationStatus.VERIFIED_BY_RULE,
+        anchor_ids=("anc-1",),
+        source_content_hash=SOURCE_HASH,
+    )
+    document = _an_unresolved_document(
+        as_of=frozen_now,
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(ClaimBlock(claim_id="clm-1"),),
+            ),
+        ),
+        claims=(
+            ReportClaim(
+                claim_id="clm-1",
+                record=record,
+                footnote_ids=("fn-missing",),
+            ),
+        ),
+    )
+
+    with pytest.raises(ReportRenderError, match="cites the footnote"):
+        resolve(document)
+
+
+@pytest.mark.unit
+def test_the_renderer_refuses_a_block_of_an_unknown_kind(frozen_now: datetime) -> None:
+    """A block the model does not declare is refused, not drawn.
+
+    The model declares the kinds of block there are, and the renderer
+    dispatches on the block's class. A block of a kind the model does
+    not declare is a document this tree's model did not build.
+    """
+    section = ReportSection.model_construct(
+        section_id="sec-1",
+        heading="Findings",
+        blocks=("not a block at all",),
+    )
+    document = _an_unresolved_document(as_of=frozen_now, sections=(section,))
+
+    with pytest.raises(ReportRenderError, match="unknown kind"):
+        resolve(document)
+
+
+@pytest.mark.unit
+def test_the_renderer_refuses_a_record_with_nothing_to_draw(frozen_now: datetime) -> None:
+    """A record with neither a statement nor a quantity is refused.
+
+    A numeric record carries a value and a declared unit, and a claim
+    record carries a sentence. One with neither is a record with nothing
+    in it, and there is nothing to draw.
+    """
+    record = LedgerRecordView.model_construct(
+        record_id="rec-1",
+        record_kind=EvidenceKind.NUMERIC,
+        text=None,
+        value=None,
+        unit=None,
+        status=VerificationStatus.VERIFIED_BY_RULE,
+    )
+    document = _an_unresolved_document(
+        as_of=frozen_now,
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(ClaimBlock(claim_id="clm-1"),),
+            ),
+        ),
+        claims=(
+            ReportClaim.model_construct(
+                claim_id="clm-1",
+                record=record,
+                footnote_ids=(),
+            ),
+        ),
+    )
+
+    with pytest.raises(ReportRenderError, match="neither a statement nor a quantity"):
+        render_markdown(document)
+
+
+@pytest.mark.unit
+def test_the_docx_exporter_refuses_clearly_when_python_docx_is_missing(
+    monkeypatch: pytest.MonkeyPatch, document: ReportDocument
+) -> None:
+    """A missing dependency is a named refusal, not an ImportError.
+
+    The dependency is declared, so this is not a state the product should
+    ever be in — but a writer that lets a raw ``ImportError`` out is a
+    writer that answers a different question than the one the caller
+    asked, and the caller would have to know which of the two it got.
+    """
+    monkeypatch.setitem(sys.modules, "docx", None)
+
+    with pytest.raises(RuntimeError, match="python-docx is required"):
+        render_docx(document)
+
+
+@pytest.mark.unit
+def test_the_pdf_exporter_refuses_clearly_when_reportlab_is_missing(
+    monkeypatch: pytest.MonkeyPatch, document: ReportDocument
+) -> None:
+    """And the same for the PDF form.
+
+    The library is imported lazily so that a report exported only as
+    Markdown does not pay for it, which means the import is inside the
+    function — and so means the refusal has to be there too.
+    """
+    monkeypatch.setitem(sys.modules, "reportlab.lib.styles", None)
+
+    with pytest.raises(RuntimeError, match="reportlab is required"):
+        render_pdf(document)

@@ -64,11 +64,21 @@ model rather than one they have to take on trust.
 
 **3. Each part's lineage names its upstream.** A figure names the
 reproducibility manifest that describes it; a table names what produced it;
-the document names the parts. The links are
+the document names the parts **and the sources the report's claims were
+read from**. The links are
 :class:`~labcairn.reports.receipt.DerivationRef` objects rather than a new
 type, because that model already carries the rule this manifest needs: a
 link to an artefact or a material file **must** carry a hash, because a chain
 link with no hash is a link nothing can invalidate.
+
+**The document's own material is named here, and not left to the caller.**
+The parts of a report say what produced them, and that is how the material
+reached the chain — but a report with **no parts** says nothing at all about
+what it rests on, and the staleness walk is one hop: a receipt is marked only
+when its own ``derived_from`` names the changed hash. A report whose chain
+named nothing but its own files could therefore never be marked stale, and
+nothing would have noticed. The material is read out of the document's own
+citations, so it is named whether the report has parts or not.
 
 **4. The manifest is a document with canonical bytes of its own**, so it can
 be hashed, and so a receipt's hash has something to point at.
@@ -277,12 +287,18 @@ class ReportManifest(LabCairnModel):
         }
         named: dict[str, str | None] = {}
         for link in document_part.lineage:
+            if link.target_kind is DerivationTargetKind.SOURCE:
+                # A source is not a part. The document's lineage names the
+                # parts of the report **and** the sources the report rests
+                # on, and the two are told apart by their kind.
+                continue
             if link.target_kind is not DerivationTargetKind.MATERIAL_FILE:
                 raise ValueError(
                     f"the document names {link.target_id!r}, which is a "
                     f"{link.target_kind.value!r}. The document names the parts of "
-                    "the report and nothing else, and a part is a file with bytes "
-                    "in it."
+                    "the report and the sources it rests on, and nothing else: a "
+                    "part is a file with bytes in it, and a source is a file the "
+                    "report was read from."
                 )
             previous = named.get(link.target_id)
             if previous is not None and previous != link.content_sha256:
@@ -394,6 +410,14 @@ def build_report_manifest(
     digest is the digest of that document's canonical bytes. Nothing here is
     assembled beside the report.
 
+    **The document part names the report's parts and the report's material.**
+    The parts are the files the report includes; the material is the sources
+    its claims were read from, and it is read out of the document's own
+    citations — see :func:`_the_material`. It is named here rather than left
+    to the caller because the report's chain is what the staleness walk reads,
+    and a report that named nothing but its own files could never be marked
+    stale when the material moved.
+
     :param document: the report the manifest describes.
     :param document_relative_path: where the report's **canonical document
         bytes** are written — workspace-relative and canonical. The rendered
@@ -410,7 +434,8 @@ def build_report_manifest(
         links supplied for a figure are added after it.
     :raises ReportManifestRefusedError: when a part is named twice, when a
         table names no upstream, when an upstream names a part the report does
-        not carry, or when the manifest would contradict itself.
+        not carry, when two claims cite one source with different bytes, or
+        when the manifest would contradict itself.
     """
     supplied: Mapping[str, tuple[DerivationRef, ...]] = upstreams or {}
 
@@ -444,6 +469,8 @@ def build_report_manifest(
             "what computed it; a manifest that records a table with no upstream "
             "cannot say whether the table is still the one the report used."
         )
+
+    material = _the_material(document)
 
     try:
         figure_parts = tuple(
@@ -480,13 +507,16 @@ def build_report_manifest(
             part_kind=ManifestPartKind.DOCUMENT,
             relative_path=document_relative_path,
             content_sha256=report_sha256,
-            lineage=tuple(
-                DerivationRef(
-                    target_kind=DerivationTargetKind.MATERIAL_FILE,
-                    target_id=part.relative_path,
-                    content_sha256=part.content_sha256,
-                )
-                for part in other_parts
+            lineage=(
+                *(
+                    DerivationRef(
+                        target_kind=DerivationTargetKind.MATERIAL_FILE,
+                        target_id=part.relative_path,
+                        content_sha256=part.content_sha256,
+                    )
+                    for part in other_parts
+                ),
+                *material,
             ),
         )
 
@@ -499,6 +529,66 @@ def build_report_manifest(
             "it -- it is a document whose parts disagree, and a reader would have "
             "no way to tell which part to believe."
         ) from error
+
+
+def _the_material(document: ReportDocument) -> tuple[DerivationRef, ...]:
+    """The sources the report's claims were read from, one link each.
+
+    **The report's own material.** The *parts* of a report name their own
+    upstream — a table names what computed it, a figure names its
+    reproducibility manifest — and that is how the material used to reach
+    the chain. A report with **no parts** therefore named nothing but its
+    own files, and the staleness walk is one hop: a receipt is marked only
+    when its *own* ``derived_from`` names the changed hash. Such a report
+    could never be marked stale, and nothing would have noticed.
+
+    So the material is read out of the document itself. A claim rests on
+    the bytes its citation names, and those bytes are the source's: one
+    link per source, carrying the hash the claim was read from, so that
+    the walk has something to match.
+
+    The kind is ``source`` and not ``material_file`` because the link
+    points at a source the ledger holds — a file with a row of its own —
+    and because the two kinds are told apart in the document's lineage:
+    the parts are the files the report includes, and the sources are the
+    files the report was read from.
+
+    :raises ReportManifestRefusedError: when two claims cite the same
+        source with different bytes. That is one source under two
+        versions, and the chain would name it twice with two hashes — the
+        walk would then mark the report for one of them and leave it
+        current for the other.
+    """
+    footnotes = {footnote.footnote_id: footnote for footnote in document.footnotes}
+    material: dict[str, str] = {}
+    for claim in document.claims:
+        for footnote_id in claim.footnote_ids:
+            footnote = footnotes.get(footnote_id)
+            if footnote is None:
+                # The model refuses a claim that cites a citation the
+                # report does not carry, so a document that reaches here
+                # has one. Skipping it keeps this a reader of the
+                # document rather than a second validator of it.
+                continue
+            previous = material.get(footnote.source_id)
+            if previous is not None and previous != footnote.content_sha256:
+                raise ReportManifestRefusedError(
+                    f"the report cites the source {footnote.source_id!r} twice, with "
+                    f"different bytes: one reading of it hashes to {previous!r} and "
+                    f"another to {footnote.content_sha256!r}. One source is one "
+                    "dependency, and a chain that named it under two hashes would "
+                    "mark the report for one of them and leave it current for the "
+                    "other."
+                )
+            material[footnote.source_id] = footnote.content_sha256
+    return tuple(
+        DerivationRef(
+            target_kind=DerivationTargetKind.SOURCE,
+            target_id=source_id,
+            content_sha256=digest,
+        )
+        for source_id, digest in sorted(material.items())
+    )
 
 
 def write_report_manifest(

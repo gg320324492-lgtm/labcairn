@@ -21,6 +21,12 @@ statement about who produced it, and ADR-0013's constraint 6 requires the
 author, the title and the description to be set explicitly. The creation
 and modification dates are set to the moment the report is a view of,
 which is a value the model holds — the alternative was a report dated 2013.
+**The moment is converted to UTC first**, because the format python-docx
+writes is a UTC one and it does not apply the offset: it writes
+``strftime('%Y-%m-%dT%H:%M:%SZ')``, which is the wall-clock time of
+whatever it is given with a ``Z`` bolted on. A moment that is aware and
+not in UTC would therefore be written as its **local** time, and the
+``Z`` would be hours wrong.
 
 **The bytes are not reproducible, and the exporter does not pretend
 otherwise.** A DOCX is a ZIP, and every one of its seventeen entries
@@ -41,6 +47,7 @@ precedes the module that shares its name.
 from __future__ import annotations
 
 import io
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from labcairn.reports.model import BlockKind, ReportDocument
@@ -65,11 +72,14 @@ def render_docx(document: ReportDocument) -> bytes:
 
     :param document: the report's model, frozen at one moment.
     :returns: the DOCX's bytes. They are **not** byte-reproducible: a DOCX
-        is a ZIP and its entries carry the time the file was written.
+        is a ZIP and its entries carry the time the file was written. The
+        **document's** dates are the moment the report is a view of, in
+        UTC — see :func:`_in_utc` for why the conversion is the writer's
+        business and not the reader's.
     """
     try:
         import docx
-    except ImportError as exc:  # pragma: no cover - the dependency is declared
+    except ImportError as exc:
         raise RuntimeError(
             "python-docx is required to write a DOCX; it is a declared dependency"
         ) from exc
@@ -85,8 +95,8 @@ def render_docx(document: ReportDocument) -> bytes:
     # about who produced the report, so it is replaced by the limit the
     # report states on its own face.
     core.comments = FIRST_PASS_NOTICE
-    core.created = report.as_of
-    core.modified = report.as_of
+    core.created = _in_utc(report.as_of)
+    core.modified = _in_utc(report.as_of)
 
     word.add_heading(report.title, level=0)
     word.add_paragraph(FIRST_PASS_NOTICE)
@@ -114,6 +124,23 @@ def render_docx(document: ReportDocument) -> bytes:
     buffer = io.BytesIO()
     word.save(buffer)
     return buffer.getvalue()
+
+
+def _in_utc(moment: datetime) -> datetime:
+    """The moment in UTC, because the format the DOCX uses is a UTC one.
+
+    python-docx writes the creation and modification dates with
+    ``strftime('%Y-%m-%dT%H:%M:%SZ')``: the wall-clock time of whatever
+    datetime it is given, with a ``Z`` bolted on. The offset is **dropped**,
+    not applied, so a moment that is aware and not in UTC would be written
+    as its local time and the ``Z`` would be hours wrong — ``12:00+08:00``
+    recorded as ``12:00Z`` is eight hours after the fact.
+
+    The moment is converted to UTC first, and the ``Z`` is then true. The
+    model's moment is always aware, so the conversion is a conversion and
+    not a guess.
+    """
+    return moment.astimezone(UTC)
 
 
 def _add_item(word: Document, item: ReportItem) -> None:

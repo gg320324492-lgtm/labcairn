@@ -114,7 +114,7 @@ def render_pdf(document: ReportDocument) -> bytes:
     try:
         from reportlab.lib.styles import getSampleStyleSheet
         from reportlab.platypus import SimpleDocTemplate
-    except ImportError as exc:  # pragma: no cover - the dependency is declared
+    except ImportError as exc:
         raise RuntimeError(
             "reportlab is required to write a PDF; it is a declared dependency"
         ) from exc
