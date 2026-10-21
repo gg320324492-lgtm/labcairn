@@ -107,7 +107,7 @@ The research workflow behind these commands is still under construction, and mos
 uv run labcairn --help
 ```
 
-The eight commands the Phase 1 work order names, and what each can do today:
+The commands, and what each can do today:
 
 | Command | What it does | State today |
 |---|---|---|
@@ -119,6 +119,7 @@ The eight commands the Phase 1 work order names, and what each can do today:
 | `labcairn task status` | Reports the task's state: its runs, stages, artefacts, approvals and event cursor; `--plan` reports the declared workflow instead | works |
 | `labcairn sources inspect` | Reports one source as the ledger holds it | needs a material that is already in the ledger — the application layer has no ingestion operation yet, so no command can put one there |
 | `labcairn artifacts list` | Lists the receipts a task has produced | works |
+| `labcairn serve` | Starts the local API service on `127.0.0.1:8000` and serves the workspace's current task; it binds loopback only, mints its own session token and writes it to the workspace rather than printing it | works, and the event stream and the stage bodies are refused by the layer until the packages that own them are wired in |
 
 **Every command has a machine-readable form.** `--json` prints the same model the rendered output draws, byte for byte, so a script depends on the JSON and not on the prose. The two commands that report on a workspace rather than on a task — `init` and `doctor` — carry their own models, because the application layer has no operation that reports a workspace.
 
