@@ -82,20 +82,14 @@ layer, and the event stream reads through a port the host supplies — see
 
 from __future__ import annotations
 
-from labcairn.api.app import (
-    contract_app,
-    create_app,
-    refusal_response,
-    serve,
-)
+from typing import TYPE_CHECKING
+
 from labcairn.api.bind import (
     DEFAULT_BIND_HOST,
     DEFAULT_BIND_PORT,
     BindRefusedError,
     ensure_loopback,
 )
-from labcairn.api.contracts import RefusalBody
-from labcairn.api.events import EventSource, UnwiredEventSource
 from labcairn.api.guards import (
     GuardRefusal,
     GuardRefusedError,
@@ -103,6 +97,11 @@ from labcairn.api.guards import (
     SessionGuard,
 )
 from labcairn.api.session import SessionToken, mint_token, write_token_file
+
+if TYPE_CHECKING:
+    from labcairn.api.app import contract_app, create_app, refusal_response, serve
+    from labcairn.api.contracts import RefusalBody
+    from labcairn.api.events import EventSource, UnwiredEventSource
 
 __all__ = [
     "DEFAULT_BIND_HOST",
@@ -124,3 +123,45 @@ __all__ = [
     "serve",
     "write_token_file",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """The service's own machinery, imported on first use.
+
+    :mod:`labcairn.api.app` imports FastAPI and the application layer, and
+    :mod:`labcairn.api.contracts` and :mod:`labcairn.api.events` import the
+    layer's models. **The bind address is cheap and the service is not**, and
+    the CLI has to name one without paying for the other: the command line's
+    own import is deferred, and the command that starts the service is the
+    one that loads the service. So the package imports the cheap half
+    eagerly and defers the half that would drag the layer in.
+    """
+    if name in ("contract_app", "create_app", "refusal_response", "serve"):
+        from labcairn.api import app
+
+        return getattr(app, name)
+    if name == "RefusalBody":
+        from labcairn.api.contracts import RefusalBody
+
+        return RefusalBody
+    if name in ("EventSource", "UnwiredEventSource"):
+        from labcairn.api import events
+
+        return getattr(events, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    """The deferred symbols in the listing, so ``dir()`` is not a lie."""
+    return sorted(
+        [
+            *globals(),
+            "contract_app",
+            "create_app",
+            "refusal_response",
+            "serve",
+            "RefusalBody",
+            "EventSource",
+            "UnwiredEventSource",
+        ]
+    )
