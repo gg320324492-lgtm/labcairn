@@ -1510,6 +1510,23 @@ def _is_type_checking(test: ast.expr) -> bool:
     return isinstance(test, ast.Name) and test.id == "TYPE_CHECKING"
 
 
+def _the_module_level_imports(tree: ast.Module) -> list[str]:
+    """The modules the module imports at module level.
+
+    The names under ``TYPE_CHECKING`` are left out: they are for mypy, and
+    the interpreter never evaluates them.
+    """
+    imported: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.If) and _is_type_checking(node.test):
+            continue
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+    return imported
+
+
 def test_the_cli_module_names_no_layer_module_at_module_level(repo_root: Path) -> None:
     """``cli/commands.py``'s module-level imports name no layer module.
 
@@ -1527,14 +1544,7 @@ def test_the_cli_module_names_no_layer_module_at_module_level(repo_root: Path) -
     """
     path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    imported: list[str] = []
-    for node in tree.body:
-        if isinstance(node, ast.If) and _is_type_checking(node.test):
-            continue
-        if isinstance(node, ast.Import):
-            imported.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.append(node.module)
+    imported = _the_module_level_imports(tree)
 
     layer = [
         name
@@ -1552,6 +1562,91 @@ def test_the_cli_module_names_no_layer_module_at_module_level(repo_root: Path) -
         "The docstring says the bind module is the only one, so a second one has "
         "to be argued for and the docstring has to be told about it."
     )
+
+
+#: A project path in the docstring: a dotted name under the package.
+_PROJECT_NAME = re.compile(r"\blabcairn(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b")
+
+#: A module reference in the docstring: Sphinx's ``:mod:`` role.
+_MODULE_ROLE = re.compile(r":mod:`~?([^`]+)`")
+
+
+def _is_a_module_of_the_project(repo_root: Path, name: str) -> bool:
+    """Whether *name* names a module of this project.
+
+    Resolved against the source tree, because that is what decides it: a
+    module is a path under ``src/`` with a ``.py`` beside it or a package
+    directory, and a class or a function is not one.
+    ``labcairn.application.ApplicationRefusedError`` is a class, and the
+    module that holds it is not thereby named.
+    """
+    source = repo_root / "src" / Path(*name.split("."))
+    return source.with_suffix(".py").is_file() or (source / "__init__.py").is_file()
+
+
+def _the_modules_the_docstring_names(repo_root: Path, docstring: str) -> set[str]:
+    """The project modules the docstring names.
+
+    A mention names a module when the project has a module by that name,
+    or when the docstring says it is one: ``:mod:`labcairn.api.bind`` is a
+    module whatever the source tree says of it, and
+    ``:class:`~labcairn.application.ApplicationRefusedError`` is a class, so
+    the module that holds it is not thereby named.
+    """
+    named = {
+        name
+        for name in _PROJECT_NAME.findall(docstring)
+        if _is_a_module_of_the_project(repo_root, name)
+    }
+    named.update(
+        role.lstrip("~")
+        for role in _MODULE_ROLE.findall(docstring)
+        if role.lstrip("~").startswith("labcairn.")
+    )
+    return named
+
+
+def test_the_cli_module_docstring_and_its_imports_agree(repo_root: Path) -> None:
+    """The docstring says which modules the module imports, and it is right.
+
+    **A docstring that says what the module imports is a claim, and a claim
+    somebody checks is a claim that can be wrong.** The module's own
+    docstring says that the layer is not loaded and which one project
+    module is named at module level, and a sentence that denies a thing the
+    module does is worse than no sentence: a reader believes it, and this
+    one was read as a fact about the imports.
+
+    The two are compared, **in both directions**:
+
+    * **every module imported at module level is named in the docstring**,
+      so the import cannot come back, or a second one be added, without the
+      docstring being told; and
+    * **every module the docstring names is imported at module level**, so
+      a stale name in the prose is caught too.
+
+    A mention of a class is not a mention of a module: the docstring names
+    ``labcairn.application.ApplicationRefusedError``, and the module that
+    holds it is not thereby named as an import.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstring = ast.get_docstring(tree) or ""
+
+    imported = {name for name in _the_module_level_imports(tree) if name.startswith("labcairn.")}
+    claimed = _the_modules_the_docstring_names(repo_root, docstring)
+
+    for module in sorted(imported):
+        assert any(name == module or module.startswith(f"{name}.") for name in claimed), (
+            f"the module imports {module} at module level and the docstring names "
+            f"none of it: the docstring names {sorted(claimed)}. A docstring that "
+            "says what the module imports has to be told when the imports change."
+        )
+    for name in sorted(claimed):
+        assert any(module == name or module.startswith(f"{name}.") for module in imported), (
+            f"the docstring names {name} and the module does not import it at "
+            f"module level: it imports {sorted(imported)}. A name the module does "
+            "not import is a name a reader will take for a fact."
+        )
 
 
 def test_loading_the_cli_costs_less_than_the_budget() -> None:
