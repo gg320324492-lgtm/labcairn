@@ -88,10 +88,10 @@ def test_the_walk_finds_every_file_under_the_source_root(
     report = ingest_workspace(session, material, ingested_at=NOW)
     keys = {o.material.source.relative_path for o in report.outcomes}
     assert keys == {
-        "papers/a.pdf",
-        "notes.md",
-        "data.csv",
-        "archive.zip",
+        "sources/papers/a.pdf",
+        "sources/notes.md",
+        "sources/data.csv",
+        "sources/archive.zip",
     }
     assert report.failures == ()
 
@@ -102,7 +102,9 @@ def test_a_format_with_no_adapter_is_inventoried_not_skipped(
     """A ``.zip`` is a fact about the workspace, not an omission."""
     report = ingest_workspace(session, material, ingested_at=NOW)
     assert "archive.zip" in report.skipped
-    zipped = next(o for o in report.outcomes if o.material.source.relative_path == "archive.zip")
+    zipped = next(
+        o for o in report.outcomes if o.material.source.relative_path == "sources/archive.zip"
+    )
     assert zipped.material.source.kind.value == "other"
     assert zipped.material.source.content_sha256  # hashed
     assert zipped.text_rows_written == 0  # nothing extracted
@@ -150,7 +152,7 @@ def test_the_walk_reads_what_an_allowing_policy_permits(
     )
     ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
     report = ingest_workspace(session, SourceMaterial(ws, _allowing_policy()), ingested_at=NOW)
-    assert "public/ok.md" in {o.material.source.relative_path for o in report.outcomes}
+    assert "sources/public/ok.md" in {o.material.source.relative_path for o in report.outcomes}
 
 
 def test_a_failing_file_does_not_stop_the_walk_and_leaves_the_rest_stored(
@@ -198,14 +200,16 @@ def test_a_failing_file_does_not_stop_the_walk_and_leaves_the_rest_stored(
 
     assert [key for key, _ in report.failures] == ["boom.md"]
     ingested = sorted(o.material.source.relative_path for o in report.outcomes)
-    assert ingested == ["a.md", "z.md"]
+    assert ingested == ["sources/a.md", "sources/z.md"]
 
     # The store is the claim. A report that disagrees with it is a lie the
     # caller cannot see.
     stored = sorted(
         r[0] for r in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
     )
-    assert stored == ["a.md", "z.md"], "the report and the store disagree; one of them is wrong"
+    assert stored == ["sources/a.md", "sources/z.md"], (
+        "the report and the store disagree; one of them is wrong"
+    )
 
 
 def test_a_symlink_into_a_denied_directory_is_not_ingested(
@@ -259,12 +263,12 @@ def test_a_symlink_into_a_denied_directory_is_not_ingested(
     report = ingest_workspace(session, SourceMaterial(ws, policy), ingested_at=NOW)
     ingested = {o.material.source.relative_path for o in report.outcomes}
 
-    assert "public/hop/secret.md" not in ingested, (
+    assert "sources/public/hop/secret.md" not in ingested, (
         "the walk ingested a denied file through a symlink"
     )
     everything = "".join(unit.text for o in report.outcomes for unit in o.material.texts)
     assert "SECRET" not in everything, "denied material reached the store"
-    assert "public/ok.md" in ingested, "the permitted file stopped being ingested too"
+    assert "sources/public/ok.md" in ingested, "the permitted file stopped being ingested too"
 
     # The store is the claim, not the report.
     from sqlalchemy import text as text_sql
@@ -272,7 +276,7 @@ def test_a_symlink_into_a_denied_directory_is_not_ingested(
     stored = [
         r[0] for r in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
     ]
-    assert "public/hop/secret.md" not in stored
+    assert "sources/public/hop/secret.md" not in stored
     rows = [r[0] for r in session.execute(text_sql("SELECT text FROM source_texts")).fetchall()]
     assert not any("SECRET" in row for row in rows), "denied text was persisted"
 
@@ -305,7 +309,11 @@ def test_every_ingested_file_passed_through_the_policy_check(
 
     assert report.outcomes, "the walk ingested nothing, so nothing was checked"
     assert report.failures == (), [m for _, m in report.failures]
-    assert sorted(checked) == sorted(o.material.source.relative_path for o in report.outcomes), (
+    recorded = {o.material.source.relative_path for o in report.outcomes}
+    assert all(path.startswith("sources/") for path in recorded), (
+        f"the recorded path is not workspace-relative: {sorted(recorded)}"
+    )
+    assert sorted(checked) == sorted(path.removeprefix("sources/") for path in recorded), (
         "a file was ingested without passing the policy check first"
     )
 
@@ -413,16 +421,20 @@ def test_an_edited_file_is_re_ingested_under_a_new_hash(
     )
 
 
-def test_two_source_roots_holding_the_same_name_are_documented_as_a_schema_limit(
+def test_two_source_roots_holding_the_same_name_both_ingest(
     tmp_path: pathlib.Path, session: Any
 ) -> None:
-    """Two roots, two ``notes.md``. Documented rather than silently half-done.
+    """Two roots, two ``notes.md``, and both of them in the ledger.
 
     ``sources.relative_path`` is workspace-relative and globally UNIQUE, so
-    the second root's ``notes.md`` cannot be stored alongside the first's --
-    the schema rejects it, not the walk. The walk correctly visits both; the
-    second loses at the store. This test pins that behaviour so the day the
-    UNIQUE becomes ``(root_id, relative_path)`` it will say so.
+    the two files can only live side by side if their paths differ -- and
+    they do, because each root's own place in the workspace is part of the
+    path. While the walk recorded the root-relative key instead, the two
+    roots produced the same string, the second one lost at the store on the
+    UNIQUE constraint, and the material under it was never recorded at all.
+
+    The walk visits both roots and the store holds both rows, so the second
+    root's material is inventoried rather than lost.
     """
     root = tmp_path / "ws6"
     src_a = root / "sources" / "a"
@@ -433,12 +445,21 @@ def test_two_source_roots_holding_the_same_name_are_documented_as_a_schema_limit
     (src_b / "notes.md").write_text("from root b" + chr(10), encoding="utf-8")
     ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(src_a, src_b))
     report = ingest_workspace(session, SourceMaterial(ws, _allowing_policy()), ingested_at=NOW)
-    # The walk visited both; one failed at the store on the UNIQUE path.
-    visited = len(report.outcomes) + len(report.failures)
-    assert visited == 2, f"the walk missed a root entirely: {visited}"
-    assert len(report.outcomes) == 1, (
-        "if both now ingest, sources.relative_path is no longer globally unique -- "
-        "update this test and the schema together"
+
+    assert report.failures == (), [message for _, message in report.failures]
+    assert sorted(o.material.source.relative_path for o in report.outcomes) == [
+        "sources/a/notes.md",
+        "sources/b/notes.md",
+    ]
+
+    # The store is the claim, not the report.
+    from sqlalchemy import text as text_sql
+
+    stored = sorted(
+        r[0] for r in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
+    )
+    assert stored == ["sources/a/notes.md", "sources/b/notes.md"], (
+        "the report and the store disagree; one of them is wrong"
     )
 
 

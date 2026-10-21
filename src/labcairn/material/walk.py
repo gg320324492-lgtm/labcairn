@@ -29,6 +29,19 @@ files already ingested. That is a deliberate choice: a workspace with one
 corrupt PDF should still be inventoried, and the failure is recorded on that
 file rather than stopping the walk.
 
+**The path it records is the workspace-relative one.** ``Source.relative_path``
+is workspace-relative -- where the material is measured from the *workspace*
+root -- and the walk is handed a **root-relative** key. Recording the key as
+it stands puts the row in the wrong root, where the ``source.inventory``
+capability refuses it, and makes two source roots holding a file of the same
+name collide on the ledger's UNIQUE path. The source root's own place in the
+workspace is the prefix that turns one spelling into the other.
+
+The source id is deliberately **not** derived from that prefix: the id is a
+function of the root and the root-relative key, so a material keeps its
+identity across the change, and the text and the hash the ledger already
+recorded against that id stay attached to it.
+
 Materials are inventoried even when no adapter claims their format -- a
 ``.zip`` or a format Phase 1 cannot address is a *recorded fact about the
 workspace*, distinct from a file that was never seen.
@@ -39,10 +52,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import PurePosixPath
 from typing import Any
 
 from labcairn.material.ingest import IngestOutcome, ingest_into_store
+from labcairn.security.paths import AllowedRoot
 from labcairn.workspace.readonly import SourceMaterial
+from labcairn.workspace.roots import Workspace
 
 __all__ = ["WalkReport", "ingest_workspace"]
 
@@ -62,6 +78,9 @@ class WalkReport:
     """What a workspace walk did, per file and in total."""
 
     outcomes: tuple[IngestOutcome, ...] = ()
+    #: Files the walk could not read or store, and why. The key is the
+    #: **root-relative** one the walk was handed, not the workspace-relative
+    #: path the ledger holds: the report names what the walk was given.
     failures: tuple[tuple[str, str], ...] = ()
     #: Files whose format has no adapter: inventoried and hashed, not extracted.
     skipped: tuple[str, ...] = ()
@@ -99,6 +118,11 @@ def ingest_workspace(
 
     for root in material.workspace.source_roots:
         root_id = root.root_id
+        # The ledger's contract is a **workspace-relative** path, and the key
+        # the walk is handed is **root-relative**. Where the root itself sits
+        # in the workspace is what turns one into the other, and it is the
+        # same for every file under that root.
+        prefix = _the_workspace_prefix(material.workspace, root)
         # Per root, not shared. ``list_dir`` returns **root-relative** keys, so
         # two roots each holding ``notes.md`` produce the same string and a
         # shared ``seen`` silently swallowed the second file.
@@ -118,7 +142,7 @@ def ingest_workspace(
                 outcome = ingest_into_store(
                     session,
                     data,
-                    relative_path=key,
+                    relative_path=f"{prefix}/{key}" if prefix else key,
                     display_name=key.rsplit("/", 1)[-1],
                     ingested_at=ingested_at,
                     # Stable across content changes, unlike the
@@ -127,6 +151,12 @@ def ingest_workspace(
                     # *edited* file a permanent IntegrityError, leaving the
                     # recorded hash and text frozen at the first version -- and
                     # ADR-0004 A2's drift detection nothing to detect against.
+                    #
+                    # Derived from the **root-relative** key, and that is not
+                    # an accident: the ids are already recorded in the ledger
+                    # for material ingested before the path was fixed, and an
+                    # id that moved would orphan the text and the hash
+                    # recorded against it.
                     source_id=_stable_source_id(root_id, key),
                 )
             except Exception as exc:
@@ -162,13 +192,17 @@ def _walk(
     string and the shared set silently swallowed one.
 
     Nothing dedups across roots, and this is the accurate statement of it: the
-    only mechanism is ``sources``' UNIQUE constraint on ``relative_path``,
-    which makes the second root's file fail at the store and land in
-    ``failures``. An earlier version of this docstring claimed the workspace
-    had a ``cross_root`` refusal doing the work. It does not -- ``CROSS_ROOT``
-    is a denial reason in ``security/paths.py`` that ``list_dir`` never
-    consults -- and a comment naming a safety net that is not there is worse
-    than no comment, because it is read as one.
+    keys are **root-relative**, so two roots each holding ``notes.md`` produce
+    the same string, and each root is walked under its own ``seen``. An
+    earlier version of this docstring claimed the workspace had a
+    ``cross_root`` refusal doing the work. It does not -- ``CROSS_ROOT`` is a
+    denial reason in ``security/paths.py`` that ``list_dir`` never consults --
+    and a comment naming a safety net that is not there is worse than no
+    comment, because it is read as one.
+
+    The two roots' files are kept apart by the path they are **recorded**
+    under, not by this walk: the ledger's path is workspace-relative, so the
+    same file name under two roots is two different rows.
     """
     if max_files is not None and len(seen) >= max_files:
         return []
@@ -213,9 +247,40 @@ def _stable_source_id(root_id: str, key: str) -> str:
     is edited -- which is what lets ``put_source`` take its refresh branch and
     move the recorded hash. A content-derived id cannot: every edit looks
     like a new file at a path already taken.
+
+    **The key is the root-relative one**, and it stays that way whatever the
+    ledger records the path as. The ids this mints are already written in the
+    ledger for material ingested before the recorded path was made
+    workspace-relative, and the recorded text, the recorded hash and the
+    drift detection that reads them all hang off the id. An id derived from
+    the recorded path would change with it and orphan all three.
     """
     digest = hashlib.sha256(f"{root_id}{chr(0)}{key}".encode()).hexdigest()
     return f"src-{digest[:16]}"
+
+
+def _the_workspace_prefix(workspace: Workspace, root: AllowedRoot) -> str:
+    """Where the source root sits inside the workspace, in the ledger's spelling.
+
+    ``Source.relative_path`` is workspace-relative and the walk is handed a
+    root-relative key, so the root's own place in the workspace is the prefix
+    that turns one into the other. It is the same for every file under the
+    root, so it is computed once per root rather than once per file.
+
+    **Empty when the root *is* the workspace root**, because then the key
+    already is the workspace-relative path and there is nothing to prefix.
+    """
+    try:
+        relative = root.path.relative_to(workspace.selected_root)
+    except ValueError:
+        # A root outside the workspace. ``Workspace.bind`` refuses one, and a
+        # workspace built by hand with one has nothing walkable under it --
+        # the boundary refuses the listing -- so no file is ever named with
+        # this prefix.
+        return ""
+    if not relative.parts:
+        return ""
+    return PurePosixPath(*relative.parts).as_posix()
 
 
 def _is_directory(material: SourceMaterial, key: str, *, root_id: str) -> bool:
