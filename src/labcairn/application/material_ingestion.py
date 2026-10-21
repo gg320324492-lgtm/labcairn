@@ -45,6 +45,18 @@ material's *location*, the extracted text is keyed by its content hash and its
 locator, and a binding that already holds these ids is not a revision, so no
 event is emitted for it either.
 
+**The binding accumulates, and the report says what the task holds.** The
+store's writer sets the binding to what it is handed, so a task that was given
+material and then ingested again would forget what it was given — and the
+operator removing a file from the workspace would take the task's material
+with it. The binding after an operation is therefore the **union** of what
+the task held and what this run ingested, computed here because the decision
+belongs to the operation and not to a setter. The report carries both halves:
+``source_ids`` is what this run ingested, ``bound_source_ids`` is what the
+task holds. They are the same on a first ingestion and differ when the task
+already held material this run did not touch, which is how a caller sees that
+the two are not the same thing.
+
 The one thing this module works around
 -------------------------------------
 
@@ -74,7 +86,7 @@ which root each file came from, and the root's own id is carried over.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -83,6 +95,7 @@ from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import SourceId
+from labcairn.db.repository import load_task
 from labcairn.material.ingest import IngestOutcome
 from labcairn.material.walk import WalkReport, ingest_workspace
 from labcairn.security.capabilities import CapabilityId
@@ -150,6 +163,13 @@ class MaterialIngested(Result):
     ``source_ids`` is what this run ingested. They are the same set on a first
     ingestion and differ when the task already held material this run did not
     touch — the binding is the task's, and the ingestion is this run's.
+
+    **The difference between them is a fact, not an accident.** A report
+    carrying one list for both would say that what the task rests on is what
+    this run read — which stops being true the moment the operator removes a
+    file and the task keeps holding it. Two lists are where a caller sees
+    that, so they are kept apart rather than collapsed into the one the store
+    holds.
 
     The three totals are the separation ADR-0004 A7 asks for, counted from
     ``files``: ``readable`` is material that may be cited, ``empty`` is
@@ -223,10 +243,9 @@ def ingest_material(
     if renames:
         context.store.relocate_sources(renames)
 
-    bound = _bind(
-        context, [outcome.material.source.source_id for outcome in outcomes], moment=moment
-    )
-    return _the_report(outcomes, failures, skipped, bound, renames)
+    ingested = tuple(outcome.material.source.source_id for outcome in outcomes)
+    bound = _bind(context, ingested, moment=moment)
+    return _the_report(outcomes, failures, skipped, ingested, bound, renames)
 
 
 def _one_root_workspace(workspace: Workspace, root: AllowedRoot) -> Workspace:
@@ -319,27 +338,58 @@ def _refuse_a_question(context: ApplicationContext) -> None:
 
 def _bind(
     context: ApplicationContext,
-    source_ids: list[str],
+    ingested: Sequence[str],
     *,
     moment: datetime,
 ) -> tuple[SourceId, ...]:
-    """Bind what was ingested to the task, and return the binding.
+    """Bind what was ingested to the task, and return the binding it now holds.
+
+    **The binding is the union of what the task held and what this run
+    ingested.** The binding is the task's: material it was given is not taken
+    back because the operator removed the file from the workspace, and a task
+    that quietly forgot what it rests on is a task whose report rests on
+    nothing. The store's writer is a setter — it sets the column to what it
+    is handed — so the union is computed here, where the decision belongs, and
+    the store is handed the result.
 
     The binding and the event that describes it commit together, in the
     store's own transaction: a binding nobody was told about is a state
     change with no record, and a task that claims material the ledger does not
     hold is a binding that cannot be honoured.
     """
-    bound = tuple(SourceId(source_id) for source_id in source_ids)
     with store_refusals():
+        held = load_task(context.store.session, context.task_id).bound_source_ids
+        bound = _the_union(held, tuple(SourceId(source_id) for source_id in ingested))
         context.store.bind_sources(context.task_id, bound, occurred_at=moment)
     return bound
+
+
+def _the_union(
+    held: tuple[SourceId, ...],
+    ingested: tuple[SourceId, ...],
+) -> tuple[SourceId, ...]:
+    """What the task holds once this run's material is bound to it.
+
+    The task's own binding first, in the order it bound it, and then what
+    this run brought that it did not already hold. **The order is the
+    task's**, because a binding's order is the order the researcher bound the
+    material in, and a union that reshuffled it would be a revision of a
+    state that did not move — which is what the store would then record.
+    """
+    union = list(held)
+    known = set(held)
+    for source_id in ingested:
+        if source_id not in known:
+            known.add(source_id)
+            union.append(source_id)
+    return tuple(union)
 
 
 def _the_report(
     outcomes: list[IngestOutcome],
     failures: list[tuple[str, str]],
     skipped: list[str],
+    ingested: tuple[str, ...],
     bound: tuple[SourceId, ...],
     renames: Mapping[str, str],
 ) -> MaterialIngested:
@@ -349,6 +399,9 @@ def _the_report(
     so a count cannot disagree with the list it counts. And the source each
     file carries is the one **the ledger holds**: a report that named the
     path the walk happened to use would say something the ledger does not.
+
+    The two id lists are the operation's own two facts, kept apart: what this
+    run read, and what the task now holds.
     """
     files: list[IngestedFile] = []
     for outcome in outcomes:
@@ -370,7 +423,7 @@ def _the_report(
     empty = sum(1 for item in files if item.empty)
     unreadable = len(files) - readable
     return MaterialIngested(
-        source_ids=tuple(str(source_id) for source_id in bound),
+        source_ids=ingested,
         files=tuple(files),
         failures=tuple(
             IngestFailure(relative_path=path, reason=reason) for path, reason in failures
