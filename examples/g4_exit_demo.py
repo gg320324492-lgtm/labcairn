@@ -1234,7 +1234,6 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    lapsed. The service records a grant with its own clock, so the")
     print("    approval it asks for is live by construction, and what the")
     print("    service does with a lapsed one is not something this run showed.")
-    print("  * The demonstration's own controls are not exhaustive. Each")
     print("  * The demonstration's own controls are not exhaustive. Every")
     print("    comparison is run once over something that must answer the other")
     print("    way, which shows that the comparison can fail -- so a comparison")
