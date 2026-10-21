@@ -18,7 +18,10 @@ against a workspace that did not exist a moment ago:
   wrote against the bytes the API serves.
 
 Every step prints what it did and what it proved. A failure raises rather than
-prints a warning, so this exits non-zero if a guard stops working.
+prints a warning, so this exits non-zero if a guard stops working -- and
+``tests/test_smoke_path.py`` runs this demonstration with one claim planted
+false and requires the non-zero exit, so the exit code is witnessed rather
+than promised.
 
 **The report is rendered once.** The layer's ``render_report`` renders it into
 bytes and writes it as a revision; the CLI's ``artifacts list`` names that file
@@ -41,9 +44,10 @@ address itself.
 **Every comparison is shown a difference it must find.** A comparison that
 compares nothing also reports "no differences", so each one is run once over
 something that must answer the other way -- a copy of the document with a
-difference planted in it, a receipt with another reason, a refusal for another
-reason -- and the demonstration insists the comparison finds it. A check that
-cannot fail is not a check.
+difference planted in it, a copy of a revision with a file's bytes altered, a
+receipt with another reason, a refusal for another reason, an address the
+material does not have -- and the demonstration insists the comparison finds
+it. A check that cannot fail is not a check.
 
 Run it::
 
@@ -58,11 +62,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -149,6 +154,11 @@ RECORD_ID: str = "ev-1"
 CLAIM_ROW: int = 2
 CLAIM_COLUMN: str = "value"
 CLAIM_TEXT: str = "1"
+
+#: A row the corpus does not have. The control for the resolution comparison
+#: asks the ledger about an address that is not there, so that the comparison
+#: has to be able to say "no".
+ABSENT_ROW: int = 9999
 
 #: The operator's rules, on top of the ones ``init`` writes.
 #:
@@ -274,6 +284,17 @@ def the_differences(left: Any, right: Any) -> tuple[str, ...]:
     )
 
 
+def the_same_read(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """Whether two reads of the task are the same document.
+
+    The comparison the workbench's re-read makes, and nothing else: the
+    demonstration calls it over the two reads, and calls it again over a copy
+    with a difference planted in it, so that a comparison which compares
+    nothing cannot pass by saying "the same".
+    """
+    return left == right
+
+
 def the_same_bytes(on_disk: bytes, served: bytes, receipt_hash: str) -> bool:
     """Whether the file on disk, the bytes served and the receipt's hash agree.
 
@@ -284,6 +305,28 @@ def the_same_bytes(on_disk: bytes, served: bytes, receipt_hash: str) -> bool:
     return digest(on_disk) == digest(served) == receipt_hash
 
 
+def the_digests(directory: Path) -> dict[str, str]:
+    """Each file in a revision, by the hash of its bytes.
+
+    The measurement, and not the comparison: the demonstration measures a
+    revision twice and compares the two measurements, and it measures a third
+    revision -- a copy with a difference planted in it -- with this same
+    code, so that the control is answered by the measurement as well.
+    """
+    return {path.name: digest(path.read_bytes()) for path in sorted(directory.iterdir())}
+
+
+def the_same_revision(before: dict[str, str], after: dict[str, str]) -> bool:
+    """Whether a revision's files hold the same bytes in two measurements.
+
+    The comparison, and nothing else: the demonstration calls it over the two
+    measurements of one revision, and calls it again over a measurement of a
+    copy whose bytes were altered, so that a comparison which compares
+    nothing cannot pass by saying "the same".
+    """
+    return before == after
+
+
 def is_stale(receipt: ArtifactReceipt) -> bool:
     """Whether the walk marked this receipt stale, with the repository's own reason.
 
@@ -292,6 +335,18 @@ def is_stale(receipt: ArtifactReceipt) -> bool:
     somebody else invented.
     """
     return receipt.staleness is ArtifactStaleness.STALE and receipt.staleness_reason == STALE_REASON
+
+
+def every_receipt_is_stale(receipts: Sequence[ArtifactReceipt]) -> bool:
+    """Whether every one of these receipts is stale by the repository's own rule.
+
+    The requirement, over the walk's whole answer rather than over one
+    receipt: the demonstration asks it over the receipts the walk returned,
+    and asks it again over those receipts with one of them given another
+    reason, so that a requirement which compared nothing cannot pass by
+    saying "every one of them".
+    """
+    return all(is_stale(receipt) for receipt in receipts)
 
 
 def is_refused(response: Any) -> bool:
@@ -554,6 +609,18 @@ def _walk_the_path(root: Path, session: Session) -> int:
         resolves(session, anchor),
         anchor.anchor_id,
     )
+    # The control: the same comparison, over an address the material does not
+    # have. A comparison that compares nothing also answers "it resolves", so
+    # the demonstration insists this one finds the address that is not there
+    # -- and the test that runs this demonstration reads that line.
+    check(
+        "the resolution comparison finds the difference it was given",
+        not resolves(
+            session,
+            anchor.model_copy(update={"locator": CsvLocator(row=ABSENT_ROW, column=CLAIM_COLUMN)}),
+        ),
+        "an address the material does not have is not an address the ledger resolves",
+    )
 
     workspace = Workspace.bind(root, task_id=task_id, source_dirs=(materials,))
     root_id = workspace.source_roots[0].root_id
@@ -809,8 +876,20 @@ def _walk_the_path(root: Path, session: Session) -> int:
             second = client.get("/task", headers={"Origin": origin}).json()
             check(
                 "the workbench's re-read is the task it read before",
-                first == second,
+                the_same_read(first, second),
                 f"{len(leaves(first))} field(s)",
+            )
+            # The control: the same comparison, over a copy of the second read
+            # with a difference planted in it. A comparison that compares
+            # nothing also reports "the same", so the demonstration insists
+            # this one finds what was planted -- and the test that runs this
+            # demonstration reads that line.
+            planted_read = json.loads(json.dumps(second))
+            planted_read["task"]["title"] = planted_read["task"]["title"] + " (planted)"
+            check(
+                "the re-read comparison finds the difference it was given",
+                not the_same_read(first, planted_read),
+                "a copy of the second read with a difference planted in it is not the first read",
             )
             result = cli_now("task", "status", "--json")
             check(
@@ -980,8 +1059,20 @@ def _walk_the_path(root: Path, session: Session) -> int:
         )
         check(
             "with the repository's own reason, and not one invented here",
-            all(is_stale(receipt) for receipt in stale),
+            every_receipt_is_stale(stale),
             STALE_REASON,
+        )
+        # The control: the same requirement, over the walk's own receipts with
+        # one of them given another reason. A requirement that compares
+        # nothing also reports "every one of them", so the demonstration
+        # insists this one finds the receipt that does not qualify -- and the
+        # test that runs this demonstration reads that line.
+        check(
+            "the staleness requirement finds the difference it was given",
+            not every_receipt_is_stale(
+                [*stale, stale[0].model_copy(update={"staleness_reason": "another reason"})]
+            ),
+            "a receipt given another reason does not qualify, so not every receipt does",
         )
         check(
             "the walk named the hash it was given, and only that",
@@ -1009,14 +1100,14 @@ def _walk_the_path(root: Path, session: Session) -> int:
             "the walk did not name this hash",
         )
 
-        before = {path.name: digest(path.read_bytes()) for path in sorted(revision_one.iterdir())}
+        before = the_digests(revision_one)
         second_revision = render_report(
             context,
             ReportRequest(path="report", template_id="default"),
             now=NOW + timedelta(minutes=1),
         )
         session.commit()
-        after = {path.name: digest(path.read_bytes()) for path in sorted(revision_one.iterdir())}
+        after = the_digests(revision_one)
         revision_two = root / "output" / str(task_id) / "report" / "v2"
         check(
             "the re-render is a new revision, with its own files",
@@ -1025,8 +1116,24 @@ def _walk_the_path(root: Path, session: Session) -> int:
         )
         check(
             "and the first revision's bytes are unchanged",
-            before == after,
+            the_same_revision(before, after),
             f"{len(before)} file(s)",
+        )
+        # The control: the same comparison, over a copy of the revision with
+        # a difference planted in it -- a file whose bytes are not the ones
+        # the revision holds. A comparison that compares nothing also reports
+        # "the same", so the demonstration insists this one finds what was
+        # planted -- and the test that runs this demonstration reads that
+        # line.
+        altered_revision = root / "altered-v1"
+        shutil.copytree(revision_one, altered_revision)
+        (altered_revision / "report.md").write_bytes(
+            (altered_revision / "report.md").read_bytes() + b" (altered)"
+        )
+        check(
+            "the unchanged-bytes comparison finds the difference it was given",
+            not the_same_revision(before, the_digests(altered_revision)),
+            "a copy of the revision with a file's bytes altered is not the revision",
         )
         # The control: the walk's answer is the walk's own. The revision
         # rendered *after* the material changed is not stale, because the walk
@@ -1074,13 +1181,15 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    record that rests on it itself. The report carries a real claim,")
     print("    cited to a cell of the material the CLI ingested -- but the claim")
     print("    was made by the demonstration, not by the product.")
-    print("  * The demonstration's own controls are not exhaustive. Each")
+    print("  * The demonstration's own controls are not exhaustive. Every")
     print("    comparison is run once over something that must answer the other")
-    print("    way, which shows that the comparison can fail -- but a check")
-    print("    whose own requirement was narrowed would still print its line,")
-    print("    and no control would notice. The control asks the comparison a")
-    print("    question, and a narrowed requirement is a question the comparison")
-    print("    was never asked.")
+    print("    way, which shows that the comparison can fail -- so a comparison")
+    print("    narrowed until it compares nothing would fail its own control")
+    print("    rather than pass it. What no control would notice is a check")
+    print("    that stopped asking its comparison a question and answered for")
+    print("    itself: the control asks the comparison a question, and a")
+    print("    requirement narrowed where it is used is a question the")
+    print("    comparison was never asked.")
     return 0
 
 
