@@ -39,6 +39,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import text as sql_text
+from sqlalchemy.exc import IntegrityError
 from test_analysis_report_render import (
     _read_docx,
     _read_html,
@@ -86,7 +87,7 @@ from labcairn.application import (
 from labcairn.application import reports as report_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
-from labcairn.core.ids import ApprovalId, SourceId, TaskId, new_id
+from labcairn.core.ids import ApprovalId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
 from labcairn.db.repository import count_events, events_after
 from labcairn.evidence.record import EvidenceRecord
@@ -101,7 +102,7 @@ from labcairn.reports.receipt import (
     DerivationTargetKind,
 )
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
-from labcairn.runtime.lifecycle import StageStatus, TaskGoal
+from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
@@ -206,6 +207,7 @@ def _stage_request(
     arguments: Mapping[str, Any] | None = None,
     root_id: str = "source:0",
     resource_key: str = "one.csv",
+    run_id: RunId | None = None,
     approval_id: ApprovalId | None = None,
 ) -> StageRequest:
     """A stage run over a file in the source root."""
@@ -215,6 +217,7 @@ def _stage_request(
         arguments=arguments if arguments is not None else {"operator_id": "mean", "parameters": {}},
         root_id=root_id,
         resource_key=resource_key,
+        run_id=run_id,
         approval_id=approval_id,
     )
 
@@ -223,6 +226,56 @@ def _work(resource: object) -> StageOutcome:
     """A stage's work that succeeds and produces nothing."""
     del resource
     return StageOutcome(output_hashes=(_HASH,))
+
+
+def _stage_named(context: ApplicationContext, name: str) -> Stage:
+    """The stored stage with that name, read back out of the database.
+
+    Read back rather than taken from the object the layer returned: a fix that
+    corrected the object and left the row alone would look right from here.
+    """
+    matches = [stage for stage in read_task_state(context).stages if stage.name == name]
+    assert len(matches) == 1, f"expected exactly one stage named {name!r}, found {matches}"
+    return matches[0]
+
+
+def _write_a_stage_row(
+    env: StoreEnv,
+    *,
+    task_id: TaskId,
+    run_id: RunId,
+    status: str,
+    reason: str | None,
+) -> str:
+    """Write a stage row the model would never build, and report the refusal.
+
+    Returns the refusal's message, or fails if the database accepted the row.
+    Written on the fixture's own session rather than a second one, because the
+    store takes the write lock before it reads, and a second connection would
+    wait for that lock rather than fail fast. Rolled back rather than
+    committed, so a row the schema *does* accept does not stay in the store.
+    """
+    try:
+        env.session.execute(
+            sql_text(
+                "INSERT INTO stages (stage_id, task_id, run_id, name, status, "
+                "input_hashes, output_hashes, blocked_reason, schema_version) "
+                "VALUES (:stage_id, :task_id, :run_id, 'illegal', :status, "
+                "'[]', '[]', :reason, 1)"
+            ),
+            {
+                "stage_id": str(new_id()),
+                "task_id": str(task_id),
+                "run_id": str(run_id),
+                "status": status,
+                "reason": reason,
+            },
+        )
+    except IntegrityError as error:
+        return str(error)
+    finally:
+        env.session.rollback()
+    raise AssertionError(f"the database accepted a stage row with status {status!r}")
 
 
 def _assert_refused(
@@ -716,6 +769,167 @@ def test_a_parked_stage_completes_when_the_approval_arrives(
     )
     assert result.stage.status is StageStatus.COMPLETED
     assert result.operation.state is OperationState.CONFIRMED
+
+
+def test_a_parked_stage_that_completes_carries_no_reason(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A stage that has finished is waiting for nothing, so it says nothing.
+
+    A stage parked for an approval carries the reason it is parked. When the
+    approval arrives and the stage completes, that reason has nothing left to
+    explain, and the schema pairs the two: a stage is ``blocked`` if and only
+    if it carries a reason. So the reason goes when the wait ends.
+
+    Left on the row it is a row the database refuses to write, and the refusal
+    reaches the caller as a raw ``IntegrityError`` out of the middle of the
+    transaction — not as a finished stage, and not as a refusal that names
+    itself.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1), stage_name="intake"),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    # The stage has to be parked, or this test would pass without reaching the
+    # transition it is about.
+    parked = _stage_named(context, "intake")
+    assert parked.status is StageStatus.BLOCKED
+    assert parked.blocked_reason is not None
+
+    try:
+        result = run_stage(
+            context,
+            _stage_request(
+                stage_name="intake",
+                run_id=requested.operation.run_id,
+                approval_id=requested.approval.approval_id,
+            ),
+            _work,
+            now=_MOMENT,
+        )
+    except IntegrityError as error:
+        pytest.fail(
+            "finishing a parked stage raised a raw IntegrityError "
+            f"({error}): the stage finished but still carried the reason it was "
+            "parked with, and the database refuses a row that says both."
+        )
+
+    assert result.stage.status is StageStatus.COMPLETED
+    assert result.stage.blocked_reason is None
+    assert result.stage.output_hashes == (_HASH,)
+    stored = _stage_named(context, "intake")
+    assert stored.status is StageStatus.COMPLETED
+    assert stored.blocked_reason is None
+    assert stored.output_hashes == (_HASH,)
+
+
+def test_a_parked_stage_that_fails_carries_no_reason(env: StoreEnv, workspace_root: Path) -> None:
+    """The failure ends the wait as surely as the completion does.
+
+    A stage that was parked and then failed has the same reason to carry none:
+    it is not waiting for anything, so the reason it was parked with explains
+    nothing about how it ended.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1), stage_name="intake"),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    parked = _stage_named(context, "intake")
+    assert parked.status is StageStatus.BLOCKED
+    assert parked.blocked_reason is not None
+
+    def work(resource: object) -> StageOutcome:
+        del resource
+        raise RuntimeError("the operator could not be resolved")
+
+    try:
+        with pytest.raises(ApplicationRefusedError) as caught:
+            run_stage(
+                context,
+                _stage_request(
+                    stage_name="intake",
+                    run_id=requested.operation.run_id,
+                    approval_id=requested.approval.approval_id,
+                ),
+                work,
+                now=_MOMENT,
+            )
+    except IntegrityError as error:
+        pytest.fail(
+            "failing a parked stage raised a raw IntegrityError "
+            f"({error}): the stage failed but still carried the reason it was "
+            "parked with, and the database refuses a row that says both."
+        )
+    assert caught.value.reason is ApplicationRefusal.STAGE_FAILED
+
+    stored = _stage_named(context, "intake")
+    assert stored.status is StageStatus.FAILED
+    assert stored.blocked_reason is None
+    assert stored.output_hashes == ()
+
+
+def test_the_database_refuses_a_reason_on_a_stage_that_is_not_blocked(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The pairing is the schema's, and the schema holds both halves of it.
+
+    The model refuses to build a stage that carries a reason while it is not
+    blocked, so the only way to see the constraint is to write the row the
+    model would never build. A constraint nothing can violate is a constraint
+    nobody has checked — and this is the half the completion path used to
+    break, by finishing a stage that still carried the reason it was parked
+    with.
+
+    The refusal is matched on the constraint's name, because a bare
+    ``IntegrityError`` does not say which rule said no: a foreign key says no
+    in exactly the same words.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_stage(context, _stage_request(), _work, now=_MOMENT)
+    run = read_task_state(context).runs[0]
+
+    refusal = _write_a_stage_row(
+        env,
+        task_id=context.task_id,
+        run_id=run.run_id,
+        status="completed",
+        reason="still waiting for a human",
+    )
+    assert "ck_stages_reason_only_when_blocked" in refusal
+
+
+def test_the_database_refuses_a_blocked_stage_with_no_reason(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The other half: a stage that is blocked has to say why.
+
+    The model's own validator checks one direction of the pair — a reason
+    implies a blocked stage — and the schema checks the other, because a
+    reader who finds ``blocked`` with nothing to act on has been told the
+    stage is waiting without being told what for.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_stage(context, _stage_request(), _work, now=_MOMENT)
+    run = read_task_state(context).runs[0]
+
+    refusal = _write_a_stage_row(
+        env,
+        task_id=context.task_id,
+        run_id=run.run_id,
+        status="blocked",
+        reason=None,
+    )
+    assert "ck_stages_reason_only_when_blocked" in refusal
 
 
 def test_the_plan_shows_the_declared_workflow_and_the_task_s_progress(

@@ -11,6 +11,10 @@ them are stated once rather than repeated in each operation:
   can say what happened without the rows being read.
 * **nothing is written on a refusal.** A refused operation leaves no trace
   that could be mistaken for a partial success.
+* **a stage's status and its reason are written together.** The schema pairs
+  them — a stage is ``blocked`` if and only if it carries a reason — so the
+  two are set in one update. A stage that is waiting says why it is waiting;
+  a stage that has finished says nothing, because it is waiting for nothing.
 
 The runs and stages are created here rather than by the caller, because a Run
 and a Stage are not free parameters: a Run's attempt number is derived from
@@ -136,6 +140,36 @@ def move_operation(
     return moved
 
 
+def _finished(stage: Stage, status: StageStatus, output_hashes: tuple[str, ...]) -> Stage:
+    """The stage in the status it has finished in, with nothing left to wait for.
+
+    A reason belongs to a stage that is waiting for something, and the schema
+    pairs the two: ``(status = 'blocked') = (blocked_reason IS NOT NULL)``. A
+    stage that has finished is waiting for nothing, so the reason goes when the
+    wait ends — and it goes here, where the status is set, because that is
+    where the two halves are one decision and are written together.
+
+    Left on the row, it is a row the database refuses to write, and the refusal
+    reaches the caller as a raw ``IntegrityError`` out of the middle of the
+    transaction rather than as a finished stage.
+
+    Re-validated rather than copied, for the reason
+    :mod:`labcairn.recovery.reconciliation` gives: ``model_copy`` does not run
+    the model's validators, and the ``Stage`` model's ``blocked_reason``
+    validator is what keeps a reason attached only to a blocked stage. Going
+    through :meth:`Stage.model_validate` means a mistake here fails here
+    instead of producing a row that cannot be loaded back.
+    """
+    return Stage.model_validate(
+        {
+            **stage.model_dump(),
+            "status": status,
+            "output_hashes": output_hashes,
+            "blocked_reason": None,
+        }
+    )
+
+
 def complete_operation(
     context: ApplicationContext,
     operation: Operation,
@@ -155,9 +189,7 @@ def complete_operation(
     ADR-0003 C3 exists to avoid.
     """
     confirmed = operation.model_copy(update={"state": OperationState.CONFIRMED})
-    completed = stage.model_copy(
-        update={"status": StageStatus.COMPLETED, "output_hashes": output_hashes}
-    )
+    completed = _finished(stage, StageStatus.COMPLETED, output_hashes)
     with context.store.unit(context.task_id) as work:
         work.emit(
             EventType.OPERATION_CONFIRMED,
@@ -209,7 +241,7 @@ def fail_operation(
     worse: it would report a stage as still running after it had failed.
     """
     failed = operation.model_copy(update={"state": OperationState.FAILED})
-    stopped = stage.model_copy(update={"status": StageStatus.FAILED})
+    stopped = _finished(stage, StageStatus.FAILED, stage.output_hashes)
     with context.store.unit(context.task_id) as work:
         work.emit(
             EventType.OPERATION_FAILED,
