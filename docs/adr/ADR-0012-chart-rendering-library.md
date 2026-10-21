@@ -230,8 +230,9 @@ what makes "identical inputs" mean something.
    reproducibility claim cannot cover.
 5. **matplotlib must be imported lazily**, like `pdfplumber` and `openpyxl`
    already are, so that the text, Markdown, CSV and XLSX paths do not pay for
-   it. This is a requirement on T07's module, not a fact about the code
-   today — the renderer does not exist yet.
+   it. This is a requirement on T07's module, not a fact about the code — the
+   renderer did not exist when this ADR was written, and the module that
+   draws the figure now imports matplotlib inside the function that draws it.
 6. **The figure's hash is environment-scoped**, and the manifest must record
    the environment. A matplotlib upgrade changes every figure hash, and the
    fingerprint is what makes the change visible rather than silent.
@@ -269,12 +270,14 @@ what makes "identical inputs" mean something.
 - **The 78.7 MB is measured as installed bytes on one platform.** The wheel
   sizes differ per platform, and a Linux install of the same tree is not the
   same number of bytes.
-- **The ambient-`matplotlibrc` risk is designed against, not measured.** The
-  constraint is that rcParams come from a declared file; nobody has run a
-  render with a hostile `matplotlibrc` in place to confirm the declared
-  values win. T07 owns that measurement.
-- **No figure has been produced yet.** Everything above says the library can
-  produce a deterministic figure; the first real one is T07's.
+- **The ambient-`matplotlibrc` risk is designed against, and has since been
+  measured.** The constraint is that rcParams come from a declared file; the
+  measurement this ADR left open was made by T07, which renders with a
+  hostile `matplotlibrc` in place — changing the size, the font, the
+  resolution, the save box and the salt — and the declared values win.
+- **A figure has been produced since this ADR was written.** Everything above
+  says the library can produce a deterministic figure; the first real one was
+  T07's, and it is in `main`.
 
 ## Re-evaluation trigger
 
