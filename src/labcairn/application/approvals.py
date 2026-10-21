@@ -30,6 +30,26 @@ bytes. The file on disk is not re-hashed here: the layer binds no files, and
 the hash in the digest is the binding. A layer that re-hashed files would have
 to know which root each file lives in, and a task's materials and a task's
 outputs do not live in the same one.
+
+The window
+----------
+
+An approval is good for a moment and not for ever, and **the layer is where
+that is said**. The store holds the rule as a constraint —
+``granted_at IS NULL OR expires_at > granted_at`` — and the constraint is
+right, but a constraint refuses in the only language it has: a raw
+``IntegrityError`` out of the middle of the transaction. A client whose
+question has gone stale would learn that the service is broken rather than
+that its answer is too late.
+
+So the layer asks the :class:`~labcairn.runtime.operation.Approval` model
+instead, and translates what the model says into the one refusal this layer
+raises. **The model is asked rather than the rule written out again here**,
+because the two constraints are the model's own two rules, and a rule stated
+twice is a rule that drifts. It is asked through
+:meth:`~labcairn.runtime.operation.Approval.model_validate` rather than
+``model_copy``, because ``model_copy`` does not run the validators — which is
+how a row the database refuses ever reached the database at all.
 """
 
 from __future__ import annotations
@@ -38,6 +58,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+
+from pydantic import ValidationError
 
 from labcairn.application import consent, records
 from labcairn.application.context import ApplicationContext, store_refusals
@@ -192,8 +214,14 @@ def grant_approval(
     the policy at grant time is kept beside the approval and compared when the
     approval is spent.
 
-    :raises ApplicationRefusedError: no such approval, or one that is not
-        waiting for an answer.
+    **An answer to a question that has gone stale is refused.** The approval
+    carries the window it was asked for, and a grant stamped after that window
+    closed records an answer to a question nobody is asking any more. The
+    refusal names the approval and the moment its window closed, because
+    "your approval expired" is only actionable if it says *which* one.
+
+    :raises ApplicationRefusedError: no such approval, one that is not
+        waiting for an answer, or one whose window has closed.
     """
     moment = now if now is not None else datetime.now(UTC)
     approval = _approval_row(context, approval_id)
@@ -204,8 +232,8 @@ def grant_approval(
             "that is not waiting for an answer cannot be granted. A spent approval "
             "never authorises a second effect (ADR-0003 C4).",
         )
+    granted = _granted(approval, moment)
     operation = _operation_row(context, approval)
-    granted = approval.model_copy(update={"state": ApprovalState.GRANTED, "granted_at": moment})
     context.ledger.issue(ApprovalGrant(approval=granted, policy_digest=context.policy.digest()))
     recorded = records.move_approval(
         context,
@@ -215,7 +243,6 @@ def grant_approval(
         to_state=ApprovalState.GRANTED,
         run_id=operation.run_id if operation is not None else _run_of(context, approval),
         now=moment,
-        granted_at=moment,
     )
     return ApprovalGranted(approval=recorded)
 
@@ -234,6 +261,11 @@ def consume_approval(
     the operation that follows fails, because re-asking a human is cheap and
     repeating a side effect is not.
 
+    **The row is read and checked before anything is spent.** An approval
+    cannot be spent at a moment before it was granted, and the ledger is spent
+    by the call below — so a refusal that arrived afterwards would have spent
+    the approval and refused the request at the same time.
+
     :raises ApplicationRefusedError: no such approval, or one that does not
         cover this request.
     """
@@ -245,6 +277,8 @@ def consume_approval(
         arguments=use.arguments,
         resource=resource,
     )
+    row = _approval_row(context, approval_id)
+    spent = _spent(row, moment)
     consent.consume(
         context,
         authorisation=authorisation,
@@ -253,18 +287,16 @@ def consume_approval(
         now=moment,
         depends_on=use.depends_on,
     )
-    row = _approval_row(context, approval_id)
     operation = _operation_row(context, row)
     run_id = operation.run_id if operation is not None else _run_of(context, row)
     consumed = records.move_approval(
         context,
-        row,
+        spent,
         event=EventType.APPROVAL_CONSUMED,
         from_state=ApprovalState.GRANTED,
         to_state=ApprovalState.CONSUMED,
         run_id=run_id,
         now=moment,
-        consumed_at=moment,
     )
     authorised: Operation | None = None
     if operation is not None and operation.state is OperationState.AWAITING_APPROVAL:
@@ -276,6 +308,66 @@ def consume_approval(
             now=moment,
         )
     return ApprovalConsumed(approval=consumed, operation=authorised)
+
+
+def _granted(approval: Approval, moment: datetime) -> Approval:
+    """The approval as it is granted, or a refusal naming the window that closed.
+
+    **The model is asked, and its answer is translated.** The
+    :class:`~labcairn.runtime.operation.Approval` model's own rule — the window
+    must outlive the grant — is the layer's copy of the store's
+    ``ck_approvals_expiry_after_grant``, and asking the model keeps the two
+    from drifting apart. It is asked through
+    :meth:`~labcairn.runtime.operation.Approval.model_validate` rather than
+    ``model_copy``, because ``model_copy`` does not run the validators, and
+    that is how a row the database refuses ever reached the database.
+
+    The only rule a pending approval can fail is the window's: it has no grant
+    and no consumption, so the message below is true of every refusal this
+    raises.
+    """
+    try:
+        return Approval.model_validate(
+            {**approval.model_dump(), "state": ApprovalState.GRANTED, "granted_at": moment}
+        )
+    except ValidationError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.APPROVAL_REFUSED,
+            f"the approval {approval.approval_id} expired at "
+            f"{approval.expires_at.isoformat()}, and an approval whose window has "
+            "closed cannot be granted. The answer is about a question that has "
+            "gone stale: ask for another approval.",
+        ) from error
+
+
+def _spent(approval: Approval, moment: datetime) -> Approval:
+    """The approval as it is spent, or a refusal naming the impossible order.
+
+    **The model is asked, and its answer is translated**, for the reason
+    :func:`_granted` asks it: the model's rule — a consumption must not
+    precede the grant — is the layer's copy of the store's
+    ``ck_approvals_consume_after_grant``, and ``model_copy`` would not have
+    run it.
+
+    An approval granted at one moment cannot be spent at a moment before it:
+    the grant is the moment the approval came into being, and there is
+    nothing to spend before then. The refusal names the approval and the two
+    moments, because a caller that has been told "refused" and nothing else
+    cannot tell a stale approval from a mis-stamped one.
+    """
+    try:
+        return Approval.model_validate(
+            {**approval.model_dump(), "state": ApprovalState.CONSUMED, "consumed_at": moment}
+        )
+    except ValidationError as error:
+        granted_at = approval.granted_at
+        detail = (
+            f"the approval {approval.approval_id} was granted at "
+            f"{granted_at.isoformat() if granted_at is not None else 'an unrecorded moment'}, "
+            f"and it cannot be spent at {moment.isoformat()}, which is before that. "
+            "An approval cannot be spent before it was granted."
+        )
+        raise ApplicationRefusedError(ApplicationRefusal.APPROVAL_REFUSED, detail) from error
 
 
 def _approval_row(context: ApplicationContext, approval_id: ApprovalId) -> Approval:
