@@ -23,6 +23,14 @@ ledger records about it rather than failing on the row that is already there.
 carry disclosures and never a claim, so the binding is the operation's job and
 not an afterthought.
 
+**The binding accumulates, and the report says so.** The store's writer sets
+the binding to what it is handed, so a task that was given material and then
+ingested again would forget what it was given — and an operator removing a
+file from the workspace would take the task's material with it, silently. The
+binding after an operation is the union of what the task held and what the run
+ingested, and the report carries both halves: what this run read, and what the
+task holds.
+
 **Unreadable, empty and readable material are kept apart.** ADR-0004 A7 asks
 for the distinction most systems collapse, and the report of an ingestion is
 where it is either kept or lost.
@@ -51,8 +59,9 @@ from labcairn.application import (
     list_sources,
 )
 from labcairn.core.ids import SourceId, TaskId
-from labcairn.db.repository import count_events, load_task
+from labcairn.db.repository import count_events, events_after, load_task
 from labcairn.db.repository import list_sources as store_list_sources
+from labcairn.runtime.event import EventType
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
@@ -134,6 +143,24 @@ def _count(session: Session, table: str) -> int:
     return int(result.scalar_one())
 
 
+def _revisions(session: Session, task_id: TaskId) -> int:
+    """How many ``task_revised`` events the task's log holds.
+
+    Counted from the events rather than from the total, because the total
+    moves for other reasons — a task is created with an event of its own —
+    and the question here is whether *the binding* moved.
+    """
+    return sum(
+        1 for event in events_after(session, task_id) if event.type is EventType.TASK_REVISED
+    )
+
+
+def _held(env: StoreEnv, task_id: TaskId) -> tuple[str, ...]:
+    """The ids the task's binding holds, as the store holds them."""
+    task = load_task(env.session, task_id)
+    return tuple(str(bound) for bound in task.bound_source_ids)
+
+
 # --------------------------------------------------------------------------- #
 # it reads, and what it read is in the ledger
 # --------------------------------------------------------------------------- #
@@ -212,6 +239,129 @@ def test_the_binding_is_written_with_an_event(env: StoreEnv, workspace_root: Pat
 
 
 # --------------------------------------------------------------------------- #
+# the binding accumulates
+# --------------------------------------------------------------------------- #
+
+
+def test_the_task_keeps_the_material_the_operator_removed(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The operator removed a file; the task still holds it.
+
+    The binding is the task's, and material it was given is not taken back
+    because it left the workspace. The loss this closes was **silent**: the
+    binding was replaced by what the run ingested, so the task forgot the
+    material and nothing in the report said the binding had shrunk.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (materials / "two.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    first = ingest_material(context, now=_MOMENT)
+    by_path = {item.source.relative_path: item.source.source_id for item in first.files}
+    removed_id = by_path["materials/two.csv"]
+    (materials / "two.csv").unlink()
+
+    ingest_material(context, now=_MOMENT + timedelta(days=1))
+
+    assert removed_id in _held(env, context.task_id), "the task forgot the material it held"
+    # And the ledger still holds it, so the binding is not a name for nothing.
+    assert removed_id in {source.source_id for source in store_list_sources(env.session)}
+    # And the layer can still list it: a task whose report rests on material
+    # the operator removed is still a task whose report can be built.
+    assert removed_id in {view.source.source_id for view in list_sources(context)}
+
+
+def test_the_report_names_what_the_task_holds_and_what_this_run_ingested(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The two lists are two facts, and they are not the same list.
+
+    A report carrying one list for both would say that what the task rests on
+    is what this run read — which stops being true the moment the task holds
+    material this run did not touch.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (materials / "two.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    first = ingest_material(context, now=_MOMENT)
+    by_path = {item.source.relative_path: item.source.source_id for item in first.files}
+    (materials / "two.csv").unlink()
+
+    second = ingest_material(context, now=_MOMENT + timedelta(days=1))
+
+    # What this run ingested is exactly what it read.
+    assert second.source_ids == tuple(item.source.source_id for item in second.files)
+    assert by_path["materials/two.csv"] not in second.source_ids
+    # What the task holds is what the store holds.
+    assert second.bound_source_ids == _held(env, context.task_id)
+    # And the two differ, because the task holds material this run did not touch.
+    assert second.bound_source_ids != second.source_ids
+    assert by_path["materials/two.csv"] in second.bound_source_ids
+
+
+def test_a_task_is_bound_to_its_own_material_and_not_to_the_whole_ledger(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The union is with what the task held, not with everything in the ledger.
+
+    The ledger is the workspace's: another task's material sits in it too. A
+    binding that reached for the whole ledger would hand a task material it
+    neither ingested nor was given — and the report would say it holds it.
+    """
+    first_dir = workspace_root / "first"
+    second_dir = workspace_root / "second"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    (first_dir / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (second_dir / "two.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+
+    one = _context(env, workspace_root, _inventory_only(), source_dirs=(first_dir,))
+    two = _context(env, workspace_root, _inventory_only(), source_dirs=(second_dir,))
+
+    first = ingest_material(one, now=_MOMENT)
+    second = ingest_material(two, now=_MOMENT)
+
+    assert set(first.source_ids).isdisjoint(second.source_ids)
+    assert set(first.source_ids).isdisjoint(second.bound_source_ids)
+    assert second.bound_source_ids == _held(env, two.task_id)
+
+
+def test_the_binding_keeps_the_order_the_task_bound_the_material_in(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """What the task already held stays where it was; what is new comes after.
+
+    A binding's order is the order the researcher bound the material in, and
+    the union is not allowed to reshuffle it: a union that did would be a
+    revision of a state that did not move.
+    """
+    materials = workspace_root / "materials"
+    (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (materials / "two.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    ingest_material(context, now=_MOMENT)
+    held = _held(env, context.task_id)
+    assert len(held) == 2
+
+    (materials / "three.csv").write_text("e,f\n5,6\n", encoding="utf-8")
+    second = ingest_material(context, now=_MOMENT + timedelta(days=1))
+
+    added = next(
+        item.source.source_id
+        for item in second.files
+        if item.source.relative_path.endswith("three.csv")
+    )
+    assert second.bound_source_ids[:2] == held
+    assert second.bound_source_ids[2:] == (added,)
+    assert second.bound_source_ids == _held(env, context.task_id)
+
+
+# --------------------------------------------------------------------------- #
 # idempotence
 # --------------------------------------------------------------------------- #
 
@@ -244,6 +394,30 @@ def test_running_the_ingestion_twice_writes_nothing_the_second_time(
     assert count_events(env.session, context.task_id) == events_after_first
 
 
+def test_ingesting_unchanged_material_again_emits_no_second_revision(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The union does not turn a no-op into a revision.
+
+    A revision says the binding moved. The binding did not move: the task
+    already held what the run brought, so the union is the list that was
+    already there, and the store — which writes what it is given and reports
+    a revision only when the list it was given is not the list it held — has
+    nothing to record.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    ingest_material(context, now=_MOMENT)
+    assert _revisions(env.session, context.task_id) == 1
+    held = _held(env, context.task_id)
+
+    ingest_material(context, now=_MOMENT + timedelta(days=1))
+
+    assert _revisions(env.session, context.task_id) == 1
+    assert _held(env, context.task_id) == held
+
+
 def test_an_edited_file_is_ingested_under_its_new_hash(env: StoreEnv, workspace_root: Path) -> None:
     """The same location keeps its id, and its recorded hash moves.
 
@@ -262,6 +436,10 @@ def test_an_edited_file_is_ingested_under_its_new_hash(env: StoreEnv, workspace_
     assert second.source_ids == first.source_ids
     assert first.files[0].source.content_sha256 != second.files[0].source.content_sha256
     assert second.files[0].rows_written > 0
+    # And the binding still names **one** material: an edited file is the same
+    # material at a new version, not a second material beside it.
+    assert second.bound_source_ids == first.bound_source_ids
+    assert len(second.bound_source_ids) == 1
 
 
 # --------------------------------------------------------------------------- #
