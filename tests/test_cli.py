@@ -38,6 +38,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -50,7 +51,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from typer.main import get_command
 
+import labcairn.cli
 from labcairn.application import (
     ApplicationContext,
     inspect_source,
@@ -61,7 +64,7 @@ from labcairn.application import (
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import TaskPlan
 from labcairn.application.tasks import TaskState
-from labcairn.cli.commands import EXIT_REFUSED
+from labcairn.cli.commands import EXIT_REFUSED, app
 from labcairn.cli.workspace import application_context, locate, read_config
 from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine, create_session_factory, session_scope
@@ -789,6 +792,118 @@ def test_a_source_dir_outside_the_workspace_is_refused(workspace: Path, tmp_path
     assert "Traceback" not in result.stderr
 
 
+def test_task_create_binds_the_material_it_ingested(workspace: Path) -> None:
+    """``task create`` puts the material in the ledger and binds it to the task.
+
+    The task holds the ids of the materials it ingested, so the layer's
+    ``list_sources`` finds them: a task that holds no material can carry
+    disclosures and never a claim.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Bound to real material",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--source-dir",
+        "materials",
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+    task = result.json()
+    assert task["bound_source_ids"], "the task holds no material"
+
+    # And the material can be inspected, which it could not be before the
+    # ingestion: the ledger holds it under the path the layer resolves.
+    inspected = run_cli(
+        "--workspace",
+        str(workspace),
+        "sources",
+        "inspect",
+        "--source",
+        task["bound_source_ids"][0],
+        "--json",
+    )
+    assert inspected.returncode == 0, inspected.stderr
+    assert inspected.json()["source"]["readability"] == "readable"
+
+
+def test_sources_ingest_json_is_the_layers_ingestion_report(workspace: Path) -> None:
+    """``sources ingest --json`` is the layer's own report.
+
+    The model, byte for byte: a script depends on the JSON and not on the
+    prose, so the JSON *is* the model and not a rendering of it.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Ingested twice",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+
+    result = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert result.returncode == 0, result.stderr
+    report = result.json()
+    assert report["source_ids"], "the CLI ingested nothing"
+    assert report["bound_source_ids"] == report["source_ids"]
+    assert report["failures"] == []
+    assert report["readable"] == 1
+    assert report["files"][0]["source"]["relative_path"] == "materials/one.csv"
+
+    # And the second run writes nothing: the same material, ingested again.
+    again = run_cli("--workspace", str(workspace), "sources", "ingest", "--json")
+    assert again.returncode == 0, again.stderr
+    assert again.json()["source_ids"] == report["source_ids"]
+    assert again.json()["files"][0]["rows_written"] == 0
+
+
+def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: Path) -> None:
+    """A file the walk could not read is reported, and the command refuses.
+
+    Two source roots holding a file of the same name: the ledger's
+    ``relative_path`` is unique, so the second one cannot be stored. The
+    command refuses rather than reporting a task that quietly holds less than
+    the material it was given, and the refusal names the file.
+    """
+    (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (workspace / "other").mkdir()
+    (workspace / "other" / "one.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Two roots, one name",
+        "--objective",
+        "One.",
+        "--criterion",
+        "Done.",
+        "--source-dir",
+        "other",
+        "--json",
+    )
+    assert created.returncode == EXIT_REFUSED
+    refusal = created.json()
+    assert refusal["reason"] == "material_incomplete"
+    assert "one.csv" in refusal["message"]
+
+
 def test_the_plan_option_reports_the_plan_and_not_the_state(workspace: Path, task_id: str) -> None:
     """``--plan`` changes what is reported, in the prose as well as the JSON.
 
@@ -1395,3 +1510,76 @@ def test_the_layer_models_the_cli_serialises_are_the_ones_the_layer_returns(
     assert isinstance(state, TaskState)
     assert isinstance(plan, TaskPlan)
     assert isinstance(view, SourceView)
+
+
+def _the_commands_the_package_names() -> set[str]:
+    """The command names the package's own docstring lists, and its count.
+
+    Read from the docstring rather than from a constant beside it, because
+    **the docstring is the claim**: a list somewhere else that nobody reads
+    is not a record of anything. Only the sentence that introduces the list
+    is read — the docstring quotes other things, a plan's path among them —
+    and the literal names are expanded the way the sentence reads them, so
+    ``task create/run/status/resume`` is four commands and not one.
+    """
+    docstring = labcairn.cli.__doc__ or ""
+    sentence = re.search(
+        r"The commands\s+(?P<names>.*?)and the plumbing",
+        docstring,
+        re.DOTALL,
+    )
+    if sentence is None:
+        return set()
+    commands: set[str] = set()
+    for entry in re.findall(r"``([^`]+)``", sentence.group("names")):
+        parts = entry.split("/")
+        if len(parts) == 1:
+            commands.add(parts[0])
+            continue
+        # A slashed entry is a group and its variants: the group's first word
+        # is the group, and the rest are the commands under it.
+        group = parts[0].split(" ")[0]
+        variants = [parts[0].removeprefix(group).strip(), *parts[1:]]
+        for variant in variants:
+            if variant:
+                commands.add(f"{group} {variant}")
+    return commands
+
+
+def _the_commands_the_app_registers() -> set[str]:
+    """Every command the console script offers, and not the groups.
+
+    A group is a name on the way to a command, not a command: ``task`` is
+    how the four ``task`` commands are reached.
+    """
+    root = get_command(app)
+    found: set[str] = set()
+
+    def walk(command: Any, prefix: str) -> None:
+        for name, sub in sorted((getattr(command, "commands", None) or {}).items()):
+            path = f"{prefix}{name}"
+            if hasattr(sub, "commands"):
+                walk(sub, f"{path} ")
+            else:
+                found.add(path)
+
+    walk(root, "")
+    return found
+
+
+def test_the_packages_docstring_names_exactly_the_commands_there_are() -> None:
+    """The package's own list of its commands is the true one.
+
+    **A count is not a claim; a list is.** The list used to say "Eight
+    commands" and name them, and it was right when it was written and wrong
+    twice over after two more commands arrived — and nothing noticed,
+    because a number in a docstring is only ever compared with the reader's
+    memory, and it was read as "Eight" long after it had stopped being true.
+    **So the count is gone** and the list is the claim: a *list* can be
+    compared with the application, and this test does that. The names the
+    docstring gives and the commands the console script registers are the
+    same set, in both directions. A command that arrives without being
+    named fails here, and a name that no longer names a command fails here
+    too.
+    """
+    assert _the_commands_the_package_names() == _the_commands_the_app_registers()

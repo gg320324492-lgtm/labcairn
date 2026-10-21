@@ -113,11 +113,12 @@ The commands, and what each can do today:
 |---|---|---|
 | `labcairn init` | Creates a workspace — the directory, a migrated SQLite database, a source directory and a policy file — and reports what it made; it refuses to overwrite a workspace that is already there | works |
 | `labcairn doctor` | Reports the workspace, the database's revision, the policy's rules and each model provider's declared capabilities | works, and it only *reports*: it repairs nothing |
-| `labcairn task create` | Makes a task, its output area and its first event | works |
+| `labcairn task create` | Makes a task, its output area and its first event, and binds it to the material the workspace holds | works |
 | `labcairn task run` | Runs the `inventory` stage over a bound material, in the task's current run | works for the `inventory` stage only; the other declared stages belong to later work orders |
 | `labcairn task resume` | The same stage in a **new** attempt — a new Run against the same Task, never a new Task | works for the `inventory` stage only |
 | `labcairn task status` | Reports the task's state: its runs, stages, artefacts, approvals and event cursor; `--plan` reports the declared workflow instead | works |
-| `labcairn sources inspect` | Reports one source as the ledger holds it | needs a material that is already in the ledger — the application layer has no ingestion operation yet, so no command can put one there |
+| `labcairn sources inspect` | Reports one source as the ledger holds it | works, for material the workspace has ingested |
+| `labcairn sources ingest` | Reads the workspace's supplied material through the permission boundary, stores it in the ledger, and binds it to the task | works; a file it cannot read is reported, not swallowed |
 | `labcairn artifacts list` | Lists the receipts a task has produced | works |
 | `labcairn serve` | Starts the local API service on `127.0.0.1:8000` and serves the workspace's current task; it binds loopback only, mints its own session token and writes it to the workspace rather than printing it | works, and the event stream and the stage bodies are refused by the layer until the packages that own them are wired in |
 

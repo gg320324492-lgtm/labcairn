@@ -62,6 +62,16 @@ CLI_REFUSAL_NO_TASK_SELECTED = "task_not_selected"
 CLI_REFUSAL_WORKSPACE_EXISTS = "workspace_exists"
 CLI_REFUSAL_WORKSPACE_NOT_INITIALISED = "workspace_not_initialised"
 CLI_REFUSAL_WORKSPACE_UNUSABLE = "workspace_unusable"
+#: The supplied material could not all be read.
+#:
+#: The layer's ingestion reports a file it could not read as a **fact** rather
+#: than as a refusal, because one unreadable file should not stop the rest of
+#: a workspace being inventoried — and ``sources ingest`` has a model with a
+#: field for it. A command whose model has nowhere to put that fact has to
+#: refuse instead, and ``task create`` prints the Task, which has no field
+#: for a file that could not be read: a task that quietly holds less than the
+#: material it was given is a task nobody can check a claim against.
+CLI_REFUSAL_MATERIAL_INCOMPLETE = "material_incomplete"
 
 
 def dumps(value: Any) -> str:
@@ -122,6 +132,7 @@ def emit_refusal(reason: str, message: str, *, as_json: bool) -> None:
 
 __all__ = [
     "CLI_REFUSAL_INVALID_ARGUMENTS",
+    "CLI_REFUSAL_MATERIAL_INCOMPLETE",
     "CLI_REFUSAL_NO_TASK_SELECTED",
     "CLI_REFUSAL_WORKSPACE_EXISTS",
     "CLI_REFUSAL_WORKSPACE_NOT_INITIALISED",

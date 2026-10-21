@@ -34,15 +34,16 @@ than a convention someone might follow loosely.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import Engine, Select, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -390,6 +391,81 @@ class TaskStore:
         self._session.flush()
         with self.unit(task.task_id) as work:
             work.emit(EventType.TASK_CREATED, occurred_at=task.created_at)
+        return work.events[0]
+
+    def relocate_sources(self, renames: Mapping[str, str]) -> int:
+        """Move source rows to the paths the ledger's contract names.
+
+        **Why this exists.** ``Source.relative_path`` is workspace-relative,
+        and the layer's readers resolve it against the workspace root: a row
+        holding a root-relative path resolves into the wrong root, and the
+        ``source.inventory`` capability refuses it because the root it landed
+        in is not a source root. The walk writes the key it was given, and
+        the key is root-relative, so a material the walk ingested cannot be
+        read back at all.
+
+        The rename is by source id, so it moves the row the walk wrote rather
+        than a row that happens to hold the same path.
+
+        :param renames: the source ids, and the workspace-relative path each
+            one should hold.
+        :returns: how many rows moved.
+        """
+        moved = 0
+        for source_id, relative_path in renames.items():
+            statement = (
+                update(SourceRow)
+                .where(SourceRow.source_id == source_id)
+                .values(relative_path=relative_path)
+            )
+            changed = cast(CursorResult[Any], self._session.execute(statement)).rowcount
+            moved += max(changed, 0)
+        self._session.commit()
+        return moved
+
+    def bind_sources(
+        self,
+        task_id: TaskId,
+        source_ids: Sequence[SourceId],
+        *,
+        occurred_at: datetime | None = None,
+    ) -> Event | None:
+        """Bind material to a Task, and record the revision, in one transaction.
+
+        The binding is a **state change**, so it is written with the event that
+        describes it: ADR-0003 C3 puts a state row and the event that describes
+        it in one transaction, and a binding nobody was told about is a change
+        the log does not record. The column is a JSON one, so the update needs
+        no migration.
+
+        **No event when nothing changed.** A binding that already holds these
+        ids is not a revision, and emitting ``task_revised`` for it would put
+        a second event in the log for a state that did not move -- which is
+        what "the same operation twice changes nothing" has to mean.
+
+        :returns: the committed event, or ``None`` when the binding already
+            held these ids.
+        :raises UnknownTaskError: the store holds no Task with that id.
+        """
+        bound = [str(source_id) for source_id in source_ids]
+        moment = occurred_at if occurred_at is not None else self._clock()
+        with self.unit(task_id) as work:
+            row = self._session.execute(
+                select(TaskRow).where(TaskRow.task_id == str(task_id))
+            ).scalar_one_or_none()
+            if row is None:
+                raise UnknownTaskError(f"no Task row for {task_id}")
+            if list(row.bound_source_ids) == bound:
+                return None
+            row.bound_source_ids = bound
+            row.updated_at = moment
+            # Flushed here rather than left to the unit's own flush, so that
+            # the row the event allocator updates is the row this write
+            # changed: the allocator's statement is a bulk update, and a
+            # pending change of ours still in the session would be
+            # synchronised from the database against it.
+            self._session.flush()
+            work.emit(EventType.TASK_REVISED, occurred_at=moment)
         return work.events[0]
 
 

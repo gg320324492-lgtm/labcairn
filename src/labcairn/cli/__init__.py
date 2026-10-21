@@ -8,8 +8,8 @@ for the three to call.
 What this package is
 --------------------
 
-Nine commands — ``init``, ``doctor``, ``serve``, ``task create/run/status/resume``,
-``sources inspect``, ``artifacts list`` — and the plumbing they share:
+The commands — ``init``, ``doctor``, ``serve``, ``task create/run/status/resume``,
+``sources inspect/ingest``, ``artifacts list`` — and the plumbing they share:
 
 * **every command's data comes from the application layer.** A command here
   decides what to ask and how to draw the answer. It never reads the store

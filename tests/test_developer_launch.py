@@ -10,12 +10,15 @@ developer launch with working smoke path"* -- and it is worth a file of its
 own, because a launch that needs a credential or a network is a launch that
 cannot be repeated on another machine.
 
-**One test here is expected to fail.** It records a defect found in code this
-task does not own, and says what the defect is and where it is. It is marked
-``xfail(strict=True)``: the suite stays green, and the day the defect is
-fixed the test passes and the strict marker turns that into a failure until
-the marker is removed. A defect recorded as a skip would go on being skipped
-after it was fixed, which is the opposite of what a record is for.
+**No test here is expected to fail.** The file used to carry strict xfails
+for defects found in code this task does not own, and each said what the
+defect was and where it was. A strict xfail is a record that turns the suite
+red the day the defect is fixed -- which is what happened to every one of
+them: the CLI that could not bind a material to a task, the doctor that
+could not find the service's session token, and the service that held the
+store's write lock between requests are all fixed, and each marker went with
+its defect. A defect recorded as a skip would go on being skipped after it
+was fixed, which is the opposite of what a record is for.
 """
 
 from __future__ import annotations
@@ -187,28 +190,25 @@ def test_the_launch_makes_no_network_call(tmp_workspace: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "labcairn/cli/workspace.py: the CLI's task create binds a source "
-        "*directory* and never a source id, so a task made through the CLI "
-        "carries an empty bound_source_ids and the layer's list_sources finds "
-        "nothing. The layer's create_task is the only caller that can bind a "
-        "material."
-    ),
-)
-def test_the_cli_can_bind_a_material_to_a_task(tmp_workspace: Path) -> None:
+def test_the_cli_can_bind_a_material_to_a_task(launched: Path) -> None:
     """``labcairn task create --source-dir`` binds the material it names.
 
-    The desired behaviour, which the product does not have yet: the task
-    should hold the ids of the materials it ingested.
+    The task holds the ids of the materials it ingested, so the layer's
+    ``list_sources`` finds them: a task that holds no material can carry
+    disclosures and never a claim.
+
+    The workspace is the one the CLI itself made (``launched``), because a
+    ``task create`` against a directory that is not a workspace is refused
+    before it reads anything -- and the point of this test is what the
+    command does with the material it was told about, not what it does with a
+    directory that is not there.
     """
-    materials = tmp_workspace / "materials"
+    materials = launched / "materials"
     materials.mkdir(parents=True, exist_ok=True)
     (materials / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
 
     result = run_cli(
-        tmp_workspace,
+        launched,
         "task",
         "create",
         "--title",
