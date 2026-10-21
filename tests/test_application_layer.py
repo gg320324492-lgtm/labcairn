@@ -1061,9 +1061,8 @@ def test_a_run_that_follows_a_crash_attempts_the_newest_of_two_authorised_operat
     **two** authorised operations for one piece of work.
 
     The choice between them is a fact and not a coin toss: the store holds
-    operations in the order they were planned, and the most recent
-    authorisation is the one a resumed run acts on — it is the answer that was
-    given last, and it is the operation the spent approval was bound to. The
+    operations in the order they were planned, and that order is the ledger's
+    only one, so the most recent plan for the work is the one that runs. The
     older one is left where it was rather than adopted, and it stays visible
     in the ledger as an operation that was authorised and never attempted.
 

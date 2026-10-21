@@ -392,13 +392,16 @@ def _find_operation(
     the stage is resumed rather than the operation adopted.
 
     **The newest authorised one is taken.** The store holds operations in the
-    order they were planned, and the most recent authorisation of a piece of
-    work is the one a resumed run acts on: it is the answer that was given
-    last, and it is the operation a spent approval was bound to. Two
-    authorised operations for one piece of work is a state the product should
-    not reach; when it does, the older one is left where it was rather than
-    adopted, and it stays visible in the ledger as an operation that was
-    authorised and never attempted.
+    order they were planned, and that order is the ledger's only one, so the
+    choice between two of them is a fact about the record and not a preference
+    of the run: the most recent plan for the work is the one that runs. It is
+    not the order the authorisations happened in — an operation can be
+    authorised after a later one was planned — so neither the older nor the
+    newer is reliably the one that was authorised last. Two authorised
+    operations for one piece of work is a state the product should not reach;
+    when it does, the older is left where it was rather than adopted, and it
+    stays visible in the ledger as an operation that was authorised and never
+    attempted.
     """
     with store_refusals():
         operations = list_operations(context.store.session, context.task_id)
