@@ -86,13 +86,14 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Item | Value |
 |---|---|
-| Latest gate | **G3 closed** — LC-P1-08/09/10 all `PASS WITH NOTES`, and the gate closed on an **independent review** at `d114810` (verdict `PASS WITH NOTES`; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](acceptance/G3-acceptance.md) · G2: [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| Latest gate | **G4 in flight** — LC-P1-11 and LC-P1-12 are both `IN PROGRESS`; the last gate closed is **G3** — LC-P1-08/09/10 all `PASS WITH NOTES`, and the gate closed on an **independent review** at `d114810` (verdict `PASS WITH NOTES`; every one of the gate's fourteen fixes broken, no mutation survived). [G3 acceptance](acceptance/G3-acceptance.md) · [LC-P1-11 acceptance](acceptance/LC-P1-11-acceptance.md) · G2: [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
 | Gate G3 | **closed** — [LC-P1-08 `PASS WITH NOTES`](acceptance/LC-P1-08-acceptance.md) · [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`) · [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged. The independent review that closed the gate is [recorded in the gate review](acceptance/G3-acceptance.md) |
-| G3's independent review | At `d114810` — a reviewer that wrote none of the fixes broke each of the gate's fourteen fixes, implementation only and never the test, and **no mutation survived**; verdict `PASS WITH NOTES`. Its three findings are fixed in `37f7d77` |
+| Gate G4 | **in flight** — LC-P1-11 and LC-P1-12 are both `IN PROGRESS`. The report path and the three surfaces' code are merged; **the exit test, *"CLI and Web produce same versioned report"*, is not yet demonstrated** — the end-to-end smoke path (T09) is in flight. [LC-P1-11 acceptance](acceptance/LC-P1-11-acceptance.md) — verdict `PASS WITH NOTES`, and **its reviewer's independence is not discharged**: the reviewer specified the work, dispatched the implementation, wrote the fixes and reviewed them |
+| G3's independent review | At `d114810` — a reviewer that wrote none of the fixes broke each of the gate's fourteen fixes, implementation only and never the test, and **no mutation survived**; verdict `PASS WITH NOTES`. Its three findings are fixed in `f0f7563` (PR #70) |
 | Independent re-review | [PR #1 re-review](acceptance/PR-1-independent-review.md) — C-1/C-2/R-01/R-02 reproduced, not assumed |
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
-| Task breakdowns | [LC-P1-09](plans/LC-P1-09-task-breakdown.md) · [LC-P1-10](plans/LC-P1-10-task-breakdown.md) |
+| Task breakdowns | [LC-P1-09](plans/LC-P1-09-task-breakdown.md) · [LC-P1-10](plans/LC-P1-10-task-breakdown.md) · [LC-P1-11 and LC-P1-12](plans/LC-P1-11-12-task-breakdown.md) |
 | License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
 | LC-P1-01 | **Accepted and merged.** `PASS WITH NOTES` at `c23ef775`, merged [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). [Evidence](acceptance/LC-P1-01-evidence.md) |
 
