@@ -351,6 +351,128 @@ def document(frozen_now: datetime) -> ReportDocument:
     return _document(as_of=frozen_now)
 
 
+def _a_document_with_more_than_one_of_everything(as_of: datetime) -> ReportDocument:
+    """A report with more than one of every kind of thing it can carry.
+
+    The usual fixture holds one of each, and a comparison that reads one
+    of each cannot tell a form that carries the first from a form that
+    carries them all: a form that dropped the second citation, or the
+    second section, would still hold the first, and every comparison would
+    pass. So this one holds two of each — two sections, two findings, two
+    figures, two tables, two disclosures and two citations — and one
+    figure and one table that no section places, because a comparison that
+    never sees an unplaced artefact never sees the branch that carries it.
+    """
+    numeric = _numeric_record(
+        record_id="rec-1", value=LEDGER_VALUE, status=VerificationStatus.VERIFIED_BY_RULE
+    )
+    textual = _text_record(record_id="rec-2", text="The material reports a yield of 4.253%.")
+    conflict = _numeric_record(
+        record_id="rec-3", value=CONFLICT_VALUE, status=VerificationStatus.CONFLICTED
+    )
+    unsupported = _text_record(
+        record_id="rec-4",
+        text="The second reading of the same cell.",
+        status=VerificationStatus.UNSUPPORTED,
+    )
+    return ReportDocument(
+        title="A first-pass report",
+        snapshot=LedgerSnapshot(as_of=as_of, record_ids=("rec-1", "rec-2", "rec-3", "rec-4")),
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(
+                    ClaimBlock(claim_id="clm-1"),
+                    NarrativeBlock(text="The dataset contained 120 rows."),
+                    FigureBlock(figure_id="fig-1"),
+                    TableBlock(table_id="tab-1"),
+                    UnresolvedBlock(record_id="rec-3"),
+                ),
+            ),
+            ReportSection(
+                section_id="sec-2",
+                heading="Discussion",
+                blocks=(
+                    ClaimBlock(claim_id="clm-2"),
+                    InterpretationBlock(text="The catalyst therefore improves yield."),
+                    FigureBlock(figure_id="fig-2"),
+                    TableBlock(table_id="tab-2"),
+                    UnresolvedBlock(record_id="rec-4"),
+                ),
+            ),
+        ),
+        claims=(
+            ReportClaim(claim_id="clm-1", record=numeric, footnote_ids=("fn-1",)),
+            ReportClaim(claim_id="clm-2", record=textual, footnote_ids=("fn-2",)),
+        ),
+        figures=(
+            ReportFigure(
+                figure_id="fig-1",
+                relative_path="outputs/figures/fig-1.svg",
+                content_sha256=FIGURE_HASH,
+                caption="Mean yield across the five measured runs.",
+                manifest=_manifest(),
+            ),
+            ReportFigure(
+                figure_id="fig-2",
+                relative_path="outputs/figures/fig-2.svg",
+                content_sha256=FIGURE_HASH,
+                caption="Yield in the second run.",
+                manifest=_manifest(),
+            ),
+            ReportFigure(
+                figure_id="fig-3",
+                relative_path="outputs/figures/fig-3.svg",
+                content_sha256=FIGURE_HASH,
+                caption="A figure no section places.",
+                manifest=_manifest(),
+            ),
+        ),
+        tables=(
+            ReportTable(
+                table_id="tab-1",
+                relative_path="outputs/tables/tab-1.csv",
+                content_sha256=TABLE_HASH,
+            ),
+            ReportTable(
+                table_id="tab-2",
+                relative_path="outputs/tables/tab-2.csv",
+                content_sha256=TABLE_HASH,
+            ),
+            ReportTable(
+                table_id="tab-3",
+                relative_path="outputs/tables/tab-3.csv",
+                content_sha256=TABLE_HASH,
+            ),
+        ),
+        footnotes=(
+            ProvenanceFootnote(
+                footnote_id="fn-1",
+                source_id="src-1",
+                locator=PdfLocator(page=3),
+                content_sha256=SOURCE_HASH,
+            ),
+            ProvenanceFootnote(
+                footnote_id="fn-2",
+                source_id="src-2",
+                locator=PdfLocator(page=7),
+                content_sha256=SOURCE_HASH,
+            ),
+        ),
+        unresolved_records=(
+            UnresolvedRecord(
+                record=conflict,
+                reason="Two readings of the same cell disagree beyond the tolerance.",
+            ),
+            UnresolvedRecord(
+                record=unsupported,
+                reason="No record supports the second reading.",
+            ),
+        ),
+    )
+
+
 def _document_with_hostile_ids(as_of: datetime) -> ReportDocument:
     """A report whose ids carry characters that must be escaped.
 
@@ -445,6 +567,74 @@ def _read_html(blob: bytes) -> str:
     reader.feed(blob.decode("utf-8"))
     reader.close()
     return reader.text
+
+
+class _BodyReader(_TextReader):
+    """The text of an HTML document's **body**, and not of its head.
+
+    The ``<head>`` holds the document's metadata — its ``<title>`` and its
+    style sheet — and the body is what a reader reads. The title is not
+    lost by the skip: the body's own ``<h1>`` carries it as well, and
+    :func:`_the_html_title` reads the element itself.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._in_head = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        super().handle_starttag(tag, attrs)
+        if tag == "head":
+            self._in_head += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        super().handle_endtag(tag)
+        if tag == "head" and self._in_head:
+            self._in_head -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._in_head:
+            super().handle_data(data)
+
+
+def _read_html_body(blob: bytes) -> str:
+    """The text of an HTML file's body, read by the standard library's parser."""
+    reader = _BodyReader()
+    reader.feed(blob.decode("utf-8"))
+    reader.close()
+    return reader.text
+
+
+def _the_html_title(blob: bytes) -> str:
+    """The text of an HTML file's ``<title>`` element.
+
+    Read out of the file by the same parser, because the element is the
+    document's own name and the report says it twice: once in the head,
+    for the reader's tab, and once in the body, for the reader's page.
+    """
+    titles: list[str] = []
+
+    class _TitleReader(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self._in_title = False
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag == "title":
+                self._in_title = True
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "title":
+                self._in_title = False
+
+        def handle_data(self, data: str) -> None:
+            if self._in_title:
+                titles.append(data)
+
+    reader = _TitleReader()
+    reader.feed(blob.decode("utf-8"))
+    reader.close()
+    return " ".join(titles)
 
 
 def _read_markdown(blob: bytes) -> str:
@@ -548,6 +738,29 @@ def _read_pdf(blob: bytes) -> str:
     """The text of a PDF file, read by a reader that did not write it."""
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
         return "\n".join(page.extract_text() or "" for page in pdf.pages)
+
+
+#: The marker a PDF reader prints in place of a glyph it cannot name.
+_UNNAMED_GLYPH: Final = re.compile(r"\(cid:\d+\)")
+
+
+def _read_pdf_body(blob: bytes) -> tuple[str, int]:
+    """The text of a PDF file, and the number of list markers in it.
+
+    reportlab draws a bullet before each of the report's list items, and
+    pdfminer cannot map the bullet's glyph, so it prints ``(cid:127)``
+    where the bullet is. The marker is the PDF's **list marker** — the
+    role the Markdown's ``- `` and the HTML's ``<li>`` play — and those
+    readers drop theirs, so this one is dropped as well.
+
+    The number of markers is returned as well, because a dropped marker is
+    a hole in the comparison: a renderer that added a glyph the reader
+    cannot name would have it dropped too, and the count is what says how
+    many were dropped.
+    """
+    with pdfplumber.open(io.BytesIO(blob)) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    return _UNNAMED_GLYPH.sub("", text), len(_UNNAMED_GLYPH.findall(text))
 
 
 def _docx_entry_times(blob: bytes) -> dict[str, tuple[int, ...]]:
@@ -1603,6 +1816,355 @@ def test_every_form_carries_the_moment_and_the_records_the_document_holds(
             f"the {form} form names {sorted(records)}, and the document is a view "
             f"of {sorted(expected_records)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Rule 1 — a form carries the document, and nothing else
+# ---------------------------------------------------------------------------
+#
+# Every comparison above asks whether the document's content is **in** a
+# form. None of them asks whether a form says something the document does
+# not, and that is the half that was missing: a renderer that composed a
+# sentence of its own would produce a form that carried every one of the
+# document's claims and one more, and every comparison would pass.
+#
+# The comparison below is an **equality**, so it fails in both directions —
+# a form that leaves a claim out and a form that adds one. And the
+# expectation is read out of the **document**, not out of the renderer,
+# which is the point the comment above :data:`EXPECTED_LINES` makes: *a
+# test that took its expectations from the code it is checking would prove
+# nothing*. A resolver that changed the heading it draws would be invisible
+# to a comparison built on the resolver, and the form would carry a
+# heading the document does not have.
+
+#: The label the four forms write before the moment the report is a view of.
+SNAPSHOT_LABEL: Final = "Snapshot: "
+
+#: The label the four forms write before the records the report is a view of.
+RECORDS_LABEL: Final = "Records: "
+
+#: The heading the four forms give the citations.
+PROVENANCE_HEADING: Final = "Provenance"
+
+#: The heading the four forms give the artefacts no section places.
+UNPLACED_HEADING: Final = "Artefacts not placed in a section"
+
+
+def _the_record_says(record: LedgerRecordView) -> str:
+    """What a record holds, in the record's own words.
+
+    A numeric record's statement is its number — drawn with ``repr``,
+    which is the shortest spelling that reads back as the same float — and
+    its declared unit; a claim or result record's statement is its text.
+    """
+    if record.text is not None:
+        return record.text
+    if record.value is None or record.unit is None:
+        raise AssertionError(
+            f"the record {record.record_id!r} carries neither a statement nor a "
+            "quantity, so the model should have refused to build it"
+        )
+    return f"{record.value!r} {record.unit}"
+
+
+def _the_claim_says(claim: ReportClaim) -> str:
+    """What a finding reads, in the model's own words.
+
+    The label, the statement, how far the record was checked and the
+    citations it names, in that order — and the interpretation marker on
+    the end, because a finding that rests on a claim or result record is
+    an interpretation and the marker says so.
+    """
+    line = f"{claim.claim_id} — {_the_record_says(claim.record)} ({claim.record.status.value})"
+    if claim.footnote_ids:
+        line = f"{line} [{', '.join(claim.footnote_ids)}]"
+    if claim.record.is_interpretation:
+        line = f"{line} {INTERPRETATION_MARKER}"
+    return line
+
+
+def _the_disclosure_says(disclosure: UnresolvedRecord) -> str:
+    """What a disclosure reads, in the model's own words.
+
+    The record, what it holds, why it is not a finding, and why it could
+    not be resolved — a reader who is shown a conflict has to be shown
+    what it was about.
+    """
+    return (
+        f"{disclosure.record.record_id} — {_the_record_says(disclosure.record)}"
+        f" — {disclosure.record.status.value} — {disclosure.reason}"
+    )
+
+
+def _the_figure_says(figure: ReportFigure) -> tuple[str, ...]:
+    """What a figure reads, in the model's own words.
+
+    The caption, and then the artefact it names: the path and the hash of
+    the bytes. The bytes themselves are not in the model, so the report
+    names the artefact and the artefact manifest carries it.
+    """
+    return (
+        f"Figure {figure.figure_id}. {figure.caption}",
+        f"Artefact: {figure.relative_path} (sha256 {figure.content_sha256})",
+    )
+
+
+def _the_table_says(table: ReportTable) -> tuple[str, ...]:
+    """What a table reads, in the model's own words."""
+    return (
+        f"Table {table.table_id}",
+        f"Artefact: {table.relative_path} (sha256 {table.content_sha256})",
+    )
+
+
+def _the_document_says(document: ReportDocument) -> tuple[str, ...]:
+    """Every line the report makes, in the order the four forms draw them.
+
+    Read out of the **document**. Every value in it is the model's own —
+    the title, the headings, the prose, the findings, the captions, the
+    addresses, the moment and the records — so a document that grew a
+    claim grew this expectation with it, and a form that left the new
+    claim out no longer matches.
+
+    The wording is stated here rather than taken from the renderer, and
+    the reason is the one the comment above :data:`EXPECTED_LINES` gives:
+    a test that took its expectations from the code it is checking would
+    prove nothing. The four labels below are the renderers' own — the
+    words they write around the document's content — and the notices are
+    the product's.
+    """
+    claims = {claim.claim_id: claim for claim in document.claims}
+    figures = {figure.figure_id: figure for figure in document.figures}
+    tables = {table.table_id: table for table in document.tables}
+    disclosures = {item.record.record_id: item for item in document.unresolved_records}
+
+    lines: list[str] = [
+        document.title,
+        FIRST_PASS_NOTICE,
+        REPRODUCIBILITY_NOTICE,
+        f"{SNAPSHOT_LABEL}{document.snapshot.as_of.isoformat()}",
+    ]
+    if document.snapshot.record_ids:
+        lines.append(f"{RECORDS_LABEL}{', '.join(document.snapshot.record_ids)}")
+
+    placed_figures: set[str] = set()
+    placed_tables: set[str] = set()
+    for section in document.sections:
+        lines.append(section.heading)
+        for block in section.blocks:
+            if isinstance(block, NarrativeBlock):
+                lines.append(block.text)
+            elif isinstance(block, InterpretationBlock):
+                lines.append(f"{block.text} {INTERPRETATION_MARKER}")
+            elif isinstance(block, ClaimBlock):
+                lines.append(_the_claim_says(claims[block.claim_id]))
+            elif isinstance(block, FigureBlock):
+                placed_figures.add(block.figure_id)
+                lines.extend(_the_figure_says(figures[block.figure_id]))
+            elif isinstance(block, TableBlock):
+                placed_tables.add(block.table_id)
+                lines.extend(_the_table_says(tables[block.table_id]))
+            elif isinstance(block, UnresolvedBlock):
+                lines.append(_the_disclosure_says(disclosures[block.record_id]))
+
+    unplaced_figures = [f for f in document.figures if f.figure_id not in placed_figures]
+    unplaced_tables = [t for t in document.tables if t.table_id not in placed_tables]
+    if unplaced_figures or unplaced_tables:
+        lines.append(UNPLACED_HEADING)
+        for figure in unplaced_figures:
+            lines.extend(_the_figure_says(figure))
+        for table in unplaced_tables:
+            lines.extend(_the_table_says(table))
+
+    lines.append(PROVENANCE_HEADING)
+    for footnote in document.footnotes:
+        lines.append(
+            f"{footnote.footnote_id} — source {footnote.source_id}"
+            f" — {describe_locator(footnote.locator)} — sha256 {footnote.content_sha256}"
+        )
+    return tuple(lines)
+
+
+def _what_the_document_says(document: ReportDocument) -> str:
+    """What the document says, as one line of text.
+
+    The lines are joined with a space and the whitespace is collapsed,
+    because the readers collapse it too: the PDF wraps a long line, the
+    DOCX has no line breaks at all, and a comparison that did not collapse
+    the whitespace would fail on a line that is merely long.
+    """
+    return _normalise(" ".join(_the_document_says(document)))
+
+
+def _the_forms_say(document: ReportDocument) -> dict[str, str]:
+    """The four forms, each read back by a reader that did not write it.
+
+    The DOCX and the PDF are **not** byte-reproducible, so a claim about
+    them is measured by reading them back and not by comparing bytes: the
+    DOCX out of its package, the PDF by a reader that did not write it,
+    the HTML by a parser, and the Markdown by a Markdown parser.
+    """
+    pdf_text, _ = _read_pdf_body(render_pdf(document))
+    return {
+        "markdown": _normalise(_read_markdown(render_markdown(document))),
+        "html": _normalise(_read_html_body(render_html(document))),
+        "docx": _normalise(_read_docx(render_docx(document))),
+        "pdf": _normalise(pdf_text),
+    }
+
+
+def _the_difference(expected: str, actual: str) -> str:
+    """The words two texts disagree about, in the order they disagree.
+
+    A form that does not say what the document says can differ by one
+    word or by a whole sentence, and a failure message that named only
+    the two texts would leave the reader to find the difference. This
+    names it.
+    """
+    expected_words = expected.split(" ")
+    actual_words = actual.split(" ")
+    lines: list[str] = []
+    for index, (left, right) in enumerate(zip(expected_words, actual_words, strict=False)):
+        if left != right:
+            lines.append(
+                f"at word {index + 1}: the document says {left!r}, the form says {right!r}"
+            )
+            break
+    if len(expected_words) != len(actual_words):
+        lines.append(
+            f"the document says {len(expected_words)} words and the form says {len(actual_words)}"
+        )
+    return "; ".join(lines)
+
+
+@pytest.mark.integration
+def test_every_form_carries_the_document_and_nothing_else(
+    document: ReportDocument,
+) -> None:
+    """Every form says what the document says, and says nothing else.
+
+    This is the comparison the rest of this file is made of, said in
+    both directions at once. A form that **omits** one of the document's
+    claims and a form that **adds** a claim of its own are the same
+    failure — a form that is not a drawing of this document — and an
+    equality catches both, where a containment catches only the first.
+
+    **All four forms are watched**, and each is read by the reader its
+    own test reads it with. The DOCX and the PDF are read back rather
+    than compared byte for byte, because neither of them is
+    byte-reproducible: a DOCX is a ZIP whose entries carry the time the
+    file was written, and a PDF carries a creation date.
+
+    **The expectation is read out of the document**, so a document that
+    changed moves the expectation with it, and a renderer that changed
+    does not.
+
+    The comparison is on the text with the whitespace collapsed, because
+    the readers collapse it: the PDF wraps a long line and the DOCX has no
+    line breaks at all, and a difference in the whitespace would say
+    nothing about the renderer.
+    """
+    expected = _what_the_document_says(document)
+
+    for form, text in _the_forms_say(document).items():
+        assert text == expected, (
+            f"the {form} form does not say what the document says — "
+            f"{_the_difference(expected, text)}"
+        )
+
+
+@pytest.mark.integration
+def test_every_form_carries_the_document_that_was_escaped(
+    hostile_document: ReportDocument,
+) -> None:
+    """The same comparison, on a document whose every value fights back.
+
+    The comparison above is an equality of texts, and an equality is
+    exact: a form that escaped a value twice, or dropped a character
+    while escaping it, would read back as a different text and the
+    comparison would say so. The hostile document is the one that tries
+    every way of doing that, and the four readers are four ways of
+    undoing it, so the comparison is worth making on this document and
+    not only on the well-behaved one.
+    """
+    expected = _what_the_document_says(hostile_document)
+
+    for form, text in _the_forms_say(hostile_document).items():
+        assert text == expected, (
+            f"the {form} form does not read back what the document says — "
+            f"{_the_difference(expected, text)}"
+        )
+
+
+@pytest.mark.integration
+def test_every_form_carries_every_claim_a_document_with_more_of_them_holds(
+    frozen_now: datetime,
+) -> None:
+    """A document with more than one of everything, and four forms that carry it all.
+
+    The usual fixture holds one of each kind of thing, and a comparison
+    that reads one of each cannot tell a form that carries the first from a
+    form that carries them all: a form that dropped the second citation, or
+    the second section, would still hold the first, and every comparison
+    would pass. The expectation here is read out of the document, so the
+    comparison grows with the document, and this test grows the document
+    to show that it does.
+
+    It is also the test that a claim nobody thought of is watched. A form
+    that dropped the second of two citations is a form that says less than
+    the document says, and nothing in the suite said anything about it
+    before, because the usual document has only one citation to drop.
+    """
+    document = _a_document_with_more_than_one_of_everything(frozen_now)
+    expected = _what_the_document_says(document)
+
+    for form, text in _the_forms_say(document).items():
+        assert text == expected, (
+            f"the {form} form does not carry every claim the document holds — "
+            f"{_the_difference(expected, text)}"
+        )
+
+
+@pytest.mark.unit
+def test_the_html_carries_the_title_in_its_own_title_element(
+    document: ReportDocument,
+) -> None:
+    """The HTML names the report in the head as well as in the body.
+
+    The comparison of the forms reads the body, because the head is the
+    document's metadata — its title and its style sheet — and the body is
+    what a reader reads. The ``<title>`` is the report's own name all the
+    same, and it is the name a reader's tab shows, so it is checked on
+    its own: a title element that named another report would give a
+    reader a tab that lied about what was in it.
+    """
+    title = _the_html_title(render_html(document))
+
+    assert title == document.title
+
+
+@pytest.mark.unit
+def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
+    document: ReportDocument,
+) -> None:
+    """The PDF's list marker is drawn once for each of the report's list items.
+
+    The PDF's reader cannot name the bullet reportlab draws, and drops
+    the marker in its place — which is right, because the marker is the
+    PDF's list marker and the other three forms' readers drop theirs as
+    well. But a dropped marker is a hole in the comparison of the forms,
+    because a renderer that added a glyph the reader cannot name would
+    have it dropped too.
+
+    So the number of markers is checked against the number of list items
+    the report carries: a finding, a disclosure and a citation are list
+    items, and a narrative, an interpretation, a figure and a table are
+    not.
+    """
+    _, markers = _read_pdf_body(render_pdf(document))
+    list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
+
+    assert markers == list_items
 
 
 # ---------------------------------------------------------------------------

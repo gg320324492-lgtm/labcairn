@@ -94,7 +94,7 @@ STEPS: tuple[str, ...] = (
 #: counted neither in the lines nor in the summary, so a run that had a claim
 #: fail and still said "every check held" would be counted at one fewer. The
 #: count is the only thing that would say so.
-EXPECTED_CHECKS: int = 58
+EXPECTED_CHECKS: int = 60
 
 #: The claim planted false, for the run that has to fail. It is a claim the
 #: demonstration makes in its first step, so the planted run stops early and
@@ -906,6 +906,29 @@ def _run_with_a_fault(
     environment["COLUMNS"] = "200"
     return subprocess.run(
         [sys.executable, "-c", DRIVER, str(DEMO), mode, *arguments],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        timeout=900,
+        cwd=repo_root,
+    )
+
+
+def run_at(repo_root: Path, moment: datetime) -> subprocess.CompletedProcess[str]:
+    """The demonstration, with every clock in it pinned to ``moment``.
+
+    The same subprocess the module's own fixture runs, with the hour
+    changed. Pinning the clock does not change what the demonstration does
+    -- only what hour it does it at -- so a run here is evidence about the
+    hour and about nothing else.
+    """
+    environment = dict(os.environ)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["COLUMNS"] = "200"
+    return subprocess.run(
+        [sys.executable, "-c", PINNED_CLOCK_PROGRAM, str(DEMO), moment.isoformat()],
         capture_output=True,
         text=True,
         encoding="utf-8",

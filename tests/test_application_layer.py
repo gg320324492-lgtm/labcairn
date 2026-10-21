@@ -28,8 +28,8 @@ where a client resumes from.
 from __future__ import annotations
 
 import ast
-import contextlib
 import hashlib
+import contextlib
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
@@ -85,13 +85,13 @@ from labcairn.application import (
     request_approval,
     run_stage,
 )
-from labcairn.application import records as records_layer
 from labcairn.application import reports as report_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
 from labcairn.core.ids import ApprovalId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
-from labcairn.db.repository import count_events, events_after, list_operations
+from labcairn.db.repository import count_events, events_after
+from labcairn.db.repository import list_operations
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
 from labcairn.evidence.store import append_record
@@ -104,16 +104,19 @@ from labcairn.reports.receipt import (
     DerivationTargetKind,
 )
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
-from labcairn.runtime.lifecycle import StageStatus, TaskGoal
-from labcairn.runtime.operation import ApprovalState, Operation, OperationState
 from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, OperationState
+from labcairn.runtime.operation import Operation
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.sources.locators import ComputationLocator, TextLocator
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 from labcairn.workspace.roots import Workspace
+from labcairn.application import records as records_layer
+from labcairn.db.repository import count_events, events_after, list_operations
+from labcairn.runtime.lifecycle import StageStatus, TaskGoal
+from labcairn.runtime.operation import ApprovalState, Operation, OperationState
 
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
@@ -121,21 +124,6 @@ env = _shared_env
 
 _MOMENT = datetime(2026, 1, 1, tzinfo=UTC)
 _HASH = "b" * 64
-
-
-# --------------------------------------------------------------------------- #
-# the death a test stages
-# --------------------------------------------------------------------------- #
-
-
-class _TheRunDiedError(Exception):
-    """The run stopped between the intent and the attempt.
-
-    The layer turns a failure of the **work** into a refusal, and it does not
-    handle a failure of its own bookkeeping — so one of those leaves the store
-    exactly as a killed process leaves it, which is the state the operation
-    reuse after a crash is about.
-    """
 
 
 # --------------------------------------------------------------------------- #
@@ -228,7 +216,6 @@ def _stage_request(
     resource_key: str = "one.csv",
     run_id: RunId | None = None,
     approval_id: ApprovalId | None = None,
-    run_id: RunId | None = None,
 ) -> StageRequest:
     """A stage run over a file in the source root."""
     return StageRequest(
@@ -239,7 +226,6 @@ def _stage_request(
         resource_key=resource_key,
         run_id=run_id,
         approval_id=approval_id,
-        run_id=run_id,
     )
 
 
@@ -793,26 +779,25 @@ def test_a_parked_stage_completes_when_the_approval_arrives(
     assert result.operation.state is OperationState.CONFIRMED
 
 
-def test_a_run_that_follows_an_approval_reuses_the_operation_it_was_bound_to(
+def test_a_parked_stage_that_completes_carries_no_reason(
     env: StoreEnv, workspace_root: Path
 ) -> None:
-    """One piece of work, one operation, whatever the log says about it.
+    """A stage that has finished is waiting for nothing, so it says nothing.
 
-    The approval was asked for against an operation, and the stage that runs
-    once the answer arrives is that operation and not a new one. A second row
-    would put two operations in the audit log for one piece of work, and the
-    log is what a reader takes the history from.
+    A stage parked for an approval carries the reason it is parked. When the
+    approval arrives and the stage completes, that reason has nothing left to
+    explain, and the schema pairs the two: a stage is ``blocked`` if and only
+    if it carries a reason. So the reason goes when the wait ends.
 
-    The count is the property, and the identity is what makes it the *same*
-    operation: a run that planned a fresh one would also leave a confirmed
-    operation behind, so the stage would still complete and the operation
-    would still be confirmed — of the wrong operation.
+    Left on the row it is a row the database refuses to write, and the refusal
+    reaches the caller as a raw ``IntegrityError`` out of the middle of the
+    transaction — not as a finished stage, and not as a refusal that names
+    itself.
     """
     ledger = ApprovalLedger()
     context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
     requested = request_approval(
         context,
-        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
         ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1), stage_name="intake"),
         now=_MOMENT,
     )
@@ -867,97 +852,92 @@ def test_a_parked_stage_that_fails_carries_no_reason(env: StoreEnv, workspace_ro
     )
     grant_approval(context, requested.approval.approval_id, now=_MOMENT)
 
-    result = run_stage(
-        context,
-        _stage_request(approval_id=requested.approval.approval_id),
-        _work,
-        now=_MOMENT,
-    )
+    parked = _stage_named(context, "intake")
+    assert parked.status is StageStatus.BLOCKED
+    assert parked.blocked_reason is not None
 
-    assert result.operation.operation_id == requested.approval.operation_id
-    operations = list_operations(env.session, context.task_id)
-    assert len(operations) == 2, (
-        "the run planned a third operation for work that was already planned: "
-        f"{[str(operation.operation_id) for operation in operations]}"
-    )
+    def work(resource: object) -> StageOutcome:
+        del resource
+        raise RuntimeError("the operator could not be resolved")
+
+    try:
+        with pytest.raises(ApplicationRefusedError) as caught:
+            run_stage(
+                context,
+                _stage_request(
+                    stage_name="intake",
+                    run_id=requested.operation.run_id,
+                    approval_id=requested.approval.approval_id,
+                ),
+                work,
+                now=_MOMENT,
+            )
+    except IntegrityError as error:
+        pytest.fail(
+            "failing a parked stage raised a raw IntegrityError "
+            f"({error}): the stage failed but still carried the reason it was "
+            "parked with, and the database refuses a row that says both."
+        )
+    assert caught.value.reason is ApplicationRefusal.STAGE_FAILED
+
+    stored = _stage_named(context, "intake")
+    assert stored.status is StageStatus.FAILED
+    assert stored.blocked_reason is None
+    assert stored.output_hashes == ()
 
 
-def test_a_run_that_follows_a_crash_reuses_the_operation_that_was_authorised(
-    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+def test_the_database_refuses_a_reason_on_a_stage_that_is_not_blocked(
+    env: StoreEnv, workspace_root: Path
 ) -> None:
-    """The operation that was authorised and never attempted is the one that runs.
+    """The pairing is the schema's, and the schema holds both halves of it.
 
-    **The intent is written ahead of the attempt**, so a run that dies between
-    the two leaves an operation ``AUTHORIZED`` and nothing attempted. The run
-    that follows must pick that operation up and attempt it, rather than plan
-    a second operation for the same work: two operations for one piece of work
-    would make the audit log say it happened twice.
+    The model refuses to build a stage that carries a reason while it is not
+    blocked, so the only way to see the constraint is to write the row the
+    model would never build. A constraint nothing can violate is a constraint
+    nobody has checked — and this is the half the completion path used to
+    break, by finishing a stage that still carried the reason it was parked
+    with.
 
-    The death is staged where the product's own ordering puts it — between the
-    intent and the attempt — so what the resumed run finds is a state the
-    product can reach on its own, and not one this test wrote by hand.
+    The refusal is matched on the constraint's name, because a bare
+    ``IntegrityError`` does not say which rule said no: a foreign key says no
+    in exactly the same words.
     """
     context = _make_context(env, workspace_root, _allow_all())
-    run_id = RunId(new_id())
-    move = records_layer.move_operation
-    died = False
+    run_stage(context, _stage_request(), _work, now=_MOMENT)
+    run = read_task_state(context).runs[0]
 
-    def _die_before_the_attempt(
-        ctx: ApplicationContext,
-        operation: Operation,
-        *,
-        event: EventType,
-        to_state: OperationState,
-        now: datetime,
-    ) -> Operation:
-        nonlocal died
-        if to_state is OperationState.ATTEMPTING and not died:
-            died = True
-            raise _TheRunDiedError("the run died between the intent and the attempt")
-        return move(ctx, operation, event=event, to_state=to_state, now=now)
-
-    monkeypatch.setattr(records_layer, "move_operation", _die_before_the_attempt)
-
-    with pytest.raises(_TheRunDiedError):
-        run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
-
-    # What the death left behind: one operation, authorised, never attempted.
-    planned = list_operations(env.session, context.task_id)
-    assert len(planned) == 1
-    assert planned[0].state is OperationState.AUTHORIZED
-
-    result = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
-
-    operations = list_operations(env.session, context.task_id)
-    assert len(operations) == 1, (
-        "the store holds "
-        f"{len(operations)} operations for one piece of work: "
-        f"{[str(operation.operation_id) for operation in operations]}"
+    refusal = _write_a_stage_row(
+        env,
+        task_id=context.task_id,
+        run_id=run.run_id,
+        status="completed",
+        reason="still waiting for a human",
     )
-    assert result.operation.operation_id == planned[0].operation_id
-    assert result.operation.state is OperationState.CONFIRMED
+    assert "ck_stages_reason_only_when_blocked" in refusal
 
 
-def test_a_stage_that_runs_twice_plans_two_operations(env: StoreEnv, workspace_root: Path) -> None:
-    """The work ran twice, so the log says it ran twice.
+def test_the_database_refuses_a_blocked_stage_with_no_reason(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The other half: a stage that is blocked has to say why.
 
-    An operation that is already ``CONFIRMED`` is not one a later run may
-    pick up: the stage does the work again, and an operation that carried
-    both attempts would leave the audit log saying the work happened once when
-    it happened twice. The second run plans its own operation, and the store
-    holds one per attempt.
+    The model's own validator checks one direction of the pair — a reason
+    implies a blocked stage — and the schema checks the other, because a
+    reader who finds ``blocked`` with nothing to act on has been told the
+    stage is waiting without being told what for.
     """
     context = _make_context(env, workspace_root, _allow_all())
-    run_id = RunId(new_id())
-    first = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
-    second = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+    run_stage(context, _stage_request(), _work, now=_MOMENT)
+    run = read_task_state(context).runs[0]
 
-    operations = list_operations(env.session, context.task_id)
-    assert len(operations) == 2, (
-        f"the store holds {len(operations)} operations for two attempts: "
-        f"{[str(operation.operation_id) for operation in operations]}"
+    refusal = _write_a_stage_row(
+        env,
+        task_id=context.task_id,
+        run_id=run.run_id,
+        status="blocked",
+        reason=None,
     )
-    assert second.operation.operation_id != first.operation.operation_id
+    assert "ck_stages_reason_only_when_blocked" in refusal
 
 
 def test_the_plan_shows_the_declared_workflow_and_the_task_s_progress(
@@ -1141,261 +1121,6 @@ def test_the_artefacts_of_a_task_are_listed(env: StoreEnv, workspace_root: Path)
 
     listed = list_artifacts(context)
     assert [view.receipt.receipt_id for view in listed] == ["artifact-1"]
-
-
-class _TheRunDiedBeforeTheAttemptError(Exception):
-    """The run stopped between the intent and the attempt.
-
-    The layer turns a failure of the **work** into a refusal and does not
-    handle a failure of its own bookkeeping, so one of those leaves the store
-    exactly as a killed process leaves it: the intent is committed, and the
-    attempt never began.
-    """
-
-
-def _a_stage_request_in(run_id: RunId) -> StageRequest:
-    """The stage request the crashed run left behind, in the run it was in."""
-    return StageRequest(
-        stage_name="intake",
-        capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
-        root_id="source:0",
-        resource_key="one.csv",
-        run_id=run_id,
-    )
-
-
-def _die_between_the_intent_and_the_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make the next stage run die where a killed process dies.
-
-    The intent is written ahead of the attempt, in its own transaction
-    (ADR-0003 C2), so the death is staged between the two writes and the store
-    is left holding an operation that was authorised and never attempted.
-    """
-    original = records_layer.move_operation
-    died = False
-
-    def _die(
-        ctx: ApplicationContext,
-        operation: Operation,
-        *,
-        event: EventType,
-        to_state: OperationState,
-        now: datetime,
-    ) -> Operation:
-        nonlocal died
-        if to_state is OperationState.ATTEMPTING and not died:
-            died = True
-            raise _TheRunDiedBeforeTheAttemptError(
-                "the run died between the intent and the attempt"
-            )
-        return original(ctx, operation, event=event, to_state=to_state, now=now)
-
-    monkeypatch.setattr(records_layer, "move_operation", _die)
-
-
-def _the_attempts(env: StoreEnv, task_id: TaskId) -> tuple[Event, ...]:
-    """The ``operation_attempted`` events, in the ledger's order.
-
-    The attempt is the fact under test, and the ledger records it before the
-    work runs — so it says which operation was attempted even when the run
-    that attempted it could not write its outcome.
-    """
-    return tuple(
-        event
-        for event in events_after(env.session, task_id, after_seq=0, limit=500)
-        if event.type is EventType.OPERATION_ATTEMPTED
-    )
-
-
-def _the_operations(env: StoreEnv, task_id: TaskId) -> dict[Any, Operation]:
-    """The task's operations, by id, so a test can say which one it means."""
-    return {
-        operation.operation_id: operation for operation in list_operations(env.session, task_id)
-    }
-
-
-def test_a_run_that_follows_a_crash_attempts_the_authorised_operation_and_not_the_awaiting_one(
-    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The effect is carried by the operation that was authorised.
-
-    **The case.** A run died between its intent and its attempt, so the store
-    holds an operation that was ``AUTHORIZED`` and never attempted. A question
-    was then put to a human about the same work — the same stage, the same
-    capability, the same resource and the same arguments — and it has not been
-    answered, so the store holds a second operation for that work in
-    ``AWAITING_APPROVAL``. The run that follows must attempt the operation
-    that was authorised.
-
-    An operation that is still waiting for an approval is a question, not a
-    consent: ADR-0003 C4 holds an approval valid only once it has been
-    granted, and a run that adopted the waiting operation would perform the
-    effect before anybody agreed to it. The answer, when it came, would also
-    arrive for an operation that had already been attempted.
-
-    Both states are reached the way the product reaches them: the death is
-    staged where the layer's own ordering puts it, and the question is asked
-    through the layer's own approval path.
-    """
-    context = _make_context(env, workspace_root, _allow_all())
-    run_id = RunId(new_id())
-
-    _die_between_the_intent_and_the_attempt(monkeypatch)
-    with pytest.raises(_TheRunDiedBeforeTheAttemptError):
-        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
-
-    planned = _the_operations(env, context.task_id)
-    assert len(planned) == 1, f"the death left {len(planned)} operations behind"
-    authorised = next(iter(planned.values()))
-    assert authorised.state is OperationState.AUTHORIZED
-
-    # The question, asked about the same work in the same stage, and left
-    # unanswered. The policy asks about it, which is what makes it a question
-    # rather than a formality.
-    asked = request_approval(
-        replace(context, policy=_ask_all()),
-        ApprovalRequest(
-            use=_use(),
-            expires_at=_MOMENT.replace(hour=1),
-            run_id=run_id,
-            stage_name="intake",
-        ),
-        now=_MOMENT,
-    )
-    waiting = asked.operation
-    assert waiting.state is OperationState.AWAITING_APPROVAL
-    assert waiting.operation_id != authorised.operation_id
-
-    # The run that follows, under a policy that permits the capability — the
-    # crash branch is only reachable when the policy allows the work. The
-    # stage was parked by the question, and the store refuses to complete a
-    # stage that still carries a blocked reason, so the run ends in the
-    # store's refusal; the attempt it made was recorded before the work ran,
-    # and that is the fact under test.
-    with contextlib.suppress(IntegrityError):
-        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
-
-    attempts = _the_attempts(env, context.task_id)
-    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
-    assert attempts[0].operation_id == authorised.operation_id, (
-        "the run attempted "
-        f"{attempts[0].operation_id}, which is the operation that was still "
-        f"waiting for an answer ({waiting.operation_id}); the authorised one "
-        f"was {authorised.operation_id}"
-    )
-    after = _the_operations(env, context.task_id)
-    assert after[waiting.operation_id].state is OperationState.AWAITING_APPROVAL
-
-
-def test_a_run_that_follows_a_crash_attempts_the_newest_of_two_authorised_operations(
-    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Two authorised operations for one piece of work, and the newest runs.
-
-    **The case.** A run died between its intent and its attempt, leaving an
-    operation ``AUTHORIZED`` and never attempted. A question was then put to a
-    human about the same work, granted, and the grant was spent — which
-    authorises the operation the grant was bound to, so the store now holds
-    **two** authorised operations for one piece of work.
-
-    The choice between them is a fact and not a coin toss: the store holds
-    operations in the order they were planned, and that order is the ledger's
-    only one, so the most recent plan for the work is the one that runs. The
-    older one is left where it was rather than adopted, and it stays visible
-    in the ledger as an operation that was authorised and never attempted.
-
-    This test pins the *rule* rather than the case: the code before the fix
-    also took the newest match, but it took the newest match of a wider set.
-    """
-    context = _make_context(env, workspace_root, _allow_all())
-    run_id = RunId(new_id())
-
-    _die_between_the_intent_and_the_attempt(monkeypatch)
-    with pytest.raises(_TheRunDiedBeforeTheAttemptError):
-        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
-
-    older = next(iter(_the_operations(env, context.task_id).values()))
-    assert older.state is OperationState.AUTHORIZED
-
-    asking = replace(context, policy=_ask_all())
-    asked = request_approval(
-        asking,
-        ApprovalRequest(
-            use=_use(),
-            expires_at=_MOMENT.replace(hour=1),
-            run_id=run_id,
-            stage_name="intake",
-        ),
-        now=_MOMENT,
-    )
-    grant_approval(asking, asked.approval.approval_id, now=_MOMENT)
-    consume_approval(asking, asked.approval.approval_id, _use(), now=_MOMENT)
-
-    newer = asked.operation.operation_id
-    authorised = _the_operations(env, context.task_id)
-    assert authorised[newer].state is OperationState.AUTHORIZED
-    assert authorised[older.operation_id].state is OperationState.AUTHORIZED
-    assert newer != older.operation_id
-
-    with contextlib.suppress(IntegrityError):
-        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
-
-    attempts = _the_attempts(env, context.task_id)
-    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
-    assert attempts[0].operation_id == newer, (
-        "the run attempted "
-        f"{attempts[0].operation_id}; the newest authorised operation was "
-        f"{newer} and the older one was {older.operation_id}"
-    )
-    after = _the_operations(env, context.task_id)
-    assert after[older.operation_id].state is OperationState.AUTHORIZED
-
-
-def test_a_run_never_attempts_an_operation_that_is_still_waiting_for_an_answer(
-    env: StoreEnv, workspace_root: Path
-) -> None:
-    """A question nobody has answered is not something a run may perform.
-
-    The store holds one operation for the work, and it is waiting for a human.
-    ADR-0003 C2 says what that state means: nothing was performed, and the
-    stage is resumed. The run does the work the policy permits — under an
-    operation of its own — and the question stays a question, for the human
-    it was put to.
-
-    A run that adopted the waiting operation would perform the effect under a
-    consent nobody gave, and would leave the pending approval bound to an
-    operation that had already been attempted: the answer would arrive too
-    late to matter, and the ledger would say the work happened under a
-    question rather than under an answer.
-    """
-    context = _make_context(env, workspace_root, _allow_all())
-    run_id = RunId(new_id())
-
-    asked = request_approval(
-        replace(context, policy=_ask_all()),
-        ApprovalRequest(
-            use=_use(),
-            expires_at=_MOMENT.replace(hour=1),
-            run_id=run_id,
-            stage_name="intake",
-        ),
-        now=_MOMENT,
-    )
-    waiting = asked.operation
-    assert waiting.state is OperationState.AWAITING_APPROVAL
-
-    with contextlib.suppress(IntegrityError):
-        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
-
-    attempts = _the_attempts(env, context.task_id)
-    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
-    assert attempts[0].operation_id != waiting.operation_id, (
-        "the run attempted the operation that was still waiting for an answer "
-        f"({waiting.operation_id})"
-    )
-    after = _the_operations(env, context.task_id)
-    assert after[waiting.operation_id].state is OperationState.AWAITING_APPROVAL
 
 
 # --------------------------------------------------------------------------- #
@@ -2378,11 +2103,329 @@ def test_the_page_is_serialisable_as_data(env: StoreEnv, workspace_root: Path) -
 # --------------------------------------------------------------------------- #
 
 
-def _use(resource_key: str = "one.csv") -> ApprovalUse:
+def _use() -> ApprovalUse:
     """What an approval is spent on, matching the stage request."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
         arguments={"operator_id": "mean", "parameters": {}},
         root_id="source:0",
-        resource_key=resource_key,
+        resource_key="one.csv",
     )
+
+
+class _TheRunDiedBeforeTheAttemptError(Exception):
+    """The run stopped between the intent and the attempt.
+
+    The layer turns a failure of the **work** into a refusal and does not
+    handle a failure of its own bookkeeping, so one of those leaves the store
+    exactly as a killed process leaves it: the intent is committed, and the
+    attempt never began.
+    """
+
+
+def _a_stage_request_in(run_id: RunId) -> StageRequest:
+    """The stage request the crashed run left behind, in the run it was in."""
+    return StageRequest(
+        stage_name="intake",
+        capability=CapabilityId.ANALYSIS_RUN,
+        arguments={"operator_id": "mean", "parameters": {}},
+        root_id="source:0",
+        resource_key="one.csv",
+        run_id=run_id,
+    )
+
+
+def _die_between_the_intent_and_the_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the next stage run die where a killed process dies.
+
+    The intent is written ahead of the attempt, in its own transaction
+    (ADR-0003 C2), so the death is staged between the two writes and the store
+    is left holding an operation that was authorised and never attempted.
+    """
+    original = records_layer.move_operation
+    died = False
+
+    def _die(
+        ctx: ApplicationContext,
+        operation: Operation,
+        *,
+        event: EventType,
+        to_state: OperationState,
+        now: datetime,
+    ) -> Operation:
+        nonlocal died
+        if to_state is OperationState.ATTEMPTING and not died:
+            died = True
+            raise _TheRunDiedBeforeTheAttemptError(
+                "the run died between the intent and the attempt"
+            )
+        return original(ctx, operation, event=event, to_state=to_state, now=now)
+
+    monkeypatch.setattr(records_layer, "move_operation", _die)
+
+
+def _the_attempts(env: StoreEnv, task_id: TaskId) -> tuple[Event, ...]:
+    """The ``operation_attempted`` events, in the ledger's order.
+
+    The attempt is the fact under test, and the ledger records it before the
+    work runs — so it says which operation was attempted even when the run
+    that attempted it could not write its outcome.
+    """
+    return tuple(
+        event
+        for event in events_after(env.session, task_id, after_seq=0, limit=500)
+        if event.type is EventType.OPERATION_ATTEMPTED
+    )
+
+
+def _the_operations(env: StoreEnv, task_id: TaskId) -> dict[Any, Operation]:
+    """The task's operations, by id, so a test can say which one it means."""
+    return {
+        operation.operation_id: operation for operation in list_operations(env.session, task_id)
+    }
+
+
+def test_a_run_that_follows_a_crash_attempts_the_authorised_operation_and_not_the_awaiting_one(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The effect is carried by the operation that was authorised.
+
+    **The case.** A run died between its intent and its attempt, so the store
+    holds an operation that was ``AUTHORIZED`` and never attempted. A question
+    was then put to a human about the same work — the same stage, the same
+    capability, the same resource and the same arguments — and it has not been
+    answered, so the store holds a second operation for that work in
+    ``AWAITING_APPROVAL``. The run that follows must attempt the operation
+    that was authorised.
+
+    An operation that is still waiting for an approval is a question, not a
+    consent: ADR-0003 C4 holds an approval valid only once it has been
+    granted, and a run that adopted the waiting operation would perform the
+    effect before anybody agreed to it. The answer, when it came, would also
+    arrive for an operation that had already been attempted.
+
+    Both states are reached the way the product reaches them: the death is
+    staged where the layer's own ordering puts it, and the question is asked
+    through the layer's own approval path.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+
+    _die_between_the_intent_and_the_attempt(monkeypatch)
+    with pytest.raises(_TheRunDiedBeforeTheAttemptError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    planned = _the_operations(env, context.task_id)
+    assert len(planned) == 1, f"the death left {len(planned)} operations behind"
+    authorised = next(iter(planned.values()))
+    assert authorised.state is OperationState.AUTHORIZED
+
+    # The question, asked about the same work in the same stage, and left
+    # unanswered. The policy asks about it, which is what makes it a question
+    # rather than a formality.
+    asked = request_approval(
+        replace(context, policy=_ask_all()),
+        ApprovalRequest(
+            use=_use(),
+            expires_at=_MOMENT.replace(hour=1),
+            run_id=run_id,
+            stage_name="intake",
+        ),
+        now=_MOMENT,
+    )
+    waiting = asked.operation
+    assert waiting.state is OperationState.AWAITING_APPROVAL
+    assert waiting.operation_id != authorised.operation_id
+
+    # The run that follows, under a policy that permits the capability — the
+    # crash branch is only reachable when the policy allows the work. The
+    # stage was parked by the question, and the store refuses to complete a
+    # stage that still carries a blocked reason, so the run ends in the
+    # store's refusal; the attempt it made was recorded before the work ran,
+    # and that is the fact under test.
+    with contextlib.suppress(IntegrityError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    attempts = _the_attempts(env, context.task_id)
+    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
+    assert attempts[0].operation_id == authorised.operation_id, (
+        "the run attempted "
+        f"{attempts[0].operation_id}, which is the operation that was still "
+        f"waiting for an answer ({waiting.operation_id}); the authorised one "
+        f"was {authorised.operation_id}"
+    )
+    after = _the_operations(env, context.task_id)
+    assert after[waiting.operation_id].state is OperationState.AWAITING_APPROVAL
+
+
+def test_a_run_that_follows_a_crash_attempts_the_newest_of_two_authorised_operations(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two authorised operations for one piece of work, and the newest runs.
+
+    **The case.** A run died between its intent and its attempt, leaving an
+    operation ``AUTHORIZED`` and never attempted. A question was then put to a
+    human about the same work, granted, and the grant was spent — which
+    authorises the operation the grant was bound to, so the store now holds
+    **two** authorised operations for one piece of work.
+
+    The choice between them is a fact and not a coin toss: the store holds
+    operations in the order they were planned, and that order is the ledger's
+    only one, so the most recent plan for the work is the one that runs. The
+    older one is left where it was rather than adopted, and it stays visible
+    in the ledger as an operation that was authorised and never attempted.
+
+    This test pins the *rule* rather than the case: the code before the fix
+    also took the newest match, but it took the newest match of a wider set.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+
+    _die_between_the_intent_and_the_attempt(monkeypatch)
+    with pytest.raises(_TheRunDiedBeforeTheAttemptError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    older = next(iter(_the_operations(env, context.task_id).values()))
+    assert older.state is OperationState.AUTHORIZED
+
+    asking = replace(context, policy=_ask_all())
+    asked = request_approval(
+        asking,
+        ApprovalRequest(
+            use=_use(),
+            expires_at=_MOMENT.replace(hour=1),
+            run_id=run_id,
+            stage_name="intake",
+        ),
+        now=_MOMENT,
+    )
+    grant_approval(asking, asked.approval.approval_id, now=_MOMENT)
+    consume_approval(asking, asked.approval.approval_id, _use(), now=_MOMENT)
+
+    newer = asked.operation.operation_id
+    authorised = _the_operations(env, context.task_id)
+    assert authorised[newer].state is OperationState.AUTHORIZED
+    assert authorised[older.operation_id].state is OperationState.AUTHORIZED
+    assert newer != older.operation_id
+
+    with contextlib.suppress(IntegrityError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    attempts = _the_attempts(env, context.task_id)
+    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
+    assert attempts[0].operation_id == newer, (
+        "the run attempted "
+        f"{attempts[0].operation_id}; the newest authorised operation was "
+        f"{newer} and the older one was {older.operation_id}"
+    )
+    after = _the_operations(env, context.task_id)
+    assert after[older.operation_id].state is OperationState.AUTHORIZED
+
+
+def test_a_run_never_attempts_an_operation_that_is_still_waiting_for_an_answer(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A question nobody has answered is not something a run may perform.
+
+    The store holds one operation for the work, and it is waiting for a human.
+    ADR-0003 C2 says what that state means: nothing was performed, and the
+    stage is resumed. The run does the work the policy permits — under an
+    operation of its own — and the question stays a question, for the human
+    it was put to.
+
+    A run that adopted the waiting operation would perform the effect under a
+    consent nobody gave, and would leave the pending approval bound to an
+    operation that had already been attempted: the answer would arrive too
+    late to matter, and the ledger would say the work happened under a
+    question rather than under an answer.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+
+    asked = request_approval(
+        replace(context, policy=_ask_all()),
+        ApprovalRequest(
+            use=_use(),
+            expires_at=_MOMENT.replace(hour=1),
+            run_id=run_id,
+            stage_name="intake",
+        ),
+        now=_MOMENT,
+    )
+    waiting = asked.operation
+    assert waiting.state is OperationState.AWAITING_APPROVAL
+
+    with contextlib.suppress(IntegrityError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    attempts = _the_attempts(env, context.task_id)
+    assert len(attempts) == 1, f"the ledger records {len(attempts)} attempts"
+    assert attempts[0].operation_id != waiting.operation_id, (
+        "the run attempted the operation that was still waiting for an answer "
+        f"({waiting.operation_id})"
+    )
+    after = _the_operations(env, context.task_id)
+    assert after[waiting.operation_id].state is OperationState.AWAITING_APPROVAL
+
+
+def test_the_four_forms_the_layer_writes_are_the_canonical_document(
+    report_world: _ReportWorld,
+) -> None:
+    """The four forms the layer writes say what the canonical document says.
+
+    The revision machinery takes the four forms as bytes, so it cannot tell
+    whether those bytes belong to the document beside them. This test holds
+    that: every form is read back and compared with the canonical document —
+    the document the layer itself wrote as ``report.json`` — and a form drawn
+    from any other document would not match it.
+
+    **All four forms are compared, and each is read by the reader its own
+    test reads it with.** The DOCX and the PDF are not byte-reproducible, so
+    a claim about them is measured by reading them back and not by comparing
+    bytes.
+
+    The comparison is an **equality** rather than a containment, so a form
+    that carries another document's caption, or another document's
+    conclusion, is caught in the DOCX and the PDF as well as in the Markdown
+    and the HTML — and a form that says more than the document does is
+    caught too.
+
+    The imports are inside the test, so that this file's change is one
+    piece: the other branches at this gate are adding their own tests to
+    this file, and a change here that is a single test keeps them
+    mergeable.
+    """
+    from test_analysis_report_render import (
+        _normalise,
+        _read_docx,
+        _read_html_body,
+        _read_markdown,
+        _read_pdf_body,
+        _what_the_document_says,
+    )
+
+    from labcairn.reports.model import ReportDocument
+
+    context = report_world.context
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    revision = _report_dir(context) / "v1"
+    document = ReportDocument.model_validate(
+        json.loads((revision / "report.json").read_text(encoding="utf-8"))
+    )
+    expected = _what_the_document_says(document)
+
+    forms = {
+        "markdown": _read_markdown((revision / "report.md").read_bytes()),
+        "html": _read_html_body((revision / "report.html").read_bytes()),
+        "docx": _read_docx((revision / "report.docx").read_bytes()),
+        "pdf": _read_pdf_body((revision / "report.pdf").read_bytes())[0],
+    }
+    for form, text in forms.items():
+        assert _normalise(text) == expected, (
+            f"the {form} form the layer wrote does not say what the canonical "
+            f"document beside it says"
+        )
