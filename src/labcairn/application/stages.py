@@ -383,6 +383,25 @@ def _find_operation(
     was bound to, and a run that follows a crash reuses the operation that was
     authorised but never attempted. Two operations for one piece of work would
     make the audit log say it happened twice.
+
+    **Only an authorised operation is one.** An operation that is still waiting
+    for an approval is a question nobody has answered, and a run that adopted
+    it would attempt an effect nobody authorised — and the answer, when it came,
+    would arrive for an operation that had already been attempted. ADR-0003 C2
+    says what a crash on such an operation means: nothing was performed, and
+    the stage is resumed rather than the operation adopted.
+
+    **The newest authorised one is taken.** The store holds operations in the
+    order they were planned, and that order is the ledger's only one, so the
+    choice between two of them is a fact about the record and not a preference
+    of the run: the most recent plan for the work is the one that runs. It is
+    not the order the authorisations happened in — an operation can be
+    authorised after a later one was planned — so neither the older nor the
+    newer is reliably the one that was authorised last. Two authorised
+    operations for one piece of work is a state the product should not reach;
+    when it does, the older is left where it was rather than adopted, and it
+    stays visible in the ledger as an operation that was authorised and never
+    attempted.
     """
     with store_refusals():
         operations = list_operations(context.store.session, context.task_id)
@@ -406,7 +425,7 @@ def _find_operation(
         and operation.capability == request.capability.value
         and operation.resource_key == resource.resolved_key
         and operation.args_digest == digest
-        and operation.state in (OperationState.AWAITING_APPROVAL, OperationState.AUTHORIZED)
+        and operation.state is OperationState.AUTHORIZED
     ]
     return matches[-1] if matches else None
 
