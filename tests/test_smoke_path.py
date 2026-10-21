@@ -196,6 +196,26 @@ def test_the_material_was_ingested_through_the_cli(
 
 
 @pytest.mark.e2e
+def test_the_two_surfaces_were_driven_against_one_workspace(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The CLI and the service drove one workspace at the same time.
+
+    A request owns its session and closes it when it is over, so the service
+    holds the store's write lock for nobody between requests, and the CLI's
+    writer is not refused for it. The demonstration's own line says the two
+    were used together, and the check behind it says the CLI's command
+    succeeded while the service was serving.
+    """
+    assert demonstration.returncode == 0, demonstration.stdout + demonstration.stderr
+    output = demonstration.stdout
+
+    assert "the CLI and the service were used against one workspace at the same time" in output, (
+        "the demonstration did not drive the CLI and the service against one workspace"
+    )
+
+
+@pytest.mark.e2e
 def test_every_comparison_was_shown_a_difference_it_had_to_find(
     demonstration: subprocess.CompletedProcess[str],
 ) -> None:
