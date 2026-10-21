@@ -494,6 +494,69 @@ def test_the_event_stream_owns_its_session_for_the_life_of_the_stream(
     )
 
 
+def _the_sessions_the_request_owns(
+    context: ApplicationContext, monkeypatch: pytest.MonkeyPatch
+) -> list[Session]:
+    """The sessions the *request* owns, recorded as the request forks them.
+
+    The app holds one store, and every request forks a session of its own
+    from it — that is the request's session, and the request's own teardown
+    closes it. The stream must not read on it: the stream's session belongs
+    to the stream, and the stream closes it when the stream ends.
+
+    Recorded on the *store the app holds*, so that only the request's own
+    fork is caught: the stream forks from the request's store, and that
+    store is not this one.
+    """
+    forked: list[Session] = []
+    original = context.store.fork
+
+    def recording_fork() -> TaskStore:
+        store = original()
+        forked.append(store.session)
+        return store
+
+    monkeypatch.setattr(context.store, "fork", recording_fork)
+    return forked
+
+
+def test_the_event_stream_reads_on_a_session_of_its_own_not_the_requests(
+    context: ApplicationContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stream's session is the stream's, and not the request's.
+
+    **The other half of the property the test above states.** That one
+    watches the stream let go of its session, and checks that the session
+    it used is not the *service's* shared one. This one watches the session
+    the *request* owns: the request forks a session of its own from the
+    store the app holds, and the stream must not read on it. A stream that
+    read on the request's session would be reading on a session the
+    request's own teardown closes — one lifetime where the code says there
+    are two, and the stream's closing would be the request's closing.
+
+    The request's session is found by watching the fork the request makes,
+    rather than by guessing which session the service happens to hold.
+    """
+    source = _RecordingSource()
+    requests = _the_sessions_the_request_owns(context, monkeypatch)
+    app = create_app(context, event_source=source)
+    with TestClient(app) as client:
+        response = client.get("/events/stream?follow=false")
+    assert response.status_code == 200, response.text
+    assert len(requests) == 1, (
+        f"the request forked {len(requests)} session(s); it owns one of its own, "
+        "and the stream must not read on it"
+    )
+    assert len(source.sessions) == 1, (
+        f"the stream read on {len(source.sessions)} session(s); it should read on one"
+    )
+    assert source.sessions[0] is not requests[0], (
+        "the stream read on the request's own session, so the session the "
+        "request's teardown closes is the one the stream reads on, and the "
+        "stream's closing is the request's closing"
+    )
+
+
 def test_a_failed_event_stream_leaves_no_transaction_behind(
     context: ApplicationContext,
 ) -> None:

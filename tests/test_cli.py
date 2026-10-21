@@ -492,6 +492,70 @@ def test_the_json_form_is_not_a_rendering_of_the_prose(workspace: Path, task_id:
     assert machine.stdout != prose.stdout
 
 
+#: The rule the rendered tables are drawn with: the box's vertical border.
+_TABLE_RULE = "│"
+
+
+def _the_prose_value(rendered: str, label: str) -> str:
+    """What the rendered form gives *label*.
+
+    The rendered form is a grid of a label column and a value column, and
+    the value is what follows the label on its line. Read this way rather
+    than by asking whether the value is *somewhere* in the output, so that a
+    value drawn against the wrong label is caught: both values would still
+    be in the text, and the two forms would have swapped their fields
+    without anybody noticing.
+    """
+    for line in rendered.splitlines():
+        cells = line.split(_TABLE_RULE)
+        if len(cells) < 3:
+            continue
+        parts = re.split(r"\s{2,}", cells[1].strip(), maxsplit=1)
+        if len(parts) == 2 and parts[0] == label:
+            return parts[1]
+    raise AssertionError(f"the rendered form has no {label!r} row:\n{rendered}")
+
+
+def test_task_status_prose_says_what_its_json_says(workspace: Path, task_id: str) -> None:
+    """``task status`` and ``task status --json`` are one model, drawn twice.
+
+    The rule the architecture states: the rendered output is a rendering of
+    the same data. ``doctor`` is watched against this and ``task status``
+    was not, so a renderer that drew its own words — a title of "a task"
+    where the model says "Read the literature" — would have gone unnoticed,
+    and the README's claim that the two forms print the same model would
+    have gone with it.
+
+    **Row by row, and not by searching the text.** Every row the rendered
+    form draws is compared with the field the JSON form carries, and it is
+    compared against that row's own value. A value drawn against the wrong
+    label would still be somewhere in the output, and the two forms would
+    have swapped their fields without anybody noticing.
+    """
+    prose = run_cli("--workspace", str(workspace), "task", "status")
+    machine = run_cli("--workspace", str(workspace), "task", "status", "--json")
+    assert prose.returncode == 0, prose.stderr
+    assert machine.returncode == 0, machine.stderr
+    state = machine.json()
+    expected = {
+        "task": state["task"]["task_id"],
+        "title": state["task"]["title"],
+        "objective": state["task"]["goal"]["objective"],
+        "revision": str(state["task"]["revision"]),
+        "last event": str(state["last_event_seq"]),
+        "runs": str(len(state["runs"])),
+        "stages": str(len(state["stages"])),
+        "artifacts": str(len(state["artifacts"])),
+        "approvals": str(len(state["approvals"])),
+    }
+    for label, value in expected.items():
+        drawn = _the_prose_value(prose.stdout, label)
+        assert drawn == value, (
+            f"the rendered form's {label!r} row says {drawn!r} and the JSON form "
+            f"says {value!r}: the two forms are not the same model"
+        )
+
+
 # --------------------------------------------------------------------------- #
 # a refusal is rendered, not raised
 # --------------------------------------------------------------------------- #
@@ -1434,6 +1498,59 @@ def test_loading_the_cli_does_not_load_the_layer() -> None:
         f"loading the CLI loaded {offenders}. The CLI imports the layer when a "
         "command needs it, not when the CLI is loaded, so that `labcairn --help` "
         "does not pay for the whole application."
+    )
+
+
+def _is_type_checking(test: ast.expr) -> bool:
+    """Whether a module-level ``if`` is the ``TYPE_CHECKING`` guard.
+
+    The names under that guard are not module-level imports: they are for
+    mypy, and the interpreter never evaluates them.
+    """
+    return isinstance(test, ast.Name) and test.id == "TYPE_CHECKING"
+
+
+def test_the_cli_module_names_no_layer_module_at_module_level(repo_root: Path) -> None:
+    """``cli/commands.py``'s module-level imports name no layer module.
+
+    The docstring's claim, checked against the source it is about. The
+    measurement above watches the *effect* — what the interpreter ends up
+    holding — and this watches the *claim*: a layer name imported at module
+    level would break the claim even on a build where it happened not to
+    drag the layer in, and a claim nobody checks is a claim nobody can
+    rely on.
+
+    **The one project module the CLI names at module level is the API's bind
+    module**, for the two defaults ``serve``'s own signature needs. It is
+    named here so that a second one has to be argued for rather than added:
+    a docstring that says what the module imports has to be kept true.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    imported: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.If) and _is_type_checking(node.test):
+            continue
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+
+    layer = [
+        name
+        for name in imported
+        if any(name == package or name.startswith(f"{package}.") for package in _LAYER_PACKAGES)
+    ]
+    assert not layer, (
+        f"the CLI names the layer at module level: {layer}. The layer is imported "
+        "when a command needs it, not when the CLI is loaded, or `labcairn --help` "
+        "pays for the whole application."
+    )
+    project = [name for name in imported if name.startswith("labcairn.")]
+    assert project == ["labcairn.api.bind"], (
+        f"the CLI names {project} at module level and not just the bind defaults. "
+        "The docstring says the bind module is the only one, so a second one has "
+        "to be argued for and the docstring has to be told about it."
     )
 
 
