@@ -876,6 +876,28 @@ def test_a_run_that_follows_a_crash_reuses_the_operation_that_was_authorised(
     assert result.operation.state is OperationState.CONFIRMED
 
 
+def test_a_stage_that_runs_twice_plans_two_operations(env: StoreEnv, workspace_root: Path) -> None:
+    """The work ran twice, so the log says it ran twice.
+
+    An operation that is already ``CONFIRMED`` is not one a later run may
+    pick up: the stage does the work again, and an operation that carried
+    both attempts would leave the audit log saying the work happened once when
+    it happened twice. The second run plans its own operation, and the store
+    holds one per attempt.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+    first = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+    second = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 2, (
+        f"the store holds {len(operations)} operations for two attempts: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert second.operation.operation_id != first.operation.operation_id
+
+
 def test_the_plan_shows_the_declared_workflow_and_the_task_s_progress(
     env: StoreEnv, workspace_root: Path
 ) -> None:
