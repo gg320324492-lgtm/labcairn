@@ -80,27 +80,38 @@ check is re-runnable by whoever changes either side.
 The service lets go of the store between requests
 --------------------------------------------------
 
-**The store's session belongs to the process, and the write lock must not.**
+**The store's session belongs to the request, and the write lock must not.**
 
 :mod:`labcairn.db.session` opens *every* transaction with ``BEGIN
 IMMEDIATE`` — ADR-0003 C3's clause, and the right one for a write: two
 writers must not interleave. A read is a transaction too, so a read takes
-SQLite's **write** lock rather than a read lock, and the session this service
-holds lives as long as the process does. Without a boundary, the service
-would hold the write lock from its first read until its next commit, and
-every other process — the CLI above all — would be refused with
+SQLite's **write** lock rather than a read lock. Without a boundary, the
+service would hold the write lock from its first read until its next commit,
+and every other process — the CLI above all — would be refused with
 *"database is locked"*. That was measured, not inferred: a read through the
 store's session issues ``BEGIN IMMEDIATE``, a second connection is refused,
 and the reader blocks another process's **write**, not only its read.
 
-So the service ends the transaction when a request is over. A local research
+So a request ends its transaction when the request is over. A local research
 workspace whose service holds the database hostage while it runs is not a
 workspace two surfaces can be used in, and G4's exit clause compares what the
 CLI and the web say about the same task — so they have to be usable against
 one workspace at the same time.
 
-:func:`_end_the_store_transaction` says what the ending does, and what it
-does not do.
+**A session is not thread-safe, so a request gets one of its own.** Every
+handler in :mod:`labcairn.api.routes` is a plain ``def``, so FastAPI runs
+them in a threadpool — at the same time, on the same session, when the
+session is the service's. One thread's rollback then discards another
+thread's reads, and the SQLite driver, called from two threads at once, can
+take the whole process down. Both were measured, not inferred.
+
+The session therefore belongs to the request: the app holds the
+request-independent facts — the workspace, the policy, the ledger and the
+task id — and each request forks a session of its own from the store's
+engine, and closes it when the request is over. The closing is in
+:func:`labcairn.api.routes._context`, which is where the request's session
+is opened; it runs after the response has been sent, so a streamed body
+holds its session for as long as it streams.
 """
 
 from __future__ import annotations
@@ -108,7 +119,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -281,7 +292,6 @@ def create_app(
     _install_guards(app)
     _install_refusal_handlers(app)
     _mount_workbench(app, static_dir)
-    _install_store_release(app)
     return app
 
 
@@ -423,72 +433,6 @@ def _mount_workbench(app: FastAPI, static_dir: Path | None) -> None:
     if static_dir is None or not static_dir.is_dir():
         return
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="workbench")
-
-
-def _install_store_release(app: FastAPI) -> None:
-    """Put the store release around the service.
-
-    Added last of all, so that it is the outermost middleware: it has to run
-    around the guards too, because a request the guards refuse must leave the
-    store as it found it.
-    """
-    app.add_middleware(_StoreRelease)
-
-
-class _StoreRelease:
-    """Let go of the store's transaction when a request is over.
-
-    A plain ASGI middleware rather than the ``@app.middleware("http")`` form,
-    and the difference is one of timing rather than of kind. The ``http`` form
-    resumes as soon as the handler has returned, which for a streamed
-    response is *before* the body has been sent — so a body that reads the
-    store would open its transaction after the release and leave it open.
-    This one resumes when the response has been sent, which is the moment the
-    request is really over.
-    """
-
-    def __init__(self, app: Any) -> None:
-        self._app = app
-
-    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        try:
-            await self._app(scope, receive, send)
-        finally:
-            if scope["type"] == "http":
-                _end_the_store_transaction(scope["app"])
-
-
-def _end_the_store_transaction(app: Any) -> None:
-    """End the store's transaction, and with it SQLite's write lock.
-
-    **A rollback and not a commit, and the difference is not a matter of
-    taste.** A commit *writes* anything left pending, and a unit of work that
-    was never committed is one that ADR-0003 C3 says rolls back; and a commit
-    leaves the session's identity map as it was, so the next request would be
-    answered from the objects the previous one loaded. That was measured:
-    after a request ended with a commit, the next read answered with the
-    title as it was *before* another process changed it. A rollback expires
-    those objects, so the next read is a fresh one.
-
-    **Why nothing is lost.** Every write goes through
-    :meth:`~labcairn.db.repository.TaskStore.unit`, which commits inside the
-    request; by the time the request is over there is nothing pending, so the
-    rollback discards nothing. A unit that was *not* committed is rolled
-    back, which is what C3 asks for.
-
-    **Why nothing is written twice.** A rollback writes nothing at all. The
-    write path's SQL is untouched: a write is still ``BEGIN IMMEDIATE``, the
-    events, the state rows and the ``COMMIT`` that ADR-0003 C3 describes.
-
-    **Why nothing reads an ORM attribute after this point.** The store's
-    readers project their rows into frozen contracts while the transaction is
-    open — :func:`~labcairn.db.repository.load_task` and its neighbours
-    return a ``Task``, not a ``TaskRow`` — and the response is built before
-    the request is over. So the rollback expires objects nobody is going to
-    read, and the next request reads the database.
-    """
-    context = cast(ApplicationContext, app.state.context)
-    context.store.session.rollback()
 
 
 __all__ = [
