@@ -38,6 +38,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -50,7 +51,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from typer.main import get_command
 
+import labcairn.cli
 from labcairn.application import (
     ApplicationContext,
     inspect_source,
@@ -61,7 +64,7 @@ from labcairn.application import (
 from labcairn.application.sources import SourceView
 from labcairn.application.stages import TaskPlan
 from labcairn.application.tasks import TaskState
-from labcairn.cli.commands import EXIT_REFUSED
+from labcairn.cli.commands import EXIT_REFUSED, app
 from labcairn.cli.workspace import application_context, locate, read_config
 from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine, create_session_factory, session_scope
@@ -1507,3 +1510,76 @@ def test_the_layer_models_the_cli_serialises_are_the_ones_the_layer_returns(
     assert isinstance(state, TaskState)
     assert isinstance(plan, TaskPlan)
     assert isinstance(view, SourceView)
+
+
+def _the_commands_the_package_names() -> set[str]:
+    """The command names the package's own docstring lists, and its count.
+
+    Read from the docstring rather than from a constant beside it, because
+    **the docstring is the claim**: a list somewhere else that nobody reads
+    is not a record of anything. Only the sentence that introduces the list
+    is read — the docstring quotes other things, a plan's path among them —
+    and the literal names are expanded the way the sentence reads them, so
+    ``task create/run/status/resume`` is four commands and not one.
+    """
+    docstring = labcairn.cli.__doc__ or ""
+    sentence = re.search(
+        r"The commands\s+(?P<names>.*?)and the plumbing",
+        docstring,
+        re.DOTALL,
+    )
+    if sentence is None:
+        return set()
+    commands: set[str] = set()
+    for entry in re.findall(r"``([^`]+)``", sentence.group("names")):
+        parts = entry.split("/")
+        if len(parts) == 1:
+            commands.add(parts[0])
+            continue
+        # A slashed entry is a group and its variants: the group's first word
+        # is the group, and the rest are the commands under it.
+        group = parts[0].split(" ")[0]
+        variants = [parts[0].removeprefix(group).strip(), *parts[1:]]
+        for variant in variants:
+            if variant:
+                commands.add(f"{group} {variant}")
+    return commands
+
+
+def _the_commands_the_app_registers() -> set[str]:
+    """Every command the console script offers, and not the groups.
+
+    A group is a name on the way to a command, not a command: ``task`` is
+    how the four ``task`` commands are reached.
+    """
+    root = get_command(app)
+    found: set[str] = set()
+
+    def walk(command: Any, prefix: str) -> None:
+        for name, sub in sorted((getattr(command, "commands", None) or {}).items()):
+            path = f"{prefix}{name}"
+            if hasattr(sub, "commands"):
+                walk(sub, f"{path} ")
+            else:
+                found.add(path)
+
+    walk(root, "")
+    return found
+
+
+def test_the_packages_docstring_names_exactly_the_commands_there_are() -> None:
+    """The package's own list of its commands is the true one.
+
+    **A count is not a claim; a list is.** The list used to say "Eight
+    commands" and name them, and it was right when it was written and wrong
+    twice over after two more commands arrived — and nothing noticed,
+    because a number in a docstring is only ever compared with the reader's
+    memory, and it was read as "Eight" long after it had stopped being true.
+    **So the count is gone** and the list is the claim: a *list* can be
+    compared with the application, and this test does that. The names the
+    docstring gives and the commands the console script registers are the
+    same set, in both directions. A command that arrives without being
+    named fails here, and a name that no longer names a command fails here
+    too.
+    """
+    assert _the_commands_the_package_names() == _the_commands_the_app_registers()
