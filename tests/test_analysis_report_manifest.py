@@ -1161,3 +1161,123 @@ def test_the_part_kinds_are_a_closed_set() -> None:
     """A part that could be several things at once would be listed several
     ways."""
     assert {kind.value for kind in ManifestPartKind} == {"figure", "table", "document"}
+
+
+# ---------------------------------------------------------------------------
+# The report's own material: one source, one set of bytes
+# ---------------------------------------------------------------------------
+
+
+def _one_source_cited_twice(as_of: datetime, *, second_reading: str) -> ReportDocument:
+    """A report that cites one source twice.
+
+    Each claim rests on its own record, and each record was read from the
+    bytes its own citation names — so the model accepts the document, and
+    the two citations may or may not agree about what one source holds.
+    The second reading is named, so that the two cases — the same bytes and
+    two different sets of bytes — are one helper apart.
+    """
+    first = _hash("first-reading")
+    second = _hash(second_reading)
+    first_record = LedgerRecordView(
+        record_id="rec-1",
+        record_kind=EvidenceKind.NUMERIC,
+        value=4.253,
+        unit="%",
+        status=VerificationStatus.VERIFIED_BY_RULE,
+        anchor_ids=("anc-1",),
+        source_content_hash=first,
+    )
+    second_record = LedgerRecordView(
+        record_id="rec-2",
+        record_kind=EvidenceKind.NUMERIC,
+        value=4.501,
+        unit="%",
+        status=VerificationStatus.VERIFIED_BY_RULE,
+        anchor_ids=("anc-2",),
+        source_content_hash=second,
+    )
+    return ReportDocument(
+        title="A first-pass report",
+        snapshot=LedgerSnapshot(as_of=as_of, record_ids=("rec-1", "rec-2")),
+        sections=(
+            ReportSection(
+                section_id="sec-1",
+                heading="Findings",
+                blocks=(ClaimBlock(claim_id="clm-1"), ClaimBlock(claim_id="clm-2")),
+            ),
+        ),
+        claims=(
+            ReportClaim(claim_id="clm-1", record=first_record, footnote_ids=("fn-1",)),
+            ReportClaim(claim_id="clm-2", record=second_record, footnote_ids=("fn-2",)),
+        ),
+        figures=(),
+        tables=(),
+        footnotes=(
+            ProvenanceFootnote(
+                footnote_id="fn-1",
+                source_id="src-1",
+                locator=PdfLocator(page=3),
+                content_sha256=first,
+            ),
+            ProvenanceFootnote(
+                footnote_id="fn-2",
+                source_id="src-1",
+                locator=PdfLocator(page=4),
+                content_sha256=second,
+            ),
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_a_report_may_not_cite_one_source_at_two_sets_of_bytes(frozen_now: datetime) -> None:
+    """One source is one dependency, and the chain refuses to say otherwise.
+
+    A source read twice, at two sets of bytes, is one source under two
+    versions. The chain would then name it under one hash and drop the
+    other, and the walk that marks a report stale — which matches the
+    hashes in ``derived_from`` — would mark the report for one reading and
+    leave it current for the other. A reader would have no way to tell
+    which reading the report rests on.
+
+    So the manifest is refused rather than built, and the refusal names the
+    source that disagrees with itself.
+    """
+    document = _one_source_cited_twice(frozen_now, second_reading="second-reading")
+
+    with pytest.raises(ReportManifestRefusedError, match="twice, with different bytes") as caught:
+        build_report_manifest(
+            document=document,
+            document_relative_path=DOCUMENT_PATH,
+            upstreams={},
+        )
+
+    assert "src-1" in str(caught.value)
+
+
+@pytest.mark.unit
+def test_a_report_may_cite_one_source_twice_at_the_same_bytes(frozen_now: datetime) -> None:
+    """Two citations of one source are one dependency, and one link.
+
+    A report may cite one source twice — two findings read from it, say.
+    What it may not do is cite it under two hashes. The refusal is about
+    the **bytes** and not about the count, so the chain carries one link
+    for the source however many times the report cites it.
+    """
+    document = _one_source_cited_twice(frozen_now, second_reading="first-reading")
+
+    manifest = build_report_manifest(
+        document=document,
+        document_relative_path=DOCUMENT_PATH,
+        upstreams={},
+    )
+
+    sources = [
+        link
+        for link in _part(manifest, DOCUMENT_PART_ID).lineage
+        if link.target_kind is DerivationTargetKind.SOURCE
+    ]
+    assert len(sources) == 1
+    assert sources[0].target_id == "src-1"
+    assert sources[0].content_sha256 == _hash("first-reading")
