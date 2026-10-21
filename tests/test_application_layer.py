@@ -39,6 +39,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import text as sql_text
+from test_analysis_report_render import (
+    _read_docx,
+    _read_html,
+    _read_markdown,
+    _read_pdf,
+    _the_snapshot_a_form_states,
+)
 from test_store_support import StoreEnv, make_source_id
 from test_store_support import env as _shared_env
 
@@ -1520,6 +1527,15 @@ def test_the_four_forms_are_drawn_from_the_canonical_document(
     the forms carry the document's own moment, the document's own caption and
     the document's own records, and a form drawn from any other document
     would not.
+
+    **All four forms are compared, and each is read by the reader its own
+    test reads it with.** A comparison that stopped at the Markdown and the
+    HTML would leave the DOCX and the PDF unwatched, and the two lines that
+    would have shown it — the snapshot and the records — are the two the
+    comparison of the forms' words does not read either.
+
+    The expectation is read out of the canonical document, so that a document
+    that changed moves the expectation with it.
     """
     context = report_world.context
     render_report(
@@ -1529,13 +1545,30 @@ def test_the_four_forms_are_drawn_from_the_canonical_document(
     )
     revision = _report_dir(context) / "v1"
     document = json.loads((revision / "report.json").read_text(encoding="utf-8"))
-    markdown = (revision / "report.md").read_text(encoding="utf-8")
-    html = (revision / "report.html").read_text(encoding="utf-8")
+    # Each form is read by the reader its own test reads it with: the DOCX out
+    # of its package, the PDF by a reader that did not write it, and the two
+    # text forms by a parser.
+    forms = {
+        "markdown": _read_markdown((revision / "report.md").read_bytes()),
+        "html": _read_html((revision / "report.html").read_bytes()),
+        "docx": _read_docx((revision / "report.docx").read_bytes()),
+        "pdf": _read_pdf((revision / "report.pdf").read_bytes()),
+    }
+    markdown = forms["markdown"]
+    html = forms["html"]
 
-    snapshot = next(line for line in markdown.splitlines() if line.startswith("Snapshot: "))
-    assert datetime.fromisoformat(snapshot.removeprefix("Snapshot: ")) == datetime.fromisoformat(
-        document["snapshot"]["as_of"]
-    )
+    as_of = datetime.fromisoformat(document["snapshot"]["as_of"])
+    records = frozenset(document["snapshot"]["record_ids"])
+    for form, text in forms.items():
+        moments, named = _the_snapshot_a_form_states(text)
+        assert moments == {as_of}, (
+            f"the {form} form is a view of {sorted(moments)}, and the document is a view of {as_of}"
+        )
+        assert named == records, (
+            f"the {form} form names {sorted(named)}, and the document is a view of "
+            f"{sorted(records)}"
+        )
+
     assert document["snapshot"]["record_ids"] == ["ev-1"]
     assert _CAPTION in markdown
     assert _CAPTION in html
