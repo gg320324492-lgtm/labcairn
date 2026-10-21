@@ -28,8 +28,8 @@ where a client resumes from.
 from __future__ import annotations
 
 import ast
-import hashlib
 import contextlib
+import hashlib
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
@@ -85,13 +85,13 @@ from labcairn.application import (
     request_approval,
     run_stage,
 )
+from labcairn.application import records as records_layer
 from labcairn.application import reports as report_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
 from labcairn.core.ids import ApprovalId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
-from labcairn.db.repository import count_events, events_after
-from labcairn.db.repository import list_operations
+from labcairn.db.repository import count_events, events_after, list_operations
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
 from labcairn.evidence.store import append_record
@@ -105,18 +105,13 @@ from labcairn.reports.receipt import (
 )
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
-from labcairn.runtime.operation import ApprovalState, OperationState
-from labcairn.runtime.operation import Operation
+from labcairn.runtime.operation import ApprovalState, Operation, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.sources.locators import ComputationLocator, TextLocator
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 from labcairn.workspace.roots import Workspace
-from labcairn.application import records as records_layer
-from labcairn.db.repository import count_events, events_after, list_operations
-from labcairn.runtime.lifecycle import StageStatus, TaskGoal
-from labcairn.runtime.operation import ApprovalState, Operation, OperationState
 
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
