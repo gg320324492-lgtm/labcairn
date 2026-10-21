@@ -42,10 +42,10 @@ from functools import partial
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Engine, Select, func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, StageId, TaskId
 from labcairn.db.models import (
@@ -60,6 +60,7 @@ from labcairn.db.models import (
     StageRow,
     TaskRow,
 )
+from labcairn.db.session import create_session_factory
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -282,6 +283,9 @@ class TaskStore:
     def __init__(self, session: Session, *, clock: Clock = utc_now) -> None:
         self._session = session
         self._clock = clock
+        #: The factory :meth:`fork` opens its own sessions from. Built on
+        #: demand, because a store that is never forked never needs one.
+        self._sessions: sessionmaker[Session] | None = None
 
     @property
     def session(self) -> Session:
@@ -297,6 +301,46 @@ class TaskStore:
         roll back through the returned session while a unit is open.
         """
         return self._session
+
+    @property
+    def clock(self) -> Clock:
+        """The clock this store stamps its events with.
+
+        Read-only, like :attr:`session`, and for the same reason: the store
+        owns the clock, and a caller that changed it would be changing the
+        store under the operations that are already in flight.
+        """
+        return self._clock
+
+    def fork(self) -> TaskStore:
+        """A store on a session of its own.
+
+        **A session is not thread-safe, and a surface that serves two callers
+        at once must not share one.** Two threads on one session do not merely
+        interleave their reads: one thread's rollback discards the other
+        thread's work, and the SQLite driver — called from two threads at
+        once — can take the whole process down with it.
+
+        The new session comes from the same engine, so a fork is another
+        connection to the same store and not another store. The clock comes
+        along, so a forked store stamps its events the way the store it was
+        forked from would have stamped them.
+
+        :raises StoreError: this store's session is bound to a connection
+            rather than to an engine. A connection belongs to one session, and
+            two sessions on one connection are one session wearing two hats.
+        """
+        bind = self._session.get_bind()
+        if not isinstance(bind, Engine):
+            raise StoreError(
+                "this store's session is bound to a connection rather than to an "
+                "engine, so it cannot open a session of its own: a connection "
+                "belongs to one session, and two sessions sharing one are one "
+                "session wearing two hats."
+            )
+        if self._sessions is None:
+            self._sessions = create_session_factory(bind)
+        return TaskStore(self._sessions(), clock=self._clock)
 
     @contextmanager
     def unit(self, task_id: TaskId) -> Iterator[UnitOfWork]:

@@ -322,13 +322,17 @@ def release(*sessions: Session) -> None:
     """Close the transactions the given sessions hold.
 
     The store's engine opens every transaction with ``BEGIN IMMEDIATE``, so a
-    session that has read and not yet committed holds SQLite's write lock. A
-    second process is then refused with "database is locked" once the busy
-    timeout runs out -- and the service's session lives as long as the service
-    does, so **the CLI and the local API cannot be used against one workspace
-    at the same time**. The demonstration says so in its own output, and
-    closes the transactions between the two surfaces' reads so that both can
-    be driven at all.
+    session that has read and not yet committed holds SQLite's write lock, and
+    a second writer is then refused with "database is locked" once the busy
+    timeout runs out.
+
+    **This is the demonstration's own housekeeping, not a limit of the
+    product.** A request owns its session and closes it when it is over, so
+    the service never holds the store's write lock between requests: the CLI
+    and the local API are used against one workspace at the same time, and
+    the demonstration says so in its own output. What is left is the
+    demonstration's own session, which is read from between the surfaces'
+    calls; it is closed here so that the other writer is not refused.
     """
     for session in sessions:
         session.rollback()
@@ -692,13 +696,14 @@ def _walk_the_path(root: Path, session: Session) -> int:
         with TestClient(app) as client:
 
             def cli_now(*arguments: str) -> subprocess.CompletedProcess[str]:
-                """The console script, with the open transactions closed first.
+                """The console script, with the demonstration's own transaction closed.
 
                 See :func:`release`: the store's engine takes SQLite's write
-                lock for every transaction, so the service's open session and
-                the CLI's own would otherwise refuse each other.
+                lock for every transaction, so the demonstration's own session
+                would otherwise refuse the CLI's writer. The service does not:
+                a request owns its session and closes it when it is over.
                 """
-                release(api_session, session)
+                release(session)
                 return run_cli(root, *arguments)
 
             # -- 5. the three surfaces agree -------------------------------- #
@@ -724,6 +729,23 @@ def _walk_the_path(root: Path, session: Session) -> int:
             print(f"  bound      : {', '.join(cli_state['task']['bound_source_ids'])}")
             print(f"  artefacts  : {len(cli_state['artifacts'])}")
             print(f"  event seq  : {cli_state['last_event_seq']}")
+
+            # The two surfaces, one workspace, one moment. The CLI's command
+            # above ran while the service below was serving, and the service
+            # did not refuse the CLI's writer for it: a request owns its
+            # session and closes it when it is over, so the service holds the
+            # store's write lock for no one between requests.
+            check(
+                "the CLI and the service were used against one workspace at the same time",
+                result.returncode == 0
+                and api_state["task"]["task_id"] == cli_state["task"]["task_id"],
+                "the CLI's command succeeded while the service was serving, and both "
+                "named the same task",
+            )
+            print(
+                "  one workspace: the CLI and the service drove it together, the "
+                "service's session belongs to its requests"
+            )
 
             # The control: the same comparison, over a copy of the API's
             # document with a difference planted in it. A comparison that
@@ -800,7 +822,7 @@ def _walk_the_path(root: Path, session: Session) -> int:
                 "the CLI's second read and the API's second read agree",
             )
 
-            release(session, api_session)
+            release(session)
             body = {
                 "capability": CapabilityId.SOURCE_INVENTORY.value,
                 "arguments": {},
@@ -816,14 +838,14 @@ def _walk_the_path(root: Path, session: Session) -> int:
                 f"status {asked.status_code}",
             )
             approval_id = asked.json()["approval"]["approval_id"]
-            release(session, api_session)
+            release(session)
             applied = client.post(f"/approvals/{approval_id}/grant", headers=authorised)
             check(
                 "the grant was applied",
                 applied.status_code == 200,
                 f"status {applied.status_code}",
             )
-            release(session, api_session)
+            release(session)
             repeated = client.post(f"/approvals/{approval_id}/grant", headers=authorised)
             check(
                 "the same grant again is refused, so the operation was applied once",
@@ -854,7 +876,7 @@ def _walk_the_path(root: Path, session: Session) -> int:
                 not is_refused(applied),
                 f"status {applied.status_code}, reason {applied.json().get('reason')}",
             )
-            release(session, api_session)
+            release(session)
             after = client.get("/task", headers={"Origin": origin}).json()
             granted_approvals = [
                 approval
@@ -918,7 +940,7 @@ def _walk_the_path(root: Path, session: Session) -> int:
         # -- 8. the material changes ------------------------------------------ #
         rule("8. The material changes, and the report says so")
 
-        release(api_session)
+        release(session)
 
         (materials / MATERIAL_KEY).write_bytes(CORPUS.read_bytes() + b"D,17\n")
         measured = MaterialResolver(root).snapshot([MATERIAL_PATH])
@@ -1052,13 +1074,6 @@ def _walk_the_path(root: Path, session: Session) -> int:
     print("    record that rests on it itself. The report carries a real claim,")
     print("    cited to a cell of the material the CLI ingested -- but the claim")
     print("    was made by the demonstration, not by the product.")
-    print("  * The CLI and the service were not driven at the same instant. The")
-    print("    store's engine opens every transaction with BEGIN IMMEDIATE, so")
-    print("    the service's open session holds SQLite's write lock and a CLI")
-    print("    command is refused with 'database is locked'. The transactions")
-    print("    were closed between the two surfaces' reads so that both could be")
-    print("    driven at all; that is a workaround for a limitation in the")
-    print("    product, and not a property of the product.")
     print("  * The demonstration's own controls are not exhaustive. Each")
     print("    comparison is run once over something that must answer the other")
     print("    way, which shows that the comparison can fail -- but a check")

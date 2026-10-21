@@ -60,7 +60,18 @@ POLICY_FILE_NAME = "policy.json"
 
 #: Where the API's session token is written. The API mints it at start-up;
 #: the CLI prints it. See §1.4.4 of the task breakdown.
-API_TOKEN_FILE_NAME = "api-token"
+#:
+#: **The same name the service writes it under**, which is
+#: :data:`labcairn.api.session.SESSION_FILE_NAME`. The file says what it *is*
+#: — the session the service minted — and not which component wrote it, so
+#: that a reader of the workspace does not have to know which surface put the
+#: file there. This is a second declaration of one fact rather than a second
+#: file, and the CLI does not import the API's package to avoid it: that
+#: package pulls in the whole web stack, and a command that prints a path
+#: should not pay for it. What keeps the two declarations from drifting apart
+#: is
+#: ``tests/test_cli.py::test_the_cli_and_the_service_name_the_token_file_the_same_way``.
+SESSION_TOKEN_FILE_NAME = "session-token"
 
 #: The store's file, inside the workspace root.
 DATABASE_NAME = "labcairn.db"
@@ -170,7 +181,8 @@ class WorkspaceLocation:
 
     @property
     def token_path(self) -> Path:
-        return self.config_dir / API_TOKEN_FILE_NAME
+        """Where the service's session token is, if it has written one."""
+        return self.config_dir / SESSION_TOKEN_FILE_NAME
 
     @property
     def database_path(self) -> Path:
@@ -452,7 +464,6 @@ def application_context(
 
 
 __all__ = [
-    "API_TOKEN_FILE_NAME",
     "CONFIG_DIR_NAME",
     "CONFIG_FILE_NAME",
     "CONFIG_SCHEMA_VERSION",
@@ -460,6 +471,7 @@ __all__ = [
     "DEFAULT_POLICY_RULES",
     "MATERIALS_DIR_NAME",
     "POLICY_FILE_NAME",
+    "SESSION_TOKEN_FILE_NAME",
     "WorkspaceConfig",
     "WorkspaceLocation",
     "WorkspaceSetupError",
