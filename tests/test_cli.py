@@ -860,6 +860,11 @@ def test_sources_ingest_json_is_the_layers_ingestion_report(workspace: Path) -> 
     assert result.returncode == 0, result.stderr
     report = result.json()
     assert report["source_ids"], "the CLI ingested nothing"
+    # The binding is the task's and the ingestion is this run's; the binding is
+    # the union of the two, so it always holds what the run ingested. They are
+    # equal here because `task create` already ingested and bound this same
+    # material — and they are *not* the same field.
+    assert set(report["bound_source_ids"]) >= set(report["source_ids"])
     assert report["bound_source_ids"] == report["source_ids"]
     assert report["failures"] == []
     assert report["readable"] == 1
