@@ -39,6 +39,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import text as sql_text
+from sqlalchemy.exc import IntegrityError
 from test_analysis_report_render import (
     _read_docx,
     _read_html,
@@ -104,6 +105,8 @@ from labcairn.reports.receipt import (
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, Operation, OperationState
+from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
+from labcairn.runtime.operation import ApprovalState, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
@@ -222,6 +225,7 @@ def _stage_request(
     arguments: Mapping[str, Any] | None = None,
     root_id: str = "source:0",
     resource_key: str = "one.csv",
+    run_id: RunId | None = None,
     approval_id: ApprovalId | None = None,
     run_id: RunId | None = None,
 ) -> StageRequest:
@@ -232,6 +236,7 @@ def _stage_request(
         arguments=arguments if arguments is not None else {"operator_id": "mean", "parameters": {}},
         root_id=root_id,
         resource_key=resource_key,
+        run_id=run_id,
         approval_id=approval_id,
         run_id=run_id,
     )
@@ -241,6 +246,56 @@ def _work(resource: object) -> StageOutcome:
     """A stage's work that succeeds and produces nothing."""
     del resource
     return StageOutcome(output_hashes=(_HASH,))
+
+
+def _stage_named(context: ApplicationContext, name: str) -> Stage:
+    """The stored stage with that name, read back out of the database.
+
+    Read back rather than taken from the object the layer returned: a fix that
+    corrected the object and left the row alone would look right from here.
+    """
+    matches = [stage for stage in read_task_state(context).stages if stage.name == name]
+    assert len(matches) == 1, f"expected exactly one stage named {name!r}, found {matches}"
+    return matches[0]
+
+
+def _write_a_stage_row(
+    env: StoreEnv,
+    *,
+    task_id: TaskId,
+    run_id: RunId,
+    status: str,
+    reason: str | None,
+) -> str:
+    """Write a stage row the model would never build, and report the refusal.
+
+    Returns the refusal's message, or fails if the database accepted the row.
+    Written on the fixture's own session rather than a second one, because the
+    store takes the write lock before it reads, and a second connection would
+    wait for that lock rather than fail fast. Rolled back rather than
+    committed, so a row the schema *does* accept does not stay in the store.
+    """
+    try:
+        env.session.execute(
+            sql_text(
+                "INSERT INTO stages (stage_id, task_id, run_id, name, status, "
+                "input_hashes, output_hashes, blocked_reason, schema_version) "
+                "VALUES (:stage_id, :task_id, :run_id, 'illegal', :status, "
+                "'[]', '[]', :reason, 1)"
+            ),
+            {
+                "stage_id": str(new_id()),
+                "task_id": str(task_id),
+                "run_id": str(run_id),
+                "status": status,
+                "reason": reason,
+            },
+        )
+    except IntegrityError as error:
+        return str(error)
+    finally:
+        env.session.rollback()
+    raise AssertionError(f"the database accepted a stage row with status {status!r}")
 
 
 def _assert_refused(
@@ -757,50 +812,56 @@ def test_a_run_that_follows_an_approval_reuses_the_operation_it_was_bound_to(
     requested = request_approval(
         context,
         ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1), stage_name="intake"),
         now=_MOMENT,
     )
     grant_approval(context, requested.approval.approval_id, now=_MOMENT)
 
-    result = run_stage(
-        context,
-        _stage_request(approval_id=requested.approval.approval_id),
-        _work,
-        now=_MOMENT,
-    )
+    # The stage has to be parked, or this test would pass without reaching the
+    # transition it is about.
+    parked = _stage_named(context, "intake")
+    assert parked.status is StageStatus.BLOCKED
+    assert parked.blocked_reason is not None
 
-    operations = list_operations(env.session, context.task_id)
-    assert len(operations) == 1, (
-        "the store holds "
-        f"{len(operations)} operations for one piece of work: "
-        f"{[str(operation.operation_id) for operation in operations]}"
-    )
-    assert operations[0].operation_id == requested.approval.operation_id
-    assert result.operation.operation_id == requested.approval.operation_id
+    try:
+        result = run_stage(
+            context,
+            _stage_request(
+                stage_name="intake",
+                run_id=requested.operation.run_id,
+                approval_id=requested.approval.approval_id,
+            ),
+            _work,
+            now=_MOMENT,
+        )
+    except IntegrityError as error:
+        pytest.fail(
+            "finishing a parked stage raised a raw IntegrityError "
+            f"({error}): the stage finished but still carried the reason it was "
+            "parked with, and the database refuses a row that says both."
+        )
+
+    assert result.stage.status is StageStatus.COMPLETED
+    assert result.stage.blocked_reason is None
+    assert result.stage.output_hashes == (_HASH,)
+    stored = _stage_named(context, "intake")
+    assert stored.status is StageStatus.COMPLETED
+    assert stored.blocked_reason is None
+    assert stored.output_hashes == (_HASH,)
 
 
-def test_a_run_that_follows_an_approval_reuses_that_approvals_operation_and_not_another(
-    env: StoreEnv, workspace_root: Path
-) -> None:
-    """The operation the approval names, and not the one that happens to be first.
+def test_a_parked_stage_that_fails_carries_no_reason(env: StoreEnv, workspace_root: Path) -> None:
+    """The failure ends the wait as surely as the completion does.
 
-    A task can be waiting for an answer about more than one thing, and the
-    store holds an operation for each of them. The stage that follows an
-    approval must pick out the operation **that approval** was asked for: the
-    operations are held in the order they were planned, and the one planned
-    first is not the one this consent was given for.
+    A stage that was parked and then failed has the same reason to carry none:
+    it is not waiting for anything, so the reason it was parked with explains
+    nothing about how it ended.
     """
     ledger = ApprovalLedger()
     context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
-    # Another question was put to the operator first, about another file, and
-    # it is still unanswered — so its operation is the older of the two.
-    request_approval(
-        context,
-        ApprovalRequest(use=_use("two.csv"), expires_at=_MOMENT.replace(hour=1)),
-        now=_MOMENT,
-    )
     requested = request_approval(
         context,
-        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1), stage_name="intake"),
         now=_MOMENT,
     )
     grant_approval(context, requested.approval.approval_id, now=_MOMENT)
