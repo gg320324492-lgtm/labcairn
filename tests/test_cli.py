@@ -1649,6 +1649,69 @@ def test_the_cli_module_docstring_and_its_imports_agree(repo_root: Path) -> None
         )
 
 
+#: The claim the module's docstring makes about its module-level imports.
+#:
+#: A marked sentence, so that the docstring's own words are what the test
+#: reads: the claim is stated once, in a form that can be checked, and the
+#: names are read out of it.
+_CLAIM = (
+    "the module-level imports of this module, outside the standard library "
+    "and Typer, are exactly these:"
+)
+
+#: The phrase only a statement about module-level imports carries.
+_MODULE_LEVEL = re.compile(r"module[ -]level")
+
+
+def _the_sentences(text: str) -> list[str]:
+    """The text's sentences, as a reader would take them."""
+    return [part for part in re.split(r"(?<=[.!?])\s+", text) if part]
+
+
+def test_the_cli_module_docstring_says_what_it_imports_at_module_level(
+    repo_root: Path,
+) -> None:
+    """The docstring says what the module imports at module level, and it is right.
+
+    **The claim is machine-checkable, and it is checked.** The docstring
+    states, in a marked sentence, exactly which modules the module imports
+    at module level beyond the standard library and Typer. The test reads
+    the names out of that sentence and compares them with the code.
+
+    **And there is no other claim.** A name-by-name comparison cannot see a
+    denial: *"this module imports nothing at module level but the standard
+    library and Typer"* names nothing at all, so there is no name to
+    compare, and it is false while the module imports a project module. So
+    the docstring says what it imports at module level in one place and in
+    one form — and a reader is given one thing to believe.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstring = " ".join((ast.get_docstring(tree) or "").split())
+    sentences = _the_sentences(docstring)
+
+    claims = [sentence for sentence in sentences if _CLAIM in sentence]
+    assert len(claims) == 1, (
+        f"the docstring states what the module imports at module level "
+        f"{len(claims)} time(s) and not once. The claim is made once, in the form "
+        f"'...{_CLAIM}...', so that it can be read and checked."
+    )
+    about = [sentence for sentence in sentences if _MODULE_LEVEL.search(sentence)]
+    assert len(about) == 1 and about[0] == claims[0], (
+        f"the docstring says what the module imports at module level in "
+        f"{len(about)} place(s): {about}. Say it once, in the marked form, so that "
+        "a denial of what the module does cannot sit beside the truth."
+    )
+
+    named = _the_modules_the_docstring_names(repo_root, claims[0].split(_CLAIM, 1)[1])
+    imported = {name for name in _the_module_level_imports(tree) if name.startswith("labcairn.")}
+    assert named == imported, (
+        f"the docstring says the module imports {sorted(named)} at module level and "
+        f"the code imports {sorted(imported)}. A docstring that says what the "
+        "module imports has to be told when the imports change."
+    )
+
+
 def test_loading_the_cli_costs_less_than_the_budget() -> None:
     """Importing the CLI costs a fraction of what it used to.
 
