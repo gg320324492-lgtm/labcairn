@@ -34,6 +34,7 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import text as sql_text
@@ -269,24 +270,38 @@ def test_an_edited_file_is_ingested_under_its_new_hash(env: StoreEnv, workspace_
 
 
 def test_a_file_that_could_not_be_stored_is_reported_not_swallowed(
-    env: StoreEnv, workspace_root: Path
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One file that cannot be stored does not stop the others, and is named.
 
-    The failure is real rather than arranged: two source roots holding a file
-    of the same name, and the ledger's ``relative_path`` being unique. The
-    second one cannot be stored, and the operation says so.
+    The failure is **arranged** now, and the arrangement changed because the
+    property it protected is no longer reachable by accident. It used to be
+    real: two source roots holding a file of the same name produced the same
+    ``relative_path``, the ledger's UNIQUE constraint refused the second one,
+    and the operation had to say so.
+
+    The walk now records the **workspace-relative** path, so two roots
+    holding a file of the same name are two different rows and nothing
+    collides. What is left to arrange is a store that refuses a row, and the
+    property is the same: a failure the caller cannot see is a report that
+    says the workspace was fine.
     """
-    other = workspace_root / "other"
-    other.mkdir()
+    import labcairn.material.walk as walk_module
+    from labcairn.material.ingest import ingest_into_store as real_ingest_into_store
+
     (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
-    (other / "one.csv").write_text("c,d\n3,4\n", encoding="utf-8")
-    context = _context(
-        env,
-        workspace_root,
-        _inventory_only(),
-        source_dirs=(workspace_root / "materials", other),
-    )
+    (workspace_root / "materials" / "two.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    context = _context(env, workspace_root, _inventory_only())
+
+    # walk.py does ``from ...ingest import ingest_into_store``, so the name it
+    # calls is bound in *its* namespace. Patch there, not on the source
+    # module, or the patch never lands.
+    def refusing(session: Any, data: bytes, **kwargs: Any) -> Any:
+        if kwargs.get("relative_path", "").endswith("one.csv"):
+            raise RuntimeError("the store refused this row")
+        return real_ingest_into_store(session, data, **kwargs)
+
+    monkeypatch.setattr(walk_module, "ingest_into_store", refusing)
 
     result = ingest_material(context, now=_MOMENT)
 
