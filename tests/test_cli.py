@@ -875,21 +875,32 @@ def test_sources_ingest_json_is_the_layers_ingestion_report(workspace: Path) -> 
 def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: Path) -> None:
     """A file the walk could not read is reported, and the command refuses.
 
-    Two source roots holding a file of the same name: the ledger's
-    ``relative_path`` is unique, so the second one cannot be stored. The
-    command refuses rather than reporting a task that quietly holds less than
-    the material it was given, and the refusal names the file.
+    The arrangement changed because the collision it used to rely on is gone.
+    Two source roots holding a file of the same name produced the same
+    ``relative_path``, and the ledger's UNIQUE constraint refused the second
+    one. The walk records the **workspace-relative** path now, so the two
+    roots' files have different paths and nothing collides.
+
+    A file past the read limit is the failure that is left, and it is a real
+    one: the boundary names the file, the read refuses it as too large to
+    open, and the walk records it. The command refuses rather than reporting
+    a task that quietly holds less than the material it was given, and the
+    refusal names the file.
+
+    The bytes are never read -- the refusal is on the size -- so the file
+    costs a write and nothing else, and the arrangement cannot skip on a
+    platform where symlinks are unavailable.
     """
     (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     (workspace / "other").mkdir()
-    (workspace / "other" / "one.csv").write_text("c,d\n3,4\n", encoding="utf-8")
+    (workspace / "other" / "oversized.csv").write_bytes(b"a,b\n1,2\n" * 8_000_001)
     created = run_cli(
         "--workspace",
         str(workspace),
         "task",
         "create",
         "--title",
-        "Two roots, one name",
+        "One root too large",
         "--objective",
         "One.",
         "--criterion",
@@ -901,7 +912,7 @@ def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: 
     assert created.returncode == EXIT_REFUSED
     refusal = created.json()
     assert refusal["reason"] == "material_incomplete"
-    assert "one.csv" in refusal["message"]
+    assert "oversized.csv" in refusal["message"]
 
 
 def test_the_plan_option_reports_the_plan_and_not_the_state(workspace: Path, task_id: str) -> None:

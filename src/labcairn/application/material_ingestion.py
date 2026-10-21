@@ -50,19 +50,26 @@ The one thing this module works around
 
 ``Source.relative_path`` is **workspace-relative** — that is the contract the
 model states and the one the layer's readers resolve against the workspace
-root. The walk, on the other hand, writes the key it was given, and the key
-is **root-relative**: a file at ``materials/one.csv`` is recorded as
+root. The walk used to write the key it was given, and the key is
+**root-relative**: a file at ``materials/one.csv`` was recorded as
 ``one.csv``. A row holding that path resolves into the wrong root, and the
 ``source.inventory`` capability refuses it — so a material the walk ingested
-cannot be listed or inspected at all.
+could not be listed or inspected at all.
 
-So the walk is driven **one source root at a time**, and each root's rows are
-then moved to the path the contract names. The root is walked on its own so
-that the operation knows which root each file came from, and the root's own id
-is carried over so the source ids are the ones a single walk would have
-minted. The fix belongs in the walk; this is the operation compensating for
-it, and it is written so that it does nothing once the walk writes the
-workspace-relative path itself.
+**The walk writes the workspace-relative path itself now**, so the
+compensation below has nothing left to move: it computes the path the
+contract names, and that is the path the row already holds. Two things
+survive it, and both are why the code is still here rather than deleted.
+
+**It repairs a ledger written before the fix.** The store's refresh branch
+does not move a row's path, so a row the old walk wrote still holds the old
+spelling — and the material in it is still unlistable. The relocation below
+is what puts it right, and it can only find the old row because the source
+id is derived from the root and the root-relative key and has not moved.
+
+**It keeps the walk's ids the ones a single walk would have minted.** The
+walk is driven **one source root at a time** so that the operation knows
+which root each file came from, and the root's own id is carried over.
 """
 
 from __future__ import annotations
