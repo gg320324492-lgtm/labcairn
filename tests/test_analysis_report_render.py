@@ -585,6 +585,44 @@ def _texts(document: ReportDocument) -> dict[str, str]:
     }
 
 
+def _the_snapshot_a_form_states(text: str) -> tuple[set[datetime], set[str]]:
+    """What a form says the report is a view of: a moment, and a set of records.
+
+    The **snapshot** is the model's statement of when the report is a view of,
+    and the **records** are its statement of which records that view is made
+    of. Every form draws both, and they are read the way a reader reads them
+    — the text after the word the form writes — rather than taken from the
+    writer, so that the comparison says what the file says and not what the
+    code meant.
+
+    The text is collapsed first, because a reader's line break is not a
+    character of the report: the PDF wraps a long line, and the DOCX has no
+    line breaks at all.
+
+    The moment is read as a **moment** and not as a spelling. A form states
+    it in the spelling its writer chose, and two spellings can be the same
+    moment, so the comparison is about the moment the report is a view of. A
+    moment that does not read back as one is named rather than raised as a
+    parsing error, so that a broken form says what is wrong with it.
+
+    :param text: the form's text, as a reader read it.
+    :returns: the moments the form states, and the record ids it names.
+    """
+    collapsed = re.sub(r"\s+", " ", text)
+    moments: set[datetime] = set()
+    for stated in re.findall(r"Snapshot: (\S+)", collapsed):
+        try:
+            moments.add(datetime.fromisoformat(stated))
+        except ValueError as error:
+            raise AssertionError(
+                f"the form states {stated!r} as its moment, and that does not read back as a moment"
+            ) from error
+    records: set[str] = set()
+    for clause in re.findall(r"Records: ([^ ,]+(?:, [^ ,]+)*)", collapsed):
+        records.update(part.strip() for part in clause.split(","))
+    return moments, records
+
+
 def _record_statements(record: LedgerRecordView) -> list[str]:
     """What the report states about a record: its quantity, or its sentence.
 
@@ -1525,6 +1563,45 @@ def test_no_number_appears_that_the_model_does_not_hold(document: ReportDocument
         numbers = set(re.findall(r"\d+\.\d+", text))
         assert numbers == expected, (
             f"the {form} form carries {sorted(numbers)}, and the model holds {sorted(expected)}"
+        )
+
+
+@pytest.mark.unit
+def test_every_form_carries_the_moment_and_the_records_the_document_holds(
+    document: ReportDocument,
+) -> None:
+    """Every form says which moment it is a view of, and which records it is a view of.
+
+    The **snapshot** is the model's statement of when the report is a view of,
+    and the **records** are its statement of which records that view is made
+    of. They are claims the report makes about itself, and they were the two
+    claims no comparison read: they are not in :data:`EXPECTED_LINES`, so the
+    comparison that read every other line of all four forms passed over these
+    two, and a form could carry another document's moment, or name another
+    document's records, or name none at all, and nothing would have noticed.
+
+    **The expectation is read out of the document.** A literal is what let the
+    gap hide — the two lines are missing from the constant the other
+    comparison reads — and a literal would hide it again the moment the
+    document changed.
+
+    **All four forms are watched**, and each is read by the reader its own
+    test reads it with: the Markdown by a parser, the HTML by a parser, the
+    DOCX out of its package, the PDF by a reader that did not write it.
+    """
+    expected_moment = document.snapshot.as_of
+    expected_records = frozenset(document.snapshot.record_ids)
+
+    for form, text in _texts(document).items():
+        moments, records = _the_snapshot_a_form_states(text)
+
+        assert moments == {expected_moment}, (
+            f"the {form} form is a view of {sorted(moments)}, and the document is a "
+            f"view of {expected_moment}"
+        )
+        assert records == expected_records, (
+            f"the {form} form names {sorted(records)}, and the document is a view "
+            f"of {sorted(expected_records)}"
         )
 
 
