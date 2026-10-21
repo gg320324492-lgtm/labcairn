@@ -83,12 +83,13 @@ from labcairn.application import (
     request_approval,
     run_stage,
 )
+from labcairn.application import records as records_layer
 from labcairn.application import reports as report_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
-from labcairn.core.ids import ApprovalId, SourceId, TaskId, new_id
+from labcairn.core.ids import ApprovalId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
-from labcairn.db.repository import count_events, events_after
+from labcairn.db.repository import count_events, events_after, list_operations
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
 from labcairn.evidence.store import append_record
@@ -102,7 +103,7 @@ from labcairn.reports.receipt import (
 )
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import StageStatus, TaskGoal
-from labcairn.runtime.operation import ApprovalState, OperationState
+from labcairn.runtime.operation import ApprovalState, Operation, OperationState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
@@ -116,6 +117,21 @@ env = _shared_env
 
 _MOMENT = datetime(2026, 1, 1, tzinfo=UTC)
 _HASH = "b" * 64
+
+
+# --------------------------------------------------------------------------- #
+# the death a test stages
+# --------------------------------------------------------------------------- #
+
+
+class _TheRunDiedError(Exception):
+    """The run stopped between the intent and the attempt.
+
+    The layer turns a failure of the **work** into a refusal, and it does not
+    handle a failure of its own bookkeeping — so one of those leaves the store
+    exactly as a killed process leaves it, which is the state the operation
+    reuse after a crash is about.
+    """
 
 
 # --------------------------------------------------------------------------- #
@@ -207,6 +223,7 @@ def _stage_request(
     root_id: str = "source:0",
     resource_key: str = "one.csv",
     approval_id: ApprovalId | None = None,
+    run_id: RunId | None = None,
 ) -> StageRequest:
     """A stage run over a file in the source root."""
     return StageRequest(
@@ -216,6 +233,7 @@ def _stage_request(
         root_id=root_id,
         resource_key=resource_key,
         approval_id=approval_id,
+        run_id=run_id,
     )
 
 
@@ -260,6 +278,7 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.artifacts",
         "labcairn.application.context",
         "labcairn.application.events",
+        "labcairn.application.material_ingestion",
         "labcairn.application.records",
         "labcairn.application.sources",
         "labcairn.application.stages",
@@ -716,6 +735,167 @@ def test_a_parked_stage_completes_when_the_approval_arrives(
     )
     assert result.stage.status is StageStatus.COMPLETED
     assert result.operation.state is OperationState.CONFIRMED
+
+
+def test_a_run_that_follows_an_approval_reuses_the_operation_it_was_bound_to(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """One piece of work, one operation, whatever the log says about it.
+
+    The approval was asked for against an operation, and the stage that runs
+    once the answer arrives is that operation and not a new one. A second row
+    would put two operations in the audit log for one piece of work, and the
+    log is what a reader takes the history from.
+
+    The count is the property, and the identity is what makes it the *same*
+    operation: a run that planned a fresh one would also leave a confirmed
+    operation behind, so the stage would still complete and the operation
+    would still be confirmed — of the wrong operation.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    result = run_stage(
+        context,
+        _stage_request(approval_id=requested.approval.approval_id),
+        _work,
+        now=_MOMENT,
+    )
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        "the store holds "
+        f"{len(operations)} operations for one piece of work: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert operations[0].operation_id == requested.approval.operation_id
+    assert result.operation.operation_id == requested.approval.operation_id
+
+
+def test_a_run_that_follows_an_approval_reuses_that_approvals_operation_and_not_another(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The operation the approval names, and not the one that happens to be first.
+
+    A task can be waiting for an answer about more than one thing, and the
+    store holds an operation for each of them. The stage that follows an
+    approval must pick out the operation **that approval** was asked for: the
+    operations are held in the order they were planned, and the one planned
+    first is not the one this consent was given for.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    # Another question was put to the operator first, about another file, and
+    # it is still unanswered — so its operation is the older of the two.
+    request_approval(
+        context,
+        ApprovalRequest(use=_use("two.csv"), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    result = run_stage(
+        context,
+        _stage_request(approval_id=requested.approval.approval_id),
+        _work,
+        now=_MOMENT,
+    )
+
+    assert result.operation.operation_id == requested.approval.operation_id
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 2, (
+        "the run planned a third operation for work that was already planned: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+
+
+def test_a_run_that_follows_a_crash_reuses_the_operation_that_was_authorised(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The operation that was authorised and never attempted is the one that runs.
+
+    **The intent is written ahead of the attempt**, so a run that dies between
+    the two leaves an operation ``AUTHORIZED`` and nothing attempted. The run
+    that follows must pick that operation up and attempt it, rather than plan
+    a second operation for the same work: two operations for one piece of work
+    would make the audit log say it happened twice.
+
+    The death is staged where the product's own ordering puts it — between the
+    intent and the attempt — so what the resumed run finds is a state the
+    product can reach on its own, and not one this test wrote by hand.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+    move = records_layer.move_operation
+    died = False
+
+    def _die_before_the_attempt(
+        ctx: ApplicationContext,
+        operation: Operation,
+        *,
+        event: EventType,
+        to_state: OperationState,
+        now: datetime,
+    ) -> Operation:
+        nonlocal died
+        if to_state is OperationState.ATTEMPTING and not died:
+            died = True
+            raise _TheRunDiedError("the run died between the intent and the attempt")
+        return move(ctx, operation, event=event, to_state=to_state, now=now)
+
+    monkeypatch.setattr(records_layer, "move_operation", _die_before_the_attempt)
+
+    with pytest.raises(_TheRunDiedError):
+        run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+
+    # What the death left behind: one operation, authorised, never attempted.
+    planned = list_operations(env.session, context.task_id)
+    assert len(planned) == 1
+    assert planned[0].state is OperationState.AUTHORIZED
+
+    result = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        "the store holds "
+        f"{len(operations)} operations for one piece of work: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert result.operation.operation_id == planned[0].operation_id
+    assert result.operation.state is OperationState.CONFIRMED
+
+
+def test_a_stage_that_runs_twice_plans_two_operations(env: StoreEnv, workspace_root: Path) -> None:
+    """The work ran twice, so the log says it ran twice.
+
+    An operation that is already ``CONFIRMED`` is not one a later run may
+    pick up: the stage does the work again, and an operation that carried
+    both attempts would leave the audit log saying the work happened once when
+    it happened twice. The second run plans its own operation, and the store
+    holds one per attempt.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+    first = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+    second = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 2, (
+        f"the store holds {len(operations)} operations for two attempts: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert second.operation.operation_id != first.operation.operation_id
 
 
 def test_the_plan_shows_the_declared_workflow_and_the_task_s_progress(
@@ -1881,11 +2061,11 @@ def test_the_page_is_serialisable_as_data(env: StoreEnv, workspace_root: Path) -
 # --------------------------------------------------------------------------- #
 
 
-def _use() -> ApprovalUse:
+def _use(resource_key: str = "one.csv") -> ApprovalUse:
     """What an approval is spent on, matching the stage request."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
         arguments={"operator_id": "mean", "parameters": {}},
         root_id="source:0",
-        resource_key="one.csv",
+        resource_key=resource_key,
     )
