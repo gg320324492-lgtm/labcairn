@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -85,13 +86,40 @@ from labcairn.runtime.lifecycle import Task
 router = APIRouter()
 
 
-def _context(request: Request) -> ApplicationContext:
+def _context(request: Request) -> Iterator[ApplicationContext]:
     """The application context this request is about.
 
     Read from the app's state rather than closed over, so that the same
     router serves the running service and the contract document.
+
+    **A request owns its session, and this is where that ownership starts and
+    ends.** The context the app holds is the request-independent part — the
+    workspace, the policy, the ledger and the task id — and the store it
+    carries is one session, which is exactly what must not be shared: a
+    SQLAlchemy ``Session`` is not thread-safe, every handler here is a plain
+    ``def``, and so FastAPI runs them in a threadpool, at the same time, on
+    the same session. One thread's rollback then discards another thread's
+    reads — a request is answered "no such task" for a task that is there —
+    and the SQLite driver, called from two threads at once, can take the
+    whole process down.
+
+    So the request forks the store onto a session of its own and closes it
+    when the request is over. Closing and not committing: a unit of work that
+    was not committed is one ADR-0003 C3 says rolls back, and a commit would
+    write anything left pending. Every write commits inside
+    :meth:`~labcairn.db.repository.TaskStore.unit`, so by the time the
+    request is over there is nothing pending and the close discards nothing.
+
+    The teardown runs **after the response has been sent** — FastAPI closes a
+    dependency's generator once the response is done, not when the handler
+    returns — so a streamed body holds its session for as long as it streams.
     """
-    return cast(ApplicationContext, request.app.state.context)
+    base = cast(ApplicationContext, request.app.state.context)
+    context = replace(base, store=base.store.fork())
+    try:
+        yield context
+    finally:
+        context.store.session.close()
 
 
 def _event_source(request: Request) -> EventSource:
@@ -395,6 +423,7 @@ def _stage_work(request: Request) -> StageWork:
 @router.get("/events", response_model=EventStreamPage, tags=["events"])
 def get_events(
     request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
     after_seq: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=5000),
 ) -> EventStreamPage:
@@ -406,16 +435,21 @@ def get_events(
     There is no field in the page that could carry a command, which is what
     makes a reconnecting browser safe: it can ask for what it missed and
     cannot ask for anything to be done.
+
+    The read is on **this request's** session, and so on this request's
+    transaction: the page cannot be a partial view of another request's
+    work, and this request cannot see another request's uncommitted state.
     """
-    context = _context(request)
     return _event_source(request).page(
-        EventStreamRequest(task_id=context.task_id, after_seq=after_seq, limit=limit)
+        context.store.session,
+        EventStreamRequest(task_id=context.task_id, after_seq=after_seq, limit=limit),
     )
 
 
 @router.get("/events/stream", tags=["events"])
 def get_event_stream(
     request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
     after_seq: int = Query(0, ge=0),
     limit: int = Query(500, ge=1, le=5000),
     follow: bool = Query(True),
@@ -428,22 +462,45 @@ def get_event_stream(
     endpoint returns, serialised by the same model, so a client that
     reconnects reads the same cursor either way.
     """
-    context = _context(request)
     source = _event_source(request)
 
     def frames() -> Iterator[str]:
-        cursor = after_seq
-        while True:
-            page = source.page(
-                EventStreamRequest(task_id=context.task_id, after_seq=cursor, limit=limit)
-            )
-            if page.events:
-                cursor = page.next_after_seq
-                yield sse_frame(page)
-            if not follow:
-                return
-            if not page.events:
-                time.sleep(poll_seconds)
+        """The stream's own session, for the life of the stream.
+
+        **The stream opens a session when it starts and closes it when it
+        ends**, and it holds a transaction only while it is reading. The
+        store's engine opens every transaction with ``BEGIN IMMEDIATE``, so a
+        session that is still in a transaction holds SQLite's *write* lock —
+        and a stream that held it between its polls would refuse every other
+        request in the service, for as long as the client stayed connected.
+        So each poll ends its transaction before the next one begins, and the
+        lock is let go between them.
+
+        The session is the stream's own and not the request's: the request's
+        session belongs to the request, and the stream's session to the
+        stream. Each is closed by whoever opened it, at the moment that
+        thing ended.
+        """
+        session = context.store.fork().session
+        try:
+            cursor = after_seq
+            while True:
+                page = source.page(
+                    session,
+                    EventStreamRequest(task_id=context.task_id, after_seq=cursor, limit=limit),
+                )
+                # The read is over; let the write lock go before the next poll
+                # and before the frame is sent.
+                session.rollback()
+                if page.events:
+                    cursor = page.next_after_seq
+                    yield sse_frame(page)
+                if not follow:
+                    return
+                if not page.events:
+                    time.sleep(poll_seconds)
+        finally:
+            session.close()
 
     return StreamingResponse(
         frames(),

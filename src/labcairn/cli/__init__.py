@@ -8,7 +8,7 @@ for the three to call.
 What this package is
 --------------------
 
-Eight commands — ``init``, ``doctor``, ``task create/run/status/resume``,
+Nine commands — ``init``, ``doctor``, ``serve``, ``task create/run/status/resume``,
 ``sources inspect``, ``artifacts list`` — and the plumbing they share:
 
 * **every command's data comes from the application layer.** A command here

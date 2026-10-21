@@ -10,13 +10,12 @@ developer launch with working smoke path"* -- and it is worth a file of its
 own, because a launch that needs a credential or a network is a launch that
 cannot be repeated on another machine.
 
-**Three tests here are expected to fail.** They record defects found in code
-this task does not own, and each says what the defect is and where it is.
-They are marked ``xfail(strict=True)``: the suite stays green, and the day
-the defect is fixed the test passes and the strict marker turns that into a
-failure until the marker is removed. A defect recorded as a skip would go on
-being skipped after it was fixed, which is the opposite of what a record is
-for.
+**One test here is expected to fail.** It records a defect found in code this
+task does not own, and says what the defect is and where it is. It is marked
+``xfail(strict=True)``: the suite stays green, and the day the defect is
+fixed the test passes and the strict marker turns that into a failure until
+the marker is removed. A defect recorded as a skip would go on being skipped
+after it was fixed, which is the opposite of what a record is for.
 """
 
 from __future__ import annotations
@@ -29,9 +28,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from labcairn.api.app import create_app
+from labcairn.api.bind import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT, own_origin
 from labcairn.cli.workspace import application_context, locate, read_config
 from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine
@@ -228,20 +229,13 @@ def test_the_cli_can_bind_a_material_to_a_task(tmp_workspace: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "labcairn/cli/workspace.py: the CLI's doctor looks for the API's "
-        "session token at <workspace>/.labcairn/api-token, and the API writes "
-        "it to <workspace>/.labcairn/session-token. The two names do not "
-        "match, so doctor never reports a session that exists."
-    ),
-)
 def test_the_doctor_reports_the_api_session_token(launched: Path) -> None:
     """``labcairn doctor`` reports the session the running service minted.
 
-    The desired behaviour, which the product does not have yet: the CLI
-    should find the token the API wrote.
+    The service writes its token to ``<workspace>/.labcairn/session-token``;
+    the doctor reads the file the service wrote. They are one file under one
+    name, and this is what says so: the doctor looks for the session that
+    exists, not for one it wishes existed.
     """
     location = locate(launched)
     config = read_config(location)
@@ -257,34 +251,42 @@ def test_the_doctor_reports_the_api_session_token(launched: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "labcairn/db/session.py: every transaction is opened with BEGIN "
-        "IMMEDIATE, and the service's session lives as long as the service "
-        "does, so the service holds SQLite's write lock between requests and "
-        "a second process -- the CLI -- is refused with 'database is locked'."
-    ),
-)
 def test_the_service_does_not_hold_the_store_while_it_is_running(
     launched: Path,
 ) -> None:
     """A second process may open a transaction while the service is running.
 
-    The desired behaviour, which the product does not have yet: the CLI and
-    the local API have to be usable against one workspace at the same time,
-    because G4's exit test compares what they say.
+    The CLI and the local API have to be usable against one workspace at the
+    same time, because G4's exit test compares what they say.
+
+    **The service has to have read the store first.** A service that has
+    served nothing holds nothing, so the request below is what puts the
+    store's session in the state this is about.
+
+    **The probe opens one transaction and no more.** The engine's ``begin``
+    event issues ``BEGIN IMMEDIATE`` when a transaction begins, so a probe
+    that issues ``BEGIN IMMEDIATE`` itself opens *two* transactions and is
+    refused with *"cannot start a transaction within a transaction"* whether
+    or not the service is holding anything -- which is a test that fails for
+    the wrong reason and proves nothing. :meth:`Connection.begin` asks the
+    engine for a transaction, and the engine issues the one ``BEGIN
+    IMMEDIATE`` that ADR-0003 C3 asks for.
     """
     location = locate(launched)
     config = read_config(location)
     with application_context(location, config, _a_task(launched)) as context:
-        create_app(context)
+        app = create_app(context)
+        origin = own_origin(DEFAULT_BIND_HOST, DEFAULT_BIND_PORT)
+        with TestClient(app) as client:
+            served = client.get("/task", headers={"Origin": origin})
+        assert served.status_code == 200, served.text
+
         engine = create_db_engine(location.database_path, busy_timeout_ms=250)
         try:
-            with engine.connect() as other:
-                other.exec_driver_sql("BEGIN IMMEDIATE")
-        except OperationalError:
-            pytest.fail("the service holds the store's write lock")
+            with engine.connect() as other, other.begin():
+                other.exec_driver_sql("SELECT 1")
+        except OperationalError as error:
+            pytest.fail(f"the service holds the store's write lock: {error}")
         finally:
             engine.dispose()
 

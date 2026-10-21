@@ -76,6 +76,42 @@ and checking them::
 
 The web app imports that file rather than writing its own types, and the
 check is re-runnable by whoever changes either side.
+
+The service lets go of the store between requests
+--------------------------------------------------
+
+**The store's session belongs to the request, and the write lock must not.**
+
+:mod:`labcairn.db.session` opens *every* transaction with ``BEGIN
+IMMEDIATE`` — ADR-0003 C3's clause, and the right one for a write: two
+writers must not interleave. A read is a transaction too, so a read takes
+SQLite's **write** lock rather than a read lock. Without a boundary, the
+service would hold the write lock from its first read until its next commit,
+and every other process — the CLI above all — would be refused with
+*"database is locked"*. That was measured, not inferred: a read through the
+store's session issues ``BEGIN IMMEDIATE``, a second connection is refused,
+and the reader blocks another process's **write**, not only its read.
+
+So a request ends its transaction when the request is over. A local research
+workspace whose service holds the database hostage while it runs is not a
+workspace two surfaces can be used in, and G4's exit clause compares what the
+CLI and the web say about the same task — so they have to be usable against
+one workspace at the same time.
+
+**A session is not thread-safe, so a request gets one of its own.** Every
+handler in :mod:`labcairn.api.routes` is a plain ``def``, so FastAPI runs
+them in a threadpool — at the same time, on the same session, when the
+session is the service's. One thread's rollback then discards another
+thread's reads, and the SQLite driver, called from two threads at once, can
+take the whole process down. Both were measured, not inferred.
+
+The session therefore belongs to the request: the app holds the
+request-independent facts — the workspace, the policy, the ledger and the
+task id — and each request forks a session of its own from the store's
+engine, and closes it when the request is over. The closing is in
+:func:`labcairn.api.routes._context`, which is where the request's session
+is opened; it runs after the response has been sent, so a streamed body
+holds its session for as long as it streams.
 """
 
 from __future__ import annotations

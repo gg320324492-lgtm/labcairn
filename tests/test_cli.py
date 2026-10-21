@@ -913,7 +913,7 @@ def test_the_show_token_option_reveals_the_api_session_token(workspace: Path) ->
     default, because a token in a diagnostic dump is a token in whatever the
     dump was pasted into.
     """
-    token_path = workspace / ".labcairn" / "api-token"
+    token_path = workspace / ".labcairn" / "session-token"
     token_path.write_text("s3cr3t-token\n", encoding="utf-8")
 
     hidden = run_cli("--workspace", str(workspace), "doctor", "--json")
@@ -925,6 +925,37 @@ def test_the_show_token_option_reveals_the_api_session_token(workspace: Path) ->
     shown = run_cli("--workspace", str(workspace), "doctor", "--show-token", "--json")
     assert shown.returncode == 0, shown.stderr
     assert shown.json()["api_session"]["token"] == "s3cr3t-token"
+
+
+def test_the_cli_and_the_service_name_the_token_file_the_same_way(
+    tmp_path: Path,
+) -> None:
+    """One name for one file.
+
+    The service writes its session token and the doctor reads it, and the two
+    are the same file under the same name — so the doctor reports a session
+    that exists instead of looking for one that does not.
+
+    The two declarations are compared here because they cannot be shared: the
+    CLI does not import the API's package, which pulls in the whole web
+    stack, so the name is written down twice and this is what watches that
+    the two writings agree.
+    """
+    from labcairn.api.session import SESSION_DIR_NAME, SESSION_FILE_NAME
+    from labcairn.cli.workspace import CONFIG_DIR_NAME, SESSION_TOKEN_FILE_NAME
+
+    assert SESSION_FILE_NAME == SESSION_TOKEN_FILE_NAME, (
+        f"the service writes {SESSION_FILE_NAME!r} and the CLI reads "
+        f"{SESSION_TOKEN_FILE_NAME!r}: they are one file and must have one name"
+    )
+    assert SESSION_DIR_NAME == CONFIG_DIR_NAME, (
+        f"the service writes into {SESSION_DIR_NAME!r} and the CLI reads "
+        f"{CONFIG_DIR_NAME!r}: they are one directory and must have one name"
+    )
+
+    root = tmp_path / "workspace"
+    location = locate(root)
+    assert location.token_path == root / SESSION_DIR_NAME / SESSION_FILE_NAME
 
 
 def test_the_json_option_changes_the_output_shape(workspace: Path, task_id: str) -> None:
