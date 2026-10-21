@@ -492,6 +492,70 @@ def test_the_json_form_is_not_a_rendering_of_the_prose(workspace: Path, task_id:
     assert machine.stdout != prose.stdout
 
 
+#: The rule the rendered tables are drawn with: the box's vertical border.
+_TABLE_RULE = "│"
+
+
+def _the_prose_value(rendered: str, label: str) -> str:
+    """What the rendered form gives *label*.
+
+    The rendered form is a grid of a label column and a value column, and
+    the value is what follows the label on its line. Read this way rather
+    than by asking whether the value is *somewhere* in the output, so that a
+    value drawn against the wrong label is caught: both values would still
+    be in the text, and the two forms would have swapped their fields
+    without anybody noticing.
+    """
+    for line in rendered.splitlines():
+        cells = line.split(_TABLE_RULE)
+        if len(cells) < 3:
+            continue
+        parts = re.split(r"\s{2,}", cells[1].strip(), maxsplit=1)
+        if len(parts) == 2 and parts[0] == label:
+            return parts[1]
+    raise AssertionError(f"the rendered form has no {label!r} row:\n{rendered}")
+
+
+def test_task_status_prose_says_what_its_json_says(workspace: Path, task_id: str) -> None:
+    """``task status`` and ``task status --json`` are one model, drawn twice.
+
+    The rule the architecture states: the rendered output is a rendering of
+    the same data. ``doctor`` is watched against this and ``task status``
+    was not, so a renderer that drew its own words — a title of "a task"
+    where the model says "Read the literature" — would have gone unnoticed,
+    and the README's claim that the two forms print the same model would
+    have gone with it.
+
+    **Row by row, and not by searching the text.** Every row the rendered
+    form draws is compared with the field the JSON form carries, and it is
+    compared against that row's own value. A value drawn against the wrong
+    label would still be somewhere in the output, and the two forms would
+    have swapped their fields without anybody noticing.
+    """
+    prose = run_cli("--workspace", str(workspace), "task", "status")
+    machine = run_cli("--workspace", str(workspace), "task", "status", "--json")
+    assert prose.returncode == 0, prose.stderr
+    assert machine.returncode == 0, machine.stderr
+    state = machine.json()
+    expected = {
+        "task": state["task"]["task_id"],
+        "title": state["task"]["title"],
+        "objective": state["task"]["goal"]["objective"],
+        "revision": str(state["task"]["revision"]),
+        "last event": str(state["last_event_seq"]),
+        "runs": str(len(state["runs"])),
+        "stages": str(len(state["stages"])),
+        "artifacts": str(len(state["artifacts"])),
+        "approvals": str(len(state["approvals"])),
+    }
+    for label, value in expected.items():
+        drawn = _the_prose_value(prose.stdout, label)
+        assert drawn == value, (
+            f"the rendered form's {label!r} row says {drawn!r} and the JSON form "
+            f"says {value!r}: the two forms are not the same model"
+        )
+
+
 # --------------------------------------------------------------------------- #
 # a refusal is rendered, not raised
 # --------------------------------------------------------------------------- #
@@ -1434,6 +1498,217 @@ def test_loading_the_cli_does_not_load_the_layer() -> None:
         f"loading the CLI loaded {offenders}. The CLI imports the layer when a "
         "command needs it, not when the CLI is loaded, so that `labcairn --help` "
         "does not pay for the whole application."
+    )
+
+
+def _is_type_checking(test: ast.expr) -> bool:
+    """Whether a module-level ``if`` is the ``TYPE_CHECKING`` guard.
+
+    The names under that guard are not module-level imports: they are for
+    mypy, and the interpreter never evaluates them.
+    """
+    return isinstance(test, ast.Name) and test.id == "TYPE_CHECKING"
+
+
+def _the_module_level_imports(tree: ast.Module) -> list[str]:
+    """The modules the module imports at module level.
+
+    The names under ``TYPE_CHECKING`` are left out: they are for mypy, and
+    the interpreter never evaluates them.
+    """
+    imported: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.If) and _is_type_checking(node.test):
+            continue
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+    return imported
+
+
+def test_the_cli_module_names_no_layer_module_at_module_level(repo_root: Path) -> None:
+    """``cli/commands.py``'s module-level imports name no layer module.
+
+    The docstring's claim, checked against the source it is about. The
+    measurement above watches the *effect* — what the interpreter ends up
+    holding — and this watches the *claim*: a layer name imported at module
+    level would break the claim even on a build where it happened not to
+    drag the layer in, and a claim nobody checks is a claim nobody can
+    rely on.
+
+    **The one project module the CLI names at module level is the API's bind
+    module**, for the two defaults ``serve``'s own signature needs. It is
+    named here so that a second one has to be argued for rather than added:
+    a docstring that says what the module imports has to be kept true.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    imported = _the_module_level_imports(tree)
+
+    layer = [
+        name
+        for name in imported
+        if any(name == package or name.startswith(f"{package}.") for package in _LAYER_PACKAGES)
+    ]
+    assert not layer, (
+        f"the CLI names the layer at module level: {layer}. The layer is imported "
+        "when a command needs it, not when the CLI is loaded, or `labcairn --help` "
+        "pays for the whole application."
+    )
+    project = [name for name in imported if name.startswith("labcairn.")]
+    assert project == ["labcairn.api.bind"], (
+        f"the CLI names {project} at module level and not just the bind defaults. "
+        "The docstring says the bind module is the only one, so a second one has "
+        "to be argued for and the docstring has to be told about it."
+    )
+
+
+#: A project path in the docstring: a dotted name under the package.
+_PROJECT_NAME = re.compile(r"\blabcairn(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b")
+
+#: A module reference in the docstring: Sphinx's ``:mod:`` role.
+_MODULE_ROLE = re.compile(r":mod:`~?([^`]+)`")
+
+
+def _is_a_module_of_the_project(repo_root: Path, name: str) -> bool:
+    """Whether *name* names a module of this project.
+
+    Resolved against the source tree, because that is what decides it: a
+    module is a path under ``src/`` with a ``.py`` beside it or a package
+    directory, and a class or a function is not one.
+    ``labcairn.application.ApplicationRefusedError`` is a class, and the
+    module that holds it is not thereby named.
+    """
+    source = repo_root / "src" / Path(*name.split("."))
+    return source.with_suffix(".py").is_file() or (source / "__init__.py").is_file()
+
+
+def _the_modules_the_docstring_names(repo_root: Path, docstring: str) -> set[str]:
+    """The project modules the docstring names.
+
+    A mention names a module when the project has a module by that name,
+    or when the docstring says it is one: ``:mod:`labcairn.api.bind`` is a
+    module whatever the source tree says of it, and
+    ``:class:`~labcairn.application.ApplicationRefusedError`` is a class, so
+    the module that holds it is not thereby named.
+    """
+    named = {
+        name
+        for name in _PROJECT_NAME.findall(docstring)
+        if _is_a_module_of_the_project(repo_root, name)
+    }
+    named.update(
+        role.lstrip("~")
+        for role in _MODULE_ROLE.findall(docstring)
+        if role.lstrip("~").startswith("labcairn.")
+    )
+    return named
+
+
+def test_the_cli_module_docstring_and_its_imports_agree(repo_root: Path) -> None:
+    """The docstring says which modules the module imports, and it is right.
+
+    **A docstring that says what the module imports is a claim, and a claim
+    somebody checks is a claim that can be wrong.** The module's own
+    docstring says that the layer is not loaded and which one project
+    module is named at module level, and a sentence that denies a thing the
+    module does is worse than no sentence: a reader believes it, and this
+    one was read as a fact about the imports.
+
+    The two are compared, **in both directions**:
+
+    * **every module imported at module level is named in the docstring**,
+      so the import cannot come back, or a second one be added, without the
+      docstring being told; and
+    * **every module the docstring names is imported at module level**, so
+      a stale name in the prose is caught too.
+
+    A mention of a class is not a mention of a module: the docstring names
+    ``labcairn.application.ApplicationRefusedError``, and the module that
+    holds it is not thereby named as an import.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstring = ast.get_docstring(tree) or ""
+
+    imported = {name for name in _the_module_level_imports(tree) if name.startswith("labcairn.")}
+    claimed = _the_modules_the_docstring_names(repo_root, docstring)
+
+    for module in sorted(imported):
+        assert any(name == module or module.startswith(f"{name}.") for name in claimed), (
+            f"the module imports {module} at module level and the docstring names "
+            f"none of it: the docstring names {sorted(claimed)}. A docstring that "
+            "says what the module imports has to be told when the imports change."
+        )
+    for name in sorted(claimed):
+        assert any(module == name or module.startswith(f"{name}.") for module in imported), (
+            f"the docstring names {name} and the module does not import it at "
+            f"module level: it imports {sorted(imported)}. A name the module does "
+            "not import is a name a reader will take for a fact."
+        )
+
+
+#: The claim the module's docstring makes about its module-level imports.
+#:
+#: A marked sentence, so that the docstring's own words are what the test
+#: reads: the claim is stated once, in a form that can be checked, and the
+#: names are read out of it.
+_CLAIM = (
+    "the module-level imports of this module, outside the standard library "
+    "and Typer, are exactly these:"
+)
+
+#: The phrase only a statement about module-level imports carries.
+_MODULE_LEVEL = re.compile(r"module[ -]level")
+
+
+def _the_sentences(text: str) -> list[str]:
+    """The text's sentences, as a reader would take them."""
+    return [part for part in re.split(r"(?<=[.!?])\s+", text) if part]
+
+
+def test_the_cli_module_docstring_says_what_it_imports_at_module_level(
+    repo_root: Path,
+) -> None:
+    """The docstring says what the module imports at module level, and it is right.
+
+    **The claim is machine-checkable, and it is checked.** The docstring
+    states, in a marked sentence, exactly which modules the module imports
+    at module level beyond the standard library and Typer. The test reads
+    the names out of that sentence and compares them with the code.
+
+    **And there is no other claim.** A name-by-name comparison cannot see a
+    denial: *"this module imports nothing at module level but the standard
+    library and Typer"* names nothing at all, so there is no name to
+    compare, and it is false while the module imports a project module. So
+    the docstring says what it imports at module level in one place and in
+    one form — and a reader is given one thing to believe.
+    """
+    path = repo_root / "src" / "labcairn" / "cli" / "commands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstring = " ".join((ast.get_docstring(tree) or "").split())
+    sentences = _the_sentences(docstring)
+
+    claims = [sentence for sentence in sentences if _CLAIM in sentence]
+    assert len(claims) == 1, (
+        f"the docstring states what the module imports at module level "
+        f"{len(claims)} time(s) and not once. The claim is made once, in the form "
+        f"'...{_CLAIM}...', so that it can be read and checked."
+    )
+    about = [sentence for sentence in sentences if _MODULE_LEVEL.search(sentence)]
+    assert len(about) == 1 and about[0] == claims[0], (
+        f"the docstring says what the module imports at module level in "
+        f"{len(about)} place(s): {about}. Say it once, in the marked form, so that "
+        "a denial of what the module does cannot sit beside the truth."
+    )
+
+    named = _the_modules_the_docstring_names(repo_root, claims[0].split(_CLAIM, 1)[1])
+    imported = {name for name in _the_module_level_imports(tree) if name.startswith("labcairn.")}
+    assert named == imported, (
+        f"the docstring says the module imports {sorted(named)} at module level and "
+        f"the code imports {sorted(imported)}. A docstring that says what the "
+        "module imports has to be told when the imports change."
     )
 
 

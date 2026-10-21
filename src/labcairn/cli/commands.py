@@ -27,9 +27,13 @@ beside it, and it is the form this project's lint rules can be left to.
 **The layer is imported when a command needs it, not when the CLI is loaded.**
 ``labcairn --help`` is the first thing a person types, and it must not cost
 two seconds: importing the application layer takes about that, because the
-layer imports the store, the evidence readers and the provider stack. So this
-module imports nothing at module level but the standard library and Typer, and
-every layer name is imported *inside* the command that uses it.
+layer imports the store, the evidence readers and the provider stack. So no
+layer module is named at module level — every layer name is imported
+*inside* the command that uses it — and the module-level imports of this
+module, outside the standard library and Typer, are exactly these:
+:mod:`labcairn.api.bind`, for the two defaults ``serve``'s own signature
+needs. Everything that package imports is the standard library, so naming it
+costs the CLI nothing it was trying to avoid.
 
 **That is only possible because the command line does not mention the layer.**
 Typer builds the command line from a command's *parameters*, and every

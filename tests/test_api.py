@@ -33,9 +33,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,6 +60,7 @@ from labcairn.api import (
     create_app,
     ensure_loopback,
 )
+from labcairn.api import session as session_module
 from labcairn.api.app import refusal_response
 from labcairn.api.events import UnwiredEventSource
 from labcairn.api.session import SessionToken, read_bearer
@@ -1328,13 +1331,133 @@ def test_the_api_package_calls_the_layer_and_nothing_else(
 # --------------------------------------------------------------------------- #
 
 
-def test_the_session_token_compares_in_constant_time_over_bytes() -> None:
-    """The token is compared as bytes, so a candidate cannot crash the check."""
+def test_the_session_token_compares_in_constant_time_over_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The token is compared with the constant-time comparison, over bytes.
+
+    **Watched at the call, and not by the clock.** A timing test would be
+    flaky, and it would not be the property either: the property is *which*
+    comparison is made. So the comparison is intercepted — every name it can
+    be reached by is patched, because :func:`secrets.compare_digest` and
+    :func:`hmac.compare_digest` are one function under two names — and what
+    the module does with it is asserted.
+
+    Three things, each of which can be broken on its own:
+
+    * **the comparison is made at all.** A comparison made with ``==`` makes
+      no call, and answers exactly the same way.
+    * **it is made on every candidate.** A comparison that answered a
+      candidate of a different length without comparing would leak the
+      token's length through its running time, which is what the module's
+      own docstring says it does not do.
+    * **its answer is the answer.** A call made and then ignored, the
+      comparison's result thrown away for one of the module's own, would
+      compare in constant time and still not be the comparison.
+    """
+    original = secrets.compare_digest
+    calls: list[tuple[Any, Any]] = []
+
+    def recording(left: Any, right: Any) -> bool:
+        calls.append((left, right))
+        if isinstance(left, bytes) and isinstance(right, bytes):
+            return original(left, right)
+        return False
+
+    def always_agrees(left: Any, right: Any) -> bool:
+        return True
+
+    for owner in (secrets, hmac, session_module):
+        if hasattr(owner, "compare_digest"):
+            monkeypatch.setattr(owner, "compare_digest", recording)
+
     token = SessionToken(value="abc", path=Path("token"))
-    assert token.verify("abc")
-    assert not token.verify("abd")
-    assert not token.verify("ab")
-    assert not token.verify("é")
+    verified = (
+        token.verify("abc"),
+        token.verify("abd"),
+        token.verify("ab"),
+        token.verify("é"),
+    )
+
+    assert all(isinstance(argument, bytes) for call in calls for argument in call), (
+        f"the comparison was made over {calls!r} and not over bytes: a candidate "
+        "carrying non-ASCII characters would raise rather than be refused"
+    )
+    assert verified == (True, False, False, False), (
+        f"the token verified as {verified!r} and not as (True, False, False, False)"
+    )
+    for candidate in (b"abc", b"abd", b"ab", "é".encode()):
+        assert any({left, right} == {b"abc", candidate} for left, right in calls), (
+            f"the token and {candidate!r} were not compared with each other: "
+            f"{calls!r}. A comparison that answers without comparing leaks the "
+            "length it answered on."
+        )
+
+    for owner in (secrets, hmac, session_module):
+        if hasattr(owner, "compare_digest"):
+            monkeypatch.setattr(owner, "compare_digest", always_agrees)
+    assert token.verify("abd") is True, (
+        "verify answered from a comparison of its own rather than from the "
+        "constant-time one: the call is made and its answer thrown away"
+    )
+
+
+def test_the_session_module_makes_no_comparison_but_the_constant_time_one(
+    repo_root: Path,
+) -> None:
+    """``SessionToken.verify`` compares the token, and nothing else.
+
+    **The constant-time comparison is the only comparison the method
+    makes.** A fast path that decided the answer before handing the two
+    strings over — an equality test, a length test, a prefix test — would
+    still call the constant-time comparison, and would still leak through
+    its running time everything the constant-time comparison was there to
+    hide. A test that watched only the call would see that call made and
+    pass.
+
+    Checked in the module's own source, because the claim is about the code
+    as written: a test that ran the comparison would watch one run of it.
+    """
+    source = (repo_root / "src" / "labcairn" / "api" / "session.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    session_class = next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SessionToken"
+    )
+    verify = next(
+        node
+        for node in session_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "verify"
+    )
+
+    comparisons = [node for node in ast.walk(verify) if isinstance(node, ast.Compare)]
+    assert not comparisons, (
+        "SessionToken.verify compares the token with something other than the "
+        "constant-time comparison. A comparison that answers as soon as the two "
+        "differ leaks the token through its running time, and the constant-time "
+        "comparison is there to stop exactly that."
+    )
+
+    called = {ast.unparse(node.func) for node in ast.walk(verify) if isinstance(node, ast.Call)}
+    modules = {
+        alias.name.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    bound = {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module in {"secrets", "hmac"}
+        for alias in node.names
+        if alias.name == "compare_digest"
+    }
+    acceptable = {f"{module}.compare_digest" for module in ("secrets", "hmac") if module in modules}
+    acceptable |= bound
+    assert called & acceptable, (
+        f"SessionToken.verify calls {sorted(called)} and not the constant-time "
+        "comparison: a comparison that is not constant-time leaks the token "
+        "through its running time"
+    )
 
 
 def test_the_service_refuses_a_bind_address_before_it_mints_anything(
