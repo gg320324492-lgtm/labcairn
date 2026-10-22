@@ -201,10 +201,18 @@ def _refusals(as_json: bool) -> Iterator[None]:
     Both the layer's refusals and the CLI's own two conditions come out of
     here, so every failure a command can have has one rendering, one exit
     code and one JSON shape.
+
+    **A path the workspace binds cannot be resolved is a refusal too.** The
+    layer refuses a root it cannot canonicalise with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and not an ``OSError``, so a handler that caught only the
+    latter let it out as a traceback. A traceback is a crash, and this module's
+    own rule is that a crash is a bug.
     """
     from labcairn.application import ApplicationRefusedError
     from labcairn.cli.models import CLI_REFUSAL_WORKSPACE_UNUSABLE, emit_refusal
     from labcairn.cli.workspace import WorkspaceSetupError
+    from labcairn.security.paths import PathRefusedError
 
     try:
         yield
@@ -216,6 +224,13 @@ def _refusals(as_json: bool) -> Iterator[None]:
         emit_refusal(
             CLI_REFUSAL_WORKSPACE_UNUSABLE,
             str(error),
+            as_json=as_json,
+        )
+        raise typer.Exit(code=EXIT_REFUSED) from None
+    except PathRefusedError as error:
+        emit_refusal(
+            CLI_REFUSAL_WORKSPACE_UNUSABLE,
+            f"the workspace could not be bound: {error}",
             as_json=as_json,
         )
         raise typer.Exit(code=EXIT_REFUSED) from None

@@ -41,6 +41,7 @@ from labcairn.core.ids import TaskId
 from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import Effect
+from labcairn.security.paths import PathRefusedError
 from labcairn.security.policy import Permission, PermissionPolicy, Rule, default_policy
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace, WorkspaceError
 
@@ -388,18 +389,44 @@ def _optional_effects(value: Any) -> frozenset[Effect] | None:
 def source_paths(location: WorkspaceLocation, config: WorkspaceConfig) -> tuple[Path, ...]:
     """The source roots, as absolute paths.
 
-    A source directory that is not inside the workspace is refused here rather
-    than by the layer, so the message can name the directory the operator
-    named instead of a path they did not.
+    Two things are refused here rather than by the layer, and both are refused
+    for the same reason: **the layer can only say it in terms of the path it
+    was given, and the operator named the directory.** A source directory that
+    is not inside the workspace is a root the operator's selection does not
+    govern; a source directory that is not there cannot be bound at all.
+
+    **A source root that is missing is refused here, and not left to the
+    layer.** :meth:`~labcairn.workspace.roots.Workspace.bind` refuses a root
+    it cannot canonicalise with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and **not** an ``OSError`` — so a caller that catches only
+    the latter lets it escape as a traceback. A traceback is a crash, and the
+    CLI's own rule is that a crash is a bug: a refusal is rendered, with the
+    exit code a refusal has.
+
+    The refusal here says what the operator can act on — *which directory is
+    missing* — where the layer's says how the machinery failed.
     """
     paths: list[Path] = []
     for relative in config.source_dirs:
-        candidate = (location.root / relative).resolve()
+        declared = location.root / relative
+        candidate = declared.resolve()
         if not candidate.is_relative_to(location.root):
             raise WorkspaceSetupError(
                 f"the source directory {relative!r} resolves to {candidate}, which is "
                 f"outside the workspace {location.root}. A source root the workspace "
                 "does not contain is a root the operator's selection does not govern."
+            )
+        if not declared.exists():
+            raise WorkspaceSetupError(
+                f"the source directory {relative!r} is missing: {declared}. The "
+                "workspace's configuration names it, and a source root that is not "
+                "there cannot be bound."
+            )
+        if not declared.is_dir():
+            raise WorkspaceSetupError(
+                f"the source directory {relative!r} is {declared}, which is not a "
+                "directory. A source root is a directory."
             )
         paths.append(candidate)
     return tuple(paths)
@@ -416,6 +443,13 @@ def bind_workspace(
         there, or a configured source directory is missing. The layer refuses
         the same thing, but it can only say it in terms of the path it was
         given, and the operator named the directory.
+
+    **All three of the layer's refusals are caught here.** The layer refuses a
+    root it cannot bind with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and not an ``OSError``; catching only the latter let it
+    escape the CLI's handler as a traceback, which is a crash where the
+    program had promised a refusal.
     """
     try:
         return Workspace.bind(
@@ -423,7 +457,7 @@ def bind_workspace(
             task_id=task_id,
             source_dirs=source_paths(location, config),
         )
-    except (WorkspaceError, OSError) as error:
+    except (WorkspaceError, PathRefusedError, OSError) as error:
         raise WorkspaceSetupError(
             f"the workspace at {location.root} could not be bound: {error}"
         ) from error

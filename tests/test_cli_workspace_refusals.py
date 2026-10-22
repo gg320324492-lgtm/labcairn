@@ -2,9 +2,9 @@
 
 The API service's guards are watched in ``tests/test_api.py``. This file
 watches the refusals the **CLI** owns and the API does not have: the
-workspace's configuration, the operator's policy file, and the source roots the
-configuration names. Each of them is raised *before* the application layer is
-reached, and each of them has one exact message.
+workspace's configuration, the operator's policy file, the providers file, and
+the source roots the configuration names. Each of them is raised *before* the
+application layer is reached, and each of them has one exact message.
 
 **A witness is the product's own words.** Every test here asserts the refusal
 the module writes — a sentence of it, quoted — and not "something was raised".
@@ -15,22 +15,32 @@ to say the opposite of what it says now.
 **Neighbouring refusals are told apart by the sentence they use, or by the
 file they name.** The configuration that cannot be read and the policy that
 cannot be read say the same three words; what separates them is *which path
-the refusal names*. The four configuration refusals — missing, unparseable,
-wrongly shaped, of another schema version — each use a different sentence, and
-each is watched by a different test.
+the refusal names*. The configuration's refusals — missing, unparseable, not an
+object, of another schema version, of a shape this build does not understand —
+each use a different sentence, and each is watched by a different test. The
+policy's refusals are told apart the same way.
 
-**Nine of the ten are watched through the command line**, because that is what
-an operator meets: a refusal the CLI renders is a refusal a script can read.
-The tenth — a configuration file that is not there — is watched in process, and
-the test says why: the command line cannot reach it, because the CLI asks
-whether the workspace is initialised before it reads the configuration, and
-refuses in another shape when it is not.
+**The reason is part of the refusal, and a witness that does not assert it
+cannot tell two refusals apart.** The command's own refusal for a source root
+outside the workspace and the module's refusal for the same condition say
+*the same sentence*; only the reason differs — ``invalid_arguments`` for the
+command, ``workspace_unusable`` for the module — and a client that branches
+on the reason must see the difference. So the witnesses here assert the
+reason as well as the message.
+
+**Most of them are watched through the command line**, because that is what an
+operator meets: a refusal the CLI renders is a refusal a script can read. The
+one that is not — a configuration file that is not there — is watched in
+process, and the test says why: the command line cannot reach it, because the
+CLI asks whether the workspace is initialised before it reads the
+configuration, and refuses in another shape when it is not.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -39,7 +49,7 @@ from typing import Any
 
 import pytest
 
-from labcairn.cli.commands import EXIT_REFUSED
+from labcairn.cli.commands import EXIT_REFUSED, PROVIDERS_FILE_NAME
 from labcairn.cli.workspace import (
     CONFIG_DIR_NAME,
     CONFIG_FILE_NAME,
@@ -56,6 +66,14 @@ from labcairn.cli.workspace import (
 #: Every refusal in this file is that one: the layer was never reached, so the
 #: layer's vocabulary has nothing to say about it.
 WORKSPACE_UNUSABLE = "workspace_unusable"
+
+#: The reason the CLI gives for an argument it will not act on.
+#:
+#: The CLI's own vocabulary, from :data:`labcairn.cli.models.CLI_REFUSAL_INVALID_ARGUMENTS`.
+#: This is the reason a **command's** own refusal carries — the one the
+#: command answers with, rather than the module's answer to the same
+#: condition.
+INVALID_ARGUMENTS = "invalid_arguments"
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,13 +198,23 @@ def _refusal(result: CliResult) -> dict[str, Any]:
     The exit code and the reason are asserted before the message is read, so
     a test that fails says *which* of the two went wrong.
     """
+    return _refusal_with_reason(result, WORKSPACE_UNUSABLE)
+
+
+def _refusal_with_reason(result: CliResult, reason: str) -> dict[str, Any]:
+    """The refusal the CLI printed, with the reason it must carry.
+
+    The same three checks as :func:`_refusal`, with the reason as an
+    argument. A witness that asserts only *that* something was refused cannot
+    tell two refusals apart, and the reason is what a client branches on.
+    """
     assert result.returncode == EXIT_REFUSED, (
         f"expected the refusal exit code {EXIT_REFUSED}, got {result.returncode}; "
         f"stderr was {result.stderr!r}"
     )
     assert "Traceback" not in result.stderr, "the refusal was raised, not rendered"
     payload: dict[str, Any] = result.json()
-    assert payload["reason"] == WORKSPACE_UNUSABLE, payload
+    assert payload["reason"] == reason, payload
     return payload
 
 
@@ -292,6 +320,35 @@ def test_a_workspace_configuration_of_another_schema_version_is_refused(
     assert (
         f"{location.config_path} declares schema version {CONFIG_SCHEMA_VERSION + 1}, "
         f"and this build reads version {CONFIG_SCHEMA_VERSION}."
+    ) in payload["message"]
+
+
+def test_a_workspace_configuration_this_build_cannot_understand_is_refused(
+    workspace: Path,
+) -> None:
+    """A configuration whose shape this build does not know is refused.
+
+    ``source_dirs`` is a list of names in the file and a bare string here. A
+    build that read the string as a list would bind a source root named "m",
+    and one that read it as nothing would bind no source root at all — and
+    the operator's material would be quietly absent from every task. A
+    configuration this build cannot read is refused rather than guessed at.
+
+    **Told apart from the other four configuration refusals** by its
+    sentence: this one says the file *is not a configuration this build
+    understands*, and the others say the file is missing, could not be read
+    as JSON, must hold a JSON object, or declares another schema version.
+    """
+    location = locate(workspace)
+    config = json.loads(_config_path(workspace).read_text(encoding="utf-8"))
+    config["source_dirs"] = "materials"
+    _config_path(workspace).write_text(json.dumps(config), encoding="utf-8")
+
+    result = run_cli("--workspace", str(workspace), "doctor", "--json")
+
+    payload = _refusal(result)
+    assert (
+        f"{location.config_path} is not a workspace configuration this build understands"
     ) in payload["message"]
 
 
@@ -431,6 +488,79 @@ def test_a_policy_rule_with_an_unknown_effect_is_refused(task_workspace: Path) -
     assert expected in payload["message"]
 
 
+def test_a_policy_rule_that_cannot_be_read_is_refused(task_workspace: Path) -> None:
+    """A rule whose scope cannot be read is refused, and not dropped.
+
+    A rule with an **empty** scope list is a rule that was meant to say
+    something and says nothing. Reading it as "any scope" would widen what
+    the rule covers, and reading it as "no scope" would make it match
+    nothing — and both readings are guesses about a rule the operator wrote.
+
+    **Told apart from the other six policy refusals** by its sentence: this
+    one says a rule *could not be read*, and the others say the file could
+    not be read, the file must hold a rules list, an entry is not an object,
+    a key is unknown, or the effect is missing or wrong.
+    """
+    _write_policy(
+        task_workspace,
+        [{"effect": "allow", "pattern": "output", "capabilities": []}],
+    )
+
+    result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
+
+    payload = _refusal(result)
+    assert "a policy rule could not be read" in payload["message"]
+    assert "a rule scope may not be empty" in payload["message"]
+
+
+# --------------------------------------------------------------------------- #
+# the providers
+# --------------------------------------------------------------------------- #
+
+
+def test_a_providers_file_that_is_not_json_is_refused(workspace: Path) -> None:
+    """A providers file that is not JSON is refused, and the file is named.
+
+    The refusal quotes the parse error, because an operator who cannot see
+    which file is broken cannot fix it.
+
+    **Told apart from the configuration that is not JSON** by the file the
+    refusal names: this one names ``providers.json``, that one names
+    ``workspace.json``, and the three words they share are the same.
+    """
+    location = locate(workspace)
+    (workspace / PROVIDERS_FILE_NAME).write_text("{ this is not json", encoding="utf-8")
+
+    result = run_cli("--workspace", str(workspace), "doctor", "--json")
+
+    payload = _refusal(result)
+    expected = f"{location.root / PROVIDERS_FILE_NAME} could not be read as JSON"
+    assert expected in payload["message"]
+
+
+def test_a_providers_file_without_a_providers_object_is_refused(workspace: Path) -> None:
+    """A providers file holding no ``"providers"`` object is refused.
+
+    A file of providers that is not keyed by ``"providers"`` is a file this
+    build cannot read as one. Reading it as an empty set of providers would
+    be the quieter failure: the operator's model providers would silently
+    disappear from ``doctor``'s report, and nothing would say so.
+
+    **Told apart from the providers file that is not JSON** by the sentence:
+    this one says what the file *must hold*, and that one says it could not
+    be *read*.
+    """
+    location = locate(workspace)
+    (workspace / PROVIDERS_FILE_NAME).write_text('{"models": {}}', encoding="utf-8")
+
+    result = run_cli("--workspace", str(workspace), "doctor", "--json")
+
+    payload = _refusal(result)
+    assert (
+        f'{location.root / PROVIDERS_FILE_NAME} must hold a top-level "providers" object.'
+    ) in payload["message"]
+
+
 # --------------------------------------------------------------------------- #
 # the source roots
 # --------------------------------------------------------------------------- #
@@ -461,3 +591,159 @@ def test_a_source_directory_outside_the_workspace_is_refused(
     payload = _refusal(result)
     assert "the source directory '../outside' resolves to" in payload["message"]
     assert "which is outside the workspace" in payload["message"]
+
+
+def test_a_source_directory_the_command_names_outside_the_workspace_is_refused(
+    workspace: Path, tmp_path: Path
+) -> None:
+    """A source root the **command** names, outside the workspace, is refused.
+
+    **The reason is the whole point of this witness.** The module's refusal
+    for the same condition — a source root the *configuration* names outside
+    the workspace — says the *same sentence*, and the witness above watches
+    it. Only the reason differs: the command answers with
+    ``invalid_arguments`` and the module answers with ``workspace_unusable``.
+    A client that branches on the reason has to see the command's, because
+    the command is what refused.
+
+    So this witness asserts the reason, and not merely that something was
+    refused: without the reason it would pass for the module's refusal too,
+    and the difference between the two answers would go unwatched.
+    """
+    (tmp_path / "elsewhere").mkdir()
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "A task to report on",
+        "--objective",
+        "Establish what the corpus says about the question.",
+        "--criterion",
+        "A cited answer, or an honest 'not established'.",
+        "--source-dir",
+        "../elsewhere",
+        "--json",
+    )
+
+    payload = _refusal_with_reason(result, INVALID_ARGUMENTS)
+    assert "the source directory '../elsewhere' resolves to" in payload["message"]
+    assert "which is outside the workspace" in payload["message"]
+
+
+def test_a_source_directory_the_command_names_that_is_not_a_directory_is_refused(
+    workspace: Path,
+) -> None:
+    """A source root the command names that is not a directory is refused.
+
+    A file is not a source root, and the command does not make it into one.
+    Dropping it would be the quieter failure: the task would be created
+    without the root the operator named, and nothing would say so.
+
+    **Told apart from the source root outside the workspace** by the
+    sentence: this one says the path *is not a directory*, and that one says
+    it is *outside the workspace*. Both are the command's own refusal and
+    carry the command's own reason.
+    """
+    (workspace / "not-a-directory").write_text("a file, not a directory", encoding="utf-8")
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "A task to report on",
+        "--objective",
+        "Establish what the corpus says about the question.",
+        "--criterion",
+        "A cited answer, or an honest 'not established'.",
+        "--source-dir",
+        "not-a-directory",
+        "--json",
+    )
+
+    payload = _refusal_with_reason(result, INVALID_ARGUMENTS)
+    assert "the source directory 'not-a-directory' is" in payload["message"]
+    assert "which is not a directory" in payload["message"]
+
+
+# --------------------------------------------------------------------------- #
+# the binding
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        pytest.param(
+            (
+                "task",
+                "create",
+                "--title",
+                "A task to report on",
+                "--objective",
+                "Establish what the corpus says about the question.",
+                "--criterion",
+                "A cited answer, or an honest 'not established'.",
+            ),
+            id="task_create",
+        ),
+        pytest.param(("task", "status"), id="task_status"),
+        pytest.param(("sources", "ingest"), id="sources_ingest"),
+    ],
+)
+def test_a_configured_source_directory_that_is_missing_is_refused(
+    task_workspace: Path, arguments: tuple[str, ...]
+) -> None:
+    """A source root the configuration names, and that is not there, is refused.
+
+    **This is the crash the CLI used to have instead of this refusal.** The
+    layer refuses a root it cannot canonicalise with a ``ValueError`` that is
+    not an ``OSError``, so the CLI's handler let it out as a **traceback**:
+    exit 1, and a stack trace where the program had promised a refusal. The
+    CLI's own rule is that ``EXIT_REFUSED`` is a refusal and *anything else
+    that fails is a bug*.
+
+    Three commands are watched, because they reach the binding by different
+    routes and each of them used to crash: ``task create`` binds through the
+    layer, ``task status`` and ``sources ingest`` bind through the CLI's own
+    context.
+
+    The refusal names the directory **as the configuration wrote it**,
+    because the configuration is the operator's file, and says the directory
+    is *missing* rather than that a path could not be canonicalised.
+    """
+    location = locate(task_workspace)
+    shutil.rmtree(location.materials_path)
+
+    result = run_cli("--workspace", str(task_workspace), *arguments, "--json")
+
+    payload = _refusal(result)
+    expected = f"the source directory 'materials' is missing: {location.materials_path}"
+    assert expected in payload["message"]
+
+
+def test_a_workspace_whose_output_area_cannot_be_created_is_refused(
+    task_workspace: Path,
+) -> None:
+    """A workspace whose task output area cannot be made is refused.
+
+    **This drives the other half of the binding's catch.** A refusal that
+    catches only ``OSError`` covers a directory that cannot be written, and
+    this is what reaches it: the workspace's ``output`` directory is replaced
+    by a file, so creating the task's own area underneath it fails.
+
+    The refusal names the workspace and says it could not be bound, which is
+    what the operator has to act on — and it is not the missing-source-root
+    refusal, which the message says outright.
+    """
+    location = locate(task_workspace)
+    shutil.rmtree(location.output_path)
+    location.output_path.write_text("a file, not a directory", encoding="utf-8")
+
+    result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
+
+    payload = _refusal(result)
+    assert f"the workspace at {location.root} could not be bound" in payload["message"]
+    assert "source directory" not in payload["message"]
