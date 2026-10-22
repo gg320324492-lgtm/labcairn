@@ -27,6 +27,7 @@ what it expected, because a guard that fails without saying why gets ignored.
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 from pathlib import Path
@@ -105,10 +106,8 @@ def _answer_on_any_console() -> None:
     something irreversible.
     """
     for stream in (sys.stdout, sys.stderr):
-        try:
+        with contextlib.suppress(AttributeError, ValueError):  # not a TextIOBase
             stream.reconfigure(errors="replace")
-        except (AttributeError, ValueError):  # pragma: no cover - not a TextIOBase
-            pass
 
 
 def main() -> int:

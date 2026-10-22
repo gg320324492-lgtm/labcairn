@@ -145,6 +145,7 @@ NARROW_CONSOLE_WRAPPER = textwrap.dedent(
     """
 )
 
+
 def _narrow_locale_guard(
     cwd: Path, script: Path, wrapper: Path
 ) -> subprocess.CompletedProcess[str]:
