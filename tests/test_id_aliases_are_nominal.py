@@ -49,18 +49,20 @@ def _mypy_rejects(source: str, tmp_path: Path) -> tuple[int, str]:
     """
     probe = tmp_path / "probe.py"
     probe.write_text(source, encoding="utf-8")
-    environment = dict(os.environ)
-    environment["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         [sys.executable, "-m", "mypy", "--no-incremental", "--strict", str(probe)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree. mypy is a
+        # Python program, so its output encoding is otherwise the machine's
+        # locale encoding, and it echoes the path of the file it was given,
+        # which can carry characters the locale cannot read. Pinning only
+        # the parent would be the same failure with the arrow turned round:
+        # mypy would still write the locale's bytes and the parent would
+        # read them as UTF-8.
         encoding="utf-8",
-        # Never fail on a decode, and say so rather than lose the output: a
-        # decode error surfaces in subprocess's reader thread, which returns
-        # None rather than raising where the caller can see it.
         errors="replace",
-        env=environment,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
         timeout=300,
     )

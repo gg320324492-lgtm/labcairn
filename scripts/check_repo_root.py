@@ -33,6 +33,35 @@ from pathlib import Path
 #: The package directory that must sit directly under the repository root.
 MARKER = Path("src") / "labcairn" / "__init__.py"
 
+#: The encoding git writes a path in, and therefore the encoding this script
+#: decodes it with.
+#:
+#: Both halves of the pipe have to be stated, and they have to agree. The
+#: decode used to be left to the machine's locale encoding, and on a
+#: cp936 Windows with a checkout path containing Chinese characters that is
+#: how this guard became a traceback: git writes the path as UTF-8 (it
+#: converts from the wide-character filesystem itself, whatever the locale
+#: is), the parent decoded those bytes as cp936, and the decode failed
+#: inside subprocess's reader thread -- where the exception is swallowed and
+#: the capture comes back as None. The guard then died at
+#: ``completed.stdout.strip()`` with "AttributeError: 'NoneType' object has
+#: no attribute 'strip'", a message that says nothing about the cause, at
+#: exactly the moment somebody was about to run a Git write.
+#:
+#: Pinning only this half would turn the failure around rather than fix it.
+#: The child is what writes the bytes, so the child's half is the half that
+#: has to be pinned too; a UTF-8 decode of a cp936 child is the same failure
+#: with the arrow turned round. For git there is no environment variable to
+#: pin it -- its path output is UTF-8 unconditionally -- so the two halves
+#: are: git writes UTF-8, and this decodes UTF-8.
+#:
+#: ``errors="replace"`` is the promise that this guard always answers. A
+#: byte that is not UTF-8 must cost the guard a wrong path, which it reports
+#: and exits non-zero on, and never a dead stream. A guard that cannot answer
+#: is worse than no guard, because it is the one thing a person runs before
+#: doing something irreversible.
+GIT_OUTPUT_ENCODING = "utf-8"
+
 
 def _repo_root(start: Path) -> tuple[Path | None, str]:
     """Return (root, diagnostic). ``root`` is None when git could not answer."""
@@ -41,6 +70,8 @@ def _repo_root(start: Path) -> tuple[Path | None, str]:
             ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors="replace",
             check=False,
         )
     except FileNotFoundError:

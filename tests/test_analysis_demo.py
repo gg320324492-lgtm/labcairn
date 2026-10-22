@@ -71,19 +71,19 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
     and the rest of the environment is handed over unchanged, so that pinning
     that one variable takes nothing away from the child.
     """
-    environment = dict(os.environ)
-    environment["PYTHONIOENCODING"] = "utf-8"
     return subprocess.run(
         [sys.executable, str(DEMO)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. The demonstration
+        # prints the paths it worked with, so its output can carry characters
+        # the machine's locale encoding cannot read; leaving either half to
+        # the locale is how that becomes a swallowed decode error and a
+        # capture that comes back as None.
         encoding="utf-8",
-        # Never fail on a decode, and say so rather than lose the output: a
-        # decode error surfaces in subprocess's reader thread, which returns
-        # None rather than raising where the caller can see it. CI is UTF-8; a
-        # Windows checkout on another code page is not.
         errors="replace",
-        env=environment,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=900,
         cwd=repo_root,
     )

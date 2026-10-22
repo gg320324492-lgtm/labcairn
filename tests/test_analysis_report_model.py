@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -1252,7 +1253,19 @@ def test_the_export_does_not_depend_on_who_was_imported_first() -> None:
         "from labcairn.reports import ReportDocument; assert ReportDocument",
     )
     for code in orders:
-        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            # Both halves of the pipe are stated, and they agree: the child is
+            # told to write UTF-8 and the parent decodes UTF-8. The child's
+            # own output is nothing, but a failure puts a traceback naming
+            # the module's path on the error stream, and that path can carry
+            # characters the machine's locale encoding cannot read.
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
         assert result.returncode == 0, f"{code!r} failed:\n{result.stderr}"
 
 

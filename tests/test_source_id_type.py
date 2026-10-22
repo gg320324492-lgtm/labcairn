@@ -223,15 +223,6 @@ def _mypy(probes: dict[str, str], tmp_path: Path) -> dict[str, list[str]]:
     One invocation rather than one per probe: mypy reports every error in
     every file it is given, and each line names the file it came from, so the
     attribution survives without a subprocess per property.
-
-    **Both ends of the pipe state their encoding.** The diagnostics carry the
-    path of each probe, and the path is the machine's temporary directory, so
-    it is not ASCII-bounded: a checkout under a path with an ideograph in it
-    puts those characters on the wire. The child is told to write UTF-8 and
-    the parent is told to read UTF-8, and neither is left to the machine's
-    code page. Pinning only the parent's decoding would not help -- the child
-    would still write whatever the environment gave it -- so the child's
-    ``PYTHONIOENCODING`` is pinned as well.
     """
     paths = []
     for name, source in probes.items():
@@ -239,18 +230,20 @@ def _mypy(probes: dict[str, str], tmp_path: Path) -> dict[str, list[str]]:
         path.write_text(source, encoding="utf-8")
         paths.append(path)
 
-    environment = dict(os.environ)
-    environment["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         [sys.executable, "-m", "mypy", "--no-incremental", "--strict", *(str(p) for p in paths)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree. mypy is a
+        # Python program, so its output encoding is otherwise the machine's
+        # locale encoding, and every diagnostic names the file it came from,
+        # so its output carries the path of every probe. Pinning only the
+        # parent would be the same failure with the arrow turned round: mypy
+        # would still write the locale's bytes and the parent would read
+        # them as UTF-8.
         encoding="utf-8",
-        # Never fail on a decode, and say so rather than lose the output: a
-        # decode error surfaces in subprocess's reader thread, which returns
-        # None rather than raising where the caller can see it.
         errors="replace",
-        env=environment,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
         timeout=300,
     )

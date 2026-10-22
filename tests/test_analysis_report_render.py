@@ -33,6 +33,7 @@ one that caught it.
 from __future__ import annotations
 
 import io
+import os
 import re
 import subprocess
 import sys
@@ -2255,7 +2256,19 @@ assert "docx" not in sys.modules, "the DOCX library was loaded"
 assert "reportlab" not in sys.modules, "the PDF library was loaded"
 print("ok")
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. The child's own
+        # output is "ok", but a failure puts a traceback naming the module's
+        # path on the error stream, and that path can carry characters the
+        # machine's locale encoding cannot read.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
 
     assert result.returncode == 0, result.stderr
 

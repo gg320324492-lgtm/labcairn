@@ -180,6 +180,13 @@ def main() -> int:
         f"pathlib.Path({str(sentinel)!r}).write_text('in');"
         f"sys.stdout.write('ready\\n'); sys.stdout.flush(); time.sleep(600)"
     )
+    # The decode is left to the machine's locale encoding on purpose, because
+    # it cannot fail here: the child's only write to this pipe is the ASCII
+    # literal "ready\n", and its error output is inherited rather than piped,
+    # so nothing else is decoded. Every other subprocess in this repository
+    # states the encoding it decodes with -- and, where the child is a Python
+    # program, the encoding it asks that child to write in -- because their
+    # children do write paths.
     child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
     deadline = 0
     while not sentinel.exists() and deadline < 300:
