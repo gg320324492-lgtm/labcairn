@@ -143,6 +143,7 @@ __all__ = [
     "DoctorReport",
     "PolicyFinding",
     "ProviderFinding",
+    "SourceRootFinding",
     "WorkspaceFinding",
     "WorkspaceInitialised",
     "dumps",
@@ -168,21 +169,46 @@ class WorkspaceInitialised(Result):
     policy_digest: str
 
 
+class SourceRootFinding(Result):
+    """One configured source root, and the way it cannot be used.
+
+    ``problem`` is one of :class:`labcairn.cli.workspace.SourceRootKind`'s
+    values, and those values are **the words the refusals use**: ``missing``,
+    ``not a directory``, ``outside the workspace``, ``unusable name``. A
+    diagnostic that named the condition differently from the refusal would be
+    telling the operator two things about the same source root, and one of
+    them would be wrong.
+    """
+
+    name: str
+    problem: str
+
+
 class WorkspaceFinding(Result):
     """What ``doctor`` found about the workspace.
 
-    ``missing_source_dirs`` are the configured source roots that are not a
-    directory on disk, and they are reported because a workspace that names
-    a source root which is not there **cannot be bound**: the module refuses
-    it, and every task-scoped command refuses it with it. A diagnostic that
+    ``unusable_source_roots`` are the configured source roots the commands
+    will refuse, and each one says **which of the ways** it is unusable —
+    missing, not a directory, outside the workspace, or a name this build
+    cannot speak. They are reported because a workspace that names a source
+    root the commands will refuse **cannot be bound**: the module refuses it,
+    and every task-scoped command refuses it with it. A diagnostic that
     called such a workspace fine would be calling a workspace fine that no
     command can use.
+
+    **The list is every way, not one of them.** The field used to be called
+    ``missing_source_dirs`` and was computed as "not a directory on disk",
+    which is two conditions under one name and neither of the word the
+    refusal used: a source root that was a file was reported as *missing*,
+    and a source root outside the workspace was not reported at all, so the
+    diagnostic said the workspace was initialised while every task-scoped
+    command refused it.
     """
 
     root: str
     initialised: bool
     source_dirs: tuple[str, ...]
-    missing_source_dirs: tuple[str, ...]
+    unusable_source_roots: tuple[SourceRootFinding, ...]
     output_root: str
     current_task: str | None
 
@@ -298,6 +324,7 @@ __all__ = [
     "PolicyFinding",
     "ProviderFinding",
     "ServiceStarting",
+    "SourceRootFinding",
     "WorkspaceFinding",
     "WorkspaceInitialised",
     "dumps",

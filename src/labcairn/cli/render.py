@@ -50,6 +50,13 @@ def render_doctor(model: DoctorReport) -> RenderableType:
     A table per area, then a sentence that says what the tables say. The
     sentence is built from the model, so it cannot claim something the data
     does not show.
+
+    **A source root the commands will refuse is named, and named with the
+    way it is unusable.** The word in brackets is the word the refusal uses,
+    so the diagnostic and the refusal say the same thing about the same
+    source root. The name is written the way a Python literal writes it,
+    because a name this build cannot speak may not be printable — and a
+    diagnostic that cannot be drawn is not a diagnostic.
     """
     table = Table(expand=False)
     table.add_column("area")
@@ -60,15 +67,15 @@ def render_doctor(model: DoctorReport) -> RenderableType:
     workspace = model.workspace
     if not workspace.initialised:
         state = "(not initialised)"
-    elif workspace.missing_source_dirs:
-        state = "(initialised, but a source root is missing)"
+    elif workspace.unusable_source_roots:
+        state = "(initialised, but a source root cannot be used)"
     else:
         state = "(initialised)"
     workspace_finding = (
         f"{workspace.root} {state}, sources: {', '.join(workspace.source_dirs) or '(none)'}"
     )
-    if workspace.missing_source_dirs:
-        workspace_finding += f", missing: {', '.join(workspace.missing_source_dirs)}"
+    for root in workspace.unusable_source_roots:
+        workspace_finding += f", unusable: {root.name!r} ({root.problem})"
     table.add_row("workspace", workspace_finding)
     database = model.database
     table.add_row(

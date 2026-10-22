@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from refusal_witnesses import compared_texts
 
 from labcairn.cli.commands import EXIT_REFUSED, PROVIDERS_FILE_NAME
 from labcairn.cli.workspace import (
@@ -179,6 +180,20 @@ def task_workspace(workspace: Path) -> Path:
 def _config_path(workspace: Path) -> Path:
     """The configuration file, at the path the product writes it."""
     return workspace / CONFIG_DIR_NAME / CONFIG_FILE_NAME
+
+
+def _write_source_dirs(workspace: Path, source_dirs: list[str]) -> None:
+    """The configuration the product wrote, with its source roots replaced.
+
+    Written through the product's own file, because that is the operator's
+    file: a source root is unusable because the *configuration* names it, and
+    the configuration is the one place a name can carry a spelling the
+    command line cannot carry — a NUL byte among them.
+    """
+    path = _config_path(workspace)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    config["source_dirs"] = source_dirs
+    path.write_text(json.dumps(config), encoding="utf-8")
 
 
 def _policy_path(workspace: Path) -> Path:
@@ -737,6 +752,81 @@ def test_a_source_directory_the_command_names_that_is_not_a_directory_is_refused
     assert "`task create` binds directories that are there" in payload["message"]
 
 
+def test_a_configured_source_directory_whose_name_cannot_be_spoken_is_refused(
+    task_workspace: Path,
+) -> None:
+    """A configured source root whose name this build cannot speak is refused.
+
+    **This is the crash the CLI used to have instead of this refusal.** The
+    source-root handling asked the *filesystem* about the operator's name
+    first, and the filesystem has no answer for a name carrying a NUL byte:
+    ``Path.resolve()`` raises a bare ``ValueError`` on it — not an
+    ``OSError``, and not the layer's own ``PathRefusedError`` — so it
+    escaped the CLI's handler as a **traceback**: exit 1, and a stack trace
+    where the program had promised a refusal.
+
+    The product's own spelling guard answers the question the filesystem
+    cannot, and **the guard is asked before the filesystem is asked at
+    all**. That order is the whole of this refusal: the refusal exists
+    because the question was put in the right order.
+    """
+    _write_source_dirs(task_workspace, ["materials\0"])
+
+    result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
+
+    payload = _refusal(result)
+    expected = (
+        "the source directory 'materials\\x00' is not a name this build can use: "
+        "nul_byte: path contains a NUL byte. A source root is named by a path the "
+        "workspace can speak."
+    )
+    assert payload["message"] == expected
+
+
+def test_a_source_directory_the_command_names_that_cannot_be_spoken_is_refused(
+    workspace: Path,
+) -> None:
+    """A source root the command names that this build cannot speak is refused.
+
+    **The command's own source-root handling, asked the same question.** The
+    command resolves the operator's name before the guard is asked, so a name
+    the product cannot speak was silently bound as a different directory: on
+    Windows a name ending in a dot is the same file as the name without it,
+    so ``--source-dir materials.`` would have bound ``materials`` and said
+    nothing.
+
+    **The name here is one the command line can carry.** A NUL byte cannot
+    cross a command line — the operating system ends the argument there —
+    so the spelling that reaches the command is one the guard also refuses:
+    a segment ending in a dot, which Win32 silently strips.
+    """
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "A task to report on",
+        "--objective",
+        "Establish what the corpus says about the question.",
+        "--criterion",
+        "A cited answer, or an honest 'not established'.",
+        "--source-dir",
+        "materials.",
+        "--json",
+    )
+
+    payload = _refusal_with_reason(result, INVALID_ARGUMENTS)
+    expected = (
+        "the source directory 'materials.' is not a name this build can use: "
+        "trailing_dot_or_space: segment 'materials.' ends in a dot or space. "
+        "Win32 strips both, so 'secret.txt.' and 'secret.txt' are the same file and "
+        "a rule written against one spelling would miss the other. `task create` "
+        "binds source roots the workspace can speak, and it will not make one up."
+    )
+    assert payload["message"] == expected
+
+
 # --------------------------------------------------------------------------- #
 # the binding
 # --------------------------------------------------------------------------- #
@@ -876,7 +966,14 @@ REFUSAL_MODULES: tuple[str, ...] = (
 #: against the source rather than counted by reading the file and hoping. A
 #: table of refusals counted by hand was wrong once — it said ten, and there
 #: were thirteen — and a count is what the gate turns on.
-REFUSAL_SITE_COUNT = 18
+#:
+#: **Nineteen, and one of them is new.** The source-root handling now asks
+#: the product's own spelling guard before it asks the filesystem, so a
+#: configured source root whose name the product cannot speak is refused
+#: with the module's own vocabulary rather than crashing on a bare
+#: ``ValueError``. A new site is a new refusal, and a new refusal needs a
+#: witness: it is in the ledger below.
+REFUSAL_SITE_COUNT = 19
 
 #: Every refusal site, and the witnesses that watch it.
 #:
@@ -973,6 +1070,12 @@ WATCHED_REFUSALS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "source_paths",
         "is a root the operator's selection does not govern",
         ("test_a_source_directory_outside_the_workspace_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "is not a name this build can use",
+        ("test_a_configured_source_directory_whose_name_cannot_be_spoken_is_refused",),
     ),
     (
         "src/labcairn/cli/workspace.py",
@@ -1091,21 +1194,20 @@ def _the_tests_in_the_suite(repo_root: Path) -> dict[str, ast.FunctionDef]:
 def _the_texts_a_test_compares_with(function: ast.FunctionDef) -> list[str]:
     """The strings *function* compares the refusal with.
 
-    The docstring is left out: it is prose *about* the refusal, and a phrase
-    in prose is not a witness. Only the text the test puts beside the
-    refusal counts.
+    **A mention is not a comparison.** The docstring is left out: it is prose
+    *about* the refusal, and a phrase in prose is not a witness. And a string
+    the test merely *holds* is not a witness either: a test that binds the
+    refusal's sentence to a name and never compares it watches nothing, and
+    an enumeration that accepted the mention would let that test stand for a
+    witness forever. That was measured: the phrase stayed in the witness, the
+    comparison went, and the whole suite was green.
+
+    So the rule is the shared one, in :mod:`tests.refusal_witnesses`: the
+    sentence has to be **compared** inside an assertion — put beside the
+    product's output as an operand of a comparison, or as an argument of a
+    call.
     """
-    body = list(function.body)
-    if body and isinstance(body[0], ast.Expr):
-        docstring = body[0].value
-        if isinstance(docstring, ast.Constant) and isinstance(docstring.value, str):
-            body = body[1:]
-    texts: list[str] = []
-    for statement in body:
-        for node in ast.walk(statement):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                texts.append(node.value)
-    return texts
+    return compared_texts(function)
 
 
 def test_every_refusal_site_in_the_cli_is_watched(repo_root: Path) -> None:
@@ -1129,9 +1231,19 @@ def test_every_refusal_site_in_the_cli_is_watched(repo_root: Path) -> None:
     one entry of the ledger — so a site added without a witness is caught.
     Every entry of the ledger matches exactly one site in the source — so
     an entry left behind by a changed sentence is caught. And every test the
-    ledger names exists in the suite *and* compares the refusal with a
+    ledger names exists in the suite *and* **compares** the refusal with a
     string carrying that site's phrase — so a witness that stopped asserting
     its refusal is caught, and so is a witness that was deleted or renamed.
+
+    **"Compares", and not "mentions".** The check used to ask whether the
+    phrase was *among the witness's string constants*, and that is not the
+    same question: a witness that keeps the sentence as a constant and stops
+    comparing it (``_ = expected``) still has the phrase, so the check
+    passed, the witness watched nothing, and the whole suite was green. The
+    check now asks that the sentence be compared inside an assertion — put
+    beside the product's output as an operand of a comparison, or as an
+    argument of a call. See :mod:`tests.refusal_witnesses`, which both
+    enumerations read, so that they cannot drift apart on what a witness is.
 
     The count is asserted as well, because the count is what the gate turns
     on: a site added on purpose has to be written down here as well as
@@ -1141,7 +1253,11 @@ def test_every_refusal_site_in_the_cli_is_watched(repo_root: Path) -> None:
     The command's own refusals — the ones raised as ``_refuse(...)`` with
     the command's own reason — are not counted here, because they are not
     ``WorkspaceSetupError`` and they are not refusals about the workspace.
-    They are watched by the command's own tests.
+    They are watched by ``tests/test_cli_refusal_enumeration.py``, which
+    enumerates every refusal the CLI raises — those and these — and requires
+    a witness of its own for each. The sentence that used to stand here —
+    *"They are watched by the command's own tests"* — was a claim, and it was
+    false: nine of the seventeen had no witness at all.
     """
     sites: list[tuple[str, str, str]] = []
     for relative in REFUSAL_MODULES:

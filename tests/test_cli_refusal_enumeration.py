@@ -56,6 +56,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from refusal_witnesses import compared_texts
+
 #: The repository's root, found from this file.
 REPOSITORY_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 
@@ -394,84 +396,31 @@ def _witness_modules() -> list[Path]:
     return modules
 
 
-def _literal_text(node: ast.expr, bindings: dict[str, str]) -> str:
-    """The words of a string expression, or the empty string if it is not one.
+def _quotes(module: ast.Module, path: Path) -> list[Quote]:
+    """Every string a module **compares**, and the test it is compared in.
 
-    **The interpolated values are left out.** A witness says what the
-    product's words are; the values the product puts in them are the
-    product's business and change with the workspace.
-    """
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.JoinedStr):
-        return "".join(
-            value.value
-            for value in node.values
-            if isinstance(value, ast.Constant) and isinstance(value.value, str)
-        )
-    if isinstance(node, ast.Name):
-        return bindings.get(node.id, "")
-    return ""
+    **Only assertions count, and only comparisons inside them.** A string in a
+    docstring says nothing about what is watched; a string the test merely
+    holds — bound to a name and never compared — says nothing either. A
+    witness that keeps the refusal's sentence as a constant and stops
+    comparing it watches nothing, and an enumeration that accepted the
+    mention would let it stand for a witness forever.
 
-
-def _bindings(function: ast.FunctionDef) -> dict[str, str]:
-    """The strings a function binds to a name, by the time it asserts them."""
-    bindings: dict[str, str] = {}
-    assignments = sorted(
-        (
-            node
-            for node in ast.walk(function)
-            if isinstance(node, ast.Assign) and len(node.targets) == 1
-        ),
-        key=lambda node: node.lineno,
-    )
-    for assignment in assignments:
-        target = assignment.targets[0]
-        if not isinstance(target, ast.Name):
-            continue
-        text = _literal_text(assignment.value, {})
-        if text:
-            bindings[target.id] = text
-    return bindings
-
-
-def _strings_in(node: ast.expr, bindings: dict[str, str]) -> list[str]:
-    """The strings an expression asserts, read one assertion at a time.
+    So a quote is a text the test puts beside the product's output inside an
+    assertion: an operand of a comparison, or an argument of a call. The
+    rule is the shared one, in :mod:`tests.refusal_witnesses`, and it is the
+    same rule the ledger in ``tests/test_cli_workspace_refusals.py`` uses, so
+    the two enumerations cannot drift apart on what a witness is.
 
     **A template is one string and is not taken apart.** Its literal pieces
     are read together with the values they are written around, because the
     expectation a test states is the whole of it: one assertion is one
     witness, and a witness cannot be counted twice.
     """
-    if isinstance(node, ast.Constant | ast.JoinedStr | ast.Name):
-        text = _literal_text(node, bindings)
-        return [text] if text else []
-    found: list[str] = []
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, ast.expr):
-            found.extend(_strings_in(child, bindings))
-    return found
-
-
-def _quotes(module: ast.Module, path: Path) -> list[Quote]:
-    """Every string a module asserts, and the test it is asserted in.
-
-    **Only assertions count.** A string in a docstring says nothing about
-    what is watched; a string in an assertion is a claim about something the
-    test ran. A string bound to a name and asserted by that name counts too,
-    which is how the suite writes its longer expectations.
-    """
     quotes: list[Quote] = []
     for function in [node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)]:
-        bindings = _bindings(function)
-        for statement in ast.walk(function):
-            if not isinstance(statement, ast.Assert):
-                continue
-            for node in ast.iter_child_nodes(statement.test):
-                if not isinstance(node, ast.expr):
-                    continue
-                for text in _strings_in(node, bindings):
-                    quotes.append(Quote(path, function.name, text))
+        for text in compared_texts(function):
+            quotes.append(Quote(path, function.name, text))
     return quotes
 
 
