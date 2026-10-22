@@ -24,6 +24,7 @@ figures is not cheap to run twice.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -57,6 +58,15 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(DEMO)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. The demonstration
+        # prints the paths it worked with, so its output can carry characters
+        # the machine's locale encoding cannot read; leaving either half to
+        # the locale is how that becomes a swallowed decode error and a
+        # capture that comes back as None.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=900,
         cwd=repo_root,
     )

@@ -88,7 +88,10 @@ def test_extraction_is_the_same_under_hash_randomisation(path: Path) -> None:
             capture_output=True,
             encoding="utf-8",
             errors="replace",
-            env={**__import__("os").environ, "PYTHONHASHSEED": seed},
+            # The parent decodes UTF-8, so the child has to write UTF-8: the
+            # child's output encoding is otherwise the machine's locale
+            # encoding, and the two halves of the pipe would not agree.
+            env={**__import__("os").environ, "PYTHONHASHSEED": seed, "PYTHONIOENCODING": "utf-8"},
             check=True,
         )
         digests.add(out.stdout.strip())

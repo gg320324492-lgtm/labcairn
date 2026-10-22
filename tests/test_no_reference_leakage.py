@@ -420,6 +420,15 @@ def built_artifacts(
         cwd=project,
         capture_output=True,
         text=True,
+        # uv is not Python, so there is no environment variable that pins its
+        # output encoding: it writes UTF-8 unconditionally, and it echoes the
+        # project's own path. The parent has to decode UTF-8 to read that --
+        # decoding with the machine's locale encoding is how a project at a
+        # path the locale cannot read loses its output to a decode error
+        # inside subprocess's reader thread, where the exception is swallowed
+        # and the capture comes back as None.
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert proc.returncode == 0, (
@@ -842,6 +851,11 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
         ],
         capture_output=True,
         text=True,
+        # uv writes UTF-8 (it is not Python, so there is no environment
+        # variable that pins it) and it echoes the path it creates, so the
+        # parent has to decode UTF-8 to read it.
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert created.returncode == 0, f"uv venv failed:\n{created.stdout}\n{created.stderr}"
@@ -861,6 +875,11 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
         ],
         capture_output=True,
         text=True,
+        # uv writes UTF-8 (it is not Python, so there is no environment
+        # variable that pins it) and it echoes the environment's path, so the
+        # parent has to decode UTF-8 to read it.
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert installed.returncode == 0, (
@@ -879,6 +898,13 @@ def test_wheel_installs_clean_and_imports(built_artifacts: BuiltArtifacts, tmp_p
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. Leaving either
+        # to the machine's locale is how a non-ASCII path turns into a
+        # swallowed decode error and a capture that comes back as None.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
     assert probe.returncode == 0, (

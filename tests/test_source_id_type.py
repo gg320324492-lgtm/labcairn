@@ -14,6 +14,7 @@ hold.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
@@ -233,6 +234,16 @@ def _mypy(probes: dict[str, str], tmp_path: Path) -> dict[str, list[str]]:
         [sys.executable, "-m", "mypy", "--no-incremental", "--strict", *(str(p) for p in paths)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree. mypy is a
+        # Python program, so its output encoding is otherwise the machine's
+        # locale encoding, and every diagnostic names the file it came from,
+        # so its output carries the path of every probe. Pinning only the
+        # parent would be the same failure with the arrow turned round: mypy
+        # would still write the locale's bytes and the parent would read
+        # them as UTF-8.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
         timeout=300,
     )
