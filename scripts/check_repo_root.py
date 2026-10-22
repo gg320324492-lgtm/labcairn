@@ -28,6 +28,7 @@ what it expected, because a guard that fails without saying why gets ignored.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 #: The package directory that must sit directly under the repository root.
@@ -85,7 +86,33 @@ def _repo_root(start: Path) -> tuple[Path | None, str]:
     return Path(text).resolve(), "ok"
 
 
+def _answer_on_any_console() -> None:
+    """Make the guard's own output impossible to fail on.
+
+    The guard prints the path it found, and the path may hold characters the
+    machine's stdout encoding cannot represent -- a checkout under a path
+    with an ideograph in it, printed on a console whose code page is
+    Western. Left alone, ``print`` raises ``UnicodeEncodeError`` there, and
+    the guard dies **before it answers**, with a traceback and exit code 1 --
+    the same exit code as a legitimate refusal, so the crash reads as an
+    answer.
+
+    The encoding itself is left to the machine: a console that can show the
+    path should show it, and this script does not decide what a terminal is
+    able to display. What is changed is that a character it cannot show is
+    replaced rather than raised. **A guard that cannot answer is worse than
+    no guard**, because it is the one thing a person runs before doing
+    something irreversible.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover - not a TextIOBase
+            pass
+
+
 def main() -> int:
+    _answer_on_any_console()
     # The script's own location, not the cwd: running it from anywhere must
     # check the checkout it ships with, which is the whole point of the
     # "cd elsewhere and run it by absolute path" case in CONTRIBUTING.md.

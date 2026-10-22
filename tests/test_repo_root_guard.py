@@ -121,6 +121,30 @@ def _checkout(base: Path, name: str) -> Path:
     return checkout
 
 
+#: A wrapper that gives the guard a console which cannot show the path.
+#:
+#: The other wrapper narrows the *decode*; this one narrows the *console*.
+#: A checkout path with an ideograph in it, printed on a console whose code
+#: page is Western, raises UnicodeEncodeError inside ``print`` -- and the
+#: guard would die there, before it answered, with a traceback and exit code
+#: 1: the same exit code as a legitimate refusal, so the crash would read as
+#: an answer.
+#:
+#: This is the machine that the guard's own output has to survive. The
+#: encoding is left to the machine -- a console that can show the path should
+#: show it -- but a character it cannot show must be replaced rather than
+#: raised, because a guard that cannot answer is worse than no guard.
+NARROW_CONSOLE_WRAPPER = textwrap.dedent(
+    """
+    import runpy
+    import sys
+
+    sys.stdout.reconfigure(encoding="ascii")
+    sys.stderr.reconfigure(encoding="ascii")
+    runpy.run_path(sys.argv[1], run_name="__main__")
+    """
+)
+
 def _narrow_locale_guard(
     cwd: Path, script: Path, wrapper: Path
 ) -> subprocess.CompletedProcess[str]:
@@ -223,6 +247,51 @@ def test_it_still_refuses_a_non_ascii_repository_that_is_not_labcairn(tmp_path: 
     (other / "README.md").write_text("not LabCairn\n", encoding="utf-8")
     wrapper = tmp_path / "narrow-locale.py"
     wrapper.write_text(NARROW_LOCALE_WRAPPER, encoding="utf-8")
+
+    result = _narrow_locale_guard(other, checkout / "scripts" / SCRIPT.name, wrapper)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "not the LabCairn checkout" in result.stdout
+    assert "Traceback" not in result.stderr
+
+
+def test_it_answers_on_a_console_that_cannot_show_the_path(tmp_path: Path) -> None:
+    """The guard answers on a console that cannot print the path.
+
+    The other half of the same defect: the guard *reads* git's path as
+    UTF-8, and it *writes* its own path in the machine's encoding -- which
+    on a Western code page cannot hold an ideograph, and raises there. The
+    guard then died with a traceback and exit code 1, which is the same
+    exit code as a legitimate refusal, so the crash read as an answer.
+
+    The unfixed guard dies here on every machine; the fixed one answers,
+    with the exit codes and the messages it always had.
+    """
+    checkout = _checkout(tmp_path, NON_ASCII_NAME)
+    wrapper = tmp_path / "narrow-console.py"
+    wrapper.write_text(NARROW_CONSOLE_WRAPPER, encoding="utf-8")
+
+    result = _narrow_locale_guard(checkout, checkout / "scripts" / SCRIPT.name, wrapper)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK: repository root is this LabCairn checkout" in result.stdout
+    assert "Traceback" not in result.stderr
+
+
+def test_it_still_refuses_a_non_ascii_repository_on_a_narrow_console(tmp_path: Path) -> None:
+    """The answer is still the answer, on a console that cannot show the path.
+
+    The guard's exit codes and its diagnostics are its contract, and the fix
+    is not allowed to change either. A repository at a path that is not
+    ASCII, which is not this project, must still be refused -- and refused
+    with a message rather than a traceback.
+    """
+    base = tmp_path / NON_ASCII_NAME
+    checkout = _checkout(base, "LabCairn")
+    other = base / "other-repo"
+    other.mkdir()
+    subprocess.run(["git", "init", "-q", str(other)], check=True, timeout=60)
+    (other / "README.md").write_text("not LabCairn\n", encoding="utf-8")
+    wrapper = tmp_path / "narrow-console.py"
+    wrapper.write_text(NARROW_CONSOLE_WRAPPER, encoding="utf-8")
 
     result = _narrow_locale_guard(other, checkout / "scripts" / SCRIPT.name, wrapper)
     assert result.returncode == 1, result.stdout + result.stderr
