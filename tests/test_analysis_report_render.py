@@ -529,6 +529,12 @@ def hostile_document(frozen_now: datetime) -> ReportDocument:
 #: The WordprocessingML namespace, for the DOCX reader.
 _WML = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
+#: The Dublin Core namespace, for the DOCX's core properties.
+#:
+#: ``docProps/core.xml`` holds the document's metadata, and the names in it
+#: are Dublin Core's: ``dc:title``, ``dc:creator`` and ``dc:description``.
+_DC = "{http://purl.org/dc/elements/1.1/}"
+
 
 class _TextReader(HTMLParser):
     """The text of an HTML document, without its tags or its style sheet.
@@ -658,6 +664,21 @@ def _read_markdown(blob: bytes) -> str:
     return reader.text
 
 
+def _the_markdown_list_items(blob: bytes) -> int:
+    """The number of list items the Markdown draws.
+
+    The Markdown's list marker is the ``- `` at the head of a line, and it
+    is counted by the **reader** — the parser this file already reads the
+    Markdown form with — because a list item is what the reader calls it.
+
+    A text value cannot open one: the escape table turns a leading ``-``
+    into ``\\-``, so a list item in the parsed file is one the writer drew
+    as a bullet, and never a line of the report's own prose.
+    """
+    tokens = MarkdownIt().parse(blob.decode("utf-8"))
+    return sum(1 for token in tokens if token.type == "list_item_open")
+
+
 def _rendered_markdown(document: ReportDocument) -> str:
     """The Markdown, rendered — the document a reader actually sees."""
     rendered: str = MarkdownIt().render(render_markdown(document).decode("utf-8"))
@@ -734,6 +755,74 @@ def _read_docx(blob: bytes) -> str:
     return " ".join(parts)
 
 
+def _the_docx_core_property(blob: bytes, name: str) -> str:
+    """One of the DOCX's own core properties, read out of the package.
+
+    ``docProps/core.xml`` is the part of an OOXML package that carries the
+    document's metadata — its title, its author, its description — and it
+    is what a reader's word processor shows in its title bar and in its
+    properties panel. The package is read with ``zipfile`` and
+    ``ElementTree``, because the reader must not be the writer.
+
+    :param blob: the DOCX's bytes.
+    :param name: the property's own name — ``title``, ``creator`` or
+        ``description`` — which is how OOXML spells it.
+    :returns: the property's value, or the empty string when the package
+        carries the property and leaves it empty.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        core = archive.read("docProps/core.xml")
+    element = ElementTree.fromstring(core).find(f"{_DC}{name}")
+    assert element is not None, f"the DOCX carries no dc:{name} in its core properties"
+    return element.text or ""
+
+
+def _the_docx_list_items(blob: bytes) -> int:
+    """The number of paragraphs the DOCX draws as entries in a list.
+
+    A paragraph is in a list when it carries numbering itself, or when the
+    style it names does: a list style carries its numbering in the style's
+    own definition, so a paragraph that names one of them is in a list
+    without saying so itself.
+
+    The counting is **structural** rather than by the name of a style,
+    because the shape is the renderer's business — a renderer that drew the
+    findings as another kind of list would still be drawing them as a
+    list, and only a renderer that drew them as prose would be caught.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        document_xml = archive.read("word/document.xml")
+        styles_xml = archive.read("word/styles.xml")
+
+    numbered = _the_numbered_style_ids(styles_xml)
+    root = ElementTree.fromstring(document_xml)
+    items = 0
+    for paragraph in root.iter(f"{_WML}p"):
+        properties = paragraph.find(f"{_WML}pPr")
+        if properties is None:
+            continue
+        if properties.find(f"{_WML}numPr") is not None:
+            items += 1
+            continue
+        style = properties.find(f"{_WML}pStyle")
+        if style is not None and style.get(f"{_WML}val") in numbered:
+            items += 1
+    return items
+
+
+def _the_numbered_style_ids(styles_xml: bytes) -> set[str]:
+    """The ids of the styles that carry numbering of their own."""
+    root = ElementTree.fromstring(styles_xml)
+    numbered: set[str] = set()
+    for style in root.iter(f"{_WML}style"):
+        identifier = style.get(f"{_WML}styleId")
+        if identifier is None:
+            continue
+        if style.find(f".//{_WML}numPr") is not None:
+            numbered.add(identifier)
+    return numbered
+
+
 def _read_pdf(blob: bytes) -> str:
     """The text of a PDF file, read by a reader that did not write it."""
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
@@ -761,6 +850,25 @@ def _read_pdf_body(blob: bytes) -> tuple[str, int]:
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     return _UNNAMED_GLYPH.sub("", text), len(_UNNAMED_GLYPH.findall(text))
+
+
+def _the_pdf_information(blob: bytes, name: str) -> str:
+    """One entry of the PDF's document information dictionary.
+
+    The dictionary is the part of a PDF that says what the document is —
+    its title, its author, its subject — and it is what a reader's viewer
+    shows in its title bar and in its properties panel. It is read with
+    ``pdfplumber``, which did not write it.
+
+    :param blob: the PDF's bytes.
+    :param name: the entry's own name — ``Title``, ``Author`` or
+        ``Subject`` — which is how a PDF spells it.
+    :returns: the entry's value.
+    """
+    with pdfplumber.open(io.BytesIO(blob)) as pdf:
+        information = pdf.metadata or {}
+    assert name in information, f"the PDF carries no {name} in its information dictionary"
+    return information[name] or ""
 
 
 def _docx_entry_times(blob: bytes) -> dict[str, tuple[int, ...]]:
@@ -2165,6 +2273,167 @@ def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
     list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
 
     assert markers == list_items
+
+
+# ---------------------------------------------------------------------------
+# The carriers: what a form says about the report outside its text
+# ---------------------------------------------------------------------------
+#
+# A form says things about the report in places other than its text: a
+# document's own title property, a PDF's information dictionary, a
+# paragraph's style. Each of those is a carrier the reader sees, and a
+# carrier that named another report — or dropped the report's own limit —
+# would be the same lie as a body that said the wrong thing, in a place
+# the comparison of the forms never looks at.
+#
+# Each witness below reads its carrier **with the reader its own form is
+# read by**, and compares it with the document's own value: the model for
+# the title, the report's list items for the markers, and the product's one
+# spelling of the limit for the descriptions.
+
+
+@pytest.mark.unit
+def test_the_docx_carries_the_title_in_its_own_title_property(
+    document: ReportDocument,
+) -> None:
+    """The DOCX names the report in its own properties, as well as in its body.
+
+    The comparison of the forms reads the body, because the core
+    properties are the document's metadata and the body is what a reader
+    reads. The title property is the report's own name all the same, and
+    it is the name a reader's word processor shows in its title bar, so it
+    is checked on its own: a title property that named another report
+    would give a reader a title bar that lied about what was in the file.
+    """
+    title = _the_docx_core_property(render_docx(document), "title")
+
+    assert title == document.title
+
+
+@pytest.mark.unit
+def test_the_pdf_carries_the_title_in_its_own_title(
+    document: ReportDocument,
+) -> None:
+    """The PDF names the report in its own information dictionary.
+
+    The same lie in the same kind of carrier as the HTML's title element
+    and the DOCX's title property: a reader's viewer shows this name in
+    its title bar, and a name that belonged to another report would lie
+    about what was in the file.
+    """
+    title = _the_pdf_information(render_pdf(document), "Title")
+
+    assert title == document.title
+
+
+@pytest.mark.unit
+def test_the_docx_carries_the_limit_in_its_own_description(
+    document: ReportDocument,
+) -> None:
+    """The DOCX's description is the limit the report states on its own face.
+
+    python-docx's template says its description is ``generated by
+    python-docx``, which is a false statement about the report, and the
+    exporter replaces it with the limit the report states on its own face.
+    A reader who opens the file in a word processor sees the description
+    in its properties panel, so a description that did not carry the limit
+    would let a reader believe a standard the report has not met.
+    """
+    description = _the_docx_core_property(render_docx(document), "description")
+
+    assert description == FIRST_PASS_NOTICE, (
+        "the DOCX's description is the limit the report states on its own face"
+    )
+    assert description in _read_docx(render_docx(document)), (
+        "the DOCX's description is a sentence the document itself carries"
+    )
+
+
+@pytest.mark.unit
+def test_the_pdf_carries_the_limit_in_its_own_subject(
+    document: ReportDocument,
+) -> None:
+    """The PDF's subject is the limit the report states on its own face.
+
+    The same limit, in the same kind of carrier, in the other container
+    form: a reader's viewer shows the subject in its properties panel, and
+    a report whose metadata says nothing about its own limit lets a
+    reader believe a standard it has not met. The two container forms are
+    two renderings of one document, and what they must not do is say four
+    different things.
+    """
+    subject = _the_pdf_information(render_pdf(document), "Subject")
+
+    assert subject == FIRST_PASS_NOTICE, (
+        "the PDF's subject is the limit the report states on its own face"
+    )
+    assert subject in _read_pdf(render_pdf(document)), (
+        "the PDF's subject is a sentence the document itself carries"
+    )
+
+
+@pytest.mark.unit
+def test_the_pdf_names_the_producer_the_docx_names(
+    document: ReportDocument,
+) -> None:
+    """The two container forms name the same producer.
+
+    The PDF's ``/Author`` is the **producer's** name and not the report's
+    author: the report has no author, and the name is there so that a
+    reader can see who made the file. The DOCX's ``dc:creator`` is that
+    same producer's name, and the two container forms are two renderings
+    of one document — so a PDF that named a different producer from the
+    DOCX of the same report would be a file that disagrees with itself.
+
+    The producer's name itself is pinned on the DOCX's side by
+    :func:`test_the_docx_does_not_claim_python_docx_wrote_it`, which is
+    the test that says the name is the producer's and not the library's.
+    """
+    author = _the_pdf_information(render_pdf(document), "Author")
+    creator = _the_docx_core_property(render_docx(document), "creator")
+
+    assert author == creator, "the PDF and the DOCX of one report name two different producers"
+
+
+@pytest.mark.unit
+def test_the_markdown_draws_a_finding_as_a_list_item(
+    document: ReportDocument,
+) -> None:
+    """The Markdown draws each of the report's list items as a list item.
+
+    A finding, a disclosure and a citation are list items, and a
+    narrative, an interpretation, a figure and a table are not. The
+    Markdown's list marker is the ``- `` at the head of a line, and the
+    number of them is compared with the number of list items the model
+    holds — so a renderer that drew a finding as a paragraph would be
+    caught by the count and not only by the words.
+    """
+    items = _the_markdown_list_items(render_markdown(document))
+    list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
+
+    assert items == list_items, (
+        f"the Markdown draws {items} list items and the document holds {list_items}"
+    )
+
+
+@pytest.mark.unit
+def test_the_docx_draws_a_finding_as_a_list_item(
+    document: ReportDocument,
+) -> None:
+    """The DOCX draws each of the report's list items as a list item.
+
+    The same rule as the Markdown's and the PDF's, in the DOCX's own
+    carrier: a paragraph in a list. The count is the number of paragraphs
+    the package draws in a list, and it is compared with the number of
+    list items the model holds, so a renderer that drew a finding as a
+    plain paragraph would be caught by the count and not only by the words.
+    """
+    items = _the_docx_list_items(render_docx(document))
+    list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
+
+    assert items == list_items, (
+        f"the DOCX draws {items} list items and the document holds {list_items}"
+    )
 
 
 # ---------------------------------------------------------------------------
