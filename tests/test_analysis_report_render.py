@@ -39,6 +39,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, Final
@@ -680,6 +681,50 @@ def _the_markdown_list_items(blob: bytes) -> int:
     return sum(1 for token in tokens if token.type == "list_item_open")
 
 
+def _the_markdown_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the Markdown draws as list items.
+
+    The **parser** says what a list item is — a list item is what the
+    reader calls it — and the text of one is read out of the parser's own
+    inline tokens, so that the escapes the writer put into the file are
+    decoded by the parser that would read them and the text that comes
+    back is the text a reader sees.
+
+    A count cannot say *which* items these are, and a substitution that
+    keeps the count is invisible to one: a renderer that drew the
+    report's narrative as a bullet and its citation as a paragraph draws
+    as many list items as before and says the same words.
+    """
+    tokens = MarkdownIt().parse(blob.decode("utf-8"))
+    texts: list[str] = []
+    depth = 0
+    for token in tokens:
+        if token.type == "list_item_open":
+            depth += 1
+        elif token.type == "list_item_close":
+            depth -= 1
+        elif depth and token.type == "inline":
+            texts.append(_the_inline_text(token))
+    return texts
+
+
+def _the_inline_text(token: Any) -> str:
+    """The text of one inline token, as the parser decoded it.
+
+    The parser's children carry the **decoded** text — the backslashes
+    the writer escaped with are gone — and a line break inside a value is
+    a space, because the Markdown writes the value's own line break into
+    the file.
+    """
+    parts: list[str] = []
+    for child in token.children or ():
+        if child.type in ("text", "code_inline"):
+            parts.append(child.content)
+        elif child.type in ("softbreak", "hardbreak"):
+            parts.append(" ")
+    return "".join(parts)
+
+
 def _rendered_markdown(document: ReportDocument) -> str:
     """The Markdown, rendered — the document a reader actually sees."""
     rendered: str = MarkdownIt().render(render_markdown(document).decode("utf-8"))
@@ -790,6 +835,10 @@ def _the_docx_list_items(blob: bytes) -> int:
     because the shape is the renderer's business — a renderer that drew the
     findings as another kind of list would still be drawing them as a
     list, and only a renderer that drew them as prose would be caught.
+
+    The rule is the one
+    :func:`_the_docx_paragraph_is_a_list_item` states, so that the count
+    and the texts are read on one rule and cannot drift apart.
     """
     with zipfile.ZipFile(io.BytesIO(blob)) as archive:
         document_xml = archive.read("word/document.xml")
@@ -799,14 +848,7 @@ def _the_docx_list_items(blob: bytes) -> int:
     root = ElementTree.fromstring(document_xml)
     items = 0
     for paragraph in root.iter(f"{_WML}p"):
-        properties = paragraph.find(f"{_WML}pPr")
-        if properties is None:
-            continue
-        if properties.find(f"{_WML}numPr") is not None:
-            items += 1
-            continue
-        style = properties.find(f"{_WML}pStyle")
-        if style is not None and style.get(f"{_WML}val") in numbered:
+        if _the_docx_paragraph_is_a_list_item(paragraph, numbered):
             items += 1
     return items
 
@@ -822,6 +864,71 @@ def _the_numbered_style_ids(styles_xml: bytes) -> set[str]:
         if style.find(f".//{_WML}numPr") is not None:
             numbered.add(identifier)
     return numbered
+
+
+def _the_docx_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the DOCX draws as list items.
+
+    The same **structural** rule the counting helper uses — a paragraph is
+    in a list when it carries numbering itself, or when the style it
+    names does — so that the two agree on which paragraphs are list items,
+    and the text of each one is read out of the package with the standard
+    library, because the reader must not be the writer.
+
+    A count cannot say *which* items these are, and a substitution that
+    keeps the count is invisible to one: a renderer that drew the report's
+    background paragraph as a bullet and its provenance citation as a
+    plain paragraph draws as many list items as before and says the same
+    words.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        document_xml = archive.read("word/document.xml")
+        styles_xml = archive.read("word/styles.xml")
+
+    numbered = _the_numbered_style_ids(styles_xml)
+    root = ElementTree.fromstring(document_xml)
+    texts: list[str] = []
+    for paragraph in root.iter(f"{_WML}p"):
+        if not _the_docx_paragraph_is_a_list_item(paragraph, numbered):
+            continue
+        texts.append(_the_docx_paragraph_text(paragraph))
+    return texts
+
+
+def _the_docx_paragraph_is_a_list_item(
+    paragraph: ElementTree.Element,
+    numbered: set[str],
+) -> bool:
+    """Whether one paragraph of the package is an entry in a list.
+
+    A paragraph is in a list when it carries numbering itself, or when the
+    style it names does: a list style carries its numbering in the style's
+    own definition, so a paragraph that names one of them is in a list
+    without saying so itself.
+    """
+    properties = paragraph.find(f"{_WML}pPr")
+    if properties is None:
+        return False
+    if properties.find(f"{_WML}numPr") is not None:
+        return True
+    style = properties.find(f"{_WML}pStyle")
+    return style is not None and style.get(f"{_WML}val") in numbered
+
+
+def _the_docx_paragraph_text(paragraph: ElementTree.Element) -> str:
+    """The text of one paragraph of the package.
+
+    A ``<w:br/>`` is a line break and a ``<w:tab/>`` is a tab, and both
+    are read as the whitespace they are — the same way the whole-document
+    reader reads them.
+    """
+    parts: list[str] = []
+    for node in paragraph.iter():
+        if node.tag == f"{_WML}t":
+            parts.append(node.text or "")
+        elif node.tag in (f"{_WML}br", f"{_WML}tab"):
+            parts.append(" ")
+    return "".join(parts)
 
 
 def _read_pdf(blob: bytes) -> str:
@@ -851,6 +958,112 @@ def _read_pdf_body(blob: bytes) -> tuple[str, int]:
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     return _UNNAMED_GLYPH.sub("", text), len(_UNNAMED_GLYPH.findall(text))
+
+
+#: The bullet the PDF form draws before a list item, as the reader spells it.
+#:
+#: reportlab draws the bullet in a face whose glyph pdfminer cannot map,
+#: so the reader prints ``(cid:127)`` where the bullet is. That text is
+#: the PDF's **list marker** — the role the Markdown's ``- `` and the
+#: HTML's ``<li>`` play — and the other forms' readers drop theirs as
+#: well, so this one is dropped from the text and kept as the marker.
+_PDF_BULLET: Final = re.compile(r"^\(cid:\d+\)")
+
+#: The ratio between a paragraph's leading and its font size.
+#:
+#: reportlab's sample styles set the leading of a paragraph to 1.2 times
+#: the font size, and the PDF's own geometry says so: two lines of one
+#: paragraph are 12 points apart for 10-point text. A new paragraph is
+#: further away than that, because a paragraph carries a space before it.
+_PDF_LEADING_RATIO: Final[float] = 1.2
+
+#: The slack the leading comparison is given, in points.
+#:
+#: A PDF's coordinates are floating point, and two lines that are exactly
+#: one leading apart land a hair above or below it.
+_PDF_LEADING_SLACK: Final[float] = 0.05
+
+
+def _the_pdf_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the PDF draws as list items.
+
+    The bullet is the PDF's list marker, and it is what says that the
+    paragraph standing behind it is a list item. A count of the markers
+    cannot say *which* items these are, and a substitution that keeps the
+    count is invisible to one: a renderer that drew the report's
+    background paragraph as a bullet and its provenance citation as a
+    plain paragraph draws as many markers as before and says the same
+    words.
+
+    A PDF is a page of **lines**, not a page of paragraphs, so the
+    paragraph a marker stands in front of is recovered from the page's own
+    geometry — see :func:`_the_pdf_paragraphs`.
+    """
+    texts: list[str] = []
+    with pdfplumber.open(io.BytesIO(blob)) as pdf:
+        for page in pdf.pages:
+            for paragraph in _the_pdf_paragraphs(page):
+                bullet = _PDF_BULLET.match(paragraph)
+                if bullet is not None:
+                    texts.append(_normalise(paragraph[bullet.end() :]))
+    return texts
+
+
+def _the_pdf_paragraphs(page: Any) -> list[str]:
+    """The paragraphs one page of a PDF holds.
+
+    A PDF does not say where a paragraph ends, and the reader recovers it
+    from the **leading**: two lines are one paragraph when their
+    baselines are one leading apart, and a new paragraph is further away
+    than that, because a paragraph carries a space before it.
+    """
+    paragraphs: list[str] = []
+    current: list[str] = []
+    previous: tuple[float, float] | None = None
+    for baseline, size, text in _the_pdf_lines(page):
+        if previous is not None and not _the_pdf_line_continues(previous, (baseline, size)):
+            paragraphs.append(" ".join(current))
+            current = []
+        current.append(text)
+        previous = (baseline, size)
+    if current:
+        paragraphs.append(" ".join(current))
+    return paragraphs
+
+
+def _the_pdf_lines(page: Any) -> list[tuple[float, float, str]]:
+    """The lines one page of a PDF holds: their baseline, their size and their text.
+
+    The lines are the page's own: the characters are grouped by the
+    baseline they sit on, and a line is read in the order the page draws
+    it — from left to right.
+    """
+    by_baseline: dict[float, list[dict[str, Any]]] = {}
+    for character in page.chars:
+        by_baseline.setdefault(round(float(character["top"]), 1), []).append(character)
+    lines: list[tuple[float, float, str]] = []
+    for baseline in sorted(by_baseline):
+        characters = sorted(by_baseline[baseline], key=lambda character: float(character["x0"]))
+        text = "".join(str(character["text"]) for character in characters)
+        lines.append((baseline, float(characters[0]["size"]), text))
+    return lines
+
+
+def _the_pdf_line_continues(
+    previous: tuple[float, float],
+    current: tuple[float, float],
+) -> bool:
+    """Whether a line continues the paragraph above it.
+
+    The smaller of the two font sizes says how close two lines of one
+    paragraph are: reportlab's sample styles set the leading to 1.2 times
+    the font size, and a paragraph drawn in the smaller of the two styles
+    is set with the smaller leading.
+    """
+    previous_baseline, previous_size = previous
+    baseline, size = current
+    leading = _PDF_LEADING_RATIO * min(previous_size, size)
+    return (baseline - previous_baseline) <= leading + _PDF_LEADING_SLACK
 
 
 def _the_pdf_information(blob: bytes, name: str) -> str:
@@ -2026,6 +2239,50 @@ def _the_table_says(table: ReportTable) -> tuple[str, ...]:
     )
 
 
+def _the_model_list_item_texts(document: ReportDocument) -> list[str]:
+    """The texts the **model** holds as list items.
+
+    A finding, a disclosure and a citation are list items, and a
+    narrative, an interpretation, a figure and a table are not. The texts
+    are read out of the **document** — its claims, its unresolved records
+    and its footnotes — and they are spelled here rather than taken from
+    the renderers, because a witness that re-derived its expectation from
+    the renderer's own output would prove nothing.
+
+    The order is the document's own — the claims, then the unresolved
+    records, then the footnotes — and it is not necessarily the order a
+    form draws them in: a form draws the findings and the disclosures in
+    the order the sections place them, and the citations last. The
+    comparison is therefore a **multiset** and not a sequence — two list
+    items may carry the same text, and a set would hide the duplicate.
+    """
+    texts = [_the_claim_says(claim) for claim in document.claims]
+    texts.extend(_the_disclosure_says(record) for record in document.unresolved_records)
+    texts.extend(
+        f"{footnote.footnote_id} — source {footnote.source_id}"
+        f" — {describe_locator(footnote.locator)} — sha256 {footnote.content_sha256}"
+        for footnote in document.footnotes
+    )
+    return texts
+
+
+def _the_difference_between_multisets(expected: list[str], actual: list[str]) -> str:
+    """The texts two multisets disagree about, and which way they disagree.
+
+    A multiset is compared and not a set, because two list items may
+    carry the same text: a set would hide a duplicate, and a duplicate is
+    a list item drawn twice.
+    """
+    missing = Counter(expected) - Counter(actual)
+    extra = Counter(actual) - Counter(expected)
+    parts: list[str] = []
+    if missing:
+        parts.append(f"the form does not draw {sorted(missing.elements())}")
+    if extra:
+        parts.append(f"the form draws {sorted(extra.elements())}")
+    return "; ".join(parts)
+
+
 def _the_document_says(document: ReportDocument) -> tuple[str, ...]:
     """Every line the report makes, in the order the four forms draw them.
 
@@ -2252,6 +2509,31 @@ def test_the_html_carries_the_title_in_its_own_title_element(
     assert title == document.title
 
 
+# ---------------------------------------------------------------------------
+# Which items are list items, and not only how many
+# ---------------------------------------------------------------------------
+#
+# A count cannot see a substitution that keeps the count. A renderer that
+# drew the report's **background paragraph** as a bullet and its
+# **provenance citation** as a plain paragraph draws exactly as many list
+# items as before, says exactly the same words, and leaves a reader
+# unable to tell a finding from the prose.
+#
+# So each of the three forms that draw list items is watched twice over:
+# the **count**, which catches a list item missing altogether, and the
+# **texts**, which catch the swap. The texts are read out of the form
+# with that form's own reader — the Markdown's parser, the DOCX's
+# package, the PDF's page — and they are compared with the texts the
+# **model** holds, as a **multiset**, because two list items may carry
+# the same text and a set would hide the duplicate.
+#
+# **The HTML is not among them.** The shape of a form is that form's own
+# business: the HTML draws the report's citations as a list and its
+# findings as paragraphs, and the independent review ruled that the
+# shape is not a rule this tree enforces across the forms. The HTML's
+# shape is therefore carried here as a note and not as a witness.
+
+
 @pytest.mark.unit
 def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
     document: ReportDocument,
@@ -2269,11 +2551,30 @@ def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
     the report carries: a finding, a disclosure and a citation are list
     items, and a narrative, an interpretation, a figure and a table are
     not.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** A renderer that drew the
+    report's background paragraph as a bullet and its provenance citation
+    as a plain paragraph draws exactly as many markers as before and says
+    exactly the same words — and a reader of that PDF could not tell a
+    finding from the prose. The count is 4 either way; the texts are not.
+
+    The expectation is read out of the **model** — the document's claims,
+    its unresolved records and its footnotes — and it is compared as a
+    **multiset**, because two list items may carry the same text and a
+    set would hide the duplicate.
     """
     _, markers = _read_pdf_body(render_pdf(document))
     list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
 
     assert markers == list_items
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_pdf_list_item_texts(render_pdf(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the PDF draws the wrong list items — {_the_difference_between_multisets(expected, drawn)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2404,16 +2705,35 @@ def test_the_markdown_draws_a_finding_as_a_list_item(
 
     A finding, a disclosure and a citation are list items, and a
     narrative, an interpretation, a figure and a table are not. The
-    Markdown's list marker is the ``- `` at the head of a line, and the
-    number of them is compared with the number of list items the model
-    holds — so a renderer that drew a finding as a paragraph would be
-    caught by the count and not only by the words.
+    Markdown's list marker is the ``- `` at the head of a line, and it is
+    the **parser** that says a line is a list item.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** A renderer that drew the
+    report's background paragraph as a bullet and its provenance citation
+    as a plain paragraph draws exactly as many list items as before and
+    says exactly the same words — and a reader of that export could not
+    tell a finding from the prose. The count is 4 either way; the texts
+    are not.
+
+    The expectation is read out of the **model** — the document's claims,
+    its unresolved records and its footnotes — and it is compared as a
+    **multiset**, because two list items may carry the same text and a
+    set would hide the duplicate.
     """
     items = _the_markdown_list_items(render_markdown(document))
     list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
 
     assert items == list_items, (
         f"the Markdown draws {items} list items and the document holds {list_items}"
+    )
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_markdown_list_item_texts(render_markdown(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the Markdown draws the wrong list items — "
+        f"{_the_difference_between_multisets(expected, drawn)}"
     )
 
 
@@ -2424,16 +2744,34 @@ def test_the_docx_draws_a_finding_as_a_list_item(
     """The DOCX draws each of the report's list items as a list item.
 
     The same rule as the Markdown's and the PDF's, in the DOCX's own
-    carrier: a paragraph in a list. The count is the number of paragraphs
-    the package draws in a list, and it is compared with the number of
-    list items the model holds, so a renderer that drew a finding as a
-    plain paragraph would be caught by the count and not only by the words.
+    carrier: a paragraph in a list.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** The DOCX's own docstring
+    says the opposite in its own words — *"a finding and a disclosure are
+    bullets, because they are entries in a list, and a narrative is a
+    paragraph, because it is prose"* — and a renderer that drew the
+    background paragraph as a bullet and the provenance citation as a
+    plain paragraph would draw exactly as many list items as before and
+    say exactly the same words.
+
+    The texts are read out of the package with ``zipfile`` and
+    ``ElementTree``, because the reader must not be the writer, and the
+    expectation is read out of the **model**.
     """
     items = _the_docx_list_items(render_docx(document))
     list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
 
     assert items == list_items, (
         f"the DOCX draws {items} list items and the document holds {list_items}"
+    )
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_docx_list_item_texts(render_docx(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the DOCX draws the wrong list items — "
+        f"{_the_difference_between_multisets(expected, drawn)}"
     )
 
 
