@@ -58,12 +58,18 @@ def render_doctor(model: DoctorReport) -> RenderableType:
     table.add_column("finding", overflow="fold")
 
     workspace = model.workspace
-    table.add_row(
-        "workspace",
-        f"{workspace.root} "
-        + ("(initialised)" if workspace.initialised else "(not initialised)")
-        + f", sources: {', '.join(workspace.source_dirs) or '(none)'}",
+    if not workspace.initialised:
+        state = "(not initialised)"
+    elif workspace.missing_source_dirs:
+        state = "(initialised, but a source root is missing)"
+    else:
+        state = "(initialised)"
+    workspace_finding = (
+        f"{workspace.root} {state}, sources: {', '.join(workspace.source_dirs) or '(none)'}"
     )
+    if workspace.missing_source_dirs:
+        workspace_finding += f", missing: {', '.join(workspace.missing_source_dirs)}"
+    table.add_row("workspace", workspace_finding)
     database = model.database
     table.add_row(
         "database",

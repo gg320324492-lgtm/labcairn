@@ -169,11 +169,20 @@ class WorkspaceInitialised(Result):
 
 
 class WorkspaceFinding(Result):
-    """What ``doctor`` found about the workspace."""
+    """What ``doctor`` found about the workspace.
+
+    ``missing_source_dirs`` are the configured source roots that are not a
+    directory on disk, and they are reported because a workspace that names
+    a source root which is not there **cannot be bound**: the module refuses
+    it, and every task-scoped command refuses it with it. A diagnostic that
+    called such a workspace fine would be calling a workspace fine that no
+    command can use.
+    """
 
     root: str
     initialised: bool
     source_dirs: tuple[str, ...]
+    missing_source_dirs: tuple[str, ...]
     output_root: str
     current_task: str | None
 

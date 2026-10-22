@@ -38,6 +38,7 @@ configuration, and refuses in another shape when it is not.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import shutil
@@ -58,6 +59,7 @@ from labcairn.cli.workspace import (
     WorkspaceSetupError,
     locate,
     read_config,
+    source_paths,
 )
 
 #: The reason the CLI gives for a workspace it cannot use.
@@ -475,6 +477,15 @@ def test_a_policy_rule_with_an_unknown_effect_is_refused(task_workspace: Path) -
     **Told apart from the rule with no effect** by the tail of the sentence:
     this one names the *value* that is not one of the three, and that one
     names the missing *key*.
+
+    **The whole sentence is the expectation, not a part of it.** The refusal
+    exists to tell the operator *what is wrong with their policy*, and a
+    sentence that names the right value and then says something false about
+    it — "'permit' is not a valid Permission (the key is 'effect')" — would
+    send the operator to fix a key that is present and correct. A witness
+    that accepted the sentence as a substring accepts that, so the message
+    is compared whole: it must end where the product's sentence ends, with
+    nothing appended to it.
     """
     _write_policy(task_workspace, [{"effect": "permit", "pattern": "output"}])
 
@@ -485,7 +496,7 @@ def test_a_policy_rule_with_an_unknown_effect_is_refused(task_workspace: Path) -
         'a policy rule needs an "effect" of allow, ask or deny: '
         "'permit' is not a valid Permission"
     )
-    assert expected in payload["message"]
+    assert payload["message"] == expected
 
 
 def test_a_policy_rule_that_cannot_be_read_is_refused(task_workspace: Path) -> None:
@@ -577,8 +588,25 @@ def test_a_source_directory_outside_the_workspace_is_refused(
     ``--source-dir`` option refuses the same thing earlier, in the command's
     own words.
 
+    **Two sites speak that sentence, so the sentence cannot say which site
+    refused.** ``labcairn.cli.workspace.source_paths`` refuses the root the
+    *configuration* names; ``labcairn.cli.commands._resolve_source_dirs``
+    refuses the root the *``--source-dir`` option* names; and the two
+    sentences are byte for byte the same — only the variable they interpolate
+    differs. What tells them apart is the **reason code**: the workspace's
+    own site refuses under ``workspace_unusable`` and the command's own site
+    under ``invalid_arguments``. So this witness asserts the reason as well
+    as the sentence, and it says which site it is about.
+
+    **And it asks that site, so the binding does not rest on today's reason
+    codes.** The site under test is called in process and raises the very
+    sentence the command line then renders; the other site is not in the
+    path at all, because ``task status`` binds the *configured* roots and
+    never reads the option.
+
     The layer refuses it too, in different words (``Workspace.bind`` says the
-    source directory "is outside the selected workspace"), so this witness
+    source directory "is outside the selected workspace", and says the
+    *user's* selection where this says the *operator's*), so this witness
     asserts the CLI's own sentence and not merely that something was refused.
     """
     (tmp_path / "outside").mkdir()
@@ -586,11 +614,24 @@ def test_a_source_directory_outside_the_workspace_is_refused(
     config["source_dirs"] = ["../outside"]
     _config_path(task_workspace).write_text(json.dumps(config), encoding="utf-8")
 
+    location = locate(task_workspace)
+    expected = (
+        "the source directory '../outside' resolves to "
+        f"{(location.root / '../outside').resolve()}, which is "
+        f"outside the workspace {location.root}. A source root the workspace "
+        "does not contain is a root the operator's selection does not govern."
+    )
+
+    # The site under test, asked directly: the sentence is its own.
+    with pytest.raises(WorkspaceSetupError) as refusal:
+        source_paths(location, read_config(location))
+    assert str(refusal.value) == expected
+
+    # And the refusal the command line renders for the same root.
     result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
 
     payload = _refusal(result)
-    assert "the source directory '../outside' resolves to" in payload["message"]
-    assert "which is outside the workspace" in payload["message"]
+    assert payload["message"] == expected
 
 
 def test_a_source_directory_the_command_names_outside_the_workspace_is_refused(
@@ -747,3 +788,390 @@ def test_a_workspace_whose_output_area_cannot_be_created_is_refused(
     payload = _refusal(result)
     assert f"the workspace at {location.root} could not be bound" in payload["message"]
     assert "source directory" not in payload["message"]
+
+
+def test_a_configured_source_directory_that_is_not_a_directory_is_refused(
+    task_workspace: Path,
+) -> None:
+    """A source root the configuration names, and that is a file, is refused.
+
+    **This is the workspace's own site, and the command's own site says the
+    same words.** ``labcairn.cli.workspace.source_paths`` refuses a
+    configured root that is not a directory, and
+    ``labcairn.cli.commands._resolve_source_dirs`` refuses one the *option*
+    names — and the two sentences are the same. Only the reason tells them
+    apart: this one is the module's (``workspace_unusable``), that one is
+    the command's (``invalid_arguments``).
+
+    So this witness asserts the reason as well as the sentence, and it feeds
+    the refusal the **configuration**, which is the only way to reach the
+    module's site at all.
+
+    A file where a source root should be is a routine mistake — a path left
+    behind by a copy, a symlink to something that has gone — and reading it
+    as a root would bind nothing while the operator's material was quietly
+    absent from every task.
+    """
+    location = locate(task_workspace)
+    (location.root / "not-a-directory").write_text("a file, not a directory", encoding="utf-8")
+    config = json.loads(_config_path(task_workspace).read_text(encoding="utf-8"))
+    config["source_dirs"] = ["not-a-directory"]
+    _config_path(task_workspace).write_text(json.dumps(config), encoding="utf-8")
+
+    result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
+
+    payload = _refusal(result)
+    expected = (
+        f"the source directory 'not-a-directory' is {location.root / 'not-a-directory'}, "
+        "which is not a directory. A source root is a directory."
+    )
+    assert payload["message"] == expected
+
+
+# --------------------------------------------------------------------------- #
+# the ledger
+# --------------------------------------------------------------------------- #
+
+#: The modules whose refusal sites this file watches, relative to the root.
+#:
+#: The sites are in the product's own source, so the test has to read the
+#: product's own source. **Both** of the CLI's modules are here: a ledger
+#: that watched one of them would leave the other's sites to a hand.
+REFUSAL_MODULES: tuple[str, ...] = (
+    "src/labcairn/cli/workspace.py",
+    "src/labcairn/cli/commands.py",
+)
+
+#: How many sites raise ``WorkspaceSetupError`` across those modules.
+#:
+#: The number is the gate's bar, so it is written down here and checked
+#: against the source rather than counted by reading the file and hoping. A
+#: table of refusals counted by hand was wrong once — it said ten, and there
+#: were thirteen — and a count is what the gate turns on.
+REFUSAL_SITE_COUNT = 18
+
+#: Every refusal site, and the witnesses that watch it.
+#:
+#: A site is named by **the module it is in**, **the function it is in** and
+#: **a phrase of the sentence it writes**. The three together name one site,
+#: because two sites in one function can share a prefix — ``read_config``
+#: refuses a configuration that could not be read as JSON and one that could
+#: not be read as a configuration, and only the sentence tells them apart.
+#:
+#: The phrase is also what ties a witness to a site. The test at the bottom
+#: of this file checks that every site in the source matches exactly one
+#: entry here, that every entry here matches exactly one site in the source,
+#: and that every witness this ledger names exists in the suite *and*
+#: compares the refusal with a string carrying that site's phrase. A ledger
+#: that only listed the tests would be a list of claims; this one is
+#: checked.
+#:
+#: One site has two witnesses, because one ``raise`` refuses two different
+#: mistakes — a rule with no effect and a rule with an effect this build does
+#: not know — and the two are told apart by what the mistake is, not by
+#: where it is refused.
+WATCHED_REFUSALS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    (
+        "src/labcairn/cli/workspace.py",
+        "read_config",
+        "does not exist, so",
+        ("test_a_missing_workspace_configuration_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "read_config",
+        "could not be read as JSON",
+        ("test_a_workspace_configuration_that_is_not_json_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "read_config",
+        "must hold a JSON object.",
+        ("test_a_workspace_configuration_that_is_not_an_object_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "read_config",
+        "is not a workspace configuration this build understands",
+        ("test_a_workspace_configuration_this_build_cannot_understand_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "read_config",
+        "declares schema version",
+        ("test_a_workspace_configuration_of_another_schema_version_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "load_policy",
+        "could not be read as JSON",
+        ("test_a_policy_file_that_is_not_json_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "load_policy",
+        'must hold a JSON object with a "rules" list.',
+        ("test_a_policy_file_without_a_rules_list_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "_rule_from_mapping",
+        "must be an object.",
+        ("test_a_policy_rule_that_is_not_an_object_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "_rule_from_mapping",
+        "unknown key(s) in a policy rule",
+        ("test_an_unknown_key_in_a_policy_rule_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "_rule_from_mapping",
+        'needs an "effect" of allow, ask or deny',
+        (
+            "test_a_policy_rule_with_no_effect_is_refused",
+            "test_a_policy_rule_with_an_unknown_effect_is_refused",
+        ),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "_rule_from_mapping",
+        "a policy rule could not be read",
+        ("test_a_policy_rule_that_cannot_be_read_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "is a root the operator's selection does not govern",
+        ("test_a_source_directory_outside_the_workspace_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "is missing",
+        ("test_a_configured_source_directory_that_is_missing_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "which is not a directory",
+        ("test_a_configured_source_directory_that_is_not_a_directory_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "bind_workspace",
+        "could not be bound",
+        ("test_a_workspace_whose_output_area_cannot_be_created_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/commands.py",
+        "_provider_findings",
+        "unknown model provider capabilit",
+        ("test_an_unknown_assumed_capability_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/commands.py",
+        "_provider_settings",
+        "could not be read as JSON",
+        ("test_a_providers_file_that_is_not_json_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/commands.py",
+        "_provider_settings",
+        'must hold a top-level "providers" object.',
+        ("test_a_providers_file_without_a_providers_object_is_refused",),
+    ),
+)
+
+#: The name of the test below, which is a witness of the ledger rather than
+#: of a refusal, and so is not named by the ledger itself.
+LEDGER_TEST = "test_every_refusal_site_in_the_cli_is_watched"
+
+
+def _the_literal_text(node: ast.AST) -> str:
+    """The text *node* writes, with the values it interpolates left out.
+
+    The interpolated values are dropped rather than guessed at: what a site
+    writes is decided by the text around them, and the text around them is
+    what tells two sites apart.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            _the_literal_text(value) for value in node.values if isinstance(value, ast.Constant)
+        )
+    return ""
+
+
+def _the_enclosing_function(functions: list[ast.FunctionDef], node: ast.stmt) -> str:
+    """The name of the innermost function *node* is in."""
+    owners = [
+        function
+        for function in functions
+        if function.lineno <= node.lineno <= (function.end_lineno or function.lineno)
+    ]
+    if not owners:
+        return "<module>"
+    innermost = min(owners, key=lambda function: function.end_lineno or function.lineno)
+    return innermost.name
+
+
+def _the_refusal_sites(source: Path, relative: str) -> list[tuple[str, str, str]]:
+    """Every site in *source* that raises ``WorkspaceSetupError``.
+
+    Read out of the source with the parser, so a site is a site however it
+    is written: a site added in a shape nobody expected is still found here.
+    """
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+    sites: list[tuple[str, str, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise) or node.exc is None:
+            continue
+        call = node.exc
+        if not isinstance(call, ast.Call) or not call.args:
+            continue
+        if not (isinstance(call.func, ast.Name) and call.func.id == "WorkspaceSetupError"):
+            continue
+        sites.append(
+            (
+                relative,
+                _the_enclosing_function(functions, node),
+                _the_literal_text(call.args[0]),
+            )
+        )
+    return sites
+
+
+def _the_tests_in_the_suite(repo_root: Path) -> dict[str, ast.FunctionDef]:
+    """Every test in the suite, by name.
+
+    The witnesses are not all in this file — one of them is in
+    ``tests/test_cli.py`` — so the ledger looks them up wherever they are.
+    """
+    tests: dict[str, ast.FunctionDef] = {}
+    for path in sorted((repo_root / "tests").glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                tests[node.name] = node
+    return tests
+
+
+def _the_texts_a_test_compares_with(function: ast.FunctionDef) -> list[str]:
+    """The strings *function* compares the refusal with.
+
+    The docstring is left out: it is prose *about* the refusal, and a phrase
+    in prose is not a witness. Only the text the test puts beside the
+    refusal counts.
+    """
+    body = list(function.body)
+    if body and isinstance(body[0], ast.Expr):
+        docstring = body[0].value
+        if isinstance(docstring, ast.Constant) and isinstance(docstring.value, str):
+            body = body[1:]
+    texts: list[str] = []
+    for statement in body:
+        for node in ast.walk(statement):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                texts.append(node.value)
+    return texts
+
+
+def test_every_refusal_site_in_the_cli_is_watched(repo_root: Path) -> None:
+    """Every site that raises ``WorkspaceSetupError`` is watched, and the count is right.
+
+    **The count was wrong once.** A table of the workspace module's refusals
+    said ten; the module raised at thirteen sites, and three of them — a
+    configuration of another shape, a rule whose scope is empty, and a
+    workspace that could not be bound — had no witness at all. So the sites
+    are not counted by hand any more: this test reads the CLI's own source,
+    finds every ``raise WorkspaceSetupError`` in it, and checks that each
+    one is watched by a test named in the ledger above.
+
+    **How a site is found.** A site is a ``raise`` whose exception is a call
+    to ``WorkspaceSetupError``, read out of the source with the parser.
+
+    **How a site is recognised as watched.** A site is named by the module
+    it is in, the function it is in and a phrase of the sentence it writes;
+    the ledger pairs that name with the tests that watch it; and this test
+    checks the pairing three ways. Every site in the source matches exactly
+    one entry of the ledger — so a site added without a witness is caught.
+    Every entry of the ledger matches exactly one site in the source — so
+    an entry left behind by a changed sentence is caught. And every test the
+    ledger names exists in the suite *and* compares the refusal with a
+    string carrying that site's phrase — so a witness that stopped asserting
+    its refusal is caught, and so is a witness that was deleted or renamed.
+
+    The count is asserted as well, because the count is what the gate turns
+    on: a site added on purpose has to be written down here as well as
+    watched.
+
+    **What this does not cover, said here so that it is not a surprise.**
+    The command's own refusals — the ones raised as ``_refuse(...)`` with
+    the command's own reason — are not counted here, because they are not
+    ``WorkspaceSetupError`` and they are not refusals about the workspace.
+    They are watched by the command's own tests.
+    """
+    sites: list[tuple[str, str, str]] = []
+    for relative in REFUSAL_MODULES:
+        sites.extend(_the_refusal_sites(repo_root / relative, relative))
+    assert len(sites) == REFUSAL_SITE_COUNT, (
+        f"the CLI raises WorkspaceSetupError at {len(sites)} sites, not "
+        f"{REFUSAL_SITE_COUNT}. A new site is a new refusal, and a new refusal "
+        "needs a witness: add it to the ledger and to this file."
+    )
+
+    ledger: dict[tuple[str, str, str], tuple[str, ...]] = {
+        (module, function, phrase): witnesses
+        for module, function, phrase, witnesses in WATCHED_REFUSALS
+    }
+    assert len(ledger) == len(WATCHED_REFUSALS), "two ledger entries name the same site"
+
+    for key in ledger:
+        found = [
+            site for site in sites if site[0] == key[0] and site[1] == key[1] and key[2] in site[2]
+        ]
+        assert found, (
+            f"the ledger names a refusal in {key[1]} that {key[0]} does not raise: "
+            f"{key[2]!r}. The sentence the site writes has changed, and the ledger "
+            "has to be told."
+        )
+        assert len(found) == 1, (
+            f"the refusal {key[2]!r} in {key[1]} matches more than one site: "
+            f"{found}. A site is named by its module, its function and its "
+            "sentence, and this one does not name one."
+        )
+
+    unwatched = [
+        site
+        for site in sites
+        if not any(site[0] == key[0] and site[1] == key[1] and key[2] in site[2] for key in ledger)
+    ]
+    assert not unwatched, (
+        f"these refusals are raised and watched by no test: {unwatched}. Every "
+        "site in the CLI needs a witness, and the ledger is where the witness "
+        "is named."
+    )
+
+    tests = _the_tests_in_the_suite(repo_root)
+    named: list[str] = []
+    for (module, function, phrase), witnesses in ledger.items():
+        for witness in witnesses:
+            assert witness in tests, (
+                f"the ledger names {witness!r} as the witness for the refusal in "
+                f"{module}::{function}, and there is no such test in the suite."
+            )
+            compared = _the_texts_a_test_compares_with(tests[witness])
+            assert any(phrase in text for text in compared), (
+                f"{witness} does not compare the refusal with {phrase!r}, so it "
+                f"does not watch the refusal in {module}::{function}."
+            )
+            named.append(witness)
+
+    assert len(named) == len(set(named)), (
+        "a test is named for two refusals. A witness that watches two refusals "
+        "cannot be told, by this ledger, which refusal it is watching."
+    )
