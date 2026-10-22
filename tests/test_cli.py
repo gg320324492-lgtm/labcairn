@@ -982,6 +982,9 @@ def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: 
     refusal = created.json()
     assert refusal["reason"] == "material_incomplete"
     assert "oversized.csv" in refusal["message"]
+    # The refusal says in its own words that material could not be read,
+    # and not only which file could not be.
+    assert "file(s) of the supplied material could not be read" in refusal["message"]
 
 
 def test_the_plan_option_reports_the_plan_and_not_the_state(workspace: Path, task_id: str) -> None:
@@ -1098,6 +1101,14 @@ def test_an_unknown_assumed_capability_is_refused(workspace: Path) -> None:
     )
     assert result.returncode == EXIT_REFUSED
     assert "telepathy" in result.stdout
+    # The refusal says what was wrong and what the capabilities are, and the
+    # witness quotes the refusal's own words rather than only the spelling
+    # the operator got wrong. The enumeration in
+    # tests/test_cli_refusal_enumeration.py is what asked for this: a
+    # witness that quotes only the value watches the value, not the refusal.
+    payload = result.json()
+    assert "unknown model provider capability" in payload["message"], payload
+    assert "The capabilities are" in payload["message"], payload
 
 
 def test_the_show_token_option_reveals_the_api_session_token(workspace: Path) -> None:
@@ -1177,6 +1188,9 @@ def test_a_task_must_be_named_before_a_task_scoped_command_runs(workspace: Path)
     assert result.returncode == EXIT_REFUSED
     assert result.json()["reason"] == "task_not_selected"
     assert "--task" in result.json()["message"]
+    # The refusal says in its own words that no task was named, and not
+    # only which option would name one.
+    assert "no task was named" in result.json()["message"]
 
 
 def test_a_task_id_that_is_not_a_uuid_is_refused(workspace: Path) -> None:
@@ -1190,6 +1204,9 @@ def test_a_task_id_that_is_not_a_uuid_is_refused(workspace: Path) -> None:
     assert result.returncode == EXIT_REFUSED
     assert "UUIDv7" in result.stderr
     assert "Traceback" not in result.stderr
+    # The refusal says in its own words what a task id is, and not only
+    # which format it is in.
+    assert "task ids are UUIDv7" in result.stderr
 
 
 # --------------------------------------------------------------------------- #
@@ -1256,6 +1273,25 @@ def test_init_in_a_directory_that_is_not_a_workspace_succeeds(tmp_path: Path) ->
     assert str(root / "labcairn.db") in payload["created"]
 
 
+def test_init_refuses_a_path_that_is_not_a_directory(tmp_path: Path) -> None:
+    """``init`` refuses a path that is a file.
+
+    A workspace is a directory, and a file cannot become one. The refusal
+    says so in the command's own words, and the enumeration in
+    ``tests/test_cli_refusal_enumeration.py`` is what asks for the sentence
+    to be quoted rather than only the exit code.
+    """
+    root = tmp_path / "a-file"
+    root.write_text("a file, not a directory", encoding="utf-8")
+
+    result = run_cli("--workspace", str(root), "init", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "exists and is not a directory, so it cannot be a workspace" in payload["message"]
+
+
 # --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
@@ -1295,6 +1331,31 @@ def test_doctor_works_on_a_workspace_that_does_not_exist(tmp_path: Path) -> None
     assert payload["workspace"]["initialised"] is False
     assert payload["database"]["present"] is False
     assert payload["api_session"]["present"] is False
+
+
+def test_a_task_scoped_command_refuses_a_workspace_that_is_not_initialised(
+    tmp_path: Path,
+) -> None:
+    """A workspace that is not a workspace is refused, and named as such.
+
+    ``doctor`` reports a workspace that is not there as a finding, because a
+    diagnostic that refuses to run on the thing that is broken is not a
+    diagnostic. A task-scoped command has nothing to report: it refuses, and
+    the refusal says which directory is not a workspace and what to do about
+    it.
+
+    **The sentence is the command's own, and not the module's.** The module
+    refuses a *configuration file* that is missing in its own words, and the
+    two refusals are told apart by the words they use.
+    """
+    root = tmp_path / "not-a-workspace"
+
+    result = run_cli("--workspace", str(root), "task", "status", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "workspace_not_initialised"
+    assert "is not a LabCairn workspace: there is no" in payload["message"]
 
 
 def test_doctor_probe_reports_a_probe_it_could_not_make(workspace: Path) -> None:
@@ -1343,6 +1404,81 @@ def test_doctors_prose_says_what_its_data_says(workspace: Path, task_id: str) ->
     assert findings["workspace"]["root"] in prose.stdout
     assert findings["database"]["revision"] in prose.stdout
     assert findings["policy"]["digest"][:12] in prose.stdout
+
+
+# --------------------------------------------------------------------------- #
+# serve
+# --------------------------------------------------------------------------- #
+
+
+def test_serve_refuses_a_port_that_is_not_a_port(workspace: Path, task_id: str) -> None:
+    """A port that is not a port is refused, and refused before anything binds.
+
+    The service's own origin is computed from the port it was given, so a
+    port that names nothing would make the origin name a place nothing is
+    listening on. The refusal is the command's own, and says why the port
+    matters rather than only that it is wrong.
+    """
+    result = run_cli("--workspace", str(workspace), "serve", "--port", "0", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "is not a port number" in payload["message"]
+
+
+def test_serve_refuses_an_origin_that_is_not_an_origin(workspace: Path, task_id: str) -> None:
+    """An origin that is not spelled as one is refused.
+
+    A path or a trailing slash would never match the header the browser
+    sends, so accepting one would be accepting an origin that does nothing.
+    The refusal says what an origin is, so the developer can spell one.
+    """
+    result = run_cli("--workspace", str(workspace), "serve", "--origin", "not-an-origin", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "An origin is a scheme, a host and a port" in payload["message"]
+
+
+def test_serve_refuses_an_origin_that_carries_a_path(workspace: Path, task_id: str) -> None:
+    """An origin that carries more than an origin is refused.
+
+    This is a different refusal from the one above, and it says so: an
+    origin carries no path, no query and no fragment. The two refusals are
+    told apart by the words they use, which is why both are watched.
+    """
+    result = run_cli(
+        "--workspace", str(workspace), "serve", "--origin", "http://localhost:5173/path", "--json"
+    )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "carries no path, no query and no fragment" in payload["message"]
+
+
+def test_serve_refuses_a_workbench_that_is_not_a_directory(
+    workspace: Path, task_id: str, tmp_path: Path
+) -> None:
+    """A workbench that is not a directory is refused, not ignored.
+
+    The service would answer on its own origin with no workbench on it, and
+    the developer would be left with a service that serves nothing and no
+    reason why.
+    """
+    not_a_directory = tmp_path / "not-a-directory"
+    not_a_directory.write_text("a file, not a directory", encoding="utf-8")
+
+    result = run_cli(
+        "--workspace", str(workspace), "serve", "--static-dir", str(not_a_directory), "--json"
+    )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "no built workbench there to serve" in payload["message"]
 
 
 # --------------------------------------------------------------------------- #

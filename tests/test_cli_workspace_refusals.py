@@ -593,6 +593,31 @@ def test_a_source_directory_outside_the_workspace_is_refused(
     assert "which is outside the workspace" in payload["message"]
 
 
+def test_a_source_directory_that_is_not_a_directory_is_refused(task_workspace: Path) -> None:
+    """A source root the configuration names, that is a file, is refused.
+
+    The configuration may name anything, and a file is not a source root.
+    Binding it would give the task a root it cannot read material from, and
+    the task would quietly hold nothing.
+
+    **The sentence is the module's own, and not the command's.** The
+    command refuses the same condition in its own words — *`task create`
+    binds directories that are there; it does not make them* — and the two
+    refusals are told apart by the words they use, which is why this
+    witness quotes the module's.
+    """
+    config = json.loads(_config_path(task_workspace).read_text(encoding="utf-8"))
+    (task_workspace / "not-a-directory").write_text("a file, not a directory", encoding="utf-8")
+    config["source_dirs"] = ["not-a-directory"]
+    _config_path(task_workspace).write_text(json.dumps(config), encoding="utf-8")
+
+    result = run_cli("--workspace", str(task_workspace), "task", "status", "--json")
+
+    payload = _refusal(result)
+    assert "the source directory 'not-a-directory' is" in payload["message"]
+    assert "which is not a directory. A source root is a directory." in payload["message"]
+
+
 def test_a_source_directory_the_command_names_outside_the_workspace_is_refused(
     workspace: Path, tmp_path: Path
 ) -> None:
@@ -666,6 +691,9 @@ def test_a_source_directory_the_command_names_that_is_not_a_directory_is_refused
     payload = _refusal_with_reason(result, INVALID_ARGUMENTS)
     assert "the source directory 'not-a-directory' is" in payload["message"]
     assert "which is not a directory" in payload["message"]
+    # The command says in its own words what it does about a directory that
+    # is not there, and that is not the module's sentence.
+    assert "`task create` binds directories that are there" in payload["message"]
 
 
 # --------------------------------------------------------------------------- #
