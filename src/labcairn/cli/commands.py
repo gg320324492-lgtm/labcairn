@@ -442,6 +442,14 @@ def doctor(
     disagree. This is the command that most wants to be a paragraph, and the
     one the architecture's rule catches; the way out is to make the paragraph
     generated rather than written.
+
+    **A workspace that cannot be used is reported, not called fine.** A
+    configured source root that is not there is named in the findings,
+    because the module refuses to bind a workspace that names one, and a
+    diagnostic that said nothing about it would be saying the workspace is
+    fine when no command can use it. The command still reports: a
+    diagnostic that refuses to run on the thing that is broken is not a
+    diagnostic.
     """
     from labcairn.cli import render
     from labcairn.cli.models import emit_model
@@ -504,6 +512,7 @@ def _doctor_report(
         root=str(location.root),
         initialised=config is not None,
         source_dirs=config.source_dirs if config is not None else (),
+        missing_source_dirs=_missing_source_dirs(location, config),
         output_root=str(location.output_path),
         current_task=config.current_task if config is not None else None,
     )
@@ -520,6 +529,29 @@ def _doctor_report(
         policy=policy_finding,
         providers=_provider_findings(location, probe=probe, assume_capability=assume_capability),
         api_session=session,
+    )
+
+
+def _missing_source_dirs(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig | None,
+) -> tuple[str, ...]:
+    """The configured source roots that are not a directory on disk.
+
+    **A source root that is not there is a workspace that cannot be bound.**
+    The module refuses it — ``labcairn.cli.workspace.source_paths`` refuses a
+    root that is missing and one that is not a directory — so every
+    task-scoped command refuses the workspace with it; a diagnostic that
+    reported the workspace as initialised and said nothing about the root
+    would be reporting a workspace as fine that no command can use.
+
+    The names are the ones the configuration writes, because those are the
+    names the operator has to act on.
+    """
+    if config is None:
+        return ()
+    return tuple(
+        relative for relative in config.source_dirs if not (location.root / relative).is_dir()
     )
 
 

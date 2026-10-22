@@ -39,6 +39,7 @@ import ast
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1078,6 +1079,12 @@ def test_an_unknown_assumed_capability_is_refused(workspace: Path) -> None:
     An override that named nothing would be a spelling mistake, and a
     spelling mistake that silently changed nothing is how a capability ends
     up assumed and unusable.
+
+    **The refusal's own words, and the whole of them.** The refusal names
+    the capability that is not known and lists the ones that are, because
+    the operator has to be able to act on it; a witness that accepted a
+    part of the sentence would go on passing if the rest of it were changed
+    to say something else.
     """
     (workspace / "providers.json").write_text(
         json.dumps(
@@ -1097,7 +1104,8 @@ def test_an_unknown_assumed_capability_is_refused(workspace: Path) -> None:
         "--workspace", str(workspace), "doctor", "--assume-capability", "telepathy", "--json"
     )
     assert result.returncode == EXIT_REFUSED
-    assert "telepathy" in result.stdout
+    assert "unknown model provider capability: telepathy." in result.stdout
+    assert "The capabilities are" in result.stdout
 
 
 def test_the_show_token_option_reveals_the_api_session_token(workspace: Path) -> None:
@@ -1295,6 +1303,34 @@ def test_doctor_works_on_a_workspace_that_does_not_exist(tmp_path: Path) -> None
     assert payload["workspace"]["initialised"] is False
     assert payload["database"]["present"] is False
     assert payload["api_session"]["present"] is False
+
+
+def test_doctor_does_not_call_a_workspace_with_a_missing_source_root_fine(
+    workspace: Path,
+) -> None:
+    """``doctor`` names a source root that is not there, and does not call the workspace fine.
+
+    A configured source root that is not there is a workspace the module
+    refuses to bind: every task-scoped command refuses it with it. So a
+    diagnostic that reported the workspace as initialised and said nothing
+    about the root would be reporting a workspace as fine that no command can
+    use — and the operator would get no warning before the refusal.
+
+    The finding names the root, because a name is what an operator can act
+    on. The command still reports rather than refuses: a diagnostic that
+    refuses to run on the thing that is broken is not a diagnostic.
+    """
+    shutil.rmtree(workspace / "materials")
+
+    result = run_cli("--workspace", str(workspace), "doctor", "--json")
+    assert result.returncode == 0, result.stderr
+    payload = result.json()
+    assert payload["workspace"]["initialised"] is True
+    assert payload["workspace"]["missing_source_dirs"] == ["materials"]
+
+    prose = run_cli("--workspace", str(workspace), "doctor")
+    assert prose.returncode == 0, prose.stderr
+    assert "missing" in prose.stdout
 
 
 def test_doctor_probe_reports_a_probe_it_could_not_make(workspace: Path) -> None:
