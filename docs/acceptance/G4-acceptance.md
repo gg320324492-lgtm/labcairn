@@ -2392,14 +2392,14 @@ filesystem answer is consulted. The reviewer's conclusion, in its words:
 before it asks the filesystem, so that an unusable name is a refusal and not
 a `ValueError`."*
 
-#### F63 — the rule that does the watching is not itself watched
+#### F63 — the rule that does the watching was not itself watched, and it is now
 
 **Found by the three surfaces' re-verification, and it is F30's shape in the
 place F30 was raised for.**
 
 F59's fix is a module, `tests/refusal_witnesses.py`, that reads a witness's
-**compared** words. **That module is not watched.** Measured against the whole
-suite:
+**compared** words. **That module was not watched.** Measured against the whole
+suite at `47259e0`:
 
 | the rule neutered | the result |
 |---|---|
@@ -2416,27 +2416,145 @@ what F30 was raised for, and the fix that closed F30 put the same shape back
 in the same place. **A rule that reads the witnesses needs a witness of its
 own.**
 
-#### F64 — one command-level refusal is watched by nothing
+**And it has one now.** The fix adds **one file** — `tests/test_refusal_witnesses.py`,
+**nine tests** — and **leaves the rule itself byte-for-byte alone**:
+`tests/refusal_witnesses.py` is unchanged, its `sha256` at `affedb9` being
+`a1c16386f9ceb4b4ffc5dc4aed1afaf66afb2c1860d0299378c28d70179ff7e1`, the
+digest it had at `47259e0`. **The rule is not changed; it is watched.**
+
+**The two neuterings that once left the whole suite green, re-measured on the
+tree this record ships with — the first against the rule's own file, the
+second against that file and the two enumerations together:**
+
+| the rule neutered | the result |
+|---|---|
+| to *"mentions"* (every string constant counts) | **CAUGHT — 3 failed, 6 passed, 0.17 s** |
+| to *"mentions"*, and a witness stops comparing as well | **CAUGHT — 3 failed, 40 passed, 139.48 s** — **the two enumerations go green again**, and the rule's own file is what catches it |
+
+**And the three that went red — the same three in both rows — name the
+property rather than the mechanism** —
+`test_a_phrase_the_witness_only_holds_is_not_read`,
+`test_a_witness_that_compares_and_one_that_only_holds_are_read_differently`
+and `test_a_witness_that_stops_comparing_is_not_read_as_comparing` — and the
+failure says what is wrong in the terms the property uses:
+
+> *"the phrase the witness compares does not separate the two witnesses: […] A
+> rule that reads a mention would read them the same way."*
+
+> *"the rule reads a witness that has stopped comparing as one that compares:
+> […] Holding the refusal's phrase is not comparing it."*
+
+**And the second mutation is caught twice over, which is what makes it
+survive neither half.** A witness that stops comparing is caught by the two
+enumerations **while the rule is intact**; the neutered rule is caught by the
+rule's own file. **The two halves together leave the mutation that used to
+green the whole suite with nowhere to go.**
+
+**And one more guard, because a shared rule two files could each copy is the
+same shape of hole one level down**:
+`test_both_enumerations_read_the_shared_rule_and_not_a_copy_of_it` reads both
+enumeration files and fails if either stops importing `compared_texts` from
+`refusal_witnesses` — or binds it itself.
+
+#### F64 — one command-level refusal was watched by nothing, and the one-line fix did not close it
 
 **Found by the three surfaces' re-verification, and it is F60's shape, one
 site further on.**
 
 `src/labcairn/cli/commands.py:1590` — the `except BindRefusedError` handler,
-the refusal whose whole message is `str(error)`, raised when the service could
-not bind. **With the refusal removed, the whole suite is green.**
+the refusal whose whole message was `str(error)`, raised when the service could
+not bind. **With the refusal removed, the whole suite was green.**
 
-**And the fix is in the tree's own vocabulary.** The sibling branch
-(`commands.py:1592`, the `except SystemExit` handler) is watched by
-`test_the_failures_that_cannot_happen_are_still_there`, because `SystemExit`
+**And the fix the review suggested is in the tree's own vocabulary.** The
+sibling branch (`commands.py:1592`, the `except SystemExit` handler) is watched
+by `test_the_failures_that_cannot_happen_are_still_there`, because `SystemExit`
 is in the enumeration's `UNREACHABLE_FAILURES`. **`BindRefusedError` is not in
 it**, so the refusal that carries the layer's words is the one the enumeration
 declines — and nothing else watches it.
 
-**Of the eighteen `_refuse` sites, the enumeration covers fourteen; the other
-four are watched by the failures-cannot-happen list and by one command's own
-test — and this one is watched by nothing at all.**
+**Of the eighteen `_refuse` sites, the enumeration covered fourteen; the other
+four were watched by the failures-cannot-happen list and by one command's own
+test — and this one was watched by nothing at all.**
 
-#### F65 — "a witness of its own" is false for five of the thirty-three, and the pairing is unwatched
+**The one-line fix does not close the hole. It was measured.** Adding
+`"BindRefusedError"` to `UNREACHABLE_FAILURES` **and** deleting the refusal at
+1590, on the baseline `47259e0`:
+
+| the tree | the result |
+|---|---|
+| `UNREACHABLE_FAILURES` + `"BindRefusedError"`, and the refusal at 1590 deleted | **SURVIVED — 32 passed, 211.72 s** |
+
+**Because that list keeps its books by the failure's *name*, and
+`BindRefusedError` has two sites** — `commands.py:1454`, which is reachable
+and has its own test, and `commands.py:1590`, which is not. The name is still
+handled at 1454, so the staleness check cannot see the removal at 1590.
+**A name is not a site.** (For contrast: the same one-line fix *does* catch a
+removal at **1454**, because then the name is handled nowhere at all.)
+
+**And the reachability was measured too, because it says what kind of watch the
+site can have.** `ensure_loopback` is **a pure function of the address**, and
+the CLI asks it the same question about the same address three times:
+
+| # | where | the guard is asked |
+|---|---|---|
+| 1 | `commands.py:1452` — `_check_host` | the address the operator named |
+| 2 | `api/app.py:270` — `create_app` | the same address |
+| 3 | `api/app.py:325` — `serve` | the same address — **the call the handler wraps** |
+
+**A routable address is refused at the first question** — the address check's
+own refusal answers, the service is never started, and the 1590 site is never
+reached. **A loopback address is approved by all three**, so the third cannot
+refuse. **The branch cannot be reached through the CLI's own path.** And the
+sibling refusal at 1454 deliberately says the layer's words — its docstring
+says *"the service's own check is asked first and its own words are used"* —
+while this one said nothing of the CLI's own, which is the whole of the hole:
+**a refusal that carries no words of the CLI's own is another component's
+refusal passing through**, and the enumeration declines it by rule.
+
+**So the fix is at the site, not at the name.** Two parts.
+
+- **The refusal now carries the command's own sentence** — *"the service's own
+  guard refused the bind: {error}"* — instead of the layer's words alone. The
+  address is deliberately not named: the command asked for one address and the
+  service may have been handed another, so a sentence naming the command's
+  address would be a claim about an address the refusal is not about. The
+  visible wording of this one refusal changes, and **no other refusal's wording
+  or reason was touched**.
+- **The witness injects the layer's refusal where the layer raises it.** The
+  command's `run_service` is replaced with one that asks the layer to serve an
+  address the command never checked — `0.0.0.0` — so **the layer's own guard**
+  refuses it and the tree is asked what the command does with that. **The
+  failure is the layer's own, produced by the code that produces it**, not a
+  hand-written error that only looks like one.
+
+**The witness is `tests/test_cli_serve_bind_refusal.py`, one test —
+`test_the_command_refuses_a_bind_the_service_would_not_make`** — and the port
+is one the operating system says is free, never the machine's 8000.
+
+**Measured — the refusal deleted:**
+
+| the tree | the result |
+|---|---|
+| the `except BindRefusedError` handler at 1590 deleted | **CAUGHT — 1 failed, 66 passed, 443.04 s** |
+
+**and the failure says what went wrong:** *"the command exited 1 rather than
+refusing; the exception was BindRefusedError(…)"*
+
+**And the site is watched twice.** The witness holds the behaviour — a refusal
+and not a crash — and the enumeration holds the pairing: with the witness file
+deleted the enumeration goes red on *"these refusals have no witness of their
+own"*, naming `src/labcairn/cli/commands.py:1604`. **That is the same site the
+finding named at 1590; the fix's own lines moved it down, and the enumeration
+finds it by what it says rather than by where it is.**
+
+**And a coverage claim the record was carrying is now false.** *"Of the
+eighteen `_refuse` sites the enumeration covers fourteen … and this one is
+watched by nothing at all"* — **the enumeration now covers fifteen of the
+eighteen**, and the three it still declines are `commands.py:369` and
+`commands.py:1592` (the failures-cannot-happen list) and `commands.py:1454`
+(the address check's own test).
+
+#### F65 — "a witness of its own" was false for five of the thirty-three, and the pairing was unwatched
 
 **Found by the three surfaces' re-verification, and it is a hole in the
 *pairing* rather than in the refusals.**
@@ -2448,37 +2566,199 @@ witness it names is the group-mate's. **The tree still holds every refusal**
 unwatched. **What is unwatched is the pairing.**
 
 **And the tree cannot notice the pairing either:** deleting the command's own
-witness leaves **the whole suite green** — 3275 passed, 3 skipped — and two
-further witness deletions leave **the five CLI-driving files green**, not
+witness left **the whole suite green** — 3275 passed, 3 skipped — and two
+further witness deletions left **the five CLI-driving files green**, not
 merely the two enumerations green.
 
-**So two of the record's claims are false as they stand:** *"a refusal added to
+**So two of the record's claims were false as they stood:** *"a refusal added to
 the product is noticed"* and the enumeration docstring's *"a witness removed is
-noticed too"*. **What is true is the weaker thing: a refusal added without a
-witness is noticed.** The record now says so, and the enumeration's docstring
-is not the record — but the docstring is what the next reader reads.
+noticed too"*. **What was true was the weaker thing: a refusal added without a
+witness is noticed.**
 
-**And the limit that cannot be fixed is stated rather than hidden:** an
+**Both are true now, and the pairing is decided by the value and not by the
+phrase.**
+
+**The root cause was that the enumeration matched refusals to witnesses by
+*phrase* alone — and a phrase is owned by a *group*, so inside a group every
+member had the same candidates and the matching could only *count*, never say
+who was who. **The witnesses' values were thrown away, and the values are
+exactly what tell the configuration's refusal from the policy's.**
+
+**So a witness is bound to a refusal by the value that refusal names** — the
+configuration's path, the policy's path, the providers file's path — and
+**where the value cannot decide, the pairing is written down and checked**
+rather than left to a count. Four refusals are recorded in `WATCHED_BY`, and
+every name in that record must exist in the suite, must compare a phrase its
+refusal says, and every witness the derivation offers must be written down.
+**The product's wording did not change by one word** — `src/` is untouched by
+this fix — and **the enumeration names the witness the ledger names**, which
+two new tests check:
+`test_the_witnesses_that_are_recorded_are_in_the_suite` and
+`test_the_two_enumerations_watch_the_same_refusals_the_same_way`.
+
+**The enumeration's own numbers, read out of the tree at `affedb9`:**
+
+| | |
+|---|---|
+| refusals | **37** |
+| watchable | **34** |
+| paired | **34** |
+| unpaired | **0** |
+| groups | **33** |
+| witnesses read | **102** |
+
+**And the thirty-four fall three ways: 27 by "exactly one candidate", 3 by the
+value, 4 by the record.**
+
+| how the pairing was decided | how many | which |
+|---|---|---|
+| exactly one candidate | **27** | — |
+| by the value the refusal names | **3** | `workspace.py:236`, `workspace.py:315`, `commands.py:665` — the three that say *"could not be read as JSON"* |
+| by the record | **4** | `commands.py:923`, `workspace.py:343`, `workspace.py:535`, `workspace.py:547` |
+
+**And the fix's own report said 26 and 33. Those numbers were right on the
+branch they were measured on — where the refusal at 1590 was still not
+watchable — and they are wrong on the tree this record ships with, because the
+composition changed the count. **They were recomputed, and the record carries
+the recomputed ones: 27 and 34.** The witness count moves the same way: it is
+**102** at `affedb9`, and it was **101** at `fafb81c` and at `90d2053` —
+**a count is a count of the tree it is counted in.**
+
+**Measured — the deletions that used to leave the tree green:**
+
+| the deletion | the result |
+|---|---|
+| the command's own witness | **CAUGHT** — narrow selection: **2 failed, 41 passed, 162.37 s**; **the whole suite: 3 failed, 3287 passed, 3 skipped, 1972.48 s** |
+| the module's source-dir witness | **CAUGHT — 1 failed, 99 passed, 843.77 s** |
+| the doctor's source-root witness | **CAUGHT — 2 failed, 97 passed, 703.46 s** |
+
+**And that the two narrower deletions turn one or two tests red, and not the
+main enumeration, is right rather than a weakness.** The deleted witness is
+**one of two** that watch that refusal — the other is still there — so that
+refusal is still watched, and **what changed is the record**: *"the ledger and
+this enumeration disagree about which witness watches which refusal"*. **That
+the record notices the inconsistency is the evidence that the pairing can now
+be said out loud.**
+
+**And the last row's run had a third red that this mutation did not cause** —
+it is the path-length false failure this record already carries: the refusal's
+sentence is split by Rich's wrap at `COLUMNS=200`, so a phrase a test asserts
+on does not survive a long `--basetemp`. **A red that is not the mutation's is
+read as the mutation's only if the control was not run.**
+
+**And the record's own sentences are watched, because a hand-written table is
+wrong the moment the code moves — which is F53's shape, and this fix ends with
+one.** The reviewer wrote the guard for the record itself:
+
+| the record changed | the result |
+|---|---|
+| a phrase in the record changed to one the product no longer says | **CAUGHT — 3 failed, 31 passed, 180.20 s** |
+| a witness left out of the record | **CAUGHT — 2 failed, 32 passed, 194.08 s** |
+
+**and the failures say what has to happen next:**
+
+> *"the record names a refusal in src/labcairn/cli/workspace.py::source_paths
+> that the product does not raise… The sentence the site writes has changed,
+> and the record has to be told."*
+
+> *"these witnesses could watch a recorded refusal and are not recorded for
+> it"*, and *"the ledger and this enumeration disagree about which witness
+> watches which refusal"*
+
+**So the two false sentences are true now.** *"A refusal added to the product
+is noticed"* — **and a *witness* removed is noticed too**, which is what the
+enumeration's docstring claimed before it was.
+
+**And the limit that cannot be fixed is still stated rather than hidden:** an
 enumeration written in the same tree as the thing it enumerates cannot catch
 a refusal that is removed **together with** its ledger entry and the count.
 The tree still holds the property in that case, because the witness that
 asserts the refusal's own sentence is still there — but the enumeration has
 nothing left to say, and it does not claim otherwise.
 
-#### F66 — the crash fix's catches are load-bearing and unwatched
+#### F66 — the crash fix's catches were load-bearing and unwatched, and they are watched now
 
 **Found by the three surfaces' re-verification, as a note.**
 
 The `PathRefusedError` catches the crash fix added to `bind_workspace` and to
 the CLI's refusal handler are **load-bearing** — with the catch, a refusal;
-without it, a crash — **and the whole suite is green without them.** The F54
+without it, a crash — **and the whole suite was green without them.** The F54
 witnesses watch the refusals, not the catch.
 
-**And the catches cannot be reached through the CLI's own path today**, so
-there is nothing for a witness to drive — but **a future change to
-`source_paths` could make them reachable, and nothing would notice.** That is
-the shape of a defence in depth nobody is watching, and it is carried here
-rather than left implicit.
+**And the catches could not be reached through the CLI's own path**, so there
+was nothing for a witness to drive — but **a future change to `source_paths`
+could have made them reachable, and nothing would have noticed.** That was the
+shape of a defence in depth nobody was watching, and it is carried here rather
+than left implicit.
+
+**Both halves of that are false now: the catches are reachable, and they are
+watched.**
+
+**The reachability is made by injecting the layer's own refusal where the
+layer raises it.** The layer's own root binder — `bind_root`, defined in
+`src/labcairn/security/paths.py` and used by `labcairn.workspace.roots` — is
+substituted with a binder that raises **the layer's own exception, carrying
+the layer's own reason code** (`PathRejection.CANONICALISATION_FAILED`).
+**The product's own code path is not bypassed: only the layer's leaf function
+is replaced, and everything above it runs unmodified** — `Workspace.bind` →
+`bind_workspace`'s `try`/`except` → `application_context` → the command body →
+`_refusals`' `except` clauses → `emit_refusal` → the exit code. **There is no
+equivalent scenario hand-built in the test**, and the injection is a
+substitution rather than a race: nothing depends on a directory vanishing at
+the right moment or on what this machine's filesystem happens to do.
+
+**And the two catches are told apart by the product's own words.** The same
+layer refusal, arriving two ways, is answered two ways:
+
+| the path | the catch that answers it | the sentence |
+|---|---|---|
+| `task status` → `application_context` → `bind_workspace` → `Workspace.bind` | `bind_workspace`'s | *"the workspace at <root> could not be bound: …"* |
+| `task create` → `create_task` → `Workspace.bind` | the CLI's `_refusals` | *"the workspace could not be bound: …"* |
+
+**The phrase *"at <root>"* is the difference, and it is written inside the
+`except` clause** — which is the proof that the test did not bypass it: under
+the mutation that removes `PathRefusedError` from that catch, witness 1's
+message changes from *"the workspace at <root> could not be bound: …"* to
+*"the workspace could not be bound: …"*. **If the test had gone around that
+clause, the mutation could not have changed the sentence.**
+
+**The witness is `tests/test_cli_path_refused_catch.py`, two tests:**
+
+| the witness | the catch it holds |
+|---|---|
+| `test_a_refusal_the_workspace_binds_is_answered_with_the_root_named` | the catch in `bind_workspace` |
+| `test_a_refusal_that_skips_the_workspace_is_answered_by_the_cli` | the catch in the CLI's own refusal handler |
+
+**Measured — the CLI's catch deleted (CRASH-10):**
+
+| the tree | the result |
+|---|---|
+| the CLI's `_refusals` loses `PathRefusedError` | **CAUGHT — 1 failed, 102 passed, 617.83 s** |
+
+**and the failure says what the operator would have seen:** *"the layer's
+refusal escaped the command as a crash: PathRefusedError(…)"*
+
+**And the two witnesses are deliberately narrow, because a witness that held
+both paths could not tell which catch was broken.** Measured on the fix's own
+branch, against the eight CLI-driving files:
+
+| the tree | the result |
+|---|---|
+| the clean tree (the control) | **1 failed, 166 passed** (1232.07 s) — **the pre-existing path-length false failure only** |
+| `bind_workspace` loses `PathRefusedError` | **2 failed, 165 passed** (1042.07 s) — the `bind_workspace` witness and the same false failure |
+| the CLI's `_refusals` loses `PathRefusedError` | **3 failed, 164 passed** (1177.30 s) — the CLI's witness, **the project's own lint** (`F401 … imported but unused`) and the same false failure |
+| **both** lose `PathRefusedError` | **4 failed, 163 passed** (1085.82 s) — both witnesses, the lint, and the same false failure |
+
+**The green half is the measurement.** Removing `PathRefusedError` from
+`bind_workspace` cannot affect the CLI's witness, because that refusal is
+raised inside `create_task` and never reaches `bind_workspace`; removing it
+from the CLI's handler cannot affect the other, because on that path
+`bind_workspace` converts the refusal into a `WorkspaceSetupError` before the
+CLI's handler ever sees it. **Two witnesses that both went red on one broken
+catch would not say which catch was broken, and the blast radius of the
+mutation would go unmeasured.** The lint is not a witness — the reviewer's own
+earlier finding was that it alone turned red — and the control run is what
+establishes that the path-length failure was already there.
 
 ### Scope B — what this gate did with the verdict
 
@@ -3174,6 +3454,10 @@ implementation and watching that test fail.
 | **F60** | **the enumeration's boundary was a gap of nine** — the CLI raises 35 refusal sites (18 `WorkspaceSetupError`, 17 command-level `_refuse(...)`), and the enumeration's docstring said the second kind "are watched by the command's own tests"; **nine of the seventeen appeared in no test file at all**, and two more were watched only by their exit code and a reason that **nine refusals share** | the derived enumeration parses the whole CLI package and covers the `_refuse` refusals as well — **37 refusals, 34 watchable, 34 matched, none unpaired**, and a refusal is bound to a witness **by the value that refusal names** rather than by a phrase a group owns. **Every watchable `_refuse` site is caught by the witness the enumeration names**, and the four pairings the value cannot decide are **written down and checked** — so a record that goes stale, or that leaves out a witness the derivation offers, is caught by name. The two that were watched only by their reason now quote their **own sentence**, and the `serve` witnesses **hold a port of their own**, so a neighbouring refusal cannot answer in their place — **the one whose witness passed only because port 8000 was busy on this machine now fails for the property — in 4.59 s by the pytest summary, 5.8 s of wall clock, and it does not hang** | the fourteen `_refuse` witnesses, plus `_a_taken_port` in `tests/test_cli.py` |
 | **F61** | **`doctor` still called a workspace fine that no command can use** — a source root outside the workspace drew no warning at all, and a source root that is a file was reported as *missing* while the refusal said *not a directory* | the field became **`unusable_source_roots`**: one entry per root, **with the way it is unusable**, computed by the same function the refusals use — *missing*, *not a directory*, *outside the workspace*, or *unusable name*. The prose names the root and the way: *"(initialised, but a source root cannot be used), … unusable: '../outside' (outside the workspace)"*. **And the count the gate turns on moved 18 → 19, because the spelling refusal is a new site** — it was written down rather than adjusted quietly | `test_doctor_names_a_source_root_that_is_a_file_as_not_a_directory`, `…_outside_the_workspace`, `…_whose_name_cannot_be_spoken`, and the rewritten `test_doctor_does_not_call_a_workspace_with_a_missing_source_root_fine` |
 | **F62** | **the source root's name was checked by the filesystem before the spelling guard** — a name the product cannot speak reached `stat` and came back a `ValueError`, with a traceback | the order is now **spelling guard → resolve → inside-the-workspace → `exists()` → `is_dir()`**, in one shared function, asked through a new public `labcairn.security.paths.check_spelling`. **The module's route and the command's `--source-dir` route ask the same question.** Before: `source_dirs=["materials\0"]` → `ValueError: stat: embedded null character in path`, exit 1 and a traceback. After: exit 3, *"the source directory 'materials\x00' is not a name this build can use: nul_byte"*. **The missing-root case is unchanged: exit 3, no traceback** | `test_a_configured_source_directory_that_is_missing_is_refused` and the spelling witnesses beside it |
+| **F63** | **the rule that does the watching was not itself watched** — the shared module `tests/refusal_witnesses.py`, which reads a witness's **compared** words, had no witness of its own: neutered to *"mentions"* it left **the whole suite green — 3276 passed, 3 skipped**, and neutered together with a witness that stops comparing it, green again | **one new file — `tests/test_refusal_witnesses.py`, nine tests — and `tests/refusal_witnesses.py` is byte-for-byte unchanged** (`sha256 a1c16386f9ceb4b4ffc5dc4aed1afaf66afb2c1860d0299378c28d70179ff7e1`): **the rule is not changed, it is watched.** The neutering is now **CAUGHT — 3 failed, 6 passed, 0.17 s** — *`test_a_phrase_the_witness_only_holds_is_not_read`*, *`test_a_witness_that_compares_and_one_that_only_holds_are_read_differently`* and *`test_a_witness_that_stops_comparing_is_not_read_as_comparing`* go red, and they name the property: *"A rule that reads a mention would read them the same way"*. **And a witness that stops comparing is caught twice over** — by the two enumerations while the rule is intact, and by the rule's own file once it is neutered — so the mutation that used to green the whole suite has nowhere to go, and the two together are **CAUGHT — 3 failed, 40 passed, 139.48 s** | `tests/test_refusal_witnesses.py` — the three above, and `test_both_enumerations_read_the_shared_rule_and_not_a_copy_of_it`, which fails if either enumeration stops importing the shared rule |
+| **F64** | **one command-level refusal was watched by nothing** — `src/labcairn/cli/commands.py:1590`, the `except BindRefusedError` handler whose whole message was `str(error)`; **with the refusal removed the whole suite was green**. And the one-line fix the review suggested — `BindRefusedError` into `UNREACHABLE_FAILURES` — **SURVIVED — 32 passed, 211.72 s**, because that list keeps its books **by the failure's name** and the name has two sites: **a name is not a site** | **the refusal now carries the command's own sentence** — *"the service's own guard refused the bind: {error}"* — and **the witness injects the layer's refusal where the layer raises it**: the command's `run_service` is replaced with one that asks the layer to serve `0.0.0.0`, an address the command never checked, so **the layer's own guard refuses it**. **The reachability was measured first**: the guard is asked the same question about the same address three times (`commands.py:1452`, `api/app.py:270`, `api/app.py:325`), a routable address is refused at the first question and the service is never started, so **the branch cannot be reached through the CLI's own path** — and the fix is therefore at the site, not at the name. **CAUGHT — 1 failed, 66 passed, 443.04 s** — *"the command exited 1 rather than refusing; the exception was BindRefusedError(…)"*. **And the coverage claim changed with it: the enumeration now covers fifteen of the eighteen `_refuse` sites, and this one is watched** | `tests/test_cli_serve_bind_refusal.py::test_the_command_refuses_a_bind_the_service_would_not_make` — and the enumeration holds the pairing too, so deleting the file turns `test_every_refusal_the_cli_raises_has_a_witness_of_its_own` red |
+| **F65** | **"a witness of its own" was false for five of the thirty-three, and the pairing was unwatched** — two groups hold more than one refusal, so the phrase a group owns cannot tell its members apart, and the witnesses' **values** — the very thing that distinguishes them — were thrown away; deleting the command's own witness left **the whole suite green — 3275 passed, 3 skipped** | **a witness is bound to a refusal by the value that refusal names** — the configuration's path, the policy's path, the providers file's path — and **where the value cannot decide, the pairing is written down in `WATCHED_BY` and checked**: every name must exist in the suite, must compare a phrase its refusal says, and every witness the derivation offers must be written down. **The product's wording did not change by one word** (`src/` untouched). **The enumeration's own numbers, read out of the tree: 37 refusals, 34 watchable, 34 paired, 0 unpaired, 33 groups, 102 witnesses read** — and the thirty-four fall **27 by exactly one candidate**, **3 by the value** (`workspace.py:236`, `workspace.py:315`, `commands.py:665`), **4 by the record** (`commands.py:923`, `workspace.py:343`, `workspace.py:535`, `workspace.py:547`). **The fix's own report said 26 and 33; those were right on the branch they were measured on and are wrong after the composition, so they were recomputed.** **And the record's own sentences are watched**, because a hand-written table is wrong the moment the code moves: **RECORD-1 — 3 failed, 31 passed, 180.20 s**; **RECORD-2 — 2 failed, 32 passed, 194.08 s**. The deletions that used to green the tree are now **CAUGHT** — the command's own witness: **2 failed, 41 passed, 162.37 s** narrow, and **3 failed, 3287 passed, 3 skipped, 1972.48 s** at the whole-suite width; the module's source-dir witness: **1 failed, 99 passed, 843.77 s**; the doctor's source-root witness: **2 failed, 97 passed, 703.46 s** | `tests/test_cli_refusal_enumeration.py::test_the_witnesses_that_are_recorded_are_in_the_suite` and `…::test_the_two_enumerations_watch_the_same_refusals_the_same_way`, beside `…::test_every_refusal_the_cli_raises_has_a_witness_of_its_own` and the ledger's `test_every_refusal_site_in_the_cli_is_watched` |
+| **F66** | **the crash fix's two `PathRefusedError` catches were load-bearing and unwatched** — with the catch a refusal, without it a crash, and **the whole suite was green without them**; and the catches could not be reached through the CLI's own path, so **there was nothing for a witness to drive** | **the layer's own root binder is substituted with one that raises the layer's own exception and the layer's own reason code** (`PathRejection.CANONICALISATION_FAILED`) — **the product's code path is not bypassed, only the layer's leaf function is replaced**, and everything above it runs unmodified — and **the two catches are told apart by the product's own words**: *"the workspace at <root> could not be bound: …"* against *"the workspace could not be bound: …"*, a phrase **written inside the `except` clause**, so the test cannot have gone around it. **CRASH-10 — CAUGHT: 1 failed, 102 passed, 617.83 s** — *"the layer's refusal escaped the command as a crash: PathRefusedError(…)"*. **And the two witnesses are deliberately narrow**: a witness that held both paths could not say which catch was broken, so one broken catch leaves the other witness green by construction | `tests/test_cli_path_refused_catch.py::test_a_refusal_the_workspace_binds_is_answered_with_the_root_named` (the catch in `bind_workspace`) and `…::test_a_refusal_that_skips_the_workspace_is_answered_by_the_cli` (the catch in the CLI's refusal handler) — the F54 row's witness column names both |
 
 **And the reviewer's own ledger is part of the record, because the result is
 only worth what the method is.** In these two rounds: a **long `--basetemp`
