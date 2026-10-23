@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-21
-**Current `main`:** `2e485b0` — PR #81, T13: the layer renders the report, and records the revision. The merges since the previous refresh are #69 (the report artefact manifest), #70 (the two-column band the independent review of G3 found), #71 (the report's four renderers), #72 (the report's content checks), #73 (the local FastAPI service, its three guards and the typed contract), #74 (the layer's event read, and the cursor that resumes it), #75 (the source id's type, brought back in line with the data), #76 (the Typer CLI), #77 (the report's revisions, and the staleness that finds them), #78 (G3 closed on an independent review, and the records say so), #79 (the report's document, built from what the task has), #80 (the local research workbench) and #81 (the layer renders the report, and records the revision).
+**Date:** 2026-10-22
+**Current `main`:** `15cd63d` — PR #107, the gate's fifth round of fixes. The merges since the previous refresh are #101 (the demonstration's approval outlives the grant, at any hour — the gate's exit test had a time bomb in it, and no CI run had ever run after 13:00 UTC) and #106 (the batch: **the two blockers and the six notes** the three surfaces' independent review found — among them the demonstration's **exit code** was not load-bearing, and a stage run that followed an approval **planned a second operation** — plus the **five defects the fixing found**, one of them an **authorisation bypass**, one of them a **time bomb in the gate's own exit demonstration**, and one of them a duplicated sentence in that demonstration's own output).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. It was then stale again at #32, and the claim it made — "Nothing is implemented" for LC-P1-09 — stopped being true at #33. **Thirteen merges passed with no refresh; this is the first refresh in thirteen merges** — the file named `8fb9f18` (PR #68) as current, and the claim it made — "**No research capability yet.** There is no CLI, no server, no web UI" — stopped being true at #73 (the local FastAPI service), #76 (the Typer CLI) and #80 (the React workbench). Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -13,7 +13,7 @@
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
-| **G4** | **in flight** — LC-P1-11 and LC-P1-12 are both IN PROGRESS. The report path and all three surfaces are merged; **the exit test, *"CLI and Web produce same versioned report"*, is not yet demonstrated** — the end-to-end smoke path (T09) is in flight. [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) — verdict PASS WITH NOTES, and **its reviewer's independence is not discharged**: the reviewer specified the work, dispatched it, wrote the fixes and reviewed them |
+| **G4** | **closed** — LC-P1-11 and LC-P1-12 both `PASS WITH NOTES`, and the gate closed on an **independent review** at `<G4COMMIT>` (verdict `<G4VERDICT>`; two reviewers who wrote none of the gate's fixes, one per scope — the report path's review **failed the gate four times** on a clean property table, and the three surfaces' review came back **BLOCKED**, on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test — and **blocked again** on its re-verification. [G4 acceptance](../acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](../acceptance/LC-P1-12-acceptance.md) |
 
 ## What exists now
 
@@ -62,15 +62,52 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
-**G4's exit demonstration has not been run.** Its exit test — *"CLI and Web produce same versioned report"* — is not demonstrated: the end-to-end smoke path (T09) is in flight, and nothing yet compares the CLI's, the local API's and the workbench's report **bytes** **by hash**. The report is rendered by the application layer and served as an artefact's bytes; that the three surfaces produce the **same** report is a claim, not a measurement.
+**G4's exit test is now demonstrated — and it was not, until this gate's own review made it so.** The end-to-end smoke path (T09) runs from a clean workspace and a temporary database, with no network and no credential, and compares the CLI's `task status --json` against the local API's `GET /task` **field by field** — two hundred and thirty-seven fields, none differing — and the report's **bytes by hash**, for each of the four forms, against the file the report operation wrote and the bytes the service serves.
 
-**Two limits are known and recorded.** The API's event stream is **not consumed by the workbench** — the service offers `/events` and `/events/stream`, and the workbench reads neither — and the workbench **cannot switch the selected project**, because the API has no such operation.
+**Three limits are known and recorded.** The API's event stream is **not consumed by the workbench** — the service offers `/events` and `/events/stream`, and the workbench reads neither — and the workbench **cannot switch the selected project**, because the API has no such operation. And the **workbench is never driven against the live service**: its tests use a fake at the `fetch` boundary, so *"CLI and UI show identical Task state"* is discharged **through the API** rather than measured between the two.
+
+**A read still takes SQLite's write lock.** `db/session.py` opens every transaction with `BEGIN IMMEDIATE`, which is right for a write and is ADR-0003 C3's clause; a read is a transaction too, so a read takes the write lock for as long as it is open. The per-request session bounds that window to one request, where before it was the life of the process, and the code's own comment — *"Readers do not block the writer"* — is true of WAL and **not of the application's own reads**. A deferred read connection would be the proper fix, and it was considered and not taken while the gate was closing: it is structural, it re-opens G2's accepted code, and nothing about the gate's exit test needs it.
 
 **The report's reproducible form is Markdown and HTML.** A DOCX is a ZIP whose entries carry timestamps and a PDF carries a creation date, so neither is byte-reproducible by default; the report says so on its own face.
 
 Retrieval now answers the two-negative question (T10): a search that breaks is a `PROVIDER_FAILURE` and never a `no_hit`, and the boundary refuses to hand a caller an empty context. What is still unbuilt around it is the model call the evidence would feed. And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is still to be made. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
-## Next: G4
+## Next: G5
+
+**G4 is closed** — LC-P1-11 (report assembly, export and artefact
+versioning) and LC-P1-12 (the Typer CLI and the local FastAPI + React
+workbench) — on the independent review at `<G4COMMIT>`, verdict
+**`<G4VERDICT>`**. The [gate review](../acceptance/G4-acceptance.md) records
+the method, the two mutation tables, the sixty-six findings, and the
+limits that are limits. LC-P1-11's and LC-P1-12's own acceptance reviews
+are [written up](../acceptance/LC-P1-11-acceptance.md) and
+[written up](../acceptance/LC-P1-12-acceptance.md), both **PASS WITH NOTES**.
+**The report path's review failed the gate four times**, and the reason is
+the same each time: **a property table can be entirely clean and the review
+still fail.** The first was on two open defects and five unwatched refusals;
+the second on one unwatched refusal the first fix had introduced; the third on
+fourteen surviving mutations out of a hundred and sixteen; and the fourth —
+after the fix that generalised the comparison of the four forms — on **eight**,
+in a class the fix's mechanism could not reach: **what a form says about
+itself outside its own text** (the DOCX's title property, the PDF's title and
+author, and the list-item shape of the Markdown and the DOCX).
+
+**The three surfaces' review came back BLOCKED**, on two blockers and six
+notes, one of the blockers sitting directly under the gate's own exit test —
+**and its re-verification came back BLOCKED again**, on two mutations that
+survive: **the witnesses for one of the blockers had been deleted by this
+gate's own composition**, and the demonstration's own comparison of the two
+surfaces is unwatched. **Every finding is fixed**, and both reviewers re-ran
+their own mutations against the fixed code.
+
+**G5 is the public alpha**: LC-P1-13 (evaluation, fault injection and a
+competitor baseline) and LC-P1-14 (the handoff dossier, the licence audit,
+and the two READMEs). **The licence audit is not optional and not
+deferred**: matplotlib's wheel **bundles forty TrueType fonts under two
+further licences**, and reportlab's under a third, so G5 must cover the
+bundled fonts and not the root licence line alone.
+
+## How G4 went
 
 LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
 

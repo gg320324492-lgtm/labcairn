@@ -139,10 +139,32 @@ they are: the report says so on its own face.
 Every number in the report is compared with the ledger record it came from,
 and a report that says 4.25 where the ledger says 4.5 is refused.
 
-**Satisfied.** T04's check compares the value and the unit **exactly** — the
-comparison is the claim, and a tolerance would be a second opinion about the
-ledger's number. And the number in the report is the record's, because T12 is
-what put it there.
+**Satisfied — but the evidence for it was one form's worth, and this review
+did not say so.**
+
+T04's check compares the value and the unit **exactly** — the comparison is
+the claim, and a tolerance would be a second opinion about the ledger's
+number. And the number in the report is the record's, because T12 is what put
+it there.
+
+**The correction.** The check runs on the **document**, before any form is
+rendered, so the clause is discharged once and centrally — but the test that
+witnessed it, `test_no_number_appears_that_the_model_does_not_hold`,
+**read the PDF only**. The independent review of the gate mutated the
+**HTML**, the **DOCX** and the **Markdown** so that each carried a number the
+model does not hold, and **all three survived**: nothing watched whether a
+*renderer* put a number of its own into a form. **The clause was not
+violated — the product enforces it on the document — but the evidence for it
+was thinner than this review said it was.**
+
+**The gap is closed**: the test now reads **all four forms** back and asserts
+each carries exactly the numbers the model holds. **This is the second time
+this review missed something the gate's independent review caught**, and the
+shape is the same both times — a property that holds centrally, and whose
+*evidence* was read at one place rather than everywhere it applies.
+
+**What would have caught it here:** asking, of every property, *where the
+evidence for it is read* — not only where the property is enforced.
 
 ## Clause 3 — figures/captions intact
 
@@ -219,8 +241,11 @@ before it was called a finding ✓, and that the findings it reports are ones
 it demonstrated by breaking the code and watching a named test fail ✓.
 
 **An independent review of this work order has not happened.** The gate G3
-needed one and has had it ✓; G4's own gate has not been reviewed by anyone
-but the party that wrote it.
+needed one and has had it ✓; **G4's own independent review covers this work
+order**, and its independence is discharged there and not here — the
+[gate review](G4-acceptance.md) records the method, the mutation tables and
+the findings, and it is the gate's review, not this one, that discharges the
+board's rule for LC-P1-11.
 
 ## Not covered by this review
 
