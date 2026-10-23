@@ -17,15 +17,27 @@ This file is that enumeration. It:
   product writes, with the values it interpolates left out, so that what a
   witness has to quote is the product's own words and not a paraphrase of
   them;
-* **reads the test suite** and collects every string a test asserts about a
-  refusal; and
-* **matches** them, requiring that every refusal has a witness of its own: a
-  phrase of its message that no *other* refusal's message contains, and no
-  two refusals sharing one witness.
+* **reads the test suite** and collects every string a test compares about a
+  refusal, together with the values it compares them with; and
+* **matches** them, requiring that every refusal has a witness of its own, and
+  that no two refusals share one.
+
+**Two refusals can say the same sentence, and then the sentence cannot say
+which refusal a witness watches.** The configuration that cannot be read and
+the policy that cannot be read say the same three words; the module's refusal
+for a source root outside the workspace and the command's refusal for the same
+condition say the same words too. **A witness is bound to a refusal by the
+value that refusal names** — the configuration's path, the policy's path, the
+providers file's path — so that a witness of the configuration's refusal
+cannot answer for the policy's. Where the value cannot tell two refusals
+apart either, the pairing is **written down** in :data:`WATCHED_BY` and
+checked: the witness must exist in the suite, must compare a phrase the
+refusal says, and every witness the derivation offers must be written down.
 
 **Nothing here is a list of refusals.** A refusal added to the product is
 noticed by this test whether or not anyone remembers to come here and add a
-witness; a witness removed is noticed too.
+witness; a witness removed is noticed too — the witness this enumeration
+names for a refusal, and the other tests the record names.
 
 **The boundary is the CLI's own refusals, and it is stated rather than
 assumed.** Every refusal the CLI raises is required to have a witness, with
@@ -113,6 +125,13 @@ class Refusal:
     refusal that hands another component's words on has no words of its own,
     and is not a refusal this enumeration can hold a witness against.
 
+    ``values`` are the values the message interpolates, written as the
+    product writes them — ``location.config_path`` for the configuration's
+    refusal, ``location.policy_path`` for the policy's. **They are what tells
+    two refusals that say the same words apart**, and they are read from the
+    product's own source, so a witness that compares the configuration's path
+    cannot be the witness of the policy's refusal.
+
     ``handled`` names the failures whose handler the refusal is raised in.
     """
 
@@ -120,12 +139,14 @@ class Refusal:
     line: int
     kind: str
     pieces: tuple[str, ...]
+    function: str = ""
     handled: tuple[str, ...] = ()
+    values: tuple[str, ...] = ()
 
     @property
     def place(self) -> str:
         """Where the refusal is, as a reader would name it."""
-        return f"{self.path.relative_to(REPOSITORY_ROOT)}:{self.line}"
+        return f"{self.path.relative_to(REPOSITORY_ROOT).as_posix()}:{self.line}"
 
     @property
     def words(self) -> str:
@@ -146,29 +167,29 @@ class Refusal:
 
 
 @dataclass(frozen=True, slots=True)
-class Quote:
-    """A string a test asserts, and the test it is asserted in.
+class Witness:
+    """One test, and the words it compares about a refusal.
 
-    **One assertion is one witness.** A witness is the whole expectation a
-    test states, not each piece of it, so a template is read as a template
-    and is never taken apart into the fragments it is written from.
+    **One test is one witness.** A witness is a whole test — the
+    expectations it states together — and not each string in it, so a test
+    that compares two refusals' words is the witness of one of them and
+    cannot be the witness of both.
+
+    ``values`` are the values the test interpolates into what it compares,
+    written as the test writes them. They are what bind a witness to a
+    refusal: the test that compares ``location.config_path`` is the witness
+    of the refusal that names the configuration's path.
     """
 
     path: Path
     function: str
-    text: str
-
-    @property
-    def words(self) -> list[str]:
-        """The words the quote says, with the interpolated values left out."""
-        return [
-            word for word in self.text.split() if any(character.isalnum() for character in word)
-        ]
+    texts: tuple[str, ...]
+    values: tuple[str, ...]
 
     @property
     def place(self) -> str:
-        """Where the quote is, as a reader would name it."""
-        return f"{self.path.relative_to(REPOSITORY_ROOT)}::{self.function}"
+        """Where the witness is, as a reader would name it."""
+        return f"{self.path.relative_to(REPOSITORY_ROOT).as_posix()}::{self.function}"
 
 
 # --------------------------------------------------------------------------- #
@@ -235,6 +256,38 @@ def _called_name(call: ast.Call) -> str:
     return ""
 
 
+def _source_text(node: ast.AST) -> str:
+    """The source text of *node*."""
+    try:
+        return ast.unparse(node)
+    except Exception:  # pragma: no cover - unparse does not fail on a parsed tree
+        return ""
+
+
+def _bindings(function: ast.FunctionDef) -> dict[str, ast.expr]:
+    """The expressions the names in *function* are bound to.
+
+    **A binding is read, not guessed at.** The policy's refusal interpolates
+    ``path``, and ``path`` is the policy file's path — ``location.policy_path``
+    — so the refusal is read as naming the policy and not as naming a name.
+    """
+    bindings: dict[str, ast.expr] = {}
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name):
+            bindings[target.id] = node.value
+    return bindings
+
+
+def _value_text(node: ast.expr, bindings: dict[str, ast.expr]) -> str:
+    """The source text of the value *node* names."""
+    if isinstance(node, ast.Name) and node.id in bindings:
+        return _source_text(bindings[node.id])
+    return _source_text(node)
+
+
 def _pieces(
     expression: ast.expr | None,
     functions: dict[str, ast.FunctionDef],
@@ -272,6 +325,38 @@ def _pieces(
     return ()
 
 
+def _values(
+    expression: ast.expr | None,
+    functions: dict[str, ast.FunctionDef],
+    bindings: dict[str, ast.expr],
+    seen: frozenset[str] = frozenset(),
+) -> tuple[str, ...]:
+    """The values a message interpolates, as the product writes them.
+
+    **The values are what tell two refusals that say the same words apart.**
+    The configuration that cannot be read and the policy that cannot be read
+    say the same three words; what separates them is the path each of them
+    names, and a witness that compares the configuration's path is the
+    witness of the configuration's refusal and not of the policy's.
+    """
+    if expression is None:
+        return ()
+    if isinstance(expression, ast.JoinedStr):
+        return tuple(
+            _value_text(value.value, bindings)
+            for value in expression.values
+            if isinstance(value, ast.FormattedValue)
+        )
+    if isinstance(expression, ast.Call):
+        name = _called_name(expression)
+        function = functions.get(name)
+        if function is not None and name not in seen:
+            for node in ast.walk(function):
+                if isinstance(node, ast.Return) and node.value is not None:
+                    return _values(node.value, functions, _bindings(function), seen | {name})
+    return ()
+
+
 def _exception_names(expression: ast.expr | None) -> tuple[str, ...]:
     """The names of the failures an ``except`` clause handles."""
     if expression is None:
@@ -303,6 +388,19 @@ def _handler_failures(tree: ast.Module) -> dict[int, tuple[str, ...]]:
     return failures
 
 
+def _enclosing_function(functions: list[ast.FunctionDef], line: int) -> str:
+    """The name of the innermost function the line is in."""
+    owners = [
+        function
+        for function in functions
+        if function.lineno <= line <= (function.end_lineno or function.lineno)
+    ]
+    if not owners:
+        return "<module>"
+    innermost = min(owners, key=lambda function: function.end_lineno or function.lineno)
+    return innermost.name
+
+
 def _refusals() -> list[Refusal]:
     """Every refusal the CLI raises, and the words each one is made of.
 
@@ -315,13 +413,24 @@ def _refusals() -> list[Refusal]:
     for path in _modules(CLI_PACKAGE):
         tree = _parse(path)
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        every_function = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
         handled = _handler_failures(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
                 name = _called_name(node.exc)
                 if name in classes:
                     message = node.exc.args[0] if node.exc.args else None
-                    found.append(Refusal(path, node.lineno, "raise", _pieces(message, functions)))
+                    found.append(
+                        Refusal(
+                            path,
+                            node.lineno,
+                            "raise",
+                            _pieces(message, functions),
+                            _enclosing_function(every_function, node.lineno),
+                            (),
+                            _values(message, functions, _bindings_of(every_function, node.lineno)),
+                        )
+                    )
             elif isinstance(node, ast.Call) and _called_name(node) == "_refuse":
                 message = node.args[1] if len(node.args) > 1 else None
                 found.append(
@@ -330,10 +439,25 @@ def _refusals() -> list[Refusal]:
                         node.lineno,
                         "_refuse",
                         _pieces(message, functions),
+                        _enclosing_function(every_function, node.lineno),
                         handled.get(id(node), ()),
+                        _values(message, functions, _bindings_of(every_function, node.lineno)),
                     )
                 )
     return sorted(found, key=lambda refusal: (str(refusal.path), refusal.line))
+
+
+def _bindings_of(functions: list[ast.FunctionDef], line: int) -> dict[str, ast.expr]:
+    """The bindings of the innermost function the line is in."""
+    owners = [
+        function
+        for function in functions
+        if function.lineno <= line <= (function.end_lineno or function.lineno)
+    ]
+    if not owners:
+        return {}
+    innermost = min(owners, key=lambda function: function.end_lineno or function.lineno)
+    return _bindings(innermost)
 
 
 # --------------------------------------------------------------------------- #
@@ -396,32 +520,58 @@ def _witness_modules() -> list[Path]:
     return modules
 
 
-def _quotes(module: ast.Module, path: Path) -> list[Quote]:
-    """Every string a module **compares**, and the test it is compared in.
+def _witnesses(module: ast.Module, path: Path) -> list[Witness]:
+    """Every witness a module holds, one per test.
 
-    **Only assertions count, and only comparisons inside them.** A string in a
-    docstring says nothing about what is watched; a string the test merely
-    holds — bound to a name and never compared — says nothing either. A
-    witness that keeps the refusal's sentence as a constant and stops
-    comparing it watches nothing, and an enumeration that accepted the
-    mention would let it stand for a witness forever.
+    **A witness's text is what the test compares.** The rule is the shared
+    one, in :mod:`tests.refusal_witnesses`, and it is the same rule the
+    ledger in ``tests/test_cli_workspace_refusals.py`` uses, so the two
+    enumerations cannot drift apart on what a witness is.
 
-    So a quote is a text the test puts beside the product's output inside an
-    assertion: an operand of a comparison, or an argument of a call. The
-    rule is the shared one, in :mod:`tests.refusal_witnesses`, and it is the
-    same rule the ledger in ``tests/test_cli_workspace_refusals.py`` uses, so
-    the two enumerations cannot drift apart on what a witness is.
-
-    **A template is one string and is not taken apart.** Its literal pieces
-    are read together with the values they are written around, because the
-    expectation a test states is the whole of it: one assertion is one
-    witness, and a witness cannot be counted twice.
+    **A witness's value is what it interpolates into what it compares.** The
+    values are read out of the test's own source, and they are what bind a
+    witness to a refusal: the test that compares the configuration's path
+    cannot be the witness of the policy's refusal.
     """
-    quotes: list[Quote] = []
+    witnesses: list[Witness] = []
     for function in [node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)]:
-        for text in compared_texts(function):
-            quotes.append(Quote(path, function.name, text))
-    return quotes
+        texts = tuple(compared_texts(function))
+        if not texts:
+            continue
+        witnesses.append(Witness(path, function.name, texts, _witness_values(function)))
+    return witnesses
+
+
+def _witness_values(function: ast.FunctionDef) -> tuple[str, ...]:
+    """The values the witness compares, as the witness writes them.
+
+    **Only what the witness compares counts.** A value in a string the test
+    merely holds is not compared, and a witness that holds the refusal's
+    path without comparing it names nothing — which is the same rule the
+    shared module applies to the words, applied to the values.
+    """
+    bindings = _bindings(function)
+    values: list[str] = []
+    for statement in ast.walk(function):
+        if not isinstance(statement, ast.Assert):
+            continue
+        for child in ast.walk(statement):
+            if isinstance(child, ast.JoinedStr):
+                values.extend(_joined_values(child, bindings))
+            elif isinstance(child, ast.Name):
+                bound = bindings.get(child.id)
+                if isinstance(bound, ast.JoinedStr):
+                    values.extend(_joined_values(bound, bindings))
+    return tuple(dict.fromkeys(values))
+
+
+def _joined_values(joined: ast.JoinedStr, bindings: dict[str, ast.expr]) -> list[str]:
+    """The values one interpolated string names."""
+    return [
+        _value_text(value.value, bindings)
+        for value in joined.values
+        if isinstance(value, ast.FormattedValue)
+    ]
 
 
 # --------------------------------------------------------------------------- #
@@ -452,7 +602,7 @@ def _groups(refusals: list[Refusal]) -> dict[tuple[str, ...], list[int]]:
     apart by the value each of them interpolates — the configuration's path
     and the policy's path are the same three words with different files in
     them — so they are one group for the purpose of deciding whether a
-    witness is *distinctive*. A group of three needs three witnesses.
+    witness is *distinctive*.
     """
     groups: dict[tuple[str, ...], list[int]] = {}
     for index, refusal in enumerate(refusals):
@@ -466,7 +616,7 @@ def _owned_phrases(
 ) -> dict[tuple[str, ...], list[str]]:
     """The phrases each group of refusals says and no other group does.
 
-    **A phrase is owned by a group when no other refusal's message contains
+    **A phrase is owned by a group when no other group's message contains
     it.** "does not exist, so" belongs to the configuration's refusal and to
     nothing else; "which is not a directory" belongs to two — the
     configuration's source root and the command's — and so names neither.
@@ -490,67 +640,190 @@ def _owned_phrases(
     return owned
 
 
-def _witnesses(
-    quotes: list[Quote], refusals: list[Refusal], groups: dict[tuple[str, ...], list[int]]
+def _candidates(
+    witnesses: list[Witness],
+    refusals: list[Refusal],
+    groups: dict[tuple[str, ...], list[int]],
 ) -> dict[int, list[int]]:
-    """Which quotes could witness which refusal, by the refusal's index.
+    """Which witnesses could watch which refusal, by the refusal's index.
 
-    A quote witnesses a refusal when **both** of these hold:
+    A witness could watch a refusal when it **compares a phrase the refusal
+    says and no other group says** — the words are the product's own, and
+    they name this refusal's group and not another one's.
 
-    * it quotes at least :data:`MINIMUM_WORDS` words, because a witness
-      quotes a phrase and not a word; and
-    * it shares a **phrase the refusal says and no other refusal says** —
-      the words are the product's own, and they name this refusal and not
-      another one.
-
-    The refusals that say exactly the same words are one group, because the
-    value each of them interpolates is what tells them apart — the
-    configuration's path and the policy's path are the same three words
-    with different files in them. A group of three needs three witnesses,
-    and no witness may serve two of them.
+    **The candidates are a pool, not a pairing.** Two refusals that say the
+    same words share their candidates, and so does every refusal whose phrase
+    another refusal also says. :func:`_paired` decides which witness watches
+    which refusal.
     """
     owned = _owned_phrases(refusals, groups)
-    edges: dict[int, list[int]] = {}
-    for quote_index, quote in enumerate(quotes):
-        if len(quote.words) < MINIMUM_WORDS:
-            continue
-        spoken_for = {
-            group
-            for group, phrases in owned.items()
-            if any(phrase in quote.text or quote.text in phrase for phrase in phrases)
-        }
-        if len(spoken_for) != 1:
-            # The quote names two refusals, or none. It watches neither.
-            continue
-        for member in groups[spoken_for.pop()]:
-            edges.setdefault(member, []).append(quote_index)
-    return edges
-
-
-def _match(edges: dict[int, list[int]], refusals: list[Refusal]) -> dict[int, int]:
-    """Give every refusal a witness of its own, if one can be given.
-
-    **A witness watches one refusal.** The matching is a maximum bipartite
-    matching, so no witness is given to two refusals: the three refusals
-    that say "could not be read as JSON" need three witnesses, and a removal
-    of any one of them leaves a refusal unwatched.
-    """
-    matched_quote: dict[int, int] = {}
-
-    def assign(refusal_index: int, seen: set[int]) -> bool:
-        for quote_index in edges.get(refusal_index, []):
-            if quote_index in seen:
+    candidates: dict[int, list[int]] = {}
+    for witness_index, witness in enumerate(witnesses):
+        for text in witness.texts:
+            if len(_words(text)) < MINIMUM_WORDS:
                 continue
-            seen.add(quote_index)
-            if quote_index not in matched_quote or assign(matched_quote[quote_index], seen):
-                matched_quote[quote_index] = refusal_index
-                return True
-        return False
+            spoken_for = {
+                group
+                for group, phrases in owned.items()
+                if any(phrase in text or text in phrase for phrase in phrases)
+            }
+            if len(spoken_for) != 1:
+                # The text names two groups, or none. It watches neither.
+                continue
+            for member in groups[spoken_for.pop()]:
+                offered = candidates.setdefault(member, [])
+                if witness_index not in offered:
+                    offered.append(witness_index)
+    return candidates
 
+
+def _narrowed(candidates: list[int], refusal: Refusal, witnesses: list[Witness]) -> list[int]:
+    """The candidates that name the refusal's own value.
+
+    **The value is what tells two refusals that say the same words apart.**
+    The configuration's refusal names the configuration's path and the
+    policy's refusal names the policy's; the witness that compares the
+    configuration's path is the witness of the configuration's refusal.
+    """
+    named = set(refusal.values)
+    return [
+        index
+        for index in candidates
+        if witnesses[index].values and set(witnesses[index].values) <= named
+    ]
+
+
+def _paired(
+    refusals: list[Refusal],
+    witnesses: list[Witness],
+    candidates: dict[int, list[int]],
+    recorded: dict[int, tuple[str, tuple[str, ...]]],
+) -> tuple[dict[int, str], dict[int, tuple[str, ...]]]:
+    """Name the witness of every refusal, and the other tests that watch it.
+
+    **A refusal has a witness of its own, and a witness watches one
+    refusal.** Where the value names the refusal, the value decides; where
+    it cannot, the record in :data:`WATCHED_BY` does, and the record is
+    checked against the tree and against the product.
+    """
+    named: dict[int, str] = {}
+    additional: dict[int, tuple[str, ...]] = {}
     for index, refusal in enumerate(refusals):
-        if refusal.watches:
-            assign(index, set())
-    return {refusal_index: quote_index for quote_index, refusal_index in matched_quote.items()}
+        if not refusal.watches:
+            continue
+        if index in recorded:
+            witness, others = recorded[index]
+            named[index] = witness
+            additional[index] = others
+            continue
+        pool = candidates.get(index, [])
+        if len(pool) == 1:
+            named[index] = witnesses[pool[0]].function
+            continue
+        narrowed = _narrowed(pool, refusal, witnesses)
+        if len(narrowed) == 1:
+            named[index] = witnesses[narrowed[0]].function
+    return named, additional
+
+
+# --------------------------------------------------------------------------- #
+# the record
+# --------------------------------------------------------------------------- #
+
+#: The witness of each refusal whose witness set cannot be derived, and the
+#: other tests that watch that refusal too.
+#:
+#: **A witness is bound to a refusal by the value that refusal names, and
+#: where the value cannot tell two refusals apart the pairing is written
+#: down here.** Four refusals are in that state:
+#:
+#: * the module's refusal for a source root outside the workspace and the
+#:   command's refusal for the same condition, which say the same words and
+#:   name the same root — the module's refusal is a ``WorkspaceSetupError``
+#:   and the command's is a ``_refuse``, and the difference between them is
+#:   the *reason* the CLI answers with, which no phrase of the message
+#:   carries;
+#: * the policy rule with no effect and the policy rule with an effect this
+#:   build does not know, which one ``raise`` refuses together;
+#: * and the source root that is not a directory, which two tests watch.
+#:
+#: **The first name is the witness this enumeration names for the refusal,
+#: and the rest are the other tests that watch it.** A refusal with two
+#: watchers is still watched twice over: the named one is the witness the
+#: enumeration says watches it, and the others are watched by it too — the
+#: doctor names the module's refusal of a source root outside the workspace
+#: because it says the same words, and the command's own test names the
+#: command's refusal of the same condition for the same reason.
+#:
+#: **The record is checked, not trusted.** Every name in it must exist in
+#: the suite and must compare a phrase its refusal says, and every witness
+#: the derivation offers for those refusals must be named here — so a
+#: witness that is added and left out of the record, or one that is removed
+#: from the suite, is noticed here.
+WATCHED_BY: Final[tuple[tuple[str, str, str, str, tuple[str, ...]], ...]] = (
+    (
+        "src/labcairn/cli/commands.py",
+        "_resolve_source_dirs",
+        "outside the workspace",
+        "test_a_source_directory_the_command_names_outside_the_workspace_is_refused",
+        ("test_a_source_dir_outside_the_workspace_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "_rule_from_mapping",
+        'needs an "effect" of allow, ask or deny',
+        "test_a_policy_rule_with_no_effect_is_refused",
+        ("test_a_policy_rule_with_an_unknown_effect_is_refused",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "outside the workspace",
+        "test_a_source_directory_outside_the_workspace_is_refused",
+        ("test_doctor_names_a_source_root_outside_the_workspace",),
+    ),
+    (
+        "src/labcairn/cli/workspace.py",
+        "source_paths",
+        "which is not a directory",
+        "test_a_source_directory_that_is_not_a_directory_is_refused",
+        ("test_a_configured_source_directory_that_is_not_a_directory_is_refused",),
+    ),
+)
+
+
+def _recorded(refusals: list[Refusal]) -> dict[int, tuple[str, tuple[str, ...]]]:
+    """The recorded witness of each refusal, and the others that watch it.
+
+    A refusal is named by **the module it is in**, **the function it is in**
+    and **a phrase of the sentence it writes** — the three together name one
+    site, because two sites in one function can share a prefix.
+    """
+    recorded: dict[int, tuple[str, tuple[str, ...]]] = {}
+    for module, function, phrase, witness, others in WATCHED_BY:
+        found = [
+            index
+            for index, refusal in enumerate(refusals)
+            if refusal.path.relative_to(REPOSITORY_ROOT).as_posix() == module
+            and refusal.function == function
+            and phrase in refusal.words
+        ]
+        assert len(found) == 1, (
+            f"the record names a refusal in {module}::{function} that the product "
+            f"does not raise, or names more than one: {phrase!r}. The sentence "
+            "the site writes has changed, and the record has to be told."
+        )
+        recorded[found[0]] = (witness, others)
+    return recorded
+
+
+def _tests_in_the_suite() -> dict[str, Witness]:
+    """Every witness the suite holds, by the test's name."""
+    witnesses: dict[str, Witness] = {}
+    for path in _witness_modules():
+        for witness in _witnesses(_parse(path), path):
+            witnesses[witness.function] = witness
+    return witnesses
 
 
 # --------------------------------------------------------------------------- #
@@ -566,26 +839,147 @@ def test_every_refusal_the_cli_raises_has_a_witness_of_its_own() -> None:
     reads the product: a refusal added to ``labcairn.cli`` is found here
     whether or not anyone remembers to add a witness, and a witness removed is
     found here too.
+
+    **A witness of its own is named, not merely counted.** The enumeration
+    says which witness watches which refusal — the configuration's refusal is
+    watched by the test that compares the configuration's path, and not by
+    the test that compares the policy's — so that a refusal cannot be held
+    watched by a witness that watches something else.
     """
     refusals = _refusals()
     groups = _groups(refusals)
-    quotes = [quote for path in _witness_modules() for quote in _quotes(_parse(path), path)]
-    edges = _witnesses(quotes, refusals, groups)
-    matching = _match(edges, refusals)
+    witnesses: list[Witness] = [
+        witness for path in _witness_modules() for witness in _witnesses(_parse(path), path)
+    ]
+    candidates = _candidates(witnesses, refusals, groups)
+    named, additional = _paired(refusals, witnesses, candidates, _recorded(refusals))
+    suite = _tests_in_the_suite()
 
     unwatched = [
-        refusal
-        for index, refusal in enumerate(refusals)
-        if refusal.watches and index not in matching
+        (refusals[index], named.get(index, ""))
+        for index in range(len(refusals))
+        if refusals[index].watches and (index not in named or named[index] not in suite)
     ]
     assert not unwatched, (
         "these refusals have no witness of their own:\n"
-        + "\n".join(f"  {refusal.place}  {refusal.words!r}" for refusal in unwatched)
-        + "\n\nA witness quotes a phrase of the refusal's own words and no other"
-        " refusal's. Add one that does."
+        + "\n".join(
+            f"  {refusal.place}  {refusal.words!r}\n"
+            f"    the witness this enumeration names — {name or '(none)'} — "
+            "is not in the suite"
+            for refusal, name in unwatched
+        )
+        + "\n\nA witness quotes a phrase of the refusal's own words and names the "
+        "value that refusal names. Add one that does."
     )
-    assert len(set(matching.values())) == len(matching), (
-        "one witness was given to two refusals; a witness watches one refusal"
+
+    watchers: dict[str, list[str]] = {}
+    for index, name in named.items():
+        watchers.setdefault(name, []).append(refusals[index].place)
+    for index, names in additional.items():
+        for name in names:
+            watchers.setdefault(name, []).append(refusals[index].place)
+    shared = {name: places for name, places in watchers.items() if len(places) > 1}
+    assert not shared, (
+        "one witness was given to two refusals; a witness watches one refusal:\n"
+        + "\n".join(f"  {name}  {places}" for name, places in sorted(shared.items()))
+    )
+
+
+def test_the_witnesses_that_are_recorded_are_in_the_suite() -> None:
+    """Every recorded witness exists, and watches the refusal it is recorded for.
+
+    **A record is only worth what it says.** The pairing that the value
+    cannot decide is written down, and a name that no longer names a test
+    would leave the refusal unwatched without anything saying so.
+    """
+    refusals = _refusals()
+    groups = _groups(refusals)
+    witnesses: list[Witness] = [
+        witness for path in _witness_modules() for witness in _witnesses(_parse(path), path)
+    ]
+    candidates = _candidates(witnesses, refusals, groups)
+    recorded = _recorded(refusals)
+    suite = _tests_in_the_suite()
+    owned = _owned_phrases(refusals, groups)
+
+    for index, (witness, others) in recorded.items():
+        refusal = refusals[index]
+        group = next(group for group, members in groups.items() if index in members)
+        for name in (witness, *others):
+            assert name in suite, (
+                f"the record names {name!r} as a witness of {refusal.place}, and "
+                "there is no such test in the suite."
+            )
+            assert any(
+                phrase in text or text in phrase
+                for phrase in owned[group]
+                for text in suite[name].texts
+                if len(_words(text)) >= MINIMUM_WORDS
+            ), (
+                f"{name} does not compare a phrase {refusal.place} says, so it "
+                "does not watch that refusal."
+            )
+
+    offered = {
+        witnesses[witness_index].function
+        for index in recorded
+        for witness_index in candidates.get(index, [])
+    }
+    named = {name for witness, others in recorded.values() for name in (witness, *others)}
+    assert offered <= named, (
+        "these witnesses could watch a recorded refusal and are not recorded "
+        "for it:\n"
+        + "\n".join(f"  {name}" for name in sorted(offered - named))
+        + "\n\nEvery witness the derivation offers must be written down, or the "
+        "record is not the whole of the pairing."
+    )
+
+
+def test_the_two_enumerations_watch_the_same_refusals_the_same_way() -> None:
+    """The ledger and this enumeration name the same witness for the same site.
+
+    **Two enumerations that can drift apart are one enumeration and a half.**
+    The ledger names the witness of every site the CLI raises as a
+    ``WorkspaceSetupError``; this one derives the witness of every refusal
+    the CLI raises, by the value the refusal names. Where they overlap they
+    must agree, or one of them is wrong about which witness watches which
+    site — and the ledger's own check cannot tell the configuration's
+    witness from the policy's, because both compare the same three words.
+    """
+    from test_cli_workspace_refusals import WATCHED_REFUSALS
+
+    refusals = _refusals()
+    groups = _groups(refusals)
+    witnesses: list[Witness] = [
+        witness for path in _witness_modules() for witness in _witnesses(_parse(path), path)
+    ]
+    candidates = _candidates(witnesses, refusals, groups)
+    named, additional = _paired(refusals, witnesses, candidates, _recorded(refusals))
+
+    disagreements: list[str] = []
+    for module, function, phrase, ledger_witnesses in WATCHED_REFUSALS:
+        found = [
+            index
+            for index, refusal in enumerate(refusals)
+            if refusal.path.relative_to(REPOSITORY_ROOT).as_posix() == module
+            and refusal.function == function
+            and phrase in refusal.words
+        ]
+        assert len(found) == 1, (
+            f"the ledger names a refusal in {module}::{function} that the product "
+            f"does not raise, or names more than one: {phrase!r}"
+        )
+        index = found[0]
+        mine = {named.get(index, "")} | set(additional.get(index, ()))
+        if mine != set(ledger_witnesses):
+            disagreements.append(
+                f"  {module}::{function} {phrase!r}\n"
+                f"    the ledger names      {sorted(ledger_witnesses)}\n"
+                f"    this enumeration names {sorted(mine)}"
+            )
+    assert not disagreements, (
+        "the ledger and this enumeration disagree about which witness watches "
+        "which refusal:\n" + "\n".join(disagreements)
     )
 
 
@@ -656,13 +1050,15 @@ def test_the_failures_that_cannot_happen_are_still_there() -> None:
     )
 
     groups = _groups(refusals)
-    quotes = [quote for path in _witness_modules() for quote in _quotes(_parse(path), path)]
-    edges = _witnesses(quotes, refusals, groups)
+    witnesses: list[Witness] = [
+        witness for path in _witness_modules() for witness in _witnesses(_parse(path), path)
+    ]
+    candidates = _candidates(witnesses, refusals, groups)
     for index, refusal in enumerate(refusals):
         if refusal.watches:
             continue
         if any(failure in UNREACHABLE_FAILURES for failure in refusal.handled):
-            assert not edges.get(index), (
+            assert not candidates.get(index), (
                 f"{refusal.place} is excluded because it handles a failure that cannot "
                 "happen, but a witness quotes it now; it is watchable, so it belongs "
                 "in the enumeration"
