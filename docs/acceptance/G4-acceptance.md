@@ -2461,9 +2461,10 @@ enumeration files and fails if either stops importing `compared_texts` from
 **Found by the three surfaces' re-verification, and it is F60's shape, one
 site further on.**
 
-`src/labcairn/cli/commands.py:1590` — the `except BindRefusedError` handler,
-the refusal whose whole message was `str(error)`, raised when the service could
-not bind. **With the refusal removed, the whole suite was green.**
+`src/labcairn/cli/commands.py:1590` — the refusal the `except BindRefusedError`
+handler raises, the one whose whole message was `str(error)`, raised when the
+service could not bind. **With the refusal removed, the whole suite was
+green.**
 
 **And the fix the review suggested is in the tree's own vocabulary.** The
 sibling branch (`commands.py:1592`, the `except SystemExit` handler) is watched
@@ -2550,8 +2551,8 @@ finds it by what it says rather than by where it is.**
 **And a coverage claim the record was carrying is now false.** *"Of the
 eighteen `_refuse` sites the enumeration covers fourteen … and this one is
 watched by nothing at all"* — **the enumeration now covers fifteen of the
-eighteen**, and the three it still declines are `commands.py:369` and
-`commands.py:1592` (the failures-cannot-happen list) and `commands.py:1454`
+eighteen**, and the three it still declines are `commands.py:365` and
+`commands.py:1606` (the failures-cannot-happen list) and `commands.py:1450`
 (the address check's own test).
 
 #### F65 — "a witness of its own" was false for five of the thirty-three, and the pairing was unwatched
@@ -2621,8 +2622,12 @@ branch they were measured on — where the refusal at 1590 was still not
 watchable — and they are wrong on the tree this record ships with, because the
 composition changed the count. **They were recomputed, and the record carries
 the recomputed ones: 27 and 34.** The witness count moves the same way: it is
-**102** at `affedb9`, and it was **101** at `fafb81c` and at `90d2053` —
-**a count is a count of the tree it is counted in.**
+**102** at `affedb9`, **101** at `fafb81c`, and **99** at `90d2053` —
+**a count is a count of the tree it is counted in**, and the tree the F63
+fix made is one where **nine tests were added and no witnesses were**: the
+file that watches the rule imports no CLI and names no refusal of the CLI's,
+so it is **not a witness module** and its tests are **not** witnesses of a
+refusal. **That is what the count says, and it is what the design intends.**
 
 **Measured — the deletions that used to leave the tree green:**
 
@@ -3451,7 +3456,7 @@ implementation and watching that test fail.
 | **F58** | the list-item witnesses read **one fixture**, and that bounds what they can see — a mutation on a second disclosure is a no-op on that fixture | **carried as a note.** A witness is a witness of the document it reads; the bound is knowable, and a reader of this record should know it rather than assume the fixture away | — |
 
 | **F59** | **the enumeration's third check is not a check** — it looked for the refusal's phrase among the witness's string constants, which is *"mentions", not "compares"*; a witness that keeps the phrase and stops comparing it survived the whole tree | a shared module, `tests/refusal_witnesses.py`, reads a witness's **compared** words — the sentences the test puts beside the product's output **inside an assertion**, an operand of a comparison or an argument of a call. A string merely held in a constant is not compared. **Both enumerations use it, so they cannot drift apart — and that is now a test rather than a hope:** `tests/test_refusal_witnesses.py::test_both_enumerations_read_the_shared_rule_and_not_a_copy_of_it` reads both files and fails if either stops importing the shared rule. **And the rule has a witness of its own**, because a rule that reads the witnesses is a mechanism, and a mechanism nobody watches can be neutered — which it was, twice, with the whole suite green. The mutation `_ = expected` is now caught by both, each naming the witness and the site | `tests/test_cli_workspace_refusals.py::test_every_refusal_site_in_the_cli_is_watched` and `tests/test_cli_refusal_enumeration.py::test_every_refusal_the_cli_raises_has_a_witness_of_its_own` |
-| **F60** | **the enumeration's boundary was a gap of nine** — the CLI raises 35 refusal sites (18 `WorkspaceSetupError`, 17 command-level `_refuse(...)`), and the enumeration's docstring said the second kind "are watched by the command's own tests"; **nine of the seventeen appeared in no test file at all**, and two more were watched only by their exit code and a reason that **nine refusals share** | the derived enumeration parses the whole CLI package and covers the `_refuse` refusals as well — **37 refusals, 34 watchable, 34 matched, none unpaired**, and a refusal is bound to a witness **by the value that refusal names** rather than by a phrase a group owns. **Every watchable `_refuse` site is caught by the witness the enumeration names**, and the four pairings the value cannot decide are **written down and checked** — so a record that goes stale, or that leaves out a witness the derivation offers, is caught by name. The two that were watched only by their reason now quote their **own sentence**, and the `serve` witnesses **hold a port of their own**, so a neighbouring refusal cannot answer in their place — **the one whose witness passed only because port 8000 was busy on this machine now fails for the property — in 4.59 s by the pytest summary, 5.8 s of wall clock, and it does not hang** | the fourteen `_refuse` witnesses, plus `_a_taken_port` in `tests/test_cli.py` |
+| **F60** | **the enumeration's boundary was a gap of nine** — the CLI raises 35 refusal sites (18 `WorkspaceSetupError`, 17 command-level `_refuse(...)`), and the enumeration's docstring said the second kind "are watched by the command's own tests"; **nine of the seventeen appeared in no test file at all**, and two more were watched only by their exit code and a reason that **nine refusals share** | the derived enumeration parses the whole CLI package and covers the `_refuse` refusals as well — **37 refusals, 34 watchable, 34 matched, none unpaired**, and a refusal is bound to a witness **by the value that refusal names** rather than by a phrase a group owns. **Every watchable `_refuse` site is caught by the witness the enumeration names**, and the four pairings the value cannot decide are **written down and checked** — so a record that goes stale, or that leaves out a witness the derivation offers, is caught by name. The two that were watched only by their reason now quote their **own sentence**, and the `serve` witnesses **hold a port of their own**, so a neighbouring refusal cannot answer in their place — **the one whose witness passed only because port 8000 was busy on this machine now fails for the property — in 4.59 s by the pytest summary, 5.8 s of wall clock, and it does not hang** | the fifteen `_refuse` witnesses, plus `_a_taken_port` in `tests/test_cli.py` |
 | **F61** | **`doctor` still called a workspace fine that no command can use** — a source root outside the workspace drew no warning at all, and a source root that is a file was reported as *missing* while the refusal said *not a directory* | the field became **`unusable_source_roots`**: one entry per root, **with the way it is unusable**, computed by the same function the refusals use — *missing*, *not a directory*, *outside the workspace*, or *unusable name*. The prose names the root and the way: *"(initialised, but a source root cannot be used), … unusable: '../outside' (outside the workspace)"*. **And the count the gate turns on moved 18 → 19, because the spelling refusal is a new site** — it was written down rather than adjusted quietly | `test_doctor_names_a_source_root_that_is_a_file_as_not_a_directory`, `…_outside_the_workspace`, `…_whose_name_cannot_be_spoken`, and the rewritten `test_doctor_does_not_call_a_workspace_with_a_missing_source_root_fine` |
 | **F62** | **the source root's name was checked by the filesystem before the spelling guard** — a name the product cannot speak reached `stat` and came back a `ValueError`, with a traceback | the order is now **spelling guard → resolve → inside-the-workspace → `exists()` → `is_dir()`**, in one shared function, asked through a new public `labcairn.security.paths.check_spelling`. **The module's route and the command's `--source-dir` route ask the same question.** Before: `source_dirs=["materials\0"]` → `ValueError: stat: embedded null character in path`, exit 1 and a traceback. After: exit 3, *"the source directory 'materials\x00' is not a name this build can use: nul_byte"*. **The missing-root case is unchanged: exit 3, no traceback** | `test_a_configured_source_directory_that_is_missing_is_refused` and the spelling witnesses beside it |
 | **F63** | **the rule that does the watching was not itself watched** — the shared module `tests/refusal_witnesses.py`, which reads a witness's **compared** words, had no witness of its own: neutered to *"mentions"* it left **the whole suite green — 3276 passed, 3 skipped**, and neutered together with a witness that stops comparing it, green again | **one new file — `tests/test_refusal_witnesses.py`, nine tests — and `tests/refusal_witnesses.py` is byte-for-byte unchanged** (`sha256 a1c16386f9ceb4b4ffc5dc4aed1afaf66afb2c1860d0299378c28d70179ff7e1`): **the rule is not changed, it is watched.** The neutering is now **CAUGHT — 3 failed, 6 passed, 0.17 s** — *`test_a_phrase_the_witness_only_holds_is_not_read`*, *`test_a_witness_that_compares_and_one_that_only_holds_are_read_differently`* and *`test_a_witness_that_stops_comparing_is_not_read_as_comparing`* go red, and they name the property: *"A rule that reads a mention would read them the same way"*. **And a witness that stops comparing is caught twice over** — by the two enumerations while the rule is intact, and by the rule's own file once it is neutered — so the mutation that used to green the whole suite has nowhere to go, and the two together are **CAUGHT — 3 failed, 40 passed, 139.48 s** | `tests/test_refusal_witnesses.py` — the three above, and `test_both_enumerations_read_the_shared_rule_and_not_a_copy_of_it`, which fails if either enumeration stops importing the shared rule |
@@ -3530,25 +3535,30 @@ wrote a single fix into this repository** — which is what made the review
 independent and what let the same reviewer re-run its own mutations against
 the fixed code.
 
-**Scope A — the report path.** **Four FAILs, then a pass.** The first was
+**Scope A — the report path.** **Five FAILs, then a pass.** The first was
 two open defects and five unwatched refusals; the second was one unwatched
 refusal the first fix had introduced; the third was fourteen surviving
-mutations out of a hundred and sixteen; and the fourth was eight, in a class
-the fix's mechanism could not reach. **Every one of the four failed on a
-property table that was entirely clean** — and that is the finding the whole
-gate turned on: *a property table can be clean and the review still fail.*
-The report path's review now passes, and its verdict is **PASS WITH NOTES**.
+mutations out of a hundred and sixteen; the fourth was eight, in a class
+the fix's mechanism could not reach; and the fifth, at `86e0226`, was four —
+which the fix under review had closed down to, and which **found a real defect
+of its own**, the list-item witness comparing a count rather than a marker.
+**Every one of the five failed on a property table that was entirely clean** —
+and that is the finding the whole gate turned on: *a property table can be
+clean and the review still fail.* The report path's review now passes, and
+its verdict is **PASS WITH NOTES**.
 
-**Scope B — the three surfaces.** **BLOCKED twice, then a pass.** The first
-was two blockers and six notes, one of the blockers sitting directly under the
-gate's own exit test; the second was two surviving mutations, one of them
-**the witnesses for a blocker having been deleted by this gate's own
-composition**. The re-verification at `47259e0` found four more — **the
-shared rule that reads the witnesses was itself unwatched**, **one
-command-level refusal was watched by nothing**, **the pairing between a
-refusal and its witness was unwatched**, and **the crash fix's two catches
-were load-bearing and unwatched**. All four are fixed, and the re-verification
-that fixes them **is this round**.
+**Scope B — the three surfaces.** **Five BLOCKED and one FAIL, then a pass.**
+The first, at `6035dbf`, was two blockers and six notes, one of the blockers
+sitting directly under the gate's own exit test; the second, at `5cd6d0`, was
+two surviving mutations, one of them **the witnesses for a blocker having been
+deleted by this gate's own composition**; the third and fourth, at `86e0226`
+and `15cd63d`, were BLOCKED again; the fifth, at `eed91fa`, was a **FAIL**; and
+the sixth, at `47259e0`, was BLOCKED again, on four findings — **the shared
+rule that reads the witnesses was itself unwatched**, **one command-level
+refusal was watched by nothing**, **the pairing between a refusal and its
+witness was unwatched**, and **the crash fix's two catches were load-bearing
+and unwatched**. All four are fixed, and the re-verification that fixes them
+**is this round**.
 
 **And this round added a question the last one did not ask.** F65's fix ends
 in a **hand-written record** — the four pairings the values cannot decide —

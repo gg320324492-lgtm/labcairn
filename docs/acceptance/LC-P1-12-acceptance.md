@@ -255,7 +255,7 @@ reviewer's own mutations and **not** by the demonstration:
 
 **The CLI and the service are compared field by field**, from the same
 store: the CLI's `task status --json` against the API's `GET /task`, two
-hundred and thirty-seven fields, none differing. The comparison is made by
+hundred and fifty-five fields, none differing. The comparison is made by
 the **test** as well as by the demonstration, because a comparison made
 inside the demonstration is a comparison the demonstration could get wrong;
 the test asks each surface and compares what comes back, so a product in
