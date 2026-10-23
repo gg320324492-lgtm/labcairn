@@ -27,9 +27,20 @@ fails on this machine with `WinError 5`, and a base temp directory *inside*
 the repository makes two tests fail for a reason that has nothing to do with
 the property under test.
 
-**Long paths make Rich wrap at `COLUMNS=200`**, which truncates the phrases
-some assertions compare and produces failures that are about line length, not
-about behaviour. Use a short `--basetemp` path outside the tree.
+**The CLI renders its refusals through Rich, which wraps at `COLUMNS=200`.** A
+wrap that falls *inside* a phrase truncates it, so an assertion about that
+phrase fails for a reason that has nothing to do with the property under
+test.
+
+**Length is not the test — where the wrap falls is.** Measured on
+2026-10-23: a thirteen-character `--basetemp` landed in the wrong place and
+failed, while a forty-five-character one was safe. "Use a short path" is the
+wrong rule; the right one is that **a run showing this failure is re-measured
+with another path before it is believed**, and the path is recorded alongside
+the number.
+
+**Two pytest runs must not share one `--basetemp`** — pytest clears it on the
+way in, and two runs sharing one destroy each other's test tree.
 
 **Parallel runs each need their own `TEMP`.** `MPLCONFIGDIR` is pinned under
 the temp directory, so two runs sharing one temp directory fight over it.
