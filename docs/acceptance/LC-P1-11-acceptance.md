@@ -32,6 +32,14 @@ review**, which covered this work order; see "Reviewer independence" below.
   commit, and not this review's**: a number belongs to the tree it was
   measured on, so this review's own figure is kept below and the two are not
   merged.
+- **The whole suite on the tree that closes the gate**, at the four round-five
+  fixes and the gate's final record: **3292 passed and 3 skipped, with no
+  failure**, 22 min 46 s, of **3295 collected**. The three skips are the
+  same three — a POSIX permission-bit assertion that is meaningless on
+  Windows, a provider credential this machine does not have, and a
+  Windows-drive assertion that is meaningless on POSIX — and **the tree
+  that closes the gate is green**, where the tree the reviewers measured had
+  one red that was the `--basetemp` trap and not the tree.
 - **The whole suite on the merged `main` at `2e485b0`:** 3050 passed, 3
   skipped, 610 s. The three skips are pre-existing and explain themselves: a
   POSIX permission-bit assertion that is meaningless on Windows, a provider

@@ -3528,6 +3528,13 @@ each of the four forms, against the file the report operation wrote and the
 bytes the service serves. That was demonstrated at `15cd63d` and the
 demonstration has been re-run against the tree this gate closes on.
 
+**And the tree this gate closes on is green.** The whole suite, on the
+closing tree, in **3292 passed and 3 skipped** with **no failure** — 3295
+collected, of which **fourteen are the witnesses the round-five fixes
+added** and none was removed. **Every whole-suite figure elsewhere in this
+record is anchored to the tree it was measured on**, and this is the one
+anchored to the tree that closes the gate.
+
 **The condition that was outstanding is now discharged.** The board's rule is
 that a row is marked done only when an **independent review at a named
 commit** says so. Two reviewers did that work, one per scope, and **neither
