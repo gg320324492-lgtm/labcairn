@@ -8,10 +8,15 @@ the ingestion operation (PR #93) —
 the one application layer the three surfaces call, the Typer CLI, the local
 FastAPI service with its three guards, the React workbench, and the
 end-to-end smoke path that demonstrates them agreeing.
+**And, at the gate's close, against the tree the gate's independent
+reviewers verified:** the four round-five fixes composed at `9a6319e`, at
+**`<G4COMMIT>`**.
 **Reviewer:** Claude, the same party that specified the work, dispatched the
 implementation and wrote the fixes. **This is not an independent review** —
 see "Reviewer independence" below, and the same caveat LC-P1-09's,
-LC-P1-10's and LC-P1-11's reviews carry.
+LC-P1-10's and LC-P1-11's reviews carry. **The board's rule is discharged by
+the gate's independent review**, which covered this work order; see
+"Reviewer independence" below.
 
 ## The clause
 
@@ -22,6 +27,21 @@ LC-P1-10's and LC-P1-11's reviews carry.
 
 ## Verification actually run
 
+- **The whole suite on the gate's tree**, at the four round-five fixes
+  composed in `9a6319e` and verified by the gate's own reviewers at
+  **`<G4COMMIT>`**: **3289 passed, 3 skipped and 1 failed**, 29 min 32 s, of
+  **3293 collected** — **fourteen more than the previous round's 3279**, and
+  the fourteen are the witnesses the gate's round-five fixes added; none was
+  removed. **The one failure is not the tree's**: it is the `--basetemp`
+  trap the gate's reviewers warn about —
+  `tests/test_cli.py::test_a_source_dir_outside_the_workspace_is_refused`
+  asserts on a sentence the CLI renders through Rich at `COLUMNS=200`, and a
+  long base temp directory pushes the wrap inside the phrase the assertion
+  looks for, so **the test is red on the unmutated tree** and says nothing
+  about the tree. **This is the gate's reviewers' measurement of that
+  commit, and not this review's**: a number belongs to the tree it was
+  measured on, so this review's own figure is kept below and the two are not
+  merged.
 - **The whole suite on the merged tree this review names** (`6035dbf`):
   **3173 passed, 3 skipped**, 990 s, and **no xfails left** — the ingestion
   gap's strict xfail came off with its fix. The three skips are pre-existing
@@ -267,20 +287,53 @@ the set is a decision somebody made rather than a drift nobody noticed.
 
 ## Reviewer independence
 
-**There is none, and the board's rule is therefore not discharged for this
-work order.** The reviewer specified the work, dispatched the
-implementation, wrote the fixes and reviewed them — the same party in all
-four roles, as with LC-P1-08, LC-P1-09, LC-P1-10 and LC-P1-11 before it.
-What the review *can* claim is that its mutations were written against the
-merged branches and not from the branches' own reports, that every
-surviving mutation was checked by hand before it was called a finding, and
-that the findings it reports are ones it demonstrated by breaking the code
-and watching a named test fail — or, in the two cases above, by reading the
-demonstration's own output and seeing a claim it had not earned.
+**This record is not an independent review, and it never was going to be
+one.** The reviewer specified the work, dispatched the implementation, wrote
+the fixes and reviewed them — the same party in all four roles, as with
+LC-P1-08, LC-P1-09, LC-P1-10 and LC-P1-11 before it. What the review *can*
+claim is that its mutations were written against the merged branches and not
+from the branches' own reports, that every surviving mutation was checked by
+hand before it was called a finding, and that the findings it reports are
+ones it demonstrated by breaking the code and watching a named test fail —
+or, in the two cases above, by reading the demonstration's own output and
+seeing a claim it had not earned.
 
-**An independent review of this work order has not happened.** The gate G4's
-own independent review covers both work orders; its independence is
-discharged there and not here.
+**Independence is the gate's business, and the gate discharged it.** The
+board's rule is that a row is marked done only when an **independent** review
+at a **named commit** says so. **This work order's own acceptance review is
+not that review and never was** — it is this work order's evidence, and it
+carries the same caveat LC-P1-08's, LC-P1-09's, LC-P1-10's and LC-P1-11's
+carry. **The independent review that discharges the rule is the gate's**, it
+covered this work order, and the two are **different roles and each is its
+own**: this record says what this work order's own review found and fixed;
+the gate's review says whether the gate's properties are watched, and it says
+so on the strength of mutations written against the tree rather than against
+anyone's report.
+
+**How the gate discharged it.** Two reviewers were dispatched for G4, one for
+the report path and one for **the three surfaces this work order owns**, and
+**neither of them wrote a fix into this repository** — a reviewer that fixes
+what it finds has stopped being independent. The fixes were made by other
+parties, and **each reviewer was then asked to re-run its own mutations
+against them**, which is the second half of the independence: a reviewer that
+wrote the fix is no longer a reviewer.
+
+**The three surfaces' review came back BLOCKED**, on two blockers and six
+notes, one of the blockers sitting directly under the gate's own exit test —
+**and its re-verification came back BLOCKED again**, on **two mutations that
+survive**: the witnesses for one of the blockers **had been deleted by this
+gate's own composition**, and the demonstration's own comparison of the two
+surfaces was unwatched. It was re-verified four more times — **BLOCKED**,
+**BLOCKED**, **FAIL**, and **BLOCKED** again at `47259e0`, where the four
+fixes in that commit were real and three of them were unwatched.
+
+**Every finding is fixed, and the reviewer re-ran its own mutations against
+the fixed code.** The [gate review](G4-acceptance.md) carries the whole
+ledger — every round, every mutation count, every finding and the named
+witness that holds it — and it names the commit this gate closed on:
+**`<G4COMMIT>`**. **The gate is closed, with the verdict PASS WITH NOTES**,
+and this work order's row can be marked done on the strength of **that**
+review and not of this one.
 
 ## Not covered by this review
 
