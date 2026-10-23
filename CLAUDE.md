@@ -42,6 +42,23 @@ the number.
 **Two pytest runs must not share one `--basetemp`** — pytest clears it on the
 way in, and two runs sharing one destroy each other's test tree.
 
+**A copied virtualenv is not a virtualenv of its own.** This project's tests
+drive the CLI through the installed console script, and that script is a
+compiled launcher with an interpreter's path burned into it. A virtualenv
+copied with **hard links** shares that launcher — and shares the `.pth` that
+names its editable install's source tree — so **every copy runs the same
+code**, and a measurement of one tree is a measurement of another. Two
+measurements were lost to this on 2026-10-23, and neither announced itself:
+the tree was green, and the number was wrong.
+
+So a copy gets **its own** launcher and **its own** `.pth`, and the launcher
+is repointed by an **equal-length** replacement — a longer path does not fit
+in place and the launcher simply stops working.
+
+**The check that settles it:** apply a mutation that only the console script
+can reach, and see whether the witness fails. If it stays green, the copy is
+running somebody else's code.
+
 **Parallel runs each need their own `TEMP`.** `MPLCONFIGDIR` is pinned under
 the temp directory, so two runs sharing one temp directory fight over it.
 Whole-suite runs go one at a time.
