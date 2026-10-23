@@ -39,6 +39,8 @@ import ast
 import json
 import os
 import re
+import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -65,7 +67,13 @@ from labcairn.application.sources import SourceView
 from labcairn.application.stages import TaskPlan
 from labcairn.application.tasks import TaskState
 from labcairn.cli.commands import EXIT_REFUSED, app
-from labcairn.cli.workspace import application_context, locate, read_config
+from labcairn.cli.workspace import (
+    CONFIG_DIR_NAME,
+    CONFIG_FILE_NAME,
+    application_context,
+    locate,
+    read_config,
+)
 from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine, create_session_factory, session_scope
 from labcairn.db.materials import put_source
@@ -982,6 +990,9 @@ def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: 
     refusal = created.json()
     assert refusal["reason"] == "material_incomplete"
     assert "oversized.csv" in refusal["message"]
+    # The refusal says in its own words that material could not be read,
+    # and not only which file could not be.
+    assert "file(s) of the supplied material could not be read" in refusal["message"]
 
 
 def test_the_plan_option_reports_the_plan_and_not_the_state(workspace: Path, task_id: str) -> None:
@@ -1078,6 +1089,12 @@ def test_an_unknown_assumed_capability_is_refused(workspace: Path) -> None:
     An override that named nothing would be a spelling mistake, and a
     spelling mistake that silently changed nothing is how a capability ends
     up assumed and unusable.
+
+    **The refusal's own words, and the whole of them.** The refusal names
+    the capability that is not known and lists the ones that are, because
+    the operator has to be able to act on it; a witness that accepted a
+    part of the sentence would go on passing if the rest of it were changed
+    to say something else.
     """
     (workspace / "providers.json").write_text(
         json.dumps(
@@ -1097,7 +1114,22 @@ def test_an_unknown_assumed_capability_is_refused(workspace: Path) -> None:
         "--workspace", str(workspace), "doctor", "--assume-capability", "telepathy", "--json"
     )
     assert result.returncode == EXIT_REFUSED
-    assert "telepathy" in result.stdout
+    # The refusal says what was wrong and what the capabilities are, and the
+    # witness quotes the refusal's own words rather than only the spelling
+    # the operator got wrong. The enumeration in
+    # tests/test_cli_refusal_enumeration.py is what asked for this: a
+    # witness that quotes only the value watches the value, not the refusal.
+    #
+    # **Both forms are checked, and that is not belt and braces.** The CLI
+    # renders the same refusal twice -- once as prose for a person and once
+    # as a machine-readable payload -- and F32 was the finding that the two
+    # forms can disagree while the suite is green. A witness that reads only
+    # one of them watches only that one.
+    assert "unknown model provider capability: telepathy." in result.stdout
+    assert "The capabilities are" in result.stdout
+    payload = result.json()
+    assert "unknown model provider capability" in payload["message"], payload
+    assert "The capabilities are" in payload["message"], payload
 
 
 def test_the_show_token_option_reveals_the_api_session_token(workspace: Path) -> None:
@@ -1177,6 +1209,9 @@ def test_a_task_must_be_named_before_a_task_scoped_command_runs(workspace: Path)
     assert result.returncode == EXIT_REFUSED
     assert result.json()["reason"] == "task_not_selected"
     assert "--task" in result.json()["message"]
+    # The refusal says in its own words that no task was named, and not
+    # only which option would name one.
+    assert "no task was named" in result.json()["message"]
 
 
 def test_a_task_id_that_is_not_a_uuid_is_refused(workspace: Path) -> None:
@@ -1190,6 +1225,9 @@ def test_a_task_id_that_is_not_a_uuid_is_refused(workspace: Path) -> None:
     assert result.returncode == EXIT_REFUSED
     assert "UUIDv7" in result.stderr
     assert "Traceback" not in result.stderr
+    # The refusal says in its own words what a task id is, and not only
+    # which format it is in.
+    assert "task ids are UUIDv7" in result.stderr
 
 
 # --------------------------------------------------------------------------- #
@@ -1256,6 +1294,25 @@ def test_init_in_a_directory_that_is_not_a_workspace_succeeds(tmp_path: Path) ->
     assert str(root / "labcairn.db") in payload["created"]
 
 
+def test_init_refuses_a_path_that_is_not_a_directory(tmp_path: Path) -> None:
+    """``init`` refuses a path that is a file.
+
+    A workspace is a directory, and a file cannot become one. The refusal
+    says so in the command's own words, and the enumeration in
+    ``tests/test_cli_refusal_enumeration.py`` is what asks for the sentence
+    to be quoted rather than only the exit code.
+    """
+    root = tmp_path / "a-file"
+    root.write_text("a file, not a directory", encoding="utf-8")
+
+    result = run_cli("--workspace", str(root), "init", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "exists and is not a directory, so it cannot be a workspace" in payload["message"]
+
+
 # --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
@@ -1295,6 +1352,217 @@ def test_doctor_works_on_a_workspace_that_does_not_exist(tmp_path: Path) -> None
     assert payload["workspace"]["initialised"] is False
     assert payload["database"]["present"] is False
     assert payload["api_session"]["present"] is False
+
+
+def _set_source_dirs(workspace: Path, source_dirs: list[str]) -> None:
+    """The configuration the product wrote, with its source roots replaced.
+
+    Written through the product's own file, because that is the operator's
+    file: a source root is unusable because the *configuration* names it.
+    """
+    path = workspace / CONFIG_DIR_NAME / CONFIG_FILE_NAME
+    config = json.loads(path.read_text(encoding="utf-8"))
+    config["source_dirs"] = source_dirs
+    path.write_text(json.dumps(config), encoding="utf-8")
+
+
+#: The Unicode block Rich draws its tables and panels with.
+#:
+#: **They are the layout, not the words.** A finding too long for the
+#: terminal's width is folded across lines, and the border characters fall
+#: in the middle of the sentence the diagnostic wrote. A test that asserts
+#: on a phrase has to take the borders out first, or it asserts on where
+#: the width put a line break — which is a property of the machine and not
+#: of the diagnostic.
+_BOX_CHARACTERS = str.maketrans("", "", "".join(chr(code) for code in range(0x2500, 0x2580)))
+
+
+def _the_doctor_says(workspace: Path) -> tuple[dict[str, Any], str]:
+    """What ``doctor`` says about the workspace: its JSON, and its prose.
+
+    **The prose is normalised** — the borders are taken out and the words
+    are put back together — so that a test asserts on what the diagnostic
+    says rather than on how the terminal's width laid it out.
+    """
+    machine = run_cli("--workspace", str(workspace), "doctor", "--json")
+    assert machine.returncode == 0, machine.stderr
+    prose = run_cli("--workspace", str(workspace), "doctor")
+    assert prose.returncode == 0, prose.stderr
+    return machine.json(), " ".join(prose.stdout.translate(_BOX_CHARACTERS).split())
+
+
+def _a_task_create(workspace: Path) -> CliResult:
+    """``task create``, which binds the workspace's source roots.
+
+    The command that reaches the binding: a task-scoped command with no task
+    selected refuses for a different reason, and the point of these tests is
+    what the commands say about a source root they cannot bind.
+    """
+    return run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Read the literature",
+        "--objective",
+        "Establish what the corpus says about the question.",
+        "--criterion",
+        "A cited answer, or an honest 'not established'.",
+        "--json",
+    )
+
+
+def test_doctor_does_not_call_a_workspace_with_a_missing_source_root_fine(
+    workspace: Path,
+) -> None:
+    """``doctor`` names a source root that is not there, and does not call the workspace fine.
+
+    A configured source root that is not there is a workspace the module
+    refuses to bind: every task-scoped command refuses it with it. So a
+    diagnostic that reported the workspace as initialised and said nothing
+    about the root would be reporting a workspace as fine that no command can
+    use — and the operator would get no warning before the refusal.
+
+    The finding names the root, because a name is what an operator can act
+    on, and it says **which of the ways** the root is unusable — here,
+    *missing*. The command still reports rather than refuses: a diagnostic
+    that refuses to run on the thing that is broken is not a diagnostic.
+    """
+    shutil.rmtree(workspace / "materials")
+
+    payload, prose = _the_doctor_says(workspace)
+
+    assert payload["workspace"]["initialised"] is True
+    assert payload["workspace"]["unusable_source_roots"] == [
+        {"name": "materials", "problem": "missing"}
+    ]
+    assert "materials" in prose
+    assert "missing" in prose
+    assert "(initialised)" not in prose
+
+    refused = _a_task_create(workspace)
+    assert refused.returncode == EXIT_REFUSED
+    assert "is missing" in refused.json()["message"]
+
+
+def test_doctor_names_a_source_root_that_is_a_file_as_not_a_directory(
+    workspace: Path,
+) -> None:
+    """A source root that is a file is reported as a file, not as missing.
+
+    **The diagnostic and the refusal must not contradict each other about
+    the same source root.** The root is there — it is a file — so reporting
+    it as *missing* would send the operator to look for something that is
+    not gone.
+    """
+    (workspace / "not-a-directory").write_text("a file, not a directory", encoding="utf-8")
+    _set_source_dirs(workspace, ["not-a-directory"])
+
+    payload, prose = _the_doctor_says(workspace)
+
+    assert payload["workspace"]["unusable_source_roots"] == [
+        {"name": "not-a-directory", "problem": "not a directory"}
+    ]
+    assert "not a directory" in prose
+    assert "missing" not in prose
+
+    refused = _a_task_create(workspace)
+    assert refused.returncode == EXIT_REFUSED
+    assert "which is not a directory" in refused.json()["message"]
+
+
+def test_doctor_names_a_source_root_outside_the_workspace(
+    workspace: Path,
+) -> None:
+    """A source root the workspace does not contain is reported at all.
+
+    **This is the case the diagnostic used to miss entirely.** The finding
+    was a list of the roots that were not directories on disk, so a root
+    outside the workspace — which is not a directory on disk either, but
+    which the *commands* refuse for a different reason — was reported as
+    fine, and the diagnostic said the workspace was initialised while every
+    task-scoped command refused it.
+    """
+    _set_source_dirs(workspace, ["../outside"])
+
+    payload, prose = _the_doctor_says(workspace)
+
+    assert payload["workspace"]["unusable_source_roots"] == [
+        {"name": "../outside", "problem": "outside the workspace"}
+    ]
+    assert "outside the workspace" in prose
+    assert "(initialised)" not in prose
+
+    refused = _a_task_create(workspace)
+    assert refused.returncode == EXIT_REFUSED
+    assert "which is outside the workspace" in refused.json()["message"]
+
+
+def test_doctor_names_a_source_root_whose_name_cannot_be_spoken(
+    workspace: Path,
+) -> None:
+    """A source root this build cannot speak is reported, and refused.
+
+    **The fourth way, and the one the crash came from.** A name carrying a
+    NUL byte is not a directory the commands can refuse in the ordinary way:
+    the filesystem's answer to it is a bare ``ValueError``, which is a
+    crash. The spelling guard answers it instead, and the diagnostic has to
+    say the same thing the refusal does.
+    """
+    _set_source_dirs(workspace, ["materials\0"])
+
+    payload, prose = _the_doctor_says(workspace)
+
+    assert payload["workspace"]["unusable_source_roots"] == [
+        {"name": "materials\0", "problem": "unusable name"}
+    ]
+    assert "unusable name" in prose
+    assert "(initialised)" not in prose
+
+    refused = _a_task_create(workspace)
+    assert refused.returncode == EXIT_REFUSED
+    assert "is not a name this build can use" in refused.json()["message"]
+
+
+def test_doctor_calls_a_workspace_with_usable_source_roots_fine(
+    workspace: Path,
+) -> None:
+    """A workspace whose source roots are usable is called fine.
+
+    **The other half of the property.** A diagnostic that called every
+    workspace unusable would be as wrong as one that called this one fine.
+    """
+    payload, prose = _the_doctor_says(workspace)
+
+    assert payload["workspace"]["unusable_source_roots"] == []
+    assert "(initialised)" in prose
+    assert "unusable" not in prose
+
+
+def test_a_task_scoped_command_refuses_a_workspace_that_is_not_initialised(
+    tmp_path: Path,
+) -> None:
+    """A workspace that is not a workspace is refused, and named as such.
+
+    ``doctor`` reports a workspace that is not there as a finding, because a
+    diagnostic that refuses to run on the thing that is broken is not a
+    diagnostic. A task-scoped command has nothing to report: it refuses, and
+    the refusal says which directory is not a workspace and what to do about
+    it.
+
+    **The sentence is the command's own, and not the module's.** The module
+    refuses a *configuration file* that is missing in its own words, and the
+    two refusals are told apart by the words they use.
+    """
+    root = tmp_path / "not-a-workspace"
+
+    result = run_cli("--workspace", str(root), "task", "status", "--json")
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "workspace_not_initialised"
+    assert "is not a LabCairn workspace: there is no" in payload["message"]
 
 
 def test_doctor_probe_reports_a_probe_it_could_not_make(workspace: Path) -> None:
@@ -1343,6 +1611,165 @@ def test_doctors_prose_says_what_its_data_says(workspace: Path, task_id: str) ->
     assert findings["workspace"]["root"] in prose.stdout
     assert findings["database"]["revision"] in prose.stdout
     assert findings["policy"]["digest"][:12] in prose.stdout
+
+
+# --------------------------------------------------------------------------- #
+# serve
+# --------------------------------------------------------------------------- #
+
+
+@contextmanager
+def _a_taken_port() -> Iterator[int]:
+    """A port this process holds, so that the CLI cannot bind it.
+
+    **Why the witnesses below take one.** ``serve`` checks the origin and
+    the workbench *before* it checks the address, and if it finds nothing
+    wrong with them it starts the service — which never ends, so a test
+    waiting for it waits forever. That is what a witness has to be able to
+    survive: the refusal it watches has to be the one that answers, and the
+    answer has to be visible.
+
+    So the witness holds the port itself. A command that got past the
+    refusal it was meant to be stopped by is then refused for the address —
+    a different sentence, on a port the witness chose — and the test fails
+    on the sentence rather than hanging. **The machine's own port 8000 is
+    not consulted at all**, which is what made the difference: on a machine
+    where 8000 happened to be busy the neighbour's refusal answered and the
+    witness passed for the wrong reason, and on a machine where it was free
+    the service started and the witness hung instead of failing.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        yield int(taken.getsockname()[1])
+
+
+def test_serve_refuses_a_port_that_is_not_a_port(workspace: Path, task_id: str) -> None:
+    """A port that is not a port is refused, and refused before anything binds.
+
+    The service's own origin is computed from the port it was given, so a
+    port that names nothing would make the origin name a place nothing is
+    listening on. The refusal is the command's own, and says why the port
+    matters rather than only that it is wrong.
+
+    **The command is given a second defect on purpose** — an origin that is
+    not an origin — so that a command which got past this refusal is
+    refused for the origin instead of *starting the service*. A port of
+    zero is one the operating system would choose, so with this refusal
+    removed the service would start and the test would wait for a service
+    that never ends. The second defect makes the answer visible, and the
+    witness fails on the sentence rather than hanging.
+    """
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "serve",
+        "--port",
+        "0",
+        "--origin",
+        "not-an-origin",
+        "--json",
+    )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "is not a port number" in payload["message"]
+
+
+def test_serve_refuses_an_origin_that_is_not_an_origin(workspace: Path, task_id: str) -> None:
+    """An origin that is not spelled as one is refused.
+
+    A path or a trailing slash would never match the header the browser
+    sends, so accepting one would be accepting an origin that does nothing.
+    The refusal says what an origin is, so the developer can spell one.
+
+    **Told apart by its sentence, and it says which one it is.** The origin
+    that carries a path is refused by the next refusal, with the same reason
+    and a different sentence; a witness that asserted only the reason would
+    be satisfied by either, so this one asserts the sentence.
+    """
+    with _a_taken_port() as port:
+        result = run_cli(
+            "--workspace",
+            str(workspace),
+            "serve",
+            "--origin",
+            "not-an-origin",
+            "--port",
+            str(port),
+            "--json",
+        )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "An origin is a scheme, a host and a port" in payload["message"]
+
+
+def test_serve_refuses_an_origin_that_carries_a_path(workspace: Path, task_id: str) -> None:
+    """An origin that carries more than an origin is refused.
+
+    This is a different refusal from the one above, and it says so: an
+    origin carries no path, no query and no fragment. The two refusals are
+    told apart by the words they use, which is why both are watched.
+
+    **The witness holds the port** so that a command which got past this
+    refusal is refused for the address instead of starting the service. See
+    :func:`_a_taken_port`: without it the witness passed on a machine whose
+    port 8000 was busy and hung on a machine whose port 8000 was free, and
+    neither of those is a witness.
+    """
+    with _a_taken_port() as port:
+        result = run_cli(
+            "--workspace",
+            str(workspace),
+            "serve",
+            "--origin",
+            "http://localhost:5173/path",
+            "--port",
+            str(port),
+            "--json",
+        )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "carries no path, no query and no fragment" in payload["message"]
+
+
+def test_serve_refuses_a_workbench_that_is_not_a_directory(
+    workspace: Path, task_id: str, tmp_path: Path
+) -> None:
+    """A workbench that is not a directory is refused, not ignored.
+
+    The service would answer on its own origin with no workbench on it, and
+    the developer would be left with a service that serves nothing and no
+    reason why.
+
+    **The witness holds the port** so that a command which got past this
+    refusal is refused for the address instead of starting the service. See
+    :func:`_a_taken_port`.
+    """
+    not_a_directory = tmp_path / "not-a-directory"
+    not_a_directory.write_text("a file, not a directory", encoding="utf-8")
+
+    with _a_taken_port() as port:
+        result = run_cli(
+            "--workspace",
+            str(workspace),
+            "serve",
+            "--static-dir",
+            str(not_a_directory),
+            "--port",
+            str(port),
+            "--json",
+        )
+
+    assert result.returncode == EXIT_REFUSED
+    payload = result.json()
+    assert payload["reason"] == "invalid_arguments"
+    assert "no built workbench there to serve" in payload["message"]
 
 
 # --------------------------------------------------------------------------- #

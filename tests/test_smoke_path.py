@@ -18,20 +18,22 @@ failed, and a demonstration that printed its lines and swallowed every failure
 would exit zero as readily. So this file also runs the demonstration with a
 claim planted false and requires a non-zero exit, and runs it again with a
 real defect in the product -- the service answering with bytes that are not
-the stored file's bytes -- and requires a non-zero exit there too. **Both
-faults are planted from outside:** the demonstration's own source is never
-edited, and it has no hook a test could use, because a hook inside the gate's
-exit test is a new way for the demonstration to lie about what it did.
+the stored file's bytes -- and requires a non-zero exit there too, and once
+more with a service whose task document is not the CLI's, so the gate's own
+exit test is watched from the outside as well. **All three faults are planted
+from outside:** the demonstration's own source is never edited, and it has no
+hook a test could use, because a hook inside the gate's exit test is a new way
+for the demonstration to lie about what it did.
 
 The output is asserted too, but for the things the exit code cannot say on
 its own: that the eight steps actually ran, that the refusals were refusals
 with a reason rather than crashes, that the two surfaces were compared against
 **one** store, and that the demonstration said what it did not exercise.
 
-**It runs three times for the whole module, not once per assertion.** The
+**It runs four times for the whole module, not once per assertion.** The
 demonstration walks the whole path -- a workspace, a database, a figure drawn
 by matplotlib, four exported forms -- and takes about fifteen seconds, so the
-runs are module-scoped: one clean run, one with a claim planted false, and one
+runs are module-scoped: one clean run, one with a claim planted false, and two
 with a defect planted in the product. Running it again for every assertion
 would multiply that for no extra evidence.
 
@@ -104,10 +106,10 @@ PLANTED_CLAIM: str = "the database is at the newest migration"
 #: The demonstration, driven with a fault planted in it.
 #:
 #: The program is here rather than in a file of its own because the fault has
-#: to be planted *from outside*: the demonstration is loaded as a module, its
-#: own ``check()`` is wrapped, and its source is never edited. A seam inside
-#: the demonstration would be a new way for the gate's exit test to lie about
-#: what it did.
+#: to be planted *from outside*: the demonstration is loaded as a module, and
+#: either its own ``check()`` or a call the product makes on its behalf is
+#: wrapped, and its source is never edited. A seam inside the demonstration
+#: would be a new way for the gate's exit test to lie about what it did.
 DRIVER: str = """
 import importlib.util
 import sys
@@ -137,6 +139,22 @@ elif mode == "altered-bytes":
         return content.model_copy(update={"content": content.content + b"!"})
 
     routes.read_artifact = read_artifact
+elif mode == "altered-task-state":
+    import labcairn.api.routes as routes
+
+    unaltered = routes.read_task_state
+
+    def read_task_state(context, *arguments, **keywords):
+        state = unaltered(context, *arguments, **keywords)
+        return state.model_copy(
+            update={
+                "task": state.task.model_copy(
+                    update={"title": state.task.title + " (the service's own title)"}
+                )
+            }
+        )
+
+    routes.read_task_state = read_task_state
 
 sys.exit(demo.main())
 """
@@ -266,6 +284,18 @@ def altered_bytes_run(repo_root: Path) -> subprocess.CompletedProcess[str]:
     demonstration is run exactly as it is run everywhere else.
     """
     return _run_with_a_fault(repo_root, "altered-bytes")
+
+
+@pytest.fixture(scope="module")
+def altered_task_state_run(repo_root: Path) -> subprocess.CompletedProcess[str]:
+    """The demonstration's run, with the service answering a different task.
+
+    The defect is planted from outside the demonstration: the API route's own
+    read of the task state is wrapped, so the service answers with the task
+    and a title the CLI never saw. Nothing in the repository is edited, and
+    the demonstration is run exactly as it is run everywhere else.
+    """
+    return _run_with_a_fault(repo_root, "altered-task-state")
 
 
 @pytest.mark.e2e
@@ -450,6 +480,51 @@ def test_the_demonstration_fails_when_the_service_serves_the_wrong_bytes(
     )
     assert "5. The three surfaces agree" in output, (
         "the demonstration never reached the comparison of the report's bytes"
+    )
+
+
+@pytest.mark.e2e
+def test_the_demonstration_fails_when_the_two_surfaces_really_disagree(
+    altered_task_state_run: subprocess.CompletedProcess[str],
+) -> None:
+    """Two surfaces that really disagree make the run fail.
+
+    **The gate's own exit test, watched from the outside.** The
+    demonstration's control shows that its comparison can find a difference;
+    it does not show that the check *asked* the comparison the question it
+    meant to ask -- a comparison called with the wrong second argument reports
+    "no differences" and the control, which asks a different call a different
+    question, still passes. So this runs the demonstration against a service
+    whose task document is not the CLI's, and requires a non-zero exit.
+
+    The defect is planted from outside -- the API route's own read of the task
+    state is wrapped, so the service answers with a title of its own -- and
+    the failure has to name both the comparison that caught it and the field
+    that differed, so a run which died for some other reason does not pass
+    here.
+    """
+    output = altered_task_state_run.stdout
+    error = altered_task_state_run.stderr
+
+    assert altered_task_state_run.returncode != 0, (
+        "the demonstration exited zero with the service answering a task document "
+        "the CLI's did not match, so the two surfaces were never really "
+        "compared: " + output
+    )
+    assert (
+        "FAILED: the CLI's task state and the API's task document are the same, "
+        "field by field" in error
+    ), "the run failed, but not on the comparison of the two surfaces' task documents: " + error
+    assert ".task.title" in error, (
+        "the run failed on the comparison of the two surfaces' task documents, but "
+        "it did not name the field that differed: " + error
+    )
+    assert "5. The three surfaces agree" in output, (
+        "the demonstration never reached the comparison of the two surfaces"
+    )
+    assert "checks passed." not in output, (
+        "the demonstration reported that every one of its checks held, so the two "
+        "surfaces' disagreement did not stop the run"
     )
 
 

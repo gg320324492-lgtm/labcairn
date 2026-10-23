@@ -359,6 +359,27 @@ def _reject_hostile_spelling(value: str) -> str:
     return unicodedata.normalize("NFC", value)
 
 
+def check_spelling(value: str) -> str:
+    """The spelling guard, asked on its own.
+
+    **The guard answers about the spelling; the filesystem answers about the
+    file.** A caller that has a name it cannot speak must ask this first,
+    because the filesystem's answer to such a name is not an answer at all:
+    ``Path.resolve()`` on a name carrying a NUL byte raises a bare
+    ``ValueError``, and a bare ``ValueError`` is a crash where the caller
+    promised a refusal. :class:`PathRefusedError` is the same refusal the
+    rest of this module raises, and it says which spelling it was.
+
+    :param value: the name as the caller wrote it.
+    :returns: the NFC-normalised spelling of *value*.
+    :raises PathRefusedError: *value* is a spelling this build cannot speak —
+        a NUL byte in it, an invisible character, a segment that ends in a
+        dot, an alternate-data-stream colon, a percent-escape that decodes to
+        a structural character, a namespace or UNC prefix.
+    """
+    return _reject_hostile_spelling(value)
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------

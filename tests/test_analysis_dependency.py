@@ -144,6 +144,15 @@ def _render_in_another_process() -> str:
         [sys.executable, "-c", program],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. Leaving either
+        # to the machine's locale is how a non-ASCII path turns into a
+        # swallowed decode error and a capture that comes back as None --
+        # and then ``done.stderr.strip()`` is an AttributeError that says
+        # nothing about the cause.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
     assert done.returncode == 0, (

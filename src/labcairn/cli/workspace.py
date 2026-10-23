@@ -32,6 +32,7 @@ import json
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from labcairn.core.ids import TaskId
 from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import Effect
+from labcairn.security.paths import PathRefusedError, check_spelling
 from labcairn.security.policy import Permission, PermissionPolicy, Rule, default_policy
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace, WorkspaceError
 
@@ -385,23 +387,168 @@ def _optional_effects(value: Any) -> frozenset[Effect] | None:
         raise ValueError(f"unknown effect in a rule scope: {error}") from error
 
 
+class SourceRootKind(StrEnum):
+    """The ways a configured source root can be unusable.
+
+    **The values are the words the refusals use.** ``missing`` is the word
+    the missing-root refusal writes, ``not a directory`` is the word the
+    refusal for a file writes, and ``outside the workspace`` is the word the
+    refusal for a root the workspace does not contain writes. A diagnostic
+    that named the condition differently from the refusal would be telling
+    the operator two things about the same source root, and one of them
+    would be wrong.
+
+    ``unusable name`` is the fourth, and it is the one the product's own
+    spelling guard answers: a name carrying a NUL byte, an invisible
+    character, a segment ending in a dot, or any of the other spellings
+    :mod:`labcairn.security.paths` refuses.
+    """
+
+    #: The name is one this build cannot speak.
+    UNUSABLE_NAME = "unusable name"
+    #: The name resolves to somewhere the workspace does not contain.
+    OUTSIDE_THE_WORKSPACE = "outside the workspace"
+    #: The name is in the configuration and not on the disk.
+    MISSING = "missing"
+    #: The name is on the disk, and it is a file.
+    NOT_A_DIRECTORY = "not a directory"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRootProblem:
+    """One configured source root, and the way it cannot be used.
+
+    ``name`` is the configured name, as the configuration writes it — the
+    name the operator has to act on, and not the resolved path.
+
+    ``resolved`` is where the name resolves to, when the filesystem could
+    say; it is ``None`` when the guard was the one that refused.
+
+    ``detail`` is what the product's own guard said, when it was the guard
+    that refused. It is empty for the three conditions the filesystem
+    answers, because for those the refusal speaks in the CLI's own words.
+    """
+
+    name: str
+    kind: SourceRootKind
+    resolved: Path | None = None
+    detail: str = ""
+
+
+def source_root_problem(location: WorkspaceLocation, relative: str) -> SourceRootProblem | None:
+    """How the configured source root *relative* is unusable, if it is.
+
+    **The order is the product's own, and it is load-bearing.** The spelling
+    guard is asked **first**, because a name the product cannot speak is not
+    a question for the filesystem: ``Path.resolve()`` on a name carrying a
+    NUL byte raises a bare ``ValueError`` — not an ``OSError``, and not the
+    layer's :class:`~labcairn.security.paths.PathRefusedError` — so a caller
+    that asked the filesystem first let it escape as a traceback, which is
+    the shape F54 was raised for. The guard answers that question, and the
+    guard's answer is a refusal the CLI already knows how to render.
+
+    Then the filesystem answers the three questions it can answer, in the
+    order the refusals name them: outside the workspace, missing, and not a
+    directory.
+
+    **This is the one place the answer is computed.** The commands' refusals
+    and the diagnostic ``doctor`` prints are both built from it, so that a
+    source root the commands will refuse is a source root the diagnostic
+    reports, and the two say the same thing about it.
+
+    :returns: the problem, or ``None`` when the source root is usable.
+    """
+    try:
+        check_spelling(relative)
+    except PathRefusedError as error:
+        return SourceRootProblem(
+            relative, SourceRootKind.UNUSABLE_NAME, detail=_as_a_sentence(str(error))
+        )
+    declared = location.root / relative
+    try:
+        candidate = declared.resolve()
+    except (OSError, RuntimeError, ValueError) as error:
+        # A name the filesystem cannot even answer about is a name this
+        # build cannot use, and saying so is a refusal rather than a crash.
+        return SourceRootProblem(
+            relative, SourceRootKind.UNUSABLE_NAME, detail=_as_a_sentence(str(error))
+        )
+    if not candidate.is_relative_to(location.root):
+        return SourceRootProblem(relative, SourceRootKind.OUTSIDE_THE_WORKSPACE, resolved=candidate)
+    if not declared.exists():
+        return SourceRootProblem(relative, SourceRootKind.MISSING, resolved=candidate)
+    if not declared.is_dir():
+        return SourceRootProblem(relative, SourceRootKind.NOT_A_DIRECTORY, resolved=candidate)
+    return None
+
+
+def _as_a_sentence(text: str) -> str:
+    """The text, with the full stop it needs to end a sentence.
+
+    **The guard's own details do not agree about their punctuation** — one
+    ends with a full stop and one does not — and the refusal that quotes
+    them has to read as a sentence whichever of them it is quoting.
+    """
+    return text if text.endswith(".") else f"{text}."
+
+
 def source_paths(location: WorkspaceLocation, config: WorkspaceConfig) -> tuple[Path, ...]:
     """The source roots, as absolute paths.
 
-    A source directory that is not inside the workspace is refused here rather
-    than by the layer, so the message can name the directory the operator
-    named instead of a path they did not.
+    Two things are refused here rather than by the layer, and both are refused
+    for the same reason: **the layer can only say it in terms of the path it
+    was given, and the operator named the directory.** A source directory that
+    is not inside the workspace is a root the operator's selection does not
+    govern; a source directory that is not there cannot be bound at all.
+
+    **A source root that is missing is refused here, and not left to the
+    layer.** :meth:`~labcairn.workspace.roots.Workspace.bind` refuses a root
+    it cannot canonicalise with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and **not** an ``OSError`` — so a caller that catches only
+    the latter lets it escape as a traceback. A traceback is a crash, and the
+    CLI's own rule is that a crash is a bug: a refusal is rendered, with the
+    exit code a refusal has.
+
+    The refusal here says what the operator can act on — *which directory is
+    missing* — where the layer's says how the machinery failed.
+
+    **The spelling guard is asked before the filesystem is.** The order is
+    :func:`source_root_problem`'s, and it is the product's own order: a name
+    the product cannot speak is not a question for the filesystem, and asking
+    the filesystem first is how a NUL byte in a configured source root became
+    a bare ``ValueError`` and a traceback. See that function for the whole
+    of it.
     """
     paths: list[Path] = []
     for relative in config.source_dirs:
-        candidate = (location.root / relative).resolve()
-        if not candidate.is_relative_to(location.root):
+        problem = source_root_problem(location, relative)
+        if problem is not None:
+            declared = location.root / relative
+            if problem.kind is SourceRootKind.UNUSABLE_NAME:
+                raise WorkspaceSetupError(
+                    f"the source directory {relative!r} is not a name this build can "
+                    f"use: {problem.detail} A source root is named by a path the "
+                    "workspace can speak."
+                )
+            if problem.kind is SourceRootKind.OUTSIDE_THE_WORKSPACE:
+                raise WorkspaceSetupError(
+                    f"the source directory {relative!r} resolves to {problem.resolved}, "
+                    f"which is outside the workspace {location.root}. A source root the "
+                    "workspace does not contain is a root the operator's selection does "
+                    "not govern."
+                )
+            if problem.kind is SourceRootKind.MISSING:
+                raise WorkspaceSetupError(
+                    f"the source directory {relative!r} is missing: {declared}. The "
+                    "workspace's configuration names it, and a source root that is not "
+                    "there cannot be bound."
+                )
             raise WorkspaceSetupError(
-                f"the source directory {relative!r} resolves to {candidate}, which is "
-                f"outside the workspace {location.root}. A source root the workspace "
-                "does not contain is a root the operator's selection does not govern."
+                f"the source directory {relative!r} is {declared}, which is not a "
+                "directory. A source root is a directory."
             )
-        paths.append(candidate)
+        paths.append((location.root / relative).resolve())
     return tuple(paths)
 
 
@@ -416,6 +563,13 @@ def bind_workspace(
         there, or a configured source directory is missing. The layer refuses
         the same thing, but it can only say it in terms of the path it was
         given, and the operator named the directory.
+
+    **All three of the layer's refusals are caught here.** The layer refuses a
+    root it cannot bind with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and not an ``OSError``; catching only the latter let it
+    escape the CLI's handler as a traceback, which is a crash where the
+    program had promised a refusal.
     """
     try:
         return Workspace.bind(
@@ -423,7 +577,7 @@ def bind_workspace(
             task_id=task_id,
             source_dirs=source_paths(location, config),
         )
-    except (WorkspaceError, OSError) as error:
+    except (WorkspaceError, PathRefusedError, OSError) as error:
         raise WorkspaceSetupError(
             f"the workspace at {location.root} could not be bound: {error}"
         ) from error
@@ -472,6 +626,8 @@ __all__ = [
     "MATERIALS_DIR_NAME",
     "POLICY_FILE_NAME",
     "SESSION_TOKEN_FILE_NAME",
+    "SourceRootKind",
+    "SourceRootProblem",
     "WorkspaceConfig",
     "WorkspaceLocation",
     "WorkspaceSetupError",
@@ -482,6 +638,7 @@ __all__ = [
     "locate",
     "read_config",
     "source_paths",
+    "source_root_problem",
     "write_config",
     "write_policy",
 ]

@@ -74,6 +74,7 @@ if TYPE_CHECKING:
         DoctorReport,
         ProviderFinding,
         ServiceStarting,
+        SourceRootFinding,
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
@@ -201,10 +202,18 @@ def _refusals(as_json: bool) -> Iterator[None]:
     Both the layer's refusals and the CLI's own two conditions come out of
     here, so every failure a command can have has one rendering, one exit
     code and one JSON shape.
+
+    **A path the workspace binds cannot be resolved is a refusal too.** The
+    layer refuses a root it cannot canonicalise with
+    :class:`~labcairn.security.paths.PathRefusedError`, which is a
+    ``ValueError`` and not an ``OSError``, so a handler that caught only the
+    latter let it out as a traceback. A traceback is a crash, and this module's
+    own rule is that a crash is a bug.
     """
     from labcairn.application import ApplicationRefusedError
     from labcairn.cli.models import CLI_REFUSAL_WORKSPACE_UNUSABLE, emit_refusal
     from labcairn.cli.workspace import WorkspaceSetupError
+    from labcairn.security.paths import PathRefusedError
 
     try:
         yield
@@ -216,6 +225,13 @@ def _refusals(as_json: bool) -> Iterator[None]:
         emit_refusal(
             CLI_REFUSAL_WORKSPACE_UNUSABLE,
             str(error),
+            as_json=as_json,
+        )
+        raise typer.Exit(code=EXIT_REFUSED) from None
+    except PathRefusedError as error:
+        emit_refusal(
+            CLI_REFUSAL_WORKSPACE_UNUSABLE,
+            f"the workspace could not be bound: {error}",
             as_json=as_json,
         )
         raise typer.Exit(code=EXIT_REFUSED) from None
@@ -427,6 +443,16 @@ def doctor(
     disagree. This is the command that most wants to be a paragraph, and the
     one the architecture's rule catches; the way out is to make the paragraph
     generated rather than written.
+
+    **A workspace that cannot be used is reported, not called fine.** Every
+    configured source root the commands will refuse is named in the findings,
+    together with **which of the ways** it is unusable — missing, not a
+    directory, outside the workspace, or a name this build cannot speak —
+    because the module refuses to bind a workspace that names one, and a
+    diagnostic that said nothing about it would be saying the workspace is
+    fine when no command can use it. The command still reports: a
+    diagnostic that refuses to run on the thing that is broken is not a
+    diagnostic.
     """
     from labcairn.cli import render
     from labcairn.cli.models import emit_model
@@ -489,6 +515,7 @@ def _doctor_report(
         root=str(location.root),
         initialised=config is not None,
         source_dirs=config.source_dirs if config is not None else (),
+        unusable_source_roots=_unusable_source_roots(location, config),
         output_root=str(location.output_path),
         current_task=config.current_task if config is not None else None,
     )
@@ -506,6 +533,48 @@ def _doctor_report(
         providers=_provider_findings(location, probe=probe, assume_capability=assume_capability),
         api_session=session,
     )
+
+
+def _unusable_source_roots(
+    location: WorkspaceLocation,
+    config: WorkspaceConfig | None,
+) -> tuple[SourceRootFinding, ...]:
+    """The configured source roots the commands will refuse, and how.
+
+    **A source root the commands will refuse is a workspace that cannot be
+    bound.** The module refuses it — ``labcairn.cli.workspace.source_paths``
+    refuses a root that is missing, one that is a file, one the workspace
+    does not contain, and one whose name this build cannot speak — so every
+    task-scoped command refuses the workspace with it. A diagnostic that
+    reported the workspace as initialised and said nothing about the root
+    would be reporting a workspace as fine that no command can use.
+
+    **Every way, and each one named.** The finding used to be a list of
+    names, computed as "not a directory on disk", which is two conditions
+    under one word and neither of them the word the refusal used: a source
+    root that was a file was reported as *missing*, and a source root the
+    workspace did not contain was not reported at all — so the diagnostic
+    said the workspace was initialised while every task-scoped command
+    refused it.
+
+    The answer is computed by the same function the commands' refusals are
+    computed by, so the diagnostic and the refusal cannot disagree about the
+    same source root.
+
+    The names are the ones the configuration writes, because those are the
+    names the operator has to act on.
+    """
+    from labcairn.cli.models import SourceRootFinding
+    from labcairn.cli.workspace import source_root_problem
+
+    if config is None:
+        return ()
+    findings: list[SourceRootFinding] = []
+    for relative in config.source_dirs:
+        problem = source_root_problem(location, relative)
+        if problem is not None:
+            findings.append(SourceRootFinding(name=problem.name, problem=problem.kind.value))
+    return tuple(findings)
 
 
 def _head_revision() -> str:
@@ -828,11 +897,27 @@ def _resolve_source_dirs(
     operator's selection of the workspace does not govern, and the layer
     refuses it too — but the layer cannot say which directory the operator
     named.
+
+    **The spelling guard is asked before the filesystem is**, for the same
+    reason the module asks it first: ``Path.resolve()`` on a name carrying a
+    NUL byte raises a bare ``ValueError``, which is a crash where the
+    command promised a refusal. The guard's answer is a refusal the command
+    can render.
     """
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+    from labcairn.cli.workspace import SourceRootKind, source_root_problem
 
     directories = list(config.source_dirs)
     for entry in requested:
+        problem = source_root_problem(location, entry)
+        if problem is not None and problem.kind is SourceRootKind.UNUSABLE_NAME:
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"the source directory {entry!r} is not a name this build can use: "
+                f"{problem.detail} `task create` binds source roots the workspace can "
+                "speak, and it will not make one up.",
+                as_json=as_json,
+            )
         candidate = (location.root / entry).resolve()
         if not candidate.is_relative_to(location.root):
             _refuse(
@@ -1495,6 +1580,20 @@ def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     The refusal is rendered rather than raised, because a service that could
     not start is not a crash: it is a service that declined, and the two are
     told apart by their exit code.
+
+    **The bind refusal carries this command's own sentence as well as the
+    layer's reason.** The layer's words alone are not a refusal this command
+    can be held to: a message that is only ``str(error)`` is another
+    component's refusal passing through, and nothing in the tree can say
+    which site refused or tell this one apart from the address check's. So
+    the sentence is the command's own, and the guard's reason follows it.
+
+    **The address is not named here, because the guard is the one that knows
+    which address it refused.** The command asked for one address and the
+    service may have been handed another, so a sentence that named the
+    command's address would be a claim about an address the refusal is not
+    about. The guard names the address in its own words, and they are carried
+    through whole.
     """
     from labcairn.api.bind import BindRefusedError
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
@@ -1502,7 +1601,11 @@ def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     try:
         run_service(app, host=host, port=port)
     except BindRefusedError as error:
-        _refuse(CLI_REFUSAL_INVALID_ARGUMENTS, str(error), as_json=as_json)
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the service's own guard refused the bind: {error}",
+            as_json=as_json,
+        )
     except SystemExit:
         _refuse(
             CLI_REFUSAL_INVALID_ARGUMENTS,

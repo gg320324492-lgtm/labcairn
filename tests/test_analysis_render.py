@@ -512,6 +512,15 @@ def _out_of_process(drawn: _Drawn, *, unset_salt: bool = False) -> str:
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. Leaving either
+        # to the machine's locale is how a non-ASCII path turns into a
+        # swallowed decode error and a capture that comes back as None --
+        # and then ``done.stderr.strip()`` is an AttributeError that says
+        # nothing about the cause.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
     assert done.returncode == 0, (
@@ -553,6 +562,15 @@ def _preparing_processes(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            # Both halves of the pipe are stated, and they agree: the child
+            # is told to write UTF-8 and the parent decodes UTF-8. Leaving
+            # either to the machine's locale is how a non-ASCII path turns
+            # into a swallowed decode error and a capture that comes back as
+            # None. Here the child's stdin carries the payload too, so the
+            # two directions have to be in step as well.
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             bufsize=1,
         )
         for _ in range(count)
@@ -597,6 +615,13 @@ def _watching(settings: Path, report: Path) -> subprocess.Popen[str]:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. Its standard
+        # output is the null device, so the only stream decoded here is its
+        # error output -- which is where a crash puts the path it died on.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     stream = watcher.stdin
     assert stream is not None, "the watcher was given a pipe for its input"

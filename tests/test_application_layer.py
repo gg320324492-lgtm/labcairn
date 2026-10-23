@@ -774,6 +774,101 @@ def test_a_parked_stage_completes_when_the_approval_arrives(
     assert result.operation.state is OperationState.CONFIRMED
 
 
+def test_a_run_that_follows_an_approval_reuses_the_operation_it_was_bound_to(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """One piece of work, one operation, whatever the log says about it.
+
+    The approval was asked for against an operation, and the stage that runs
+    once the answer arrives is that operation and not a new one. A second row
+    would put two operations in the audit log for one piece of work, and the
+    log is what a reader takes the history from.
+
+    The count is the property, and the identity is what makes it the *same*
+    operation: a run that planned a fresh one would also leave a confirmed
+    operation behind, so the stage would still complete and the operation
+    would still be confirmed — of the wrong operation.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    result = run_stage(
+        context,
+        _stage_request(approval_id=requested.approval.approval_id),
+        _work,
+        now=_MOMENT,
+    )
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        "the store holds "
+        f"{len(operations)} operations for one piece of work: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert operations[0].operation_id == requested.approval.operation_id, (
+        "the operation the store holds is "
+        f"{operations[0].operation_id}, but the approval named "
+        f"{requested.approval.operation_id}"
+    )
+    assert result.operation.operation_id == requested.approval.operation_id, (
+        "the run performed the work under "
+        f"{result.operation.operation_id}, but the approval named "
+        f"{requested.approval.operation_id}"
+    )
+
+
+def test_a_run_that_follows_an_approval_reuses_that_approvals_operation_and_not_another(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The operation the approval names, and not the one that happens to be first.
+
+    A task can be waiting for an answer about more than one thing, and the
+    store holds an operation for each of them. The stage that follows an
+    approval must pick out the operation **that approval** was asked for: the
+    operations are held in the order they were planned, and the one planned
+    first is not the one this consent was given for.
+    """
+    ledger = ApprovalLedger()
+    context = _make_context(env, workspace_root, _ask_all(), ledger=ledger)
+    # Another question was put to the operator first, about another file, and
+    # it is still unanswered — so its operation is the older of the two.
+    request_approval(
+        context,
+        ApprovalRequest(use=_use("two.csv"), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    requested = request_approval(
+        context,
+        ApprovalRequest(use=_use(), expires_at=_MOMENT.replace(hour=1)),
+        now=_MOMENT,
+    )
+    grant_approval(context, requested.approval.approval_id, now=_MOMENT)
+
+    result = run_stage(
+        context,
+        _stage_request(approval_id=requested.approval.approval_id),
+        _work,
+        now=_MOMENT,
+    )
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 2, (
+        "the run planned a third operation for work that was already planned: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert result.operation.operation_id == requested.approval.operation_id, (
+        "the run performed the work under "
+        f"{result.operation.operation_id}, which is not the operation the "
+        f"approval named ({requested.approval.operation_id})"
+    )
+
+
 def test_a_parked_stage_that_completes_carries_no_reason(
     env: StoreEnv, workspace_root: Path
 ) -> None:
@@ -2098,13 +2193,13 @@ def test_the_page_is_serialisable_as_data(env: StoreEnv, workspace_root: Path) -
 # --------------------------------------------------------------------------- #
 
 
-def _use() -> ApprovalUse:
+def _use(resource_key: str = "one.csv") -> ApprovalUse:
     """What an approval is spent on, matching the stage request."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
         arguments={"operator_id": "mean", "parameters": {}},
         root_id="source:0",
-        resource_key="one.csv",
+        resource_key=resource_key,
     )
 
 
@@ -2361,6 +2456,78 @@ def test_a_run_never_attempts_an_operation_that_is_still_waiting_for_an_answer(
     )
     after = _the_operations(env, context.task_id)
     assert after[waiting.operation_id].state is OperationState.AWAITING_APPROVAL
+
+
+def test_a_run_that_follows_a_crash_reuses_the_operation_that_was_authorised(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The operation that was authorised and never attempted is the one that runs.
+
+    **The intent is written ahead of the attempt**, so a run that dies between
+    the two leaves an operation ``AUTHORIZED`` and nothing attempted. The run
+    that follows must pick that operation up and attempt it, rather than plan
+    a second operation for the same work: two operations for one piece of work
+    would make the audit log say it happened twice.
+
+    The death is staged where the product's own ordering puts it — between the
+    intent and the attempt — so what the resumed run finds is a state the
+    product can reach on its own, and not one this test wrote by hand.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+
+    _die_between_the_intent_and_the_attempt(monkeypatch)
+    with pytest.raises(_TheRunDiedBeforeTheAttemptError):
+        run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    # What the death left behind: one operation, authorised, never attempted.
+    planned = _the_operations(env, context.task_id)
+    assert len(planned) == 1, f"the death left {len(planned)} operations behind"
+    authorised = next(iter(planned.values()))
+    assert authorised.state is OperationState.AUTHORIZED
+
+    result = run_stage(context, _a_stage_request_in(run_id), _work, now=_MOMENT)
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        "the store holds "
+        f"{len(operations)} operations for one piece of work: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert result.operation.operation_id == authorised.operation_id, (
+        "the run performed the work under "
+        f"{result.operation.operation_id}, but the operation that was authorised "
+        f"and never attempted was {authorised.operation_id}"
+    )
+    assert result.operation.state is OperationState.CONFIRMED, (
+        f"the operation the resumed run reused is {result.operation.state.value}, not confirmed"
+    )
+
+
+def test_a_stage_that_runs_twice_plans_two_operations(env: StoreEnv, workspace_root: Path) -> None:
+    """The work ran twice, so the log says it ran twice.
+
+    An operation that is already ``CONFIRMED`` is not one a later run may
+    pick up: the stage does the work again, and an operation that carried
+    both attempts would leave the audit log saying the work happened once when
+    it happened twice. The second run plans its own operation, and the store
+    holds one per attempt.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    run_id = RunId(new_id())
+    first = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+    second = run_stage(context, _stage_request(run_id=run_id), _work, now=_MOMENT)
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 2, (
+        f"the store holds {len(operations)} operations for two attempts: "
+        f"{[str(operation.operation_id) for operation in operations]}"
+    )
+    assert second.operation.operation_id != first.operation.operation_id, (
+        "the second run performed the work under the same operation as the "
+        f"first ({first.operation.operation_id}), so the log says the work "
+        "happened once when it happened twice"
+    )
 
 
 def test_the_four_forms_the_layer_writes_are_the_canonical_document(

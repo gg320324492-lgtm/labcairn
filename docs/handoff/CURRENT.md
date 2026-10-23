@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-21
-**Current `main`:** `2e485b0` — PR #81, T13: the layer renders the report, and records the revision. The merges since the previous refresh are #69 (the report artefact manifest), #70 (the two-column band the independent review of G3 found), #71 (the report's four renderers), #72 (the report's content checks), #73 (the local FastAPI service, its three guards and the typed contract), #74 (the layer's event read, and the cursor that resumes it), #75 (the source id's type, brought back in line with the data), #76 (the Typer CLI), #77 (the report's revisions, and the staleness that finds them), #78 (G3 closed on an independent review, and the records say so), #79 (the report's document, built from what the task has), #80 (the local research workbench) and #81 (the layer renders the report, and records the revision).
+**Date:** 2026-10-23
+**Current `main`:** `<G4COMMIT>` — the gate's record and its fixes, the commit that closes G4. The merges since the previous refresh are #87 (every subprocess in the packaging test now has a ceiling), #88 (the doctor finds the session token, and the service lets go of the store), #89 (**`labcairn serve`**, the command that starts the local API service), #90 (the escape table holds eighteen characters), #91 (the service gives every request a session of its own), #92 (the report's material, the Markdown's whitespace, and the refusals nobody watched), #93 (the ingestion operation: the layer can read the material, and the CLI can bind it), #94 (the walk records where the material is, not the key it was handed), #95 (the material's one source, and the numbers in all four forms), #96 (the four forms are compared with the document they are drawn from), #101 (the demonstration's approval outlives the grant, at any hour — the gate's exit test had a time bomb in it, and no CI run had ever run after 13:00 UTC), #106 (the batch: **the two blockers and the six notes** the three surfaces' independent review found — among them the demonstration's **exit code** was not load-bearing, and a stage run that followed an approval **planned a second operation** — plus the **five defects the fixing found**, one of them an **authorisation bypass**, one of them a **time bomb in the gate's own exit demonstration**, and one of them a duplicated sentence in that demonstration's own output) and #108 (the working rules, written down where a session will read them).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. It was then stale again at #32, and the claim it made — "Nothing is implemented" for LC-P1-09 — stopped being true at #33. **Thirteen merges passed with no refresh; this is the first refresh in thirteen merges** — the file named `8fb9f18` (PR #68) as current, and the claim it made — "**No research capability yet.** There is no CLI, no server, no web UI" — stopped being true at #73 (the local FastAPI service), #76 (the Typer CLI) and #80 (the React workbench). Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -13,7 +13,7 @@
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
-| **G4** | **in flight** — LC-P1-11 and LC-P1-12 are both IN PROGRESS. The report path and all three surfaces are merged; **the exit test, *"CLI and Web produce same versioned report"*, is not yet demonstrated** — the end-to-end smoke path (T09) is in flight. [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) — verdict PASS WITH NOTES, and **its reviewer's independence is not discharged**: the reviewer specified the work, dispatched it, wrote the fixes and reviewed them |
+| **G4** | **closed** — LC-P1-11 and LC-P1-12 both `PASS WITH NOTES`, and the gate closed on an **independent review** at `<G4COMMIT>` (verdict **PASS WITH NOTES** two reviewers who wrote none of the gate's fixes, one per scope — the report path's review **failed the gate five times** on a clean property table, and the three surfaces' review came back **BLOCKED five times and FAIL once**, the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings** — the shared rule's own witness, one command-level refusal, the pairing by value, and the crash fix's two catches — **were fixed, and the review re-verified its own findings against the fixed code and passed**. [G4 acceptance](../acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](../acceptance/LC-P1-12-acceptance.md) |
 
 ## What exists now
 
@@ -62,15 +62,56 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
-**G4's exit demonstration has not been run.** Its exit test — *"CLI and Web produce same versioned report"* — is not demonstrated: the end-to-end smoke path (T09) is in flight, and nothing yet compares the CLI's, the local API's and the workbench's report **bytes** **by hash**. The report is rendered by the application layer and served as an artefact's bytes; that the three surfaces produce the **same** report is a claim, not a measurement.
+**G4's exit test is now demonstrated — and it was not, until this gate's own review made it so.** The end-to-end smoke path (T09) runs from a clean workspace and a temporary database, with no network and no credential, and compares the CLI's `task status --json` against the local API's `GET /task` **field by field** — two hundred and fifty-five fields, none differing — and the report's **bytes by hash**, for each of the four forms, against the file the report operation wrote and the bytes the service serves.
 
-**Two limits are known and recorded.** The API's event stream is **not consumed by the workbench** — the service offers `/events` and `/events/stream`, and the workbench reads neither — and the workbench **cannot switch the selected project**, because the API has no such operation.
+**Three limits are known and recorded.** The API's event stream is **not consumed by the workbench** — the service offers `/events` and `/events/stream`, and the workbench reads neither — and the workbench **cannot switch the selected project**, because the API has no such operation. And the **workbench is never driven against the live service**: its tests use a fake at the `fetch` boundary, so *"CLI and UI show identical Task state"* is discharged **through the API** rather than measured between the two.
+
+**A read still takes SQLite's write lock.** `db/session.py` opens every transaction with `BEGIN IMMEDIATE`, which is right for a write and is ADR-0003 C3's clause; a read is a transaction too, so a read takes the write lock for as long as it is open. The per-request session bounds that window to one request, where before it was the life of the process, and the code's own comment — *"Readers do not block the writer"* — is true of WAL and **not of the application's own reads**. A deferred read connection would be the proper fix, and it was considered and not taken while the gate was closing: it is structural, it re-opens G2's accepted code, and nothing about the gate's exit test needs it.
 
 **The report's reproducible form is Markdown and HTML.** A DOCX is a ZIP whose entries carry timestamps and a PDF carries a creation date, so neither is byte-reproducible by default; the report says so on its own face.
 
 Retrieval now answers the two-negative question (T10): a search that breaks is a `PROVIDER_FAILURE` and never a `no_hit`, and the boundary refuses to hand a caller an empty context. What is still unbuilt around it is the model call the evidence would feed. And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is still to be made. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
-## Next: G4
+## Next: G5
+
+**G4 is closed** — LC-P1-11 (report assembly, export and artefact
+versioning) and LC-P1-12 (the Typer CLI and the local FastAPI + React
+workbench) — on the independent review at `<G4COMMIT>`, verdict
+**PASS WITH NOTES.**
+The [gate review](../acceptance/G4-acceptance.md) records
+the method, the two mutation tables, the sixty-six findings, and the
+limits that are limits. LC-P1-11's and LC-P1-12's own acceptance reviews
+are [written up](../acceptance/LC-P1-11-acceptance.md) and
+[written up](../acceptance/LC-P1-12-acceptance.md), both **PASS WITH NOTES**.
+**The report path's review failed the gate five times**, and the reason is
+the same each time: **a property table can be entirely clean and the review
+still fail.** The first was on two open defects and five unwatched refusals;
+the second on one unwatched refusal the first fix had introduced; the third on
+fourteen surviving mutations out of a hundred and sixteen; the fourth —
+after the fix that generalised the comparison of the four forms — on **eight**,
+in a class the fix's mechanism could not reach: **what a form says about
+itself outside its own text** (the DOCX's title property, the PDF's title and
+author, and the list-item shape of the Markdown and the DOCX); and the fifth,
+at `86e0226`, on **four** — which the fix under review had closed down to, and
+which **found a real defect of its own**: the list-item witness comparing a
+count rather than a marker.
+
+**The three surfaces' review came back BLOCKED**, on two blockers and six
+notes, one of the blockers sitting directly under the gate's own exit test —
+**and its re-verification came back BLOCKED again**, on two mutations that
+survive: **the witnesses for one of the blockers had been deleted by this
+gate's own composition**, and the demonstration's own comparison of the two
+surfaces is unwatched. **Every finding is fixed**, and both reviewers re-ran
+their own mutations against the fixed code.
+
+**G5 is the public alpha**: LC-P1-13 (evaluation, fault injection and a
+competitor baseline) and LC-P1-14 (the handoff dossier, the licence audit,
+and the two READMEs). **The licence audit is not optional and not
+deferred**: matplotlib's wheel **bundles forty TrueType fonts under two
+further licences**, and reportlab's under a third, so G5 must cover the
+bundled fonts and not the root licence line alone.
+
+## How G4 went
 
 LC-P1-08 (material parsing and locators) → LC-P1-09 (FTS5 retrieval and the evidence ledger) → LC-P1-10 (bounded statistics and deterministic plots).
 
@@ -121,7 +162,7 @@ Three facts about the rest of it are worth having before the code is written, be
 
 **The two-column PDF question is also settled, as a refusal.** Reading order is not reconstructed. A page that reads as two columns is refused and disclosed rather than extracted, because splicing two columns stores sentences the author never wrote — that defect was real, reproduced, and is the reason the refusal exists. Rotated text is still not detected, and there is no two-column paper in the repository to test detection against. The refusal has a **band below it** — a two-column page whose rival column holds under 30% of the page's line starts is not refused — and that band is stated in ADR-0008 and in the adapter's own docstring rather than left to be discovered from a wrong citation.
 
-**G4 is the next gate, and its plan is written.** [LC-P1-11 and LC-P1-12's task breakdown](../plans/LC-P1-11-12-task-breakdown.md): the report's document model with four renderers over it, the report artefact manifest, the revisions and the staleness, the content checks, and then the three surfaces — the Typer CLI, the local FastAPI service and the React workbench — behind one application layer they all call. **The five decisions in §1.4 were taken by the owner on 2026-10-20**: a report cites **locators only** (the source model has a place for identifiers that ingestion never fills and that nothing resolves); the CLI and the API serve the **same bytes**, so the gate's exit test is a hash comparison; the report's **reproducible form is Markdown and HTML** (a DOCX is a ZIP and a PDF carries a creation date, so by default neither is); the local API **refuses a foreign origin** and requires a token minted at start-up; and a receipt's chain is a **flat ancestor closure**, because the staleness walk that already exists is one hop, so the material's hash has to be directly in the report's chain. **The spine of G4 is in `main`, and so are the three surfaces' code**: the report's document model (`a9e7cf6`), the report artefact manifest (`6dcf2f1`), the four renderers (`d73f433`), the content checks (`3956df7`), the revisions (`a7697e7`), the document builder (`a84a10b`) and the layer's report operation (`2e485b0`) are merged, and so are the one application layer the three surfaces call (`d114810`, which brought the store's nine missing list and read queries with it), the Typer CLI (`99c3d49`), the local FastAPI service (`60ebe11`), the layer's event read (`e344a93`), the source id's type (`ba07dd5`) and the React workbench (`6c92e41`). The end-to-end smoke path (T09) is in flight, and **G4's exit test is not yet demonstrated**. G3 is closed, on the independent review at `d114810`; G4 is the gate in flight.
+**G4's plan is written, and the gate closed on it.** [LC-P1-11 and LC-P1-12's task breakdown](../plans/LC-P1-11-12-task-breakdown.md): the report's document model with four renderers over it, the report artefact manifest, the revisions and the staleness, the content checks, and then the three surfaces — the Typer CLI, the local FastAPI service and the React workbench — behind one application layer they all call. **The five decisions in §1.4 were taken by the owner on 2026-10-20**: a report cites **locators only** (the source model has a place for identifiers that ingestion never fills and that nothing resolves); the CLI and the API serve the **same bytes**, so the gate's exit test is a hash comparison; the report's **reproducible form is Markdown and HTML** (a DOCX is a ZIP and a PDF carries a creation date, so by default neither is); the local API **refuses a foreign origin** and requires a token minted at start-up; and a receipt's chain is a **flat ancestor closure**, because the staleness walk that already exists is one hop, so the material's hash has to be directly in the report's chain. **The spine of G4 is in `main`, and so are the three surfaces' code**: the report's document model (`a9e7cf6`), the report artefact manifest (`6dcf2f1`), the four renderers (`d73f433`), the content checks (`3956df7`), the revisions (`a7697e7`), the document builder (`a84a10b`) and the layer's report operation (`2e485b0`) are merged, and so are the one application layer the three surfaces call (`d114810`, which brought the store's nine missing list and read queries with it), the Typer CLI (`99c3d49`), the local FastAPI service (`60ebe11`), the layer's event read (`e344a93`), the source id's type (`ba07dd5`) and the React workbench (`6c92e41`). The end-to-end smoke path (T09) is merged, and **G4's exit test is demonstrated**: the CLI's task document and the local API's, field by field, and the report's bytes by hash. G3 is closed, on the independent review at `d114810`, and G4 is closed, on the independent review at `<G4COMMIT>` — verdict **PASS WITH NOTES**.
 
 ## Carried limitations, none blocking
 

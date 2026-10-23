@@ -24,6 +24,7 @@ figures is not cheap to run twice.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -52,11 +53,37 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
 
     Its own temporary workspace and database, so it leaves nothing behind and
     needs nothing from the test.
+
+    **Both ends of the pipe state their encoding.** The demonstration prints
+    em-dashes, so its output is not ASCII, and an encoding left to the
+    machine means the test's verdict is the machine's: the child writes in
+    whatever code page the environment gives it and the parent reads it back
+    in whatever code page the locale gives it, and the two agree only by
+    coincidence. On this machine they do not agree -- the child writes UTF-8
+    while the parent reads GBK -- and the demonstration is then reported as
+    broken for a reason that says nothing about it.
+
+    Pinning **one** side does not fix that, it turns the failure around. A
+    parent told to read UTF-8 while the child still writes the machine's
+    code page fails the same way, and it fails for the same reason: the two
+    sides have to be pinned *together*, or neither is pinned. So the child's
+    ``PYTHONIOENCODING`` is fixed here as well as the parent's ``encoding``,
+    and the rest of the environment is handed over unchanged, so that pinning
+    that one variable takes nothing away from the child.
     """
     return subprocess.run(
         [sys.executable, str(DEMO)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. The demonstration
+        # prints the paths it worked with, so its output can carry characters
+        # the machine's locale encoding cannot read; leaving either half to
+        # the locale is how that becomes a swallowed decode error and a
+        # capture that comes back as None.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         timeout=900,
         cwd=repo_root,
     )

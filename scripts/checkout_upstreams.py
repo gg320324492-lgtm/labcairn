@@ -10,6 +10,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_VERSION = 1
+
+#: The encoding git writes a path in, and therefore the encoding this script
+#: decodes it with.
+#:
+#: Both halves of the pipe have to be stated, and they have to agree. The
+#: decode used to be left to the machine's locale encoding, while git writes
+#: paths as UTF-8 -- it converts from the wide-character filesystem itself,
+#: whatever the locale is. Where the two disagree the decode fails inside
+#: subprocess's reader thread, where the exception is swallowed and the
+#: capture comes back as None, and the caller then dies on ``None.strip()``
+#: with a message that says nothing about the cause. The path that matters
+#: here is the clone's own directory, which the user chooses with --dest and
+#: which can carry characters the machine's locale encoding cannot read.
+#:
+#: Pinning only this half would turn the failure around rather than fix it:
+#: the child is what writes the bytes, so the child's half is the half that
+#: has to be pinned too. For git there is no environment variable to pin it
+#: -- its path output is UTF-8 unconditionally -- so the two halves are: git
+#: writes UTF-8, and this decodes UTF-8.
+#:
+#: ``errors="replace"`` keeps a byte that is not UTF-8 from costing the
+#: script a dead stream: the worst it can do is a path that does not match,
+#: which the script reports rather than raising on.
+GIT_OUTPUT_ENCODING = "utf-8"
+
 CATALOG = {
     "pydantic-ai": ("https://github.com/pydantic/pydantic-ai.git", "MIT", "essential"),
     "openhands-sdk": ("https://github.com/OpenHands/software-agent-sdk.git", "MIT", "essential"),
@@ -32,7 +57,13 @@ CATALOG = {
 
 
 def cmd(*args: str) -> str:
-    return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT).strip()
+    return subprocess.check_output(
+        args,
+        text=True,
+        encoding=GIT_OUTPUT_ENCODING,
+        errors="replace",
+        stderr=subprocess.STDOUT,
+    ).strip()
 
 
 def now_iso() -> str:

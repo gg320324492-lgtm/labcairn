@@ -12,6 +12,7 @@ True``, which is true for every value at every time and asserted nothing.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
@@ -30,12 +31,38 @@ PROBE = textwrap.dedent(
 
 
 def _mypy_rejects(source: str, tmp_path: Path) -> tuple[int, str]:
+    """mypy's verdict on *source*, and the diagnostics that say why.
+
+    **Both ends of the pipe state their encoding.** The diagnostics are
+    mypy's own text and they carry the path of the probe, which is the
+    machine's temporary directory and so is not ASCII-bounded: a checkout
+    under a path with an accent or an ideograph in it puts those characters
+    on the wire. The child is therefore told to write UTF-8 and the parent is
+    told to read UTF-8, and neither is left to the machine's code page.
+
+    Pinning only the parent's decoding would not help -- the child would
+    still write whatever the environment gave it, and the parent would then
+    be reading it under the wrong code page -- so the child's
+    ``PYTHONIOENCODING`` is pinned as well. The rest of the environment is
+    handed over unchanged, so that pinning that one variable takes nothing
+    away from the child.
+    """
     probe = tmp_path / "probe.py"
     probe.write_text(source, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, "-m", "mypy", "--no-incremental", "--strict", str(probe)],
         capture_output=True,
         text=True,
+        # Both halves of the pipe are stated, and they agree. mypy is a
+        # Python program, so its output encoding is otherwise the machine's
+        # locale encoding, and it echoes the path of the file it was given,
+        # which can carry characters the locale cannot read. Pinning only
+        # the parent would be the same failure with the arrow turned round:
+        # mypy would still write the locale's bytes and the parent would
+        # read them as UTF-8.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
         timeout=300,
     )

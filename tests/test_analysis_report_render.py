@@ -33,11 +33,13 @@ one that caught it.
 from __future__ import annotations
 
 import io
+import os
 import re
 import subprocess
 import sys
 import time
 import zipfile
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, Final
@@ -85,6 +87,8 @@ from labcairn.reports.render import (
     render_pdf,
     resolve,
 )
+from labcairn.reports.render import docx as docx_render
+from labcairn.reports.render import markdown as markdown_render
 from labcairn.reports.render.markdown import MARKDOWN_ESCAPE_TABLE
 from labcairn.sources.locators import ComputationLocator, PdfLocator, describe_locator
 
@@ -529,6 +533,12 @@ def hostile_document(frozen_now: datetime) -> ReportDocument:
 #: The WordprocessingML namespace, for the DOCX reader.
 _WML = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
+#: The Dublin Core namespace, for the DOCX's core properties.
+#:
+#: ``docProps/core.xml`` holds the document's metadata, and the names in it
+#: are Dublin Core's: ``dc:title``, ``dc:creator`` and ``dc:description``.
+_DC = "{http://purl.org/dc/elements/1.1/}"
+
 
 class _TextReader(HTMLParser):
     """The text of an HTML document, without its tags or its style sheet.
@@ -658,6 +668,96 @@ def _read_markdown(blob: bytes) -> str:
     return reader.text
 
 
+def _the_markdown_list_items(blob: bytes) -> int:
+    """The number of list items the Markdown draws.
+
+    The Markdown's list marker is the ``- `` at the head of a line, and it
+    is counted by the **reader** — the parser this file already reads the
+    Markdown form with — because a list item is what the reader calls it.
+
+    A text value cannot open one: the escape table turns a leading ``-``
+    into ``\\-``, so a list item in the parsed file is one the writer drew
+    as a bullet, and never a line of the report's own prose.
+    """
+    tokens = MarkdownIt().parse(blob.decode("utf-8"))
+    return sum(1 for token in tokens if token.type == "list_item_open")
+
+
+def _the_markdown_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the Markdown draws as list items.
+
+    The **parser** says what a list item is — a list item is what the
+    reader calls it — and the text of one is read out of the parser's own
+    inline tokens, so that the escapes the writer put into the file are
+    decoded by the parser that would read them and the text that comes
+    back is the text a reader sees.
+
+    A count cannot say *which* items these are, and a substitution that
+    keeps the count is invisible to one: a renderer that drew the
+    report's narrative as a bullet and its citation as a paragraph draws
+    as many list items as before and says the same words.
+    """
+    tokens = MarkdownIt().parse(blob.decode("utf-8"))
+    texts: list[str] = []
+    depth = 0
+    for token in tokens:
+        if token.type == "list_item_open":
+            depth += 1
+        elif token.type == "list_item_close":
+            depth -= 1
+        elif depth and token.type == "inline":
+            texts.append(_the_inline_text(token))
+    return texts
+
+
+def _the_markdown_list_item_markers(blob: bytes) -> list[str]:
+    """The marker each of the Markdown's list items is drawn with.
+
+    The Markdown's marker is the character at the head of the line, and
+    the **parser** is what says what kind of list that character opened:
+    an unordered list opens with a ``bullet_list`` token and an ordered
+    one with an ``ordered_list`` token. The token type is the reader's
+    own word for the marker, and the word that names the marker is the
+    type's first word — so the marker is read out of the form rather
+    than guessed at from the file's bytes.
+
+    A count cannot see the marker at all: a renderer that drew the
+    findings as a **numbered** list draws exactly as many list items as
+    before and says exactly the same words, and a reader of that export
+    would see an ordered list where the rule says a bullet. So the
+    marker is read and watched on its own.
+    """
+    tokens = MarkdownIt().parse(blob.decode("utf-8"))
+    markers: list[str] = []
+    open_lists: list[str] = []
+    for token in tokens:
+        if token.type.endswith("_list_open"):
+            open_lists.append(token.type.split("_")[0])
+        elif token.type.endswith("_list_close"):
+            if open_lists:
+                open_lists.pop()
+        elif token.type == "list_item_open":
+            markers.append(open_lists[-1] if open_lists else "")
+    return markers
+
+
+def _the_inline_text(token: Any) -> str:
+    """The text of one inline token, as the parser decoded it.
+
+    The parser's children carry the **decoded** text — the backslashes
+    the writer escaped with are gone — and a line break inside a value is
+    a space, because the Markdown writes the value's own line break into
+    the file.
+    """
+    parts: list[str] = []
+    for child in token.children or ():
+        if child.type in ("text", "code_inline"):
+            parts.append(child.content)
+        elif child.type in ("softbreak", "hardbreak"):
+            parts.append(" ")
+    return "".join(parts)
+
+
 def _rendered_markdown(document: ReportDocument) -> str:
     """The Markdown, rendered — the document a reader actually sees."""
     rendered: str = MarkdownIt().render(render_markdown(document).decode("utf-8"))
@@ -734,6 +834,325 @@ def _read_docx(blob: bytes) -> str:
     return " ".join(parts)
 
 
+def _the_docx_core_property(blob: bytes, name: str) -> str:
+    """One of the DOCX's own core properties, read out of the package.
+
+    ``docProps/core.xml`` is the part of an OOXML package that carries the
+    document's metadata — its title, its author, its description — and it
+    is what a reader's word processor shows in its title bar and in its
+    properties panel. The package is read with ``zipfile`` and
+    ``ElementTree``, because the reader must not be the writer.
+
+    :param blob: the DOCX's bytes.
+    :param name: the property's own name — ``title``, ``creator`` or
+        ``description`` — which is how OOXML spells it.
+    :returns: the property's value, or the empty string when the package
+        carries the property and leaves it empty.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        core = archive.read("docProps/core.xml")
+    element = ElementTree.fromstring(core).find(f"{_DC}{name}")
+    assert element is not None, f"the DOCX carries no dc:{name} in its core properties"
+    return element.text or ""
+
+
+def _the_docx_list_items(blob: bytes) -> int:
+    """The number of paragraphs the DOCX draws as entries in a list.
+
+    A paragraph is in a list when it carries numbering itself, or when the
+    style it names does: a list style carries its numbering in the style's
+    own definition, so a paragraph that names one of them is in a list
+    without saying so itself.
+
+    The counting is **structural** rather than by the name of a style,
+    because the shape is the renderer's business — a renderer that drew the
+    findings as another kind of list would still be drawing them as a
+    list, and only a renderer that drew them as prose would be caught.
+
+    The rule is the one
+    :func:`_the_docx_paragraph_is_a_list_item` states, so that the count
+    and the texts are read on one rule and cannot drift apart.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        document_xml = archive.read("word/document.xml")
+        styles_xml = archive.read("word/styles.xml")
+
+    numbered = _the_numbered_style_ids(styles_xml)
+    root = ElementTree.fromstring(document_xml)
+    items = 0
+    for paragraph in root.iter(f"{_WML}p"):
+        if _the_docx_paragraph_is_a_list_item(paragraph, numbered):
+            items += 1
+    return items
+
+
+def _the_numbered_style_ids(styles_xml: bytes) -> set[str]:
+    """The ids of the styles that carry numbering of their own."""
+    root = ElementTree.fromstring(styles_xml)
+    numbered: set[str] = set()
+    for style in root.iter(f"{_WML}style"):
+        identifier = style.get(f"{_WML}styleId")
+        if identifier is None:
+            continue
+        if style.find(f".//{_WML}numPr") is not None:
+            numbered.add(identifier)
+    return numbered
+
+
+def _the_docx_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the DOCX draws as list items.
+
+    The same **structural** rule the counting helper uses — a paragraph is
+    in a list when it carries numbering itself, or when the style it
+    names does — so that the two agree on which paragraphs are list items,
+    and the text of each one is read out of the package with the standard
+    library, because the reader must not be the writer.
+
+    A count cannot say *which* items these are, and a substitution that
+    keeps the count is invisible to one: a renderer that drew the report's
+    background paragraph as a bullet and its provenance citation as a
+    plain paragraph draws as many list items as before and says the same
+    words.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        document_xml = archive.read("word/document.xml")
+        styles_xml = archive.read("word/styles.xml")
+
+    numbered = _the_numbered_style_ids(styles_xml)
+    root = ElementTree.fromstring(document_xml)
+    texts: list[str] = []
+    for paragraph in root.iter(f"{_WML}p"):
+        if not _the_docx_paragraph_is_a_list_item(paragraph, numbered):
+            continue
+        texts.append(_the_docx_paragraph_text(paragraph))
+    return texts
+
+
+def _the_docx_paragraph_is_a_list_item(
+    paragraph: ElementTree.Element,
+    numbered: set[str],
+) -> bool:
+    """Whether one paragraph of the package is an entry in a list.
+
+    A paragraph is in a list when it carries numbering itself, or when the
+    style it names does: a list style carries its numbering in the style's
+    own definition, so a paragraph that names one of them is in a list
+    without saying so itself.
+    """
+    properties = paragraph.find(f"{_WML}pPr")
+    if properties is None:
+        return False
+    if properties.find(f"{_WML}numPr") is not None:
+        return True
+    style = properties.find(f"{_WML}pStyle")
+    return style is not None and style.get(f"{_WML}val") in numbered
+
+
+def _the_docx_paragraph_text(paragraph: ElementTree.Element) -> str:
+    """The text of one paragraph of the package.
+
+    A ``<w:br/>`` is a line break and a ``<w:tab/>`` is a tab, and both
+    are read as the whitespace they are — the same way the whole-document
+    reader reads them.
+    """
+    parts: list[str] = []
+    for node in paragraph.iter():
+        if node.tag == f"{_WML}t":
+            parts.append(node.text or "")
+        elif node.tag in (f"{_WML}br", f"{_WML}tab"):
+            parts.append(" ")
+    return "".join(parts)
+
+
+def _the_docx_list_item_markers(blob: bytes) -> list[str]:
+    """The marker each of the DOCX's list items is drawn with.
+
+    The marker is read the way the **package** carries it: a paragraph
+    names a style, the style names a numbering, the numbering points at
+    an abstract numbering, and that names a **format** — ``bullet`` for a
+    bullet list and ``decimal`` for a numbered one. The format is the
+    marker.
+
+    **The style's own name is not the marker.** The template the library
+    ships gives the two kinds of list two style names of its own, and
+    those are the library's private spellings of the two things the
+    format names. A witness that read the *name* would be watching a
+    spelling, and it would accept any numbered style as a list item —
+    which is exactly the hole this reader closes: the format says which
+    of the two kinds of list was drawn.
+
+    The paragraphs counted here are the ones
+    :func:`_the_docx_paragraph_is_a_list_item` counts, so the count and
+    the markers are read on one rule and cannot drift apart.
+    """
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        document_xml = archive.read("word/document.xml")
+        styles_xml = archive.read("word/styles.xml")
+        numbering_xml = archive.read("word/numbering.xml")
+
+    numbered = _the_numbered_style_ids(styles_xml)
+    style_numberings = _the_style_numbering_ids(styles_xml)
+    formats = _the_numbering_formats(numbering_xml)
+
+    root = ElementTree.fromstring(document_xml)
+    markers: list[str] = []
+    for paragraph in root.iter(f"{_WML}p"):
+        if not _the_docx_paragraph_is_a_list_item(paragraph, numbered):
+            continue
+        numbering_id = _the_docx_paragraph_numbering_id(paragraph, style_numberings)
+        markers.append(formats.get(numbering_id, ""))
+    return markers
+
+
+def _the_style_numbering_ids(styles_xml: bytes) -> dict[str, str]:
+    """The numbering each style names, and the numbering's own id.
+
+    A list style carries its numbering in the style's own definition, so
+    a paragraph that names one of them is in a list without saying so
+    itself, and the numbering it is in is the style's.
+    """
+    root = ElementTree.fromstring(styles_xml)
+    numberings: dict[str, str] = {}
+    for style in root.iter(f"{_WML}style"):
+        identifier = style.get(f"{_WML}styleId")
+        if identifier is None:
+            continue
+        number_id = style.find(f".//{_WML}numId")
+        if number_id is None:
+            continue
+        value = number_id.get(f"{_WML}val")
+        if value is not None:
+            numberings[identifier] = value
+    return numberings
+
+
+def _the_numbering_formats(numbering_xml: bytes) -> dict[str, str]:
+    """The format each numbering names.
+
+    A numbering points at an abstract numbering, and the abstract
+    numbering's levels each name a **format**: ``bullet`` for a bullet
+    list and ``decimal`` for a numbered one. The format is the marker,
+    and it is the same in every DOCX that draws the two kinds of list.
+    """
+    root = ElementTree.fromstring(numbering_xml)
+    formats: dict[str, str] = {}
+    abstract: dict[str, str] = {}
+    for definition in root.iter(f"{_WML}abstractNum"):
+        identifier = definition.get(f"{_WML}abstractNumId")
+        if identifier is None:
+            continue
+        level = definition.find(f"{_WML}lvl")
+        if level is None:
+            continue
+        number_format = level.find(f"{_WML}numFmt")
+        if number_format is None:
+            continue
+        value = number_format.get(f"{_WML}val")
+        if value is not None:
+            abstract[identifier] = value
+    for numbering in root.iter(f"{_WML}num"):
+        identifier = numbering.get(f"{_WML}numId")
+        if identifier is None:
+            continue
+        target = numbering.find(f"{_WML}abstractNumId")
+        if target is None:
+            continue
+        value = target.get(f"{_WML}val")
+        if value is not None and value in abstract:
+            formats[identifier] = abstract[value]
+    return formats
+
+
+def _the_docx_paragraph_numbering_id(
+    paragraph: ElementTree.Element,
+    style_numberings: dict[str, str],
+) -> str:
+    """The numbering one paragraph of the package is drawn in.
+
+    A paragraph may name the numbering itself, and then the numbering
+    is its own; otherwise it names a style, and the numbering is the one
+    the style carries.
+    """
+    properties = paragraph.find(f"{_WML}pPr")
+    if properties is None:
+        return ""
+    number_properties = properties.find(f"{_WML}numPr")
+    if number_properties is not None:
+        number_id = number_properties.find(f"{_WML}numId")
+        if number_id is not None:
+            value = number_id.get(f"{_WML}val")
+            return value if value is not None else ""
+    style = properties.find(f"{_WML}pStyle")
+    if style is None:
+        return ""
+    value = style.get(f"{_WML}val")
+    return style_numberings.get(value, "") if value is not None else ""
+
+
+# ---------------------------------------------------------------------------
+# The product's own statement of the marker, read out of the product
+# ---------------------------------------------------------------------------
+#
+# The rule the renderers state in their own words is **bullets**: a
+# finding, a disclosure and a citation are entries in a list, and the
+# list they are entries in is a bullet list and not a numbered one.
+#
+# The witness must not carry a copy of that rule as a literal of its
+# own. A copy could be changed to agree with a broken renderer, and a
+# copy of the renderer's *style name* would be watching python-docx's
+# private spelling rather than the rule it stands for. So the rule is
+# read out of the **product**, at run time, from the place the product
+# makes it: the docstring of the function that draws one block.
+#
+# The reason is the one ``tests/test_cli.py`` gives for reading the
+# CLI's own docstring: **the docstring is the claim**, and a claim
+# written somewhere nobody reads is not a record of anything. A renderer
+# whose drawing contradicts its own statement is the contradiction this
+# exists to catch.
+
+
+def _the_docx_own_statement_of_its_rule() -> str:
+    """The DOCX renderer's own words about the marker it draws.
+
+    The DOCX states its rule in the docstring of the function that draws
+    one block: *"a finding and a disclosure are bullets, because they
+    are entries in a list, and a narrative is a paragraph, because it is
+    prose"*.
+    """
+    return docx_render._add_item.__doc__ or ""
+
+
+def _the_markdown_own_statement_of_its_rule() -> str:
+    """The Markdown renderer's own words about the marker it draws.
+
+    The Markdown states its rule in the docstring of the function that
+    draws one block: *"the shape — a bullet, a paragraph, or a block
+    with its artefact under it — is the renderer's business"*.
+    """
+    return markdown_render._draw_item.__doc__ or ""
+
+
+def _the_statement_names_the_marker(statement: str, marker: str) -> bool:
+    """Whether the product's own statement names the marker.
+
+    The statement is prose and it says "bullets" where the formats' own
+    enumerations say "bullet", so the two are compared on the word with
+    its plural ending allowed: a statement that says "bullets" names the
+    marker that is called "bullet", and a statement that does not name
+    the marker at all names no marker.
+
+    The comparison is on **whole words**. A marker whose name is a
+    fragment of a longer word in the statement — "list" inside
+    "listing", say — is not named by it. A marker with no name at all
+    names nothing and is not named.
+    """
+    wanted = marker.lower()
+    if not wanted:
+        return False
+    words = re.findall(r"[A-Za-z]+", statement)
+    return any(word.lower() in (wanted, f"{wanted}s") for word in words)
+
+
 def _read_pdf(blob: bytes) -> str:
     """The text of a PDF file, read by a reader that did not write it."""
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
@@ -761,6 +1180,131 @@ def _read_pdf_body(blob: bytes) -> tuple[str, int]:
     with pdfplumber.open(io.BytesIO(blob)) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     return _UNNAMED_GLYPH.sub("", text), len(_UNNAMED_GLYPH.findall(text))
+
+
+#: The bullet the PDF form draws before a list item, as the reader spells it.
+#:
+#: reportlab draws the bullet in a face whose glyph pdfminer cannot map,
+#: so the reader prints ``(cid:127)`` where the bullet is. That text is
+#: the PDF's **list marker** — the role the Markdown's ``- `` and the
+#: HTML's ``<li>`` play — and the other forms' readers drop theirs as
+#: well, so this one is dropped from the text and kept as the marker.
+_PDF_BULLET: Final = re.compile(r"^\(cid:\d+\)")
+
+#: The ratio between a paragraph's leading and its font size.
+#:
+#: reportlab's sample styles set the leading of a paragraph to 1.2 times
+#: the font size, and the PDF's own geometry says so: two lines of one
+#: paragraph are 12 points apart for 10-point text. A new paragraph is
+#: further away than that, because a paragraph carries a space before it.
+_PDF_LEADING_RATIO: Final[float] = 1.2
+
+#: The slack the leading comparison is given, in points.
+#:
+#: A PDF's coordinates are floating point, and two lines that are exactly
+#: one leading apart land a hair above or below it.
+_PDF_LEADING_SLACK: Final[float] = 0.05
+
+
+def _the_pdf_list_item_texts(blob: bytes) -> list[str]:
+    """The texts the PDF draws as list items.
+
+    The bullet is the PDF's list marker, and it is what says that the
+    paragraph standing behind it is a list item. A count of the markers
+    cannot say *which* items these are, and a substitution that keeps the
+    count is invisible to one: a renderer that drew the report's
+    background paragraph as a bullet and its provenance citation as a
+    plain paragraph draws as many markers as before and says the same
+    words.
+
+    A PDF is a page of **lines**, not a page of paragraphs, so the
+    paragraph a marker stands in front of is recovered from the page's own
+    geometry — see :func:`_the_pdf_paragraphs`.
+    """
+    texts: list[str] = []
+    with pdfplumber.open(io.BytesIO(blob)) as pdf:
+        for page in pdf.pages:
+            for paragraph in _the_pdf_paragraphs(page):
+                bullet = _PDF_BULLET.match(paragraph)
+                if bullet is not None:
+                    texts.append(_normalise(paragraph[bullet.end() :]))
+    return texts
+
+
+def _the_pdf_paragraphs(page: Any) -> list[str]:
+    """The paragraphs one page of a PDF holds.
+
+    A PDF does not say where a paragraph ends, and the reader recovers it
+    from the **leading**: two lines are one paragraph when their
+    baselines are one leading apart, and a new paragraph is further away
+    than that, because a paragraph carries a space before it.
+    """
+    paragraphs: list[str] = []
+    current: list[str] = []
+    previous: tuple[float, float] | None = None
+    for baseline, size, text in _the_pdf_lines(page):
+        if previous is not None and not _the_pdf_line_continues(previous, (baseline, size)):
+            paragraphs.append(" ".join(current))
+            current = []
+        current.append(text)
+        previous = (baseline, size)
+    if current:
+        paragraphs.append(" ".join(current))
+    return paragraphs
+
+
+def _the_pdf_lines(page: Any) -> list[tuple[float, float, str]]:
+    """The lines one page of a PDF holds: their baseline, their size and their text.
+
+    The lines are the page's own: the characters are grouped by the
+    baseline they sit on, and a line is read in the order the page draws
+    it — from left to right.
+    """
+    by_baseline: dict[float, list[dict[str, Any]]] = {}
+    for character in page.chars:
+        by_baseline.setdefault(round(float(character["top"]), 1), []).append(character)
+    lines: list[tuple[float, float, str]] = []
+    for baseline in sorted(by_baseline):
+        characters = sorted(by_baseline[baseline], key=lambda character: float(character["x0"]))
+        text = "".join(str(character["text"]) for character in characters)
+        lines.append((baseline, float(characters[0]["size"]), text))
+    return lines
+
+
+def _the_pdf_line_continues(
+    previous: tuple[float, float],
+    current: tuple[float, float],
+) -> bool:
+    """Whether a line continues the paragraph above it.
+
+    The smaller of the two font sizes says how close two lines of one
+    paragraph are: reportlab's sample styles set the leading to 1.2 times
+    the font size, and a paragraph drawn in the smaller of the two styles
+    is set with the smaller leading.
+    """
+    previous_baseline, previous_size = previous
+    baseline, size = current
+    leading = _PDF_LEADING_RATIO * min(previous_size, size)
+    return (baseline - previous_baseline) <= leading + _PDF_LEADING_SLACK
+
+
+def _the_pdf_information(blob: bytes, name: str) -> str:
+    """One entry of the PDF's document information dictionary.
+
+    The dictionary is the part of a PDF that says what the document is —
+    its title, its author, its subject — and it is what a reader's viewer
+    shows in its title bar and in its properties panel. It is read with
+    ``pdfplumber``, which did not write it.
+
+    :param blob: the PDF's bytes.
+    :param name: the entry's own name — ``Title``, ``Author`` or
+        ``Subject`` — which is how a PDF spells it.
+    :returns: the entry's value.
+    """
+    with pdfplumber.open(io.BytesIO(blob)) as pdf:
+        information = pdf.metadata or {}
+    assert name in information, f"the PDF carries no {name} in its information dictionary"
+    return information[name] or ""
 
 
 def _docx_entry_times(blob: bytes) -> dict[str, tuple[int, ...]]:
@@ -1917,6 +2461,50 @@ def _the_table_says(table: ReportTable) -> tuple[str, ...]:
     )
 
 
+def _the_model_list_item_texts(document: ReportDocument) -> list[str]:
+    """The texts the **model** holds as list items.
+
+    A finding, a disclosure and a citation are list items, and a
+    narrative, an interpretation, a figure and a table are not. The texts
+    are read out of the **document** — its claims, its unresolved records
+    and its footnotes — and they are spelled here rather than taken from
+    the renderers, because a witness that re-derived its expectation from
+    the renderer's own output would prove nothing.
+
+    The order is the document's own — the claims, then the unresolved
+    records, then the footnotes — and it is not necessarily the order a
+    form draws them in: a form draws the findings and the disclosures in
+    the order the sections place them, and the citations last. The
+    comparison is therefore a **multiset** and not a sequence — two list
+    items may carry the same text, and a set would hide the duplicate.
+    """
+    texts = [_the_claim_says(claim) for claim in document.claims]
+    texts.extend(_the_disclosure_says(record) for record in document.unresolved_records)
+    texts.extend(
+        f"{footnote.footnote_id} — source {footnote.source_id}"
+        f" — {describe_locator(footnote.locator)} — sha256 {footnote.content_sha256}"
+        for footnote in document.footnotes
+    )
+    return texts
+
+
+def _the_difference_between_multisets(expected: list[str], actual: list[str]) -> str:
+    """The texts two multisets disagree about, and which way they disagree.
+
+    A multiset is compared and not a set, because two list items may
+    carry the same text: a set would hide a duplicate, and a duplicate is
+    a list item drawn twice.
+    """
+    missing = Counter(expected) - Counter(actual)
+    extra = Counter(actual) - Counter(expected)
+    parts: list[str] = []
+    if missing:
+        parts.append(f"the form does not draw {sorted(missing.elements())}")
+    if extra:
+        parts.append(f"the form draws {sorted(extra.elements())}")
+    return "; ".join(parts)
+
+
 def _the_document_says(document: ReportDocument) -> tuple[str, ...]:
     """Every line the report makes, in the order the four forms draw them.
 
@@ -2143,9 +2731,80 @@ def test_the_html_carries_the_title_in_its_own_title_element(
     assert title == document.title
 
 
+# ---------------------------------------------------------------------------
+# Which items are list items, and not only how many
+# ---------------------------------------------------------------------------
+#
+# A count cannot see a substitution that keeps the count. A renderer that
+# drew the report's **background paragraph** as a bullet and its
+# **provenance citation** as a plain paragraph draws exactly as many list
+# items as before, says exactly the same words, and leaves a reader
+# unable to tell a finding from the prose.
+#
+# So each of the three forms that draw list items is watched three times
+# over: the **count**, which catches a list item missing altogether; the
+# **texts**, which catch the swap; and the **marker**, which catches the
+# change that keeps both. The texts are read out of the form with that
+# form's own reader — the Markdown's parser, the DOCX's package, the
+# PDF's page — and they are compared with the texts the **model** holds,
+# as a **multiset**, because two list items may carry the same text and
+# a set would hide the duplicate.
+#
+# **The marker is a third thing, and it is read the way the form carries
+# it.** The DOCX names a numbering definition, and that definition names
+# a **format** — a bullet list's format and a numbered list's format are
+# different, and the difference is the marker. The Markdown's parser
+# opens an unordered list with one kind of token and an ordered one with
+# another, and the kind is the marker. Neither is read as a literal
+# copied out of this file: the marker the form is *supposed* to draw is
+# the one the **product's own statement** of its rule names — the
+# renderer's docstring — so that a renderer which drew a numbered list
+# would be caught by contradicting its own words.
+#
+# **The PDF's marker is watched, and the reason is a property of the
+# font rather than a witness.** The bullet the PDF draws is the one
+# glyph the PDF's face leaves unmapped: the reader cannot name it and
+# prints ``(cid:127)`` in its place, so the count of the reader's
+# unnamed glyphs **is** the count of the bullets. Of the glyphs the
+# PDF's encoding can carry that could stand for a bullet — U+2022,
+# U+00B7 and U+00B0 — U+2022 is the only one the reader cannot name.
+# The other two are drawn as characters the reader *can* name, so a
+# renderer that changed the bullet would leave a readable character
+# where the unnamed one stood, the count would fall to nothing, and the
+# marker count would break. The marker is therefore watched by the
+# count, and the count is a witness of the marker **only because of
+# that property of the face**. It is said here rather than left as a
+# silent gap.
+#
+# **The document these witnesses read holds more than one of
+# everything.** A comparison that reads one of each cannot tell a form
+# that carries the first from a form that carries them all: a form that
+# dropped the second citation, or the second section's findings, would
+# still hold the first, and every comparison would pass. So they read
+# :func:`_a_document_with_more_than_one_of_everything` — the same
+# document the completeness witness reads — which holds two sections,
+# two findings, two disclosures, two citations, two figures, two
+# tables, an interpretation, and one figure and one table that no
+# section places.
+#
+# **The one-of-each fixture is still read, and it is still worth
+# reading.** It is the tree's ordinary document, and the rest of this
+# file compares the four forms against it — the notices, the carriers,
+# the escaping, the four forms saying the same words. Nothing it
+# watched stops being watched: the document the list-item witnesses read
+# holds one of every kind as well, so the list-item property is watched
+# on a document that carries two of everything.
+#
+# **The HTML is not among them.** The shape of a form is that form's own
+# business: the HTML draws the report's citations as a list and its
+# findings as paragraphs, and the independent review ruled that the
+# shape is not a rule this tree enforces across the forms. The HTML's
+# shape is therefore carried here as a note and not as a witness.
+
+
 @pytest.mark.unit
 def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
-    document: ReportDocument,
+    frozen_now: datetime,
 ) -> None:
     """The PDF's list marker is drawn once for each of the report's list items.
 
@@ -2160,11 +2819,318 @@ def test_the_pdf_marks_one_list_item_for_each_of_the_report_s_list_items(
     the report carries: a finding, a disclosure and a citation are list
     items, and a narrative, an interpretation, a figure and a table are
     not.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** A renderer that drew the
+    report's background paragraph as a bullet and its provenance citation
+    as a plain paragraph draws exactly as many markers as before and says
+    exactly the same words — and a reader of that PDF could not tell a
+    finding from the prose. The count is the same either way; the texts
+    are not.
+
+    The expectation is read out of the **model** — the document's claims,
+    its unresolved records and its footnotes — and it is compared as a
+    **multiset**, because two list items may carry the same text and a
+    set would hide the duplicate.
+
+    **The document read here holds more than one of everything**, and
+    that is the point of it: a document with one of each cannot tell a
+    form that carries the first from a form that carries them all, so a
+    form that dropped the second citation would pass every comparison.
+
+    **The PDF needs no marker witness of its own, and the reason is a
+    property of the font rather than of a witness.** The bullet the PDF
+    draws is the one glyph the PDF's face leaves unmapped: the reader
+    cannot name it and prints ``(cid:127)`` in its place, so the count
+    of the reader's unnamed glyphs **is** the count of the bullets. Of
+    the glyphs the PDF's encoding can carry that could stand for a
+    bullet — U+2022, U+00B7 and U+00B0 — U+2022 is the only one the
+    reader cannot name. The other two are drawn as characters the reader
+    *can* name, so a renderer that changed the bullet would leave a
+    readable character where the unnamed one stood, the count would
+    fall to nothing, and this test would fail. The marker is therefore
+    watched, but it is watched **by the count**, and the count is a
+    witness of the marker only because of that property of the face.
+    This is said here rather than left as a silent gap.
+
+    The PDF's own statement of its rule says the same thing the other
+    two renderers' do — *"A finding and a disclosure are drawn as
+    bullets, because they are entries in a list"* — and it is not
+    checked against the drawing the way the DOCX's and the Markdown's
+    are, because the PDF's marker is a glyph the reader cannot name.
+    The rule is the same in all three forms; only the PDF's reader
+    cannot say which marker was drawn.
     """
+    document = _a_document_with_more_than_one_of_everything(frozen_now)
+
     _, markers = _read_pdf_body(render_pdf(document))
     list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
 
     assert markers == list_items
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_pdf_list_item_texts(render_pdf(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the PDF draws the wrong list items — {_the_difference_between_multisets(expected, drawn)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The carriers: what a form says about the report outside its text
+# ---------------------------------------------------------------------------
+#
+# A form says things about the report in places other than its text: a
+# document's own title property, a PDF's information dictionary, a
+# paragraph's style. Each of those is a carrier the reader sees, and a
+# carrier that named another report — or dropped the report's own limit —
+# would be the same lie as a body that said the wrong thing, in a place
+# the comparison of the forms never looks at.
+#
+# Each witness below reads its carrier **with the reader its own form is
+# read by**, and compares it with the document's own value: the model for
+# the title, the report's list items for the markers, and the product's one
+# spelling of the limit for the descriptions.
+
+
+@pytest.mark.unit
+def test_the_docx_carries_the_title_in_its_own_title_property(
+    document: ReportDocument,
+) -> None:
+    """The DOCX names the report in its own properties, as well as in its body.
+
+    The comparison of the forms reads the body, because the core
+    properties are the document's metadata and the body is what a reader
+    reads. The title property is the report's own name all the same, and
+    it is the name a reader's word processor shows in its title bar, so it
+    is checked on its own: a title property that named another report
+    would give a reader a title bar that lied about what was in the file.
+    """
+    title = _the_docx_core_property(render_docx(document), "title")
+
+    assert title == document.title
+
+
+@pytest.mark.unit
+def test_the_pdf_carries_the_title_in_its_own_title(
+    document: ReportDocument,
+) -> None:
+    """The PDF names the report in its own information dictionary.
+
+    The same lie in the same kind of carrier as the HTML's title element
+    and the DOCX's title property: a reader's viewer shows this name in
+    its title bar, and a name that belonged to another report would lie
+    about what was in the file.
+    """
+    title = _the_pdf_information(render_pdf(document), "Title")
+
+    assert title == document.title
+
+
+@pytest.mark.unit
+def test_the_docx_carries_the_limit_in_its_own_description(
+    document: ReportDocument,
+) -> None:
+    """The DOCX's description is the limit the report states on its own face.
+
+    python-docx's template says its description is ``generated by
+    python-docx``, which is a false statement about the report, and the
+    exporter replaces it with the limit the report states on its own face.
+    A reader who opens the file in a word processor sees the description
+    in its properties panel, so a description that did not carry the limit
+    would let a reader believe a standard the report has not met.
+    """
+    description = _the_docx_core_property(render_docx(document), "description")
+
+    assert description == FIRST_PASS_NOTICE, (
+        "the DOCX's description is the limit the report states on its own face"
+    )
+    assert description in _read_docx(render_docx(document)), (
+        "the DOCX's description is a sentence the document itself carries"
+    )
+
+
+@pytest.mark.unit
+def test_the_pdf_carries_the_limit_in_its_own_subject(
+    document: ReportDocument,
+) -> None:
+    """The PDF's subject is the limit the report states on its own face.
+
+    The same limit, in the same kind of carrier, in the other container
+    form: a reader's viewer shows the subject in its properties panel, and
+    a report whose metadata says nothing about its own limit lets a
+    reader believe a standard it has not met. The two container forms are
+    two renderings of one document, and what they must not do is say four
+    different things.
+    """
+    subject = _the_pdf_information(render_pdf(document), "Subject")
+
+    assert subject == FIRST_PASS_NOTICE, (
+        "the PDF's subject is the limit the report states on its own face"
+    )
+    assert subject in _read_pdf(render_pdf(document)), (
+        "the PDF's subject is a sentence the document itself carries"
+    )
+
+
+@pytest.mark.unit
+def test_the_pdf_names_the_producer_the_docx_names(
+    document: ReportDocument,
+) -> None:
+    """The two container forms name the same producer.
+
+    The PDF's ``/Author`` is the **producer's** name and not the report's
+    author: the report has no author, and the name is there so that a
+    reader can see who made the file. The DOCX's ``dc:creator`` is that
+    same producer's name, and the two container forms are two renderings
+    of one document — so a PDF that named a different producer from the
+    DOCX of the same report would be a file that disagrees with itself.
+
+    The producer's name itself is pinned on the DOCX's side by
+    :func:`test_the_docx_does_not_claim_python_docx_wrote_it`, which is
+    the test that says the name is the producer's and not the library's.
+    """
+    author = _the_pdf_information(render_pdf(document), "Author")
+    creator = _the_docx_core_property(render_docx(document), "creator")
+
+    assert author == creator, "the PDF and the DOCX of one report name two different producers"
+
+
+@pytest.mark.unit
+def test_the_markdown_draws_a_finding_as_a_list_item(
+    frozen_now: datetime,
+) -> None:
+    """The Markdown draws each of the report's list items as a list item.
+
+    A finding, a disclosure and a citation are list items, and a
+    narrative, an interpretation, a figure and a table are not. The
+    Markdown's list marker is the character at the head of a line, and it
+    is the **parser** that says a line is a list item.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** A renderer that drew the
+    report's background paragraph as a bullet and its provenance citation
+    as a plain paragraph draws exactly as many list items as before and
+    says exactly the same words — and a reader of that export could not
+    tell a finding from the prose. The count is the same either way; the
+    texts are not.
+
+    **And the marker catches the change that keeps both.** The rule is
+    that the findings are **bullets** — entries in an *unordered* list —
+    and a renderer that drew them as a numbered list would draw exactly
+    as many list items as before, in exactly the same words, and would
+    be a report whose findings are numbered where the rule says they are
+    bullets. So the marker is read out of the form — the kind of list
+    the **parser** says the marker opened — and it is required to be a
+    marker the **Markdown renderer's own statement** of its rule names,
+    which is read out of the product at run time rather than carried here
+    as a literal.
+
+    The expectation is read out of the **model** — the document's claims,
+    its unresolved records and its footnotes — and it is compared as a
+    **multiset**, because two list items may carry the same text and a
+    set would hide the duplicate.
+
+    **The document read here holds more than one of everything**, and
+    that is the point of it: a document with one of each cannot tell a
+    form that carries the first from a form that carries them all, so a
+    form that dropped the second citation would pass every comparison.
+    """
+    document = _a_document_with_more_than_one_of_everything(frozen_now)
+
+    items = _the_markdown_list_items(render_markdown(document))
+    list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
+
+    assert items == list_items, (
+        f"the Markdown draws {items} list items and the document holds {list_items}"
+    )
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_markdown_list_item_texts(render_markdown(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the Markdown draws the wrong list items — "
+        f"{_the_difference_between_multisets(expected, drawn)}"
+    )
+
+    statement = _the_markdown_own_statement_of_its_rule()
+    markers = _the_markdown_list_item_markers(render_markdown(document))
+
+    for marker in markers:
+        assert _the_statement_names_the_marker(statement, marker), (
+            f"the Markdown draws a list item with the marker {marker!r}, "
+            f"which the Markdown's own statement of its rule does not name"
+        )
+
+
+@pytest.mark.unit
+def test_the_docx_draws_a_finding_as_a_list_item(
+    frozen_now: datetime,
+) -> None:
+    """The DOCX draws each of the report's list items as a list item.
+
+    The same rule as the Markdown's and the PDF's, in the DOCX's own
+    carrier: a paragraph in a list.
+
+    **The count catches a list item missing altogether, and the texts
+    catch the substitution a count cannot see.** The DOCX's own docstring
+    says the opposite in its own words — *"a finding and a disclosure are
+    bullets, because they are entries in a list, and a narrative is a
+    paragraph, because it is prose"* — and a renderer that drew the
+    background paragraph as a bullet and the provenance citation as a
+    plain paragraph would draw exactly as many list items as before and
+    say exactly the same words.
+
+    **And the marker catches the change that keeps both.** The rule is
+    that the findings are **bullets**, and a renderer that drew them as
+    a numbered list would draw exactly as many list items as before, in
+    exactly the same words — and would contradict the DOCX's own
+    statement, which says the findings are bullets. So the marker is
+    read out of the **package**: a paragraph names a style, the style
+    names a numbering, and the numbering names a **format**, and the
+    format is the marker. The style's *name* is not the marker —
+    python-docx's private spelling of the two kinds of list — and a
+    witness that read the name would accept any numbered style.
+
+    The marker is required to be a marker the **DOCX renderer's own
+    statement** of its rule names, and that statement is read out of the
+    product at run time rather than carried here as a literal.
+
+    The texts are read out of the package with ``zipfile`` and
+    ``ElementTree``, because the reader must not be the writer, and the
+    expectation is read out of the **model**.
+
+    **The document read here holds more than one of everything**, and
+    that is the point of it: a document with one of each cannot tell a
+    form that carries the first from a form that carries them all, so a
+    form that dropped the second section's findings would pass every
+    comparison.
+    """
+    document = _a_document_with_more_than_one_of_everything(frozen_now)
+
+    items = _the_docx_list_items(render_docx(document))
+    list_items = len(document.claims) + len(document.unresolved_records) + len(document.footnotes)
+
+    assert items == list_items, (
+        f"the DOCX draws {items} list items and the document holds {list_items}"
+    )
+
+    expected = _the_model_list_item_texts(document)
+    drawn = _the_docx_list_item_texts(render_docx(document))
+
+    assert Counter(drawn) == Counter(expected), (
+        f"the DOCX draws the wrong list items — "
+        f"{_the_difference_between_multisets(expected, drawn)}"
+    )
+
+    statement = _the_docx_own_statement_of_its_rule()
+    markers = _the_docx_list_item_markers(render_docx(document))
+
+    for marker in markers:
+        assert _the_statement_names_the_marker(statement, marker), (
+            f"the DOCX draws a list item with the marker {marker!r}, "
+            f"which the DOCX's own statement of its rule does not name"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -2255,7 +3221,19 @@ assert "docx" not in sys.modules, "the DOCX library was loaded"
 assert "reportlab" not in sys.modules, "the PDF library was loaded"
 print("ok")
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        # Both halves of the pipe are stated, and they agree: the child is
+        # told to write UTF-8 and the parent decodes UTF-8. The child's own
+        # output is "ok", but a failure puts a traceback naming the module's
+        # path on the error stream, and that path can carry characters the
+        # machine's locale encoding cannot read.
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
 
     assert result.returncode == 0, result.stderr
 
