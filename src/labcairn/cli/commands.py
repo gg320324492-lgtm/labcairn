@@ -1580,6 +1580,20 @@ def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     The refusal is rendered rather than raised, because a service that could
     not start is not a crash: it is a service that declined, and the two are
     told apart by their exit code.
+
+    **The bind refusal carries this command's own sentence as well as the
+    layer's reason.** The layer's words alone are not a refusal this command
+    can be held to: a message that is only ``str(error)`` is another
+    component's refusal passing through, and nothing in the tree can say
+    which site refused or tell this one apart from the address check's. So
+    the sentence is the command's own, and the guard's reason follows it.
+
+    **The address is not named here, because the guard is the one that knows
+    which address it refused.** The command asked for one address and the
+    service may have been handed another, so a sentence that named the
+    command's address would be a claim about an address the refusal is not
+    about. The guard names the address in its own words, and they are carried
+    through whole.
     """
     from labcairn.api.bind import BindRefusedError
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
@@ -1587,7 +1601,11 @@ def _run_service(app: FastAPI, *, host: str, port: int, as_json: bool) -> None:
     try:
         run_service(app, host=host, port=port)
     except BindRefusedError as error:
-        _refuse(CLI_REFUSAL_INVALID_ARGUMENTS, str(error), as_json=as_json)
+        _refuse(
+            CLI_REFUSAL_INVALID_ARGUMENTS,
+            f"the service's own guard refused the bind: {error}",
+            as_json=as_json,
+        )
     except SystemExit:
         _refuse(
             CLI_REFUSAL_INVALID_ARGUMENTS,
