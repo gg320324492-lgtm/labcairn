@@ -8,7 +8,7 @@ revisions, the content checks, the document builder and the application
 layer's report operation.
 **And, at the gate's close, against the tree the gate's independent
 reviewers verified:** the four round-five fixes composed at `9a6319e`, at
-**`<G4COMMIT>`**.
+**`9381036af0104172f16fe94a6edd2e8cb6d9ae04`**.
 **Reviewer:** Claude, the same party that specified the work, dispatched the
 implementation and wrote the fixes. **This is not an independent review** — see
 "Reviewer independence" below, and the same caveat LC-P1-09's and LC-P1-10's
@@ -19,7 +19,7 @@ review**, which covered this work order; see "Reviewer independence" below.
 
 - **The whole suite on the gate's tree**, at the four round-five fixes
   composed in `9a6319e` and verified by the gate's own reviewers at
-  **`<G4COMMIT>`**: **3289 passed, 3 skipped and 1 failed**, 29 min 32 s, of
+  **`9381036af0104172f16fe94a6edd2e8cb6d9ae04`**: **3289 passed, 3 skipped and 1 failed**, 29 min 32 s, of
   **3293 collected** — **fourteen more than the previous round's 3279**, and
   the fourteen are the witnesses the gate's round-five fixes added; none was
   removed. **The one failure is not the tree's**: it is the `--basetemp`
@@ -304,7 +304,7 @@ surfaces was unwatched.
 against the fixed code.** The gate's own record — the
 [gate review](G4-acceptance.md) — carries every round, every mutation count
 and every finding, and it names the commit this gate closed on:
-**`<G4COMMIT>`**. **The gate is closed, with the verdict PASS WITH NOTES**,
+**`9381036af0104172f16fe94a6edd2e8cb6d9ae04`**. **The gate is closed, with the verdict PASS WITH NOTES**,
 and this work order's row can be marked done on the strength of **that**
 review and not of this one — this record is the work order's own review, and
 it says so on its own face.
