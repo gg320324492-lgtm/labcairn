@@ -83,15 +83,18 @@ the method, the two mutation tables, the sixty-six findings, and the
 limits that are limits. LC-P1-11's and LC-P1-12's own acceptance reviews
 are [written up](../acceptance/LC-P1-11-acceptance.md) and
 [written up](../acceptance/LC-P1-12-acceptance.md), both **PASS WITH NOTES**.
-**The report path's review failed the gate four times**, and the reason is
+**The report path's review failed the gate five times**, and the reason is
 the same each time: **a property table can be entirely clean and the review
 still fail.** The first was on two open defects and five unwatched refusals;
 the second on one unwatched refusal the first fix had introduced; the third on
-fourteen surviving mutations out of a hundred and sixteen; and the fourth —
+fourteen surviving mutations out of a hundred and sixteen; the fourth —
 after the fix that generalised the comparison of the four forms — on **eight**,
 in a class the fix's mechanism could not reach: **what a form says about
 itself outside its own text** (the DOCX's title property, the PDF's title and
-author, and the list-item shape of the Markdown and the DOCX).
+author, and the list-item shape of the Markdown and the DOCX); and the fifth,
+at `86e0226`, on **four** — which the fix under review had closed down to, and
+which **found a real defect of its own**: the list-item witness comparing a
+count rather than a marker.
 
 **The three surfaces' review came back BLOCKED**, on two blockers and six
 notes, one of the blockers sitting directly under the gate's own exit test —
