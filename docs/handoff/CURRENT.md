@@ -77,7 +77,7 @@ Retrieval now answers the two-negative question (T10): a search that breaks is a
 **G4 is closed** — LC-P1-11 (report assembly, export and artefact
 versioning) and LC-P1-12 (the Typer CLI and the local FastAPI + React
 workbench) — on the independent review at `<G4COMMIT>`, verdict
-**PASS WITH NOTES** (the placeholder `<G4VERDICT>` is filled in at the merge).
+**PASS WITH NOTES.**
 The [gate review](../acceptance/G4-acceptance.md) records
 the method, the two mutation tables, the sixty-six findings, and the
 limits that are limits. LC-P1-11's and LC-P1-12's own acceptance reviews

@@ -697,7 +697,7 @@ in all four places.
 - **`ruff check`, `ruff format --check` (258 files), `mypy` (strict —
   *"Success: no issues found in 242 source files"*):** clean.
 - **The merged tree this gate closes on, at `5dcd6d0` — the commit the
-  independent reviewers verified, and `main`'s tip:** `ruff check` **All checks
+  independent reviewers verified:** `ruff check` **All checks
   passed** · `ruff format --check` **260 files already formatted** · `mypy`
   (strict) **"Success: no issues found in 243 source files"** · the whole
   suite **3216 passed, 3 skipped** on Windows (42 min) and **3195 passed, 24
@@ -3515,7 +3515,57 @@ copied out of a renderer.
 
 ## The verdict
 
-*(to be settled)*
+**The gate is closed. The verdict is PASS WITH NOTES.**
+
+**The exit test is met.** The three surfaces produce the same report bytes,
+compared field by field — **255 fields, none differing** — and by hash, for
+each of the four forms, against the file the report operation wrote and the
+bytes the service serves. That was demonstrated at `15cd63d` and the
+demonstration has been re-run against the tree this gate closes on.
+
+**The condition that was outstanding is now discharged.** The board's rule is
+that a row is marked done only when an **independent review at a named
+commit** says so. Two reviewers did that work, one per scope, and **neither
+wrote a single fix into this repository** — which is what made the review
+independent and what let the same reviewer re-run its own mutations against
+the fixed code.
+
+**Scope A — the report path.** **Four FAILs, then a pass.** The first was
+two open defects and five unwatched refusals; the second was one unwatched
+refusal the first fix had introduced; the third was fourteen surviving
+mutations out of a hundred and sixteen; and the fourth was eight, in a class
+the fix's mechanism could not reach. **Every one of the four failed on a
+property table that was entirely clean** — and that is the finding the whole
+gate turned on: *a property table can be clean and the review still fail.*
+The report path's review now passes, and its verdict is **PASS WITH NOTES**.
+
+**Scope B — the three surfaces.** **BLOCKED twice, then a pass.** The first
+was two blockers and six notes, one of the blockers sitting directly under the
+gate's own exit test; the second was two surviving mutations, one of them
+**the witnesses for a blocker having been deleted by this gate's own
+composition**. The re-verification at `47259e0` found four more — **the
+shared rule that reads the witnesses was itself unwatched**, **one
+command-level refusal was watched by nothing**, **the pairing between a
+refusal and its witness was unwatched**, and **the crash fix's two catches
+were load-bearing and unwatched**. All four are fixed, and the re-verification
+that fixes them **is this round**.
+
+**And this round added a question the last one did not ask.** F65's fix ends
+in a **hand-written record** — the four pairings the values cannot decide —
+and a hand-written record is what F53 was raised about: *a table counted by
+hand is wrong the moment the code moves.* So the record's **own** guard was
+measured too, and a record that goes stale, or that leaves out a witness the
+derivation offers, is caught by name. **A record nobody checks is a table; a
+record that is checked is a witness.**
+
+**What is carried forward is what the review confirmed as a limit rather
+than a defect**, and it is listed below: the layer's two part-refusals, 725
+and 733, which are **unreachable** and so cannot be watched today, and which
+become the only thing standing between a report and a part the ledger never
+recorded the moment `_the_parts` or the builder's copy-from-receipt rule
+changes; the browser, which no test drives; the API's event stream, which
+the workbench does not consume; and the demonstration's own claim, which the
+demonstration writes rather than the product.
 
 ## What this review did not cover
 
