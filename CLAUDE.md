@@ -27,9 +27,37 @@ fails on this machine with `WinError 5`, and a base temp directory *inside*
 the repository makes two tests fail for a reason that has nothing to do with
 the property under test.
 
-**Long paths make Rich wrap at `COLUMNS=200`**, which truncates the phrases
-some assertions compare and produces failures that are about line length, not
-about behaviour. Use a short `--basetemp` path outside the tree.
+**The CLI renders its refusals through Rich, which wraps at `COLUMNS=200`.** A
+wrap that falls *inside* a phrase truncates it, so an assertion about that
+phrase fails for a reason that has nothing to do with the property under
+test.
+
+**Length is not the test — where the wrap falls is.** Measured on
+2026-10-23: a thirteen-character `--basetemp` landed in the wrong place and
+failed, while a forty-five-character one was safe. "Use a short path" is the
+wrong rule; the right one is that **a run showing this failure is re-measured
+with another path before it is believed**, and the path is recorded alongside
+the number.
+
+**Two pytest runs must not share one `--basetemp`** — pytest clears it on the
+way in, and two runs sharing one destroy each other's test tree.
+
+**A copied virtualenv is not a virtualenv of its own.** This project's tests
+drive the CLI through the installed console script, and that script is a
+compiled launcher with an interpreter's path burned into it. A virtualenv
+copied with **hard links** shares that launcher — and shares the `.pth` that
+names its editable install's source tree — so **every copy runs the same
+code**, and a measurement of one tree is a measurement of another. Two
+measurements were lost to this on 2026-10-23, and neither announced itself:
+the tree was green, and the number was wrong.
+
+So a copy gets **its own** launcher and **its own** `.pth`, and the launcher
+is repointed by an **equal-length** replacement — a longer path does not fit
+in place and the launcher simply stops working.
+
+**The check that settles it:** apply a mutation that only the console script
+can reach, and see whether the witness fails. If it stays green, the copy is
+running somebody else's code.
 
 **Parallel runs each need their own `TEMP`.** `MPLCONFIGDIR` is pinned under
 the temp directory, so two runs sharing one temp directory fight over it.
