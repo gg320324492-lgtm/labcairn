@@ -991,10 +991,19 @@ REFUSAL_SITE_COUNT = 19
 #: that only listed the tests would be a list of claims; this one is
 #: checked.
 #:
-#: One site has two witnesses, because one ``raise`` refuses two different
+#: Two sites have two witnesses. One ``raise`` refuses two different
 #: mistakes — a rule with no effect and a rule with an effect this build does
 #: not know — and the two are told apart by what the mistake is, not by
-#: where it is refused.
+#: where it is refused. And a source root that is not a directory is watched
+#: twice over: once by the test that names it as the root the configuration
+#: binds, and once by the test that says the same words of it.
+#:
+#: **The enumeration in ``tests/test_cli_refusal_enumeration.py`` names the
+#: same witnesses for the same sites**, and it says which witness watches
+#: which site by the value the site names — the configuration's path, the
+#: policy's path, the providers file's path. A witness that compares the
+#: configuration's path is the witness of the configuration's refusal and
+#: not of the policy's, and the two enumerations cannot disagree about it.
 WATCHED_REFUSALS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     (
         "src/labcairn/cli/workspace.py",
@@ -1068,8 +1077,11 @@ WATCHED_REFUSALS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     (
         "src/labcairn/cli/workspace.py",
         "source_paths",
-        "is a root the operator's selection does not govern",
-        ("test_a_source_directory_outside_the_workspace_is_refused",),
+        "outside the workspace",
+        (
+            "test_a_source_directory_outside_the_workspace_is_refused",
+            "test_doctor_names_a_source_root_outside_the_workspace",
+        ),
     ),
     (
         "src/labcairn/cli/workspace.py",
@@ -1087,7 +1099,10 @@ WATCHED_REFUSALS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "src/labcairn/cli/workspace.py",
         "source_paths",
         "which is not a directory",
-        ("test_a_configured_source_directory_that_is_not_a_directory_is_refused",),
+        (
+            "test_a_configured_source_directory_that_is_not_a_directory_is_refused",
+            "test_a_source_directory_that_is_not_a_directory_is_refused",
+        ),
     ),
     (
         "src/labcairn/cli/workspace.py",
