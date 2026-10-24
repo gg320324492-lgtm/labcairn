@@ -157,10 +157,12 @@ def test_the_workflow_names_every_shard_distinctly(repo_root: Path) -> None:
         "shard's job reports under the same name and branch protection cannot "
         "tell them apart"
     )
-    assert "matrix.workers" in name, (
-        "the python-quality job's name does not mention matrix.workers, so two "
-        "runs of the same shard under different worker counts share a name"
-    )
+    for key in ("matrix.os", "matrix.shard"):
+        assert key in name, (
+            f"the python-quality job's name does not mention {key}, so the "
+            "jobs of two matrix entries share a name and branch protection "
+            "cannot tell them apart"
+        )
 
 
 def test_the_shards_are_balanced(repo_root: Path) -> None:
@@ -184,8 +186,12 @@ def test_the_shards_are_balanced(repo_root: Path) -> None:
     )
 
     for platform in PLATFORMS:
+        platform_costs = costs.get(platform)
+        assert isinstance(platform_costs, dict) and platform_costs, (
+            f"the shard file must record the measured cost of each test file on {platform}"
+        )
         shard_costs = [
-            sum(float(costs.get(Path(name).name, 0.0)) for name in shard)
+            sum(float(platform_costs.get(Path(name).name, 0.0)) for name in shard)
             for shard in _shards(repo_root, platform)
         ]
         cheapest = min(shard_costs)
@@ -208,11 +214,13 @@ def test_the_recorded_costs_cover_every_test_file(repo_root: Path) -> None:
     """
     files = {path.name for path in (repo_root / "tests").glob("test_*.py")}
     costs = _shard_document(repo_root).get("costs", {})
-    missing = files - set(costs)
-    assert not missing, (
-        f"these test files have no measured cost recorded: {sorted(missing)}. "
-        "Regenerate the shard file."
-    )
+    for platform in PLATFORMS:
+        platform_costs = costs.get(platform, {})
+        missing = files - set(platform_costs)
+        assert not missing, (
+            f"on {platform}, these test files have no measured cost recorded: "
+            f"{sorted(missing)}. Regenerate the shard file."
+        )
 
 
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:

@@ -54,7 +54,7 @@ jobs:
     # are one check as far as branch protection is concerned — and a required
     # check satisfied by *any one* of them is a gate that only one shard has
     # to pass. The names are the gate, so they are made distinct.
-    name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }}, ${{ matrix.workers }} workers)
+    name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }})
     runs-on: ${{ matrix.os }}
     strategy:
       # Both operating systems report independently. C-6 wants an early
@@ -78,12 +78,7 @@ jobs:
         # test file is in no shard, in two shards, or if the shards drift
         # apart. A file in no shard is a test CI never runs, and every other
         # check would stay green while it went.
-        shard: [0, 1, 2, 3]
-        # The worker count within a shard. Measured on the runner: eight
-        # workers made the Ubuntu job 2.15 times faster and the Windows job
-        # **slower** than one worker, so the two platforms do not get the
-        # same answer.
-        workers: [1, 4]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v7
         # Full history, because `test_status_consistency` decides whether a
@@ -149,15 +144,26 @@ jobs:
           echo "cores: $(python -c 'import os; print(os.cpu_count())')"
           echo "shard $SHARD: $(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
 
+      # **No `-n`.** The workers were measured on the runner and they lost:
+      # eight workers made the whole-suite Ubuntu job 2.15 times faster but
+      # the Windows job *slower* than one, and inside a shard they lost
+      # again -- the Windows shard that took 741s with one worker took 961s
+      # with four, and the Ubuntu one that took 158s took 202s. A shard is
+      # now a quarter of the suite and a job on a runner of its own, so the
+      # parallelism that is left is the parallelism between the jobs, and
+      # that is free.
+      #
+      # `--durations=0` is what makes the next rebalance possible: the
+      # per-file seconds come out of the log, and they have to come from the
+      # runner, because a development machine gives a different order.
       - name: pytest
         shell: bash
         env:
           SHARD: ${{ matrix.shard }}
-          WORKERS: ${{ matrix.workers }}
           PLATFORM: ${{ matrix.os }}
         run: |
           files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
-          uv run pytest $files -n "$WORKERS" --dist loadfile --durations=0
+          uv run pytest $files --durations=0
 
       # No artifact is uploaded from this workflow, so there is no
       # `actions/upload-artifact` step whose `path:` could sweep the working

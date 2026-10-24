@@ -8,10 +8,10 @@ the balancing.
 
 **One partition per platform.** The two runners do not cost the same, and
 they do not cost the same *in the same proportions* either: measured on the
-runner, one shard was 310 seconds on Windows and 163 on Ubuntu, while
-another was 671 on Windows and 144 on Ubuntu. A partition balanced for one
-platform is lopsided on the other, so each platform gets its own. The two
-partitions run **the same tests** — only the arrangement differs.
+runner, one file took 383 seconds on Windows and 45 on Ubuntu, and another
+took 153 on Ubuntu and 288 on Windows. A partition balanced for one platform
+is lopsided on the other, so each platform gets its own. The two partitions
+run **the same tests** — only the arrangement differs.
 
 **When to run it.** When a test file is added, or when
 ``tests/test_ci_shard_coverage.py`` goes red. That test is the watch: it
@@ -110,41 +110,41 @@ def main() -> int:
     args = parser.parse_args()
 
     document = load()
-    costs: dict[str, float] = dict(document.get("costs", {}))
+    all_costs = document.get("costs", {})
     files = test_files()
 
-    missing = [name for name in files if name not in costs]
+    missing = [
+        name
+        for name in files
+        if any(name not in all_costs.get(platform, {}) for platform in PLATFORMS)
+    ]
     if missing:
         print(
             "these files have never been measured, and this script will not "
             "guess a cost for them:\n  " + "\n  ".join(missing) + "\n\nMeasure them on the "
             "runner: read the per-file seconds out of the durations section of "
             "a CI log (the pytest step runs with --durations=0), and add them "
-            "to the \"costs\" in " + str(SHARD_FILE.relative_to(REPO_ROOT)) + ".",
+            'to the "costs" in ' + str(SHARD_FILE.relative_to(REPO_ROOT)) + ".",
             file=sys.stderr,
         )
         return 1
 
     shards = args.shards or shard_count(document) or 4
-    groups = balance(files, costs, shards)
-    # The shards name paths relative to the repository root, not bare file
-    # names, because the workflow hands them to pytest as arguments and a
-    # bare name is not a path pytest can find.
-    groups = [[f"tests/{name}" for name in group] for group in groups]
-
     partitions = document.get("shards", {})
     if not isinstance(partitions, dict):
         partitions = {}
-    for platform in PLATFORMS:
-        if args.platform is None or args.platform == platform:
-            partitions[platform] = groups
 
     for platform in PLATFORMS:
-        group_list = partitions.get(platform, [])
-        loads = [sum(costs.get(Path(n).name, 0.0) for n in g) for g in group_list]
-        if not loads:
+        if args.platform is not None and args.platform != platform:
             continue
-        print(f"{platform}: {len(group_list)} shards")
+        costs = all_costs.get(platform, {})
+        # The shards name paths relative to the repository root, not bare file
+        # names, because the workflow hands them to pytest as arguments and a
+        # bare name is not a path pytest can find.
+        groups = [[f"tests/{name}" for name in group] for group in balance(files, costs, shards)]
+        partitions[platform] = groups
+        loads = [sum(costs.get(Path(n).name, 0.0) for n in g) for g in groups]
+        print(f"{platform}: {len(groups)} shards")
         for index, group_load in enumerate(loads):
             print(f"  shard {index}: {group_load:8.1f}s")
         print(f"  balance factor: {max(loads) / min(loads):.3f}")
@@ -153,7 +153,11 @@ def main() -> int:
         json.dumps(
             {
                 "shards": partitions,
-                "costs": {name: round(costs[name], 2) for name in files},
+                "costs": {
+                    platform: {name: round(all_costs[platform][name], 2) for name in files}
+                    for platform in PLATFORMS
+                    if platform in all_costs
+                },
             },
             indent=2,
         )
