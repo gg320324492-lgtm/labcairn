@@ -108,8 +108,33 @@ jobs:
 
       # The full suite, including tests/test_no_reference_leakage.py. That file
       # builds real artifacts and needs `uv` on PATH; `uv run` provides it.
+      #
+      # `--dist loadfile` and not `load`: the suite's expensive fixtures are
+      # module-scoped — the exit demonstration is run once per module, not
+      # once per test — and `load` would give each worker its own copy of a
+      # module-scoped fixture, so the demonstration would run once per worker
+      # instead of once. `loadfile` also keeps a file's tests in their
+      # collected order, so no test can come to depend on another test's side
+      # effect.
+      #
+      # The worker count is the runner's core count, doubled: the suite is
+      # dominated by waiting for child processes to start and exit rather than
+      # by CPU, so a worker is idle most of the time and a second worker per
+      # core fills the wait. Measured on 2026-10-24 on the development
+      # machine (16 cores): 16m14s sequential, 8m45s at 4 workers, 6m13s at 8
+      # workers — and the tests collected and passed were the same in every
+      # run (3292 passed, 3 skipped).
+      - name: the runner this job is on
+        shell: bash
+        run: |
+          echo "cores: $(python -c 'import os; print(os.cpu_count())')"
+          echo "workers: $(python -c 'import os; print(min(16, max(2, (os.cpu_count() or 2) * 2)))')"
+
       - name: pytest
-        run: uv run pytest
+        shell: bash
+        run: |
+          workers="$(python -c 'import os; print(min(16, max(2, (os.cpu_count() or 2) * 2)))')"
+          uv run pytest -n "$workers" --dist loadfile
 
       # No artifact is uploaded from this workflow, so there is no
       # `actions/upload-artifact` step whose `path:` could sweep the working
