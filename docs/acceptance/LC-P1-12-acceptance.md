@@ -129,8 +129,14 @@ recorded in the ledger; the three surfaces compared; a refresh that changes
 nothing and repeats nothing; the origin and session guards refusing; and
 the material changed, **the repository's own walk** marking the report
 `STALE` with its own reason, and a re-render as v2 whose predecessor's
-bytes are unchanged. **Fifty-four checks, exit 0.** The demonstration runs
-in about fifteen seconds and the test that runs it in about twenty-one.
+bytes are unchanged. **Sixty checks, exit 0**, and **the figure was
+measured, not carried**: the demonstration was run on this tree and printed
+*255 field(s), 0 differing* and *60 checks passed*, with no check red. **The
+number moves when the tree moves** — a scratch tree with one field added to
+the task state printed 256, and one with the manifest's six material
+entries removed printed 237, which is where the figure of 237 in this
+record's history comes from. The demonstration runs in about fifteen seconds
+and the test that runs it in about twenty-one.
 
 **The launch.** `labcairn init` and `labcairn doctor` are driven as
 subprocesses, so the demonstration exercises the console script a
