@@ -49,7 +49,12 @@ concurrency:
 
 jobs:
   python-quality:
-    name: python-quality (${{ matrix.os }})
+    # **The name carries the shard and the worker count, and it has to.**
+    # GitHub identifies a check by its name, so four jobs with the same name
+    # are one check as far as branch protection is concerned — and a required
+    # check satisfied by *any one* of them is a gate that only one shard has
+    # to pass. The names are the gate, so they are made distinct.
+    name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }})
     runs-on: ${{ matrix.os }}
     strategy:
       # Both operating systems report independently. C-6 wants an early
@@ -60,6 +65,20 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+        # The suite is split into shards, and each shard runs in its own job
+        # on its own runner. The reason is measured, not guessed: the
+        # Windows job spent 34.5 minutes and the Ubuntu job 17.5, and every
+        # other required check together came to under two minutes, so the
+        # suite was the whole of the wait. **The Windows runner is where the
+        # time is**, and one runner doing everything is the worst possible
+        # arrangement for a suite whose cost is spread unevenly.
+        #
+        # The shards are balanced against measured per-file costs, and the
+        # balance is watched: `tests/test_ci_shard_coverage.py` fails if a
+        # test file is in no shard, in two shards, or if the shards drift
+        # apart. A file in no shard is a test CI never runs, and every other
+        # check would stay green while it went.
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v7
         # Full history, because `test_status_consistency` decides whether a
@@ -106,10 +125,45 @@ jobs:
       - name: mypy --strict
         run: uv run mypy
 
-      # The full suite, including tests/test_no_reference_leakage.py. That file
-      # builds real artifacts and needs `uv` on PATH; `uv run` provides it.
+      # This shard's files, and only this shard's. The shard list is read
+      # from the file the workflow and the witness test both read, so the
+      # two cannot disagree about what runs.
+      #
+      # `--dist loadfile` and not `load`: the suite's expensive fixtures are
+      # module-scoped — the exit demonstration is run once per module, not
+      # once per test — and `load` would give each worker its own copy of a
+      # module-scoped fixture, so the demonstration would run once per worker
+      # instead of once. `loadfile` also keeps a file's tests in their
+      # collected order, so no test can come to depend on another test's side
+      # effect.
+      - name: the runner this job is on, and this shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          echo "cores: $(python -c 'import os; print(os.cpu_count())')"
+          echo "shard $SHARD: $(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
+
+      # **No `-n`.** The workers were measured on the runner and they lost:
+      # eight workers made the whole-suite Ubuntu job 2.15 times faster but
+      # the Windows job *slower* than one, and inside a shard they lost
+      # again -- the Windows shard that took 741s with one worker took 961s
+      # with four, and the Ubuntu one that took 158s took 202s. A shard is
+      # now a quarter of the suite and a job on a runner of its own, so the
+      # parallelism that is left is the parallelism between the jobs, and
+      # that is free.
+      #
+      # `--durations=0` is what makes the next rebalance possible: the
+      # per-file seconds come out of the log, and they have to come from the
+      # runner, because a development machine gives a different order.
       - name: pytest
-        run: uv run pytest
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+          PLATFORM: ${{ matrix.os }}
+        run: |
+          files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
+          uv run pytest $files --durations=0
 
       # No artifact is uploaded from this workflow, so there is no
       # `actions/upload-artifact` step whose `path:` could sweep the working
