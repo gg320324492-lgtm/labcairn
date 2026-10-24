@@ -49,7 +49,12 @@ concurrency:
 
 jobs:
   python-quality:
-    name: python-quality (${{ matrix.os }})
+    # **The name carries the shard and the worker count, and it has to.**
+    # GitHub identifies a check by its name, so four jobs with the same name
+    # are one check as far as branch protection is concerned — and a required
+    # check satisfied by *any one* of them is a gate that only one shard has
+    # to pass. The names are the gate, so they are made distinct.
+    name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }}, ${{ matrix.workers }} workers)
     runs-on: ${{ matrix.os }}
     strategy:
       # Both operating systems report independently. C-6 wants an early
@@ -149,9 +154,10 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           WORKERS: ${{ matrix.workers }}
+          PLATFORM: ${{ matrix.os }}
         run: |
-          files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
-          uv run pytest $files -n "$WORKERS" --dist loadfile
+          files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
+          uv run pytest $files -n "$WORKERS" --dist loadfile --durations=0
 
       # No artifact is uploaded from this workflow, so there is no
       # `actions/upload-artifact` step whose `path:` could sweep the working
