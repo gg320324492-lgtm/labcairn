@@ -3576,13 +3576,16 @@ derivation offers, is caught by name. **A record nobody checks is a table; a
 record that is checked is a witness.**
 
 **What is carried forward is what the review confirmed as a limit rather
-than a defect**, and it is listed below: the layer's two part-refusals, 725
-and 733, which are **unreachable** and so cannot be watched today, and which
-become the only thing standing between a report and a part the ledger never
-recorded the moment `_the_parts` or the builder's copy-from-receipt rule
-changes; the browser, which no test drives; the API's event stream, which
-the workbench does not consume; and the demonstration's own claim, which the
-demonstration writes rather than the product.
+than a defect**, and it is listed in **"Open items carried beyond G4"**
+below: the layer's two part-refusals, 725 and 733, which are **unreachable**
+and so cannot be watched today, and which become the only thing standing
+between a report and a part the ledger never recorded the moment `_the_parts`
+or the builder's copy-from-receipt rule changes; the browser, which no test
+drives; the API's event stream, which the workbench does not consume; and the
+demonstration's own claim, which the demonstration writes rather than the
+product. **That section also carries the four items the gate before this one
+handed on and this gate did not deal with**, so that the next reader does not
+have to assemble them from every section of this record.
 
 ## What this review did not cover
 
@@ -3614,3 +3617,96 @@ demonstration writes rather than the product.
   repository.
 - **What a reader of a report would conclude.** Not this review's business;
   the work order says so itself.
+
+---
+
+## Open items carried beyond G4
+
+**What this gate confirmed as a limit rather than a defect, and what the
+gate before it handed on.** G3 closed with a section by this name, and a
+gate that closes without one leaves the next reader to assemble the list
+from every section of the record. **This is that list.**
+
+### Carried from G3, and not dealt with here
+
+- **The fabricated-DOI half of LC-P1-09's clause** — still no
+  implementation, and the gap is structural rather than a missing line. **This
+  gate did not check it.**
+- **The manifest names no version for the renderer** — and the recipe check
+  compares the file's bytes rather than the parsed models. G3's review
+  looked at this and found it a **stated limit rather than a defect**: the
+  manifest carries no renderer version and none of the renderer's build
+  parameters, and `RenderEnvironment` holds only matplotlib's version, salt,
+  fonts and platform. **Both facts are written down, and the figure's own
+  receipt carries its bytes' hash.** This gate did not re-examine it.
+- **The exit demonstrations of G1 and G2 are run by nothing** — the claim
+  holds. **No test and no CI job runs `examples/g1_exit_demo.py` or
+  `examples/g2_exit_demo.py`**, and both `tests/test_analysis_demo.py` and
+  `tests/test_smoke_path.py` say so on their own face. **G4's own exit
+  demonstration is run by `tests/test_smoke_path.py`**, which is what makes
+  this gate's exit test different from those two — and it is the reason the
+  gap below is named rather than merely inherited.
+- **A two-column page whose rival column holds less than 30% of the page's
+  area** — G3's review found it and left it. **This gate did not re-check
+  it.**
+- **An aggregate's numbers are not re-checked by C1, C2 or C3** — they are
+  traceable to the file and to the manifest, and not re-derived at gate time.
+  **This gate did not re-derive them either.**
+- **The repository still has no LICENSE file**, and matplotlib's bundled fonts
+  oblige one. **That obligation is named in the plan as G5's**, so it is
+  carried **to** the next gate rather than beyond this one — and the
+  repository says so on its own face in `LICENSE.PENDING.md`.
+
+**And one of G3's seven this gate touched, though it did not close it**:
+**source provenance preserved through report generation** — the report's model
+carries a provenance field (`src/labcairn/reports/model.py`), but that field
+predates this gate (it came with the document model, `a9e7cf6`), and **what
+G3 named is the *link* — the reason the ledger's records reach a report at
+all**, which this gate did not build and this review did not check. **It is
+carried, not closed.**
+
+### Found by this gate's own review
+
+- **The layer's two part-refusals, 725 and 733** — **unwatched and
+  unreachable**, measured twice by two methods, and **the gate can close on a
+  tree carrying them**: under the gate's own first rule they are not
+  survivors, because removing either changes **no observable behaviour**.
+  **They are not nothing, and the record says what they are for: the moment
+  `_the_parts` or the builder's copy-from-receipt rule changes, these two
+  guards become the only thing standing between a report and a part the
+  ledger never recorded.**
+- **The browser** — no test drives the workbench in a browser. The web
+  package's four cases drive a **fake at the `fetch` boundary**, so the
+  component, the client, the paths and the session scheme are exercised
+  exactly as they are in a browser — but **the real service is never driven
+  by the browser**, and the clause *"CLI and UI show identical Task state"*
+  is therefore discharged **through the API**. That is a stated limit of the
+  evidence, not a defect.
+- **The API's event stream is not consumed by the workbench**, and **the
+  workbench cannot switch the selected project**, because the API has no such
+  operation. Both say so in prose where a reader will meet them.
+- **The demonstration's own claim** — the claim in the report is **made by
+  the demonstration, not by the product**: no layer operation writes an
+  evidence record or an anchor, so the demonstration writes the claim's own
+  address and the record that rests on it itself, and says so in its own
+  output.
+- **The report's own interpretation** — the report carries the **figure's**
+  reading, because that is the reading the ledger holds; a reading about the
+  report as a whole has no source in Phase 1, and the model's machinery for
+  one waits for a phase that has one.
+- **The DOCX's and the PDF's byte-reproducibility** — neither is claimed; the
+  plan says so and the report says so on its own face.
+
+### What the last review did not re-measure
+
+**The last review re-ran the mutations that defeated the round before it, and
+added two that attack the new mechanism itself. The other measurements were
+not re-run** — and the review says so rather than letting the number stand
+for a whole. Those are the last round's figures, anchored to the tree they
+were measured on: **the fifty-eight-mutation matrix and the refusal sweep at
+`47259e0`**, and **the report path's own hundred and sixteen mutations at
+`25bad72`**. **What was not re-measured is the catch rate under repetition**
+— every mutation ran once, at one seed — and **the seventy-five sweep
+branches of the application layer**, the carry-level witnesses of F47 and
+F51, and the API's five refusals, all inherited and all re-measured by nobody
+since.
