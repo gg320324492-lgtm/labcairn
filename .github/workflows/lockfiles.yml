@@ -31,7 +31,15 @@
 name: lockfiles
 
 on:
+  # The push trigger runs on main only. A push to a feature branch is
+  # already covered by that branch's pull_request event -- the same
+  # workflow, the same tests, the same checks -- so running it again on
+  # the push doubles the jobs for no new signal. C-1 forbids filtering the
+  # *pull_request* trigger of a required workflow, and permits it on a
+  # push-triggered one, and this is that: the required checks are on the
+  # pull request, and main's own push is still covered.
   push:
+    branches: [main]
   pull_request:
 
 permissions:
