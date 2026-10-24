@@ -42,6 +42,17 @@ the number.
 **Two pytest runs must not share one `--basetemp`** — pytest clears it on the
 way in, and two runs sharing one destroy each other's test tree.
 
+**The temp directory must be outside the repository, not merely off the C
+drive.** Two tests enforce this and they are right: a workspace inside the
+checkout makes the run depend on the tree it runs in and leaves the checkout
+dirty. The demonstration's own workspace is asserted to be outside the
+repository, and the repository-root guard expects a directory that is not in
+a repository at all. So `TEMP` and `TMP` point at `E:\labcairn-local\tmp` —
+on the E drive, and **outside** `E:\LabCairn`. The project's own files live
+under `E:\LabCairn\.local\` (which carries its own `.gitignore`), but the
+runtime temp does not, and moving it inside the repository broke two tests
+on 2026-10-24.
+
 **A copied virtualenv is not a virtualenv of its own.** This project's tests
 drive the CLI through the installed console script, and that script is a
 compiled launcher with an interpreter's path burned into it. A virtualenv
@@ -68,6 +79,43 @@ Whole-suite runs go one at a time.
 **`cmd | tail` returns tail's exit code.** A pipeline hides the status of the
 command that mattered, and it has been read as "green" when the command under
 it failed. Run the command, then read its status separately.
+
+## The CI runs in shards, and the shard list is a hand-edited file
+
+**The suite is split into six shards per platform, and each shard runs in its
+own job on its own runner.** The reason is measured: the Windows job spent
+34.5 minutes and the Ubuntu job 17.5, and every other required check
+together came to under two minutes, so the suite was the whole of the wait.
+One runner doing everything is the worst possible arrangement for a suite
+whose cost is spread unevenly.
+
+**Adding a test file means adding it to the shard list**, and
+`tests/test_ci_shard_coverage.py` is what says so: it fails if a test file
+is in no shard, in two shards, if a shard names a file that does not exist,
+if the shard count disagrees with the workflow's matrix, if a cost is
+missing, or if the shards have drifted out of balance. **A file in no shard
+is a test CI never runs**, and every other check would stay green while it
+went. The fix is `python .github/make_ci_shards.py`, which refuses to guess
+a cost it has not measured.
+
+**The costs are measured on the runner, and the two platforms get their own
+partition.** One file took 383 seconds on Windows and 45 on Ubuntu; another
+took 153 on Ubuntu and 288 on Windows — not the same total, a different
+*order*. A partition balanced for one platform is lopsided on the other. The
+per-file seconds come out of the CI log, which is why the pytest step runs
+with `--durations=0`.
+
+**Do not add `-n` to the CI pytest step.** The workers were measured and
+they lost: eight workers made the whole-suite Ubuntu job 2.15 times faster
+and the Windows job *slower* than one, and inside a shard they lost again —
+the Windows shard that took 741s with one worker took 961s with four. The
+parallelism that is left is the parallelism between the jobs.
+
+**A job's name is the gate, so it must say which job it is.** GitHub
+identifies a check by its name, so several jobs sharing a name are *one*
+check as far as branch protection is concerned, and a required check naming
+one of them is satisfied by whichever reports first. The names carry the
+platform and the shard, and a test watches that they do.
 
 ## Claims are measured, not asserted
 
