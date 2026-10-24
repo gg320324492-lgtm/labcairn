@@ -60,6 +60,25 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+        # The suite is split into shards, and each shard runs in its own job
+        # on its own runner. The reason is measured, not guessed: the
+        # Windows job spent 34.5 minutes and the Ubuntu job 17.5, and every
+        # other required check together came to under two minutes, so the
+        # suite was the whole of the wait. **The Windows runner is where the
+        # time is**, and one runner doing everything is the worst possible
+        # arrangement for a suite whose cost is spread unevenly.
+        #
+        # The shards are balanced against measured per-file costs, and the
+        # balance is watched: `tests/test_ci_shard_coverage.py` fails if a
+        # test file is in no shard, in two shards, or if the shards drift
+        # apart. A file in no shard is a test CI never runs, and every other
+        # check would stay green while it went.
+        shard: [0, 1, 2, 3]
+        # The worker count within a shard. Measured on the runner: eight
+        # workers made the Ubuntu job 2.15 times faster and the Windows job
+        # **slower** than one worker, so the two platforms do not get the
+        # same answer.
+        workers: [1, 4]
     steps:
       - uses: actions/checkout@v7
         # Full history, because `test_status_consistency` decides whether a
@@ -106,8 +125,9 @@ jobs:
       - name: mypy --strict
         run: uv run mypy
 
-      # The full suite, including tests/test_no_reference_leakage.py. That file
-      # builds real artifacts and needs `uv` on PATH; `uv run` provides it.
+      # This shard's files, and only this shard's. The shard list is read
+      # from the file the workflow and the witness test both read, so the
+      # two cannot disagree about what runs.
       #
       # `--dist loadfile` and not `load`: the suite's expensive fixtures are
       # module-scoped — the exit demonstration is run once per module, not
@@ -116,25 +136,22 @@ jobs:
       # instead of once. `loadfile` also keeps a file's tests in their
       # collected order, so no test can come to depend on another test's side
       # effect.
-      #
-      # The worker count is the runner's core count, doubled: the suite is
-      # dominated by waiting for child processes to start and exit rather than
-      # by CPU, so a worker is idle most of the time and a second worker per
-      # core fills the wait. Measured on 2026-10-24 on the development
-      # machine (16 cores): 16m14s sequential, 8m45s at 4 workers, 6m13s at 8
-      # workers — and the tests collected and passed were the same in every
-      # run (3292 passed, 3 skipped).
-      - name: the runner this job is on
+      - name: the runner this job is on, and this shard
         shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           echo "cores: $(python -c 'import os; print(os.cpu_count())')"
-          echo "workers: $(python -c 'import os; print(min(16, max(2, (os.cpu_count() or 2) * 2)))')"
+          echo "shard $SHARD: $(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
 
       - name: pytest
         shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+          WORKERS: ${{ matrix.workers }}
         run: |
-          workers="$(python -c 'import os; print(min(16, max(2, (os.cpu_count() or 2) * 2)))')"
-          uv run pytest -n "$workers" --dist loadfile
+          files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
+          uv run pytest $files -n "$WORKERS" --dist loadfile
 
       # No artifact is uploaded from this workflow, so there is no
       # `actions/upload-artifact` step whose `path:` could sweep the working

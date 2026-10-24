@@ -215,6 +215,13 @@ extend-exclude = [
     # formatting delta. Whoever owns it should either adopt the project's ruff
     # config or record an exclusion; until then this entry is the honest state.
     "scripts/checkout_upstreams.py",
+    # The CI shard generator, the same shape as the entry above: a helper
+    # that is run by hand and whose output is its point. It carries T201
+    # prints, which are correct for it and wrong for the product. The
+    # project's own guidance for a script in this position is to "adopt the
+    # project's ruff config or record an exclusion", and this is the
+    # exclusion, with the reason.
+    ".github/make_ci_shards.py",
 ]
 
 [tool.ruff.lint]
