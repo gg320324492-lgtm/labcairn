@@ -34,7 +34,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c1 import C1_CHECKER_ID
 from labcairn.evidence.cite_support import (
@@ -171,7 +171,9 @@ def _record(
 
 
 @pytest.fixture()
-def store(tmp_path: Path) -> Iterator[tuple[Connection, LabCairnIndex]]:
+def store(
+    migrated_database_template: Path, tmp_path: Path
+) -> Iterator[tuple[Connection, LabCairnIndex]]:
     """A three-page paper, anchored at page 2, with its text stored.
 
     Page 2 carries the quoted sentence so a resolving anchor has something real
@@ -179,7 +181,7 @@ def store(tmp_path: Path) -> Iterator[tuple[Connection, LabCairnIndex]]:
     failure rather than a typo.
     """
     target = tmp_path / "c1.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     connection = engine.connect()
     _insert_source(connection, "src-1", ORIGINAL, "readable")

@@ -220,6 +220,38 @@ it changes `src/labcairn/recovery/resume.py` — **G3's accepted code** — and
 changing accepted code re-opens a closed gate, which the gate discipline
 forbids. The chain is the place to spend the cost instead.
 
+
+### 1.5 A decision the owner took on 2026-10-24: CI is not free to spend
+
+**The decision.** From 2026-10-24, **CI is not started unless it is
+necessary, and no pull request is opened unless one is asked for.** The work
+lands in the tree and the record says what it is; the pull request and the
+CI run are the owner's to call, not the session's.
+
+**Why it was taken.** The gate's own review found that the cost of a run had
+gone up for a reason nobody had decided: the suite is now six shards per
+platform, so a single push starts twelve python jobs, and the `push`
+trigger ran on every branch, so a change was checked three times over. That
+is not a cost the owner asked for, and the answer is not "CI should be
+faster" — it is **"CI should not start unless it is needed"**.
+
+**What it costs, stated plainly.** A change that is not pushed is not
+checked by the runner, and a change that is not on a pull request is not
+gated by the branch protection's sixteen required checks. **The local
+measurements carry the claim until the owner calls for a run.** That is
+weaker evidence than a green runner: it is one machine rather than two
+runners, and it is the machine the work was written on. So the rule is
+about *when a run starts*, not about *whether the work is checked* — and a
+change that is going to the owner should be checked by the runner first.
+
+**What it does not change.** C-1 still holds: a required `pull_request`
+workflow runs unfiltered, and the test that watches that is still there. The
+decision is about **this session's** behaviour, not about the gate's rules.
+
+**How it is applied.** Work is committed locally and reported; the push and
+the pull request wait for the owner. When a run is wanted, the workflow's own
+numbers are read out of the run rather than estimated from a local one.
+
 ## 2. The shape of the thing
 
 ### 2.1 The path from a task to a report

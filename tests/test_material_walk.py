@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import datetime as dt
 import pathlib
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from conftest import migrated_database_from
 from labcairn.core.ids import TaskId, new_id
 from labcairn.material import ingest_workspace
 from labcairn.material.walk import WalkReport
@@ -69,12 +71,11 @@ def _allowing_policy() -> PermissionPolicy:
 
 
 @pytest.fixture
-def session(tmp_path: pathlib.Path) -> Any:
-    from labcairn.db.migrations import upgrade_to_head
+def session(migrated_database_template: Path, tmp_path: pathlib.Path) -> Any:
     from labcairn.db.session import create_db_engine, create_session_factory
 
     target = tmp_path / "walk.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     made = create_session_factory(engine)()
     yield made

@@ -80,6 +80,26 @@ Whole-suite runs go one at a time.
 command that mattered, and it has been read as "green" when the command under
 it failed. Run the command, then read its status separately.
 
+## CI is not started unless it is necessary, and no pull request is opened
+
+**The owner decided this on 2026-10-24**, and it is recorded in
+`docs/plans/LC-P1-11-12-task-breakdown.md` §1.5.
+
+- **Do not push to start a run.** The suite is six shards per platform, so a
+  push starts twelve python jobs; that is the owner's call, not the
+  session's.
+- **Do not open a pull request.** Not for a finished piece of work, not for
+  a document, not for a commit that is "ready to be reviewed". The work
+  lands in the tree, the record says what it is, and the pull request waits
+  for the owner.
+- **Measure locally and say so.** The local run is the evidence until a
+  runner says otherwise, and the report says which it was.
+
+**What this does not change.** C-1 still holds — a required `pull_request`
+workflow runs unfiltered, and `tests/test_no_reference_leakage.py` watches
+that. This is about **when a session starts a run**, not about what the gate
+checks.
+
 ## The CI runs in shards, and the shard list is a hand-edited file
 
 **The suite is split into six shards per platform, and each shard runs in its

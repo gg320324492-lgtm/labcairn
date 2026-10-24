@@ -27,6 +27,7 @@ import openpyxl
 import pytest
 from sqlalchemy.orm import Session
 
+from conftest import migrated_database_from
 from labcairn.db.materials import (
     ExtractedTextRow,
     problems_for,
@@ -34,7 +35,6 @@ from labcairn.db.materials import (
     put_source_texts,
     text_at,
 )
-from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.material.ingest import (
     IngestedMaterial,
@@ -325,9 +325,9 @@ def test_untrusted_text_is_not_a_string() -> None:
 
 
 @pytest.fixture
-def session(tmp_path: pathlib.Path) -> Iterator[Session]:
+def session(migrated_database_template: Path, tmp_path: pathlib.Path) -> Iterator[Session]:
     target = tmp_path / "materials.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     made = create_session_factory(engine)()
     yield made
