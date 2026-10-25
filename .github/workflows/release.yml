@@ -85,6 +85,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # =========================================================================
+  # The artefacts, the member lists and the gates the release must not
+  # contradict.
+  # =========================================================================
   release-contents:
     name: release-contents
     runs-on: ubuntu-latest
@@ -335,8 +339,71 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # =========================================================================
-      # 4. The dependency closure's licences
+      # 1. The reference-exclusion gate — its own gate, run verbatim
       # =========================================================================
+      # It builds its artefacts in a throwaway copy of the project and asserts
+      # the tracked set, the ignore behaviour, the sdist and wheel member
+      # names, the git archive and the CI-workflow rules. A release gate that
+      # left this out would be checking the packaging without the packaging
+      # gate. Its build happens in a temporary directory, so it does not
+      # disturb the artefacts this workflow uploaded.
+      - name: reference-exclusion acceptance gate
+        run: uv run pytest tests/test_no_reference_leakage.py
+
+      # =========================================================================
+      # The artefacts
+      # =========================================================================
+      # Every `path:` below is a narrow, named build-output pattern — never
+      # `.`, `./`, `*` or `**`. An artifact is a source bundle and carries
+      # whatever it is handed, so a broad path would sweep the whole working
+      # tree into a published download.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  # =========================================================================
+  # The dependency closure's licences.
+  #
+  # On both platforms, because the closure is platform-dependent: 167
+  # distributions install on Linux and 168 on Windows, and the four that
+  # differ are exactly the ones a single-platform audit would never read.
+  # One distribution — httpx2-jsfetch — installs on no supported platform at
+  # all, and its licence is recorded in NOTICE instead.
+  #
+  # The job's name carries the matrix leg. Two jobs sharing a name are ONE
+  # check as far as branch protection is concerned, so the platform has to be
+  # in the name.
+  # =========================================================================
+  release-dependency-licences:
+    name: release-dependency-licences (matrix.os)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
       - name: resolve the runtime dependency closure
         shell: bash
         env:
@@ -348,7 +415,12 @@ jobs:
             --format requirements.txt > "${RELEASE_REQUIREMENTS}"
           echo "runtime closure: $(grep -cE '^[A-Za-z0-9]' "${RELEASE_REQUIREMENTS}") requirements"
           uv venv --python "$(tr -d '[:space:]' < .python-version)" "${RELEASE_AUDIT_VENV}"
-          uv pip install --python "${RELEASE_AUDIT_VENV}/bin/python" -r "${RELEASE_REQUIREMENTS}"
+          if [ -x "${RELEASE_AUDIT_VENV}/bin/python" ]; then
+            PY="${RELEASE_AUDIT_VENV}/bin/python"
+          else
+            PY="${RELEASE_AUDIT_VENV}/Scripts/python.exe"
+          fi
+          uv pip install --python "${PY}" -r "${RELEASE_REQUIREMENTS}"
 
       - name: every dependency's licence is read from the distribution itself
         shell: bash
@@ -356,9 +428,15 @@ jobs:
           RELEASE_AUDIT_VENV: ${{ runner.temp }}/release-audit
         run: |
           set -euo pipefail
-          "${RELEASE_AUDIT_VENV}/bin/python" - <<'PY'
+          if [ -x "${RELEASE_AUDIT_VENV}/bin/python" ]; then
+            PY="${RELEASE_AUDIT_VENV}/bin/python"
+          else
+            PY="${RELEASE_AUDIT_VENV}/Scripts/python.exe"
+          fi
+          "${PY}" - <<'PY'
           import os
           import re
+          import sys
           from collections import Counter
           from importlib import metadata
           from pathlib import Path
@@ -427,6 +505,13 @@ jobs:
           LICENCE_DIR_NAME = re.compile(r"^(licen[cs]es?|copying|notice)$", re.I)
           SPDX_TOKEN = re.compile(r"\b[A-Za-z][A-Za-z0-9.+-]*-[0-9][0-9A-Za-z.+-]*\b")
 
+          def canonical(name):
+              # PEP 503: the PyPI name and the installed name differ in
+              # punctuation (jaraco-classes installs as jaraco.classes), and
+              # comparing them without this says one is missing and the other
+              # is unexpected.
+              return re.sub(r"[-_.]+", "-", name).lower()
+
           def licence_files(dist):
               root = Path(str(dist._path))
               found = []
@@ -442,10 +527,10 @@ jobs:
               return found
 
           def label_for(dist):
-              expression = dist.metadata["License-Expression"]
+              expression = dist.metadata.get("License-Expression")
               if expression:
                   return str(expression).strip(), "License-Expression"
-              legacy = dist.metadata["License"]
+              legacy = dist.metadata.get("License")
               # A short legacy field holds a licence identifier; a long one
               # holds the whole licence text, and tokenising that would invent
               # a licence out of prose.
@@ -475,7 +560,7 @@ jobs:
           for dist in metadata.distributions():
               name = dist.metadata["Name"]
               if name:
-                  installed[name.lower().replace("_", "-")] = (name, dist.metadata["Version"], dist)
+                  installed[canonical(name)] = (name, dist.metadata["Version"], dist)
 
           # --- the closure the lockfile names -------------------------------
           expected = {}
@@ -495,7 +580,7 @@ jobs:
               requirement = requirement.strip()
               if "==" in requirement:
                   name, version = requirement.split("==", 1)
-                  expected[name.lower().replace("_", "-")] = version.strip()
+                  expected[canonical(name)] = version.strip()
 
           failures = []
           if not expected:
@@ -545,6 +630,7 @@ jobs:
                           f"recorded for {sorted(allowed)}"
                       )
 
+          print(f"platform: {sys.platform}")
           print("licence census of the installed closure:")
           for label, count in sorted(census.items()):
               print(f"  {count:>4}  {label}")
@@ -556,34 +642,3 @@ jobs:
           print(f"every one of the {len(installed)} installed distributions carries a "
                 "licence the release records")
           PY
-
-      # =========================================================================
-      # 1. The reference-exclusion gate — its own gate, run verbatim
-      # =========================================================================
-      # It builds its artefacts in a throwaway copy of the project and asserts
-      # the tracked set, the ignore behaviour, the sdist and wheel member
-      # names, the git archive and the CI-workflow rules. A release gate that
-      # left this out would be checking the packaging without the packaging
-      # gate. Its build happens in a temporary directory, so it does not
-      # disturb the artefacts this workflow uploaded.
-      - name: reference-exclusion acceptance gate
-        run: uv run pytest tests/test_no_reference_leakage.py
-
-      # =========================================================================
-      # The artefacts
-      # =========================================================================
-      # Every `path:` below is a narrow, named build-output pattern — never
-      # `.`, `./`, `*` or `**`. An artifact is a source bundle and carries
-      # whatever it is handed, so a broad path would sweep the whole working
-      # tree into a published download.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-sdist
-          path: dist/*.tar.gz
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-wheel
-          path: dist/*.whl
-          if-no-files-found: error

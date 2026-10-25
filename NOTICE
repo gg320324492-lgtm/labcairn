@@ -99,7 +99,10 @@ text lives inside the installed distribution.
 `uv export --frozen --no-dev` over the lockfile at dd08573 resolves 171
 requirement lines across platforms: 167 on Linux, 165 on macOS, 168 on Windows.
 The difference between the three counts is the platform-conditional packages
-(pywin32 and colorama on Windows; jeepney and secretstorage on Linux).
+(pywin32, pywin32-ctypes and colorama on Windows; jeepney and secretstorage on
+Linux). Their union is 170; the one distribution left over,
+httpx2-jsfetch, installs on no supported platform at all — its marker is
+`sys_platform == 'emscripten'` — and it is under BSD-3-Clause.
 
 Every one of the 171 resolved to a licence read out of the installed
 distribution, and the sixteen distinct results were:
@@ -324,10 +327,13 @@ and ::test_the_docx_embeds_no_font.
   # the dependency closure and its licences:
   uv export --frozen --no-dev --no-hashes --no-emit-project --format requirements.txt
   uv venv --python 3.12 .release-audit
-  uv pip install --python .release-audit -r <that export>
-  .release-audit/bin/python -c "..."   # read each distribution's own metadata
+  uv pip install --python .release-audit/Scripts/python.exe -r requirements.txt
+  .release-audit/Scripts/python.exe -c "..."   # read each distribution's own metadata
+
+  (on a POSIX shell the interpreter is .release-audit/bin/python; the release
+  workflow picks whichever exists.)
 
 The release workflow (.github/workflows/release.yml) runs the same audit on
-every run, and fails if a dependency's licence is not one the NOTICE records,
-if the closure resolves to a different set than the lockfile names, or if
-either artefact stops carrying this file.
+every run, on both the platforms it runs on, and fails if a dependency's
+licence is not one the NOTICE records, if the closure resolves to a different
+set than the lockfile names, or if either artefact stops carrying this file.

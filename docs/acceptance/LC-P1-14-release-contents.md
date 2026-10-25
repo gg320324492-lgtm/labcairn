@@ -158,8 +158,10 @@ is the platform-conditional packages:
 | Windows | 168 |
 
 `pywin32`, `pywin32-ctypes` and `colorama` are Windows-only; `jeepney` and
-`secretstorage` are Linux-only; `httpx2-jsfetch` is emscripten-only and
-installs on none of the three.
+`secretstorage` are Linux-only. **The union of the three is 170**, and the one
+distribution left over — `httpx2-jsfetch` — installs on **no supported
+platform at all**: its marker is `sys_platform == 'emscripten'`. It is under
+BSD-3-Clause, and it is the only member of the closure no CI job can install.
 
 **All 171 were installed and read**, and every one resolved to a licence from
 the distribution itself. **Sixteen distinct licences**, and no distribution
@@ -354,7 +356,10 @@ names them and points at the manifest.
 
 `.github/workflows/release.yml` runs on a `v*` tag, on every pull request
 (unfiltered — a filtered required check is reported as *expected* rather than
-*passed*), and on demand.
+*passed*), and on demand. It has **two jobs**, and the second one runs on two
+platforms.
+
+### 6.1 `release-contents` (ubuntu-latest)
 
 **It re-uses the existing gates rather than re-deciding them:**
 
@@ -365,7 +370,7 @@ names them and points at the manifest.
 | `pnpm install --frozen-lockfile` | `lockfiles.yml` |
 | `gitleaks git --config .gitleaks.toml --redact --exit-code 1 .` | `security.yml`, same pinned version and checksum, same git mode |
 
-**It adds four checks of its own:**
+**It adds three checks of its own:**
 
 1. **The release's member lists.** The source distribution's members must
    equal `git ls-tree -r HEAD` plus `PKG-INFO`; the wheel's package members
@@ -375,18 +380,70 @@ names them and points at the manifest.
    its own lists.
 2. **The NOTICE travels with both artefacts**, and neither artefact carries a
    font file or a non-source package member.
-3. **The dependency closure's licences.** Each distribution's licence is read
-   from the installed distribution; a licence nobody recorded fails the
-   release. The permissive set and the named exceptions are in the workflow
-   next to the check, so a person has to read a licence and add it.
-4. **The closure is the lockfile's.** The installed set must equal the
+3. **The wheel carries no binary at all** — every package member is Python
+   source or the type marker.
+
+### 6.2 `release-dependency-licences` (ubuntu-latest **and** windows-latest)
+
+**Why two platforms.** The closure is platform-dependent, so a single-platform
+audit never reads the four distributions that differ. The two runners cover
+**170 of the 171**; the one left over installs on no supported platform and
+its licence is recorded in NOTICE.
+
+**What it checks:**
+
+1. **Every dependency's licence is read from the distribution itself** — its
+   own `License-Expression`, else its own trove classifier, else the text of
+   the licence file inside its own `dist-info`. A licence nobody recorded
+   fails the release. The permissive set and the named exceptions sit in the
+   workflow next to the check, so a person has to read a licence and add it.
+2. **The closure is the lockfile's.** The installed set must equal the
    marker-evaluated export, at the pinned versions — so a distribution that
    failed to install, or one that appeared from nowhere, is caught.
 
-**The workflow is checked against the repository's own CI rules**, which
-`tests/test_no_reference_leakage.py` enforces for every workflow file: no
+**The job's name carries the matrix leg.** Two jobs sharing a name are one
+check as far as branch protection is concerned, so the platform has to be in
+the name — the same reason `python.yml`'s name mentions `matrix.os`.
+
+### 6.3 The workflow is checked against the repository's own CI rules
+
+`tests/test_no_reference_leakage.py` enforces, for every workflow file: no
 trigger filters `pull_request`, no whole-disk secret scan, no artifact path
-that sweeps the working tree, and no reference to a study clone.
+that sweeps the working tree, and no reference to a study clone. The new
+workflow was run against all of them — **24 workflow assertions, all
+passing**, and then the whole file: **99 tests, all passing**.
+
+### 6.4 The two python programs were run, not merely written
+
+The workflow's two checks are python programs embedded in YAML. Reading them
+is not evidence that they work, so they were **extracted from the parsed YAML
+and executed against the artefacts this repository builds**:
+
+```
+source distribution: 444 members (= the committed tree plus PKG-INFO)
+wheel:              153 members (147 package, 6 metadata)
+the release's member lists hold: neither missing nor extra
+exit: 0
+...
+platform: win32
+every one of the 168 installed distributions carries a licence the release records
+exit: 0
+```
+
+**And running them found a bug in them.** The first run of the licence audit
+failed with:
+
+```
+::error::the lockfile names these distributions and they are not installed: ['jaraco-classes', 'jaraco-context', 'jaraco-functools', 'pdfminer-six']
+::error::these distributions are installed and the lockfile does not name them: ['jaraco.classes', 'jaraco.context', 'jaraco.functools', 'pdfminer.six']
+```
+
+The audit compared the PyPI name against the installed name without applying
+**PEP 503** normalisation, and four distributions have names that differ in
+punctuation (`jaraco-classes` installs as `jaraco.classes`). The fix is the
+normalisation, and it is in the workflow now. **A check that had never been
+run would have reported four distributions as missing and four as unexpected**,
+on every release, for ever.
 
 ---
 
@@ -431,7 +488,7 @@ re-measured: **no third-party font file reaches any LabCairn artefact.**
 | The NOTICE travels with both artefacts | the same job | CI job |
 | Neither artefact carries a font file | the same job | CI job |
 | The wheel carries no binary at all | the same job | CI job |
-| Every dependency's licence is read from the distribution and is recorded | `release.yml` → "every dependency's licence …" | CI job |
+| Every dependency's licence is read from the distribution and is recorded | `release.yml` → `release-dependency-licences`, on **ubuntu-latest and windows-latest** | CI job |
 | The installed closure is the lockfile's, at the pinned versions | the same job | CI job |
 | The dependency lockfiles are consistent | `lockfiles.yml` | CI job |
 | No secret is in the tracked history | `security.yml` | CI job |
@@ -474,5 +531,6 @@ Stated without softening.
 | **The licence of `dsrom10`**, the one embedded font whose program carries no licence statement | **Undetermined.** It is a Computer Modern derivative generated from a MetaFont bitmap, and the bytes do not say. It travels inside a CC BY 4.0 paper, which is reproduced verbatim. |
 | **The `pdfcorefonts/` and `afm/` metric files' terms** | **Not stated by matplotlib.** Its licence inventory has no entry for either directory. The metrics carry no glyph outlines, and the NOTICE says what the inventory does and does not say rather than inventing a term. |
 | **The licences of the 171 distributions under their own licences' *terms*** | **Read, not assessed.** The licences are file-reading results; whether a term is satisfied in a given use is a legal question, and this record does not make one. |
-| **Whether the release workflow passes on GitHub** | **Unverified.** The two python programs it carries were extracted from the parsed YAML and **run against the artefacts this repository builds**, and they pass (§6). The workflow has **not** run on a runner. |
-| **A platform the closure was not installed on** | The closure was installed and read on **Windows**. The Linux and macOS counts in §3.1 are the marker evaluation of the same export, not an install on those platforms; the licences do not vary by platform, but the *installed set* was measured on one platform only. |
+| **Whether the release workflow passes on GitHub** | **Unverified.** The two python programs it carries were extracted from the parsed YAML and **run against the artefacts this repository builds**, and they pass (§6.4). The workflow itself has **not** run on a runner, and the shell around the programs — the `uv` invocations, the pnpm install, the gitleaks download — has **not** been executed here. |
+| **A platform the closure was not installed on** | The closure was installed and read on **Windows** (168 distributions), and the **union of all 171** was installed and read on this machine. The **Linux** and **macOS** counts in §3.1 are the marker evaluation of the same export, **not** an install on those platforms. The licences do not vary by platform, but the *installed set* was measured on one platform only; the workflow's two legs close that on CI. |
+| **The one distribution no CI job can install** | `httpx2-jsfetch` is under BSD-3-Clause and installs on no supported platform. It is recorded in NOTICE and read here, but **no CI job can re-read it**, because no runner can install it. |
