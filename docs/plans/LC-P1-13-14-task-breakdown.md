@@ -126,15 +126,31 @@ and it is the owner's.**
 
 **This is the same decision as §1.4.2, and it was found by the harness
 rather than asked.** The evaluation harness reports the Phase 1 blockers
-honestly, and on 2026-10-25 it reported that **two of the six did not
+honestly, and on 2026-10-25 it reported that **one of the six did not
 hold**:
 
-- **one** because the base branch's own new witness skips G1's exit
-  demonstration until the 8.3 short-name defect of §2.6 is fixed. That one
-  is T02's work and it is a known gap with a known owner;
-- **one** because a test declared as needing the project's own real
-  provider credentials was **skipped** — the `requires_provider` marker
-  does exactly what it says, and CI has no such credentials.
+- **the protocol's second blocker** — *"Any unauthorized file write/escape
+  or unconsented private-network disclosure"* — because three of its
+  witness cases are **skipped**: one is the POSIX half of a pair and is
+  skipped on Windows, and two are the 8.3 short-name witnesses, which a
+  volume that generates no short names skips. **The property is exercised
+  on the other runner of the CI matrix, and no single runner carries all
+  of it.** §6 of
+  [`docs/acceptance/LC-P1-13-evaluation.md`](../acceptance/LC-P1-13-evaluation.md)
+  asks whether a declared platform conditional should fail a blocker on
+  the runner it does not apply to, and **does not answer it** — the
+  harness does not soften the rule, because that is a judgement about the
+  protocol and the protocol is the ruler.
+
+**There was a second one, and it is gone.** The same report said the
+protocol's *first* blocker failed because G1's exit demonstration was
+skipped on Windows until the 8.3 short-name defect of §2.6 was fixed. That
+defect **was** fixed — it is §2.6's own work — and **the skip did not
+notice**, so the blocker stayed down for a reason that no longer existed.
+A skip that names the defect it waits for is not a hole with a shape nobody
+can see; a skip that outlives its defect is exactly that shape. The skip is
+removed, the demonstration is watched on every platform, the first blocker
+now **holds**, and the gate review's F6 records it.
 
 **The question is the owner's, and the harness did not answer it.** The
 protocol's blocker reads *"Required CI tests are skipped, ignored or only
