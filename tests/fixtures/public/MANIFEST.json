@@ -1,0 +1,277 @@
+{
+  "schema": "labcairn.public-fixtures/1",
+  "corpus_version": "2026-10-25.1",
+  "notice": "Every byte of fixture material in this corpus is synthetic, authored for the LabCairn public fixture corpus. No third-party material is reproduced here, so no third-party licence, attribution or restriction travels with it. The corpus is released under the same terms as the repository itself; see LICENSE.PENDING.md, which grants nothing yet.",
+  "material_origin": "synthetic",
+  "fixtures": [
+    {
+      "id": "physical_tension",
+      "genre": "physical sciences",
+      "title": "Tensile test of a synthetic coupon, with replicate pulls",
+      "material": [
+        {
+          "path": "physical_tension/notebook.md",
+          "role": "source text",
+          "sha256": "e47c2a96d6da3193397dca12feb002aab620afb248d8875db10e68867ca98c29",
+          "bytes": 763
+        },
+        {
+          "path": "physical_tension/measurements.csv",
+          "role": "tabular data",
+          "sha256": "c5d000479da94add872ec1156ba9278ff986e75e023d566d4f6dc6fd5a46674b",
+          "bytes": 244
+        }
+      ],
+      "questions": [
+        {
+          "id": "tension.mean_peak_stress_b2",
+          "prompt": "In the tensile test of synthetic specimen B-2, what was the mean peak stress across its three replicate pulls, in MPa?",
+          "answer": {
+            "kind": "numeric",
+            "value": 412.0,
+            "unit": "MPa",
+            "tolerance": 1e-09,
+            "derivation": "mean of the peak_stress (MPa) cells in the three rows whose specimen_id is B-2"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 412.0,
+              "unit": "MPa",
+              "tolerance": 1e-09
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=3:csv|r=1:2|c=17:peak_stress (MPa)"
+            },
+            {
+              "kind": "no_fabricated_value",
+              "value": 388.4,
+              "why": "specimen B-1's peak stress, a different specimen"
+            }
+          ]
+        },
+        {
+          "id": "tension.crosshead_speed",
+          "prompt": "In the tensile test of synthetic specimen B-2, at what crosshead speed was the pull performed?",
+          "answer": {
+            "kind": "numeric",
+            "value": 0.5,
+            "unit": "mm/min",
+            "tolerance": 1e-09,
+            "derivation": "the crosshead speed stated in the Method section of notebook.md"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 0.5,
+              "unit": "mm/min",
+              "tolerance": 1e-09
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=4:text|l=2:15|s=6:Method"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "biomedical_panel",
+      "genre": "biomedical-style tabular measurements without real patient data",
+      "title": "Synthetic panel assay readouts, two technical replicates per panel",
+      "material": [
+        {
+          "path": "biomedical_panel/panel_notes.md",
+          "role": "source text",
+          "sha256": "40824c0b90056262bf4f34f0dfbec0100f2ac2c1f5601e14cc398044db260cee",
+          "bytes": 912
+        },
+        {
+          "path": "biomedical_panel/panel_readings.csv",
+          "role": "tabular data",
+          "sha256": "7753336286ea421653ec181032a68e45a66e9e710576c87354e307b4c040b04e",
+          "bytes": 553
+        }
+      ],
+      "questions": [
+        {
+          "id": "panel.mean_concentration_p03",
+          "prompt": "For synthetic panel SYN-P03, what was the mean concentration across its two technical replicates, in ng/mL?",
+          "answer": {
+            "kind": "numeric",
+            "value": 7.68,
+            "unit": "ng/mL",
+            "tolerance": 1e-09,
+            "derivation": "mean of the concentration (ng/mL) cells in the two rows whose subject_code is SYN-P03"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 7.68,
+              "unit": "ng/mL",
+              "tolerance": 1e-09
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=3:csv|r=1:6|c=21:concentration (ng/mL)"
+            },
+            {
+              "kind": "no_fabricated_value",
+              "value": 12.4,
+              "why": "SYN-P01's concentration, a different panel"
+            }
+          ]
+        },
+        {
+          "id": "panel.detection_wavelength",
+          "prompt": "At what detection wavelength was the synthetic panel assay read, in nm?",
+          "answer": {
+            "kind": "numeric",
+            "value": 450.0,
+            "unit": "nm",
+            "tolerance": 1e-09,
+            "derivation": "the detection wavelength column of panel_readings.csv, which every row carries"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 450.0,
+              "unit": "nm",
+              "tolerance": 1e-09
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=3:csv|r=1:6|c=25:detection_wavelength (nm)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "computational_solver",
+      "genre": "computational experiments",
+      "title": "Synthetic solver runs, final residual over five runs",
+      "material": [
+        {
+          "path": "computational_solver/solver_log.md",
+          "role": "source text",
+          "sha256": "835381146f014ca883913a5ede42d9099e8928da901c8ff8b77eb7c6d0539a86",
+          "bytes": 771
+        },
+        {
+          "path": "computational_solver/solver_runs.csv",
+          "role": "tabular data",
+          "sha256": "72f83f06b6e89b11e88b345713eb54f3bcc4b1df50e3f989ef9f074de64a74cb",
+          "bytes": 250
+        }
+      ],
+      "questions": [
+        {
+          "id": "solver.mean_final_residual",
+          "prompt": "Across the five synthetic solver runs, what was the mean final residual, in dimensionless units?",
+          "answer": {
+            "kind": "numeric",
+            "value": 0.000374,
+            "unit": "dimensionless",
+            "tolerance": 1e-12,
+            "derivation": "mean of the final_residual (dimensionless) cells over all five rows of solver_runs.csv"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 0.000374,
+              "unit": "dimensionless",
+              "tolerance": 1e-12
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=3:csv|r=1:2|c=30:final_residual (dimensionless)"
+            },
+            {
+              "kind": "no_fabricated_value",
+              "value": 0.00051,
+              "why": "one run's residual (SYN-R3), the largest of the five, not their mean"
+            }
+          ]
+        },
+        {
+          "id": "solver.stopping_tolerance",
+          "prompt": "What stopping tolerance on the residual was the synthetic solver configured with?",
+          "answer": {
+            "kind": "numeric",
+            "value": 1e-08,
+            "unit": "dimensionless",
+            "tolerance": 1e-18,
+            "derivation": "the stopping tolerance stated in the Configuration section of solver_log.md"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "number_present",
+              "value": 1e-08,
+              "unit": "dimensionless",
+              "tolerance": 1e-18
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=4:text|l=2:12|s=13:Configuration"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no_evidence",
+      "genre": "protocol excerpt that does not contain the answer",
+      "title": "Synthetic protocol excerpt whose requested quantity is absent",
+      "material": [
+        {
+          "path": "no_evidence/protocol_excerpt.md",
+          "role": "source text",
+          "sha256": "eb822e709cff5844723fa07d4395e50c0e1222461042626984ca0e6cc454f280",
+          "bytes": 968
+        },
+        {
+          "path": "no_evidence/sample_log.csv",
+          "role": "tabular data",
+          "sha256": "9b56ca894e607d42a53cd795eacc02cdbe10fe0d23db5ef692bae32562dc1852",
+          "bytes": 211
+        }
+      ],
+      "questions": [
+        {
+          "id": "no_evidence.buffer_ph",
+          "prompt": "What was the pH of the wash buffer used on the synthetic samples?",
+          "answer": {
+            "kind": "not_stated",
+            "value": null,
+            "unit": null,
+            "tolerance": null,
+            "derivation": "the material reports the wash count, the buffer concentration, the elution volume and the incubation temperature; the buffer's pH is not among them, and no pH is recorded anywhere in the two files"
+          },
+          "expected_artifact_checks": [
+            {
+              "kind": "abstains",
+              "why": "the honest answer is that the material does not state the pH"
+            },
+            {
+              "kind": "no_fabricated_value",
+              "value": 50.0,
+              "why": "50 is the buffer concentration in mM, not a pH"
+            },
+            {
+              "kind": "no_fabricated_value",
+              "value": 37.0,
+              "why": "37 is the incubation temperature in C, not a pH"
+            },
+            {
+              "kind": "citation_resolves",
+              "locator_key": "k=3:csv|r=1:2|c=16:buffer_conc (mM)",
+              "why": "the report must cite the quantities the material does report, so an abstention is a statement about this one quantity rather than a refusal to engage"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
