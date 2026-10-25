@@ -1,0 +1,333 @@
+LabCairn — third-party notices
+===============================================================================
+
+Applies to: the `labcairn` 0.1.0 source distribution and wheel.
+
+Measured: 2026-10-25, by building the artefacts (`uv build`), reading their
+member lists and their bytes, and reading the licence of every installed
+dependency out of its own installed distribution metadata. The dependency
+figures below come from the `uv.lock` at commit dd08573.
+
+Every number in this file was measured rather than remembered. §5 gives the
+commands that reproduce them.
+
+
+-------------------------------------------------------------------------------
+0.  This file is a notice, not a licence
+-------------------------------------------------------------------------------
+
+It records the third-party material that travels with a LabCairn distribution
+and the terms each item travels under.
+
+It grants no rights, and it asserts no licence for LabCairn itself.
+LICENSE.PENDING.md says in its own first line: "This file is not a license.
+It is a notice that no license has been granted." Nothing here changes that.
+The copyright in LabCairn is unresolved, so no statement in this file may be
+read as a claim that LabCairn is open source. The root licence that a future
+release would carry is the copyright owner's to grant, and this file is not
+where that grant is made.
+
+
+-------------------------------------------------------------------------------
+1.  What a LabCairn distribution contains
+-------------------------------------------------------------------------------
+
+Measured from the built artefacts:
+
+  source distribution (labcairn-0.1.0.tar.gz)
+      the repository's committed file list, plus the one file the build
+      backend adds, PKG-INFO
+  wheel (labcairn-0.1.0-py3-none-any.whl)
+      the 147 files under src/labcairn, plus six .dist-info metadata members
+      (METADATA, RECORD, WHEEL, entry_points.txt, licenses/LICENSE.PENDING.md
+      and this NOTICE)
+
+The exact member counts for the release as built are in
+docs/acceptance/LC-P1-14-release-contents.md. The release workflow re-measures
+both lists on every run and fails if either artefact carries a member the
+committed tree does not, or is missing one the tree has.
+
+Two things follow, and both are checked by the release workflow rather than
+asserted here:
+
+  * No third-party source code is vendored into either artefact. Every member
+    is a file of this repository.
+
+  * The runtime dependencies are NOT redistributed in either artefact. The
+    wheel's metadata names them (Requires-Dist) and the installer fetches
+    each one as its own distribution, under its own licence and carrying its
+    own notices. Section 2 is about what arrives that way.
+
+The only third-party files the distribution carries as files are the three
+papers in §4.
+
+
+-------------------------------------------------------------------------------
+2.  The third-party code an install brings in
+-------------------------------------------------------------------------------
+
+2.1  The dependencies LabCairn names
+-------------------------------------
+
+Each licence below was read out of that distribution's own installed metadata
+and its own licence file, not from memory. The last column is where the full
+text lives inside the installed distribution.
+
+  distribution   version   licence                      the licence text lives at
+  -------------  --------  ---------------------------  -----------------------------
+  alembic        1.20.0    MIT                          alembic-1.20.0.dist-info/licenses/LICENSE
+  fastapi        0.151.0   MIT                          fastapi-0.151.0.dist-info/licenses/LICENSE
+  matplotlib     3.11.2    matplotlib Licence Agreement  matplotlib-3.11.2.dist-info/LICENSE
+                           (a PSF-style licence; the
+                           trove classifier reads
+                           "Python Software Foundation
+                           License")
+  openpyxl       3.1.5     MIT                          openpyxl-3.1.5.dist-info/LICENCE.rst
+  pdfplumber     0.11.10   MIT                          pdfplumber-0.11.10.dist-info/licenses/LICENSE.txt
+  pydantic       2.14.1    MIT                          pydantic-2.14.1.dist-info/licenses/LICENSE
+  pydantic-ai    1.107.7   MIT                          pydantic_ai-1.107.7.dist-info/licenses/LICENSE
+  python-docx    1.2.0     MIT                          python_docx-1.2.0.dist-info/licenses/LICENSE
+  reportlab      5.0.1     BSD 3-Clause                 reportlab-5.0.1.dist-info/licenses/LICENSE
+  rich           15.0.0    MIT                          rich-15.0.0.dist-info/licenses/LICENSE
+  SQLAlchemy     2.1.4     MIT                          sqlalchemy-2.1.4.dist-info/licenses/LICENSE
+  typer          0.25.1    MIT                          typer-0.25.1.dist-info/licenses/LICENSE
+  uvicorn        0.54.0    BSD 3-Clause                 uvicorn-0.54.0.dist-info/licenses/LICENSE.md
+
+2.2  The whole closure
+-----------------------
+
+`uv export --frozen --no-dev` over the lockfile at dd08573 resolves 171
+requirement lines across platforms: 167 on Linux, 165 on macOS, 168 on Windows.
+The difference between the three counts is the platform-conditional packages
+(pywin32 and colorama on Windows; jeepney and secretstorage on Linux).
+
+Every one of the 171 resolved to a licence read out of the installed
+distribution, and the sixteen distinct results were:
+
+  74  MIT
+  46  Apache-2.0
+  29  BSD-3-Clause
+   4  PSF-2.0
+   3  BSD-2-Clause
+   3  ISC
+   2  MPL-2.0
+   2  BSD-3-Clause+Apache-2.0
+   1  Apache-2.0 AND CNRI-Python
+   1  Apache-2.0 AND MIT
+   1  Apache-2.0 OR BSD-3-Clause
+   1  Apache-2.0+BSD-3-Clause
+   1  BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+   1  MIT-0
+   1  MIT-CMU
+   1  Unlicense
+
+2.3  The three that carry a condition, and the four that carry a bundled
+     third-party licence of their own
+-------------------------------------------------------------------------------
+
+  * MPL-2.0 — certifi (MPL-2.0) and tqdm (MPL-2.0 AND MIT, so MIT is
+    available as well). MPL 2.0 is file-level copyleft: it obliges a
+    distributor of a modified copy of a covered file to offer that file's
+    source under MPL 2.0. Neither package is modified by LabCairn, and
+    LabCairn does not redistribute either of them.
+
+  * numpy 2.5.4 — its licence file (numpy-2.5.4.dist-info/licenses/LICENSE.txt)
+    carries the GCC Runtime Library Exception 3.1 for the OpenBLAS build
+    statically linked into numpy.libs, stated as
+    "GPL-3.0-or-later WITH GCC-exception-3.1". The exception is what makes
+    the GPL terms compatible with distribution under other terms.
+
+  * Pillow 13.0.0 — its licence file
+    (pillow-13.0.0.dist-info/licenses/LICENSE) carries the FreeType
+    licences for the bundled FreeType 2.14.3: "the FreeType License ... or
+    the GNU General Public License version 2", offered as two mutually
+    exclusive choices. It also carries the brotli 1.2.0 licence and the zlib
+    licence.
+
+  * pywin32 312 — Windows-only. Its licence directory carries an LGPL
+    notice for the bundled adodbapi module
+    (pywin32-312.dist-info/licenses/adodbapi/license.txt) and the Scintilla
+    licence for the bundled Scintilla sources
+    (pywin32-312.dist-info/licenses/pythonwin/Scintilla/License.txt), beside
+    the PSF-licensed pywin32 code itself.
+
+These four are listed because the lesson of this repository is that a
+distribution's root licence line is not a statement about everything inside
+it: paper-qa's AGPL subpackage was invisible to a root-level check, and the
+same is true of a dependency's bundled third-party module.
+
+
+-------------------------------------------------------------------------------
+3.  Fonts that ride inside two of the dependency wheels
+-------------------------------------------------------------------------------
+
+These fonts are in the wheels of LabCairn's dependencies. They are NOT in
+LabCairn's own artefacts, and no LabCairn report carries a font file.
+
+3.1  matplotlib 3.11.2
+----------------------
+
+matplotlib/mpl-data/fonts/ contains 101 font files in three directories, and
+matplotlib's own licence file (matplotlib-3.11.2.dist-info/LICENSE) carries a
+per-component inventory naming the terms for each one:
+
+  ttf/  40 TrueType files
+    DejaVu family, 14 files
+        ttf/LICENSE_DEJAVU (4,816 bytes): "Fonts are (c) Bitstream (see
+        below). DejaVu changes are in public domain." The Bitstream Vera
+        copyright, and the DejaVu changes in the public domain.
+    STIX family, 17 files
+        ttf/LICENSE_STIX (5,476 bytes): the STIX Font License, 24 May 2010,
+        "Copyright (c) 2001-2010 by the STI Pub Companies" — the SIL Open
+        Font License, 1.1. matplotlib's licence file names the same component
+        "Stix fonts", licence "OFL-1.1".
+    Computer Modern, 8 files (cmb10, cmex10, cmmi10, cmr10, cmss10, cmsy10,
+        cmti10, cmtt10)
+        matplotlib's licence file names the component "BaKoMa Fonts", files
+        "matplotlib/mpl-data/fonts/ttf/cm*.ttf", licence "BaKoMa Fonts
+        Licence" — "Copyright (C) 1994, 1995, Basil K. Malyshev. All Rights
+        Reserved. Permission to copy and distribute these fonts for any
+        purpose is hereby granted without fee, provided that the above
+        copyright notice, author statement and this permission notice appear
+        in all copies of these fonts and related documentation."
+    LastResortHE-Regular, 1 file
+        matplotlib's licence file names the component "Last Resort fonts",
+        licence "OFL-1.1".
+
+  pdfcorefonts/  14 AFM files
+        Adobe's PDF core fonts, metrics only. matplotlib's licence file
+        carries no separate entry for this directory.
+
+  afm/  47 AFM files
+        metrics only. The cm*.afm among them are covered by the BaKoMa entry
+        above; matplotlib's licence file carries no separate entry for the
+        rest of this directory.
+
+3.2  reportlab 5.0.1
+----------------------
+
+reportlab/fonts/ contains 25 font files (18 .pfb, 2 .afm, 5 .ttf) and three
+notice files:
+
+  bitstream-vera-license.txt (5,954 bytes)
+        The Bitstream Vera licence, for the Vera faces reportlab ships. The
+        file's own words: "The fonts have a generous copyright, allowing
+        derivative works (as long as 'Bitstream' or 'Vera' are not in the
+        names), and full ...".
+
+  DarkGarden-copying.txt (1,318 bytes)
+        The DarkGarden font's own notice: "Copyright (C) 1999, 2000, 2004
+        Michal Kosmulski <mkosmul@users.sourceforge.net>. This font is free
+        software; you can redistribute it and/or modify it under the terms of
+        the GNU General Public License ... either version 2 of the License, or
+        (at your option) any later version." It carries the font's own
+        exception: "As a special exception, if you create a document which
+        uses this font, and embed this font or unaltered portions of this font
+        into the document, this font does not by itself cause the resulting
+        document to be covered by the GNU General Public License."
+
+  DarkGarden-copying-gpl.txt (17,976 bytes, 344 lines)
+        The full text of the GNU General Public License version 2. It travels
+        inside the reportlab distribution itself, so the GPL terms of the
+        DarkGarden font reach anyone who installs reportlab without anything
+        in LabCairn adding to them.
+
+  The DarkGarden font files are DarkGardenMK.afm and DarkGardenMK.pfb;
+  DarkGarden.sfd (the font's source), DarkGarden-readme.txt and
+  DarkGarden-changelog.txt travel with them.
+
+  The remaining reportlab font files are the Type 1 base-14 faces and the
+  Vera faces, under the licences named above.
+
+
+-------------------------------------------------------------------------------
+4.  Third-party material in the source distribution
+-------------------------------------------------------------------------------
+
+4.1  Three papers, as test fixtures
+-------------------------------------
+
+The source distribution ships three papers under tests/fixtures/papers/. Each
+is licensed **CC BY 4.0**, verified per paper from the arXiv abstract page,
+and each is attributed — title, all authors, source, licence and SHA-256 — in
+tests/fixtures/papers/MANIFEST.md, which is the attribution CC BY 4.0 §3(a)
+asks for. The files are verbatim copies.
+
+4.2  The font programs those papers embed
+--------------------------------------------
+
+The papers each embed font programs, and the wheel embeds none. The counts
+below were read out of the font programs themselves, from the copyright
+header each one carries:
+
+  arx-2610.09396.pdf    17 embedded font programs
+  arx-2610.10596.pdf    19 embedded font programs
+  arx-2610.12393.pdf    33 embedded font programs
+                         --
+                         69 in total
+
+  57  AMS Computer Modern (CMR, CMMI, CMSY, CMEX, MSAM families)
+        "Copyright (c) 1997, 2009 American Mathematical Society
+        (http://www.ams.org), with Reserved Font Name ... This Font Software is
+        licensed under the SIL Open Font License, Version 1.1."
+
+   8  URW++ Nimbus Roman
+        "% Copyright (URW)++,Copyright 1999 by (URW)++ Design & Development.
+        % See the file COPYING (GNU General Public License) for license
+        conditions. % As a special exception, permission is granted to include
+        this font program in a Postscript or PDF file that consists of a
+        document that contains text to be displayed or printed using this
+        font, regardless of the conditions or license applying to the
+        document itself." The exception is the font's own, and it covers
+        exactly this use.
+
+   1  Inconsolata Regular — "Copyright: Licensed under SIL font license."
+   1  Inconsolata Bold — "Released under the Apache 2 license."
+   1  SFTT1000 (Computer Modern Typewriter, by Vladimir Volovich)
+        "% Copyright (c) 2001 Vladimir Volovich <vvv@vsu.ru>. % See the file
+        COPYING (GNU General Public License) for license conditions."
+   1  dsrom10 — "Generated from MetaFont bitmap by pktrace". This font
+        program carries no licence statement of its own; it is a Computer
+        Modern derivative and is reproduced inside the paper that carries it.
+
+LabCairn modifies none of these files, and adds no condition to them.
+
+
+-------------------------------------------------------------------------------
+5.  What LabCairn's own reports carry, and how to reproduce this file
+-------------------------------------------------------------------------------
+
+5.1  The reports carry no font
+-------------------------------
+
+LabCairn's own artefacts carry no font file: the wheel's 153 members include
+none whose name is a font file, and the source distribution's only members
+holding font binaries are the three papers of §4.
+
+The report forms carry none either. The PDF exporter references the Type 1
+core faces and embeds nothing — /FontFile, /FontFile2 and /FontFile3 are
+absent and /FontDescriptor appears zero times; the DOCX exporter names fonts
+in word/fontTable.xml and ships no part under word/fonts/; the figure is a
+raster, so its text is pixels. Both properties are watched by tests, not only
+asserted here: tests/test_analysis_report_render.py::test_the_pdf_embeds_no_font
+and ::test_the_docx_embeds_no_font.
+
+5.2  Reproducing the numbers
+------------------------------
+
+  uv build
+    # then list the two member lists, and diff the sdist's against the tree:
+    tar -tzf dist/labcairn-0.1.0.tar.gz | grep -v '/$' | sed 's|^labcairn-0.1.0/||' | LC_ALL=C sort
+    git ls-tree -r --name-only HEAD | LC_ALL=C sort
+    python -c "import zipfile;print('\n'.join(sorted(zipfile.ZipFile('dist/labcairn-0.1.0-py3-none-any.whl').namelist())))"
+
+  # the dependency closure and its licences:
+  uv export --frozen --no-dev --no-hashes --no-emit-project --format requirements.txt
+  uv venv --python 3.12 .release-audit
+  uv pip install --python .release-audit -r <that export>
+  .release-audit/bin/python -c "..."   # read each distribution's own metadata
+
+The release workflow (.github/workflows/release.yml) runs the same audit on
+every run, and fails if a dependency's licence is not one the NOTICE records,
+if the closure resolves to a different set than the lockfile names, or if
+either artefact stops carrying this file.
