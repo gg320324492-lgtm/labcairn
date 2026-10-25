@@ -288,8 +288,38 @@ apply their corruption to a *copy* and never touch the committed corpus.
 - **Whether the product abstains correctly on `no_evidence`.** The corpus
   makes that measurable; measuring it is the harness's job.
 
-## 8. Limits
+## 8. The suite, and one thing that is not this subtask's fault
 
+**Measured, in a clean checkout of the merged branch**, with its own
+virtualenv whose editable install points at that checkout rather than at the
+developer's — so the numbers are the ones a CI runner would see, not the
+ones a developer's tree happens to produce.
+
+- `tests/test_public_fixtures.py`: **41 passed**.
+- `ruff check`, `ruff format --check` and `mypy --strict` on the new file:
+  **clean**.
+- Every committed material blob's SHA-256 matches the manifest, and no
+  committed blob carries a carriage return — checked against the blobs
+  themselves, not the working tree, because the two can differ.
+- The whole suite, run **serially** (see below): **3350 passed, 5 skipped,
+  3 failed**. All three failures are in `tests/test_ci_shard_coverage.py`,
+  and all three say the same thing: the shard table has no cost for a test
+  file nobody measured. That is the reason §10 gives, and it is a merge-time
+  step rather than a defect in this subtask.
+
+**A measurement that was wrong, and what it taught.** An earlier run of the
+whole suite reported two failures in `tests/test_readme_accuracy.py` —
+`uv sync` failing while the README's own command was being run. The cause
+was not the repository: a *second* suite run was in flight, and on Windows
+the concurrent `uv sync` could not replace the console script the first run
+had it using (*"failed to remove file ... labcairn.exe: 拒绝访问"*). With the
+concurrent run stopped, `uv sync` succeeds and the README tests pass in
+full. The failure was an artefact of running two suites at once on one
+machine, and it is recorded here because **a number reported from a run
+that was interfered with is not a measurement**, and because the same
+interference can make a suite that passes look like one that fails.
+
+## 9. Limits
 1. **The answer keys are derived by hand, and the witness re-derives them
    from the material.** Both use the product's own reading of the material,
    so a *systematic* misreading shared by the key's author and the product
@@ -309,14 +339,14 @@ apply their corruption to a *copy* and never touch the committed corpus.
    licence obligations into the public alpha.
 5. **The cost of this test file is not yet recorded.** The CI shard file
    records what each file costs on the runner, and this file is new, so it
-   has no cost until the merge's remeasurement pass gives it one. See §9.
+   has no cost until the merge's remeasurement pass gives it one. See §10.
 6. **The corpus is a starting point, not a closed set.** The manifest's
    `schema` field names a version (`labcairn.public-fixtures/1`) so that a
    later corpus can say which one a result was measured on — which
    `EVALUATION.md` requires: *"Results are benchmarks only when measured on
    immutable fixture/version labels."*
 
-## 9. What the merge needs
+## 10. What the merge needs
 
 **The shard list.** `tests/test_public_fixtures.py` is a new test file, and
 `tests/test_ci_shard_coverage.py` fails if a test file is in no shard — a
