@@ -73,7 +73,7 @@ def _fetch_logs(run_id: str, repo: str) -> dict[str, str]:
             "api",
             f"repos/{repo}/actions/runs/{run_id}/jobs",
             "--jq",
-            ".jobs[]|select(.name|startswith(\"python-quality\"))|.id",
+            '.jobs[]|select(.name|startswith("python-quality"))|.id',
         ],
         capture_output=True,
         text=True,
@@ -154,9 +154,7 @@ def main() -> int:
     parser.add_argument("run_id", nargs="?", help="the GitHub Actions run id")
     parser.add_argument("--repo", default="gg320324492-lgtm/labcairn")
     parser.add_argument("--from", dest="directory", help="a directory of job logs")
-    parser.add_argument(
-        "--measured-at", default=None, help="the commit the costs were measured at"
-    )
+    parser.add_argument("--measured-at", default=None, help="the commit the costs were measured at")
     args = parser.parse_args()
 
     if args.directory:
@@ -171,19 +169,35 @@ def main() -> int:
 
     measured_at = args.measured_at or args.run_id
     if not measured_at:
-        parser.error("--measured-at is needed with --from, because a directory of "
-                     "logs does not say which commit they are from")
+        parser.error(
+            "--measured-at is needed with --from, because a directory of "
+            "logs does not say which commit they are from"
+        )
 
     costs = measure(logs)
+
+    # **A run that measured nothing must not be written over a table that
+    # measured something.** The failure this guards against is a run that was
+    # still in progress, or whose logs are empty: the durations are not there,
+    # every file reads as zero, and the table that comes out of that is a
+    # partition balanced against nothing. It was done once, and the table was
+    # gone until it was restored from git.
+    for platform, measured in costs.items():
+        if sum(measured.values()) <= 0:
+            print(
+                f"the {platform} logs carry no durations -- the run is still "
+                "going, or its logs are empty. Nothing was written.",
+                file=sys.stderr,
+            )
+            return 1
+
     document: dict[str, Any] = json.loads(SHARD_FILE.read_text(encoding="utf-8"))
     document["measured_at"] = measured_at
     document["costs"] = costs
     SHARD_FILE.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"the costs are written, measured at {measured_at}")
 
-    subprocess.run(
-        [sys.executable, str(REPO_ROOT / ".github" / "make_ci_shards.py")], check=True
-    )
+    subprocess.run([sys.executable, str(REPO_ROOT / ".github" / "make_ci_shards.py")], check=True)
     return 0
 
 
