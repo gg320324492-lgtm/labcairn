@@ -340,7 +340,9 @@
       "test_store_queries.py": 2.16,
       "test_store_support.py": 0.0,
       "test_threat_model.py": 5.56,
-      "test_workspace_boundaries.py": 0.0
+      "test_workspace_boundaries.py": 0.0,
+      "test_evaluation_harness.py": 5.0,
+      "test_outsider_path.py": 5.0
     },
     "windows-latest": {
       "test_analysis_catalog.py": 0.37,
@@ -445,7 +447,9 @@
       "test_store_queries.py": 39.97,
       "test_store_support.py": 0.06,
       "test_threat_model.py": 5.56,
-      "test_workspace_boundaries.py": 0.31
+      "test_workspace_boundaries.py": 0.31,
+      "test_evaluation_harness.py": 5.0,
+      "test_outsider_path.py": 5.0
     }
   }
 }
