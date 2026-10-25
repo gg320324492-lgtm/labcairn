@@ -43,7 +43,8 @@
         "tests/test_analysis_operator_contract.py",
         "tests/test_cli_path_refused_catch.py",
         "tests/test_provider_credentials.py",
-        "tests/test_skill_support.py"
+        "tests/test_skill_support.py",
+        "tests/test_earlier_exit_demos.py"
       ],
       [
         "tests/test_service_launch.py",
@@ -66,7 +67,8 @@
         "tests/test_security_listing_canonical.py",
         "tests/test_fake_provider_determinism.py",
         "tests/test_material_adapters.py",
-        "tests/test_recovery_support.py"
+        "tests/test_recovery_support.py",
+        "tests/test_threat_model.py"
       ],
       [
         "tests/test_cli_workspace_refusals.py",
@@ -137,7 +139,8 @@
         "tests/test_runtime_contracts.py",
         "tests/test_security_listing_canonical.py",
         "tests/test_security_injection.py",
-        "tests/test_analysis_report_build.py"
+        "tests/test_analysis_report_build.py",
+        "tests/test_threat_model.py"
       ],
       [
         "tests/test_cli_workspace_refusals.py",
@@ -204,7 +207,8 @@
         "tests/test_fake_provider_isolation.py",
         "tests/test_analysis_report_manifest.py",
         "tests/test_provider_adapter.py",
-        "tests/test_analysis_selection.py"
+        "tests/test_analysis_selection.py",
+        "tests/test_earlier_exit_demos.py"
       ],
       [
         "tests/test_service_launch.py",
@@ -267,6 +271,7 @@
       "test_cli_serve_bind_refusal.py": 0.4,
       "test_cli_workspace_refusals.py": 50.07,
       "test_developer_launch.py": 14.84,
+      "test_earlier_exit_demos.py": 8.5,
       "test_evidence_anchor_registry.py": 4.16,
       "test_evidence_contracts.py": 1.74,
       "test_evidence_gate.py": 1.44,
@@ -333,6 +338,7 @@
       "test_store_persistence.py": 0.74,
       "test_store_queries.py": 2.33,
       "test_store_support.py": 0.04,
+      "test_threat_model.py": 4.0,
       "test_workspace_boundaries.py": 0.83
     },
     "windows-latest": {
@@ -370,6 +376,7 @@
       "test_cli_serve_bind_refusal.py": 4.22,
       "test_cli_workspace_refusals.py": 112.04,
       "test_developer_launch.py": 29.19,
+      "test_earlier_exit_demos.py": 12.7,
       "test_evidence_anchor_registry.py": 24.8,
       "test_evidence_contracts.py": 4.12,
       "test_evidence_gate.py": 12.45,
@@ -436,6 +443,7 @@
       "test_store_persistence.py": 6.04,
       "test_store_queries.py": 19.26,
       "test_store_support.py": 0.09,
+      "test_threat_model.py": 1.95,
       "test_workspace_boundaries.py": 0.27
     }
   }
