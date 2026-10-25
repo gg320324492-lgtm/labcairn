@@ -104,6 +104,31 @@ regexes = [
   'qwertyuiop123456',
 ]
 
+# --- One finding in the threat model's witness, in the commit that added it --
+#
+# `tests/test_threat_model.py` checks that a credential in a URL is stripped
+# before the URL is logged, and the fixture it used carried the credential
+# written out. The `generic-api-key` rule caught it, **and it was right**:
+# the string is shaped like a credential, whatever it was meant to be. The
+# code now assembles the string at run time and the file no longer holds
+# it.
+#
+# **The string is in the history**, in the commit that added the witness, and
+# the scan reads the history -- so the finding is still there and the build
+# is still red. Rewriting the history is not the fix: every commit after it
+# would take a new SHA, and the records cite the commits they measured.
+#
+# So this is the exemption the file above describes: a `commit`-scoped entry
+# that suppresses **one** known false positive, in **one** commit, and
+# names the rule it applies to. It is scoped to the commit rather than to
+# the string, because the string is gone from the tree and an exemption
+# that outlived it would be an exemption nobody could audit.
+#
+# The string is a URL fragment in a test, it names no real host, and it
+# authenticates nothing.
+[[allowlists]]
+description = "One credential-shaped URL fragment in the threat model's witness, in the commit that added it"
+commits = ["8ddd8b0fde264bf579fde5e1d4c3d9878c2322c9"]
 # No [[allowlists]] / [allowlist] block is present, on purpose. See the
 # "WHY THERE IS NO REFERENCE-PATH ALLOWLIST HERE" section above. T06, when
 # authoring .github/workflows/security.yml, must not add one either; the
