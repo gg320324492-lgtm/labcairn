@@ -368,17 +368,35 @@ script's. **The product's defect is still there**, and it is T02's to fix in
 the path layer: the declared spelling and the root have to be compared in one
 spelling. This work order does not fix it, and does not pretend to.
 
-### 7.8 The CI's Python job has Node but not pnpm
+### 7.8 The CI's Python job has neither pnpm nor the web package's Node
 
 **Found on CI, and it is an environment difference rather than a defect in the
 walk.** The `python` workflow installs Python and uv and runs the suite; pnpm
-lives in the `web` workflow, where `pnpm/action-setup` installs it. So a
-runner that runs the Python suite has Node and no pnpm, and the walk's sweep
-of the README's web commands could not run them — the report had no `clone`
-key and the witness failed on a `KeyError`.
+lives in the `web` workflow, where `pnpm/action-setup` installs it and
+`actions/setup-node` pins Node 24.16.0. So a runner that runs the Python
+suite has **the runner's own Node and no pnpm**, and the walk's sweep of the
+README's web commands could not run them — the report had no `clone` key and
+the witness failed on a `KeyError`.
 
-**The script now gets pnpm itself**, in the order that is cheapest and most
-likely to work, and **the version is the repository's own pin** — read out of
+**Then the install itself failed**, with corepack having enabled pnpm
+successfully. The web package declares `"node": ">=24.16.0 <25"`, and the
+Python job never asked for that Node.
+
+**Two decisions came out of it.**
+
+**The first is what the walk does about a machine that cannot run the web
+package's commands.** The web package's five commands are the **`web-quality`
+workflow's job**: the `python` workflow is not the `web` workflow, and
+running them in every Python shard installs the web package's dependency tree
+twelve times to prove what the web workflow proves once. **So the witness
+mode does not run them, and says so per command in the report**, and **the
+reviewer mode runs them** — the mode a person runs, and where §4's
+measurement comes from. That is the same kind of reduction the whole-suite
+command already had, and it is recorded the same way.
+
+**The second is that the script obtains pnpm itself** when the machine has
+Node but no pnpm, in the order that is cheapest and most likely to work, and
+**the version is the repository's own pin** — read out of
 `web/package.json`'s `packageManager` field rather than written down twice:
 
 | | |
@@ -387,9 +405,9 @@ likely to work, and **the version is the repository's own pin** — read out of
 | 2. `corepack enable pnpm` | Node's own mechanism, which uses the version `packageManager` pins |
 | 3. `corepack pnpm` | the same thing without writing a shim, for a Node whose directory is not writable |
 | 4. `npm install` of that same pinned version into the work root | needs nothing but npm |
-| none of them | the run **refuses**, naming what is missing |
+| none of them | the commands are recorded as not run, with the reason |
 
-**The fallbacks were measured**, on this machine, with the tool removed from
+**Both fallbacks were measured**, on this machine, with the tool removed from
 `PATH`:
 
 | The machine had | The walk ran the web commands with | The result |
@@ -397,22 +415,17 @@ likely to work, and **the version is the repository's own pin** — read out of
 | no pnpm, corepack yes | `corepack pnpm`, using the pnpm@9.15.9 `web/package.json` pins | **115 checks, all held**; all five web commands ran and exited 0 |
 | no pnpm, no corepack, npm yes | `npm install` of the same pinned version into the work root | **115 checks, all held**; all five web commands ran and exited 0 |
 
-**A refusal is not a skip.** The sweep's claim is that every command the
-README shows ran, and a command that could not be run is a command that did
-not work — so the script refuses rather than quietly dropping the web
-commands, and the refusal names what is missing in the README's own words.
-The witness skips, loudly and with the reason, only on a machine that has no
-pnpm, no corepack and no npm at all: a machine that has not met the README's
-own stated requirements. That mirrors what `tests/test_readme_accuracy.py`
-does with the same commands, and a CI runner has Node, so the skip does not
-happen there.
+**And a failing command now says what it said.** pnpm writes its progress
+and its errors to standard output, so a failure report built from the error
+stream alone reads *"exit 1"* and nothing else — which is a failure nobody
+can act on. The detail carries **both** streams now.
 
-**What it costs.** Each Python shard now downloads pnpm and the web package's
-dependency tree, because the sweep runs `pnpm install --frozen-lockfile` in
-the clone. That is the same work the web workflow already does once, done
-twelve times — and it is the cost of the claim that the README's commands
-work in a clean clone. **A runner with a warm pnpm store pays far less**, and
-the store is what the web workflow caches.
+**What is left to the owner.** `pnpm format:check` is a command the README
+documents, and **no CI workflow runs it**: the `web` workflow runs install,
+typecheck, lint, test and build, and the Python suite runs it only on a
+machine that has pnpm — which a runner does not. That gap is not this work
+order's to close (the workflows are not its files), and it is named here
+rather than left for the next reader to find.
 
 ### 7.9 The default temporary directory fails on this machine
 
@@ -432,7 +445,7 @@ already say why. This is a fact about this machine, not about the README.
 | `test_the_outsiders_path_runs_and_every_claim_holds` | the exit code is zero, and every claim the run recorded held |
 | `test_the_run_was_made_in_a_clean_clone` | the clone was outside the repository, clean, and at the same commit |
 | `test_the_walk_ran_the_clones_own_code` | the package under test was inside the clone and **not** inside the developer's repository |
-| `test_every_readme_command_was_run_in_the_clone` | the README's commands and the run's commands are **the same set**, and each exited 0 |
+| `test_every_readme_command_was_run_or_recorded_as_not_runnable` | the README's commands and the run's commands are **the same set**; each one either exited 0 or was recorded as not runnable **with a reason** — and only a web command may be the latter |
 | `test_the_witness_run_records_the_suite_reduction` | the whole-suite command's reduction is recorded, so the run cannot be read as a full-suite run |
 | `test_the_record_names_every_command_and_its_outcome` | this document names every command the run executed |
 | `test_every_claim_the_deliverable_names_was_made` | each claim the P1 deliverable names was made, and held — **including the two controls**, which are what make the comparisons between the surfaces falsifiable |
@@ -443,6 +456,7 @@ already say why. This is a fact about this machine, not about the README.
 | `test_the_extractor_reads_instructions_and_ignores_illustrations` | a ```` ```python ```` block is prose and is not run as a command |
 | `test_the_extractor_ignores_comments_and_blank_lines` | a comment in a shell block is a comment |
 | `test_the_extractor_finds_nothing_in_a_document_with_no_commands` | the control for the extractor: an empty answer is an answer |
+| `test_the_version_comparison_reads_the_ranges_the_repository_writes` | the comparison the web-environment check uses, watched — and it says *unknown* about a range it cannot read rather than guessing |
 
 ### 8.1 The mutations, and which test went red
 

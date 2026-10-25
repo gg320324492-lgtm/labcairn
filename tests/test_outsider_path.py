@@ -252,7 +252,9 @@ def test_the_walk_ran_the_clones_own_code(outsider_run: OutsiderRun) -> None:
 
 
 @pytest.mark.e2e
-def test_every_readme_command_was_run_in_the_clone(outsider_run: OutsiderRun) -> None:
+def test_every_readme_command_was_run_or_recorded_as_not_runnable(
+    outsider_run: OutsiderRun,
+) -> None:
     """Every command the README shows was run, in the clone, and it succeeded.
 
     **The set is compared, not the count.** A command the README shows that
@@ -260,6 +262,16 @@ def test_every_readme_command_was_run_in_the_clone(outsider_run: OutsiderRun) ->
     executed a command the README does not show is a run that was not
     following the README. Both directions are checked against the README in
     the clone.
+
+    **A command this machine cannot run is recorded, not failed.** The web
+    package declares the Node and the pnpm it needs, and a runner that runs
+    the Python suite has neither — so the sweep records those commands as
+    not run, with the reason. A command that could not be run is not a
+    command that did not work; a command that ran and failed is.
+
+    **The product's own commands are not excused.** They are the environment
+    the CLI runs in, and they run everywhere — so a non-web command that was
+    not run fails here.
     """
     report = outsider_run.report
     documented = report["readme_commands_documented"]
@@ -275,11 +287,26 @@ def test_every_readme_command_was_run_in_the_clone(outsider_run: OutsiderRun) ->
         f"only in the run: {sorted(ran_set - documented_set)}"
     )
 
+    web_ran = False
     for entry in ran:
-        assert entry["exit_code"] == 0, (
-            f"the README's `{entry['documented']}` exited {entry['exit_code']}:\n"
-            f"{entry['stderr_tail'][-2000:]}"
-        )
+        if entry.get("ran"):
+            web_ran = web_ran or entry["documented"].startswith("pnpm ")
+            assert entry["exit_code"] == 0, (
+                f"the README's `{entry['documented']}` exited {entry['exit_code']}:\n"
+                f"{entry['stdout_tail'][-2000:]}\n{entry['stderr_tail'][-2000:]}"
+            )
+        else:
+            assert entry.get("reason"), (
+                f"the README's `{entry['documented']}` was not run and no reason was "
+                "recorded for it"
+            )
+            assert entry["documented"].startswith("pnpm "), (
+                f"the README's `{entry['documented']}` was not run, and it is not a web "
+                "command: the product's own commands have to run everywhere"
+            )
+    assert web_ran or not any(entry["documented"].startswith("pnpm ") for entry in ran), (
+        "some web commands ran and others did not"
+    )
 
 
 @pytest.mark.e2e
@@ -508,6 +535,30 @@ def test_the_extractor_ignores_comments_and_blank_lines() -> None:
     script = load_script()
     text = "# A README\n\n```bash\n# a comment\n\nuv sync\n```\n"
     assert script.readme_commands(text) == ["uv sync"]
+
+
+def test_the_version_comparison_reads_the_ranges_the_repository_writes() -> None:
+    """The comparison the web-environment check uses, watched.
+
+    It reads the ranges ``web/package.json`` writes -- ``">=24.16.0 <25"`` --
+    and says **unknown** when it meets a range it does not understand, rather
+    than guessing: a check that said "no" about a range it could not read
+    would refuse a machine that could have run the command.
+    """
+    script = load_script()
+    assert script.satisfies("24.16.0", ">=24.16.0 <25") is True
+    assert script.satisfies("v24.16.0", ">=24.16.0 <25") is True
+    assert script.satisfies("24.16.1", ">=24.16.0 <25") is True
+    assert script.satisfies("25.0.0", ">=24.16.0 <25") is False
+    assert script.satisfies("24.15.9", ">=24.16.0 <25") is False
+    assert script.satisfies("20.19.4", ">=24.16.0 <25") is False
+    assert script.satisfies("9.15.9", ">=9.15.9 <10") is True
+    assert script.satisfies("10.0.0", ">=9.15.9 <10") is False
+    assert script.satisfies("24.16.0", ">=24.16.0") is True
+    assert script.satisfies("24.16.0", "24.16.0") is True
+    assert script.satisfies("24.16.0", "^24.16.0") is None
+    assert script.satisfies("24.16.0", ">=24.16.0 || <20") is None
+    assert script.satisfies("not-a-version", ">=24.16.0 <25") is None
 
 
 def test_the_extractor_finds_nothing_in_a_document_with_no_commands() -> None:
