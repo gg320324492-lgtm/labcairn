@@ -5,7 +5,7 @@ baseline) · **Subtask:** T01 — the evaluation harness.
 **Status of the work order:** **NOT STARTED**, and this document does not
 change that. It records the harness, what it measured, and what the
 protocol still asks for.
-**Measured:** 2026-10-25 on the tree at `43cf5ab9c303695534538aa4b68e0c6dacf86a7a`, on Windows 11 (AMD64), Python 3.12.13, by
+**Measured:** 2026-10-25 on the tree at `37ae3663d28555b6b760416f10630a81b3ec1ecb`, on Windows 11 (AMD64), Python 3.12.13, by
 `python -m tests.evaluation --out E:\labcairn-local\evaluation-t01`.
 
 **What this is.** `docs/EVALUATION.md` is the protocol this gate measures
@@ -17,12 +17,27 @@ carries its denominator.
 
 **And the headline, before anything else:** the protocol is **not
 satisfied** by this tree, and the report says so rather than rounding it
-up. The real-model smoke class needs *"at least one real supported
-provider under declared model/version/parameters"*, there is no credential
-for one, and **mock-only success is insufficient under the protocol**. So
-the harness runs the four classes it can run, reports the fifth as **NOT
-RUN** with the reason, and exits **2** — a code that means *"a selected
-class could not be run"*, not *"the tool failed"*.
+up. **Three** things are unmet, and they are three different kinds of
+thing:
+
+1. **The real-model smoke class was not run.** It needs *"at least one
+   real supported provider under declared model/version/parameters"*,
+   there is no credential for one, and **mock-only success is
+   insufficient under the protocol**. The harness reports the class as
+   **NOT RUN** with the reason, and does **not** count it as a pass: a
+   class that was not run has no rate, and a rate of zero would say
+   *"every case failed"*, which is a different fact.
+2. **Two of the six Phase 1 blockers did not hold.** The first of them —
+   *"A new user cannot complete a task from a clean environment following
+   README"* — because the base branch's own witness skips G1's exit
+   demonstration on Windows while the product's 8.3 short-name comparison
+   is unfixed. **That is the tree's state, and it is a finding rather
+   than a defect of the harness.**
+3. **Four of the seven metrics were not measured**, and each says which
+   input is missing.
+
+The command therefore exits **2** — a code that means *"a selected class
+could not be run"*, not *"the tool failed"*.
 
 ---
 
@@ -106,11 +121,11 @@ The second one is **enforced**, not quoted: see §7.
 | The protocol's class | The protocol's own definition | Files | Passed / collected | Failed | Errored | Skipped | xfail | Rate |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | **Unit** | model/provider-independent typed contracts, state transitions, permission resolution, path traversal/symlinks, dataset locators, numerical extraction and report serialization. | 45 | **1469/1470** | 0 | 0 | 1 | 0 | 0.999 |
-| **Integration** | SQLite migrations, transactional event append, restart recovery, approvals, artifact hashes, local API auth and provider redaction. | 29 | **1133/1134** | 0 | 0 | 1 | 0 | 0.999 |
+| **Integration** | SQLite migrations, transactional event append, restart recovery, approvals, artifact hashes, local API auth and provider redaction. | 29 | **1131/1134** | 0 | 0 | 3 | 0 | 0.997 |
 | **Negative** | fabricated citation, missing material, conflicting numeric values/units, insufficient evidence, outdated checkpoint, simulated crash between file change and operation confirmation, untrusted document instructions. | 19 | **361/362** | 0 | 0 | 1 | 0 | 0.997 |
 | **E2E** | fresh install + CLI task, local Web task, resume and revise, Markdown and DOCX/PDF export, source click-through. | 2 | **86/86** | 0 | 0 | 0 | 0 | 1.000 |
 | **Real-model smoke** | at least one real supported provider under declared model/version/parameters; results and costs documented. Mock-only success is insufficient. | 0 | **NOT RUN** | — | — | — | — | — |
-| **Repository gates** | the repository's own gates — the shard list, the README's accuracy, the reference-exclusion check, the repo-root guard, the status board, the suite's temp isolation and the packaging smoke. They are run and reported, and they are not one of the protocol's five mandatory gate classes, so they are counted apart from them. | 8 | **304/304** | 0 | 0 | 0 | 0 | 1.000 |
+| **Repository gates** | the repository's own gates — the shard list, the README's accuracy, the reference-exclusion check, the repo-root guard, the status board, the suite's temp isolation and the packaging smoke. They are run and reported, and they are not one of the protocol's five mandatory gate classes, so they are counted apart from them. | 8 | **305/305** | 0 | 0 | 0 | 0 | 1.000 |
 
 **The class that was not run.** The real-model smoke needs a real
 provider's credential and a declared model, version and parameter set, and
@@ -173,16 +188,16 @@ witness score is never presented as the value.**
 
 | The protocol's metric | The value | The witnesses' score | Small denominator? |
 |---|---|---|---|
-| End-to-end task success (successful verified deliveries / attempted tasks). | **NOT MEASURED** | 116/116 |  |
+| End-to-end task success (successful verified deliveries / attempted tasks). | **NOT MEASURED** | 114/116 |  |
 | Evidence locator validity and citation support precision (human-checked sample). | **NOT MEASURED** | 145/145 |  |
 | Numeric-cell extraction exactness and unit consistency. | **84/84** — 77/77 — 14/14 | 256/256 |  |
 | Unsupported-claim detection and appropriate abstention. | **NOT MEASURED** | 34/34 |  |
 | Revision consistency; no stale figure/caption/reference retained after source change. | **NOT MEASURED** | 126/126 |  |
 | Recovery correctness / duplicate side effects across fault-injection runs. | **8/8** | 40/40 | yes |
-| Latency, model usage/cost with model name, dataset revision and seeds where meaningful. | **1402485/3356** | 47/47 |  |
+| Latency, model usage/cost with model name, dataset revision and seeds where meaningful. | **1337062/3357** | 47/47 |  |
 
 - **End-to-end task success (successful verified deliveries / attempted tasks).**
-  - **The witnesses:** test_smoke_path.py, test_analysis_demo.py, test_cli.py, test_service_launch.py, test_earlier_exit_demos.py — 116/116 passed
+  - **The witnesses:** test_smoke_path.py, test_analysis_demo.py, test_cli.py, test_service_launch.py, test_earlier_exit_demos.py — 114/116 passed
 - **Evidence locator validity and citation support precision (human-checked sample).**
   - **The witnesses:** test_cite_c1.py, test_cite_c2.py, test_cite_c3.py, test_evidence_anchor_registry.py — 145/145 passed
 - **Numeric-cell extraction exactness and unit consistency.**
@@ -249,41 +264,66 @@ test that did not run is not a pass.
 |---|---|---|---|
 | Unit | `tests/test_provider_credentials.py::test_real_provider_smoke_records_capabilities_and_usage` | **skipped** | NOT RUN. Requires the project owner's explicit authorisation to spend money and a credential they supplied for that purpose. LC-P1-03 must not use a credential found in this machine's environment. |
 | Integration | `tests/test_api.py::test_the_session_directory_can_still_be_entered` | **skipped** | POSIX permission bits |
+| Integration | `tests/test_earlier_exit_demos.py::test_an_earlier_gates_exit_demonstration_still_holds[g1_exit_demo-steps0]` | **skipped** | g1_exit_demo is skipped on Windows until the product's 8.3 short-name comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md section 2.6 |
+| Integration | `tests/test_earlier_exit_demos.py::test_the_demonstrations_exit_code_still_means_something[g1_exit_demo-steps0]` | **skipped** | g1_exit_demo is skipped on Windows until the product's 8.3 short-name comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md section 2.6 |
 | Negative | `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` | **skipped** | the Windows drive form is meaningless on POSIX |
 
-**A skip is listed here as a failure case, and that is deliberate.** A skipped test did not run, so it is not a pass, and the report does not let it disappear into a rate. The table above gives each one with the reason pytest recorded.
+**A skip is listed here as a failure case, and that is deliberate.** A
+skipped test did not run, so it is not a pass, and the report does not let
+it disappear into a rate. The table above gives each one with the reason
+pytest recorded.
 
-from the inside.** The repository's real-provider test carries the `requires_provider` marker and skips itself when no credential is configured; the protocol's sixth blocker names *"Required CI tests [that] are skipped"*, so the harness counts the skip. It is **not** a blocker witness — a marker that excludes a test from CI is a declaration that the test is not a required CI test — and the report says both things rather than one of them.
-
-**A note on the kind of skip, because the rule is strict on purpose.** The
-brief this harness was built to says that *a blocking test that is skipped
-counts as a failure in the run, not a neutral*, and the harness does
-exactly that: **no skip is ever neutral.** But the three skips in this run
-are **not the same fact**, and the report says which is which:
+**The skips are not the same fact, and the report says which is which.**
+The brief this harness was built to says that *a blocking test that is
+skipped counts as a failure in the run, not a neutral*, and the harness
+does exactly that: **no skip is ever neutral.** But there are three kinds
+of skip here, and they are worth keeping apart:
 
 | The skip | How it is declared | What it means |
 |---|---|---|
 | `tests/test_provider_credentials.py::test_real_provider_smoke_records_capabilities_and_usage` | `@pytest.mark.requires_provider` plus `@pytest.mark.skip(reason=...)` | **It never runs, on any platform.** The protocol's own gate, seen from the inside: the real-provider smoke needs the owner's authorisation and a credential issued for the purpose. |
-| `tests/test_api.py::test_the_session_directory_can_still_be_entered` | `@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")` | **It runs on the other platform.** The case is about POSIX permission bits, and this run was on Windows. |
-| `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` | `@pytest.mark.skipif(os.name == "nt", reason="the Windows drive form is meaningless on POSIX")` | **It runs on the other platform**, and it is the POSIX half of a pair whose Windows half runs here. |
+| `tests/test_api.py::test_the_session_directory_can_still_be_entered` | `@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")` | **A declared platform conditional.** The case is about POSIX permission bits, and this run was on Windows. |
+| `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` | `@pytest.mark.skipif(os.name == "nt", reason="the Windows drive form is meaningless on POSIX")` | **A declared platform conditional**, and the POSIX half of a pair whose Windows half runs here. |
+| `tests/test_earlier_exit_demos.py::test_an_earlier_gates_exit_demonstration_still_holds[g1_exit_demo-steps0]` and `…::test_the_demonstrations_exit_code_still_means_something[g1_exit_demo-steps0]` | a skip whose reason **names the defect it is waiting for** | **A known product defect, open on this platform.** G1's exit demonstration fails on a Windows runner because the product compares a short-spelled and a long-spelled path — the defect the gate's own breakdown records at §2.6, and T02's to fix. |
 
-**The last two are platform conditionals, and the CI matrix runs both
-platforms** — so the properties they check *are* exercised, on the other
-runner. **The harness does not soften the rule to say so**, because
-deciding that a skip is benign is a judgement about the protocol, and the
-protocol is the ruler and this record does not edit it. The rule as the
-brief states it is applied, the case is named, and the reason pytest
-recorded is quoted, so a reader has everything the decision needs.
+**The third kind is the one that matters, and the harness's rule catches
+it.** The base branch's new witness skips G1's demonstration on Windows
+**until the product's 8.3 short-name comparison is fixed**, and it says so
+in the skip's own reason — *"it is not a hole with a shape nobody can
+see"*. And the harness agrees: **a Phase 1 blocker that is waiting on an
+open defect has not held.** The protocol's first blocker — *"A new user
+cannot complete a task from a clean environment following README"* —
+**FAILED in this run**, because the demonstration of a clean environment
+does not run on this platform while the defect is open. That is the
+blocker rule doing its job, and it is the first time this tree has been
+told that a Phase 1 blocker does not hold.
 
-**That is an open question for the owner, and it is named here rather than
-settled here:** *should a declared platform conditional — a `skipif` that
-is false on the runner in question — fail a Phase 1 blocker on that
-runner?* The harness's answer today is **yes**, because a skip that is
-never neutral is the rule the brief gave, and because a rule that cannot
-be softened by a reader is a rule that cannot be quietly ignored. The
-alternative — a skip that counts only when the test is skipped
-*everywhere* — needs both platforms' runs to decide, which a single run
-does not have.
+**The second kind is the one that is a judgement, and it is not settled
+here.** A declared platform conditional is skipped on the runner it does
+not apply to and runs on the other runner of the CI matrix, so the
+property it checks *is* exercised — but the harness does not soften the
+rule to say so, because deciding that a skip is benign is a judgement
+about the protocol, and the protocol is the ruler and this record does not
+edit it. The rule as the brief states it is applied, the case is named,
+and the reason pytest recorded is quoted, so a reader has everything the
+decision needs.
+
+**Two questions for the owner, both named rather than settled here:**
+
+1. *Should a declared platform conditional — a `skipif` that is false on
+   the runner in question — fail a Phase 1 blocker on that runner?* The
+   harness's answer today is **yes**, because a skip that is never neutral
+   is the rule the brief gave, and because a rule that cannot be softened
+   by a reader is a rule that cannot be quietly ignored. The alternative —
+   a skip that counts only when the test is skipped *everywhere* — needs
+   both platforms' runs to decide, which a single run does not have.
+2. *Should a skip that names an open defect count the same way?* The
+   harness's answer today is **yes**, and this record's §8 shows what that
+   costs: the protocol's first blocker does not hold while the 8.3
+   short-name defect is open. The alternative — a blocker that waits, and
+   says what it is waiting for — is a rule that is easier to live with and
+   easier to forget, and the difference between the two is a decision
+   about the gate rather than about the measurement.
 
 
 ---
@@ -329,28 +369,49 @@ evaluated **has not held**.
 
 | The protocol's blocker | Status | Witnesses | What the status means |
 |---|---|---:|---|
-| New user cannot complete a task from a clean environment following README. | **HELD** | 4 | every witness was collected and passed |
+| New user cannot complete a task from a clean environment following README. | **FAILED** | 4 | 2 of 51 witness cases did not pass; a skipped witness counts against the blocker |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 1 of 112 witness cases did not pass; a skipped witness counts against the blocker |
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
 | A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
 | Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness was collected and passed |
 
+**New user cannot complete a task from a clean environment following README.** — the witness cases that did not pass:
+
+- `tests/test_earlier_exit_demos.py::test_an_earlier_gates_exit_demonstration_still_holds[g1_exit_demo-steps0]` — **skipped** — g1_exit_demo is skipped on Windows until the product's 8.3 short-name comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md section 2.6
+- `tests/test_earlier_exit_demos.py::test_the_demonstrations_exit_code_still_means_something[g1_exit_demo-steps0]` — **skipped** — g1_exit_demo is skipped on Windows until the product's 8.3 short-name comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md section 2.6
+
 **Any unauthorized file write/escape or unconsented private-network disclosure.** — the witness cases that did not pass:
 
 - `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` — **skipped** — the Windows drive form is meaningless on POSIX
 
-**That is the one blocker that did not hold, and it is the platform-conditional
-skip of §6** — a POSIX-only case in a blocker whose witnesses are the
-repository's path-admission tests, skipped on a Windows runner. The
-property it checks is exercised on the other runner of the CI matrix. The
-rule is applied as the brief states it, and the question of whether a
-declared platform conditional should fail a blocker on the runner it does
-not apply to is **the owner's**, and is recorded rather than settled.
+**Two of the six blockers did not hold, and both of them are skips.** They
+are the two kinds §6 separates:
 
-**The sixth blocker held, and it did not always.** The harness's **first**
-run on this tree — before the shard list was fixed — found **two failing
-cases** in `tests/test_ci_shard_coverage.py`, both of them the same hole:
+* **The protocol's first blocker** — *"A new user cannot complete a task
+  from a clean environment following README"* — **FAILED**, because the
+  base branch's new witness skips **G1's exit demonstration on Windows**
+  while the product's 8.3 short-name comparison is unfixed
+  ([the breakdown's §2.6](../plans/LC-P1-13-14-task-breakdown.md)). The
+  demonstration of a clean environment does not run on this platform, so
+  the blocker that names a clean environment cannot be said to hold. **This
+  is a finding, not a defect of the harness**: the product really does
+  refuse a write under a short-spelled directory on a Windows runner, and
+  the rule that a skipped witness fails its blocker is what makes that
+  visible against the protocol's own words. It is T02's to fix, and until
+  it is fixed the harness will keep reporting this blocker as failed.
+* **The protocol's second blocker** — *"Any unauthorized file write/escape
+  or unconsented private-network disclosure"* — **FAILED**, because of
+  the **declared platform conditional**: one of its witness cases is about
+  the POSIX half of a pair and is skipped on Windows. The property *is*
+  exercised, on the other runner of the CI matrix. **Whether that should
+  fail the blocker on this runner is the owner's question**, and it is
+  asked in §6 rather than answered here.
+
+**The other four blockers held**, and so did the one about skipped required
+tests — which **did not always**. The harness's **first** run on this tree,
+before the shard list was fixed, found **two failing cases** in
+`tests/test_ci_shard_coverage.py`, both of them the same hole:
 
 > on ubuntu-latest, these test files are in no shard, so CI never runs
 > them: `['tests/test_earlier_exit_demos.py', 'tests/test_evaluation_harness.py']`
@@ -362,7 +423,6 @@ this work adds. Both are now filed, the shard file is regenerated, and
 the run recorded in this document is **after** the fix — which is why the
 sixth blocker holds here. The earlier run's numbers are not carried
 forward: a number belongs to the tree it was measured on.
-
 
 ---
 
@@ -468,11 +528,15 @@ that has not been shown to fail is not a witness.
 - **Nothing was compared against anything.** The mechanism works and
   refuses; there is no baseline in this tree to compare against.
 - **The real-model smoke did not run**, and no mock was passed off as one.
-- **The partition is a judgement** for the 70 files that
-  declare no marker, and it is a **file-level** partition, so a file whose
-  own tests span two classes lands in one of them.
-- **The costs recorded for the CI shard list are local measurements**, not
-  runner measurements — see §11.
+- **Two Phase 1 blockers did not hold**, and this work does not fix them:
+  the 8.3 short-name defect is T02's, and whether a declared platform
+  conditional should fail a blocker is the owner's question. §6 and §8
+  name both.
+- **The partition is a judgement** for the 70 files that declare no
+  marker, and it is a **file-level** partition, so a file whose own tests
+  span two classes lands in one of them.
+- **One cost in the CI shard list is a local measurement**, not a runner
+  measurement — see §11, which also carries the command that replaces it.
 - **This is not an independent review.** The same party wrote the harness
   and wrote the witnesses that watch it. The mutation table is the
   mitigation, and it is a mitigation rather than a substitute: a reviewer
@@ -486,21 +550,72 @@ that has not been shown to fail is not a witness.
 `tests/test_ci_shard_coverage.py` is the watch that says so. Two files
 were in no shard when this was written: `tests/test_earlier_exit_demos.py`
 — which arrived with the gate's base branch — and
-`tests/test_evaluation_harness.py`, which this work adds. Both are now
-filed, and the shard file was regenerated with
-`.github/make_ci_shards.py`.
+`tests/test_evaluation_harness.py`, which this work adds. **The base
+branch has since filed the first of them**, and this work files the
+second: the partition is now **103 files** on each platform, and
+`make_ci_shards.py` rebuilds it from the measured costs.
 
-**The costs recorded for them are local measurements, not runner
-measurements**, and that is stated here because the difference is not
-small: the repository's own record says one file took **383 seconds on
-Windows and 45 on Ubuntu**, and another took **153 on Ubuntu and 288 on
-Windows** — not the same total, a different *order*. A shard list
-balanced on one platform is lopsided on the other, so when the owner wants
-the runner's own numbers, the fix is to read the per-file seconds out of a
-CI log (the pytest step runs with `--durations=0`) and regenerate the
-file.
+### The shard file changed shape while this was being written
 
----
+The base branch brought **three** things with it, and this record is
+written against all of them:
+
+* **The shard file carries `measured_at`** — the commit whose tree the
+  costs describe — and a witness says so: *"the costs must still describe
+  the tree, or the shards are lopsided"*. A change under `src/` or
+  `tests/` moves the tree away from the anchor and the witness fails,
+  which is the project's own rule (*a value that can change is
+  re-measured, not carried forward*) in the form of a test.
+* **The balance check is no longer a threshold.** It is now *"no file
+  could be moved to shorten the wait"*, because a threshold on how equal
+  the shards are is arbitrary when one file is the floor — and
+  `tests/test_cli.py` is.
+* **`.github/remeasure_shards.py` is the fix**: it reads the per-file
+  seconds out of a CI run's log — where pytest's `--durations=0` puts
+  them — writes the costs and the commit they were measured at, and
+  rebuilds the partition.
+
+### What this branch did to it, and what it could not do
+
+**The merge conflict on the shard file was resolved onto the base
+branch's costs**, not this branch's. The base's table is a CI run's
+measurement; this branch's was an older table plus one local
+measurement. **Taking the older table would have carried a stale value
+forward**, which is the thing the project's rule forbids, so the base's
+costs were kept and the one file this branch adds was filed with a
+measured cost.
+
+**And that one cost was measured on a development machine, not on a
+runner**, because no runner has run this branch — pushing a branch does
+not start a CI run, and starting one is the owner's call. The number is
+**3.6 s**, the sum of the file's own per-test call durations. The
+difference is not small and the repository's own record says so: one file
+took **383 seconds on Windows and 45 on Ubuntu**, and another took **153
+on Ubuntu and 288 on Windows** — not the same total, a different *order*.
+**The fix is the base's own command**, run against a CI run of the merged
+pull request:
+
+```
+python .github/remeasure_shards.py <run-id>
+```
+
+**One caveat about that command, found while using it.** With a run id
+and no `--measured-at`, the script writes the **run id** into
+`measured_at` — and the witness resolves that field with
+`git diff <measured_at>..HEAD`, which fails on anything that is not a
+commit. The witness then reports *"the commit <run-id> is not in this
+checkout, so the costs cannot be checked"*, and the file it just wrote is
+one its own witness rejects. **Pass `--measured-at <commit-sha>`**, which
+the script accepts and which the witness can resolve.
+
+**And the anchor this branch moved.** The costs were anchored at the base
+branch's `08a554e`; they are now anchored at the merge commit, whose tree
+the costs do describe — the hundred and two files the CI run measured are
+byte-identical there, and the one file this branch adds carries a cost
+measured against it. **Moving the anchor is not the same as
+re-measuring**, and the difference is recorded here rather than buried: a
+runner's number for the new file is still owed, and the command above is
+what replaces it.
 
 ## 12. How to reproduce
 
