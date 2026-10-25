@@ -11,9 +11,11 @@ project measured, and what it did not.
 number is compared against anything, and **no superiority is claimed**. The
 reasons are in §2, and each one is a fact about this repository or about the
 upstream trees, not an estimate of difficulty.
-**Measured:** the fixtures, the corpus and the harness's own mechanics were
-read in this tree on 2026-10-25; the upstream facts were read from the local
-reference clones at the pinned SHAs (§2.6). No upstream code was executed.
+**What was read, and what was run.** The fixtures, the corpus and the
+harness's own mechanics were read in this tree on 2026-10-25, and the
+harness was re-run on it (§3.6). The upstream facts were read from the
+local reference clones at the pinned SHAs (§2.6). **No upstream code was
+executed, installed or imported.**
 
 ---
 
@@ -29,9 +31,11 @@ was not"* — because the protocol's own rule points there:
 > like-for-like matched-task baselines, verified capabilities, and documented
 > confidence intervals or limitations.
 
-**Two of those three requirements are not merely unmet here — they are
-unreachable in this tree, for reasons that are on the record.** §2 sets out
-each one with the file and line that establishes it.
+**One of those three requirements is not merely unmet here — it is
+unreachable in this tree, for reasons that are on the record.** The other two
+are properties of a baseline document that **does not exist yet**, so they
+are unmet rather than unreachable. §2 sets out the five facts that decide
+this, each with the file, the line and the check that establishes it.
 
 **The cost, stated plainly.** The work order's *"competitor baseline"* is
 **not delivered as a comparison.** A reader of the public alpha gets the
@@ -177,9 +181,15 @@ PaperQA2 has a stated path for the last one (`CANNOT_ANSWER_PHRASE`, asserted
 in upstream's own `tests/test_paperqa.py::test_unrelated_context`).
 
 **So the honest summary is narrower than "impossible" and wider than
-"easy":** on **one** of the four fixture genres, and on **12 of 19** checks,
-a like-for-like comparison is technically constructible. §5.3 says what it
-would take.
+"easy".** The split is not one fixture against three: **every one of the four
+fixtures carries exactly three comparable checks** — the three answerable
+ones carry two `number_present` and one `no_fabricated_value`, and the
+negative one carries one `abstains` and two `no_fabricated_value`. **So 12 of
+the 19 checks are comparable in principle across all four genres**, and the
+other 7 are the `citation_resolves` ones — two per answerable fixture and
+one on the negative one. §5.3 says what building that comparison would take,
+and why those 7 must be reported as *not comparable* rather than as
+failures of the competitor.
 
 **And the deeper mismatch is the one ADR-0004 measured.** PaperQA2's cited
 evidence is an LLM-written **summary** of the chunk, not the source text, so
@@ -227,7 +237,7 @@ writing a document.
 |---|---|---|
 | the protocol's rule and the six blockers | `docs/EVALUATION.md` | read-only |
 | the three options and the work order's Build clause | `docs/plans/LC-P1-13-14-task-breakdown.md` §1.4.3; `docs/PHASE_1_WORKORDERS.md` | read-only |
-| the harness's refusal mechanism and its six requirements | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:310-338` | read-only |
+| the harness's refusal mechanism and its six conditions | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:310-338` | read-only |
 | the corpus measurement and its unit | `tests/evaluation/corpus.py` | read-only |
 | the public corpus: 4 fixtures, 7 questions, 19 artifact checks | `tests/fixtures/public/MANIFEST.json` | parsed, counted |
 | PaperQA2's packaging, readers, chunking and types | `E:\labcairn-upstreams\paper-qa` @ `57e89f7` | **text only; nothing executed** |
@@ -472,8 +482,9 @@ set and budget, so that `assess` has something to match.
    *does* have a provider needs the basis to carry it — the model name,
    version and parameters, and the budget — from the provider configuration
    that `labcairn.providers.credentials.load_providers_config` already
-   reads. **That file belongs to T01, and §7 of this task's brief excludes it
-   from this subtask.** It is named here as a required change, not made.
+   reads. **That file belongs to T01, and the brief for this subtask
+   excludes `tests/` from it.** It is named here as a required change, not
+   made.
 3. **A re-measurement.** The metrics a comparison would pair are the ones
    in §3.2, and they would have to be measured again on the real-provider
    run, on the same tree.
@@ -492,11 +503,11 @@ guarantee (C2 quotation match and C3 numeric reconciliation are absent
 there, and the baseline would have to say so rather than let a reader assume
 otherwise).
 
-**The intervals.** Three fixtures and one run per fixture is not a
-distribution. The honest form is a **stated limitation** — *"one run per
-fixture, no repetition, so no interval is computable"* — which the harness
-accepts in place of an interval. **Any number presented as a rate without
-that limitation attached would be exactly what the protocol forbids.**
+**The intervals.** One run per fixture is not a distribution. The honest form
+is a **stated limitation** — *"one run per fixture, no repetition, so no
+interval is computable"* — which the harness accepts in place of an interval.
+**Any number presented as a rate without that limitation attached would be
+exactly what the protocol forbids.**
 
 ### 5.3 Precondition three — a task shape both sides can answer
 
@@ -522,9 +533,10 @@ thing that was measured.
 **The honest resolution is to compare only what both sides can be asked the
 same question about — and to publish the two halves separately**, with the
 7 locator checks reported as *not comparable* rather than as failures of the
-competitor. **That is §1.4.3's Option B, restricted to one fixture and to
-one metric family.** It is the most this tree can honestly reach, and it is
-still downstream of §5.1.
+competitor. **That is §1.4.3's Option A in its fixture scope — every
+answerable fixture, and the negative one — but on the 12 comparable checks
+only.** It is a narrower comparison than Option A's name promises, it is the
+most this tree can honestly reach, and it is still downstream of §5.1.
 
 **And PaperSpine is not in this table at all.** §2.3 is not a difficulty
 judgement: there is no entry point to call, and the product's shape is a
@@ -542,7 +554,7 @@ owner can price it.
 |---|---|---|
 | A declared-model run on this side | §1.4.2's decision, a credential, the harness basis change (§5.1), a re-measurement of §3.2's metrics | **Days**, and it is **blocked on the owner**, not on engineering |
 | A PaperQA2 installation | `paper-qa` needs Python ≥3.11 and pulls `fhaviary[llm]`, `fhlmi`, `tantivy`, `paper-qa-pypdf`, `litellm`, `tiktoken` — **a second environment**, not the project's venv | **Hours**, plus a credential for both the LLM and the embedding model |
-| A PaperQA2 baseline document | run the seven questions on one fixture, record the answers, write the JSON baseline the harness reads, declare capabilities and limitations | **Hours to a day** |
+| A PaperQA2 baseline document | run the seven questions on the fixtures, record the answers, write the JSON baseline the harness reads, declare capabilities and limitations | **Hours to a day** |
 | — of which the scripting is **not** the hard part | upstream exposes a programmatic `paperqa.agents.ask` and an async `paperqa.agents.main.agent_query`, so the seven questions can be answered by script rather than by driving the interactive `pqa` console | — |
 | Deciding the material encoding | §5.3's question — same bytes, or a declared conversion with a new corpus version | **A decision, not a task**, and it changes what the corpus version means |
 | A PaperSpine comparison | a second agent platform, a model, a prompt flow, and outputs that have no locator shape | **Not estimated here**, because §2.3 says it is a different product rather than a harder task |
