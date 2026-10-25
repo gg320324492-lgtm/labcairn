@@ -301,8 +301,11 @@ ones a developer's tree happens to produce.
 - Every committed material blob's SHA-256 matches the manifest, and no
   committed blob carries a carriage return — checked against the blobs
   themselves, not the working tree, because the two can differ.
-- The whole suite: every test passes except the three shard-coverage tests,
-  which are red for the reason §10 gives.
+- The whole suite, run **serially** (see below): **3350 passed, 5 skipped,
+  3 failed**. All three failures are in `tests/test_ci_shard_coverage.py`,
+  and all three say the same thing: the shard table has no cost for a test
+  file nobody measured. That is the reason §10 gives, and it is a merge-time
+  step rather than a defect in this subtask.
 
 **A measurement that was wrong, and what it taught.** An earlier run of the
 whole suite reported two failures in `tests/test_readme_accuracy.py` —
