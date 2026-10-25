@@ -466,15 +466,69 @@ def _root_for(candidate: Path, roots: tuple[AllowedRoot, ...]) -> AllowedRoot | 
     return max(matches, key=lambda root: len(root.path.parts))
 
 
-def _key_for(candidate: Path, root: AllowedRoot) -> ResourceKey:
-    """Workspace-relative POSIX key for *candidate* under *root*."""
-    try:
-        relative = candidate.relative_to(root.path)
-    except ValueError as exc:
+def _tail_below(candidate: Path, root: AllowedRoot, resolved: Path | None, exc: ValueError) -> Path:
+    """The tail of *candidate* below *root*, or the refusal it already was.
+
+    **This is the whole of the widening, and it is why it is safe.** The
+    tail is only taken when the **resolved** path is under the root — that
+    is the proof that the candidate is under it, and it is the proof the
+    caller already has, because it found the resolved root by exactly that
+    test. Without that proof, or without a resolved path at all, the
+    refusal is the refusal it was before.
+
+    **The depth is the difference in parts, and a short name is one part.**
+    That is what makes the tail the same in both spellings: the directory
+    that has two names has one part either way, so the parts below it line
+    up.
+    """
+    if resolved is None:
         raise PathRefusedError(
             PathRejection.OUTSIDE_EVERY_ROOT,
             f"{candidate} is not under root {root.root_id!r} ({root.path})",
         ) from exc
+    try:
+        resolved.relative_to(root.path)
+    except ValueError:
+        raise PathRefusedError(
+            PathRejection.OUTSIDE_EVERY_ROOT,
+            f"{candidate} is not under root {root.root_id!r} ({root.path})",
+        ) from exc
+    depth = len(candidate.parts) - len(root.path.parts)
+    if depth <= 0:
+        raise PathRefusedError(
+            PathRejection.OUTSIDE_EVERY_ROOT,
+            f"{candidate} is not under root {root.root_id!r} ({root.path})",
+        ) from exc
+    return Path(*candidate.parts[-depth:])
+
+
+def _key_for(candidate: Path, root: AllowedRoot, *, resolved: Path | None = None) -> ResourceKey:
+    """Workspace-relative POSIX key for *candidate* under *root*.
+
+    **The two may be two spellings of one directory.** On Windows an 8.3
+    short name and the long one name the same directory, and ``resolve()``
+    expands the short one only where it reaches an existing path — so a
+    **new** file under a short-spelled directory keeps the short spelling,
+    while the root, which exists, comes back long-spelled.
+    ``relative_to`` then compares two spellings of one directory and fails,
+    and a file that is plainly under the root is refused as being outside
+    every root.
+
+    **The proof that the candidate is under the root is not the
+    ``relative_to`` that failed.** It is that the **resolved** path is under
+    the root, and the caller has already established that by finding the
+    resolved root. The key names the **tail below the root**, and the tail
+    is the same in both spellings — one part for one part, because a short
+    name is still one part.
+
+    So this widens nothing that is not already proved to be inside: without
+    a resolved path to check, or with a resolved path that is not under the
+    root, the refusal is exactly the refusal it was.
+    """
+    try:
+        relative = candidate.relative_to(root.path)
+    except ValueError as exc:
+        relative = _tail_below(candidate, root, resolved, exc)
     key = PurePosixPath(*relative.parts).as_posix()
     if not key or key == ".":
         raise PathRefusedError(
@@ -572,7 +626,7 @@ def canonicalize(
     key_root = declared_root if declared_root is not None else resolved_root
 
     return CanonicalPath(
-        declared_key=_key_for(declared_absolute, key_root),
+        declared_key=_key_for(declared_absolute, key_root, resolved=resolved),
         resolved_key=_key_for(resolved, resolved_root),
         real_path=resolved,
         declared_path=declared_absolute,

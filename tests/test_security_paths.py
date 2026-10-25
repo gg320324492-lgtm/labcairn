@@ -424,6 +424,100 @@ def test_8_3_short_name_is_expanded_by_resolve() -> None:
     assert "PROGRA~1" not in str(resolved)
 
 
+@requires_windows
+def test_a_new_file_under_a_short_spelled_root_is_not_refused(tmp_path: Path) -> None:
+    r"""A new file under a short-spelled root is under the root.
+
+    **This is the defect the earlier gates' own witness found.** G1's exit
+    demonstration runs on a Windows CI runner, whose temp directory is
+    spelled in the 8.3 short form (``C:\Users\RUNNER~1\...``) while the
+    workspace root is spelled long (``C:\Users\runneradmin\...``). A
+    **new** file under a short-spelled directory keeps the short spelling,
+    because there is nothing for the OS to expand, while the root -- which
+    exists -- comes back long-spelled. The two spellings name one directory
+    and the comparison between them failed, so a file plainly under the root
+    was refused as being outside every root.
+
+    The proof that it is under the root is not the comparison that failed;
+    it is that the **resolved** path is under it. The key names the tail
+    below the root, and the tail is the same in both spellings.
+
+    **The scope is honest.** 8.3 generation is **disabled on the volume
+    these tests use**, so on a machine without it there is no short name to
+    mint and the test skips -- which is exactly why the defect survived
+    from G1 to G5. A Windows CI runner *does* have short names, and there
+    this test runs.
+    """
+    short = _short_name(tmp_path)
+    if short is None or str(short) == str(tmp_path):
+        pytest.skip("this machine's volume has no 8.3 short names")
+
+    root = Path(short) / "root"
+    root.mkdir(parents=True, exist_ok=True)
+    bound = bind_root("root", root, RootKind.OUTPUT)
+
+    # A file that does not exist yet: the short spelling is all it has.
+    new_file = Path(short) / "root" / "outputs" / "summary.md"
+    (Path(short) / "root" / "outputs").mkdir(parents=True, exist_ok=True)
+
+    canonical = canonicalize(new_file, (bound,))
+    assert canonical.declared_key == "outputs/summary.md", (
+        f"the key should name the tail below the root, got {canonical.declared_key!r}"
+    )
+    assert canonical.resolved_key == "outputs/summary.md", (
+        f"the resolved key should name the same tail, got {canonical.resolved_key!r}"
+    )
+
+
+@requires_windows
+def test_a_path_outside_a_short_spelled_root_is_still_refused(tmp_path: Path) -> None:
+    r"""The widening is a widening, and not a hole.
+
+    **The same comparison, the other way round.** A path that is *not* under
+    the root must still be refused, and refused as being outside every root
+    -- not quietly accepted because the two spellings happened to differ.
+
+    This is the witness for the part of the fix that matters most: the
+    fallback takes the tail only when the **resolved** path is under the
+    root, and this is what says the fallback is not taken otherwise.
+    """
+    short = _short_name(tmp_path)
+    if short is None or str(short) == str(tmp_path):
+        pytest.skip("this machine's volume has no 8.3 short names")
+
+    root = Path(short) / "root"
+    root.mkdir(parents=True, exist_ok=True)
+    bound = bind_root("root", root, RootKind.OUTPUT)
+
+    outside = Path(short) / "elsewhere" / "secret.md"
+    (Path(short) / "elsewhere").mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(outside, (bound,))
+    assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT, (
+        f"a path outside the root must be refused as outside every root, got "
+        f"{caught.value.rejection}"
+    )
+
+
+def _short_name(path: Path) -> Path | None:
+    """The 8.3 short spelling of *path*, or ``None`` if there is not one.
+
+    **The OS is asked, not guessed.** A short name is one part either way
+    and it exists only where the volume generates them, so a spelling
+    invented here would be a spelling of nothing.
+    """
+    if not IS_WINDOWS:  # pragma: no cover - the caller skips it
+        return None
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(4096)
+    length = ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
+    if length == 0 or length >= len(buffer):
+        return None
+    return Path(buffer.value)
+
+
 # ---------------------------------------------------------------------------
 # Symlinks and junctions
 # ---------------------------------------------------------------------------
