@@ -674,9 +674,17 @@ so the required checks are implementer-confirmed, not independently proven
 ### 6.7 The real-provider smoke has not been executed
 
 **`src/labcairn/providers/pydantic_models.py` says so in its own
-docstring**, and the `smoke_test()` function is called by no test in `tests/`.
-The Phase 1 protocol requires a real-model smoke with *"results and costs
-documented"* and says *"Mock-only success is insufficient"*
+docstring.** There **is** a test for it —
+`tests/test_provider_credentials.py:293` calls `smoke_test()` — and it is
+**skipped**, with the reason written down: it needs the project owner's
+explicit authorisation to spend money and a credential they supplied for
+that purpose (`tests/test_provider_credentials.py:286-292`). The marker is
+registered as *"needs a real paid provider credential; never runs in CI"*
+(`pyproject.toml:316`).
+
+**So the procedure is written and watched-to-not-run, and the gate itself is
+still open.** The Phase 1 protocol requires a real-model smoke with *"results
+and costs documented"* and says *"Mock-only success is insufficient"*
 (`docs/EVALUATION.md:17`). **That gate is not discharged.**
 
 ### 6.8 `httpx` is not a declared dependency

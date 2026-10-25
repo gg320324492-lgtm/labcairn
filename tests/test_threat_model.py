@@ -1028,19 +1028,26 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         )
 
 
-def test_the_threat_model_does_not_claim_a_licence_it_does_not_have() -> None:
-    """No ``LICENSE`` file exists while copyright ownership is uncleared.
+def test_the_threat_model_says_nothing_about_licensing() -> None:
+    """The document makes no licensing claim, so it cannot make a false one.
 
-    A threat model is a document about boundaries, and a document that
-    implied the project was open source would be making a legal claim the
-    repository cannot support. The placeholder grants no rights.
+    **This is a witness about the document, not about the repository.** The
+    repository's licensing status is LC-P1-14's business and is expected to
+    change; a witness that asserted the *absence* of a ``LICENSE`` file
+    would go red the moment the owner settled copyright ownership, which is
+    a thing the project wants to happen.
+
+    What is watched here is that this document stays out of it: a threat
+    model is a document about boundaries, and a document that implied the
+    project was open source would be making a legal claim the repository
+    may not support.
     """
-    root = _repo_root()
-    assert not (root / "LICENSE").exists(), (
-        "a LICENSE file now exists, so the threat model's statement about "
-        "licensing must be revisited"
-    )
-    assert (root / "LICENSE.PENDING.md").is_file()
+    text = _threat_model_text().lower()
+    for word in ("license", "licence", "open source", "open-source", "copyright"):
+        assert word not in text, (
+            f"the threat model mentions {word!r}. It is a document about "
+            f"boundaries, and the project's licensing is settled elsewhere."
+        )
 
 
 # --------------------------------------------------------------------------- #
