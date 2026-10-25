@@ -493,6 +493,7 @@ def clone_the_repository(repo: Path, destination: Path, recorder: Recorder) -> d
     return {
         "path": str(destination),
         "head": head.stdout.strip(),
+        "source_head": source_head.stdout.strip(),
         "seconds": round(time.monotonic() - started, 3),
     }
 
@@ -1865,17 +1866,6 @@ def run_the_walk(clone: Path, work: Path, mode: str) -> dict[str, Any]:
     return walk_report
 
 
-def _head(repo: Path) -> str:
-    """The repository's own commit."""
-    result = run(
-        resolve_argv(("git", "-C", str(repo), "rev-parse", "HEAD")),
-        repo,
-        child_environment(repo),
-        60.0,
-    )
-    return result.stdout.strip()
-
-
 def main() -> int:
     """The outsider's path, from a clean clone to a reopened task."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1985,7 +1975,12 @@ def main() -> int:
     report = {
         "mode": arguments.mode,
         "repository": str(repo),
-        "repository_head": _head(repo),
+        # The commit the clone was made from, read when the clone was made.
+        # The repository's head at the end of the run is a different thing:
+        # a run that takes three minutes can easily have a commit land inside
+        # it, and a report that named the later commit would say the clone
+        # was of a commit it is not.
+        "repository_head": clone_report.get("source_head", ""),
         "work_root": str(work),
         "clone": clone_report,
         "readme_commands_documented": documented,

@@ -81,6 +81,13 @@ Four things make "a clean clone" a measurement rather than a description.
    quietly used the developer's tree would satisfy every other assertion here
    and prove nothing.
 
+**The report names the commit the clone was made from**, not the
+repository's head at the end of the run. A run takes three minutes, and a
+commit can land inside one — so the commit is read when the clone is made, and
+the witness requires it to be a commit this repository holds. (The witness
+caught the difference: a commit made while a run was going left the report
+naming the later commit, and the clone was of the earlier one.)
+
 The temporary directory is the run's own (`TEMP`, `TMP` and `MPLCONFIGDIR`
 all point inside the work root). Two reasons, both measured on this machine:
 the default base temporary directory fails here with `WinError 5`, and a

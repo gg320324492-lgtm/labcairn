@@ -146,12 +146,16 @@ def test_the_outsiders_path_runs_and_every_claim_holds(
 
 
 @pytest.mark.e2e
-def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun) -> None:
+def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun, repo_root: Path) -> None:
     """The clone was outside the repository, clean, and at the same commit.
 
     The three facts are the difference between "a stranger can do this" and
     "this machine can do this", so they are asserted from the report rather
     than taken on trust.
+
+    **The commit is one this repository has.** The report names the commit
+    the clone was made from, and a commit that is in no repository here is a
+    commit nobody can check the clone against.
     """
     report = outsider_run.report
     clone = report["clone"]
@@ -159,6 +163,16 @@ def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun) -> None:
     assert clone["head"], "the report names no commit for the clone"
     assert clone["head"] == report["repository_head"], (
         f"the clone is at {clone['head']} and the repository is at {report['repository_head']}"
+    )
+    present = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-e", f"{clone['head']}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert present.returncode == 0, (
+        f"the commit the clone was made from, {clone['head']}, is not in this "
+        f"repository, so the clone cannot be checked against it"
     )
     clone_path = Path(clone["path"])
     assert not clone_path.is_relative_to(Path(report["repository"]).resolve()), (
