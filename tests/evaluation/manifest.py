@@ -280,6 +280,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # -- G5's own work ------------------------------------------------------
     "test_outsider_path.py": ("e2e", "fresh-install"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
+    "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
 }
 
