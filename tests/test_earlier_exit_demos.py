@@ -41,6 +41,15 @@ lines with the number the demonstration's own summary claims. **The numbers
 grows a check is not broken, and a witness that failed when it grew would
 teach the next person to stop adding checks.
 
+**One of the three is Windows-only in part, and the witness says so.**
+G1's demonstration makes a **Windows junction** to show that a junction is
+not a symlink and that a junction escape is refused. That case needs
+``cmd``, so it is real evidence **only on Windows**; elsewhere the
+demonstration says the junction was "skipped: not permitted here" and the
+rest of its claims still stand. **The witness does not pretend the case ran
+where it could not**: it runs the demonstration, and the demonstration's own
+output says which case it skipped.
+
 **What this does not do.** It does not re-open G1 or G2. Whether those two
 gates get an independent review is a separate question, and one that is the
 owner's — see ``docs/plans/LC-P1-13-14-task-breakdown.md`` §1.4.4. **This
