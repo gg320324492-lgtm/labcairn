@@ -122,6 +122,44 @@ and it is the owner's.**
   a *private* preview, and **no public claim of any kind may be made** — which
   is what §1.3's "no open-source release" already says.
 
+#### 1.4.1b Whether a declared skip counts as a blocker that did not hold
+
+**This is the same decision as §1.4.2, and it was found by the harness
+rather than asked.** The evaluation harness reports the Phase 1 blockers
+honestly, and on 2026-10-25 it reported that **two of the six did not
+hold**:
+
+- **one** because the base branch's own new witness skips G1's exit
+  demonstration until the 8.3 short-name defect of §2.6 is fixed. That one
+  is T02's work and it is a known gap with a known owner;
+- **one** because a test declared as needing the project's own real
+  provider credentials was **skipped** — the `requires_provider` marker
+  does exactly what it says, and CI has no such credentials.
+
+**The question is the owner's, and the harness did not answer it.** The
+protocol's blocker reads *"Required CI tests are skipped, ignored or only
+pass by mocking the actual behavior under acceptance"* — which is about a
+test **pretending** to pass. A skip that is declared, listed among the
+failure cases and reported as NOT RUN with the reason is not pretending.
+**But the real-model smoke is one of the protocol's five mandatory gate
+classes**, and it has not run, so the gate class itself is not discharged.
+
+**Both readings are defensible, and the harness's exit code turns on it.**
+So the choice is made here, once, and the harness is told the answer.
+
+- **Option A — a declared, reported skip of the real-model smoke does not
+  count as a blocker that failed.** *Cost:* the gate's own exit test then
+  says the five classes ran when one of them did not, and the report has to
+  carry the exception everywhere it says "ran".
+- **Option B — it does count, and the gate cannot close without the
+  credentials.** *Cost:* G5 waits on a credential, and the licence question
+  of §1.4.1 and the provider question of §1.4.2 both become blocking for
+  the alpha.
+- **Option C — the real-model smoke is not a blocker until credentials
+  exist, and the gate's exit test says so in those words.** *Cost:* the
+  protocol is amended, which is a bigger change than either of the above
+  and needs its own record.
+
 #### 1.4.2 Which provider, and whose credential, for the real smoke
 
 **The facts:** `EVALUATION.md` requires *"at least one real supported
