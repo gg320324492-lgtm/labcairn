@@ -4,8 +4,10 @@
 assembly, export and artefact versioning) and **LC-P1-12** (the Typer CLI
 and the local FastAPI + React workbench).
 **Exit test:** *"CLI and Web produce same versioned report"*.
-**Verdict:** *(to be settled — see "The verdict" below)*
-**Reviewed against:** *(the commit this review names — to be settled)*
+**Verdict:** **PASS WITH NOTES** — the gate is closed, and the reasoning is in
+[The verdict](#the-verdict) below.
+**Reviewed against:** `9381036af0104172f16fe94a6edd2e8cb6d9ae04` — the tree the
+gate's independent review measured.
 
 ## Why this gate needed a review of its own
 

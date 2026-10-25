@@ -424,7 +424,33 @@ that sweeps the working tree, and no reference to a study clone. The new
 workflow was run against all of them — **24 workflow assertions, all
 passing**, and then the whole file: **99 tests, all passing**.
 
-### 6.4 The two python programs were run, not merely written
+### 6.4 The gate had never been green, and the reason was one line
+
+**The two python programs below were run locally and read, and the gate was
+still red on CI.** Both licence-audit jobs failed on the run of 2026-10-25
+with `FileNotFoundError: 'release-requirements.txt'` — a file nobody in this
+repository had ever heard of, named by an error that said nothing about the
+thing that was actually wrong.
+
+**The mechanism.** The step that exports the runtime closure set
+`RELEASE_REQUIREMENTS` **in its own `env:`**, and an environment variable
+set in one step is not set in the next. The step that audits the closure
+read the variable, found it unset, fell back to a relative name, and looked
+for the file in the working tree — where the export had deliberately *not*
+written it, because the workflow keeps the tree clean at build time. The
+one line of `env:` that the auditing step needed was the one line nobody
+had written, and **nothing in the repository required anyone to write it.**
+
+**It is fixed, and it is watched.** The auditing step names the file, and
+`tests/test_release_workflow.py` reads **every** workflow in the repository
+and refuses a step that reads an environment variable nothing declared —
+the step's own `env:`, the job's, the workflow's, or the platform's own
+set. The witness is fed a step that is missing a declaration and required
+to name the variable, so it cannot be a checker that passes everything.
+**The gate was green on CI for the first time on 2026-10-25**, on the run
+of `5a4d8e9`, on both platforms.
+
+### 6.5 The two python programs were run, not merely written
 
 The workflow's two checks are python programs embedded in YAML. Reading them
 is not evidence that they work, so they were **extracted from the parsed YAML
@@ -504,6 +530,7 @@ re-measured: **no third-party font file reaches any LabCairn artefact.**
 | The dependency lockfiles are consistent | `lockfiles.yml` | CI job |
 | No secret is in the tracked history | `security.yml` | CI job |
 | No reference-study material is packaged | `tests/test_no_reference_leakage.py` | CI job |
+| No workflow step reads an environment variable nothing declared | `tests/test_release_workflow.py` | test |
 | A report's PDF embeds no font | `tests/test_analysis_report_render.py::test_the_pdf_embeds_no_font` | test |
 | A report's DOCX embeds no font | `tests/test_analysis_report_render.py::test_the_docx_embeds_no_font` | test |
 | The three fixture papers are the ones that were recorded | `tests/test_paper_fixtures.py` | test |
@@ -542,6 +569,6 @@ Stated without softening.
 | **The licence of `dsrom10`**, the one embedded font whose program carries no licence statement | **Undetermined.** It is a Computer Modern derivative generated from a MetaFont bitmap, and the bytes do not say. It travels inside a CC BY 4.0 paper, which is reproduced verbatim. |
 | **The `pdfcorefonts/` and `afm/` metric files' terms** | **Not stated by matplotlib.** Its licence inventory has no entry for either directory. The metrics carry no glyph outlines, and the NOTICE says what the inventory does and does not say rather than inventing a term. |
 | **The licences of the 171 distributions under their own licences' *terms*** | **Read, not assessed.** The licences are file-reading results; whether a term is satisfied in a given use is a legal question, and this record does not make one. |
-| **Whether the release workflow passes on GitHub** | **Unverified.** The two python programs it carries were extracted from the parsed YAML and **run against the artefacts this repository builds**, and they pass (§6.4). The workflow itself has **not** run on a runner, and the shell around the programs — the `uv` invocations, the pnpm install, the gitleaks download — has **not** been executed here. |
+| **Whether the release workflow passes on GitHub** | **Established, on 2026-10-25.** The workflow ran on GitHub's runners on the run of `5a4d8e9` and **both licence-audit legs passed, on ubuntu-latest and windows-latest**, along with `release-contents`. It had **never** passed before: two runs failed with a `FileNotFoundError` on a file the workflow had never been told about, and the mechanism and the fix are in §6.4. The wiring that let it fail is now watched by `tests/test_release_workflow.py`. |
 | **A platform the closure was not installed on** | The closure was installed and read on **Windows** (168 distributions), and the **union of all 171** was installed and read on this machine. The **Linux** and **macOS** counts in §3.1 are the marker evaluation of the same export, **not** an install on those platforms. The licences do not vary by platform, but the *installed set* was measured on one platform only; the workflow's two legs close that on CI. |
 | **The one distribution no CI job can install** | `httpx2-jsfetch` is under BSD-3-Clause and installs on no supported platform. It is recorded in NOTICE and read here, but **no CI job can re-read it**, because no runner can install it. |

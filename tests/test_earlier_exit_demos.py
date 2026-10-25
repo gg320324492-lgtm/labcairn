@@ -50,6 +50,25 @@ rest of its claims still stand. **The witness does not pretend the case ran
 where it could not**: it runs the demonstration, and the demonstration's own
 output says which case it skipped.
 
+**The 8.3 short-name skip is gone, because the defect it was waiting for is
+fixed.** G1's demonstration used to be skipped on Windows, because the
+product compared a directory's two spellings and refused a **new** file under
+a short-spelled directory — a defect in
+``src/labcairn/security/paths.py`` that **this file's own sibling
+witness found**, and that G5 fixed in §2.6 of
+``docs/plans/LC-P1-13-14-task-breakdown.md``. The skip named the defect it
+was waiting for, which is why it was not a hole with a shape nobody could
+see.
+
+**But a skip that outlives the defect it names is a hole with exactly that
+shape.** The evaluation harness counts a skipped witness as a **failed
+blocker**, so while G1's demonstration was skipped on Windows, **the
+protocol's first Phase 1 blocker did not hold on a Windows runner** — and it
+did not hold for a reason that had already been fixed. **A gate that waits
+for a defect, and does not notice when the defect is fixed, keeps a closed
+gate closed on a claim that is no longer being measured.** The skip is
+removed, and the demonstration is watched on every platform.
+
 **What this does not do.** It does not re-open G1 or G2. Whether those two
 gates get an independent review is a separate question, and one that is the
 owner's — see ``docs/plans/LC-P1-13-14-task-breakdown.md`` §1.4.4. **This
@@ -63,7 +82,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Final
 
 import pytest
 
@@ -71,22 +89,6 @@ import pytest
 #: stopped running would leave its heading out of the output, so their
 #: presence is a fact about what the demonstration did rather than a fact
 #: about its prose.
-#: The demonstrations that are known to fail on Windows, and why.
-#:
-#: G1's demonstration makes its workspace under the temp directory, and a
-#: Windows runner spells that in the 8.3 short form while the workspace root
-#: is spelled long. The product compares the two spellings and refuses a
-#: **new** file under a short-spelled directory -- a defect in
-#: ``src/labcairn/security/paths.py``, not in the demonstration, and one this
-#: witness is what found. It is G5's first piece of work, written down in
-#: ``docs/plans/LC-P1-13-14-task-breakdown.md`` section 2.6.
-#:
-#: **So the demonstration is skipped where the defect shows, and watched
-#: everywhere else.** The skip says which defect it is waiting for, so it is
-#: not a hole with a shape nobody can see; and the demonstration still runs
-#: on every other platform, where its claims are still checked.
-KNOWN_DEFECT_ON_WINDOWS: Final[frozenset[str]] = frozenset({"g1_exit_demo"})
-
 DEMOS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "g1_exit_demo",
@@ -214,12 +216,6 @@ def test_an_earlier_gates_exit_demonstration_still_holds(
     means every one of them still holds. A test that only read the output
     would be testing the prose.
     """
-    if os.name == "nt" and name in KNOWN_DEFECT_ON_WINDOWS:
-        pytest.skip(
-            f"{name} is skipped on Windows until the product's 8.3 short-name "
-            "comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md "
-            "section 2.6"
-        )
     run = _run(repo_root, name)
     assert run.returncode == 0, run.stdout + run.stderr
     output = run.stdout
@@ -262,12 +258,6 @@ def test_the_demonstrations_exit_code_still_means_something(
     assertion in this file would then be reading a demonstration that says
     nothing.
     """
-    if os.name == "nt" and name in KNOWN_DEFECT_ON_WINDOWS:
-        pytest.skip(
-            f"{name} is skipped on Windows until the product's 8.3 short-name "
-            "comparison is fixed -- docs/plans/LC-P1-13-14-task-breakdown.md "
-            "section 2.6"
-        )
     run = _run_with_a_planted_claim(repo_root, name)
     assert run.returncode != 0, (
         f"{name} exited zero with a false claim planted, so its exit code "

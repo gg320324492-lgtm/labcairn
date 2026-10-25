@@ -94,7 +94,16 @@ def _pdfplumber() -> Any:
     try:
         return importlib.import_module("pdfplumber")
     except ImportError:
-        pytest.skip("pdfplumber is not a dependency until LC-P1-08 adopts it")
+        # **pdfplumber is a declared dependency** -- ADR-0008 chose it over
+        # PyMuPDF -- so it is not a case this test may skip, it is a broken
+        # environment. The message used to say it was "not a dependency until
+        # LC-P1-08 adopts it", and LC-P1-08 adopted it a long time ago. **A
+        # skip that names a condition which no longer holds is a skip that
+        # hides a real failure.**
+        pytest.skip(
+            "pdfplumber is not installed, and it is a declared dependency: "
+            "this is a broken environment, not a case this test may skip"
+        )
 
 
 # --------------------------------------------------------------------------
