@@ -1929,6 +1929,18 @@ def main() -> int:
         else default_work_root().resolve()
     )
     work.mkdir(parents=True, exist_ok=True)
+    # **The work root is resolved before anything is made under it.** On a
+    # Windows machine whose temporary directory is spelled in the 8.3 short
+    # form -- which is what a CI runner is -- the product refuses a write to
+    # a *new* file under it: the declared path keeps the short spelling and
+    # the root comes back long-spelled, so the two are compared as two
+    # spellings of one directory (docs/plans/LC-P1-13-14-task-breakdown.md
+    # §2.6). Resolving the root here gives the walk one spelling
+    # throughout, and the product's defect is still a defect -- this is the
+    # script working around it, and the acceptance record says so.
+    resolved_work = work.resolve()
+    short_spelled = str(resolved_work) != str(work)
+    work = resolved_work
     recorder = Recorder("clone")
 
     print("LabCairn — the outsider's path (LC-P1-14)")
@@ -1975,6 +1987,12 @@ def main() -> int:
     report = {
         "mode": arguments.mode,
         "repository": str(repo),
+        # Whether the work root was spelled differently from the way the
+        # filesystem spells it -- on Windows, the 8.3 short form. It is
+        # resolved before anything is made under it, because the product
+        # refuses a new file under a short-spelled root (§2.6 of the task
+        # breakdown).
+        "work_root_was_short_spelled": short_spelled,
         # The commit the clone was made from, read when the clone was made.
         # The repository's head at the end of the run is a different thing:
         # a run that takes three minutes can easily have a commit land inside

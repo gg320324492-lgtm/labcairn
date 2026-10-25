@@ -148,9 +148,10 @@ jobs:
         shell: bash
         env:
           SHARD: ${{ matrix.shard }}
+          PLATFORM: ${{ matrix.os }}
         run: |
           echo "cores: $(python -c 'import os; print(os.cpu_count())')"
-          echo "shard $SHARD: $(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][int(os.environ['SHARD'])]))")"
+          echo "shard $SHARD: $(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
 
       # **No `-n`.** The workers were measured on the runner and they lost:
       # eight workers made the whole-suite Ubuntu job 2.15 times faster but
