@@ -24,7 +24,7 @@ from typing import Any
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine, create_session_factory
 
 SHA = "a" * 64
@@ -33,9 +33,9 @@ NOW = datetime(2026, 10, 17, tzinfo=UTC).isoformat()
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> Path:
+def db(migrated_database_template: Path, tmp_path: Path) -> Path:
     target = tmp_path / "materials.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     return target
 
 

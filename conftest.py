@@ -20,6 +20,7 @@ RNG, no ``uuid4``. Tests that need a time read :data:`FROZEN_NOW` through the
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -27,9 +28,50 @@ from pathlib import Path
 
 import pytest
 
+from labcairn.db.migrations import upgrade_to_head
+
 #: The single wall-clock value tests are allowed to observe.
 #: Chosen as a round UTC instant so a rendered timestamp is recognisable at a glance.
 FROZEN_NOW: datetime = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+
+
+@pytest.fixture(scope="session")
+def migrated_database_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A database with the schema at head, migrated **once** for the whole session.
+
+    **Why this exists.** Migrating the database takes about two seconds on a
+    development machine and rather more on a CI runner. Copying one that is
+    already at head takes half a millisecond — and the copy is
+    **byte-identical** to the migration's result, so nothing a test sees
+    changes.
+
+    A suite that gives every test its own freshly-migrated database pays that
+    two seconds hundreds of times. Measured on the CI's Windows runner on
+    2026-10-24, the fixtures' setup was **71% of the whole suite's work** —
+    1582 seconds of setup against 640 seconds of the tests themselves — and
+    one file, ``tests/test_material_schema.py``, spent 374 of its 383 seconds
+    migrating the same schema 373 times.
+
+    **A test that is about the migration must still migrate.** This template
+    is for tests that want a database *at head*, not tests that want to watch
+    it arrive there. ``tests/test_store_migrations.py`` is the one that does
+    the latter, and it keeps calling ``upgrade_to_head`` itself.
+    """
+    template = tmp_path_factory.mktemp("migrated-template") / "template.db"
+    upgrade_to_head(template)
+    return template
+
+
+def migrated_database_from(template: Path, target: Path) -> Path:
+    """``target``, a copy of a database already at head.
+
+    **The copy is the point.** A test that wants a database at head does not
+    need the schema built in front of it; it needs the schema. Copying the
+    template gives each test its own database, exactly as migrating gave each
+    test its own database, and does it in a thousandth of the time.
+    """
+    shutil.copy2(template, target)
+    return target
 
 
 def give_this_worker_its_own_temp() -> None:

@@ -21,6 +21,7 @@ import hashlib
 import json
 import pathlib
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pdfplumber
@@ -28,7 +29,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.cite_support import LocationResolution
 from labcairn.evidence.index import Hit, build_match_expression, locate_anchor, search
@@ -115,10 +116,12 @@ def _seed(connection: Connection, rows: list[tuple[str, int, str]]) -> None:
 
 
 @pytest.fixture(scope="module")
-def seeded(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Connection]:
+def seeded(
+    migrated_database_template: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[Connection]:
     """An index holding every page the ground-truth set expects to be found."""
     target = tmp_path_factory.mktemp("index") / "index.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     connection = engine.connect()
     with connection.begin():

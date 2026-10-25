@@ -36,7 +36,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c2 import C2_CHECKER_ID, quotation_match
 from labcairn.evidence.cite_support import (
@@ -79,10 +79,10 @@ def _page_text(name: str, page: int) -> str:
 
 
 @pytest.fixture()
-def ledger(tmp_path: Path) -> Iterator[Ledger]:
+def ledger(migrated_database_template: Path, tmp_path: Path) -> Iterator[Ledger]:
     """Two papers, two stored pages, two anchors -- text from the real PDFs."""
     target = tmp_path / "c2.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     connection = engine.connect()
 

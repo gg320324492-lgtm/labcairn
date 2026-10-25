@@ -2134,6 +2134,41 @@ def test_the_pdf_embeds_no_font(document: ReportDocument) -> None:
 
 
 @pytest.mark.unit
+def test_the_docx_embeds_no_font(document: ReportDocument) -> None:
+    """No font file is carried out of the DOCX package and into the artefact.
+
+    The DOCX exporter's own docstring says the report's appearance in Word
+    *"depends on the reader's installed fonts and on nothing else"*, and the
+    PDF side of the same claim is watched by
+    :func:`test_the_pdf_embeds_no_font`. **This side was not watched**, which
+    is the shape this repository keeps finding: the property was stated, the
+    statement was true, and nothing would have said so if it stopped being
+    true.
+
+    It matters for the licence audit and not only for tidiness. A DOCX that
+    embeds a font carries **that font's licence into the artefact**, and the
+    artefact is what a user receives. The package's ``word/fontTable.xml``
+    is a *table* — it names the fonts the styles ask for and the reader
+    resolves them — and a font file is a different thing entirely: it is a
+    part under ``word/fonts/``, and there must not be one.
+
+    So the check is on the parts, not on a string: a font file is a part, and
+    a part that is not there cannot have been embedded.
+    """
+    blob = render_docx(document)
+    with zipfile.ZipFile(io.BytesIO(blob)) as package:
+        parts = package.namelist()
+    embedded = [name for name in parts if name.startswith("word/fonts/")]
+    assert not embedded, (
+        f"the DOCX carries font files, and a font file carries its licence "
+        f"into the artefact: {embedded}"
+    )
+    assert b"/FontFile" not in blob, (
+        "the DOCX names an embedded font file, which would carry a licence into the artefact"
+    )
+
+
+@pytest.mark.unit
 def test_the_pdf_exporter_does_not_open_the_network(document: ReportDocument) -> None:
     """reportlab's URL reader stays default-deny.
 

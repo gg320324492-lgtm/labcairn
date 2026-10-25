@@ -26,6 +26,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.exc import IntegrityError
 
+from conftest import migrated_database_from
 from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine
 
@@ -84,9 +85,9 @@ LEGAL_VERIFICATION: dict[str, Any] = {
 
 
 @pytest.fixture
-def engine(tmp_path: Path) -> Any:
+def engine(migrated_database_template: Path, tmp_path: Path) -> Any:
     target = tmp_path / "evidence.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     made = create_db_engine(target)
     yield made
     made.dispose()

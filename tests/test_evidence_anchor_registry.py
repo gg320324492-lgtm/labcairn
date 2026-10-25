@@ -31,7 +31,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.cite_support import SourceIndex
 from labcairn.evidence.index import (
@@ -221,9 +221,9 @@ def _insert_anchor(
 
 
 @pytest.fixture()
-def registry(tmp_path: Path) -> Iterator[Connection]:
+def registry(migrated_database_template: Path, tmp_path: Path) -> Iterator[Connection]:
     target = tmp_path / "registry.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     connection = engine.connect()
     with connection.begin():

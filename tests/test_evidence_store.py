@@ -28,7 +28,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
 
-from labcairn.db.migrations import upgrade_to_head
+from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.catalog import RULE_CHECKER_IDS, is_registered_rule
 from labcairn.evidence.checks.c1 import C1_CHECKER_ID
@@ -64,10 +64,10 @@ Store = tuple[Connection, LabCairnIndex]
 
 
 @pytest.fixture()
-def store(tmp_path: Path) -> Iterator[Store]:
+def store(migrated_database_template: Path, tmp_path: Path) -> Iterator[Store]:
     """A store with one readable page and one numeric cell."""
     target = tmp_path / "store.db"
-    upgrade_to_head(target)
+    migrated_database_from(migrated_database_template, target)
     engine = create_db_engine(target)
     connection = engine.connect()
 
