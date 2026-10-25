@@ -53,12 +53,6 @@ WORKFLOW_FILE: Final[Path] = Path(".github") / "workflows" / "python.yml"
 #: The platforms the workflow runs on. The partition is per platform.
 PLATFORMS: Final[tuple[str, ...]] = ("ubuntu-latest", "windows-latest")
 
-#: How far the slowest shard may be from the fastest, as a multiple. The
-#: costs are measured, and they are only as fresh as the last measurement —
-#: so this is generous enough that an ordinary new test does not trip it, and
-#: tight enough that a *slow* new test does.
-BALANCE_LIMIT: Final[float] = 1.6
-
 
 def _shard_document(repo_root: Path) -> dict[str, Any]:
     path = repo_root / SHARD_FILE
@@ -190,19 +184,42 @@ def test_the_shards_are_balanced(repo_root: Path) -> None:
         assert isinstance(platform_costs, dict) and platform_costs, (
             f"the shard file must record the measured cost of each test file on {platform}"
         )
+        shards = _shards(repo_root, platform)
         shard_costs = [
             sum(float(platform_costs.get(Path(name).name, 0.0)) for name in shard)
-            for shard in _shards(repo_root, platform)
+            for shard in shards
         ]
-        cheapest = min(shard_costs)
-        dearest = max(shard_costs)
-        assert cheapest > 0, "the recorded costs are all zero, so they measure nothing"
-        assert dearest <= cheapest * BALANCE_LIMIT, (
-            f"the {platform} shards are not balanced: the dearest costs "
-            f"{dearest:.0f}s and the cheapest {cheapest:.0f}s, a factor of "
-            f"{dearest / cheapest:.2f} (limit {BALANCE_LIMIT}). Regenerate the "
-            "shard file."
-        )
+        assert max(shard_costs) > 0, "the recorded costs are all zero, so they measure nothing"
+
+        # **The property is that no file could be moved to shorten the wait.**
+        # A threshold on how equal the shards are would be arbitrary, and it
+        # would also be wrong: the shards cannot be equal when one file is
+        # the floor. Measured on 2026-10-25, ``tests/test_cli.py`` takes 350
+        # seconds on the Windows runner and no arrangement of the other files
+        # can make that shard shorter.
+        #
+        # So the check is the one that is actually about the partition: if
+        # some file, moved to the shard with the least work in it, would
+        # make the wait shorter, then the partition is not the one the
+        # costs imply. That is false of a partition the generator made, and
+        # true of one that has been edited by hand or left over from costs
+        # that have since changed.
+        floor_cost = max(shard_costs)
+        shortest = min(range(len(shards)), key=lambda index: shard_costs[index])
+        for index, shard in enumerate(shards):
+            for name in shard:
+                cost = float(platform_costs.get(Path(name).name, 0.0))
+                if index == shortest:
+                    continue
+                moved = list(shard_costs)
+                moved[index] -= cost
+                moved[shortest] += cost
+                assert max(moved) >= floor_cost - 0.001, (
+                    f"on {platform}, moving {name} into the shortest shard would "
+                    f"shorten the wait from {floor_cost:.0f}s to "
+                    f"{max(moved):.0f}s, so the shards are not the balance "
+                    "the costs imply. Regenerate the shard file."
+                )
 
 
 def test_the_recorded_costs_cover_every_test_file(repo_root: Path) -> None:
@@ -221,6 +238,87 @@ def test_the_recorded_costs_cover_every_test_file(repo_root: Path) -> None:
             f"on {platform}, these test files have no measured cost recorded: "
             f"{sorted(missing)}. Regenerate the shard file."
         )
+
+
+def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> None:
+    """The costs must still describe the tree, or the shards are lopsided.
+
+    **Why this is watched.** The costs are a measurement, and a measurement
+    belongs to the tree it was taken on. The rule the project already states
+    is the one that applies: *a value that can change is re-measured, not
+    carried forward*.
+
+    Without this, the shard file's costs go stale silently and the shards go
+    lopsided silently. That is not a hypothetical: the fix that made the
+    tests copy a migrated database instead of migrating one each time took
+    ``tests/test_material_schema.py`` from 383 seconds to under five, and
+    the partition that had been balanced around it was not balanced any
+    more -- one shard was doing five seconds of work while another did 378.
+
+    **What is checked is the files the costs are about.** A change under
+    ``src/`` or ``tests/`` can change how long a test takes; a change to a
+    document cannot. The shard file itself and this file are excluded, and
+    the reason is that they are **the things being changed** -- they are
+    where the measurement is recorded, and a witness cannot be expected to
+    be unchanged by the tree it watches.
+
+    **A file that is new is caught by the other test**, the one that says
+    every test file has a measured cost: a file nobody measured has no
+    cost, and a file whose cost is unknown is not a shard that is balanced.
+    """
+    document = _shard_document(repo_root)
+    measured_at = document.get("measured_at")
+    assert measured_at, (
+        "the shard file must say which commit its costs were measured at, so "
+        "that a cost which no longer belongs to the tree is noticed"
+    )
+
+    changed = _changed_paths(repo_root, measured_at)
+    assert not changed, (
+        f"the shard costs were measured at {measured_at} and these files have "
+        f"changed since, so the costs no longer describe the tree:\n  "
+        + "\n  ".join(changed)
+        + "\n\nRe-measure the costs on the runner and regenerate the shard file."
+    )
+
+
+def _changed_paths(repo_root: Path, since: str) -> list[str]:
+    """The files under ``src/`` and ``tests/`` that changed since ``since``.
+
+    **The shard file and the witness that reads it are excluded**, and the
+    reason is in the test above: they are where the measurement is recorded,
+    and they are the things a rebalance changes.
+    """
+    import subprocess
+
+    excluded = ("--", "src/", "tests/")
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            f"{since}..HEAD",
+            *excluded,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        # The commit is not in this checkout; the costs cannot be checked, and
+        # saying so is better than passing.
+        return [f"the commit {since} is not in this checkout, so the costs cannot be checked"]
+    return [
+        line
+        for line in proc.stdout.splitlines()
+        if line.strip() and line.strip() not in EXCLUDED_FROM_THE_COST_CHECK
+    ]
+
+
+#: The files whose own cost is not what the table is about.
+EXCLUDED_FROM_THE_COST_CHECK: frozenset[str] = frozenset({"tests/test_ci_shard_coverage.py"})
 
 
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:
