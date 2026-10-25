@@ -39,6 +39,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -93,7 +94,20 @@ def outsider_run(tmp_path_factory: pytest.TempPathFactory) -> OutsiderRun:
     Its own work root, outside the repository: a run inside the checkout would
     make the run depend on the tree it runs in, and would leave the checkout
     dirty — which is the opposite of what this script claims to demonstrate.
+
+    **The run is skipped, loudly, on a machine that cannot run the README's
+    web commands** — that is, one with no pnpm, no corepack and no npm. The
+    README asks for Node ≥ 24.16 with pnpm ≥ 9.15.9, so such a machine has
+    not met the requirements the README states, and the script refuses to
+    pretend otherwise. This mirrors what
+    `tests/test_readme_accuracy.py` does with the same commands, and a CI
+    runner has Node, so the skip does not happen there.
     """
+    if not (shutil.which("pnpm") or shutil.which("corepack") or shutil.which("npm")):
+        pytest.skip(
+            "no pnpm, corepack or npm is available, so the README's web commands "
+            "cannot be run; the README asks for Node >= 24.16 with pnpm >= 9.15.9"
+        )
     work = tmp_path_factory.mktemp("outsider-path")
     environment = dict(os.environ)
     environment["PYTHONIOENCODING"] = "utf-8"
