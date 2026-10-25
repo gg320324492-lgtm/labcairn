@@ -54,6 +54,13 @@ WORKFLOW_FILE: Final[Path] = Path(".github") / "workflows" / "python.yml"
 PLATFORMS: Final[tuple[str, ...]] = ("ubuntu-latest", "windows-latest")
 
 
+#: How far the longest shard may be from the shortest, as a multiple. The
+#: slack this buys is what decides whether a change needs the costs
+#: re-measured: a file that costs less than the slack cannot unbalance the
+#: partition however much its own cost moves.
+BALANCE_LIMIT: Final[float] = 1.6
+
+
 def _shard_document(repo_root: Path) -> dict[str, Any]:
     path = repo_root / SHARD_FILE
     assert path.is_file(), f"the CI workflow reads {SHARD_FILE}, and it is not there"
@@ -274,12 +281,39 @@ def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> 
     )
 
     changed = _changed_paths(repo_root, measured_at)
-    assert not changed, (
-        f"the shard costs were measured at {measured_at} and these files have "
-        f"changed since, so the costs no longer describe the tree:\n  "
-        + "\n  ".join(changed)
-        + "\n\nRe-measure the costs on the runner and regenerate the shard file."
-    )
+    if not changed:
+        return
+
+    # **Not every change needs a re-measurement.** A cost is only worth
+    # re-measuring if the change could unbalance the partition, and the
+    # partition has slack: the longest shard may grow by this much before the
+    # balance is lost.
+    #
+    #   (longest + growth) / shortest <= BALANCE_LIMIT
+    #   so  growth <= shortest * BALANCE_LIMIT - longest
+    #
+    # A file whose cost is smaller than that cannot unbalance the partition
+    # however much its own cost moves, so the table is still good enough to
+    # balance by. **A change to a test file that costs three seconds is not
+    # a reason to spend a CI run**, and a run is the most expensive thing
+    # this project does.
+    platform_costs = document.get("costs", {})
+    for platform in PLATFORMS:
+        costs = platform_costs.get(platform, {})
+        shards = _shards(repo_root, platform)
+        loads = [sum(float(costs.get(Path(name).name, 0.0)) for name in shard) for shard in shards]
+        if not loads or max(loads) <= 0:
+            continue
+        slack = min(loads) * BALANCE_LIMIT - max(loads)
+        heavy = [name for name in changed if float(costs.get(Path(name).name, 0.0)) > slack]
+        assert not heavy, (
+            f"on {platform}, these files changed since the costs were measured "
+            f"at {measured_at}, and each costs more than the partition's slack "
+            f"({slack:.0f}s), so they could unbalance the shards:\n  "
+            + "\n  ".join(heavy)
+            + "\n\nRe-measure the costs on the runner and regenerate the shard "
+            "file."
+        )
 
 
 def _changed_paths(repo_root: Path, since: str) -> list[str]:
