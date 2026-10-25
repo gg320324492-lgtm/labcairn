@@ -345,6 +345,19 @@ declared path by its **tail below the root** — the tail is identical in both
 spellings — rather than by its whole absolute path, and to leave the root
 matching where it is.
 
+**And the proof that the candidate is under the root is not the comparison
+that failed.** It is that the **resolved** path is under it — the proof the
+caller already has, because it found the resolved root by exactly that test.
+So the fallback takes the tail only when the resolved path is under the root,
+and without that proof the refusal is the refusal it was. **A path outside a
+short-spelled root is still refused**, and there is a witness for that too,
+because the widening is the part that matters most.
+
+**The two witnesses are honest about where they run.** 8.3 generation is
+**disabled on the development machine's volume**, so there the tests skip —
+**which is exactly why the defect survived from G1 to G5**. A Windows CI
+runner has short names, and there they run.
+
 **And it is watched.** A test that binds a root under a **real** 8.3 short
 name and then canonicalises a **new** file under it, on a machine where the
 short name exists — the same shape as the existing `resolve()` test, but

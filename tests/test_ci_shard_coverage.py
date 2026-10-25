@@ -341,9 +341,23 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
         check=False,
     )
     if proc.returncode != 0:
-        # The commit is not in this checkout; the costs cannot be checked, and
-        # saying so is better than passing.
-        return [f"the commit {since} is not in this checkout, so the costs cannot be checked"]
+        # **The witness must not pass when it cannot check.** A measurement
+        # that cannot be located is not a measurement that says the costs are
+        # still good; it is a measurement that says nothing, and a witness
+        # that says nothing is a witness that has been turned off.
+        #
+        # This is not hypothetical. The re-measure command used to record the
+        # *run id* as the commit the costs were measured at, and a run id is
+        # not a git revision: `git diff` refused it, the changed-path list
+        # came back as a sentence with no file in it, and every file's cost
+        # was read as zero -- so the check passed without having looked at
+        # anything. The command now records the run's head commit, and this
+        # fails when it cannot find one.
+        pytest.fail(
+            f"the commit {since} is not in this checkout, so the costs cannot "
+            "be checked. The shard file's measured_at must name a commit the "
+            "checkout contains -- a run id, for instance, is not one."
+        )
     return [
         line
         for line in proc.stdout.splitlines()
@@ -353,6 +367,26 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
 
 #: The files whose own cost is not what the table is about.
 EXCLUDED_FROM_THE_COST_CHECK: frozenset[str] = frozenset({"tests/test_ci_shard_coverage.py"})
+
+
+def test_the_cost_check_fails_when_it_cannot_look(repo_root: Path) -> None:
+    """The check must not pass when it cannot check.
+
+    **The witness must fail for the property it watches.** The rule being
+    watched is "the costs describe the tree they were measured on", and the
+    way that rule gets neutered is for the measurement's commit to become
+    unresolvable -- at which point a check that read "nothing changed" would
+    pass, and the costs would be describing a tree nobody can look at.
+
+    That is not a made-up failure. The re-measure command used to record the
+    *run id* as the commit, and a run id is not a git revision, so this is
+    the exact shape of the mistake the check has to be immune to.
+    """
+    with pytest.raises(pytest.fail.Exception) as caught:
+        _changed_paths(repo_root, "not-a-commit-at-all")
+    assert "not in this checkout" in str(caught.value), (
+        f"the failure must say the commit could not be found, not {caught.value!r}"
+    )
 
 
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:
