@@ -292,10 +292,7 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
     if proc.returncode != 0:
         # The commit is not in this checkout; the costs cannot be checked, and
         # saying so is better than passing.
-        return [
-            f"the commit {since} is not in this checkout, so the costs cannot "
-            "be checked"
-        ]
+        return [f"the commit {since} is not in this checkout, so the costs cannot be checked"]
     return [
         line
         for line in proc.stdout.splitlines()
@@ -304,10 +301,7 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
 
 
 #: The files whose own cost is not what the table is about.
-EXCLUDED_FROM_THE_COST_CHECK: frozenset[str] = frozenset(
-    {"tests/test_ci_shard_coverage.py"}
-)
-
+EXCLUDED_FROM_THE_COST_CHECK: frozenset[str] = frozenset({"tests/test_ci_shard_coverage.py"})
 
 
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:
