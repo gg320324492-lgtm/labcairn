@@ -336,7 +336,10 @@ three different things**, which is why the report carries each one with its
 own unit.
 
 **A number belongs to the tree it was measured on**, and that measurement is
-anchored to the commit above. §3.6 records a fresh measurement on this tree.
+anchored to the commit above. **§3.6 records a fresh measurement on this
+tree, and it reads the same 84/84** — the corpus did not change between the
+two trees, so this figure is the one figure here that carries forward
+unchanged.
 
 ### 3.3 The gate classes, with their denominators
 
@@ -359,13 +362,20 @@ of the task breakdown's §2.6). **The third kind fails a Phase 1 blocker**,
 and the recorded run reports two of the six blockers as FAILED for exactly
 that reason.
 
+**§3.6 is the same table measured on this tree.** The denominators moved
+because the gate's other parts arrived, and **the two blockers that failed
+are the same two, for the same reasons** — §3.7 accounts for every
+difference.
+
 ### 3.4 The Phase 1 blockers
 
 From the same recorded run: **four of six HELD**, and two did not — the
 clean-environment blocker (waiting on the 8.3 defect) and the
 unauthorised-write blocker (a declared POSIX-only conditional, skipped on
 Windows). **Both readings are the owner's question** — the task breakdown's
-§1.4.1b asks it and does not answer it.
+§1.4.1b asks it and does not answer it. **§3.6 measured the same two as
+FAILED on this tree, with the same witness cases**, so the finding is
+current rather than historical.
 
 ### 3.5 What the comparison mechanism does with an absent baseline
 
@@ -395,14 +405,102 @@ work: the dishonest document is the one that is never written.**
 committed to, so those figures can be read against a tree that still
 describes them rather than carried forward across a merge.
 
-The command, and the rules it obeys:
+**The run:**
+
+| | |
+|---|---|
+| tree | **`977a19b2bd744a4cd87a862cc126b7d258394f24`** — the second commit of this document |
+| command | `python -m tests.evaluation --out E:/labcairn-local/evaluation-t09` |
+| machine | Windows 11 (AMD64), Python 3.12.13 |
+| wall clock | 1451.6 s |
+| report | `E:\labcairn-local\evaluation-t09\evaluation-report.{md,json}` — **outside the repository**, as the harness's own rule requires |
 
 ```
 TEMP=<outside the repo> TMP=<outside the repo> MPLCONFIGDIR=<outside the repo> \
   uv run python -m tests.evaluation --out <outside the repo>
 ```
 
-<!-- MEASUREMENT-PLACEHOLDER -->
+**The gate classes, on this tree:**
+
+| The protocol's class | Passed / collected | Skipped |
+|---|---|---:|
+| Unit | **1510/1511** | 1 |
+| Integration | **1131/1134** | 3 |
+| Negative | **361/362** | 1 |
+| E2E | **102/102** | 0 |
+| **Real-model smoke** | **NOT RUN** | — |
+| Repository gates | **343/343** | 0 |
+
+**The metrics, on this tree:**
+
+| The protocol's metric | Value |
+|---|---|
+| Numeric-cell extraction exactness and unit consistency | **84/84** |
+| Recovery correctness / duplicate side effects | **8/8** (small denominator) |
+| Latency, model usage/cost | **1451641/3452** ms over cases |
+| End-to-end task success | **NOT MEASURED** |
+| Evidence locator validity and citation support precision | **NOT MEASURED** |
+| Unsupported-claim detection and appropriate abstention | **NOT MEASURED** |
+| Revision consistency | **NOT MEASURED** |
+
+**The blockers, on this tree: two of the six FAILED, four HELD** — the same
+two as the recorded run and for the same reasons (§3.3).
+
+**And the comparison section of the report, verbatim:**
+
+> no baseline document was given, so no comparison was made. The protocol
+> permits a comparison only when it is like-for-like, and an unasked-for
+> comparison is not one.
+
+### 3.7 What changed between the recorded run and this one, and why
+
+**Every difference is accounted for by a file that arrived in the gate's
+merge**, and none of them is a change in the product's behaviour:
+
+| Class | at `37ae366` | at `977a19b` | The difference |
+|---|---|---|---|
+| Unit | 1469/1470 (45 files) | **1510/1511** (46 files) | **+41 cases**, and the file count +1 — `test_public_fixtures.py` (T00's witness over the public corpus) |
+| E2E | 86/86 (2 files) | **102/102** (3 files) | **+16 cases**, file count +1 — `test_outsider_path.py` (T03's outsider-path witness) |
+| Repository gates | 305/305 (8 files) | **343/343** (9 files) | **+38 cases**, file count +1 — `test_threat_model.py` (T05's threat-model witness) |
+| Integration | 1131/1134 (29 files) | 1131/1134 (29 files) | **unchanged** |
+| Negative | 361/362 (19 files) | 361/362 (19 files) | **unchanged** |
+| Numeric-cell exactness | 84/84 | 84/84 | **unchanged** — the corpus did not change |
+| Recovery correctness | 8/8 | 8/8 | **unchanged** |
+| Latency | 1337062/3357 | 1451641/3452 | a different machine load, on the same 3452-case shape |
+
+**The three +1 files are exactly the three other parts of this gate that
+have been merged** — T00's fixtures, T03's outsider path and T05's threat
+model. **The harness measured the gate's other work, and the denominators
+moved because the tree grew.** That is the honest reading, and it is why
+the recorded run's numbers are cited in §3.2–§3.4 **at their own commit**
+rather than replaced by these.
+
+**And one thing in the report is now untrue, which is worth recording
+because the report is the document a reviewer reads.** Two of the
+`NOT_MEASURED` reasons are **hard-coded constants** in
+`tests/evaluation/aggregate.py:61-78`, written before T00's corpus
+existed, and they still say:
+
+> *"The public fixtures that would be that corpus are LC-P1-13 T00's
+> deliverable and are not in this tree."*
+
+> *"the tree holds no no-evidence fixture to abstain over"*
+
+**Both statements are false of this tree.** `tests/fixtures/public/` holds
+four fixtures and one of them is `no_evidence`. **The metrics are still
+correctly NOT MEASURED — the reason has changed, not the verdict** — because
+the corpus has never been driven as a task (§3.1), so the numerator would
+count nothing either way. But a reader who takes the reason at its word
+would conclude the corpus is absent, and it is present and unused.
+
+**This is the project's own rule, pointing the other way.** *"A record is
+not evidence — the record says what was decided; the measurement says what
+is true. Where they differ, the measurement wins and the record is
+corrected."* Here the record is a **hard-coded sentence in the report
+generator**, and the correction is to make those two reasons read the tree's
+state rather than assert a fact about it. **That change belongs to T01's
+file, and this subtask does not touch `tests/`.** It is named here as a
+finding, not made.
 
 ---
 
@@ -446,6 +544,13 @@ not a declared model, version and parameter set.
 | Evidence locator validity and citation support precision | a **human-checked sample**. The tree records none, and a machine count is not a substitute for one. |
 | Unsupported-claim detection and appropriate abstention | a **no-evidence fixture to abstain over**. The corpus now has one (`no_evidence`), but it has not been driven as a task, so the numerator would count nothing. |
 | Revision consistency | a corpus of **source-change runs** with their outcomes. The tree records none. |
+
+**A warning about the report's own wording of two of these.** The reasons
+the harness prints for the first and the third are **hard-coded constants**
+that predate the corpus's arrival, and they say the corpus is absent — which
+it is not (§3.7). **The verdicts above are right; those two sentences are
+not.** A reader of the report who takes them at their word would conclude
+that `tests/fixtures/public/` does not exist.
 
 ### 4.3 The competitor comparison — NOT MEASURED, and why
 
@@ -607,8 +712,12 @@ statement from "delivered", and it is the one this document makes.
   recorded, as the harness records it, rather than resolved here.
 - **It does not change any test.** The harness's refusal mechanism, its
   witnesses and its mutation table are T01's, and this document adds no
-  witness to them. **A claim in this document that is not measured is
-  written `NOT MEASURED`** — §4.2's four metrics, §4.1's class and §4.3's
+  witness to them. **It reports one defect in them and does not fix it:**
+  §3.7's two hard-coded `NOT_MEASURED` reasons in
+  `tests/evaluation/aggregate.py` assert that a corpus is absent from a
+  tree it is present in. **The fix belongs to T01's file, and this subtask
+  does not touch `tests/`.** A claim in this document that is not measured
+  is written `NOT MEASURED` — §4.2's four metrics, §4.1's class and §4.3's
   comparison are the ones, and they are the ones a reader should check
   first.
 - **It does not close the work order.** §6 is a reconciliation, not an
