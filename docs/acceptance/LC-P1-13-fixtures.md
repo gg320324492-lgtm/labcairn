@@ -307,9 +307,9 @@ apply their corruption to a *copy* and never touch the committed corpus.
    covered by the papers corpus in `tests/fixtures/papers/`, whose material
    is third-party and therefore cannot be moved here without carrying its
    licence obligations into the public alpha.
-5. **The costs of this test file are local measurements.** The CI shard file
-   records what a file costs on the runner; a local measurement is a
-   different number. See §9.
+5. **The cost of this test file is not yet recorded.** The CI shard file
+   records what each file costs on the runner, and this file is new, so it
+   has no cost until the merge's remeasurement pass gives it one. See §9.
 6. **The corpus is a starting point, not a closed set.** The manifest's
    `schema` field names a version (`labcairn.public-fixtures/1`) so that a
    later corpus can say which one a result was measured on — which
@@ -320,15 +320,26 @@ apply their corruption to a *copy* and never touch the committed corpus.
 
 **The shard list.** `tests/test_public_fixtures.py` is a new test file, and
 `tests/test_ci_shard_coverage.py` fails if a test file is in no shard — a
-file in no shard is a test CI never runs. `.github/ci-shards.json` is a
-hand-edited file that the shard generator will not fill in for an unmeasured
-file, and it is **not owned by this subtask**: the base branch already
-carries `tests/test_earlier_exit_demos.py` in no shard, and T01's branch
-adds a second such file. The merge needs one pass over the shard file that
-adds every new test file, with costs measured on the runner. **This subtask
-did not edit the shard file**, because doing so from one branch of four
-would conflict with the other three, and because the costs it would record
-would be local measurements rather than the runner's.
+file in no shard is a test CI never runs.
+
+**This subtask did not edit `.github/ci-shards.json`**, for two reasons.
+It is a hand-edited file that four windows are adding test files to at once,
+so one merge-time pass is the only way it stays coherent. And the shard
+file's costs are a **measurement**, and the project now watches that
+mechanically: the file records the commit its costs were measured at, and
+`test_the_costs_belong_to_the_tree_they_were_measured_on` fails when
+anything under `src/` or `tests/` has changed since. Any new test file
+makes the costs stale by that rule, so the fix is the repository's
+`.github/remeasure_shards.py <run-id>`, which reads the per-file seconds
+out of a CI run's `--durations=0` output and rewrites the table.
+
+**So the merge sequence is: merge → CI runs → the coordinator runs
+`remeasure_shards.py` with that run id → the shard file and its
+`measured_at` are rewritten → the shard tests go green.** This subtask
+adds one more file for that remeasurement to cover, and nothing else. The
+costs must come from a runner: a development machine gives a different
+*order*, not merely a different total, so a locally measured cost would be
+the wrong number rather than an approximate one.
 
 **The corpus is a versioned input.** Any change to a material file changes
 its hash, and the witness fails until the manifest's hash and answers are
