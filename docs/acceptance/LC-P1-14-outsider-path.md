@@ -197,7 +197,7 @@ credential. `labcairn doctor` was asked, before anything else, and it reported
 | The material | `tests/fixtures/analysis/groups.csv` (the controlled table whose statistics were written down by hand beside it), `tests/fixtures/papers/arx-2610.10596.pdf` (a text PDF), and a Markdown the script writes |
 | The figure | the repository's own deterministic renderer, driven by a chart recipe the script writes into the workspace |
 | The report | the repository's own renderers — no model call anywhere in the path |
-| The claims | written by the walk itself, because **the product has no operation that writes an evidence record or an anchor** (§7) |
+| The claims | written by the walk itself, because **the product has no operation that writes an evidence record or an anchor** (§7.3) |
 
 **This is the "deterministic fixture without provider" half of LC-P1-14's
 acceptance clause.** The other half — a real provider under a declared model,
@@ -227,7 +227,7 @@ The run says this in its own output, and the report carries it:
   rest on them itself. The report carries real claims, cited to real
   addresses in the material the CLI ingested — but the claims were made by
   the walk, not by the product. **This is the one step of the deliverable
-  that is not the product's, and it is named rather than hidden.**
+  that is not the product's, and it is named rather than hidden** (§7.3).
 
 ---
 
@@ -402,7 +402,9 @@ already say why. This is a fact about this machine, not about the README.
 
 A witness that has never been shown to fail is not a witness. Each mutation
 below was applied to `scripts/outsider_path.py`, the witness was run, and the
-script was put back exactly as it was. **All four went red.**
+script was put back exactly as it was. **All four went red** — and they were run again, against the script as it
+stands after the base was merged and the short-name workaround was added, so
+the record is of the code that is committed rather than of an earlier draft.
 
 The witness was run with:
 
@@ -434,8 +436,8 @@ branch added another without one, so the shard file is repaired here.
 
 | File | Windows | Ubuntu |
 |---|---|---|
-| `tests/test_outsider_path.py` | **157.3 s** | **not measured on a runner** |
-| `tests/test_earlier_exit_demos.py` | **15.4 s** | **not measured on a runner** |
+| `tests/test_outsider_path.py` | **152.6 s** | **not measured on a runner** |
+| `tests/test_earlier_exit_demos.py` | the base's runner number | the base's runner number |
 
 Measured on 2026-10-25 on this machine, with `--durations=0`, and the
 per-file seconds read out of the durations section — the same way the shard
@@ -443,11 +445,16 @@ file's other numbers were read out of the CI log's. `test_outsider_path.py`'s
 cost is almost all of one thing: the run it makes, which is the script's
 170.5 s.
 
-**The witness was measured twice.** 157.3 s on the tree before the base was
-merged, and 152.6 s on the merged tree (in a run that also carried the shard
-coverage's nine checks, which cost a tenth of a second between them). The
-recorded number is the first, and the two agree within the noise of a machine
-that was running four other suites.
+**The witness was measured three times**, and the machine was busy every
+time: **152.6 s**, **157.3 s** and **256.7 s**. The spread is the contention
+— four other LabCairn worktrees were running their own suites throughout — and
+**the recorded number is the least-contended of the three**, because the
+shard plan's job is to predict what a runner will take, and contention only
+inflates a local measurement. The largest of the three would be the
+conservative choice for a budget and the wrong estimate of a runner's time.
+
+**`tests/test_earlier_exit_demos.py` is the base's own row**, measured on the
+runner, and it was not touched.
 
 **Only this work order's own file is a development-machine measurement.**
 The other 102 files' costs are the base's own runner re-measurement (the
