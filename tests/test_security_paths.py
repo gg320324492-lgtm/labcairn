@@ -511,8 +511,18 @@ def _short_name(path: Path) -> Path | None:
         return None
     import ctypes
 
+    # `ctypes.windll` exists on Windows and nowhere else, and **the type
+    # checker knows that**. A `# type: ignore` would be right on one platform
+    # and wrong on the other -- "unused" where the attribute is there, and
+    # "missing" where it is not -- and the wrong one is a red build on the
+    # other platform. So the attribute is read the way a platform that may
+    # not have it has to be read.
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:  # pragma: no cover - only on a POSIX build
+        return None
+
     buffer = ctypes.create_unicode_buffer(4096)
-    length = ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
+    length = windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
     if length == 0 or length >= len(buffer):
         return None
     return Path(buffer.value)

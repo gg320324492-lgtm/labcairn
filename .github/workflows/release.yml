@@ -427,6 +427,13 @@ jobs:
       - name: every dependency's licence is read from the distribution itself
         shell: bash
         env:
+          # **The export's path travels with the venv's path.** The two
+          # steps are separate, and an env var set in one is not set in the
+          # next -- so the file the first step wrote is named again here, in
+          # the one place that reads it. Without this the audit fell back to
+          # a relative name, found nothing there, and died with a bare
+          # `FileNotFoundError` that said nothing about the cause.
+          RELEASE_REQUIREMENTS: ${{ runner.temp }}/release-requirements.txt
           RELEASE_AUDIT_VENV: ${{ runner.temp }}/release-audit
         run: |
           set -euo pipefail

@@ -119,7 +119,8 @@
         "tests/test_provider_adapter.py",
         "tests/test_recovery_support.py",
         "tests/test_refusal_witnesses.py",
-        "tests/test_analysis_report_build.py"
+        "tests/test_analysis_report_build.py",
+        "tests/test_release_workflow.py"
       ]
     ],
     "windows-latest": [
@@ -240,7 +241,8 @@
         "tests/test_workspace_boundaries.py",
         "tests/test_security_approval.py",
         "tests/test_security_injection.py",
-        "tests/test_security_listing_canonical.py"
+        "tests/test_security_listing_canonical.py",
+        "tests/test_release_workflow.py"
       ]
     ]
   },

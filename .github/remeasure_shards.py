@@ -101,6 +101,28 @@ def _fetch_logs(run_id: str, repo: str) -> dict[str, str]:
     return logs
 
 
+def _run_head_sha(run_id: str, repo: str) -> str | None:
+    """The commit the run tested, which is what the costs belong to.
+
+    **The run id is not a commit, and the difference matters.** The shard
+    file's ``measured_at`` is read by the coverage witness as a git
+    revision: it asks what changed since the costs were measured. A run id
+    is not a revision, so ``git diff`` refuses it, and the witness then
+    cannot check anything -- which, before the witness was taught to fail
+    when it cannot check, meant the check passed without having looked.
+    """
+    proc = subprocess.run(
+        ["gh", "api", f"repos/{repo}/actions/runs/{run_id}", "--jq", ".head_sha"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    sha = proc.stdout.strip()
+    if proc.returncode != 0 or not sha:
+        return None
+    return sha
+
+
 def _logs_from(directory: Path) -> dict[str, str]:
     logs: dict[str, str] = {}
     for path in sorted(directory.glob("*.log")):
@@ -167,11 +189,15 @@ def main() -> int:
         print("no job logs were found", file=sys.stderr)
         return 1
 
-    measured_at = args.measured_at or args.run_id
+    measured_at = args.measured_at
+    if not measured_at and args.run_id:
+        measured_at = _run_head_sha(args.run_id, args.repo)
     if not measured_at:
         parser.error(
-            "--measured-at is needed with --from, because a directory of "
-            "logs does not say which commit they are from"
+            "the commit the costs were measured at is needed: pass "
+            "--measured-at, or give a run id whose head commit the API can "
+            "name. A directory of logs does not say which commit they came "
+            "from, and a run id is not a commit."
         )
 
     costs = measure(logs)
