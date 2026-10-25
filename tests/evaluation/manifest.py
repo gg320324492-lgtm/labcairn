@@ -277,6 +277,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_status_consistency.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
+    # -- G5's own work ------------------------------------------------------
+    "test_outsider_path.py": ("e2e", "fresh-install"),
+    "test_public_fixtures.py": ("unit", "dataset-locators"),
+    "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
 }
 
 #: The witnesses of each protocol metric: the test files that check the
