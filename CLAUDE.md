@@ -20,6 +20,28 @@ worktree (`isolation: "worktree"` on the agent call) and its own branch.
 **A push is not a local action.** Ask before pushing to a shared branch, and
 never force-push to `main`.
 
+## How parallel work is landed: no branch per piece, one pull request at the end
+
+**The owner decided this on 2026-10-25.** The arrangement:
+
+1. **Parallel windows each modify their own files, and those files do not
+   overlap.** The plan's file-ownership map is the contract; a window that
+   needs another's file says so rather than reaching for it.
+2. **They do not open pull requests, and they do not push to start a run.**
+3. **The work is reviewed and merged into `main` locally**, and the review
+   is the gate: the claims are measured, the witnesses are mutation-checked,
+   and the pieces that turned out to be one piece are one piece.
+4. **Then one pull request and one run**, for everything.
+
+**Why.** A pull request per piece means a run per piece, and a run is the
+most expensive thing this project does — it is the gate, and it should be
+spent on the whole of a body of work rather than on each piece of it.
+
+**What it does not change.** `main` is a protected branch, so a pull
+request is how anything reaches it, and the sixteen required checks have to
+pass on it. **The reduction is in the number of pull requests and runs, not
+in whether they happen.**
+
 ## Running the suite
 
 **`--basetemp` goes outside the repository.** The default base temp directory
