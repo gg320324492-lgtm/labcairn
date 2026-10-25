@@ -1,5 +1,12 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-25
+**Current `main`:** `d49ec323eb52c6515e45dbc9c1933243056f926f` — the merge that carries
+G4's follow-ups: the tests copy a migrated database instead of migrating one
+each time, the DOCX's font claim is watched, the earlier gates' exit
+demonstrations are run by a test, the font licence audit is measured, and the
+CI runs in six shards per platform (34.5 minutes → 7.3).
+
 **Date:** 2026-10-23
 **Current `main`:** `e8a63a813ad26d0dfca06dc672442e5dd3e66812` — the merge that closes G4. The gate's own review was at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`, the commit the review measured, which is the merge's second parent. The merges since the previous refresh are #87 (every subprocess in the packaging test now has a ceiling), #88 (the doctor finds the session token, and the service lets go of the store), #89 (**`labcairn serve`**, the command that starts the local API service), #90 (the escape table holds eighteen characters), #91 (the service gives every request a session of its own), #92 (the report's material, the Markdown's whitespace, and the refusals nobody watched), #93 (the ingestion operation: the layer can read the material, and the CLI can bind it), #94 (the walk records where the material is, not the key it was handed), #95 (the material's one source, and the numbers in all four forms), #96 (the four forms are compared with the document they are drawn from), #101 (the demonstration's approval outlives the grant, at any hour — the gate's exit test had a time bomb in it, and no CI run had ever run after 13:00 UTC), #106 (the batch: **the two blockers and the six notes** the three surfaces' independent review found — among them the demonstration's **exit code** was not load-bearing, and a stage run that followed an approval **planned a second operation** — plus the **five defects the fixing found**, one of them an **authorisation bypass**, one of them a **time bomb in the gate's own exit demonstration**, and one of them a duplicated sentence in that demonstration's own output) and #108 (the working rules, written down where a session will read them).
 
@@ -104,12 +111,25 @@ gate's own composition**, and the demonstration's own comparison of the two
 surfaces is unwatched. **Every finding is fixed**, and both reviewers re-ran
 their own mutations against the fixed code.
 
-**G5 is the public alpha**: LC-P1-13 (evaluation, fault injection and a
-competitor baseline) and LC-P1-14 (the handoff dossier, the licence audit,
-and the two READMEs). **The licence audit is not optional and not
-deferred**: matplotlib's wheel **bundles forty TrueType fonts under two
-further licences**, and reportlab's under a third, so G5 must cover the
-bundled fonts and not the root licence line alone.
+**G5 is the public alpha, and it is under way.** LC-P1-13 (evaluation, fault
+injection and a competitor baseline) and LC-P1-14 (the handoff dossier, the
+licence audit, and the two READMEs). **Its task breakdown is written**
+(`docs/plans/LC-P1-13-14-task-breakdown.md`) and T00, T01, T03 and T05 are
+in progress.
+
+**The licence audit's factual half is done**
+(`acceptance/LC-P1-14-font-licence-audit.md`): no third-party font file
+reaches any artefact, so the GPL font reportlab bundles does not attach to
+what a user receives. **What is left is the owner's** — the copyright and
+the root licence, which `LICENSE.PENDING.md` grants no rights over today, and
+which blocks any open-source claim until it is replaced by an actual
+licence.
+
+**And G5 has a first piece of work that was found by accident.** G1's exit
+demonstration has been broken since G1 closed, because nothing ran it, and the
+reason is a defect in the product's path layer: on Windows a write to a new
+file under an 8.3 short-spelled directory is refused. It is written down in
+the breakdown's section 2.6 and it is T02's first job.
 
 ## How G4 went
 
