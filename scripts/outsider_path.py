@@ -382,7 +382,7 @@ def resolve_argv(argv: tuple[str, ...] | list[str]) -> list[str]:
     run.
     """
     first = argv[0]
-    found = shutil.which(first)
+    found = first if Path(first).is_file() else shutil.which(first)
     if found is None:
         msg = f"executable {first!r} is not on PATH; the command cannot be run"
         raise FileNotFoundError(msg)
@@ -534,6 +534,97 @@ def check_the_command_table(clone: Path, recorder: Recorder) -> list[str]:
     return documented
 
 
+def the_pinned_pnpm(web: Path) -> str:
+    """The pnpm version ``web/package.json`` pins.
+
+    Read out of the manifest rather than written down here, because the
+    manifest is where the repository already says it, and a second copy of
+    the same pin is a number that can drift.
+    """
+    manifest = json.loads((web / "package.json").read_text(encoding="utf-8"))
+    declared = manifest.get("packageManager", "")
+    if not declared.startswith("pnpm@"):
+        msg = (
+            f"web/package.json declares no pnpm version ({declared!r}), so the "
+            "script cannot know which pnpm to use"
+        )
+        raise ValueError(msg)
+    return declared.removeprefix("pnpm@")
+
+
+def the_web_package_manager(work: Path, web: Path) -> tuple[list[str], str]:
+    """The argv prefix that runs pnpm, and how this machine got one.
+
+    **The README names pnpm, so a machine without it has not met the README's
+    requirements** -- and the CI runner that runs the Python suite has Node but
+    not pnpm, because the web workflow is where pnpm is installed. So the
+    script gets one itself, in the order that is cheapest and most likely to
+    work:
+
+    1. ``pnpm`` on PATH -- the normal case, and the one a machine that
+       followed the README has;
+    2. ``corepack pnpm`` -- Node's own mechanism, which uses the version
+       ``web/package.json`` pins in ``packageManager``;
+    3. ``npm install`` of that same pinned version into the work root, which
+       needs nothing but npm.
+
+    **And if none of them is there, the run refuses.** A command that could
+    not be run is a command that did not work, and the sweep's claim is that
+    every command the README shows ran. The refusal names what is missing, in
+    the README's own words.
+    """
+    if shutil.which("pnpm"):
+        return ["pnpm"], "pnpm on PATH"
+    pinned = the_pinned_pnpm(web)
+    if shutil.which("corepack"):
+        # Corepack's own way of putting pnpm on PATH: it writes a shim into
+        # Node's own directory, which is not always writable, so the way that
+        # writes nothing is kept as the second answer.
+        enabled = run(
+            resolve_argv(("corepack", "enable", "pnpm")),
+            work,
+            child_environment(work),
+            180.0,
+        )
+        if enabled.returncode == 0 and shutil.which("pnpm"):
+            return ["pnpm"], f"corepack enabled the pnpm@{pinned} web/package.json pins"
+        return (
+            ["corepack", "pnpm"],
+            f"corepack, which uses the pnpm@{pinned} web/package.json pins",
+        )
+    if shutil.which("npm"):
+        home = work / "pnpm-home"
+        home.mkdir(parents=True, exist_ok=True)
+        installed = run(
+            resolve_argv(
+                (
+                    "npm",
+                    "install",
+                    "--prefix",
+                    str(home),
+                    "--no-save",
+                    "--no-audit",
+                    "--no-fund",
+                    f"pnpm@{pinned}",
+                )
+            ),
+            work,
+            child_environment(work),
+            900.0,
+        )
+        binary = home / "node_modules" / ".bin" / ("pnpm.cmd" if os.name == "nt" else "pnpm")
+        if installed.returncode == 0 and binary.is_file():
+            return [str(binary)], f"npm installed the pnpm@{pinned} web/package.json pins"
+        print(installed.stderr.strip()[-600:], file=sys.stderr)
+    msg = (
+        "no pnpm is available and none could be obtained. The README names the "
+        "web package's requirements -- Node >= 24.16 with pnpm >= 9.15.9 -- and "
+        "the script cannot run the README's web commands without one. Install "
+        "Node (which brings npm and corepack with it) and run it again."
+    )
+    raise FileNotFoundError(msg)
+
+
 def sweep_the_readme_commands(
     clone: Path,
     work: Path,
@@ -543,12 +634,23 @@ def sweep_the_readme_commands(
     """Run every command the README shows, in the clone, and record the run."""
     print(f"\n{'=' * 78}\n3. The README's commands, run in the clone ({mode} mode)\n{'=' * 78}")
     environment = child_environment(work)
+    # Corepack asks before it downloads a package manager, and a run that
+    # cannot answer a question is a run that stops.
+    environment["COREPACK_ENABLE_DOWNLOAD_PROMPT"] = "0"
     results: list[dict[str, Any]] = []
+
+    web_prefix: list[str] = []
+    web_origin = ""
+    if any(command.argv[0] == "pnpm" for command in README_COMMANDS):
+        web_prefix, web_origin = the_web_package_manager(work, clone / "web")
+        print(f"  pnpm       : {' '.join(web_prefix)} ({web_origin})")
 
     for command in README_COMMANDS:
         reduced = mode != "reviewer" and command.in_suite_argv is not None
-        argv = command.in_suite_argv if reduced else command.argv
-        assert argv is not None
+        argv = list(command.in_suite_argv if reduced else command.argv)
+        assert argv
+        if argv[0] == "pnpm":
+            argv = [*web_prefix, *argv[1:]]
         workdir = (clone / command.cwd).resolve()
         before = {name: (workdir / name).read_bytes() for name in command.unchanged}
 
@@ -576,6 +678,7 @@ def sweep_the_readme_commands(
             {
                 "documented": command.documented,
                 "argv": list(argv),
+                "web_package_manager": web_origin if command.argv[0] == "pnpm" else "",
                 "cwd": command.cwd,
                 "reduced": reduced,
                 "reduction": (
@@ -1923,11 +2026,8 @@ def main() -> int:
         return 1 if error else 0
 
     repo = Path(arguments.repo).resolve()
-    work = (
-        Path(arguments.work_root).resolve()
-        if arguments.work_root
-        else default_work_root().resolve()
-    )
+    work_given = Path(arguments.work_root) if arguments.work_root else default_work_root()
+    work = work_given.resolve()
     work.mkdir(parents=True, exist_ok=True)
     # **The work root is resolved before anything is made under it.** On a
     # Windows machine whose temporary directory is spelled in the 8.3 short
@@ -1939,7 +2039,7 @@ def main() -> int:
     # throughout, and the product's defect is still a defect -- this is the
     # script working around it, and the acceptance record says so.
     resolved_work = work.resolve()
-    short_spelled = str(resolved_work) != str(work)
+    short_spelled = str(resolved_work) != str(work_given)
     work = resolved_work
     recorder = Recorder("clone")
 
@@ -1983,6 +2083,11 @@ def main() -> int:
     except AssertionError as error:
         failure = str(error)
         print(f"\nFAILED: {error}", file=sys.stderr)
+    except FileNotFoundError as error:
+        # A tool the README names is missing, and the script cannot run the
+        # README's commands without it. That is a refusal, not a crash.
+        failure = str(error)
+        print(f"\nFAILED: {error}", file=sys.stderr)
 
     report = {
         "mode": arguments.mode,
@@ -1993,6 +2098,11 @@ def main() -> int:
         # refuses a new file under a short-spelled root (§2.6 of the task
         # breakdown).
         "work_root_was_short_spelled": short_spelled,
+        # The spelling the run was given, beside the one it used. The two
+        # differ on a Windows machine whose temporary directory is spelled in
+        # the 8.3 short form, and the difference is the whole of the
+        # workaround: the walk uses the resolved spelling throughout.
+        "work_root_as_given": str(work_given),
         # The commit the clone was made from, read when the clone was made.
         # The repository's head at the end of the run is a different thing:
         # a run that takes three minutes can easily have a commit land inside

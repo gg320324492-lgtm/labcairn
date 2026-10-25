@@ -39,6 +39,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -93,7 +94,20 @@ def outsider_run(tmp_path_factory: pytest.TempPathFactory) -> OutsiderRun:
     Its own work root, outside the repository: a run inside the checkout would
     make the run depend on the tree it runs in, and would leave the checkout
     dirty — which is the opposite of what this script claims to demonstrate.
+
+    **The run is skipped, loudly, on a machine that cannot run the README's
+    web commands** — that is, one with no pnpm, no corepack and no npm. The
+    README asks for Node ≥ 24.16 with pnpm ≥ 9.15.9, so such a machine has
+    not met the requirements the README states, and the script refuses to
+    pretend otherwise. This mirrors what
+    `tests/test_readme_accuracy.py` does with the same commands, and a CI
+    runner has Node, so the skip does not happen there.
     """
+    if not (shutil.which("pnpm") or shutil.which("corepack") or shutil.which("npm")):
+        pytest.skip(
+            "no pnpm, corepack or npm is available, so the README's web commands "
+            "cannot be run; the README asks for Node >= 24.16 with pnpm >= 9.15.9"
+        )
     work = tmp_path_factory.mktemp("outsider-path")
     environment = dict(os.environ)
     environment["PYTHONIOENCODING"] = "utf-8"
@@ -182,6 +196,33 @@ def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun, repo_root:
     assert "the clone's working tree is clean" in labels
     assert "the clone is outside the repository it was cloned from" in labels
     assert "the clone has no .venv" in labels
+
+
+@pytest.mark.e2e
+def test_the_walk_resolved_its_work_root(outsider_run: OutsiderRun) -> None:
+    """The walk ran in the resolved spelling of its work root, not the given one.
+
+    **This is the workaround for the product's Windows defect.** On a Windows
+    machine whose temporary directory is spelled in the 8.3 short form, the
+    product refuses a write to a new file under it: the declared path keeps the
+    short spelling and the root comes back long-spelled, so two spellings of
+    one directory are compared as two directories. The walk resolves its work
+    root before it makes anything under it, so the whole walk is in one
+    spelling.
+
+    The report carries both spellings, and this test says the walk used the
+    resolved one — which is the property the workaround exists for.
+    """
+    report = outsider_run.report
+    given = Path(report["work_root_as_given"])
+    used = Path(report["work_root"])
+    assert str(used) == str(given.resolve()), (
+        f"the walk used {used} and was given {given}; the resolved spelling is {given.resolve()}"
+    )
+    assert "work_root_was_short_spelled" in report, (
+        "the report does not say whether the work root was short-spelled, so a "
+        "reader cannot tell whether the workaround was needed"
+    )
 
 
 @pytest.mark.e2e

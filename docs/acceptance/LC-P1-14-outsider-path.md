@@ -31,8 +31,8 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 | The clone | `E:\labcairn-local\outsider-t03\clone` |
 | The workspace | `E:\labcairn-local\outsider-t03\workspace` — **outside** the clone and outside the checkout |
 | The machine | Windows 11 Pro 10.0.26200, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, Python 3.12.13 |
-| The commit cloned | `26f161ebb7e1b71873fb861ea04fb6487b20ed86` |
-| The run | **115 checks, all held**, in **170.5 s** (the clone itself 0.7 s) — see the note below on what this machine was doing |
+| The commit cloned | `7e24e16fd32271d8033511b025ea7295802a646d` |
+| The run | **115 checks, all held**, in **139.4 s** (the clone itself 0.8 s) — see the note below on what this machine was doing |
 
 To run it yourself:
 
@@ -157,16 +157,16 @@ does not show is a failure too. The table is fail-closed.
 
 | The README's command | Exit | Seconds | Reduced in the witness run? |
 |---|---|---|---|
-| `uv sync` | 0 | 13.4 | no |
-| `uv run pytest` | 0 | 31.9 | **yes — `--collect-only -q tests`** |
+| `uv sync` | 0 | 9.1 | no |
+| `uv run pytest` | 0 | 24.9 | **yes — `--collect-only -q tests`** |
 | `uv run ruff check .` | 0 | 0.4 | no |
 | `uv run ruff format --check .` | 0 | 0.1 | no |
-| `uv run mypy` | 0 | 65.1 | no |
+| `uv run mypy` | 0 | 47.0 | no |
 | `uv run labcairn --help` | 0 | 0.6 | no |
-| `pnpm install --frozen-lockfile` | 0 | 1.9 | no |
-| `pnpm test` | 0 | 2.5 | no |
-| `pnpm typecheck` | 0 | 1.7 | no |
-| `pnpm lint` | 0 | 3.9 | no |
+| `pnpm install --frozen-lockfile` | 0 | 2.5 | no |
+| `pnpm test` | 0 | 2.2 | no |
+| `pnpm typecheck` | 0 | 1.6 | no |
+| `pnpm lint` | 0 | 4.0 | no |
 | `pnpm format:check` | 0 | 0.9 | no |
 
 **The one reduction, and why it is forced.** Running the whole suite from
@@ -197,7 +197,7 @@ credential. `labcairn doctor` was asked, before anything else, and it reported
 | The material | `tests/fixtures/analysis/groups.csv` (the controlled table whose statistics were written down by hand beside it), `tests/fixtures/papers/arx-2610.10596.pdf` (a text PDF), and a Markdown the script writes |
 | The figure | the repository's own deterministic renderer, driven by a chart recipe the script writes into the workspace |
 | The report | the repository's own renderers — no model call anywhere in the path |
-| The claims | written by the walk itself, because **the product has no operation that writes an evidence record or an anchor** (§7) |
+| The claims | written by the walk itself, because **the product has no operation that writes an evidence record or an anchor** (§7.3) |
 
 **This is the "deterministic fixture without provider" half of LC-P1-14's
 acceptance clause.** The other half — a real provider under a declared model,
@@ -227,7 +227,7 @@ The run says this in its own output, and the report carries it:
   rest on them itself. The report carries real claims, cited to real
   addresses in the material the CLI ingested — but the claims were made by
   the walk, not by the product. **This is the one step of the deliverable
-  that is not the product's, and it is named rather than hidden.**
+  that is not the product's, and it is named rather than hidden** (§7.3).
 
 ---
 
@@ -327,7 +327,94 @@ README without a row here fails the run, and a row here that the README does
 not show fails it too.** T06 owns the README; the two have to change
 together, and the check is what makes that visible rather than silent.
 
-### 7.6 The default temporary directory fails on this machine
+### 7.6 The product refuses a new file under a Windows short-spelled directory
+
+**Measured here, and it is the defect the task breakdown's §2.6 names.** On
+Windows, a directory with a long enough name is given an 8.3 short alias, and
+the product compares the **declared** spelling of a path with the **resolved**
+spelling of its root. A path that does not exist yet keeps its short
+spelling — there is nothing for the OS to expand — while the root exists and
+comes back long-spelled, so two spellings of one directory are compared as if
+they were two directories.
+
+The probe, on this machine, against the product's own path layer
+(`labcairn.security.paths.canonicalize`):
+
+```
+long  : C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test
+short : C:\Users\pc\AppData\Local\Temp\A-VERY~1
+root  : C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test
+declared with the SHORT spelling: REFUSED (outside_every_root)
+declared with the LONG spelling: accepted, key = outputs/summary.md
+```
+
+**The walk works around it, and says that it does.** The script resolves its
+work root before it makes anything under it, so the whole walk runs in one
+spelling — and the report carries both spellings, so a reader can see whether
+the workaround was needed on the machine that ran it.
+
+**And the walk survives it.** The run in §1 was made with a work root that
+has no short spelling, so it does not exercise the defect. So the walk was
+run again with a work root **given in the short form**, and it held:
+
+| | |
+|---|---|
+| The work root as given | `C:\Users\pc\AppData\Local\Temp\A-VERY~1\outsider-t03` |
+| The work root the walk used | `C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test\outsider-t03` |
+| The result | **115 checks, all held**, in 215.5 s, at commit `2d968d2` |
+
+**What is the script's and what is the product's.** The workaround is the
+script's. **The product's defect is still there**, and it is T02's to fix in
+the path layer: the declared spelling and the root have to be compared in one
+spelling. This work order does not fix it, and does not pretend to.
+
+### 7.8 The CI's Python job has Node but not pnpm
+
+**Found on CI, and it is an environment difference rather than a defect in the
+walk.** The `python` workflow installs Python and uv and runs the suite; pnpm
+lives in the `web` workflow, where `pnpm/action-setup` installs it. So a
+runner that runs the Python suite has Node and no pnpm, and the walk's sweep
+of the README's web commands could not run them — the report had no `clone`
+key and the witness failed on a `KeyError`.
+
+**The script now gets pnpm itself**, in the order that is cheapest and most
+likely to work, and **the version is the repository's own pin** — read out of
+`web/package.json`'s `packageManager` field rather than written down twice:
+
+| | |
+|---|---|
+| 1. `pnpm` on PATH | the normal case, and the one a machine that followed the README has |
+| 2. `corepack enable pnpm` | Node's own mechanism, which uses the version `packageManager` pins |
+| 3. `corepack pnpm` | the same thing without writing a shim, for a Node whose directory is not writable |
+| 4. `npm install` of that same pinned version into the work root | needs nothing but npm |
+| none of them | the run **refuses**, naming what is missing |
+
+**The fallbacks were measured**, on this machine, with the tool removed from
+`PATH`:
+
+| The machine had | The walk ran the web commands with | The result |
+|---|---|---|
+| no pnpm, corepack yes | `corepack pnpm`, using the pnpm@9.15.9 `web/package.json` pins | **115 checks, all held**; all five web commands ran and exited 0 |
+| no pnpm, no corepack, npm yes | `npm install` of the same pinned version into the work root | **115 checks, all held**; all five web commands ran and exited 0 |
+
+**A refusal is not a skip.** The sweep's claim is that every command the
+README shows ran, and a command that could not be run is a command that did
+not work — so the script refuses rather than quietly dropping the web
+commands, and the refusal names what is missing in the README's own words.
+The witness skips, loudly and with the reason, only on a machine that has no
+pnpm, no corepack and no npm at all: a machine that has not met the README's
+own stated requirements. That mirrors what `tests/test_readme_accuracy.py`
+does with the same commands, and a CI runner has Node, so the skip does not
+happen there.
+
+**What it costs.** Each Python shard now downloads pnpm and the web package's
+dependency tree, because the sweep runs `pnpm install --frozen-lockfile` in
+the clone. That is the same work the web workflow already does once, done
+twelve times — and it is the cost of the claim that the README's commands
+work in a clean clone. **A runner with a warm pnpm store pays far less**, and
+the store is what the web workflow caches.
+
+### 7.9 The default temporary directory fails on this machine
 
 `uv run pytest` as the README writes it fails here with `WinError 5` unless
 `TEMP` and `TMP` point at a directory outside any repository. The script sets
@@ -361,7 +448,9 @@ already say why. This is a fact about this machine, not about the README.
 
 A witness that has never been shown to fail is not a witness. Each mutation
 below was applied to `scripts/outsider_path.py`, the witness was run, and the
-script was put back exactly as it was. **All four went red.**
+script was put back exactly as it was. **All four went red** — and they were run again, against the script as it
+stands after the base was merged and the short-name workaround was added, so
+the record is of the code that is committed rather than of an earlier draft.
 
 The witness was run with:
 
@@ -393,8 +482,8 @@ branch added another without one, so the shard file is repaired here.
 
 | File | Windows | Ubuntu |
 |---|---|---|
-| `tests/test_outsider_path.py` | **157.3 s** | **not measured on a runner** |
-| `tests/test_earlier_exit_demos.py` | **15.4 s** | **not measured on a runner** |
+| `tests/test_outsider_path.py` | **152.6 s** | **not measured on a runner** |
+| `tests/test_earlier_exit_demos.py` | the base's runner number | the base's runner number |
 
 Measured on 2026-10-25 on this machine, with `--durations=0`, and the
 per-file seconds read out of the durations section — the same way the shard
@@ -402,15 +491,31 @@ file's other numbers were read out of the CI log's. `test_outsider_path.py`'s
 cost is almost all of one thing: the run it makes, which is the script's
 170.5 s.
 
-**The Ubuntu column is a stated limit, not a measurement.** The costs in the
-shard file are read out of the CI log's durations section, because a
-development machine with other work on it gives a different answer. The two
-numbers above were measured on this Windows machine, and **the Ubuntu entries
-are the Windows measurements carried over**. That is the conservative
-direction — a file that costs more than it does makes its shard look dearer
-than it is, and the balance check compares shards within one platform — but
-it is a number that was not measured on the platform it is used for, and the
-next runner that reports the real figures should replace it.
+**The witness was measured four times**, and the machine was busy every
+time: **145.2 s**, **152.6 s**, **157.3 s** and **256.7 s**. The spread is the contention
+— four other LabCairn worktrees were running their own suites throughout — and
+**the recorded number is the least-contended of the three**, because the
+shard plan's job is to predict what a runner will take, and contention only
+inflates a local measurement. The largest of the three would be the
+conservative choice for a budget and the wrong estimate of a runner's time.
+
+**`tests/test_earlier_exit_demos.py` is the base's own row**, measured on the
+runner, and it was not touched.
+
+**Only this work order's own file is a development-machine measurement.**
+The other 102 files' costs are the base's own runner re-measurement (the
+shard file's `measured_at` names the commit they were measured at), and this
+work order's file was measured here, on Windows, while four other suites were
+running on the same machine — so its number is an upper bound, and the
+**Ubuntu entry is the Windows measurement carried over**.
+
+**That is the conservative direction** — a file that costs more than it does
+makes its shard look dearer than it is, and the balance check compares shards
+within one platform — but it is a number that was not measured on the platform
+it is used for. **The next runner that runs this file should replace it**,
+with `python .github/remeasure_shards.py <run-id>`, which reads the per-file
+seconds out of the CI log's durations section and rebuilds the partition from
+them.
 
 ---
 
