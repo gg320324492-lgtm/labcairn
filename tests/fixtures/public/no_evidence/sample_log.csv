@@ -1,0 +1,4 @@
+sample_id,wash_count,buffer_conc (mM),elution_volume (uL),incubation_temp (C),material_origin
+SYN-S01,3,50,250,37,SYNTHETIC MATERIAL
+SYN-S02,3,50,250,37,SYNTHETIC MATERIAL
+SYN-S03,3,50,250,37,SYNTHETIC MATERIAL
