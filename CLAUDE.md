@@ -102,6 +102,24 @@ checks.
 
 ## The CI runs in shards, and the shard list is a hand-edited file
 
+**Changing a test file means re-measuring the shard costs.** The shard file
+records the commit its costs were measured at, and a witness checks that
+nothing the costs are about has changed since — so a change under `src/` or
+`tests/` makes the witness fail with *"the shard costs were measured at ... and
+these files have changed since"*. That is not an obstacle; it is the project's
+own rule (*a value that can change is re-measured, not carried forward*) and
+the fix is one command:
+
+```
+python .github/remeasure_shards.py <run-id>
+```
+
+It reads the per-file seconds out of a CI run's log — where pytest's
+`--durations=0` puts them — writes the costs and the commit they were
+measured at, and rebuilds the partition. **The numbers must come from a
+runner**: a development machine gives a different answer, not only a different
+total but a different *order*, which is why the partition is one per platform.
+
 **The suite is split into six shards per platform, and each shard runs in its
 own job on its own runner.** The reason is measured: the Windows job spent
 34.5 minutes and the Ubuntu job 17.5, and every other required check

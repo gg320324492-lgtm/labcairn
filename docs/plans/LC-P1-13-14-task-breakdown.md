@@ -262,6 +262,56 @@ artefact**. What remains is the owner's decision (§1.4.1) and three
 engineering items the audit names: the NOTICE, the board's record, and the
 release's own member lists.
 
+### 2.6 A defect the earlier gates' own witness found, and G5 must fix
+
+**Found on 2026-10-25, by the witness this gate adds.** G1's and G2's exit
+demonstrations were run by nothing, so the one that has been broken since G1
+closed was nobody's to notice. **G1's demonstration fails on a Windows
+runner, and the reason is a defect in the product's path layer, not in the
+demonstration.**
+
+**What happens.** The demonstration's workspace is under the runner's temp
+directory, which the runner spells in the **8.3 short form**
+(`C:\Users\RUNNER~1\...`), while the workspace root is spelled in the
+**long form** (`C:\Users\runneradmin\...`). The product compares the two
+spellings, and it says no:
+
+> `PathRefusedError: outside_every_root: C:\Users\RUNNER~1\AppData\Local\Temp\tmp6zqekpho\study\outputs\summary.md is not under root ...`
+
+**Why.** `src/labcairn/security/paths.py` knows this trap and says so in its
+own docstring — twice, in two different paragraphs:
+
+* *"a **new** file keeps it"* — a path that does not exist yet keeps its
+  short spelling, because there is nothing for the OS to expand;
+* *"**8.3 short names are expanded by `resolve()`**, but only via the OS"* —
+  so the expansion happens only where `resolve()` reaches an existing path.
+
+**The two facts were never joined.** The declared path is computed
+lexically (`os.path.normpath`), so a new file under a short-spelled
+directory keeps the short spelling; the root exists, so it was resolved and
+came back long-spelled. `relative_to` then compares two spellings of one
+directory and fails. **The existing test, `test_8_3_short_name_is_expanded_by_resolve`,
+tests `resolve()` — the platform property — and not the product's
+comparison**, so the hole was never in a test's line of sight.
+
+**What it costs.** On Windows, **a write to a new file under a short-spelled
+directory is refused**. That is a false refusal, which is the safe direction,
+but it means **the product does not work on a Windows machine whose temp
+directory is short-spelled** — which is what a CI runner is, and what many
+Windows installations are.
+
+**Where it is fixed.** T02, and it is the first thing T02 does. The fix is
+in the path layer, not in the demonstration: **the declared spelling and the
+root must be compared in one spelling.** The obvious shape is to key the
+declared path by its **tail below the root** — the tail is identical in both
+spellings — rather than by its whole absolute path, and to leave the root
+matching where it is.
+
+**And it is watched.** A test that binds a root under a **real** 8.3 short
+name and then canonicalises a **new** file under it, on a machine where the
+short name exists — the same shape as the existing `resolve()` test, but
+about the product's comparison rather than about the platform.
+
 ---
 
 ## 3. The subtasks

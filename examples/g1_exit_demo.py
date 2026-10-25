@@ -286,10 +286,17 @@ def refuse_traversal_and_junction(workspace: Workspace, tmp: Path, sources: Path
     (outside / "secret.txt").write_text("ORIGINAL", encoding="utf-8")
 
     hop = sources / "hop"
-    link = subprocess.run(
-        ["cmd", "/c", "mklink", "/J", str(hop), str(outside)], capture_output=True
-    )
-    if link.returncode != 0:
+    try:
+        link = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(hop), str(outside)], capture_output=True
+        )
+    except FileNotFoundError:
+        # `cmd` does not exist off Windows. The demonstration meant to degrade
+        # here -- it says so in the check's own label -- but a missing program
+        # is not a non-zero exit code, so the branch was never reached and the
+        # demonstration crashed instead of skipping.
+        link = None
+    if link is None or link.returncode != 0:
         check("junction created (skipped: not permitted here)", True)
         return
 
