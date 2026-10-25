@@ -304,8 +304,15 @@ def test_every_readme_command_was_run_or_recorded_as_not_runnable(
                 f"the README's `{entry['documented']}` was not run, and it is not a web "
                 "command: the product's own commands have to run everywhere"
             )
-    assert web_ran or not any(entry["documented"].startswith("pnpm ") for entry in ran), (
-        "some web commands ran and others did not"
+    # The web commands are in one state or the other: they all ran, or they
+    # were all recorded as not runnable. A mix would mean the machine could
+    # run some of them and not others, which is not a thing that happens.
+    web_states = {entry.get("ran") for entry in ran if entry["documented"].startswith("pnpm ")}
+    assert len(web_states) <= 1, (
+        f"the web commands are in more than one state: {sorted(str(s) for s in web_states)}"
+    )
+    assert web_ran or web_states == {False}, (
+        "the web commands were neither run nor recorded as not runnable"
     )
 
 

@@ -26,13 +26,13 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 |---|---|
 | The script | `scripts/outsider_path.py` |
 | The witness | `tests/test_outsider_path.py` |
-| The mode | `witness` — see §4 for the one reduction it applies |
-| The work root | `E:\labcairn-local\outsider-t03` — outside the repository, and outside every other repository |
-| The clone | `E:\labcairn-local\outsider-t03\clone` |
-| The workspace | `E:\labcairn-local\outsider-t03\workspace` — **outside** the clone and outside the checkout |
+| The mode | **`reviewer`** — every command the README shows, as the README writes it (§4) |
+| The work root | `E:\labcairn-local\outsider-reviewer` — outside the repository, and outside every other repository |
+| The clone | `E:\labcairn-local\outsider-reviewer\clone` |
+| The workspace | `E:\labcairn-local\outsider-reviewer\workspace` — **outside** the clone and outside the checkout |
 | The machine | Windows 11 Pro 10.0.26200, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, Python 3.12.13 |
-| The commit cloned | `7e24e16fd32271d8033511b025ea7295802a646d` |
-| The run | **115 checks, all held**, in **139.4 s** (the clone itself 0.8 s) — see the note below on what this machine was doing |
+| The commit cloned | `92cc92025ac6d2a8186805ae808d80da7c6287de` |
+| The run | **115 checks, all held**, in **1573.2 s** — of which the whole suite in the clone is 1501.4 s |
 
 To run it yourself:
 
@@ -155,27 +155,34 @@ with the script's table in both directions: a command the README shows that
 the script does not run is a failure, and a row in the table that the README
 does not show is a failure too. The table is fail-closed.
 
-| The README's command | Exit | Seconds | Reduced in the witness run? |
-|---|---|---|---|
-| `uv sync` | 0 | 9.1 | no |
-| `uv run pytest` | 0 | 24.9 | **yes — `--collect-only -q tests`** |
-| `uv run ruff check .` | 0 | 0.4 | no |
-| `uv run ruff format --check .` | 0 | 0.1 | no |
-| `uv run mypy` | 0 | 47.0 | no |
-| `uv run labcairn --help` | 0 | 0.6 | no |
-| `pnpm install --frozen-lockfile` | 0 | 2.5 | no |
-| `pnpm test` | 0 | 2.2 | no |
-| `pnpm typecheck` | 0 | 1.6 | no |
-| `pnpm lint` | 0 | 4.0 | no |
-| `pnpm format:check` | 0 | 0.9 | no |
+| The README's command | Exit | Seconds |
+|---|---|---|
+| `uv sync` | 0 | 12.8 |
+| `uv run pytest` | 0 | **1501.4** |
+| `uv run ruff check .` | 0 | 0.1 |
+| `uv run ruff format --check .` | 0 | 0.1 |
+| `uv run mypy` | 0 | 1.9 |
+| `uv run labcairn --help` | 0 | 0.6 |
+| `pnpm install --frozen-lockfile` | 0 | 2.7 |
+| `pnpm test` | 0 | 2.4 |
+| `pnpm typecheck` | 0 | 1.5 |
+| `pnpm lint` | 0 | 3.8 |
+| `pnpm format:check` | 0 | 1.0 |
 
-**The one reduction, and why it is forced.** Running the whole suite from
-inside the suite would recurse: `tests/test_outsider_path.py` runs the script,
-which runs the suite, which runs `tests/test_outsider_path.py`. The witness
-mode therefore runs `uv run pytest --collect-only -q tests`, and **the
-reduction is recorded in the report against the command it applies to** — so a
-witness run can never be read as a full-suite run. The reviewer mode runs
-`uv run pytest` as the README writes it.
+**Two modes, and two reductions.** The `reviewer` mode is the one a person
+runs, and the table above is it: **every command the README shows, as the
+README writes it, including the whole suite in the clone** (1501.4 s of the
+1573.2 s the run took).
+
+The `witness` mode is the one a test runs, twelve times over in the CI's
+shards, and it reduces two of them — and **each reduction is recorded in the
+report against the command it applies to**, so a witness run can never be read
+as a reviewer run:
+
+| The reduction | Why | What it does instead |
+|---|---|---|
+| `uv run pytest` | running the whole suite from inside the suite would recurse: `tests/test_outsider_path.py` runs the script, which runs the suite, which runs that file's own test | `uv run pytest --collect-only -q tests` |
+| the five `pnpm` commands | they are the `web-quality` workflow's job, and the `python` workflow is not the `web` workflow; installing the web package's dependency tree in every Python shard proves once what the web workflow proves once | they are recorded as **not run, with the reason** (§7.8) |
 
 **The lockfiles were watched too.** `uv sync` and `pnpm install
 --frozen-lockfile` must leave `uv.lock` and `web/pnpm-lock.yaml`
@@ -505,8 +512,11 @@ file's other numbers were read out of the CI log's. `test_outsider_path.py`'s
 cost is almost all of one thing: the run it makes, which is the script's
 170.5 s.
 
-**The witness was measured four times**, and the machine was busy every
-time: **145.2 s**, **152.6 s**, **157.3 s** and **256.7 s**. The spread is the contention
+**The witness was measured five times**, and the machine was busy every
+time: **145.2 s**, **152.6 s**, **157.3 s** and **256.7 s**, and once more
+at **149.0 s** after the web commands became a recorded reduction (§7.8) —
+which is about ten seconds' worth, because the web package's dependency tree
+was already in the store. The spread is the contention
 — four other LabCairn worktrees were running their own suites throughout — and
 **the recorded number is the least-contended of the three**, because the
 shard plan's job is to predict what a runner will take, and contention only
