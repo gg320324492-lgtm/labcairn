@@ -223,6 +223,93 @@ def test_the_recorded_costs_cover_every_test_file(repo_root: Path) -> None:
         )
 
 
+def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> None:
+    """The costs must still describe the tree, or the shards are lopsided.
+
+    **Why this is watched.** The costs are a measurement, and a measurement
+    belongs to the tree it was taken on. The rule the project already states
+    is the one that applies: *a value that can change is re-measured, not
+    carried forward*.
+
+    Without this, the shard file's costs go stale silently and the shards go
+    lopsided silently. That is not a hypothetical: the fix that made the
+    tests copy a migrated database instead of migrating one each time took
+    ``tests/test_material_schema.py`` from 383 seconds to under five, and
+    the partition that had been balanced around it was not balanced any
+    more -- one shard was doing five seconds of work while another did 378.
+
+    **What is checked is the files the costs are about.** A change under
+    ``src/`` or ``tests/`` can change how long a test takes; a change to a
+    document cannot. The shard file itself and this file are excluded, and
+    the reason is that they are **the things being changed** -- they are
+    where the measurement is recorded, and a witness cannot be expected to
+    be unchanged by the tree it watches.
+
+    **A file that is new is caught by the other test**, the one that says
+    every test file has a measured cost: a file nobody measured has no
+    cost, and a file whose cost is unknown is not a shard that is balanced.
+    """
+    document = _shard_document(repo_root)
+    measured_at = document.get("measured_at")
+    assert measured_at, (
+        "the shard file must say which commit its costs were measured at, so "
+        "that a cost which no longer belongs to the tree is noticed"
+    )
+
+    changed = _changed_paths(repo_root, measured_at)
+    assert not changed, (
+        f"the shard costs were measured at {measured_at} and these files have "
+        f"changed since, so the costs no longer describe the tree:\n  "
+        + "\n  ".join(changed)
+        + "\n\nRe-measure the costs on the runner and regenerate the shard file."
+    )
+
+
+def _changed_paths(repo_root: Path, since: str) -> list[str]:
+    """The files under ``src/`` and ``tests/`` that changed since ``since``.
+
+    **The shard file and the witness that reads it are excluded**, and the
+    reason is in the test above: they are where the measurement is recorded,
+    and they are the things a rebalance changes.
+    """
+    import subprocess
+
+    excluded = ("--", "src/", "tests/")
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            f"{since}..HEAD",
+            *excluded,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        # The commit is not in this checkout; the costs cannot be checked, and
+        # saying so is better than passing.
+        return [
+            f"the commit {since} is not in this checkout, so the costs cannot "
+            "be checked"
+        ]
+    return [
+        line
+        for line in proc.stdout.splitlines()
+        if line.strip() and line.strip() not in EXCLUDED_FROM_THE_COST_CHECK
+    ]
+
+
+#: The files whose own cost is not what the table is about.
+EXCLUDED_FROM_THE_COST_CHECK: frozenset[str] = frozenset(
+    {"tests/test_ci_shard_coverage.py"}
+)
+
+
+
 def test_a_shard_names_files_that_exist(repo_root: Path) -> None:
     """A shard must name files that exist — a typo would run nothing.
 

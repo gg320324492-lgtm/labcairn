@@ -152,6 +152,10 @@ def main() -> int:
     SHARD_FILE.write_text(
         json.dumps(
             {
+                # The commit the costs were measured at. It is carried through
+                # unchanged: a rebalance does not re-measure, and a measurement
+                # is the only thing that may change it.
+                "measured_at": document.get("measured_at"),
                 "shards": partitions,
                 "costs": {
                     platform: {name: round(all_costs[platform][name], 2) for name in files}
