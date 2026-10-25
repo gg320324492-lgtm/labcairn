@@ -86,7 +86,19 @@ jobs:
         # test file is in no shard, in two shards, or if the shards drift
         # apart. A file in no shard is a test CI never runs, and every other
         # check would stay green while it went.
-        shard: [0, 1, 2, 3, 4, 5]
+        #
+        # **Five, and not six, and the reason is the floor.** One file is
+        # the floor: `tests/test_cli.py` takes 325 seconds on the Windows
+        # runner and 216 on Ubuntu, and no arrangement of the other files
+        # makes the shard it is in any shorter. So the wall clock is that
+        # file plus the setup, and a sixth shard does not shorten it -- it
+        # only adds a job. Measured on 2026-10-25: with six shards the
+        # Ubuntu partition was 216 seconds against 135, a ratio of 1.60, and
+        # the best arrangement those costs allow is 1.603 -- **so six shards
+        # cannot satisfy the balance limit at all, and the partition that
+        # could not be improved was the one that was rejected.** With five,
+        # the same costs give 216 against 169 and the ratio is 1.28.
+        shard: [0, 1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
         # Full history, because `test_status_consistency` decides whether a

@@ -43,6 +43,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -64,39 +65,62 @@ def _test_files() -> list[str]:
     return sorted(path.name for path in TESTS.glob("test_*.py"))
 
 
+def _gh(args: list[str]) -> str:
+    """Run ``gh api`` and return its output.
+
+    **The logs are read as UTF-8 whatever the machine's locale says.** The
+    default is the locale's encoding, and on a Windows machine whose locale
+    is not UTF-8 that is a decoder that cannot read the bytes GitHub sends:
+    the fetch died with a ``UnicodeDecodeError`` on a byte no GBK sequence
+    contains, and the command that is supposed to be "one command" could not
+    be run at all on the machine it was written on. ``errors="replace"`` is
+    there as well, because a log that contains one undecodable byte should
+    lose that byte rather than the whole measurement.
+
+    **And a transient failure is retried.** The API rate-limits and drops
+    connections, and neither has anything to do with the measurement. A
+    measurement that gives up because the network hiccuped is a measurement
+    that was not taken -- and the failure it died of said nothing about
+    what had gone wrong, so the retry is here and the error says what the
+    last attempt said.
+    """
+    last = ""
+    for attempt in range(4):
+        proc = subprocess.run(
+            ["gh", "api", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if proc.returncode == 0:
+            return proc.stdout
+        last = proc.stderr.strip()
+        time.sleep(2 * (attempt + 1))
+    raise SystemExit(f"gh api {' '.join(args)} failed: {last}")
+
+
 def _fetch_logs(run_id: str, repo: str) -> dict[str, str]:
     """The run's job logs, keyed by the job's name."""
     logs: dict[str, str] = {}
-    jobs = subprocess.run(
+    jobs = _gh(
         [
-            "gh",
-            "api",
             f"repos/{repo}/actions/runs/{run_id}/jobs",
             "--jq",
             '.jobs[]|select(.name|startswith("python-quality"))|.id',
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
+        ]
+    ).split()
     for job_id in jobs:
-        name = subprocess.run(
-            ["gh", "api", f"repos/{repo}/actions/jobs/{job_id}", "--jq", ".name"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        body = subprocess.run(
+        name = _gh(
+            [f"repos/{repo}/actions/jobs/{job_id}", "--jq", ".name"]
+        ).strip()
+        body = _gh(
             [
-                "gh",
-                "api",
                 f"repos/{repo}/actions/jobs/{job_id}/logs",
                 "--allow-escape-sequences",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+            ]
+        )
         logs[name] = body
     return logs
 
@@ -115,6 +139,8 @@ def _run_head_sha(run_id: str, repo: str) -> str | None:
         ["gh", "api", f"repos/{repo}/actions/runs/{run_id}", "--jq", ".head_sha"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     sha = proc.stdout.strip()
