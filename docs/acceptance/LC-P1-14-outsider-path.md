@@ -31,8 +31,8 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 | The clone | `E:\labcairn-local\outsider-t03\clone` |
 | The workspace | `E:\labcairn-local\outsider-t03\workspace` — **outside** the clone and outside the checkout |
 | The machine | Windows 11 Pro 10.0.26200, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, Python 3.12.13 |
-| The commit cloned | `26f161ebb7e1b71873fb861ea04fb6487b20ed86` |
-| The run | **115 checks, all held**, in **170.5 s** (the clone itself 0.7 s) — see the note below on what this machine was doing |
+| The commit cloned | `2d968d29b1fc2eac6b722237b29544adc6cbe878` |
+| The run | **115 checks, all held**, in **203.5 s** (the clone itself 0.8 s) — see the note below on what this machine was doing |
 
 To run it yourself:
 
@@ -157,16 +157,16 @@ does not show is a failure too. The table is fail-closed.
 
 | The README's command | Exit | Seconds | Reduced in the witness run? |
 |---|---|---|---|
-| `uv sync` | 0 | 13.4 | no |
-| `uv run pytest` | 0 | 31.9 | **yes — `--collect-only -q tests`** |
-| `uv run ruff check .` | 0 | 0.4 | no |
+| `uv sync` | 0 | 10.8 | no |
+| `uv run pytest` | 0 | 29.9 | **yes — `--collect-only -q tests`** |
+| `uv run ruff check .` | 0 | 0.5 | no |
 | `uv run ruff format --check .` | 0 | 0.1 | no |
-| `uv run mypy` | 0 | 65.1 | no |
-| `uv run labcairn --help` | 0 | 0.6 | no |
-| `pnpm install --frozen-lockfile` | 0 | 1.9 | no |
-| `pnpm test` | 0 | 2.5 | no |
-| `pnpm typecheck` | 0 | 1.7 | no |
-| `pnpm lint` | 0 | 3.9 | no |
+| `uv run mypy` | 0 | 64.7 | no |
+| `uv run labcairn --help` | 0 | 1.8 | no |
+| `pnpm install --frozen-lockfile` | 0 | 3.2 | no |
+| `pnpm test` | 0 | 15.3 | no |
+| `pnpm typecheck` | 0 | 1.9 | no |
+| `pnpm lint` | 0 | 19.5 | no |
 | `pnpm format:check` | 0 | 0.9 | no |
 
 **The one reduction, and why it is forced.** Running the whole suite from
@@ -327,7 +327,48 @@ README without a row here fails the run, and a row here that the README does
 not show fails it too.** T06 owns the README; the two have to change
 together, and the check is what makes that visible rather than silent.
 
-### 7.6 The default temporary directory fails on this machine
+### 7.6 The product refuses a new file under a Windows short-spelled directory
+
+**Measured here, and it is the defect the task breakdown's §2.6 names.** On
+Windows, a directory with a long enough name is given an 8.3 short alias, and
+the product compares the **declared** spelling of a path with the **resolved**
+spelling of its root. A path that does not exist yet keeps its short
+spelling — there is nothing for the OS to expand — while the root exists and
+comes back long-spelled, so two spellings of one directory are compared as if
+they were two directories.
+
+The probe, on this machine, against the product's own path layer
+(`labcairn.security.paths.canonicalize`):
+
+```
+long  : C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test
+short : C:\Users\pc\AppData\Local\Temp\A-VERY~1
+root  : C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test
+declared with the SHORT spelling: REFUSED (outside_every_root)
+declared with the LONG spelling: accepted, key = outputs/summary.md
+```
+
+**The walk works around it, and says that it does.** The script resolves its
+work root before it makes anything under it, so the whole walk runs in one
+spelling — and the report carries both spellings, so a reader can see whether
+the workaround was needed on the machine that ran it.
+
+**And the walk survives it.** The run in §1 was made with a work root that
+has no short spelling, so it does not exercise the defect. So the walk was
+run again with a work root **given in the short form**, and it held:
+
+| | |
+|---|---|
+| The work root as given | `C:\Users\pc\AppData\Local\Temp\A-VERY~1\outsider-t03` |
+| The work root the walk used | `C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test\outsider-t03` |
+| The result | **115 checks, all held**, in 215.5 s, at commit `2d968d2` |
+
+**What is the script's and what is the product's.** The workaround is the
+script's. **The product's defect is still there**, and it is T02's to fix in
+the path layer: the declared spelling and the root have to be compared in one
+spelling. This work order does not fix it, and does not pretend to.
+
+### 7.7 The default temporary directory fails on this machine
 
 `uv run pytest` as the README writes it fails here with `WinError 5` unless
 `TEMP` and `TMP` point at a directory outside any repository. The script sets
@@ -402,15 +443,26 @@ file's other numbers were read out of the CI log's. `test_outsider_path.py`'s
 cost is almost all of one thing: the run it makes, which is the script's
 170.5 s.
 
-**The Ubuntu column is a stated limit, not a measurement.** The costs in the
-shard file are read out of the CI log's durations section, because a
-development machine with other work on it gives a different answer. The two
-numbers above were measured on this Windows machine, and **the Ubuntu entries
-are the Windows measurements carried over**. That is the conservative
-direction — a file that costs more than it does makes its shard look dearer
-than it is, and the balance check compares shards within one platform — but
-it is a number that was not measured on the platform it is used for, and the
-next runner that reports the real figures should replace it.
+**The witness was measured twice.** 157.3 s on the tree before the base was
+merged, and 152.6 s on the merged tree (in a run that also carried the shard
+coverage's nine checks, which cost a tenth of a second between them). The
+recorded number is the first, and the two agree within the noise of a machine
+that was running four other suites.
+
+**Only this work order's own file is a development-machine measurement.**
+The other 102 files' costs are the base's own runner re-measurement (the
+shard file's `measured_at` names the commit they were measured at), and this
+work order's file was measured here, on Windows, while four other suites were
+running on the same machine — so its number is an upper bound, and the
+**Ubuntu entry is the Windows measurement carried over**.
+
+**That is the conservative direction** — a file that costs more than it does
+makes its shard look dearer than it is, and the balance check compares shards
+within one platform — but it is a number that was not measured on the platform
+it is used for. **The next runner that runs this file should replace it**,
+with `python .github/remeasure_shards.py <run-id>`, which reads the per-file
+seconds out of the CI log's durations section and rebuilds the partition from
+them.
 
 ---
 

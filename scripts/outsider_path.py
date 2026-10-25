@@ -1923,11 +1923,8 @@ def main() -> int:
         return 1 if error else 0
 
     repo = Path(arguments.repo).resolve()
-    work = (
-        Path(arguments.work_root).resolve()
-        if arguments.work_root
-        else default_work_root().resolve()
-    )
+    work_given = Path(arguments.work_root) if arguments.work_root else default_work_root()
+    work = work_given.resolve()
     work.mkdir(parents=True, exist_ok=True)
     # **The work root is resolved before anything is made under it.** On a
     # Windows machine whose temporary directory is spelled in the 8.3 short
@@ -1939,7 +1936,7 @@ def main() -> int:
     # throughout, and the product's defect is still a defect -- this is the
     # script working around it, and the acceptance record says so.
     resolved_work = work.resolve()
-    short_spelled = str(resolved_work) != str(work)
+    short_spelled = str(resolved_work) != str(work_given)
     work = resolved_work
     recorder = Recorder("clone")
 
@@ -1993,6 +1990,11 @@ def main() -> int:
         # refuses a new file under a short-spelled root (§2.6 of the task
         # breakdown).
         "work_root_was_short_spelled": short_spelled,
+        # The spelling the run was given, beside the one it used. The two
+        # differ on a Windows machine whose temporary directory is spelled in
+        # the 8.3 short form, and the difference is the whole of the
+        # workaround: the walk uses the resolved spelling throughout.
+        "work_root_as_given": str(work_given),
         # The commit the clone was made from, read when the clone was made.
         # The repository's head at the end of the run is a different thing:
         # a run that takes three minutes can easily have a commit land inside

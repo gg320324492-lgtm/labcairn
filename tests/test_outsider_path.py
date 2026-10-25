@@ -185,6 +185,33 @@ def test_the_run_was_made_in_a_clean_clone(outsider_run: OutsiderRun, repo_root:
 
 
 @pytest.mark.e2e
+def test_the_walk_resolved_its_work_root(outsider_run: OutsiderRun) -> None:
+    """The walk ran in the resolved spelling of its work root, not the given one.
+
+    **This is the workaround for the product's Windows defect.** On a Windows
+    machine whose temporary directory is spelled in the 8.3 short form, the
+    product refuses a write to a new file under it: the declared path keeps the
+    short spelling and the root comes back long-spelled, so two spellings of
+    one directory are compared as two directories. The walk resolves its work
+    root before it makes anything under it, so the whole walk is in one
+    spelling.
+
+    The report carries both spellings, and this test says the walk used the
+    resolved one — which is the property the workaround exists for.
+    """
+    report = outsider_run.report
+    given = Path(report["work_root_as_given"])
+    used = Path(report["work_root"])
+    assert str(used) == str(given.resolve()), (
+        f"the walk used {used} and was given {given}; the resolved spelling is {given.resolve()}"
+    )
+    assert "work_root_was_short_spelled" in report, (
+        "the report does not say whether the work root was short-spelled, so a "
+        "reader cannot tell whether the workaround was needed"
+    )
+
+
+@pytest.mark.e2e
 def test_the_walk_ran_the_clones_own_code(outsider_run: OutsiderRun) -> None:
     """The code the walk exercised was the clone's, not the developer's.
 
