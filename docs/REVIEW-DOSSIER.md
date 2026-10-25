@@ -85,7 +85,7 @@ two-sided, and it is the one this dossier repeats rather than improves on.
 | 4 | `paper-qa` | https://github.com/Future-House/paper-qa | `57e89f7223b0960d5ee5ea048c69e3c47e088572` | **Apache-2.0 at the root; AGPL-3.0 in `packages/paper-qa-pymupdf/`** | scientific retrieval, excerpts, citation/provenance |
 | 5 | `paperspine` | https://github.com/WUBING2023/PaperSpine | `42312b8d9c76ab25990cddfd76e3622276854118` | MIT | evidence, research flow, review, deliverables |
 
-*Source for the whole table: `docs/UPSTREAM_REFERENCES.md:38`–`:48`. The licences
+*Source for the whole table: `docs/UPSTREAM_REFERENCES.md:38-48`. The licences
 were not read from repository metadata but by opening each `LICENSE` file at the
 pinned commit (`docs/UPSTREAM_REFERENCES.md:30`), and subdirectories were walked
 separately from the root (`docs/UPSTREAM_REFERENCES.md:54`).*
@@ -97,7 +97,7 @@ dependencies may carry other licences — the catalog says so itself
 ### 1.2 The four that were not cloned
 
 `opencode`, `gpt-researcher`, `storm` and `ai-scientist-v2` were catalogued but
-never cloned (`docs/UPSTREAM_REFERENCES.md:45`–`:48`). **No SHA is recorded for
+never cloned (`docs/UPSTREAM_REFERENCES.md:45-48`). **No SHA is recorded for
 them on purpose**: an invented or guessed SHA is worse than a blank, because it
 looks verifiable (`docs/UPSTREAM_REFERENCES.md:50`). They therefore contributed
 **no observation and no design** to anything in LabCairn, and nothing in this
@@ -119,7 +119,7 @@ entirely — "**a GitHub repository-level license badge is a root-directory
 statement, and a root statement is not a repository statement**"
 (`docs/UPSTREAM_REFERENCES.md:56`).
 
-| Clone | `LICENSE` files found | What they actually say (`docs/UPSTREAM_REFERENCES.md:58`–`:64`) |
+| Clone | `LICENSE` files found | What they actually say (`docs/UPSTREAM_REFERENCES.md:58-64`) |
 |---|---|---|
 | `pydantic-ai` | 8 | All MIT. No conflict. |
 | `openhands-sdk` | 3 | Root MIT plus two subdirectory MIT files; one is a test-fixture stub with no named holder. All permissive. |
@@ -155,7 +155,7 @@ or copied (`docs/UPSTREAM_REFERENCES.md:85`). §6 returns to this.
 ### 1.4 The method that produced every observation in this dossier
 
 The study followed the five-step workflow recorded at
-`docs/UPSTREAM_REFERENCES.md:114`–`:127`: state the problem in LabCairn's terms;
+`docs/UPSTREAM_REFERENCES.md:114-127`: state the problem in LabCairn's terms;
 select the relevant upstream components and inspect exact files and tests at the
 recorded SHA; write an ADR naming the upstream URL, SHA and inspected paths, the
 mechanism adopted or rejected, LabCairn's own interface and test plan, and a
@@ -197,12 +197,12 @@ Recorded in `docs/adr/ADR-0002-model-and-tool-execution-boundary.md`.
 
 | Upstream design studied | LabCairn's own contract | Where it lives | Witness |
 |---|---|---|---|
-| A tri-state cost field alongside integer token counters that default to zero | `UsageValue = Known \| Unknown`; `Unknown` carries a reason and has no numeric value, so summing over it raises rather than producing a number | `src/labcairn/core/providers/usage.py:197` (the union), `:114` (`Known`), `:159` (`Unknown`) | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_half_measured_response_leaves_the_total_unknown`, `::test_budget_module_contains_no_numeric_coercion` |
+| A tri-state cost field alongside integer token counters that default to zero | `UsageValue = Known \| Unknown`; `Unknown` carries a reason and has no numeric value, so summing over it raises rather than producing a number | `src/labcairn/core/providers/usage.py:197` (the union), `src/labcairn/core/providers/usage.py:114` (`Known`), `src/labcairn/core/providers/usage.py:159` (`Unknown`) | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_half_measured_response_leaves_the_total_unknown`, `::test_budget_module_contains_no_numeric_coercion` |
 | Capability flags resolved from the model *name* rather than probed | `ProviderCapabilities` + `ProviderProbe`: real requests against the configured endpoint, an unprobed capability treated as unsupported, probe results cached per (endpoint, model, protocol) | `src/labcairn/providers/capabilities.py`, `src/labcairn/providers/probe.py` | `tests/test_provider_capabilities.py::test_model_profile_name_match_is_not_capability_evidence`, `::test_probe_never_reads_a_model_profile`, `::test_probe_unsupported_tool_calling_fails_closed_without_text_parsing`, `::test_capability_unverified_behaves_as_unsupported` |
 | A budget ceiling that warns and proceeds when the cost cannot be priced | Ceilings fail **closed**: an unpriced cost with a cost ceiling halts the run; an unproven usage-reporting capability blocks a token ceiling **before** the request | `src/labcairn/providers/budget.py` | `tests/test_provider_budget.py::test_cost_ceiling_fails_closed_when_price_unknown`, `::test_token_ceiling_fails_closed_when_tokens_unknown`, `tests/test_provider_adapter.py::test_capability_failure_decided_before_request_not_after` |
 | A request counter that excludes provider-side retries | `max_model_requests` bounds LabCairn-issued requests; provider attempts are recorded separately so a report can show the gap | `src/labcairn/providers/ledger.py`, `budget.py` | `tests/test_provider_budget.py::test_provider_retry_does_not_consume_model_request_budget`, `::test_the_ledger_reports_both_counters_so_a_report_can_show_the_gap` |
 | A tool-call counter that counts successes | `max_tool_calls` counts **attempts**, so a failing-tool loop is bounded | `src/labcairn/providers/budget.py` | `tests/test_provider_budget.py::test_tool_calls_are_counted_as_attempts_not_successes` |
-| A closed failure vocabulary with the third-party detail discarded | `FailureKind` + `OperationFailure`: the raw detail is redacted and only a digest is persisted | `src/labcairn/providers/errors.py:60`, `redaction.py` | `tests/test_provider_redaction.py::test_a_classified_failure_carries_no_field_that_can_hold_third_party_text`, `::test_classification_uses_the_status_code_and_discards_the_body` |
+| A closed failure vocabulary with the third-party detail discarded | `FailureKind` + `OperationFailure`: the raw detail is redacted and only a digest is persisted | `src/labcairn/providers/errors.py:60`, `src/labcairn/providers/redaction.py:119` | `tests/test_provider_redaction.py::test_a_classified_failure_carries_no_field_that_can_hold_third_party_text`, `::test_classification_uses_the_status_code_and_discards_the_body` |
 
 **Why this is an independent implementation and not a port.** The upstream
 vocabulary does not survive into LabCairn: upstream's confirmation policy returns
@@ -326,7 +326,7 @@ can see that the study was not one-sided.
 - **The `paper-qa-pymupdf` AGPL subpackage — refused.** Study-only, and no design
   conclusion in ADR-0004 is sourced from it (`docs/UPSTREAM_REFERENCES.md:75`).
 - **The AI-Scientist v2 custom licence — refused by default**, on the grounds
-  recorded at `docs/UPSTREAM_REFERENCES.md:48` and `:87`.
+  recorded at `docs/UPSTREAM_REFERENCES.md:48` and `docs/UPSTREAM_REFERENCES.md:87`.
 - **Copyleft hidden behind a permissive root line — refused twice more**, in
   ADR-0012 and ADR-0013, for report and chart libraries that bundle fonts or
   copyleft components under their own terms. That is the paper-qa failure mode
@@ -397,7 +397,7 @@ two it is in every case.
 **The upstream trees are also not a build input.** The exclusion checklist
 requires that the reference clones live outside the repository and that
 `git ls-files`, the built sdist and the built wheel contain no reference path
-(`docs/UPSTREAM_REFERENCES.md:163`, `:164`), and it records that the sibling
+(`docs/UPSTREAM_REFERENCES.md:163`, `docs/UPSTREAM_REFERENCES.md:164`), and it records that the sibling
 directory is itself unprotected because `.gitignore` does not reach above its own
 directory (`docs/UPSTREAM_REFERENCES.md:173`). `tests/test_no_reference_leakage.py`
 is what turns that from a promise into a gate — 26 test functions, measured
@@ -410,7 +410,7 @@ the other half.** `docs/UPSTREAM_REFERENCES.md:185` records "no hard runtime/CI
 dependency on reference clones" as only partially testable at LC-P1-00, because
 there was no build system. There is now: a Hatchling build with an explicit
 recursive package root, and the `reference-exclusion` required status check
-(`docs/UPSTREAM_REFERENCES.md:191`, `:192`). An external contributor can build
+(`docs/UPSTREAM_REFERENCES.md:191`, `docs/UPSTREAM_REFERENCES.md:192`). An external contributor can build
 LabCairn without any of the five clones present.
 
 ### 4.3 Tier 2, stated plainly: `pydantic-ai` is an installed dependency
@@ -421,11 +421,11 @@ read carelessly, so it is written down rather than left for a reader to discover
 - `pydantic-ai>=1,<2` is a **declared runtime dependency** in `pyproject.toml`,
   resolved in `uv.lock`, and installed from the package index.
 - It is **imported in three modules**, all of them inside the provider layer:
-  `src/labcairn/providers/pydantic_models.py:137`–`:138` and `:149`–`:150`, which
+  `src/labcairn/providers/pydantic_models.py:137-138` and `src/labcairn/providers/pydantic_models.py:149-150`, which
   construct the upstream model object for the Anthropic and OpenAI-compatible
-  protocols; `src/labcairn/providers/probe.py:473`–`:476`, which builds the
+  protocols; `src/labcairn/providers/probe.py:473-476`, which builds the
   request objects the capability probes send; and
-  `src/labcairn/providers/adapter.py:520`–`:523`, where the adapter builds the
+  `src/labcairn/providers/adapter.py:520-523`, where the adapter builds the
   upstream request and calls the upstream model before **translating** the
   upstream response into LabCairn's own `ModelResponse`.
 - **No upstream file is in this repository.** The dependency is used as a library
@@ -513,6 +513,28 @@ exists to fail if LabCairn ever starts believing a model name, and
 LabCairn ever starts resolving rules first-match-wins. **A refusal that nothing
 watches is a preference, and this repository does not ship preferences.**
 
+### 5.4 This dossier's own witness
+
+`tests/test_review_dossier.py` watches this document. It checks that every
+`path:line` the dossier names resolves to a file this repository owns and a
+line inside it; that every test it cites as a witness exists; that every ADR it
+names exists; that every relative link resolves and stays inside the
+repository; that the five upstream repositories agree with
+`docs/UPSTREAM_REFERENCES.md` in name, URL, commit SHA and licence; that the
+dossier names a commit SHA **only** for a repository that was actually cloned;
+and that it names no path into the reference clones.
+
+**Its own citations were mutation-checked.** Five deliberate corruptions were
+applied to this document, one at a time, and each turned the witness red:
+
+| Mutation | The test that caught it |
+|---|---|
+| An upstream anchor moved to the neighbouring line | `test_the_dossier_cites_each_load_bearing_anchor_as_often_as_it_claims` |
+| A once-cited upstream anchor moved to the neighbouring line | the same |
+| A commit SHA written wrong (one character) | `test_the_dossier_names_a_sha_only_for_a_repository_that_was_cloned` |
+| A LabCairn citation pointed past the end of its file | `test_every_citation_resolves_to_a_file_and_a_line` |
+| A witness test named with a function that does not exist | `test_every_cited_test_function_exists` |
+
 ---
 
 ## 6. The security boundary this dossier does not cross
@@ -583,10 +605,13 @@ Stated plainly, because a dossier that lists only its strengths is a brochure.
    stated at `dd08573`. A later change can make this document wrong, and the
    project rule applies to it as to everything else: *a value that can change is
    re-measured, not carried forward.*
-6. **The dossier has no witness of its own yet.** §4.2's checks were run by hand
-   for this document; they are not yet a test that fails when they stop being
-   true. That is a real gap, and it is the one thing in this document that the
-   project would want closed before the alpha ships.
+6. **This dossier's citations are watched; its sentences are not.**
+   `tests/test_review_dossier.py` checks that every citation resolves, that the
+   five upstream repositories agree with the catalogue, and that no path into
+   the reference clones is named. It does **not** watch the prose: a test that
+   watched sentences would be watching its own imagination, and a rewrite that
+   changed nothing true would turn it red. What is checked here is what a
+   reader follows.
 
 ---
 
