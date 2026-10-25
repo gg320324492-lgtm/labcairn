@@ -34,9 +34,11 @@
 # ============================================================================
 # Measured, not assumed: the build backend's source-distribution target does
 # NOT consult `.gitignore`. A file that git ignores — `web/node_modules/`
-# after a pnpm install, a stray `*.db` — lands in the source distribution
-# unless the backend excludes it by name. Only a fixed set (`dist`, `build`,
-# `.venv`, `__pycache__`, …) is excluded by default.
+# after a pnpm install, a stray `*.db`, a `build/` directory — lands in the
+# source distribution unless the backend excludes it by name. The default
+# exclusions are a short fixed list: `dist/`, `.venv/`, `__pycache__/` and
+# `*.pyc` were excluded when the same files were planted, and nothing else
+# was.
 #
 # So the artefacts are built while the working tree is still exactly the
 # checkout, and the member-list check below compares them against

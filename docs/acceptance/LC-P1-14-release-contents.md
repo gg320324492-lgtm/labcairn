@@ -111,23 +111,34 @@ the wheel's licence directory, and the wheel's metadata records it as
 Measured, by planting files and building:
 
 ```bash
-mkdir -p web/node_modules/fakepkg && echo x > web/node_modules/fakepkg/index.js
+mkdir -p web/node_modules/fakepkg build/x .venv/y pkg/__pycache__
+echo x > web/node_modules/fakepkg/index.js
+echo x > build/x/f.txt
+echo x > .venv/y/f.txt
 echo x > probe.db
+echo x > probe.pyc
+echo x > pkg/__pycache__/m.cpython-312.pyc
 uv build
-tar -tzf dist/labcairn-0.1.0.tar.gz | grep -E "node_modules|probe.db"
+tar -tzf dist/labcairn-0.1.0.tar.gz | grep -E "node_modules|build/|\.venv/|__pycache__|probe"
 ```
 
 Actual output:
 
 ```
+labcairn-0.1.0/build/x/f.txt
 labcairn-0.1.0/probe.db
 labcairn-0.1.0/web/node_modules/fakepkg/index.js
 ```
 
+`.venv/`, `__pycache__/` and `*.pyc` are in none of it — those three **are**
+excluded by default. `build/`, `node_modules/` and `*.db` are not.
+
 Both are ignored by git (`*.db` and `node_modules/` in `.gitignore`) and
-**both are in the distribution anyway**. Only a fixed set is excluded by
-default — `dist`, `build`, `.venv`, `__pycache__`, `*.pyc` — and `probe.db`
-and `web/node_modules/` are not in it.
+**both are in the distribution anyway**. The default exclusions are a short
+fixed list — `dist/`, `.venv/`, `__pycache__/` and `*.pyc` were excluded when
+the same files were planted — and `probe.db` and `web/node_modules/` are not
+in it. **`build/` is not in it either**: a planted `build/x/f.txt` landed in
+the distribution as well, and `.gitignore` ignores `build/` too.
 
 **Why this matters for the release, and it is not a theoretical concern:**
 `pnpm install --frozen-lockfile` writes `web/node_modules/` into the working
