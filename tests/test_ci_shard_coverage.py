@@ -54,7 +54,6 @@ WORKFLOW_FILE: Final[Path] = Path(".github") / "workflows" / "python.yml"
 PLATFORMS: Final[tuple[str, ...]] = ("ubuntu-latest", "windows-latest")
 
 
-
 def _shard_document(repo_root: Path) -> dict[str, Any]:
     path = repo_root / SHARD_FILE
     assert path.is_file(), f"the CI workflow reads {SHARD_FILE}, and it is not there"
