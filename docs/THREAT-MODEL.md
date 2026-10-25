@@ -131,6 +131,8 @@ Writes outside that path, in the whole of `src/`:
 | **Session token file** | `src/labcairn/api/session.py:88-107` | The service's own secret, under `<workspace>/.labcairn/`. Not a task artefact — an artefact is something a report may cite, and a session secret must never be counted as a finding (`src/labcairn/api/session.py:28-37`). |
 | **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:258-277` | The user's own configuration, written by `labcairn init`. |
+| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `:190-191` | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:359-363` | `labcairn init` creates the workspace, its materials directory and its output directory. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
 ### 1.3 Path escape and the symlink question
