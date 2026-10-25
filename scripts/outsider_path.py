@@ -534,6 +534,99 @@ def check_the_command_table(clone: Path, recorder: Recorder) -> list[str]:
     return documented
 
 
+def _parse_version(text: str) -> tuple[int, ...] | None:
+    """A dotted version as a tuple of numbers, or ``None`` if it is not one."""
+    cleaned = text.strip().lstrip("vV")
+    parts = cleaned.split(".")
+    if not parts or not all(part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def satisfies(version_text: str, requirement: str) -> bool | None:
+    """Whether a version satisfies a range, or ``None`` when it is not one this reads.
+
+    The ranges the repository writes are space-separated comparators --
+    ``">=24.16.0 <25"`` -- and this reads those and nothing else. **A range it
+    does not understand is reported as unknown rather than guessed at**: a
+    check that said "no" about a range it could not read would refuse a
+    machine that could have run the command.
+    """
+    version = _parse_version(version_text)
+    if version is None:
+        return None
+    for comparator in requirement.split():
+        operator = "="
+        bound_text = comparator
+        for candidate in (">=", "<=", "==", ">", "<", "="):
+            if comparator.startswith(candidate):
+                operator = candidate
+                bound_text = comparator[len(candidate) :]
+                break
+        bound = _parse_version(bound_text)
+        if bound is None:
+            return None
+        length = max(len(version), len(bound))
+        left = version + (0,) * (length - len(version))
+        right = bound + (0,) * (length - len(bound))
+        if operator == ">=" and left < right:
+            return False
+        if operator == ">" and left <= right:
+            return False
+        if operator == "<=" and left > right:
+            return False
+        if operator == "<" and left >= right:
+            return False
+        if operator in ("=", "==") and left != right:
+            return False
+    return True
+
+
+def the_web_environment(web: Path) -> tuple[bool, str]:
+    """Whether this machine can run the web package's commands, and why not.
+
+    **The web package declares what it needs** -- ``web/package.json``'s
+    ``engines`` says which Node and which pnpm -- and a machine that does not
+    meet them cannot run its commands: pnpm refuses the install with
+    ``ERR_PNPM_UNSUPPORTED_ENGINE``, and the refusal is about the machine and
+    not about the repository.
+
+    That is the CI runner's situation: the ``python`` workflow installs
+    Python and uv and runs the suite, and the runner's own Node is not the
+    version the web package pins. The web workflow is where the web package's
+    commands are run, with the Node it asks for.
+
+    So the sweep asks this question first, and **the answer is recorded
+    rather than the command being failed**: a command that this machine
+    cannot run is not a command that did not work.
+    """
+    manifest = json.loads((web / "package.json").read_text(encoding="utf-8"))
+    engines = manifest.get("engines", {})
+    node_requirement = engines.get("node")
+    if shutil.which("node") is None:
+        return False, (
+            "there is no node on this machine, and web/package.json asks for "
+            f"node {node_requirement!r}. The web package's commands are the "
+            "web-quality workflow's job."
+        )
+    node_version = run(
+        resolve_argv(("node", "--version")),
+        web,
+        child_environment(web.parent),
+        60.0,
+    )
+    running = node_version.stdout.strip()
+    if node_requirement:
+        allowed = satisfies(running, node_requirement)
+        if allowed is False:
+            return False, (
+                f"the node on this machine is {running} and web/package.json "
+                f"asks for {node_requirement!r}. The web package's commands are "
+                "the web-quality workflow's job."
+            )
+    return True, ""
+
+
 def the_pinned_pnpm(web: Path) -> str:
     """The pnpm version ``web/package.json`` pins.
 
@@ -641,9 +734,28 @@ def sweep_the_readme_commands(
 
     web_prefix: list[str] = []
     web_origin = ""
+    web_reason = ""
     if any(command.argv[0] == "pnpm" for command in README_COMMANDS):
-        web_prefix, web_origin = the_web_package_manager(work, clone / "web")
-        print(f"  pnpm       : {' '.join(web_prefix)} ({web_origin})")
+        if mode != "reviewer":
+            # **The web package's commands are the web workflow's job.** The
+            # `python` workflow is not the `web` workflow, and running the
+            # web package's five commands in every Python shard installs its
+            # dependency tree twelve times to prove what the web workflow
+            # proves once. So the witness mode does not run them, and says so;
+            # the reviewer mode runs them, and the record says which mode
+            # measured what.
+            web_reason = (
+                "the web package's commands are the web-quality workflow's job, and "
+                "this is the witness mode; the reviewer mode runs them"
+            )
+            print(f"  pnpm       : not run in the {mode} mode - {web_reason}")
+        else:
+            runnable, web_reason = the_web_environment(clone / "web")
+            if runnable:
+                web_prefix, web_origin = the_web_package_manager(work, clone / "web")
+                print(f"  pnpm       : {' '.join(web_prefix)} ({web_origin})")
+            else:
+                print(f"  pnpm       : not run here - {web_reason}")
 
     for command in README_COMMANDS:
         reduced = mode != "reviewer" and command.in_suite_argv is not None
@@ -655,6 +767,25 @@ def sweep_the_readme_commands(
         before = {name: (workdir / name).read_bytes() for name in command.unchanged}
 
         printable = " ".join(argv)
+        if command.argv[0] == "pnpm" and not web_prefix:
+            # The machine cannot run this command, and the reason is
+            # recorded rather than the command being failed.
+            print(f"  not run    : {command.documented} - {web_reason}")
+            results.append(
+                {
+                    "documented": command.documented,
+                    "argv": list(argv),
+                    "cwd": command.cwd,
+                    "ran": False,
+                    "reason": web_reason,
+                    "web_package_manager": "",
+                    "exit_code": None,
+                    "seconds": 0.0,
+                    "stdout_tail": "",
+                    "stderr_tail": "",
+                }
+            )
+            continue
         print(f"  running    : {printable}  (in {command.cwd})")
         started = time.monotonic()
         result = run(resolve_argv(argv), workdir, environment, command.timeout_s)
@@ -666,7 +797,12 @@ def sweep_the_readme_commands(
         recorder.check(
             f"the README's `{command.documented}` succeeded",
             result.returncode == 0,
-            f"exit {result.returncode}; {result.stderr.strip()[-400:]}",
+            # **Both streams.** pnpm writes its progress and its errors to
+            # standard output, so a detail built from the error stream alone
+            # says "exit 1" and nothing else -- which is a failure report
+            # that cannot be acted on.
+            f"exit {result.returncode}; "
+            f"{result.stdout.strip()[-600:]}; {result.stderr.strip()[-600:]}",
         )
         recorder.check(
             f"the README's `{command.documented}` left the lockfiles alone",
@@ -678,6 +814,8 @@ def sweep_the_readme_commands(
             {
                 "documented": command.documented,
                 "argv": list(argv),
+                "ran": True,
+                "reason": "",
                 "web_package_manager": web_origin if command.argv[0] == "pnpm" else "",
                 "cwd": command.cwd,
                 "reduced": reduced,

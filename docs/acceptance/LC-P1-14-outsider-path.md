@@ -26,13 +26,13 @@ quoted; the run's own command lines, exit codes and seconds are in §4.
 |---|---|
 | The script | `scripts/outsider_path.py` |
 | The witness | `tests/test_outsider_path.py` |
-| The mode | `witness` — see §4 for the one reduction it applies |
-| The work root | `E:\labcairn-local\outsider-t03` — outside the repository, and outside every other repository |
-| The clone | `E:\labcairn-local\outsider-t03\clone` |
-| The workspace | `E:\labcairn-local\outsider-t03\workspace` — **outside** the clone and outside the checkout |
+| The mode | **`reviewer`** — every command the README shows, as the README writes it (§4) |
+| The work root | `E:\labcairn-local\outsider-reviewer` — outside the repository, and outside every other repository |
+| The clone | `E:\labcairn-local\outsider-reviewer\clone` |
+| The workspace | `E:\labcairn-local\outsider-reviewer\workspace` — **outside** the clone and outside the checkout |
 | The machine | Windows 11 Pro 10.0.26200, `uv 0.11.21`, Node v24.16.0, pnpm 9.15.9, Python 3.12.13 |
-| The commit cloned | `7e24e16fd32271d8033511b025ea7295802a646d` |
-| The run | **115 checks, all held**, in **139.4 s** (the clone itself 0.8 s) — see the note below on what this machine was doing |
+| The commit cloned | `92cc92025ac6d2a8186805ae808d80da7c6287de` |
+| The run | **115 checks, all held**, in **1573.2 s** — of which the whole suite in the clone is 1501.4 s |
 
 To run it yourself:
 
@@ -155,27 +155,34 @@ with the script's table in both directions: a command the README shows that
 the script does not run is a failure, and a row in the table that the README
 does not show is a failure too. The table is fail-closed.
 
-| The README's command | Exit | Seconds | Reduced in the witness run? |
-|---|---|---|---|
-| `uv sync` | 0 | 9.1 | no |
-| `uv run pytest` | 0 | 24.9 | **yes — `--collect-only -q tests`** |
-| `uv run ruff check .` | 0 | 0.4 | no |
-| `uv run ruff format --check .` | 0 | 0.1 | no |
-| `uv run mypy` | 0 | 47.0 | no |
-| `uv run labcairn --help` | 0 | 0.6 | no |
-| `pnpm install --frozen-lockfile` | 0 | 2.5 | no |
-| `pnpm test` | 0 | 2.2 | no |
-| `pnpm typecheck` | 0 | 1.6 | no |
-| `pnpm lint` | 0 | 4.0 | no |
-| `pnpm format:check` | 0 | 0.9 | no |
+| The README's command | Exit | Seconds |
+|---|---|---|
+| `uv sync` | 0 | 12.8 |
+| `uv run pytest` | 0 | **1501.4** |
+| `uv run ruff check .` | 0 | 0.1 |
+| `uv run ruff format --check .` | 0 | 0.1 |
+| `uv run mypy` | 0 | 1.9 |
+| `uv run labcairn --help` | 0 | 0.6 |
+| `pnpm install --frozen-lockfile` | 0 | 2.7 |
+| `pnpm test` | 0 | 2.4 |
+| `pnpm typecheck` | 0 | 1.5 |
+| `pnpm lint` | 0 | 3.8 |
+| `pnpm format:check` | 0 | 1.0 |
 
-**The one reduction, and why it is forced.** Running the whole suite from
-inside the suite would recurse: `tests/test_outsider_path.py` runs the script,
-which runs the suite, which runs `tests/test_outsider_path.py`. The witness
-mode therefore runs `uv run pytest --collect-only -q tests`, and **the
-reduction is recorded in the report against the command it applies to** — so a
-witness run can never be read as a full-suite run. The reviewer mode runs
-`uv run pytest` as the README writes it.
+**Two modes, and two reductions.** The `reviewer` mode is the one a person
+runs, and the table above is it: **every command the README shows, as the
+README writes it, including the whole suite in the clone** (1501.4 s of the
+1573.2 s the run took).
+
+The `witness` mode is the one a test runs, twelve times over in the CI's
+shards, and it reduces two of them — and **each reduction is recorded in the
+report against the command it applies to**, so a witness run can never be read
+as a reviewer run:
+
+| The reduction | Why | What it does instead |
+|---|---|---|
+| `uv run pytest` | running the whole suite from inside the suite would recurse: `tests/test_outsider_path.py` runs the script, which runs the suite, which runs that file's own test | `uv run pytest --collect-only -q tests` |
+| the five `pnpm` commands | they are the `web-quality` workflow's job, and the `python` workflow is not the `web` workflow; installing the web package's dependency tree in every Python shard proves once what the web workflow proves once | they are recorded as **not run, with the reason** (§7.8) |
 
 **The lockfiles were watched too.** `uv sync` and `pnpm install
 --frozen-lockfile` must leave `uv.lock` and `web/pnpm-lock.yaml`
@@ -368,17 +375,35 @@ script's. **The product's defect is still there**, and it is T02's to fix in
 the path layer: the declared spelling and the root have to be compared in one
 spelling. This work order does not fix it, and does not pretend to.
 
-### 7.8 The CI's Python job has Node but not pnpm
+### 7.8 The CI's Python job has neither pnpm nor the web package's Node
 
 **Found on CI, and it is an environment difference rather than a defect in the
 walk.** The `python` workflow installs Python and uv and runs the suite; pnpm
-lives in the `web` workflow, where `pnpm/action-setup` installs it. So a
-runner that runs the Python suite has Node and no pnpm, and the walk's sweep
-of the README's web commands could not run them — the report had no `clone`
-key and the witness failed on a `KeyError`.
+lives in the `web` workflow, where `pnpm/action-setup` installs it and
+`actions/setup-node` pins Node 24.16.0. So a runner that runs the Python
+suite has **the runner's own Node and no pnpm**, and the walk's sweep of the
+README's web commands could not run them — the report had no `clone` key and
+the witness failed on a `KeyError`.
 
-**The script now gets pnpm itself**, in the order that is cheapest and most
-likely to work, and **the version is the repository's own pin** — read out of
+**Then the install itself failed**, with corepack having enabled pnpm
+successfully. The web package declares `"node": ">=24.16.0 <25"`, and the
+Python job never asked for that Node.
+
+**Two decisions came out of it.**
+
+**The first is what the walk does about a machine that cannot run the web
+package's commands.** The web package's five commands are the **`web-quality`
+workflow's job**: the `python` workflow is not the `web` workflow, and
+running them in every Python shard installs the web package's dependency tree
+twelve times to prove what the web workflow proves once. **So the witness
+mode does not run them, and says so per command in the report**, and **the
+reviewer mode runs them** — the mode a person runs, and where §4's
+measurement comes from. That is the same kind of reduction the whole-suite
+command already had, and it is recorded the same way.
+
+**The second is that the script obtains pnpm itself** when the machine has
+Node but no pnpm, in the order that is cheapest and most likely to work, and
+**the version is the repository's own pin** — read out of
 `web/package.json`'s `packageManager` field rather than written down twice:
 
 | | |
@@ -387,9 +412,9 @@ likely to work, and **the version is the repository's own pin** — read out of
 | 2. `corepack enable pnpm` | Node's own mechanism, which uses the version `packageManager` pins |
 | 3. `corepack pnpm` | the same thing without writing a shim, for a Node whose directory is not writable |
 | 4. `npm install` of that same pinned version into the work root | needs nothing but npm |
-| none of them | the run **refuses**, naming what is missing |
+| none of them | the commands are recorded as not run, with the reason |
 
-**The fallbacks were measured**, on this machine, with the tool removed from
+**Both fallbacks were measured**, on this machine, with the tool removed from
 `PATH`:
 
 | The machine had | The walk ran the web commands with | The result |
@@ -397,22 +422,17 @@ likely to work, and **the version is the repository's own pin** — read out of
 | no pnpm, corepack yes | `corepack pnpm`, using the pnpm@9.15.9 `web/package.json` pins | **115 checks, all held**; all five web commands ran and exited 0 |
 | no pnpm, no corepack, npm yes | `npm install` of the same pinned version into the work root | **115 checks, all held**; all five web commands ran and exited 0 |
 
-**A refusal is not a skip.** The sweep's claim is that every command the
-README shows ran, and a command that could not be run is a command that did
-not work — so the script refuses rather than quietly dropping the web
-commands, and the refusal names what is missing in the README's own words.
-The witness skips, loudly and with the reason, only on a machine that has no
-pnpm, no corepack and no npm at all: a machine that has not met the README's
-own stated requirements. That mirrors what `tests/test_readme_accuracy.py`
-does with the same commands, and a CI runner has Node, so the skip does not
-happen there.
+**And a failing command now says what it said.** pnpm writes its progress
+and its errors to standard output, so a failure report built from the error
+stream alone reads *"exit 1"* and nothing else — which is a failure nobody
+can act on. The detail carries **both** streams now.
 
-**What it costs.** Each Python shard now downloads pnpm and the web package's
-dependency tree, because the sweep runs `pnpm install --frozen-lockfile` in
-the clone. That is the same work the web workflow already does once, done
-twelve times — and it is the cost of the claim that the README's commands
-work in a clean clone. **A runner with a warm pnpm store pays far less**, and
-the store is what the web workflow caches.
+**What is left to the owner.** `pnpm format:check` is a command the README
+documents, and **no CI workflow runs it**: the `web` workflow runs install,
+typecheck, lint, test and build, and the Python suite runs it only on a
+machine that has pnpm — which a runner does not. That gap is not this work
+order's to close (the workflows are not its files), and it is named here
+rather than left for the next reader to find.
 
 ### 7.9 The default temporary directory fails on this machine
 
@@ -432,7 +452,7 @@ already say why. This is a fact about this machine, not about the README.
 | `test_the_outsiders_path_runs_and_every_claim_holds` | the exit code is zero, and every claim the run recorded held |
 | `test_the_run_was_made_in_a_clean_clone` | the clone was outside the repository, clean, and at the same commit |
 | `test_the_walk_ran_the_clones_own_code` | the package under test was inside the clone and **not** inside the developer's repository |
-| `test_every_readme_command_was_run_in_the_clone` | the README's commands and the run's commands are **the same set**, and each exited 0 |
+| `test_every_readme_command_was_run_or_recorded_as_not_runnable` | the README's commands and the run's commands are **the same set**; each one either exited 0 or was recorded as not runnable **with a reason** — and only a web command may be the latter |
 | `test_the_witness_run_records_the_suite_reduction` | the whole-suite command's reduction is recorded, so the run cannot be read as a full-suite run |
 | `test_the_record_names_every_command_and_its_outcome` | this document names every command the run executed |
 | `test_every_claim_the_deliverable_names_was_made` | each claim the P1 deliverable names was made, and held — **including the two controls**, which are what make the comparisons between the surfaces falsifiable |
@@ -443,6 +463,7 @@ already say why. This is a fact about this machine, not about the README.
 | `test_the_extractor_reads_instructions_and_ignores_illustrations` | a ```` ```python ```` block is prose and is not run as a command |
 | `test_the_extractor_ignores_comments_and_blank_lines` | a comment in a shell block is a comment |
 | `test_the_extractor_finds_nothing_in_a_document_with_no_commands` | the control for the extractor: an empty answer is an answer |
+| `test_the_version_comparison_reads_the_ranges_the_repository_writes` | the comparison the web-environment check uses, watched — and it says *unknown* about a range it cannot read rather than guessing |
 
 ### 8.1 The mutations, and which test went red
 
@@ -491,8 +512,11 @@ file's other numbers were read out of the CI log's. `test_outsider_path.py`'s
 cost is almost all of one thing: the run it makes, which is the script's
 170.5 s.
 
-**The witness was measured four times**, and the machine was busy every
-time: **145.2 s**, **152.6 s**, **157.3 s** and **256.7 s**. The spread is the contention
+**The witness was measured five times**, and the machine was busy every
+time: **145.2 s**, **152.6 s**, **157.3 s** and **256.7 s**, and once more
+at **149.0 s** after the web commands became a recorded reduction (§7.8) —
+which is about ten seconds' worth, because the web package's dependency tree
+was already in the store. The spread is the contention
 — four other LabCairn worktrees were running their own suites throughout — and
 **the recorded number is the least-contended of the three**, because the
 shard plan's job is to predict what a runner will take, and contention only
