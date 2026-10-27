@@ -16,6 +16,8 @@ import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+import pytest
+
 from labcairn.core.ids import RunId, TaskId, new_id
 from labcairn.evidence.states import VerificationStatus
 from labcairn.skills import (
@@ -50,7 +52,6 @@ from labcairn.skills import (
     ValidationReport,
     ValidationVerdict,
 )
-import pytest
 
 pytestmark = pytest.mark.unit
 

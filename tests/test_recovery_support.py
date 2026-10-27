@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 # `env` and `frozen_clock` are imported for their fixture role, not their value:
 # pytest only sees a fixture that is present in the test module's namespace,
 # which is why the shared environment lives in an importable module rather than
@@ -64,7 +66,6 @@ from labcairn.recovery import (
 from labcairn.recovery.executor import NULL_SINK
 from labcairn.runtime.event import Event, EventTransition, EventType
 from labcairn.runtime.lifecycle import RunStatus, StageStatus
-import pytest
 
 pytestmark = pytest.mark.integration
 

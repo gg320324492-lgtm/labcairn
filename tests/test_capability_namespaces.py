@@ -19,9 +19,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from labcairn.providers.capabilities import Capability as ProviderCapability
 from labcairn.security.capabilities import CapabilityId
-import pytest
 
 pytestmark = pytest.mark.unit
 

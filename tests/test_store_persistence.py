@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, NamedTuple
 
+import pytest
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from test_store_support import (  # noqa: F401
@@ -50,7 +51,6 @@ from labcairn.reports.receipt import ArtifactReceipt
 from labcairn.runtime.event import EventTransition, EventType
 from labcairn.runtime.lifecycle import Run, RunStatus, Stage, Task
 from labcairn.runtime.operation import Approval, Checkpoint, Operation
-import pytest
 
 pytestmark = pytest.mark.integration
 
