@@ -94,6 +94,17 @@ def give_this_worker_its_own_temp() -> None:
     module, which is early enough; the cache is cleared so the answer is
     computed again from the environment this has just set.
 
+    **It sets ``TMPDIR`` as well as ``TEMP`` and ``TMP``, and that is not
+    optional.** ``tempfile.gettempdir()`` consults ``TMPDIR`` **before** the
+    other two, on every platform — the candidate list is built from the
+    environment first and only then from the operating system's own
+    locations. So an ambient ``TMPDIR`` would win over the two variables
+    this function sets, every worker would be given the *same* directory, and
+    the font cache this function exists to keep apart would be written by
+    several processes at once. On a machine where ``TMPDIR`` points at
+    another project's directory, the product's ``MPL_CONFIG_DIR`` would land
+    there too.
+
     A run without ``pytest-xdist`` has no worker id, and this does nothing:
     one process keeps the ambient temp directory it already had.
 
@@ -109,10 +120,13 @@ def give_this_worker_its_own_temp() -> None:
     root = Path(os.environ.get("LABCAIRN_TEMP_ROOT", tempfile.gettempdir()))
     own = root / f"labcairn-worker-{worker}"
     own.mkdir(parents=True, exist_ok=True)
-    for name in ("TEMP", "TMP"):
+    # `TMPDIR` first, because `tempfile` reads it first. See the docstring.
+    for name in ("TMPDIR", "TEMP", "TMP"):
         os.environ[name] = str(own)
     # `tempfile` caches the directory it chose; clearing the cache makes the
-    # next reader recompute it from the environment set above.
+    # next reader recompute it from the environment set above. One assignment
+    # clears the cache for all three variables — the cache is a single
+    # module global, not one entry per variable.
     tempfile.tempdir = None
 
 

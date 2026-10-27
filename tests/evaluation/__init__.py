@@ -41,6 +41,13 @@ like-for-like.
 * :mod:`evaluation.junit` — reads pytest's JUnit XML.
 * :mod:`evaluation.corpus` — measures the corpus against the committed
   answer key.
+* :mod:`evaluation.public_corpus` — measures the **public fixture corpus**
+  against its own answer key, and it is what makes the protocol's
+  abstention metric measurable at all.
+* :mod:`evaluation.faults` — reads the crash matrix's fault-injection
+  coverage out of the matrix.
+* :mod:`evaluation.shards` — reads the required CI tests out of the CI's
+  own shard file.
 * :mod:`evaluation.aggregate` — turns outcomes into class, blocker and
   metric results.
 * :mod:`evaluation.comparison` — decides whether a baseline may be

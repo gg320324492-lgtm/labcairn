@@ -22,7 +22,14 @@ calls :func:`ensure_loopback` with ``0.0.0.0`` and requires it to raise. The
 document says *"writes land in the task output area and nowhere else"*; this
 file aims a write at a source root and requires it to be refused.
 
-The two together mean the document cannot drift away from the tree without
+**Third, it checks the document's lists.** A threat model that enumerates
+*"these are the only writes"* has made a claim that is either true of the
+tree or not, and a list nobody compares against the tree is a wish. So the
+enumeration of writes in §1.2 is scanned out of the source and compared with
+the lines the document cites, and every citation the document makes is
+checked against the set of file types the citation watcher recognises.
+
+The three together mean the document cannot drift away from the tree without
 something going red. A sentence added to the threat model with no witness
 behind it is caught by :func:`test_every_claim_in_the_witness_table_names_a_witness`.
 
@@ -89,8 +96,53 @@ from labcairn.workspace.roots import Workspace, WorkspaceError
 #: The threat model this file watches.
 THREAT_MODEL: Final[Path] = Path("docs") / "THREAT-MODEL.md"
 
+#: The file extensions a citation may name.
+#:
+#: **The watcher's reach is this list and nothing else.** A citation to a
+#: file of an extension not named here is not resolved, not refused and not
+#: evidence — it is simply never read. The list was once six extensions
+#: wide, and this document's own citation to ``pyproject.toml`` was outside
+#: it: a citation that parsed and was checked by nothing. A list that is
+#: edited by hand will fall behind the document again, so
+#: :func:`test_every_citation_in_the_document_is_watched` holds this list to
+#: the document — every ``path:line`` shape the document contains, whatever
+#: its extension, has to be one this list reaches.
+_CITED_EXTENSIONS: Final[tuple[str, ...]] = (
+    "cfg",
+    "html",
+    "ini",
+    "json",
+    "lock",
+    "md",
+    "py",
+    "toml",
+    "ts",
+    "tsx",
+    "txt",
+    "yaml",
+    "yml",
+)
+
 #: A ``path:line`` or ``path:line-line`` citation, as the document writes them.
-_CITATION = re.compile(r"`([A-Za-z0-9_./\\-]+\.(?:py|ts|tsx|md|json|html)):(\d+)(?:-(\d+))?`")
+#:
+#: Built from :data:`_CITED_EXTENSIONS` rather than written out beside it, so
+#: that the list and the pattern cannot disagree about what is watched.
+_CITATION = re.compile(
+    r"`([A-Za-z0-9_./\\-]+\.(?:"
+    + "|".join(sorted(_CITED_EXTENSIONS, key=len, reverse=True))
+    + r")):(\d+)(?:-(\d+))?`"
+)
+
+#: A ``path:line`` shape, whatever the file's extension.
+#:
+#: Used to ask what the document *cites* rather than what the watcher
+#: happens to catch, so that the two can be compared. The extension must
+#: begin with a letter, which is what keeps a host and a port
+#: (``127.0.0.1:8000``) out of the comparison.
+_CITATION_SHAPE = re.compile(r"`([A-Za-z0-9_./\\-]+\.([A-Za-z][A-Za-z0-9]*)):(\d+)(?:-(\d+))?`")
+
+#: A citation written as a line number with no file: ``:190-191``.
+_ELIDED_CITATION = re.compile(r"`:\d+(?:-\d+)?`")
 
 #: The directories a citation may name. Anything outside these is not a file
 #: this repository owns, so a citation naming one is a citation the reader
@@ -103,6 +155,14 @@ _CITABLE_ROOTS: Final[tuple[str, ...]] = (
     "web",
     "scripts",
     ".github",
+)
+
+#: The files at the repository root a citation may name. A root-level file has
+#: no directory to be checked against, so it is named here rather than
+#: inferred from a pattern.
+_CITABLE_ROOT_FILES: Final[tuple[str, ...]] = (
+    "pyproject.toml",
+    "uv.lock",
 )
 
 
@@ -189,6 +249,9 @@ def test_every_citation_names_a_file_this_repository_owns() -> None:
     A path into a site-package or a temporary directory is a citation the
     reader cannot follow from the repository they are reading, and it usually
     means the author was looking at a copy rather than at the tree.
+
+    A file at the repository root has no directory to be checked against, so
+    the ones that may be named are listed rather than inferred.
     """
     root = _repo_root()
     for path_text, _, _ in _CITATION.findall(_threat_model_text()):
@@ -196,12 +259,83 @@ def test_every_citation_names_a_file_this_repository_owns() -> None:
             f"{path_text} is an absolute path. A citation in a repository's "
             f"document is relative to the repository."
         )
-        first = path_text.replace("\\", "/").split("/")[0]
-        assert first in _CITABLE_ROOTS, (
-            f"{path_text} names a directory this repository does not own "
-            f"({', '.join(_CITABLE_ROOTS)})."
-        )
-        assert (root / path_text.replace("\\", "/")).is_file()
+        relative = path_text.replace("\\", "/")
+        first = relative.split("/")[0]
+        if "/" in relative:
+            assert first in _CITABLE_ROOTS, (
+                f"{path_text} names a directory this repository does not own "
+                f"({', '.join(_CITABLE_ROOTS)})."
+            )
+        else:
+            assert first in _CITABLE_ROOT_FILES, (
+                f"{path_text} names a file at the repository root that this "
+                f"document may not cite ({', '.join(_CITABLE_ROOT_FILES)})."
+            )
+        assert (root / relative).is_file()
+
+
+def test_every_citation_in_the_document_is_watched() -> None:
+    """Every citation the document makes is one the watcher checks.
+
+    **A citation the watcher does not recognise is not a citation that
+    failed — it is a citation that was never looked at.** The watcher
+    reaches the file types in :data:`_CITED_EXTENSIONS` and nothing else, so
+    a reference to any other kind of file would be read by nobody: not
+    resolved, not refused, not evidence. This document's own citation to
+    ``pyproject.toml`` was outside the list for exactly that reason.
+
+    The check is against the **document**, not against the list: every
+    ``path:line`` shape the document contains, whatever the extension, has
+    to be one the watcher matches. So the list cannot fall behind the
+    document again without this going red, and a new kind of file cited in
+    the document is caught here rather than being read by nobody.
+    """
+    text = _threat_model_text()
+    shapes = _citation_shapes(text)
+    assert shapes, "the threat model names no source locations at all"
+
+    watched = set(_CITATION.findall(text))
+    unwatched = [shape for shape in shapes if shape not in watched]
+    assert not unwatched, (
+        "these citations are outside the watcher's reach, so nothing checks "
+        "that they resolve:\n  " + "\n  ".join(f"{path}:{line}" for path, line, _ in unwatched)
+    )
+
+
+def test_every_citation_in_the_document_is_written_in_full() -> None:
+    """No citation names a line without naming the file it is in.
+
+    ``:190-191`` on its own is a line number with no file. The watcher
+    cannot resolve it, so it is not evidence, and a reader who follows it
+    has nowhere to go. The shorthand is easy to write and easy to leave
+    behind when the file moves, so the shorthand is what is checked.
+
+    The two references in this document that were written this way were
+    also, when written out, **pointing at the wrong lines** — which is what
+    a shorthand that nothing checks looks like from the inside.
+    """
+    elided = _ELIDED_CITATION.findall(_threat_model_text())
+    assert not elided, (
+        "these citations name a line but not the file it is in, so nothing "
+        "can resolve them:\n  " + "\n  ".join(elided)
+    )
+
+
+def _citation_shapes(text: str) -> list[tuple[str, str, str]]:
+    """Every ``path:line`` shape in *text*, whatever the file's extension.
+
+    Only the shapes that name a file this repository owns are returned. A
+    host and a port have the same shape as a citation, and a document that
+    names a web address is not making a citation.
+    """
+    root = _repo_root()
+    shapes: list[tuple[str, str, str]] = []
+    for path_text, _, start_text, end_text in _CITATION_SHAPE.findall(text):
+        relative = path_text.replace("\\", "/")
+        if "/" not in relative and not (root / relative).is_file():
+            continue
+        shapes.append((path_text, start_text, end_text))
+    return shapes
 
 
 def test_the_document_names_the_surfaces_it_must() -> None:
@@ -475,6 +609,61 @@ def test_the_output_area_is_the_only_root_a_write_may_name(tmp_path: Path) -> No
     # And the source material is byte-identical whichever way the key was
     # spelled.
     assert workspace.source_roots[0].path.joinpath("paper.txt").read_bytes() == b"original\n"
+
+
+def test_the_write_enumeration_in_the_threat_model_matches_the_tree() -> None:
+    """C15 — every write in ``src/labcairn/`` is enumerated in §1.2.
+
+    The threat model says ``workspace/outputs.py`` is the only place
+    LabCairn writes a file, and then lists the exceptions. That list is an
+    **enumeration**, and an enumeration nobody compares against the tree is
+    a wish: a seventh write, in a module the list has never heard of, would
+    leave the document true of everything it had already said and silent
+    about the thing that matters.
+
+    The check is against the tree. Every write primitive under
+    ``src/labcairn/`` must fall inside a line range that §1.2 cites, so the
+    document has to say *where* each write is — not merely that it exists.
+
+    **The scan is not allowed to be quiet.** A vocabulary that has quietly
+    stopped matching would find nothing, would find nothing *wrong*, and
+    the witness would pass while watching nothing. So the scan has to find
+    writes, has to find them in every file the enumeration names, and has
+    to find a plausible number of them.
+    """
+    sites = _write_sites()
+    assert sites, "the scan found no write primitive at all, so it is not looking for anything"
+    assert len(sites) >= 20, (
+        f"the scan found {len(sites)} write primitives under src/labcairn/. A "
+        f"vocabulary that has quietly stopped matching would find fewer, and "
+        f"a witness that finds nothing wrong passes while watching nothing."
+    )
+
+    enumerated = _enumerated_write_locations()
+    assert enumerated, "§1.2 enumerates no location under src/labcairn/"
+
+    problems: list[str] = []
+    for path_text, line, kind in sites:
+        covered = any(
+            relative == path_text and first <= line <= last for relative, first, last in enumerated
+        )
+        if not covered:
+            problems.append(f"{path_text}:{line} {kind}")
+    assert not problems, (
+        "these writes are not enumerated in §1.2 of the threat model, so the "
+        "document does not describe them:\n  " + "\n  ".join(problems)
+    )
+
+    # And every file the enumeration names has to be a file that writes. A
+    # file the enumeration names and the scan finds nothing in is either a
+    # file the scan has stopped reading or a line in the document that has
+    # gone stale, and both are worth a red.
+    for relative in sorted({relative for relative, _, _ in enumerated}):
+        assert any(path == relative for path, _, _ in sites), (
+            f"§1.2 enumerates {relative}, but no write was found in it. Either "
+            f"the scan has stopped matching, or the enumeration names a file "
+            f"that does not write."
+        )
 
 
 def test_the_mpl_config_directory_is_pinned_and_not_ambient() -> None:
@@ -1025,6 +1214,7 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         "C12": ("outbound_policy", "excerpts"),
         "C13": ("out_of_the_machine", "remote_url"),
         "C14": ("event_stream", "selects_a_workspace", "evidence_record"),
+        "C15": ("write_enumeration",),
     }
     names = " ".join(defined)
     for claim_id, words in keywords.items():
@@ -1058,6 +1248,256 @@ def test_the_threat_model_says_nothing_about_licensing() -> None:
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+
+#: The heading of the section that enumerates the writes.
+_WRITE_ENUMERATION_HEADING: Final[str] = "### 1.2 The single write path"
+
+#: The prefix of the source tree the enumeration is about, and the tree the
+#: scan walks. A citation outside it is not a write this section can speak
+#: about.
+_SOURCE_TREE_PREFIX: Final[str] = "src/labcairn/"
+
+#: Method names that write on a path object. ``str`` has none of them, and
+#: neither has ``dict`` or ``list``, so the name alone is enough.
+_PATH_WRITE_METHODS: Final[frozenset[str]] = frozenset(
+    {
+        "mkdir",
+        "rmdir",
+        "touch",
+        "unlink",
+        "write_bytes",
+        "write_text",
+    }
+)
+
+#: Method names that write **only** when they take a single positional
+#: argument. ``Path.replace(target)`` renames a file; ``str.replace(old, new)``
+#: substitutes text; ``datetime.replace(year=...)`` sets a field. The
+#: argument shape is what tells them apart, so it is measured rather than
+#: assumed.
+_PATH_RENAME_METHODS: Final[frozenset[str]] = frozenset({"rename", "replace"})
+
+#: Functions that write, by the module they are reached through.
+_MODULE_WRITE_CALLS: Final[dict[str, frozenset[str]]] = {
+    "os": frozenset(
+        {
+            "fdopen",
+            "link",
+            "makedirs",
+            "mkdir",
+            "open",
+            "remove",
+            "rename",
+            "replace",
+            "rmdir",
+            "symlink",
+            "truncate",
+            "unlink",
+            "write",
+        }
+    ),
+    "shutil": frozenset(
+        {
+            "copy",
+            "copy2",
+            "copyfile",
+            "copytree",
+            "move",
+            "rmtree",
+        }
+    ),
+    "sqlite3": frozenset({"connect"}),
+    "sqlalchemy": frozenset({"create_engine", "make_engine"}),
+}
+
+#: Names that write however they were imported.
+_BARE_WRITE_CALLS: Final[frozenset[str]] = frozenset(
+    {
+        "create_engine",
+        "makedirs",
+        "make_engine",
+        "mkdir",
+        "remove",
+        "rmdir",
+        "unlink",
+        "write_bytes",
+        "write_text",
+    }
+)
+
+#: The characters a file mode may be written in.
+_MODE_CHARACTERS: Final[frozenset[str]] = frozenset("rbtwax+c")
+
+#: The characters that mean "this call may write".
+_WRITE_MODE_CHARACTERS: Final[frozenset[str]] = frozenset("wax+")
+
+#: The flags that mean ``os.open`` is opening the file to write it.
+_WRITE_OPEN_FLAGS: Final[tuple[str, ...]] = (
+    "O_APPEND",
+    "O_CREAT",
+    "O_RDWR",
+    "O_TRUNC",
+    "O_WRONLY",
+)
+
+#: The calls that write a file when they are handed a path — a figure, an
+#: image — and write nothing when they are handed a buffer.
+_IMAGE_WRITERS: Final[frozenset[str]] = frozenset({"imsave", "imwrite", "savefig"})
+
+#: The calls that build a path.
+_PATH_FACTORIES: Final[frozenset[str]] = frozenset({"Path", "fspath", "join", "str"})
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of the section that starts at *heading*.
+
+    Read from the heading to the next heading of the same level, so that a
+    section which grows does not quietly stop being read.
+    """
+    start = text.index(heading)
+    rest = text[start + len(heading) :]
+    end = rest.find("\n### ")
+    return rest if end == -1 else rest[:end]
+
+
+def _enumerated_write_locations() -> list[tuple[str, int, int]]:
+    """Every location the write enumeration in §1.2 names, as
+    ``(file, first line, last line)``.
+
+    Only files under ``src/labcairn/`` are returned: that is the tree the
+    enumeration is about, and the tree the scan below walks.
+    """
+    section = _section(_threat_model_text(), _WRITE_ENUMERATION_HEADING)
+    locations: list[tuple[str, int, int]] = []
+    for path_text, start_text, end_text in _CITATION.findall(section):
+        relative = path_text.replace("\\", "/")
+        if not relative.startswith(_SOURCE_TREE_PREFIX):
+            continue
+        first = int(start_text)
+        locations.append((relative, first, int(end_text) if end_text else first))
+    return locations
+
+
+def _write_sites() -> list[tuple[str, int, str]]:
+    """Every write primitive under ``src/labcairn/``, as
+    ``(file, line, what it is)``.
+
+    The file names are spelled as the document spells them, so that the
+    comparison below is between two spellings of the same thing.
+    """
+    root = _repo_root() / "src" / "labcairn"
+    sites: list[tuple[str, int, str]] = []
+    for path in sorted(root.rglob("*.py")):
+        relative = path.relative_to(root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            kind = _write_primitive(node)
+            if kind is not None:
+                sites.append((f"{_SOURCE_TREE_PREFIX}{relative}", node.lineno, kind))
+    return sites
+
+
+def _write_primitive(node: ast.Call) -> str | None:
+    """What *node* writes, or ``None`` if it writes nothing.
+
+    The vocabulary is of **primitives**, not of intents: a call that creates
+    a file, creates a directory, replaces a path, removes a path or opens a
+    database file is a write. A call that puts bytes into a handle that is
+    already open is not counted, because the opening is the primitive and
+    it is counted where it happens.
+    """
+    function = node.func
+    if isinstance(function, ast.Name):
+        name = function.id
+        if name in {"open", "fdopen"}:
+            return "opens a file for writing" if _mode_is_write(node, 1) else None
+        if name in _BARE_WRITE_CALLS:
+            return f"calls {name}"
+        return None
+    if not isinstance(function, ast.Attribute):
+        return None
+
+    attribute = function.attr
+    owner = function.value
+    if isinstance(owner, ast.Name) and owner.id in _MODULE_WRITE_CALLS:
+        if attribute not in _MODULE_WRITE_CALLS[owner.id]:
+            return None
+        if attribute == "open" and not _flags_are_write(node):
+            return None
+        if attribute == "fdopen" and not _mode_is_write(node, 1):
+            return None
+        return f"calls {owner.id}.{attribute}"
+    if attribute in _PATH_WRITE_METHODS:
+        return f"calls {attribute}"
+    if attribute in _PATH_RENAME_METHODS:
+        if len(node.args) == 1 and not node.keywords:
+            return f"calls {attribute}"
+        return None
+    if attribute == "open":
+        # A method named ``open`` is ``Path.open``, and it takes the mode
+        # first. The built-in ``open`` takes the path first, and reading the
+        # path as the mode would read a path called ``network`` as one.
+        return "opens a file for writing" if _mode_is_write(node, 0) else None
+    if attribute in _IMAGE_WRITERS and _first_argument_is_a_path(node):
+        return f"calls {attribute}"
+    return None
+
+
+def _mode_is_write(node: ast.Call, index: int) -> bool:
+    """Does this call open its file for writing?
+
+    The mode sits at a different position for each callee, so the position
+    is a parameter rather than a guess: the built-in ``open`` takes the path
+    first, ``os.fdopen`` takes the descriptor first, and ``Path.open`` takes
+    the mode first.
+
+    A mode is only a mode when every character in it is a mode character, so
+    a path that happens to contain a ``w`` is not read as one.
+    """
+    candidates: list[ast.expr] = []
+    if len(node.args) > index:
+        candidates.append(node.args[index])
+    candidates.extend(keyword.value for keyword in node.keywords if keyword.arg == "mode")
+    for candidate in candidates:
+        if not isinstance(candidate, ast.Constant) or not isinstance(candidate.value, str):
+            continue
+        characters = set(candidate.value)
+        if not characters or not characters <= _MODE_CHARACTERS:
+            continue
+        if characters & _WRITE_MODE_CHARACTERS:
+            return True
+    return False
+
+
+def _flags_are_write(node: ast.Call) -> bool:
+    """Does this ``os.open`` open its file to write it?"""
+    arguments = (*node.args, *(keyword.value for keyword in node.keywords))
+    for argument in arguments:
+        text = ast.unparse(argument)
+        if any(flag in text for flag in _WRITE_OPEN_FLAGS):
+            return True
+    return False
+
+
+def _first_argument_is_a_path(node: ast.Call) -> bool:
+    """Does this call name the path it writes to?
+
+    An image writer writes a file when it is given a path and writes
+    nothing when it is given a buffer, so the difference between the two is
+    exactly whether the first argument names one.
+    """
+    if not node.args:
+        return False
+    first = node.args[0]
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return True
+    return (
+        isinstance(first, ast.Call)
+        and isinstance(first.func, ast.Name)
+        and first.func.id in _PATH_FACTORIES
+    )
 
 
 def _workspace(tmp_path: Path) -> Workspace:

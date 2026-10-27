@@ -118,7 +118,8 @@
         "tests/test_provider_adapter.py",
         "tests/test_recovery_support.py",
         "tests/test_store_support.py",
-        "tests/test_provider_capabilities.py"
+        "tests/test_provider_capabilities.py",
+        "tests/test_fault_injection_e2e.py"
       ]
     ],
     "windows-latest": [
@@ -238,7 +239,8 @@
         "tests/test_source_contracts.py",
         "tests/test_ci_shard_coverage.py",
         "tests/test_provider_adapter.py",
-        "tests/test_provider_budget.py"
+        "tests/test_provider_budget.py",
+        "tests/test_fault_injection_e2e.py"
       ]
     ]
   },

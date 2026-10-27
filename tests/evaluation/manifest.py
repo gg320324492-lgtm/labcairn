@@ -278,6 +278,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # -- this harness --------------------------------------------------------
     "test_evaluation_harness.py": (REPOSITORY_CLASS, "repository-gate"),
     # -- G5's own work ------------------------------------------------------
+    "test_fault_injection_e2e.py": ("e2e", "cli-task"),
     "test_outsider_path.py": ("e2e", "fresh-install"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
@@ -330,6 +331,7 @@ METRIC_WITNESSES: Final[dict[str, tuple[str, ...]]] = {
         "test_store_atomicity.py",
         "test_recovery_resume.py",
         "test_recovery_approvals.py",
+        "test_fault_injection_e2e.py",
     ),
     "latency-usage-cost": (
         "test_fake_provider_usage.py",
@@ -380,6 +382,7 @@ BLOCKER_WITNESSES: Final[dict[str, tuple[str, ...]]] = {
         "test_recovery_crash_matrix.py",
         "test_store_atomicity.py",
         "test_recovery_resume.py",
+        "test_fault_injection_e2e.py",
     ),
     "no-verified-claim-from-rendering-checks": (
         "test_analysis_report_checks.py",

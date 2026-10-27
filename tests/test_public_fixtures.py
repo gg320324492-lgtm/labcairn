@@ -12,9 +12,10 @@ That last clause is the whole design of this file. A fixture whose expected
 answer was produced by running the product and recording what came out would
 test nothing: the product would be graded against its own output, and a
 product that returned the wrong number would be graded correct. So the two
-directions are kept apart:
+directions are kept apart -- and the key is re-derived **twice**, because one
+direction of re-derivation cannot hold the other one honest:
 
-* **The answer key is derived from the material, independently.** The
+* **The answer key is derived from the material, through the product.** The
   expected values in ``MANIFEST.json`` were computed by reading the fixture
   files, and this file re-derives them from the material through the
   product's *own* analysis operators and its *own* locator machinery --
@@ -23,6 +24,23 @@ directions are kept apart:
   a selection of cells; where the material is prose, the value is read out
   of the cited line by the text adapter. A number in the manifest that the
   material does not support fails here.
+* **The answer key is derived from the material, again, by code that is
+  not the product's.** The check above asks whether the *product* and the
+  key agree, and a key copied straight out of the product's own output
+  agrees with it perfectly well -- so on its own it cannot tell a right
+  key from the product's own mistake. So the key is read out of the
+  material a second time, with the standard library only: the tables with
+  ``csv``, the means with ``statistics``, the prose with a plain number
+  pattern, the negative fixture with raw bytes. None of that is this
+  project's code, so the key and the witness cannot share a defect.
+* **The second re-derivation takes its target from the question's id.**
+  A witness that read the *derivation* would follow the derivation, so a
+  key and a derivation rewritten together to point at another group of
+  rows would satisfy it. The id is the corpus's own vocabulary, and it
+  says what the question is about: the statistic, the column, and the
+  group (``tension.mean_peak_stress_b2`` is the mean of ``peak_stress``
+  over the rows coded ``B-2``). So the derivation is prose for a reader,
+  and it does not decide where this witness looks.
 * **The locator is resolved, not compared as a string.** Every locator in
   the manifest is parsed into a typed ``SourceLocator``, rendered to its
   canonical key, and then *resolved* against the ingested material through
@@ -48,11 +66,22 @@ The properties watched
 3. **Every answer is re-derived from the material** -- through the product's
    operators for tabular fixtures, and through the resolved text for prose
    fixtures.
-4. **The negative fixture is negative, and is not hollow.** The quantity
+4. **Every answer is re-derived again, by an implementation that is not
+   this project's.** The re-derivation above goes through the product, so a
+   key that was copied out of the product's own output would pass it. This
+   one goes through the standard library instead, and it takes its target
+   from the question's **id** rather than from its derivation, so a key and
+   a derivation rewritten together would not satisfy it. Every fixture has
+   at least one answer it covers.
+5. **The question the key answers is the question the prompt asks.** The
+   names the id determined -- the group of rows and the column, or the
+   quantity -- are named in the prompt as well, so the id cannot be moved
+   away from the question on its own.
+6. **The negative fixture is negative, and is not hollow.** The quantity
    asked about is absent; other quantities are present; and the expected
    artifact checks say the answer is an abstention.
-5. **A corrupted answer key fails.** The last test mutates a copy of the
-   manifest and shows the checking machinery notices, so a green run means
+7. **A corrupted answer key fails.** The last tests mutate a copy of the
+   manifest and show the checking machinery notices, so a green run means
    the machinery is watching rather than merely present.
 
 What this file does not do
@@ -75,13 +104,16 @@ as a whole.
 from __future__ import annotations
 
 import copy
+import csv
 import datetime as dt
 import hashlib
 import json
 import math
+import re
+import statistics
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import pytest
 from sqlalchemy.orm import Session
@@ -168,6 +200,21 @@ def _question(fixture_id: str, question_id: str) -> dict[str, Any]:
     for entry in _questions(fixture_id):
         if entry["id"] == question_id:
             return entry
+    raise AssertionError(f"fixture {fixture_id!r} has no question {question_id!r}")
+
+
+def _question_in(manifest: dict[str, Any], fixture_id: str, question_id: str) -> dict[str, Any]:
+    """One question of a manifest that is not necessarily the committed one.
+
+    The corrupted-key checks below work on a copy, so they need to reach
+    into that copy rather than into the file on disk.
+    """
+    for fixture in manifest["fixtures"]:
+        if fixture["id"] != fixture_id:
+            continue
+        for question in fixture["questions"]:
+            if question["id"] == question_id:
+                return cast(dict[str, Any], question)
     raise AssertionError(f"fixture {fixture_id!r} has no question {question_id!r}")
 
 
@@ -853,6 +900,436 @@ def test_the_prose_answers_are_re_derived_from_the_resolved_text(
 def _same_address(left: SourceLocator, right: SourceLocator) -> bool:
     """Whether two locators name the same place."""
     return render_locator_key(left) == render_locator_key(right)
+
+
+# --------------------------------------------------------------------------
+# 4b. The answers are re-derived again, by an implementation that is not the product
+# --------------------------------------------------------------------------
+
+
+def _raw_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    """A material table, read with the standard library's ``csv`` module.
+
+    Nothing of LabCairn is involved here: not the ingest path, not the
+    locator machinery, not the cell reader. The file is what it says on
+    disk, and ``csv`` is not this project's code -- so a defect in any of
+    those three cannot reach a number computed from this.
+    """
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.reader(handle))
+    assert rows, f"{path.name} holds no rows at all"
+    header = rows[0]
+    records: list[dict[str, str]] = []
+    for number, row in enumerate(rows[1:], start=2):
+        assert len(row) == len(header), (
+            f"{path.name} row {number} holds {len(row)} cells, and the header holds {len(header)}"
+        )
+        records.append(dict(zip(header, row, strict=True)))
+    return header, records
+
+
+def _raw_number(text: str) -> float:
+    """A number as the material writes it, read without a quantity reader."""
+    try:
+        return float(text)
+    except ValueError:
+        raise AssertionError(f"{text!r} is not a number") from None
+
+
+#: The statistics a question's id may name. A question whose id begins with
+#: one of these asks for that statistic over the rows the rest of its id
+#: names; a question whose id names no statistic asks for the value of the
+#: column its id names -- which is what a column every row carries is.
+STATISTICS = {"mean"}
+
+
+def _id_tokens(question_id: str) -> list[str]:
+    """The tokens of a question's id, after the prefix that names the suite.
+
+    ``tension.mean_peak_stress_b2`` says in three tokens what the
+    question is about: the statistic, the column, and the group. The id
+    is the corpus's own vocabulary for a question, and it is what this
+    witness reads -- **not** the derivation, which is prose for a reader.
+    """
+    segment = question_id.rsplit(".", 1)[-1]
+    tokens = [token for token in segment.split("_") if token]
+    assert tokens, f"the question id {question_id!r} names nothing"
+    return tokens
+
+
+def _normalised(text: str) -> str:
+    """A name with its punctuation and its case dropped."""
+    return re.sub(r"[^a-z0-9]", "", text.casefold())
+
+
+def _column_named_by_id(tokens: list[str], header: list[str]) -> tuple[str, list[str]] | None:
+    """The column a question's id names, and the id's tokens that are left.
+
+    The column is the longest run of the id's tokens that names a header;
+    a header's stem is its name, because the unit in parentheses is the
+    table's claim about the column rather than part of the column's name.
+    ``None`` means the id names no column of this table at all, which is
+    how a prose question is told apart from a tabular one.
+    """
+    stems = {name.split(" (")[0].strip().casefold().replace(" ", "_"): name for name in header}
+    matches: list[tuple[int, int, str]] = []
+    for start in range(len(tokens)):
+        for stop in range(start + 1, len(tokens) + 1):
+            name = stems.get("_".join(tokens[start:stop]).casefold())
+            if name is not None:
+                matches.append((stop - start, start, name))
+    if not matches:
+        return None
+
+    longest = max(length for length, _start, _name in matches)
+    best = [entry for entry in matches if entry[0] == longest]
+    names = {name for _length, _start, name in best}
+    assert len(names) == 1, (
+        f"the id's tokens {tokens} name more than one column of the table: {sorted(names)}"
+    )
+    length, start, name = best[0]
+    return name, tokens[:start] + tokens[start + length :]
+
+
+def _row_id_column(header: list[str]) -> str:
+    """The column that identifies a row, taken as the one that says so."""
+    found = [
+        name for name in header if name.split(" (")[0].strip().casefold().endswith(("_id", "_code"))
+    ]
+    assert len(found) == 1, (
+        f"the table's columns {header} do not hold exactly one column that identifies a row"
+    )
+    return found[0]
+
+
+def _group_named_by_id(leftover: list[str], codes: list[str]) -> str | None:
+    """The group of rows a question's id names, among the table's codes.
+
+    The id names a group by a short form of its code -- ``b2`` for
+    ``B-2``, ``p03`` for ``SYN-P03`` -- so a code is matched on its
+    normalised form, and on its ending when the id carries only the tail
+    of the code. An id that names no group asks about the whole table. A
+    group that more than one code would answer is refused: a witness that
+    does not know which rows it is talking about is not a witness.
+    """
+    if not leftover:
+        return None
+    wanted = _normalised("_".join(leftover))
+    exact = [code for code in codes if _normalised(code) == wanted]
+    assert len(exact) <= 1, (
+        f"the id names {leftover!r}, and more than one code answers to it: {exact}"
+    )
+    if exact:
+        return exact[0]
+    ending = [code for code in codes if _normalised(code).endswith(wanted)]
+    assert len(ending) <= 1, (
+        f"the id names {leftover!r}, and more than one code ends with it: {ending}"
+    )
+    assert ending, f"the id names {leftover!r}, and the table's codes {codes} hold no such group"
+    return ending[0]
+
+
+#: A number as the material writes it: an integer, a decimal, or either with
+#: an exponent. Plain text, and no quantity reader to decide what counts.
+_PLAIN_NUMBER = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+
+
+class _Reading(NamedTuple):
+    """What a question's id and the material make of the question."""
+
+    #: How the answer was read out of the material.
+    how: str
+    #: The value, or ``None`` when the answer is an abstention.
+    value: float | None
+    #: The names the id determined: what the question is about.
+    names: tuple[str, ...]
+
+
+def _independent_reading(fixture: dict[str, Any], question: dict[str, Any]) -> _Reading | None:
+    """What the question's id and the material make of the question.
+
+    The target is taken from the question's **id** and from the material,
+    and never from the derivation. The derivation is prose for a reader,
+    and prose a witness follows is prose a mutation can move: a key and a
+    derivation rewritten together to point at another group of rows would
+    satisfy such a witness, because both would then say the same thing
+    about the same rows.
+
+    So the id is read as the corpus's own vocabulary: the statistic it
+    names, the column of the table it names, and the group of rows it
+    names. The table is read with the standard library, so nothing here is
+    this project's code and the key and the witness cannot share a defect.
+    """
+    answer = question["answer"]
+    if answer["kind"] == "not_stated":
+        return _reading_of_an_abstention(fixture, question)
+    if answer["kind"] != "numeric":
+        return None
+
+    tokens = _id_tokens(str(question["id"]))
+    statistic = tokens[0] if tokens[0] in STATISTICS else None
+    if statistic is not None:
+        assert statistic == "mean", (
+            f"the question {question['id']!r} asks for the {statistic!r}, and "
+            f"this check does not read that statistic"
+        )
+    rest = tokens[1:] if statistic is not None else tokens
+
+    header, records = _raw_table(_material_path(fixture, ".csv"))
+    named = _column_named_by_id(rest, header)
+    if named is None:
+        return _reading_of_prose(fixture, question)
+    column, leftover = named
+
+    id_column = _row_id_column(header)
+    codes = sorted({record[id_column] for record in records})
+    group = _group_named_by_id(leftover, codes)
+    selected = records if group is None else [r for r in records if r[id_column] == group]
+    assert selected, f"the table holds no row of the group {group!r}"
+
+    names = [column.split(" (")[0].strip().replace(" ", "_")]
+    if group is not None:
+        names.append(group)
+
+    values = [_raw_number(record[column]) for record in selected]
+    assert values, f"the table holds no value in {column!r}"
+
+    if statistic == "mean":
+        return _Reading("the raw table's mean", statistics.fmean(values), tuple(names))
+
+    distinct = sorted(set(values))
+    assert len(distinct) == 1, (
+        f"{column!r} holds more than one value -- {distinct} -- so it is not "
+        f"one value every row carries"
+    )
+    return _Reading("the raw table's column", distinct[0], tuple(names))
+
+
+def _reading_of_prose(fixture: dict[str, Any], question: dict[str, Any]) -> _Reading:
+    """A quantity the question's id names, read out of the raw text.
+
+    The id names the quantity -- ``crosshead_speed`` is the crosshead
+    speed -- and the material says what it is. The quantity must be named
+    exactly once in the file: a quantity named twice, with two different
+    numbers, would leave the witness choosing, and a witness that chooses
+    is not a witness.
+    """
+    path = _material_path(fixture, ".md")
+    quantity = " ".join(_id_tokens(str(question["id"])))
+    text = path.read_text(encoding="utf-8")
+    found = [match.start() for match in re.finditer(re.escape(quantity), text, re.IGNORECASE)]
+    assert len(found) == 1, (
+        f"{path.name} names {quantity!r} {len(found)} times, and the witness "
+        f"must know which one it is reading"
+    )
+    tail = text[found[0] + len(quantity) :]
+    stop = tail.find(". ")
+    tail = tail[:stop] if stop >= 0 else tail.rstrip(".")
+    numbers = _PLAIN_NUMBER.findall(tail)
+    assert numbers, f"{path.name} states {quantity!r} and writes no number after it"
+    return _Reading("the raw text's number", float(numbers[0]), (quantity,))
+
+
+def _reading_of_an_abstention(fixture: dict[str, Any], question: dict[str, Any]) -> _Reading:
+    """An abstention, checked against the raw material, without the product.
+
+    The independent re-derivation of *"the material does not say"* is the
+    material's silence: every material file is read as raw text, and the
+    quantity the question asks about is looked for with a number beside
+    it. A number there would mean the question *is* answerable, and the
+    fixture would not be negative.
+    """
+    quantity = _quantity_word(question)
+    for material in fixture["material"]:
+        text = (PUBLIC / material["path"]).read_text(encoding="utf-8")
+        reported = _reported_values(text, quantity)
+        assert not reported, (
+            f"{question['id']}: {material['path']} states {reported} for "
+            f"{quantity!r}, so the question is answerable and the fixture is "
+            f"not negative"
+        )
+    return _Reading("the raw material's silence", None, (quantity,))
+
+
+def _material_path(fixture: dict[str, Any], suffix: str) -> Path:
+    """The material file of a kind that the fixture holds exactly one of.
+
+    The manifest's own material list is the authority: a fixture that
+    held two tables would leave the witness choosing, and a witness that
+    chooses is not a witness.
+    """
+    paths = [str(material["path"]) for material in fixture["material"]]
+    chosen = [path for path in paths if path.endswith(suffix)]
+    assert len(chosen) == 1, (
+        f"fixture {fixture['id']!r} holds {len(chosen)} {suffix} materials; "
+        f"this check needs exactly one, and it holds {paths}"
+    )
+    return PUBLIC / chosen[0]
+
+
+def _quantity_word(question: dict[str, Any]) -> str:
+    """The quantity a question asks about, named by its own id.
+
+    ``no_evidence.buffer_ph`` asks about the buffer's pH, so the word to
+    look for is the last one of the id: ``ph``. Taking it from the id
+    rather than hard-coding it keeps the check from being written for one
+    fixture's quantity.
+    """
+    tokens = _id_tokens(str(question["id"]))
+    return str(tokens[-1])
+
+
+def _reported_values(text: str, quantity: str) -> list[str]:
+    """Every value the text states for a quantity.
+
+    A value is a number *beside* the quantity's word -- ``7.2 pH`` and
+    ``pH of 7.2`` are the two ways it is written, and the gap between them
+    may hold a short connective, because prose writes it that way. The word
+    alone is not a value: a material that names the quantity it does not
+    report is being honest about its own limits, not answering.
+    """
+    word = re.escape(quantity)
+    pattern = re.compile(
+        rf"(\d+(?:\.\d+)?)\s*{word}\b"
+        rf"|{word}\b\s*(?:of|was|is|at|to|:|=)?\s*(\d+(?:\.\d+)?)",
+        re.IGNORECASE,
+    )
+    return [match.group(0) for match in pattern.finditer(text)]
+
+
+def _check_the_answer_independently(
+    fixture: dict[str, Any], question: dict[str, Any]
+) -> str | None:
+    """Check one answer against an independent re-derivation.
+
+    Returns how the answer was re-derived, or ``None`` when the question's
+    id names no shape this module reads independently. Raises
+    ``AssertionError`` when the key and the material disagree.
+    """
+    reading = _independent_reading(fixture, question)
+    if reading is None:
+        return None
+    if reading.value is None:
+        return reading.how
+
+    answer = question["answer"]
+    assert math.isclose(reading.value, answer["value"], rel_tol=0.0, abs_tol=answer["tolerance"]), (
+        f"{question['id']}: read from the material by {reading.how}, the answer "
+        f"is {reading.value!r}, but the manifest says {answer['value']!r}. One "
+        f"of the two is wrong, and this check does not go through the "
+        f"product, so it is not the product agreeing with itself."
+    )
+    return reading.how
+
+
+def _independent_disagreements(manifest: dict[str, Any]) -> list[str]:
+    """Every answer whose key disagrees with an independent re-derivation."""
+    disagreements: list[str] = []
+    for fixture in manifest["fixtures"]:
+        for question in fixture["questions"]:
+            try:
+                _check_the_answer_independently(fixture, question)
+            except AssertionError as exc:
+                disagreements.append(f"{question['id']}: {exc}")
+    return disagreements
+
+
+@pytest.mark.unit
+def test_every_fixture_has_an_answer_re_derived_without_the_product() -> None:
+    """The key is read out of the material again, by code that is not ours.
+
+    The other re-derivation in this file goes through the product: the
+    operator, the selection, the ingest path, the quantity reader. That
+    check asks whether the *product* and the key agree -- and a key copied
+    out of the product's own output agrees with it perfectly well. So it
+    cannot tell a right key from the product's own mistake, and a green
+    run of it says nothing about that.
+
+    So the key is read out of the material a second time, with the
+    standard library only: the tables with ``csv``, the means with
+    ``statistics``, the prose with a plain number pattern, the negative
+    fixture with raw bytes. None of that is this project's code, so the
+    key and the witness cannot share a defect.
+
+    **And the target is taken from the question's id, not from its
+    derivation.** A witness that reads the derivation follows the
+    derivation, so a key and a derivation rewritten together to point at
+    another group of rows would satisfy it. The id names the statistic,
+    the column and the group, and the id is not prose: it is the corpus's
+    own vocabulary, and this check reads it.
+
+    Every fixture must have at least one answer this covers. A corpus
+    whose key is only ever checked against the product is the thing this
+    test exists to end.
+    """
+    derived: dict[str, list[str]] = {}
+    for fixture in _fixtures():
+        for question in fixture["questions"]:
+            how = _check_the_answer_independently(fixture, question)
+            if how is None:
+                continue
+            derived.setdefault(str(fixture["id"]), []).append(f"{question['id']} ({how})")
+
+    for fixture_id in EXPECTED_FIXTURES:
+        assert derived.get(fixture_id), (
+            f"fixture {fixture_id!r} has no answer that was re-derived by an "
+            f"implementation that is not the product's, so its key is only ever "
+            f"checked against the product. The re-derivations that ran were "
+            f"{derived}."
+        )
+
+
+@pytest.mark.unit
+def test_the_question_the_key_answers_is_the_question_the_prompt_asks() -> None:
+    """The id and the prompt must ask about the same thing.
+
+    The witness takes its target from the question's id, so the id and
+    the prompt have to agree about what the question is: a key that
+    answers a different question from the one the prompt asks is a corpus
+    that answers something nobody asked. Every name the id determined --
+    the group of rows and the column, or the quantity -- must be named in
+    the prompt.
+    """
+    for fixture in _fixtures():
+        for question in fixture["questions"]:
+            reading = _independent_reading(fixture, question)
+            if reading is None:
+                continue
+            prompt = _normalised(str(question["prompt"]))
+            for name in reading.names:
+                assert _normalised(name) in prompt, (
+                    f"{question['id']}: the question is about {name!r}, and its "
+                    f"prompt does not ask about that"
+                )
+
+
+@pytest.mark.unit
+def test_an_independently_re_derived_key_notices_a_corrupted_answer() -> None:
+    """The independent re-derivation can fail, and this is how it is shown.
+
+    A check that cannot fail is not a check. So the answer key is copied,
+    one number is changed, and the independent re-derivation is run against
+    the copy -- and it must disagree with the corrupted key.
+
+    The corruption is applied to a *copy*; the committed manifest is never
+    touched, so a failing run of this test leaves the corpus as it was.
+    """
+    manifest = _manifest()
+    assert not _independent_disagreements(manifest), (
+        "the committed key already disagrees with the material, so this test "
+        f"would not mean anything: {_independent_disagreements(manifest)}"
+    )
+
+    corrupted = copy.deepcopy(manifest)
+    question = _question_in(corrupted, "physical_tension", "tension.mean_peak_stress_b2")
+    question["answer"]["value"] = question["answer"]["value"] + 1.0
+
+    disagreements = _independent_disagreements(corrupted)
+    assert any("tension.mean_peak_stress_b2" in text for text in disagreements), (
+        "the corrupted answer still agrees with the material, so a wrong "
+        f"answer key would pass the independent check. The disagreements "
+        f"were {disagreements}"
+    )
 
 
 # --------------------------------------------------------------------------

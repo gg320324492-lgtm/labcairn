@@ -1,0 +1,1093 @@
+# G5 — Independent review of the documents, the claims and the release contents
+
+**Gate:** G5 — the public alpha · **Work orders:** LC-P1-13 (evaluation, fault
+injection and competitor baseline) and LC-P1-14 (public alpha handoff and
+review dossier).
+**Scope:** the records and the package — §4.1 and §4.2 of
+[`docs/plans/LC-P1-13-14-task-breakdown.md`](../plans/LC-P1-13-14-task-breakdown.md),
+and the seven clauses this review was given.
+**Reviewer:** an independent reviewer dispatched for G5. **I wrote no fix into
+this repository.** Every change I made was made to break something, and every
+one was reverted.
+**Measured commit:** `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`. `git rev-parse
+HEAD` in my worktree returned exactly this, so I measured the gate commit and
+checked nothing else out.
+**Worktree:** `E:\LabCairn\.claude\worktrees\agent-a931269a76040f128` — an
+isolated copy of the repository. **The main checkout was not measured.**
+**Date:** 2026-10-25.
+**Environment:** Windows 11 Pro 10.0.26200 (x86_64), Python 3.12.13 (the
+interpreter `.python-version` pins), uv 0.11.21. `--basetemp` was
+`E:\labcairn-local\bt-g5-records`, outside the repository; every process had
+its own `TEMP`/`TMP`/`MPLCONFIGDIR` under
+`E:\labcairn-local\tmp-g5-records`. Two runs never shared a base temp
+directory.
+
+---
+
+## 1. The verdict
+
+**PASS WITH NOTES** for the scope I reviewed — with **two notes that are
+material to the owner's open §1.4.1b decision, and that must be read before
+that decision is taken.**
+
+**In one sentence:** every shipped document I could measure is true of this
+tree, the release contents are correct when built and checked, and the
+dossier's independence claims are earned — but several of the gate's own
+records have aged (the blocker table, the release notes' limitation list, the
+member counts, the suite size, the harness's own `NOT_MEASURED` reasons),
+several watch-gaps in the gate's own machinery are recorded nowhere, and the
+record the owner is being asked to decide from (§1.4.1b) rests on a
+misattribution that changes the shape of the decision.
+
+**This verdict closes nothing.** G5's exit test — *"outsider fresh install, 3
+fixtures, fault injection, docs and real-provider smoke"* — names a
+real-provider smoke that has not run, and the gate's own
+[release notes](../RELEASE-NOTES.md) say so. My §7 gives the owner the
+material to take that decision; it does not take it.
+
+---
+
+## 2. The method
+
+A claim that is stated and not watched is not held. So for every claim I
+found a change that would make it red, applied it, and looked at **which**
+test went red.
+
+Three rules, held to:
+
+- **A change that changes nothing is not a mutation.** It is a finding about
+  the test.
+- **A change whose anchor did not match is not a survivor.** It means nothing
+  was tested.
+- **The test that went red is named**, not "the suite went red".
+
+Every surviving mutation was **read by hand** before it was called a finding.
+
+**Where the mutations ran.** Mutations to the repository's own files were made
+in my worktree and reverted (`git checkout --`); each was confirmed reverted
+with `git status --short` before the next. Mutations that needed a *built
+artefact* or a *fresh commit* (the release gate's member lists, the dossier's
+anchor counting) ran in a **throwaway copy of the tree outside the
+repository**, made with `git archive HEAD | tar -x`, so the review's own
+worktree was never dirty and no commit was ever made here. The one mutation
+of a *test file* (removing a stale skip) was made in my worktree and
+reverted.
+
+**One environment note, because it cost me five failures and it is worth
+recording.** On Windows, `tempfile.gettempdir()` consults **`TMPDIR` first**,
+before `TEMP` and `TMP`. The repository's root `conftest.py` sets `TEMP` and
+`TMP` for a parallel worker but **not** `TMPDIR`, so an ambient `TMPDIR`
+silently defeats the isolation — see **F4**. My first whole-suite run set
+`TMPDIR` as well as `TEMP`/`TMP`, and two tests went red for that reason and
+for no other. The re-run without `TMPDIR` passed.
+
+---
+
+## 3. The baseline, measured
+
+| Run | Command | Outcome |
+|---|---|---|
+| The whole suite | `pytest tests/` on the gate commit, one process | **3467 passed, 7 skipped, 5 failed** in 1816.72 s |
+| Two of the five failures, re-run | `pytest tests/test_parallel_temp_isolation.py` **without** `TMPDIR` | **3 passed** — the two failures were my `TMPDIR` (**F4**) |
+| The three failures, re-run | `pytest tests/test_outsider_path.py` alone, **without** `TMPDIR` and without the concurrent `uv build` / `uv pip install` I had running | **16 passed in 193.41 s** — the walk's own SQLite database reported a `disk I/O error` in the failing run; it does not reproduce in isolation (**F13**) |
+| The scoped witnesses | `tests/test_threat_model.py`, `tests/test_review_dossier.py`, `tests/test_public_fixtures.py` | **87 passed** |
+| `tests/test_release_workflow.py` | | **8 passed** |
+| `tests/test_readme_accuracy.py` | | **18 passed** in 106.36 s |
+| **The evaluation harness on this tree** | `python -m tests.evaluation --out E:\labcairn-local\tmp-g5-records\evaluation` | **exit 2** — *"a selected class could not be run"* — after 1793.1 s. Unit 1510/1511, Integration 1131/1134, Negative 361/364, E2E 102/102, Repository gates 369/369, **Real-model smoke NOT RUN**; **two of the six blockers FAILED**; no comparison made and no ranking printed |
+
+**The seven skips**, and what each one is:
+
+| The skip | What it is |
+|---|---|
+| `tests/test_api.py:520` | a declared POSIX conditional |
+| `tests/test_security_paths.py:156` | a declared POSIX conditional |
+| `tests/test_security_paths.py:453`, `:486` | 8.3 short names are disabled on **this** volume (`E:`), so the two short-name witnesses cannot run here |
+| `tests/test_provider_credentials.py:285` | `requires_provider` — the real-provider smoke |
+| `tests/test_earlier_exit_demos.py:218`, `:266` | `g1_exit_demo` skipped "until the product's 8.3 short-name comparison is fixed" — **the defect was fixed before this commit; see F1** |
+
+**A second, independent witness that the tree is green.** The evaluation
+harness runs the whole suite as its own subprocess, and **its** run of the
+same tree reports **zero failed and zero errored cases in every class** —
+Unit 1510/1511, Integration 1131/1134, Negative 361/364, E2E 102/102,
+Repository gates 369/369, with the seven skips and the real-model smoke
+NOT RUN. Two whole-suite runs on the same commit therefore agree: the five
+failures in my run were environmental, and **the tree at `72154cd` is green
+on this machine.**
+
+---
+
+## 4. Clause 1 — every command in the README is extracted and run, and the two language versions agree
+
+**What the claim is.** `docs/plans/LC-P1-13-14-task-breakdown.md` §4.2
+clause 4: *"every command in the README is extracted and run — a command that
+is in the README and is not in the extraction is a failure"*, carried by
+`tests/test_readme_accuracy.py`.
+
+**Baseline.** `tests/test_readme_accuracy.py` — **18 passed**.
+
+**M1a — the narrow attack. RED, and the named test is the right one.**
+`uv run pytest --lf` inserted into README.md's English shell block.
+
+> `tests/test_readme_accuracy.py::test_readme_documents_only_verified_commands` —
+> **RED**: *"README documents command(s) with no verified row …: ['uv run
+> pytest --lf']"*
+
+The fail-closed direction holds for README.md. `test_verified_commands_are_all_documented`
+stayed green, which is correct — it watches the other direction.
+
+**Measured, not assumed.** The three command surfaces in the repository carry
+**the same eleven commands** today — README.md's English block, README.md's
+Chinese block, and README.zh-CN.md — read out of the fenced blocks with the
+extractor the test itself uses.
+
+**M1b — the same command in the Chinese README. GREEN, and nothing watches
+that file at all.** `uv run pytest --lf` inserted into `README.zh-CN.md`.
+
+> `pytest tests/test_readme_accuracy.py tests/test_status_consistency.py` —
+> **148 passed, 0 failed.**
+
+A grep of the whole `tests/` tree for `zh-CN`, `README.zh` finds **zero**
+hits: **no test in this repository reads `README.zh-CN.md`**. The two READMEs
+each state that they agree — README.md line 168 (*"两处内容一致"*) and
+README.zh-CN.md line 5 (*"两者内容一致"*) — and nothing watches it.
+
+**This gap is recorded.** `CONTRIBUTING.md` §12 says so in as many words:
+*"The README's Chinese section and `README.zh-CN.md` must say the same thing.
+Nothing watches that, because the documents were written under a file-ownership
+contract that did not include `tests/`."* A gap the repository names is a note;
+a gap it does not name is a finding.
+
+**M1c — the same command in a non-shell fence. GREEN.** A ```console block
+carrying `uv run pytest --last-failed` appended to README.md: the README gate
+is **green** (15 passed). I then ran **both** extractors in the gate over the
+mutated README — `tests/test_readme_accuracy.py::documented_commands` and
+`scripts/outsider_path.py::readme_commands` — and **neither** sees the
+command (22 commands each, neither containing `--last-failed`).
+
+**M1d — the same command in an inline code span. GREEN.** An inline
+`` `uv run pytest --last-failed` `` in README prose is invisible to the
+extractor, which reads fenced blocks only.
+
+**M1e — a non-shell fence *between* two shell fences. RED for the wrong
+reason, and it is worth reading.** The same ```console block inserted *before*
+the first shell block turned the gate red with:
+
+> *"README documents command(s) with no verified row …: ['Requires
+> [uv](https://docs.astral.sh/uv/) (Python 3.12 is provisioned by it) …',
+> 'Python side, from the repository root:', '```bash']"*
+
+The extractor mis-paired the fences and read **prose** as commands, and the
+command it should have caught was **dropped**. This is the bug the gate's own
+walk script was written to avoid — `scripts/outsider_path.py::fenced_blocks`
+pairs fences fence by fence and filters on language, and its own docstring
+says: *"the blocks are paired fence by fence rather than matched by a
+pattern, because a pattern that looked for 'the next closing fence' would
+read a ```python block as the tail of the shell block above it."* **The two
+extractors in this gate disagree, and the one the README gate uses is the
+pattern-based one.**
+
+**Verdict on clause 1.** The claim **holds for README.md's shell blocks** and
+is witnessed by a test with teeth. It does **not** hold for
+`README.zh-CN.md`, for a command in any other fence, or for a command written
+as an inline code span. The Chinese-README gap is recorded; the other two
+are not — see **F6**.
+
+---
+
+## 5. Clause 2 — the artefact examples are real
+
+**What the claim is.** §4.2 clause 5: *"the examples in the README and the
+quickstart are the fixtures' real artefacts, produced by the code, not drawn
+by hand."*
+
+**First, a measurement that changes what the clause is about.** **There is no
+artefact example in README.md, README.zh-CN.md or `docs/QUICKSTART.md`.**
+Every fenced block in the two READMEs is a shell block; the quickstart has
+shell blocks and one ```markdown prose block (the three lines of `notes.md`).
+The documents **name** artefacts and **name** fields; they do not **show** an
+artefact. The clause's subject is empty — which is not a failure, but it
+means the clause can only be discharged by checking the documents' *artefact
+facts*, and that is what I did.
+
+**The artefact facts, checked against the code by running it.** A workspace
+outside the repository, the quickstart's own commands:
+
+| The document says | What the code produced |
+|---|---|
+| quickstart §4.2: *"The JSON names what it made — `root`, `database_path`, `migration_revision`, `source_dirs`, `created` and `policy_digest`"* | `labcairn --workspace ./workspace init --json` → exactly `{root, database_path, migration_revision, source_dirs, created, policy_digest}` — six fields, the same spelling |
+| quickstart §4.4: *"The JSON's `bound_source_ids` names the three sources"* | `task create --json` → `bound_source_ids` with **three** ids |
+| quickstart §4.6: *"It reports one source as the ledger holds it: `kind`, `display_name`, `relative_path`, `content_sha256`, `size_bytes` and `readability`"* | `sources inspect --json` → the `source` object carries exactly those six fields |
+| quickstart §4.7: *"`report/v1/` holding `report.json`, `report-manifest.json`, `report.md`, `report.html`, `report.docx` and `report.pdf`"* | `src/labcairn/reports/revisions.py` writes exactly those six: `DOCUMENT_FILENAME = "report.json"`, `MANIFEST_FILENAME = "report-manifest.json"`, and `report.{md,html,docx,pdf}` from `_FORM_SUFFIX` |
+
+**The byte comparison.** The quickstart tells the reader to copy two fixture
+files as the research material. I copied them and hashed both sides:
+
+| The quickstart's example | The fixture it names | SHA-256 | Byte-identical |
+|---|---|---|---|
+| `materials/paper.pdf` | `tests/fixtures/papers/arx-2610.10596.pdf` | `6da9f8057e8cc7bafcf76316d660276f40c2e4a87230fa418e28cde51143d700` | **yes** |
+| `materials/measurements.csv` | `tests/fixtures/analysis/groups.csv` | `1c74e71d72ce676838e78fc4aeb7cd7303e210268430b5fe143e83173226373f` | **yes** |
+
+The PDF's hash **appears in `tests/fixtures/papers/MANIFEST.md`**, and
+through the product's own machinery the PDF's `readability` is `readable` —
+which the quickstart makes a condition of the path ("A PDF whose text layer
+cannot be read is **not** a substitute").
+
+**Nothing watches this.** No test reads `docs/QUICKSTART.md` except the
+relative-link resolution in `tests/test_status_consistency.py`. The
+quickstart's own §8 admits the gap for the *command list*; the *field names*
+and the *artefact file list* are not named as unwatched.
+
+**Verdict on clause 2.** The artefact facts the documents state are **true of
+this tree**, measured by running the code and by hashing bytes. The
+documents contain no artefact example, so the clause is discharged in
+substance and vacuous in letter. The facts are unwatched — see **F6**.
+
+---
+
+## 6. Clause 3 — the threat model's references resolve, and its claims are earned
+
+**What the claim is.** §4.1 clause 6: *"the threat model names every write
+and every network reach"*.
+
+**Baseline.** `tests/test_threat_model.py` — **34 passed**.
+
+**M3a — break a citation. RED, and the named test is the right one.**
+`src/labcairn/workspace/outputs.py:150` → `:9999`.
+
+> `tests/test_threat_model.py::test_every_citation_resolves_to_a_file_and_a_line` —
+> **RED**: *"these citations in the threat model do not resolve, so they are
+> not evidence: src/labcairn/workspace/outputs.py:9999 is past the end of the
+> file"*
+
+**The count the document claims.** The threat model names **136**
+`path:line` citations. The watching regex matches **136** of them and
+**misses one**: `pyproject.toml:316`, because the regex's extension list is
+`py|ts|tsx|md|json|html`. That citation resolves today (`pyproject.toml` has
+332 lines; line 316 is the `requires_network` marker definition). The
+witness table's **fourteen** claim ids are contiguous from C1 and each has a
+test whose name is about it — the witness says so and the witness is
+watched.
+
+**The write enumeration, measured.** §1.2 says
+`src/labcairn/workspace/outputs.py` *"is the only place in LabCairn that writes
+a file"* and tabulates **six** writes outside it. I enumerated every write
+primitive under `src/labcairn/`: `outputs.py` (the one path), plus
+`api/session.py` (the token), `api/typescript.py` (the contract),
+`cli/workspace.py` (the config and the policy),
+`analysis/chart/render.py` (the matplotlib config and font cache), and
+`cli/commands.py` (the directories). `security/approval.py`'s `open("rb")`
+and `material/pdf.py`'s `pdfplumber.open` are reads. **The enumeration is
+accurate at this commit.**
+
+**M3b — add a seventh write. GREEN — a survivor.** A new module
+`src/labcairn/telemetry.py` whose `record()` calls `path.write_text(...)`:
+
+> `pytest tests/test_threat_model.py tests/test_security_paths.py
+> tests/test_workspace_boundaries.py tests/test_no_reference_leakage.py
+> tests/test_ci_shard_coverage.py tests/test_application_layer.py
+> tests/test_analysis_report_manifest.py tests/test_material_walk.py
+> tests/test_capability_namespaces.py` — **353 passed, 3 skipped**
+
+Nothing scans `src/` for write primitives and compares them with the
+threat model's table. The C6 witness watches the *property* — a write aimed
+at a source root is refused — and not the *enumeration*.
+
+**Verdict on clause 3.** The citations resolve, the witness has teeth, the
+network claim (C13) is watched by a scan of the whole source tree, and the
+write enumeration is accurate. The enumeration can fall behind silently —
+see **F7**.
+
+---
+
+## 7. Clause 4 — the dossier's references resolve, and its independence claims are earned
+
+**Baseline.** `tests/test_review_dossier.py` — **12 passed**.
+
+**M4a — move an upstream anchor to the neighbouring line. RED, twice.**
+
+> `tests/test_review_dossier.py::test_every_upstream_anchor_is_a_line_that_exists`
+> — **RED**: *"these upstream anchors do not point at anything: :51 is a blank
+> line of docs/UPSTREAM_REFERENCES.md"*
+>
+> `tests/test_review_dossier.py::test_the_dossier_cites_each_load_bearing_anchor_as_often_as_it_claims`
+> — **RED**: *"the dossier's upstream anchors and the catalogue have come
+> apart: :50 is cited 0 time(s) and should be cited 1 time(s)"*
+
+**M4b — corrupt one character of PaperQA2's commit SHA. RED.**
+
+> `tests/test_review_dossier.py::test_the_dossier_names_a_sha_only_for_a_repository_that_was_cloned`
+> — **RED**: *"the dossier names commit SHAs the catalogue does not record:
+> 57e89f7223b0960d5ee5ea048c69e3c47e088573"*
+
+The dossier's own §5.4 mutation table claims five corruptions were each
+caught; I re-ran two of the five and both were caught by the test the table
+names. All **61** of the dossier's `path:line` citations match the watching
+regex; **none** is unwatched.
+
+**The independence claims, measured against the tree rather than believed:**
+
+| The dossier says | What I measured |
+|---|---|
+| §4.2 check 3: the ten upstream identifiers have **zero** hits in `src/` | **zero hits** — confirmed for `CANNOT_ANSWER_PHRASE`, `GROUP_PREFIXES`, `PRECISE_LOCATOR_RE`, `_check_fs_permission`, `should_confirm`, `ConfirmationPolicyBase`, `sanitize_messages`, `UsageLimits`, `TodoListMiddleware`, `EventLog` |
+| §4.3: `pydantic-ai` *"is imported in three modules"*, at named lines | **exactly three** modules, at exactly the lines named: `pydantic_models.py:137-138` and `:149-150`, `probe.py:473-476`, `adapter.py:520-523` |
+| §4.2: `FailureKind` is *"an upstream enum name, and LabCairn has one at `src/labcairn/providers/errors.py:60` — with its own twelve members"* | `src/labcairn/providers/errors.py:60` — **twelve** members, confirmed |
+| §4.2: the other coincident names *"occur in `src/` only inside comments and docstrings"* | confirmed — `ModelProfile`, `accumulated_cost`, `SecurityRisk`, `ErrorClassification` all appear in docstrings only |
+| §4.2 check 4: the upstream names in `pyproject.toml` are *"only inside comments that cite the paper-qa licence lesson — not as a dependency"* | confirmed — `paper-qa` appears at `pyproject.toml:34`, `:65`, `:93`, all in comments; no upstream package is in the dependency list |
+
+**The dossier's one countable number, re-measured.** §5.3: *"**2292 `def
+test_` definitions across 106 test modules**, measured on 2026-10-25 on the
+tree named at the top of this document"*. Counting `def test_` occurrences
+under `tests/` and the `test_*.py` modules, at `dd08573` (the tree the
+dossier names): **2292 and 106 — exactly the dossier's figures**, so the
+method and the number reproduce. At the gate commit the same count is
+**2310 across 108**. The dossier states its anchor, so this is a value that
+has moved, not a defect; it is listed under "values re-measured" below.
+
+**Verdict on clause 4.** The dossier's references resolve, its independence
+claims are **earned** and re-derivable from the tree, and its own witness is
+credible. It passes.
+
+---
+
+## 8. Clause 5 — the competitor baseline invents no superiority
+
+**What the claim is.** §4.1 clause 3: *"the comparison is either like-for-like
+on matched tasks, or not made; the dossier says which, and no ranking is
+printed without the comparison."*
+
+**Measured.** I grepped every shipped document — both READMEs, the quickstart,
+the release notes, the dossier, the threat model, the three acceptance
+records and the changelog — for the harness's own ranking words (`better`,
+`worse`, `best`, `worst`, `superior`, `outperform`, `beats`, `winner`,
+`loses`, `ahead`). Four hits, none of them a ranking:
+
+- README.md:117 — *"the work that fills them in is still ahead"* (about
+  unfinished work, not a comparison);
+- `docs/REVIEW-DOSSIER.md:17` — *"it contains no claim that LabCairn is
+  better than any upstream project"* (a negation);
+- `docs/REVIEW-DOSSIER.md:101` — *"an invented or guessed SHA is worse than a
+  blank"* (about SHAs);
+- the two acceptance records quoting the watch list itself.
+
+**No ranking is printed anywhere.** The mechanism is structural, not a
+promise: the comparison renders **pairs** with no aggregate, and
+`tests/test_evaluation_harness.py::test_the_rendered_comparison_carries_no_winners_language`
+greps the **rendered** section for those words.
+
+**The baseline record is honest about what was not done.** It takes
+**Option C** (no comparison), gives five reasons each with a file, a line and
+a check, and says plainly in §6: *"the work order's baseline clause is, as of
+this document: half deferred (by the clause's own permission) and half
+outstanding."* It also reports the harness's own two hard-coded
+`NOT_MEASURED` reasons as **false of this tree** — the record correcting the
+record, in the direction the project's own rule demands.
+
+**M5 — a superiority claim in a shipped document. GREEN — a survivor.** I
+added to `docs/acceptance/LC-P1-13-baseline.md`:
+
+> *### 3.9 The comparison, and the ranking it supports*
+> *On the three answerable fixtures, LabCairn outperforms PaperQA2 on citation
+> support and on numeric extraction. The ranking is printed here because the
+> comparison is like-for-like.*
+
+> `pytest tests/test_evaluation_harness.py tests/test_readme_accuracy.py` —
+> **green**. The rendered-report witness cannot see prose in a document.
+
+**The control.** The same two files on the **unmutated** copy fail on one
+test (`test_a_real_pytest_run_is_read_as_outcomes`, which needs a git
+repository the throwaway copy does not have) — **the same single failure**,
+so the mutation changed nothing and the survivor is real.
+
+**Verdict on clause 5.** The clause is **satisfied** — no superiority is
+claimed anywhere. It is **not watched**, and the watch that exists covers the
+harness's output rather than the documents a reader reads — see **F3**.
+
+---
+
+## 9. Clause 6 — the release contents
+
+**What the claim is.** §4.2 clause 6 and the release record: the NOTICE
+travels with the artefacts, the member lists are the ones the tree implies,
+every dependency's licence is read out of the distribution itself, and no
+third-party font file reaches any artefact.
+
+**Built, not assumed.** `uv build` into a directory outside the repository.
+The sdist and the wheel were then read with the same two programs the
+release workflow runs, **extracted from the parsed YAML** and executed
+verbatim, exactly as the record's §6.4 describes.
+
+| | Measured |
+|---|---|
+| the source distribution | **452 members** — the committed tree plus `PKG-INFO`, *"neither missing nor extra"*, **exit 0** |
+| the wheel | **153 members** — 147 package, 6 metadata, and the six metadata members are **exactly** the declared ones |
+| the NOTICE | in the sdist, and `labcairn-0.1.0.dist-info/licenses/NOTICE` in the wheel |
+| fonts | **no** member of either artefact has a font suffix |
+| the wheel's binaries | **none** — every package member is `.py` or `.typed` |
+| third-party material | the three fixture papers and their manifest, and nothing else |
+
+**The dependency licences, read out of the distributions.** `uv export
+--frozen --no-dev` resolves **171 requirement lines** (the record's figure,
+reproduced). A clean virtualenv was built from that export and the workflow's
+own licence-audit program was run against it:
+
+> `platform: win32` — sixteen distinct licences — **"every one of the 168
+> installed distributions carries a licence the release records"** — **exit 0**
+
+**The NOTICE's font census, reproduced from the installed distributions.**
+matplotlib's `mpl-data/fonts/` holds **40** TrueType files (42 files, two of
+which are `LICENSE_DEJAVU` and `LICENSE_STIX`), **14** `pdfcorefonts/` AFM
+files (15 files, one of which is `readme.txt`) and **47** `afm/` AFM files —
+**101 font files**, as the NOTICE says. reportlab's `fonts/` holds **18**
+`.pfb`, **2** `.afm` and **5** `.ttf` — **25 font files**, as the NOTICE says —
+plus `DarkGarden.sfd` and six `.txt` notices. `DarkGarden-copying.txt` is
+**1,318 bytes** and names the GNU General Public License and the font's own
+exception; `DarkGarden-copying-gpl.txt` is **17,976 bytes and 344 lines**.
+
+**M6a — a real GPL v2 font reaches the artefact. RED.** A genuine
+`DarkGardenMK.pfb`, taken from the installed reportlab, planted in the tree
+of a throwaway copy:
+
+> `::error::labcairn-0.1.0.tar.gz carries font files:
+> ['tests/fixtures/papers/fonts/DarkGardenMK.pfb']` — **exit 1**
+
+**M6b — the same font under an extension the check does not know. GREEN.**
+The same bytes, committed as `DarkGarden.sfd` — **the font's source, which
+reportlab itself ships and which the font audit counts among the seven
+DarkGarden files**:
+
+> **exit 0** — *"the release's member lists hold: neither missing nor extra"* —
+> and the sdist carries `tests/fixtures/papers/fonts/DarkGarden.sfd`.
+
+**M6c — the same bytes as a web font. GREEN.** The same file committed as
+`web/src/assets/labcairn.woff2`:
+
+> **exit 0** — and the sdist carries `web/src/assets/labcairn.woff2`.
+
+The check is `FONT_SUFFIXES = {".ttf", ".otf", ".ttc", ".pfb", ".pfa", ".afm",
+".pfm"}` — a check **by file name**. `.sfd`, `.woff`, `.woff2`, `.bdf` and
+`.pcf` are font files that it does not know. The **wheel** is unaffected (it
+carries no binary at all); the **source distribution** is where they land.
+See **F5**.
+
+**M6d — the NOTICE stops travelling. RED.** The NOTICE removed from the tree:
+
+> `::error::labcairn-0.1.0.tar.gz does not carry the NOTICE`
+> `::error::labcairn-0.1.0-py3-none-any.whl does not carry the NOTICE`
+> `::error::… metadata members differ from the declared six` — **exit 1**
+
+**Verdict on clause 6.** Every release claim holds when the artefacts are
+built and checked, and the gate has teeth against the two obvious failures.
+The font check has an extension-shaped hole — **F5**.
+
+---
+
+## 10. Clause 7 — the real-provider smoke, and the question §1.4.1b asks
+
+**The question.** *Does a declared, reported skip count as a blocker that
+failed?* The owner decides; I supply the material and a recommendation.
+
+### 10.1 What the protocol actually says
+
+I read `docs/EVALUATION.md` myself.
+
+- Its `## Phase 1 blockers` section lists **six** bullets. **Not one of them
+  requires a real provider.** They are about the clean-environment path,
+  unauthorised writes, fake citations, repeated side effects, reports claiming
+  verification from schema checks, and skipped required tests.
+- The real-model smoke is in a **different list** — `## Mandatory automated
+  gates`, item 5: *"at least one real supported provider under declared
+  model/version/parameters; results and costs documented. Mock-only success is
+  insufficient."*
+
+**The two lists are not the same list, and the question is about which one a
+skip falls into.**
+
+### 10.2 What the harness's own report says, and what it does not say
+
+The harness reports the smoke class as **NOT RUN**, gives the reason, **does
+not count it as a pass**, and exits **2** — *"a selected class could not be
+run"*. That is the protocol-faithful behaviour and it is the right one.
+
+**But the record the owner is being asked to decide from misattributes the
+evidence.** `docs/plans/LC-P1-13-14-task-breakdown.md` §1.4.1b says the
+harness *"reported that two of the six did not hold"*, and lists them as
+
+> * **one** because the base branch's own new witness skips G1's exit
+>   demonstration until the 8.3 short-name defect of §2.6 is fixed …
+> * **one** because a test declared as needing the project's own real provider
+>   credentials was **skipped** — the `requires_provider` marker does exactly
+>   what it says, and CI has no such credentials.*
+
+**The second bullet is not what the harness reported.** Its own report —
+`docs/acceptance/LC-P1-13-evaluation.md` §8 — attributes the second failed
+blocker to a **declared POSIX platform conditional**:
+`tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix`,
+skipped on Windows. The baseline record says the same in §3.4: *"the
+clean-environment blocker (waiting on the 8.3 defect) and the unauthorised-write
+blocker (a declared POSIX-only conditional, skipped on Windows)."*
+
+**And the provider-credential skip fails no blocker at all.** I read the
+harness's own witness table, `tests/evaluation/manifest.py::BLOCKER_WITNESSES`:
+the six blockers have twenty-one witness entries between them, and
+`tests/test_provider_credentials.py` is **in none of them**.
+
+**The gate's own tool says so on this tree.** I ran the harness here
+(`python -m tests.evaluation --out …`, exit **2**, 1793.1 s). Its report
+lists
+
+> `tests/test_provider_credentials.py::test_real_provider_smoke_records_capabilities_and_usage`
+> — **skipped** — NOT RUN. Requires the project owner's explicit authorisation
+> to spend money and a credential they supplied for that purpose.
+
+under **"### The failure cases → Unit — 1 case(s)"**, and its blocker table
+gives the sixth blocker — *"Required CI tests are skipped, ignored or only
+pass by mocking the actual behavior under acceptance"* — a status of
+**HELD**, *"every witness was collected and passed"*, with **0** failing
+cases. **The skip is a Unit-class failure case in the report, not a blocker
+failure** — the gate's own measurement on the gate commit, not my reading of
+a table.
+
+**So §1.4.1b asks the owner a question using evidence that is wrong.** If the
+owner reads it at its word, they will believe the provider-credential skip
+failed a blocker — which is the very thing being decided.
+
+### 10.3 The third thing: the blocker table is stale at this commit
+
+The first failed blocker was *"g1_exit_demo is skipped on Windows until the
+product's 8.3 short-name comparison is fixed"*. **That defect was fixed
+before this commit** (`6220a08`, *"A new file under a short-spelled root is
+under the root"*), and the skip was never removed.
+
+**I measured it, with a control.** `C:` on this machine generates 8.3 short
+names; `E:` does not. I made a directory whose short spelling is
+`C:\Users\pc\AppData\Local\Temp\G5-A-V~1` and pointed the demonstration's
+`TEMP`/`TMP` at it, so the defect's trigger is really present.
+
+| | Result |
+|---|---|
+| the gate commit, short-spelled temp | `examples/g1_exit_demo.py` → **36 checks passed, exit 0** |
+| **the control**: the same demonstration against `src/labcairn/security/paths.py` from `6220a08^` (the pre-fix path layer), short-spelled temp | **exit 1** — `WorkspaceError: WindowsPath('C:/Users/pc/AppData/Local/Temp/G5-A-V~1/tmp3ln9y_35/study/outputs/summary.md') refused: outside_every_root` — exactly the refusal §2.6 describes |
+
+The control is what makes the first row a measurement rather than an
+assertion: the same demonstration, the same machine, the same short-spelled
+directory, the same failure — with one file different.
+
+**And the witness, with the stale skip removed:**
+
+> mutation: `KNOWN_DEFECT_ON_WINDOWS = frozenset({"g1_exit_demo"})` →
+> `frozenset()`, run with the short-spelled `TEMP` —
+> `pytest tests/test_earlier_exit_demos.py` — **6 passed**, no skip.
+
+So at this commit the protocol's **first** blocker — *"A new user cannot
+complete a task from a clean environment following README"* — **holds**, once
+the skip that no longer describes the tree is removed. The "two of the six
+blockers failed" figure in the evaluation record §8, the baseline record
+§3.4 and §3.6, and the task breakdown §1.4.1b is a measurement of a tree
+that is not this one.
+
+**And the harness, run on this tree, says so — with one more thing the
+records do not say.** Its blocker table, measured here at `72154cd`:
+
+| The protocol's blocker | The harness's status here | The witness cases that did not pass |
+|---|---|---|
+| New user cannot complete a task from a clean environment following README. | **FAILED** | the **two stale** `g1_exit_demo` skips |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | the POSIX-only conditional, **and the two 8.3 short-name witnesses** — *"this machine's volume has no 8.3 short names"* |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | HELD | — |
+| A crash silently repeats unknown file side effects. | HELD | — |
+| Report claims a verified scientific result based solely on schema or rendering checks. | HELD | — |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | HELD | — |
+
+**The second blocker's recorded reason is incomplete as well as
+misattributed.** The baseline record §3.4 attributes it to *"a declared
+POSIX-only conditional"* — one case. On this tree the harness counts
+**three**: the POSIX conditional **and the two 8.3 short-name witnesses**,
+which the path-layer fix of `6220a08` added to `tests/test_security_paths.py`
+and which **skip on this machine's `E:` volume**. They would run on a CI
+runner's `C:` volume, which generates 8.3 names — which is exactly where the
+defect used to show.
+
+**So the blocker table as it stands on this tree is: two FAILED, four
+HELD — and the first of the two fails for a reason that no longer exists,
+while the second fails for a reason the record does not name.**
+
+### 10.4 The sixth blocker, read in its own words
+
+The sixth blocker reads: *"Required CI tests are **skipped**, ignored or only
+pass by mocking the actual behavior under acceptance."*
+
+§1.4.1b paraphrases it as *"which is about a test **pretending** to pass"*.
+That is **narrower than the protocol's own wording**, which lists *skipped*
+as a condition in its own right, before the *pretending* half.
+
+**And the tree today does contain a required CI test that is skipped.**
+`tests/test_provider_credentials.py::test_real_provider_smoke_records_capabilities_and_usage`
+carries `@pytest.mark.requires_provider` and `@pytest.mark.skip(...)`; I ran
+it and it reports **SKIPPED**. `tests/test_provider_credentials.py` is in a
+CI shard on **both** platforms — `ubuntu-latest` shard 3 and
+`windows-latest` shard 0 of `.github/ci-shards.json`.
+
+**The harness's report that the sixth blocker HELD is therefore not
+evidence**, because none of its three witness files looks at whether any test
+is skipped: `tests/test_ci_shard_coverage.py` checks shard coverage and
+balance, `tests/test_fake_provider_isolation.py` checks that the
+FakeProvider touches no network, and `tests/test_refusal_witnesses.py` checks
+that refusal-witness phrases are read. I read all three. **Not one of them
+asks whether a test was skipped.**
+
+### 10.5 My verdict, and my recommendation
+
+**Verdict.** *For the real-provider smoke specifically, a declared, reported
+skip does **not** count as a blocker that failed* — because none of the
+protocol's six blockers requires a real provider, the real-model smoke is one
+of the five mandatory **gate classes** (a different list), and the harness
+reports that class as NOT RUN with a reason and an exit code of 2 rather than
+counting it as a pass. That is the protocol's own answer, and it is sound.
+
+**But the reasoning in §1.4.1b is not sound**, and three things follow that the
+owner must have before deciding:
+
+1. **The premise is a misattribution** (§10.2). The provider-credential skip
+   failed no blocker; the second failed blocker was a declared POSIX platform
+   conditional. The decision as framed is about the wrong skip.
+2. **The skip is not discharged by being declared and reported** (§10.4). Under
+   the sixth blocker's plain wording, the tree contains a required CI test
+   that is skipped, and **nothing in the repository would notice** — the
+   harness's "HELD" for that blocker rests on witnesses that never look.
+3. **The blocker table is stale** (§10.3). The first blocker holds at this
+   commit once the stale skip is removed, so the "two of six" figure the
+   decision rests on is not true of the tree being handed over.
+
+**Recommendation (a recommendation, not a change).** §1.4.1b's **Option A** —
+*"a declared, reported skip of the real-model smoke does not count as a
+blocker that failed"* — is the right call **for the smoke**, and I recommend
+the owner take it. But I recommend it **in Option C's form**, with the
+protocol amended and the amendment given its own record:
+
+- the real-model smoke is a **gate class**, not a Phase 1 blocker, and the
+  gate class is **NOT RUN** — stated everywhere the gate says "ran";
+- a `requires_provider` skip is **explicitly out of scope** for the sixth
+  blocker, and the sixth blocker's witnesses are extended so that the
+  exclusion is enforced rather than assumed.
+
+Without the second bullet, the repository is, on the protocol's plain
+wording, **in violation of its own sixth blocker today**, and no harness in
+it would notice.
+
+**And whatever is decided, the gate's exit test is not met.** The milestone
+table's G5 exit test names *"real-provider smoke"*. It has not run, it
+cannot run without a credential and the owner's authorisation to spend money,
+and §1.4.1b's Option A's own stated cost — *"the gate's own exit test then
+says the five classes ran when one of them did not"* — is the accurate
+description of what would happen. **A skip does not fail a blocker; it also
+does not discharge a gate class, and it does not meet an exit test.**
+
+---
+
+## 11. The findings, in severity order
+
+Every finding below is reproducible from this commit.
+
+### F1 — MATERIAL. The record the owner is deciding from misattributes which skip failed which blocker, and the blocker table it cites is stale at this commit
+
+**Where:** `docs/plans/LC-P1-13-14-task-breakdown.md` §1.4.1b (the second
+bullet), against `docs/acceptance/LC-P1-13-evaluation.md` §8 and
+`docs/acceptance/LC-P1-13-baseline.md` §3.4; and
+`tests/test_earlier_exit_demos.py:89` (`KNOWN_DEFECT_ON_WINDOWS`).
+
+**What is wrong:** §1.4.1b says the provider-credential skip failed one of
+the two blockers. The harness's own report — and the harness **run on this
+tree** (§10.3) — says the second failed blocker was a *skip of a declared
+platform conditional*, and `tests/evaluation/manifest.py::BLOCKER_WITNESSES`
+shows the provider-credentials file is a witness of **no** blocker: the skip
+is listed under *"The failure cases → Unit"* and the sixth blocker is
+**HELD** with zero failing cases. The first failed blocker — the 8.3 one —
+no longer fails: the defect was fixed by `6220a08` and the skip was not
+removed. And the second blocker's recorded reason is **incomplete** as well:
+on this tree the harness counts **three** failing witness cases there, not
+one — the POSIX conditional **and the two 8.3 short-name witnesses**, which
+skip on a volume without 8.3 names.
+
+**How to reproduce:** run
+`python -m tests.evaluation --out <outside the repository>` and read the
+blocker table and the failure-cases list; then read
+`tests/evaluation/manifest.py:360-394`; then run `examples/g1_exit_demo.py`
+with a short-spelled `TEMP` (see §10.3 for the exact construction and the
+control).
+
+**Why it matters:** the owner is being asked to take a decision using this
+evidence. Two of its three facts do not hold at the commit being handed
+over, and the third is incomplete.
+
+**Recommendation:** correct §1.4.1b's second bullet and the "two of the six"
+figure before the decision is taken, and remove the stale skip — which
+changes the first blocker's status from FAILED to HELD — in the same change.
+Re-measure the blocker table on the tree the gate closes on.
+
+### F2 — MATERIAL. The sixth Phase 1 blocker's "HELD" is not earned, and the tree contains a required CI test that is skipped
+
+**Where:** `tests/evaluation/manifest.py:389-393` (the sixth blocker's three
+witness files), against `docs/EVALUATION.md`'s sixth bullet.
+
+**What is wrong:** the sixth blocker is *"Required CI tests are skipped,
+ignored or only pass by mocking the actual behavior under acceptance"*, and
+`tests/test_provider_credentials.py` is in a CI shard on both platforms with
+a test that is skipped. None of the three witness files looks at whether any
+test is skipped.
+
+**How to reproduce:** `pytest tests/test_provider_credentials.py -rs` reports
+the skip; `tests/test_ci_shard_coverage.py`, `tests/test_fake_provider_isolation.py`
+and `tests/test_refusal_witnesses.py` contain no such check.
+
+**Why it matters:** it is the difference between the harness's report being
+evidence and being a tautology, and it bears directly on §10.5.
+
+**Recommendation:** either extend the sixth blocker's witnesses to look for
+skipped tests, or record the exclusion explicitly, as §10.5 recommends.
+
+### F3 — MEDIUM. Nothing watches a shipped document for superiority language
+
+**Where:** `tests/evaluation/report.py:50` (`RANKING_WORDS`) and
+`tests/test_evaluation_harness.py::test_the_rendered_comparison_carries_no_winners_language`.
+
+**What is wrong:** the watch greps the **rendered report's** comparison
+section. The documents a reader reads are not watched. M5 (§8) put a
+superiority claim into `docs/acceptance/LC-P1-13-baseline.md` and nothing
+went red.
+
+**How to reproduce:** add a sentence containing *"outperforms"* or *"better
+than"* to any shipped document and run the suite.
+
+**Recommendation:** grep the shipped records for `RANKING_WORDS` in a test of
+its own, or read the word list out of the harness rather than restating it.
+
+### F4 — MEDIUM. The parallel-run temp isolation is defeated by `TMPDIR`, and its own witness does not watch for that
+
+*Outside the seven clauses; found while measuring them, and it changes what
+the suite's greenness means.*
+
+**Where:** `conftest.py:120-135` (`give_this_worker_its_own_temp`) and
+`tests/parallel_temp_isolation.py` → `tests/test_parallel_temp_isolation.py`.
+
+**What is wrong:** the mechanism sets `TEMP` and `TMP` for a parallel worker.
+Python's `tempfile.gettempdir()` consults **`TMPDIR` first on every
+platform**, so an ambient `TMPDIR` wins and every worker shares one
+directory — which is the matplotlib font-cache race the mechanism exists to
+prevent. The witness does not set `TMPDIR` itself: it inherits whatever the
+environment has, and sets only `PYTEST_XDIST_WORKER`. So it goes red when
+the environment happens to carry a `TMPDIR` — it is **reactive** to the
+condition it should be **constructive** about — and it never notices that the
+mechanism it watches depends on the environment *not* carrying one.
+
+**How to reproduce:** with `TMPDIR` set, the probe in
+`tests/test_parallel_temp_isolation.py` reports the worker's directory as
+`TMPDIR` rather than `labcairn-worker-gw0`; without it, the worker gets
+`labcairn-worker-gw0`. My first whole-suite run set `TMPDIR` and two of the
+five failures were exactly this.
+
+**Also affected:** `tests/evaluation/runner.py:115-118` sets `TEMP`, `TMP`,
+`MPLCONFIGDIR` and `LABCAIRN_TEMP_ROOT` for the harness's own subprocess —
+**not `TMPDIR`** — so the harness's isolation has the same hole.
+
+**Why CI is unaffected:** `.github/workflows/python.yml` runs `uv run pytest
+$files --durations=0` with **no `-n`**, so no xdist worker is ever created
+there. This is about local parallel runs and about the harness.
+
+**Recommendation:** set `TMPDIR` alongside `TEMP`/`TMP` in
+`conftest.give_this_worker_its_own_temp` and in the harness's runner, and
+make the witness set `TMPDIR` itself so the property is watched rather than
+assumed.
+
+### F5 — LOW/MEDIUM. The release gate's font check is by file name, and the font audit's own file list includes an extension it does not know
+
+**Where:** `.github/workflows/release.yml:158` (`FONT_SUFFIXES`).
+
+**What is wrong:** the check is
+`{".ttf", ".otf", ".ttc", ".pfb", ".pfa", ".afm", ".pfm"}`. The font audit
+counts `DarkGarden.sfd` — the font's source, which reportlab ships — among
+the seven DarkGarden files, and the release record's §7 names it too. M6b and
+M6c (§9) put the GPL v2 font's bytes into the source distribution under
+`.sfd` and under `.woff2`, and the gate passed both times.
+
+**How to reproduce:** in a throwaway copy of the tree, commit
+`reportlab/fonts/DarkGardenMK.pfb` as `tests/fixtures/papers/fonts/DarkGarden.sfd`,
+`uv build`, and run the workflow's own member-list program: **exit 0**, and
+the file is in the sdist.
+
+**Recommendation:** add `.sfd`, `.bdf`, `.pcf`, `.woff` and `.woff2` to the
+suffix set, or check by content (a font file's own header) rather than by
+name. The wheel is unaffected.
+
+### F6 — LOW/MEDIUM. The README's command extraction misses commands outside a shell fence and inside an inline code span, and the two extractors in the gate disagree
+
+**Where:** `tests/test_readme_accuracy.py:64` (`_FENCE_RE`) against
+`scripts/outsider_path.py:119` (`fenced_blocks`).
+
+**What is wrong:** M1c, M1d and M1e (§4). A command in a ```console fence is
+dropped by **both** extractors and flagged by neither; a command in an
+inline code span is dropped by both; and a non-shell fence *between* two
+shell fences makes the README gate's extractor mis-pair the fences and read
+**prose** as commands. The walk script's extractor pairs fences fence by
+fence and its docstring says the pattern-based matcher is the bug to avoid —
+**the two extractors in this gate disagree, and the pattern-based one is the
+one the README gate uses.**
+
+**How to reproduce:** append a ```console block carrying
+`uv run pytest --last-failed` to README.md and run
+`pytest tests/test_readme_accuracy.py`.
+
+**Recommendation:** give the README gate the same fence-by-fence pairing the
+walk script uses, and read the shell-language set from one place. The
+Chinese README's gap (M1b) is already recorded in `CONTRIBUTING.md` §12; the
+fence-language gap is not recorded anywhere.
+
+### F7 — LOW. The threat model's enumeration of the writes in `src/` is not watched
+
+**Where:** `docs/THREAT-MODEL.md` §1.2 (the six-row table) against
+`tests/test_threat_model.py`.
+
+**What is wrong:** M3b (§6) added a seventh write to `src/labcairn/` and nine
+scoped test files stayed green. The C6 witness watches the *property*; no
+witness watches the *enumeration*.
+
+**How to reproduce:** add a module under `src/labcairn/` that calls
+`Path.write_text`, and run `pytest tests/test_threat_model.py
+tests/test_security_paths.py tests/test_workspace_boundaries.py`.
+
+**Recommendation:** a witness that scans `src/labcairn/` for write
+primitives and compares the result with the document's table, in the shape
+the threat model already uses for its network claim (C13).
+
+### F8 — LOW. The protocol's blocker count is wrong in five shipped documents
+
+**Where:** `docs/EVALUATION.md` lists **six** blockers. *"seven Phase 1
+blockers"* appears in five shipped places:
+`docs/plans/LC-P1-13-14-task-breakdown.md:50` and `:225`,
+`docs/QUICKSTART.md:426`, `docs/RELEASE-NOTES.md:348`, and
+`docs/acceptance/LC-P1-14-outsider-path.md:3`.
+
+**What is wrong:** the task breakdown says *"seven"* and then quotes six and
+calls them *"the exit test in prose"*. The discrepancy **is recorded** — in
+`docs/acceptance/LC-P1-13-evaluation.md` §2 and
+`docs/acceptance/LC-P1-13-baseline.md` §7 — but it was never corrected in the
+documents themselves, and the harness, which is right, reads six.
+
+**How to reproduce:** `grep -rn "seven Phase 1 blockers" --include=*.md .`
+
+**Recommendation:** five one-word corrections. The protocol is the ruler and
+it says six.
+
+### F9 — LOW. A citation in the threat model is outside the watching regex's extension list
+
+**Where:** `tests/test_threat_model.py:93` (`_CITATION`) and
+`docs/THREAT-MODEL.md:685` (`pyproject.toml:316`).
+
+**What is wrong:** the regex matches `py|ts|tsx|md|json|html`. The threat
+model's 136 `path:line` citations are matched; `pyproject.toml:316` is not.
+It resolves today, but a citation to a `.yml`, `.toml`, `.lock` or `.cfg`
+file would never be checked.
+
+**Recommendation:** widen the extension list, or say in the document that
+only those extensions are cited.
+
+### F10 — LOW. Two in-page anchors cannot resolve, and no test checks any in-page anchor
+
+**Where:** `README.md:174` and `README.zh-CN.md:11`, both
+`#许可证状态--尚未授予`; the headings are `### 许可证状态——尚未授予` — two
+**EM-dashes** (U+2014) with no spaces, against two **ASCII hyphens**
+(U+002D) in the link.
+
+**What is wrong:** no slug rule turns that heading into that anchor. If the
+em-dash is preserved the slug carries U+2014; if it is dropped the slug has
+no hyphens at all. Either way the link does not resolve. The English
+`#licence-status--not-yet-granted` resolves under the drop-the-em-dash rule
+and not under the preserve-it rule — I could not settle which GitHub uses,
+because this session's web tools were unavailable, so **that half is NOT
+MEASURED**.
+
+**Also:** no test in the repository checks any in-page anchor.
+`tests/test_readme_accuracy.py::test_readme_names_only_paths_that_exist`,
+`tests/test_status_consistency.py::test_relative_links_in_docs_resolve` and
+the dossier's link test all skip `#`-only targets.
+
+**Recommendation:** check the anchors, and pick one spelling for the
+Chinese heading and its links.
+
+### F11 — LOW. The release notes carry a limitation that was fixed before this commit
+
+**Where:** `docs/RELEASE-NOTES.md` §3.3.
+
+**What is wrong:** it says the two 8.3 short-name witnesses are broken —
+*"they reference `RootKind.WORKSPACE`, which does not exist … so they fail
+with an `AttributeError` wherever they run"* and *"the property is measured;
+the witness is broken."* At this commit both witnesses use `RootKind.OUTPUT`
+(`tests/test_security_paths.py:457` and `:490`); the `AttributeError` is
+gone. The release notes anchor themselves at `dd08573`, so the sentence was
+true there — but the release they describe is `0.1.0`, unreleased, and the
+gate commit carries the fixed witness. The record should not tell a reader
+that a property is unwatched when it is watched.
+
+**Recommendation:** refresh the limitation when the release notes are
+re-anchored, and say the property is watched with the 8.3 fix.
+
+### F12 — LOW. `.env.example` says Phase 1 reads no environment variable, and the provider layer reads one
+
+**Where:** `.env.example` — *"Phase 1 currently reads NO environment variable"* —
+against `src/labcairn/providers/credentials.py:254` (`load_credential` reads
+`os.environ[settings.credential_env]`).
+
+**What is wrong:** the product reads an environment variable when the
+workspace's `providers.json` names one. The `.env.example` sentence is true
+of the **default offline run** and false of the product. The repository
+knows the nuance —
+`docs/acceptance/LC-P1-13-baseline.md` §2.2 says the provider layer *"reads
+a workspace's `providers.json` and resolves a credential from an environment
+variable name or a file path"* — and the `.env.example` file does not.
+
+**Why it is in scope:** the gate's own reasoning cites `.env.example` as the
+reason the real-provider smoke cannot be run. The real reason is the absence
+of a credential and of the owner's authorisation, not the absence of an
+environment-variable read.
+
+**Recommendation:** reword the sentence to name the default offline run.
+
+### F13 — LOW. The outsider walk's SQLite database reported a disk I/O error under concurrent load on this machine
+
+**Where:** `tests/test_outsider_path.py` in my first whole-suite run.
+
+**What is wrong:** nothing in the product, as far as I can tell. The walk
+failed with `sqlite3.OperationalError: disk I/O error`. The failing run had
+**two** conditions the passing re-run did not: `TMPDIR` was set (F4), and I
+was running a `uv build` and a `uv pip install` into a second virtualenv
+against the same volume at the same time. The same sixteen tests **passed in
+193.41 s** when re-run alone with neither condition. I did not reproduce the
+failure and I did not isolate which of the two conditions caused it, so I
+name both rather than pick one. **This is reported as an observation, not as
+a finding about the product** — but a gate review that says "the tree is
+green" has to say how it knows.
+
+### F14 — LOW. The evaluation report the gate ships asserts that the public fixtures are not in the tree, and they are
+
+**Where:** `tests/evaluation/aggregate.py` — the hard-coded `NOT_MEASURED`
+reasons — as they are printed in the report.
+
+**What is wrong:** the report this gate produces, on this tree, says of the
+end-to-end-task-success metric:
+
+> *"The public fixtures that would be that corpus are LC-P1-13 T00's
+> deliverable and **are not in this tree**."*
+
+`tests/fixtures/public/` holds **four** fixtures, and the same report says so
+elsewhere — it lists `test_public_fixtures.py` as a witness. A reader who
+takes the reason at its word concludes the corpus is absent.
+
+**This is not a new finding — it is a finding the repository reported and did
+not fix.** `docs/acceptance/LC-P1-13-baseline.md` §3.7 says exactly this:
+*"Two of the `NOT_MEASURED` reasons are **hard-coded constants** … **Both
+statements are false of this tree** … a reader who takes the reason at its
+word would conclude the corpus is absent, and it is present and unused."*
+The record names the fix as T01's and leaves it undone. **The verdicts are
+still right — the reasons are not** — and I have confirmed on this tree that
+the reason is still printed.
+
+**How to reproduce:** run `python -m tests.evaluation --out <outside the
+repository>` and read the "End-to-end task success" row's reason.
+
+**Recommendation:** make the two reasons read the tree's state rather than
+assert a fact about it. This is the fix the baseline record already named.
+
+---
+
+## 12. What I did not test, and why
+
+| What | Why |
+|---|---|
+| **The real-provider smoke itself.** | There is no credential on this machine and no owner's authorisation to spend money. `docs/EVALUATION.md` requires *"at least one real supported provider under declared model/version/parameters"* and the harness reports the class NOT RUN with the reason and exit code 2. **NOT MEASURED**, and the missing input is named: a provider credential and the owner's authorisation, plus the owner's §1.4.2 decision about which provider. |
+| **Any competitor baseline.** | None exists in this tree and none was run. The protocol permits a comparison only like-for-like. **NOT MEASURED**; the missing input is a declared-model run on this side and a second installation. |
+| **The four task-level metrics** (end-to-end task success, evidence locator validity by human check, unsupported-claim detection, revision consistency). | The harness reports each as NOT MEASURED with the missing input named: an attempted-task corpus with verified deliveries, a human-checked sample, a no-evidence fixture driven as a task, and a corpus of source-change runs. I did not attempt them. |
+| **The release workflow on a GitHub runner.** | The two python programs it carries were extracted from the parsed YAML and run here, and both pass (§9). The shell around them — the `uv` invocations, the pnpm install, the gitleaks download — was not executed, and the workflow has never run on a runner. The release record says the same (§9 of that record). |
+| **The Linux and macOS legs of the dependency closure.** | The closure is platform-dependent; I installed and read the **Windows** leg (168 distributions) and the export's marker evaluation (171 requirement lines). The other two platforms were not installed. |
+| **`httpx2-jsfetch`**, the one distribution no CI job can install. | Its marker is `sys_platform == 'emscripten'`. It is recorded in the NOTICE; no runner can install it, so no measurement of it is possible here. |
+| **Whether GitHub preserves or drops an em-dash in an anchor.** | This session's web tools were unavailable. F10's Chinese-anchor half does not depend on the answer; the English half does. |
+| **The web package's own quality gates** (`pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`). | `web/node_modules` is not installed in my worktree, so the README's `pnpm` rows were skipped by `tests/test_readme_accuracy.py::test_readme_commands_run` — as it reports loudly. **NOT MEASURED**; the missing input is a `pnpm install --frozen-lockfile` in `web/`. |
+| **The upstream repositories.** | They are reference material outside this repository, untrusted, and the brief forbids reading `../labcairn-upstreams/`. Every upstream fact in the dossier is checked against `docs/UPSTREAM_REFERENCES.md`, which is in the repository — **not** against the upstream trees. |
+| **The POSIX half of the path-guard suite.** | These tests are skipped on this Windows machine, and they run on the other CI runner. **NOT MEASURED**; the missing input is a POSIX runner. |
+| **The 8.3 short-name witnesses on a volume that generates short names.** | `E:` does not generate 8.3 names, so `tests/test_security_paths.py:453` and `:486` skip here. I made the short-spelled directory by hand on `C:` to measure the demonstration (§10.3), but I did not re-run those two witnesses under a short-spelled `TMP_PATH` — the mechanism they use builds the short name itself. |
+
+---
+
+## 13. Values I re-measured, and where they now stand
+
+| Value | Where it is recorded | Measured at that commit | Measured at `72154cd` |
+|---|---|---|---|
+| the Phase 1 blocker count | `docs/EVALUATION.md` | six | **six** — five documents say "seven" (F8) |
+| blockers that failed | `LC-P1-13-evaluation.md` §8, `LC-P1-13-baseline.md` §3.4 | two of six | **two of six** in the harness's own run on this tree — the first for the **stale** g1 skip (it holds once that skip is removed) and the second for the POSIX conditional **plus the two 8.3 witnesses** this volume cannot run (F1) |
+| the harness's exit code | the evaluation record §1 | 2 | **2** — *"a selected class could not be run"* |
+| the gate classes | the evaluation record §3 | Unit 1469/1470, Integration 1131/1134, Negative 361/362, E2E 86/86, Repository gates 305/305 | **Unit 1510/1511, Integration 1131/1134, Negative 361/364, E2E 102/102, Repository gates 369/369**, Real-model smoke **NOT RUN** |
+| the corpus exactness metric | the evaluation record §5 | 84/84 — 77/77 — 14/14 | **84/84 — 77/77 — 14/14** — unchanged |
+| source-distribution members | `LC-P1-14-release-contents.md` §2.1 | 444 | **452** (the committed tree plus `PKG-INFO`, still exact) |
+| wheel members | the same | 153 | **153** — unchanged |
+| the dependency closure | the same, and the NOTICE | 171 requirement lines | **171** |
+| distributions with a recorded licence | the same | 168 on Windows | **168 on Windows, all sixteen labels, exit 0** |
+| matplotlib's font files | the NOTICE §3.1 | 101 | **101** |
+| reportlab's font files | the NOTICE §3.2 | 25 | **25** |
+| `def test_` definitions / test modules | `docs/REVIEW-DOSSIER.md` §5.3 | 2292 / 106 | **2310 / 108** |
+| the dossier's upstream identifiers in `src/` | the same, §4.2 | zero | **zero** |
+| `pydantic-ai` import sites | the same, §4.3 | three modules | **three modules, the same lines** |
+| `FailureKind`'s members | the same, §4.2 | twelve | **twelve** |
+| the threat model's citations | `docs/THREAT-MODEL.md` §7 | — | **136 watched, 1 not** (F9) |
+| the dossier's citations | `docs/REVIEW-DOSSIER.md` | — | **61, all watched** |
+
+---
+
+## 14. What I recommend fixing
+
+**I fixed nothing. These are recommendations.**
+
+1. **Correct §1.4.1b before the owner decides** (F1): the second failed
+   blocker was the POSIX platform conditional, not the provider-credential
+   skip; and the first blocker holds at this commit because the 8.3 defect
+   was fixed. **Then take the decision** — my recommendation is Option A for
+   the smoke, in Option C's form, with the protocol amended and the
+   amendment recorded (§10.5).
+2. **Remove the stale skip** in `tests/test_earlier_exit_demos.py`, and
+   re-run the harness, so the blocker table describes the tree being handed
+   over (F1).
+3. **Extend the sixth blocker's witnesses** to look for skipped tests, or
+   record the `requires_provider` exclusion explicitly (F2).
+4. **Grep the shipped records for the harness's own ranking words** in a
+   test of its own (F3).
+5. **Set `TMPDIR` as well as `TEMP`/`TMP`** in `conftest.give_this_worker_its_own_temp`
+   and in the harness's runner, and make the witness set `TMPDIR` itself
+   (F4).
+6. **Widen the release gate's font suffix set**, or check by content (F5).
+7. **Give the README gate the walk script's fence-by-fence extraction**, and
+   read the shell-language set from one place (F6).
+8. **Add a witness for the threat model's write enumeration** (F7).
+9. **Make the harness's two hard-coded `NOT_MEASURED` reasons read the tree's
+   state** (F14) — the fix the baseline record already named and left undone.
+10. **Correct "seven Phase 1 blockers" in the five documents** (F8), **widen
+    the citation regex's extension list** (F9), **fix the two Chinese
+    anchors and check anchors at all** (F10), **refresh the release notes'
+    §3.3** (F11), and **reword `.env.example`'s environment-variable
+    sentence** (F12).
+
+---
+
+## 15. What this review does not establish
+
+- **It does not close the gate.** The gate's exit test names a real-provider
+  smoke that has not run.
+- **It does not establish that the whole tree is green on every
+  platform.** What it establishes is that on this machine the tree at
+  `72154cd` is green: two whole-suite runs — mine (3467 passed, 5 failures,
+  each accounted for and each re-run green in isolation) and the harness's
+  own (zero failed, zero errored in every class) — agree. The POSIX half of
+  the path-guard suite and the two 8.3 witnesses did not run here, and the
+  web package's gates did not run at all.
+- **It does not review the product.** Another reviewer has the product
+  scope. This document covers the records and the package.
+- **It does not re-measure the upstream facts**, only their agreement with
+  `docs/UPSTREAM_REFERENCES.md`.
+- **It does not take the owner's decision** on §1.4.1b. It supplies the
+  material and a recommendation, and says plainly that the gate's exit test
+  is not met whatever is decided.

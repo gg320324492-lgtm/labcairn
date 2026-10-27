@@ -25,11 +25,26 @@ difference between a red build and a red test.
 **And the check itself is watched.** A checker that cannot fail is not a
 witness, so the last test in this file feeds it a step that is missing a
 declaration and requires it to name the variable.
+
+**The release gate's font list is watched the same way.** The gate refuses a
+distribution that carries a font file, and it recognises a font by its
+extension. That list had drifted away from the font licence audit: the audit
+names reportlab's ``DarkGarden.sfd`` -- the *source* of the one bundled font
+that is not permissive -- and the gate did not know that extension, so the
+file the audit names could have gone into a source distribution unnoticed.
+So the list is compared with the audit's own list, and the gate's own program
+is run over a release that carries a font.
 """
 
 from __future__ import annotations
 
+import ast
+import io
 import re
+import subprocess
+import sys
+import tarfile
+import zipfile
 from pathlib import Path
 from typing import Any, Final
 
@@ -263,3 +278,299 @@ def test_the_release_gate_names_its_requirements_file_in_both_steps(
             f"the release workflow's step {step_name!r} in job {job_name} "
             "mentions RELEASE_REQUIREMENTS but does not declare it"
         )
+
+
+# ---------------------------------------------------------------------------
+# The release gate's font list
+# ---------------------------------------------------------------------------
+
+#: The formats a font can arrive in.
+#:
+#: **This list is the test's own knowledge of the world, and it is
+#: deliberately not read from the workflow.** A comparison between a list and
+#: itself proves nothing: the workflow's list would define what "a font" means
+#: and would then be found to agree with itself. This one says what a font
+#: can be, and the workflow's list has to live inside it.
+FONT_FORMATS: Final[frozenset[str]] = frozenset(
+    {
+        ".afm",
+        ".bdf",
+        ".dfont",
+        ".eot",
+        ".fnt",
+        ".otc",
+        ".otf",
+        ".pcf",
+        ".pfb",
+        ".pfa",
+        ".pfm",
+        ".sfd",
+        ".ttc",
+        ".ttf",
+        ".woff",
+        ".woff2",
+    }
+)
+
+#: The font licence audit, which names the fonts the wheels bundle.
+FONT_AUDIT: Final[Path] = Path("docs") / "acceptance" / "LC-P1-14-font-licence-audit.md"
+
+#: An inline code span in the audit -- how the audit names its files.
+_BACKTICKED: Final[re.Pattern[str]] = re.compile(r"`([^`\n]+)`")
+
+#: The extension of a named file.
+_EXTENSION: Final[re.Pattern[str]] = re.compile(r"(\.[A-Za-z0-9]+)$")
+
+#: A heredoc in a workflow step's script.
+_HEREDOC: Final[re.Pattern[str]] = re.compile(r"<<'PY'\n(.*?)\nPY\n", re.DOTALL)
+
+
+def _the_gate_program(repo_root: Path) -> str:
+    """The Python the release gate runs to compare the artefacts' member lists.
+
+    **The gate's own program, not a copy of it.** A test that re-implemented
+    the check would be a test of the copy, and the copy would drift away from
+    the gate exactly as the gate drifted away from the audit. So the program
+    is read out of the workflow and run as it is written there.
+    """
+    document = yaml.safe_load(
+        (repo_root / WORKFLOW_DIR / "release.yml").read_text(encoding="utf-8")
+    )
+    programs = [
+        match.group(1)
+        for _job_name, step in _steps(document)
+        if isinstance(script := step.get("run"), str)
+        for match in _HEREDOC.finditer(script)
+        if "FONT_SUFFIXES" in match.group(1)
+    ]
+    assert len(programs) == 1, (
+        "the release workflow does not hold exactly one member-list program with a "
+        f"font list in it; found {len(programs)}"
+    )
+    return programs[0]
+
+
+def _the_font_suffixes_the_gate_refuses(repo_root: Path) -> frozenset[str]:
+    """The extensions the gate's own program refuses, read out of that program."""
+    program = _the_gate_program(repo_root)
+    for node in ast.walk(ast.parse(program)):
+        if not isinstance(node, ast.Assign):
+            continue
+        names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+        if "FONT_SUFFIXES" not in names:
+            continue
+        assert isinstance(node.value, ast.Set), (
+            "the release gate's FONT_SUFFIXES is not a set literal, so the list it "
+            "refuses cannot be read out of it"
+        )
+        values: list[str] = []
+        for element in node.value.elts:
+            assert isinstance(element, ast.Constant) and isinstance(element.value, str), (
+                "the release gate's FONT_SUFFIXES holds something that is not a string"
+            )
+            values.append(element.value)
+        return frozenset(value.lower() for value in values)
+    raise AssertionError("the release gate's program has no FONT_SUFFIXES in it")
+
+
+def _the_fonts_the_audit_names(repo_root: Path) -> dict[str, str]:
+    """The font files the licence audit names, by name, and the format of each."""
+    text = (repo_root / FONT_AUDIT).read_text(encoding="utf-8")
+    named: dict[str, str] = {}
+    for span in _BACKTICKED.findall(text):
+        extension = _EXTENSION.search(span)
+        if extension is None:
+            continue
+        suffix = extension.group(1).lower()
+        if suffix not in FONT_FORMATS:
+            continue
+        named[span] = suffix
+    return named
+
+
+def test_the_release_gate_refuses_every_font_the_licence_audit_names(repo_root: Path) -> None:
+    """The gate's font list covers the fonts the licence audit names.
+
+    **The audit names the fonts; the gate refuses them.** The audit counted
+    reportlab's ``DarkGarden.sfd`` -- the source of the one bundled font that
+    is not permissive -- and the gate that checks what a release contains did
+    not know that extension, so the very file the audit names could have gone
+    into a source distribution unnoticed.
+
+    The two are compared, so neither can drift away from the other: a font the
+    audit names that the gate would not refuse fails here, and a suffix in the
+    gate that is not a font format fails here too.
+    """
+    named = _the_fonts_the_audit_names(repo_root)
+    assert named, (
+        "the font licence audit names no font file, so the comparison with the "
+        "release gate's list would be vacuous"
+    )
+
+    refused = _the_font_suffixes_the_gate_refuses(repo_root)
+    unrefused = {name: suffix for name, suffix in named.items() if suffix not in refused}
+    assert not unrefused, (
+        f"the release gate would not refuse these fonts the licence audit names: "
+        f"{unrefused}. The audit names the file that is the font's source, and the "
+        "gate has to know its extension."
+    )
+
+    not_a_font = sorted(refused - FONT_FORMATS)
+    assert not not_a_font, (
+        f"the release gate refuses suffixes that are not font formats: {not_a_font}. "
+        "A list that grew to hold anything would stop being a list of fonts."
+    )
+
+
+def _git(root: Path, *arguments: str) -> None:
+    """Run one git command in the tree, and insist that it worked."""
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode == 0, (
+        f"git {' '.join(arguments)} failed in {root} (exit {result.returncode}): "
+        f"{result.stderr.strip()[-2000:]}"
+    )
+
+
+def _build_a_release_tree(root: Path, fonts: tuple[str, ...]) -> None:
+    """A committed tree, a source distribution and a wheel, ready for the gate.
+
+    Everything the gate's program compares is built here: the committed tree
+    (a git repository with one commit), the source distribution (that tree
+    plus the one file the build backend adds) and the wheel (the package's
+    own files plus the six metadata files the release declares). A caller
+    changes one thing -- the font files it plants -- and everything else stays
+    a release the gate is meant to accept.
+    """
+    package = root / "src" / "labcairn"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text('"""A package."""\n', encoding="utf-8")
+    (root / "NOTICE").write_text("A notice.\n", encoding="utf-8")
+
+    planted: list[str] = []
+    for name in fonts:
+        path = root / "fonts" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"a font's bytes")
+        planted.append(f"fonts/{name}")
+
+    _git(root, "init", "--quiet")
+    _git(root, "add", "--", "src/labcairn/__init__.py", "NOTICE", *planted)
+    _git(
+        root,
+        "-c",
+        "user.name=LabCairn",
+        "-c",
+        "user.email=ci@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "a release tree",
+    )
+
+    members = ["NOTICE", "src/labcairn/__init__.py", *planted]
+    dist = root / "dist"
+    dist.mkdir()
+    with tarfile.open(dist / "labcairn-0.1.0.tar.gz", "w:gz") as archive:
+        for member in members:
+            archive.add(root / member, arcname=f"labcairn-0.1.0/{member}")
+        info = tarfile.TarInfo("labcairn-0.1.0/PKG-INFO")
+        info.size = 0
+        archive.addfile(info, io.BytesIO(b""))
+
+    metadata = (
+        "METADATA",
+        "RECORD",
+        "WHEEL",
+        "entry_points.txt",
+        "licenses/LICENSE.PENDING.md",
+        "licenses/NOTICE",
+    )
+    with zipfile.ZipFile(dist / "labcairn-0.1.0-py3-none-any.whl", "w") as archive:
+        archive.writestr("labcairn/__init__.py", '"""A package."""\n')
+        for name in metadata:
+            archive.writestr(f"labcairn-0.1.0.dist-info/{name}", "")
+
+
+def _run_the_gate(root: Path, program: str) -> subprocess.CompletedProcess[str]:
+    """Run the gate's own member-list program over the tree at *root*."""
+    script = root / "the-gate.py"
+    script.write_text(program, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(script)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=300,
+    )
+
+
+@pytest.mark.parametrize("font", ["DarkGarden.sfd", "Inter.woff2"])
+def test_the_release_gate_refuses_a_source_distribution_that_carries_a_font(
+    repo_root: Path,
+    tmp_path: Path,
+    font: str,
+) -> None:
+    """The gate's own program refuses a release that carries a font file.
+
+    **The gate's program, run over a real distribution.** The bytes of a
+    GPL v2 font, renamed to an extension the gate did not know, went into a
+    source distribution and the gate exited zero. So the program is taken
+    out of the workflow as it is written there, and it is run over a tree
+    whose source distribution carries such a file -- and it has to refuse it
+    and name the file.
+
+    ``DarkGarden.sfd`` is the font's *source*, the very file the licence
+    audit names; ``Inter.woff2`` is the format a browser ships. Both are
+    fonts, and a gate that recognises only some of the formats is not a gate.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    _build_a_release_tree(root, (font,))
+
+    result = _run_the_gate(root, _the_gate_program(repo_root))
+    assert result.returncode != 0, (
+        f"the release gate accepted a source distribution carrying {font!r} "
+        f"(exit {result.returncode}).\n--- stdout ---\n{result.stdout[-4000:]}\n"
+        f"--- stderr ---\n{result.stderr[-4000:]}"
+    )
+    assert "carries font files" in result.stdout, (
+        f"the release gate refused the distribution but did not say it was a font:\n"
+        f"--- stdout ---\n{result.stdout[-4000:]}"
+    )
+    assert font in result.stdout, (
+        f"the release gate refused the distribution but did not name the font file "
+        f"{font!r}:\n--- stdout ---\n{result.stdout[-4000:]}"
+    )
+
+
+def test_the_release_gate_accepts_a_release_that_carries_no_font(
+    repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    """The control: the same program, over a release that carries no font.
+
+    A gate that refused everything would satisfy the test above, so it is
+    asked about the release it is meant to accept, and it has to accept it.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    _build_a_release_tree(root, ())
+
+    result = _run_the_gate(root, _the_gate_program(repo_root))
+    assert result.returncode == 0, (
+        f"the release gate refused a release that carries no font "
+        f"(exit {result.returncode}).\n--- stdout ---\n{result.stdout[-4000:]}\n"
+        f"--- stderr ---\n{result.stderr[-4000:]}"
+    )

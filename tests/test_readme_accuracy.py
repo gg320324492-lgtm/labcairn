@@ -9,14 +9,17 @@ intentions is not a property, it is a habit. This file turns it into a gate.
 
 Four independent claims are checked:
 
-1. **Command authenticity.** Every command in a fenced block of the README is
-   extracted and matched against :data:`VERIFIED_COMMANDS`. Each of those is then
-   *actually executed* in a subprocess — ``uv run pytest`` really collects the
-   suite, ``uv run ruff check .`` really lints, ``pnpm test`` really runs Vitest.
-   The table is fail-closed in both directions: a command the README does not
-   document fails ("you added a command nobody ran"), and a documented command
-   that is not in the table fails ("this is not verified"). Adding a command to
-   the README therefore requires adding a row *and* making that row pass.
+1. **Command authenticity.** Every command the README shows — in a fenced
+   shell block and in an inline code span — is extracted and matched against
+   :data:`VERIFIED_COMMANDS`. Each of those is then *actually executed* in a
+   subprocess — ``uv run pytest`` really collects the suite, ``uv run ruff
+   check .`` really lints, ``pnpm test`` really runs Vitest. The table is
+   fail-closed in both directions: a command the README does not document
+   fails ("you added a command nobody ran"), and a documented command that is
+   not in the table fails ("this is not verified"). Adding a command to the
+   README therefore requires adding a row *and* making that row pass. The
+   extraction is the walk script's (``scripts/outsider_path.py``), because
+   two gates reading the same document must read it the same way.
 2. **No claims of unimplemented capability.** The repository has no CLI, no
    server, no database and no product feature (LC-P1-14 is where release shape is
    settled). Sentence-level scanning rejects "supports / provides / 支持 / 实现"
@@ -46,25 +49,68 @@ are bounded by explicit timeouts.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # How commands are found in the README
 # ---------------------------------------------------------------------------
 
-#: Fenced code blocks. Only ``` and ```bash are treated as executable; ```python
-#: and ```text hold prose or illustrative snippets, never runnable instructions.
-_FENCE_RE = re.compile(r"^```(?:bash|sh|shell)?[ \t]*$(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
 
-#: A line that is an instruction rather than prose, a comment or a blank.
-_SHELL_COMMENT_RE = re.compile(r"^\s*#")
+def _load_the_walk_script() -> Any:
+    """The walk script, loaded as a module.
+
+    **The script is a tool rather than a package**, so it is loaded the way
+    a person would run it: by its own path. It is loaded under a name of its
+    own so that it does not collide with the name the walk script's own test
+    loads it as.
+    """
+    script = Path(__file__).resolve().parent.parent / "scripts" / "outsider_path.py"
+    spec = importlib.util.spec_from_file_location("readme_gate_walk_script", script)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # The module is registered before it runs: a dataclass asks
+    # ``sys.modules`` for its own namespace while it is being built, and a
+    # module that was never registered is not there to be asked.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+#: The walk script -- the other gate that reads the README's commands.
+WALK_SCRIPT: Any = _load_the_walk_script()
+
+#: The languages a fenced block may hold a command in.
+#:
+#: **Read from the walk script rather than written down here.** The two gates
+#: answer the same question -- what does the README show -- and a set written
+#: down twice is two sets that will differ.
+SHELL_LANGUAGES: frozenset[str] = WALK_SCRIPT.SHELL_LANGUAGES
+
+#: Every runnable command line the README shows, in document order.
+#:
+#: **The walk script's extractor, and not a second one.** The two gates read
+#: the same document and have to read it the same way: the walk script pairs
+#: its fences fence by fence, and this gate used to match them by a
+#: pattern, and the two answered differently -- one read a ```` ```console
+#: ```` block as nothing at all, and the other read the prose between two
+#: shell blocks as a command. A second extractor is a second answer, and it
+#: is the second answer that lets an unverified command through.
+#:
+#: The call takes the console scripts the package declares as its second
+#: argument: a call to one of those is a product command, and the CLI is the
+#: authority on which of them exist.
+documented_commands = WALK_SCRIPT.readme_commands
 
 
 def readme_text(repo_root: Path) -> str:
@@ -72,20 +118,14 @@ def readme_text(repo_root: Path) -> str:
     return (repo_root / "README.md").read_text(encoding="utf-8")
 
 
-def documented_commands(text: str) -> list[str]:
-    """Every runnable command line the README shows, in document order.
+def console_script_names(repo_root: Path) -> frozenset[str]:
+    """The console scripts the package declares, read out of the manifest.
 
-    Returns normalised (whitespace-collapsed) strings so that line wrapping in the
-    Markdown cannot make a real command look like a new one.
+    **The same list the walk script reads**, so the two gates agree on which
+    programs are the product's own entry points and which are the
+    repository's maintenance tools.
     """
-    commands: list[str] = []
-    for block in _FENCE_RE.findall(text):
-        for raw_line in block.splitlines():
-            line = " ".join(raw_line.strip().split())
-            if not line or _SHELL_COMMENT_RE.match(raw_line):
-                continue
-            commands.append(line)
-    return commands
+    return frozenset(WALK_SCRIPT.console_script_names(repo_root))
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +305,10 @@ def test_readme_has_at_least_one_documented_command(repo_root: Path) -> None:
     :func:`test_readme_documents_only_verified_commands` pass on zero commands —
     the classic "the test is green because it found nothing" failure.
     """
-    commands = documented_commands(readme_text(repo_root))
+    commands = documented_commands(
+        readme_text(repo_root),
+        console_script_names(repo_root),
+    )
     assert commands, (
         "found no runnable command in README.md. Either the quick-start block was "
         "removed (the LC-P1-01 gate then has nothing to check) or its fence markers "
@@ -280,7 +323,14 @@ def test_readme_documents_only_verified_commands(repo_root: Path) -> None:
     commands" bite at edit time, before anyone runs anything.
     """
     known = {c.documented for c in VERIFIED_COMMANDS}
-    unknown = [cmd for cmd in documented_commands(readme_text(repo_root)) if cmd not in known]
+    unknown = [
+        cmd
+        for cmd in documented_commands(
+            readme_text(repo_root),
+            console_script_names(repo_root),
+        )
+        if cmd not in known
+    ]
     assert not unknown, (
         "README documents command(s) with no verified row in "
         "tests/test_readme_accuracy.py::VERIFIED_COMMANDS: "
@@ -291,11 +341,158 @@ def test_readme_documents_only_verified_commands(repo_root: Path) -> None:
 
 def test_verified_commands_are_all_documented(repo_root: Path) -> None:
     """The other direction: no dead rows, so the table cannot rot into fiction."""
-    commands = documented_commands(readme_text(repo_root))
+    commands = documented_commands(
+        readme_text(repo_root),
+        console_script_names(repo_root),
+    )
     missing = [c.documented for c in VERIFIED_COMMANDS if c.documented not in commands]
     assert not missing, (
         f"VERIFIED_COMMANDS rows exist that the README no longer documents: {missing}. "
         "Either the README lost the command or the row should be deleted."
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1a. The extractor itself
+#
+# The gate above fails closed only if the extractor finds the commands. An
+# extractor that finds fewer commands than the README shows lets an
+# unverified command through, and one that finds more reads a paragraph of
+# prose as an instruction. Both are failures, and both are watched here.
+# ---------------------------------------------------------------------------
+
+
+def test_the_readme_gate_reads_the_readme_with_the_walk_scripts_extractor() -> None:
+    """One extractor, not two -- and the check is on the reader itself.
+
+    **Why the reader and not its answers.** Two extractors can agree on
+    today's README and differ on tomorrow's. The walk script paired its
+    fences fence by fence, and this gate used to match them by a pattern,
+    and the two answered "what does the README show" differently: one read a
+    ```console block as nothing at all, and the other read the prose
+    between two shell blocks as a command. So this gate uses the walk
+    script's extractor, and the set of languages that hold instructions is
+    read from there too.
+
+    The document below is the one that tells the two readers apart -- a
+    console block, a prose block between two shell blocks, and a command
+    written inline. Both readers are asked about it and they must agree,
+    and the prose must stay prose.
+    """
+    assert documented_commands is WALK_SCRIPT.readme_commands, (
+        "the README gate has its own extractor again. The walk script and this "
+        "gate read the same document and must read it the same way; two "
+        "extractors are two answers, and they already answered differently."
+    )
+    assert SHELL_LANGUAGES is WALK_SCRIPT.SHELL_LANGUAGES, (
+        "the README gate has its own set of languages again. The set belongs to "
+        "the walk script, which reads the shells; a set written down twice is "
+        "two sets that will differ."
+    )
+
+    document = (
+        "# A README\n\n"
+        "```bash\nuv sync\n```\n\n"
+        "```text\nA paragraph of prose, which is not a command.\n```\n\n"
+        "```console\nuv run pytest --last-failed\n```\n\n"
+        "And inline: `pnpm test`.\n"
+    )
+    assert documented_commands(document, frozenset()) == [
+        "uv sync",
+        "uv run pytest --last-failed",
+        "pnpm test",
+    ], (
+        "the extractor did not read the document the way the walk script reads "
+        "it. The commands are the two shell blocks and the inline span, and "
+        "nothing else: the prose between the shell blocks is not a command."
+    )
+
+
+def test_the_extractor_reads_a_console_block() -> None:
+    """A ```console block holds commands, and they are read.
+
+    **A console session is a shell.** The fence that says ``console`` marks
+    a terminal session, and the lines in it are lines somebody typed. An
+    extractor that knew only ``bash`` read such a block as nothing at all,
+    so a command written there went unchecked by either gate.
+    """
+    document = "# A README\n\n```console\nuv run pytest --last-failed\n```\n"
+    assert documented_commands(document, frozenset()) == ["uv run pytest --last-failed"], (
+        "the extractor did not read the command in the console block. A console "
+        "session is a shell, and its lines are lines somebody typed."
+    )
+
+
+def test_the_extractor_pairs_the_fences_rather_than_matching_them() -> None:
+    """A block between two shell blocks is not read as part of either.
+
+    **This is the mispairing.** A pattern that looked for "the next closing
+    fence" took the closing fence of a ```text block for the opening fence
+    of a shell block, and read the paragraph inside it -- and the fence
+    itself -- as commands. So the extractor is asked about a document with a
+    prose block between two shell blocks, and it has to find the two
+    commands and leave the prose alone.
+    """
+    document = (
+        "# A README\n\n"
+        "```bash\nuv sync\n```\n\n"
+        "```text\nA paragraph of prose, which is not a command.\n```\n\n"
+        "```bash\nuv run pytest\n```\n"
+    )
+    assert documented_commands(document, frozenset()) == ["uv sync", "uv run pytest"], (
+        "the extractor mispaired the fences. A block between two shell blocks "
+        "is its own block, and the prose inside it is not a command."
+    )
+
+
+def test_the_extractor_reads_a_command_written_inline() -> None:
+    """A command in an inline code span is read too.
+
+    `` `uv sync` `` is an instruction just as much as a line in a shell
+    block is, and an extractor that read only the blocks let a README
+    document a command that nobody ran.
+    """
+    document = "# A README\n\nInstall with `uv sync` and then run `uv run pytest`.\n"
+    assert documented_commands(document, frozenset()) == ["uv sync", "uv run pytest"], (
+        "the extractor did not read the commands written inline. An inline "
+        "command is an instruction just as much as a line in a shell block."
+    )
+
+
+def test_the_extractor_leaves_a_name_alone() -> None:
+    """A span that names a thing is not a command.
+
+    The README names files, directories and options in inline code spans all
+    the time -- ``uv.lock``, ``--json``, ``src/labcairn/`` -- and a name is
+    not an instruction. Reading them as commands would make this gate fail
+    on ordinary prose, and a gate that cries wolf gets ignored.
+    """
+    document = (
+        "# A README\n\n"
+        "The lockfile is `uv.lock`, the option is `--json`, the package is in "
+        "`src/labcairn/`, and the number is `0`.\n"
+    )
+    assert documented_commands(document, frozenset()) == [], (
+        "the extractor read a name as a command, and a name is not an instruction."
+    )
+
+
+def test_the_extractor_leaves_the_product_commands_to_the_cli(repo_root: Path) -> None:
+    """A call to the project's own console script is not a maintenance command.
+
+    **The CLI is the authority on its own entry points.** ``labcairn task
+    create`` is a product command, and this gate's table is the table of the
+    repository's maintenance tools; the two are checked by two different
+    gates, and asking one table to hold the other's rows would only blur it.
+    """
+    scripts = console_script_names(repo_root)
+    assert scripts, (
+        "the package declares no console script, so the split between product "
+        "commands and maintenance commands cannot be drawn"
+    )
+    document = "# A README\n\nRun `labcairn task create` and then `uv sync`.\n"
+    assert documented_commands(document, scripts) == ["uv sync"], (
+        "the extractor read a product command as a maintenance command, or not."
     )
 
 
@@ -422,18 +619,14 @@ def test_uv_is_on_path_when_running_under_uv(repo_root: Path) -> None:
 
 #: An inline code span. A command written in one is delimited exactly, which
 #: is what makes it safe to read as an invocation.
-_CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
-
-#: Every fenced block, whatever its language.
 #:
-#: The runnable-commands extractor above deliberately matches only the shells,
+#: **The walk script's spans, not a second pattern.** The two gates read the
+#: same document, and the spans of that document are the same spans.
+#: Every fenced block, whatever its language, comes from the same pairing:
+#: the runnable-commands extractor above deliberately reads only the shells,
 #: because only a shell line is an instruction. This one is about what the
 #: README *claims exists*, and a command shown in an illustration claims the
 #: same thing as one shown in a shell.
-_ANY_FENCE_RE = re.compile(r"^```[a-z]*[ \t]*$(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
-
-#: A command word. Lower case, so an option (``--title``) is not one and a
-#: path or a flag never ends up inside a command path.
 _COMMAND_WORD_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
@@ -453,9 +646,9 @@ def script_invocations(text: str, script: str) -> list[str]:
     Deduplicated, and in document order, so a command shown three times is
     checked once.
     """
-    lines: list[str] = list(_CODE_SPAN_RE.findall(text))
-    for block in _ANY_FENCE_RE.findall(text):
-        lines.extend(block.splitlines())
+    lines: list[str] = list(WALK_SCRIPT.inline_code(text))
+    for _language, block in WALK_SCRIPT.fenced_blocks(text):
+        lines.extend(block)
 
     found: list[str] = []
     for line in lines:

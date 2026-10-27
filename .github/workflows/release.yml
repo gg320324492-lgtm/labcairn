@@ -155,7 +155,22 @@ jobs:
 
           # A font file, by name. The distribution must carry none: no third
           # party font may reach a user through LabCairn's own artefacts.
-          FONT_SUFFIXES = {".ttf", ".otf", ".ttc", ".pfb", ".pfa", ".afm", ".pfm"}
+          #
+          # **The set names the formats a font arrives in, not only the ones
+          # that were once measured.** reportlab ships `DarkGarden.sfd` -- the
+          # *source* of a GPL v2 font, and the very file the font licence
+          # audit names -- and a browser ships `.woff2`; a check that knew
+          # only `.ttf` would have let either of them into a source
+          # distribution under a name it did not recognise. The list is read
+          # by `tests/test_release_workflow.py`, which compares it with the
+          # fonts the audit names and runs this very program over a tree
+          # that carries one.
+          FONT_SUFFIXES = {
+              ".ttf", ".otf", ".ttc", ".otc",
+              ".pfb", ".pfa", ".afm", ".pfm",
+              ".sfd", ".bdf", ".pcf",
+              ".woff", ".woff2", ".eot",
+          }
 
           dist = Path("dist")
           sdists = sorted(dist.glob("*.tar.gz"))

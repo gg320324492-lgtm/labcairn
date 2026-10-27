@@ -110,9 +110,11 @@ backs it:
 3. **Refuse unless the target resolves into an `OUTPUT` root**
    (`src/labcairn/workspace/outputs.py:151-155`) — a second, independent
    refusal on the root *kind*.
-4. **Write to a temp file in the target's own directory**, flush, `fsync`,
-   then `os.replace` (`src/labcairn/workspace/outputs.py:164-174`). Same-directory matters:
-   `os.replace` is atomic only within a volume.
+4. **Write to a temp file in the target's own directory**, creating that
+   directory first — inside the output area, because the target was
+   re-canonicalised (`src/labcairn/workspace/outputs.py:158`) — then flush,
+   `fsync`, and `os.replace` (`src/labcairn/workspace/outputs.py:164-174`).
+   Same-directory matters: `os.replace` is atomic only within a volume.
 5. **Clean up the temp file on any failure** (`src/labcairn/workspace/outputs.py:175-180`), so a
    crashed write leaves either the old file or the new one.
 
@@ -129,11 +131,18 @@ Writes outside that path, in the whole of `src/`:
 | What | Where | Why it is not the same thing |
 |---|---|---|
 | **Session token file** | `src/labcairn/api/session.py:88-107` | The service's own secret, under `<workspace>/.labcairn/`. Not a task artefact — an artefact is something a report may cite, and a session secret must never be counted as a finding (`src/labcairn/api/session.py:28-37`). |
-| **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
+| **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:258-277` | The user's own configuration, written by `labcairn init`. |
-| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `:190-191` | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. |
-| **The workspace directories** | `src/labcairn/cli/commands.py:359-363` | `labcairn init` creates the workspace, its materials directory and its output directory. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
+| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:83`, `src/labcairn/db/migrations.py:87` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:359-363`, `src/labcairn/workspace/roots.py:104` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
+
+**This section is an enumeration, and it is checked.** Every write in
+`src/labcairn/` is one of the writes the numbered list describes or one of
+the rows of the table: `tests/test_threat_model.py` scans the source tree
+for write primitives and fails if one of them is not enumerated here. A
+write this section does not name is a write the reader of the threat model
+has not been told about, and telling them is the whole job of the section.
 
 ### 1.3 Path escape and the symlink question
 
@@ -716,8 +725,8 @@ local single user.
 path-guard tests ran on Windows only, leaving **POSIX ADS and case semantics
 unverified**. Some of this has since been addressed
 (`tests/test_security_paths.py:157` refuses a Windows drive path on POSIX,
-and `:587` covers the case variant), but the *original* G1 measurement stands
-in the record.
+and `tests/test_security_paths.py:676` covers the case variant), but the
+*original* G1 measurement stands in the record.
 
 **Measuring the threat model on both platforms turned up one more of these,
 and it is new.** The path guard's **refusal set** is platform-dependent for
@@ -766,6 +775,7 @@ drifts from the tree goes red.
 | C12 | The declared outbound policy forbids sending document excerpts | `test_threat_model.py` |
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
 | C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; the product has no operation that writes an evidence record or an anchor |
+| C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
 
 **And the claims about the document itself are watched too.** The witness
 checks that **every citation this document names resolves** to a file that
@@ -773,6 +783,13 @@ exists and a line that is inside it — a citation that has stopped being
 evidence is as bad as a claim with no citation — and that **every claim id in
 the table above has a test in the witness file that is about it**, so a claim
 cannot be added here without something watching it.
+
+**A citation the watcher cannot read is not evidence either.** The watcher
+reaches the file types it is told about, and a citation to any other kind of
+file, or one written as a bare line number with no file in front of it, would
+be read by nobody. So the witness also holds two things: every path-and-line
+reference this document contains is one the watcher matches, and no citation
+here is written in the shorthand that leaves the file out.
 
 **Every claim this document makes that a machine can check has a witness.**
 Where a claim cannot be checked by a machine — the real-provider smoke, the

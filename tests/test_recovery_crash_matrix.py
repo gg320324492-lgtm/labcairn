@@ -42,6 +42,8 @@ from test_recovery_support import (
     WriteCounter,
     arm,
     build_scenario,
+    workspace_digest,
+    workspace_entries,
 )
 from test_recovery_support import env as _shared_env
 
@@ -53,6 +55,7 @@ from labcairn.recovery import (
     ConflictDetected,
     CrashPoint,
     FaultInjector,
+    FileSystemProbe,
     InjectedCrash,
     ReconciliationRequired,
     ReconciliationResolution,
@@ -355,6 +358,7 @@ def test_at3b_a_reconnecting_client_gets_exactly_the_missed_events(env, tmp_path
 def test_at5_reconciliation_detects_absent_write(env, tmp_path):  # type: ignore[no-untyped-def]
     """Crashed after the intent, before the effect: provably replay-safe."""
     scenario = build_scenario(env, tmp_path)
+    target = scenario.root.joinpath(*RESOURCE.split("/"))
     with pytest.raises(InjectedCrash):
         _run(scenario, faults=arm(CrashPoint.AFTER_ATTEMPTED_BEFORE_WRITE))
 
@@ -369,6 +373,18 @@ def test_at5_reconciliation_detects_absent_write(env, tmp_path):  # type: ignore
     assert load_operation(after.session, operation_id).state is OperationState.AUTHORIZED
     _assert_has_event(after, "operation_reconciled")
 
+    # The whole case rests on the file not being there, and reconciling must
+    # not have put it there. A probe that "repaired" the missing output would
+    # land its own bytes on the canonical path, and the replay below would then
+    # be the *second* write at that path — the repeated side effect the
+    # protocol's fourth blocker forbids, and one the write counter cannot see,
+    # because the counter only ever counts the effect.
+    assert not target.exists(), (
+        "reconciliation must not create the file it is asking about; the probe "
+        "reads the filesystem, and the replay below must be the first and only "
+        "write at that path"
+    )
+
     counter = after.counter()
     replayed = after.executor().replay(
         operation_id,
@@ -377,6 +393,103 @@ def test_at5_reconciliation_detects_absent_write(env, tmp_path):  # type: ignore
     )
     assert replayed.state is OperationState.CONFIRMED
     assert counter.calls == 1, "replay is the first and only write"
+
+
+def test_at5_the_reconciliation_leaves_the_workspace_byte_for_byte_unchanged(env, tmp_path):  # type: ignore[no-untyped-def]
+    """Reconciling asks the filesystem a question; it must not answer it by writing.
+
+    The write counter watches one thing: calls to ``effect.apply()``. A probe
+    that wrote the file itself would not go through it, so the counter would
+    still report a single write while the workspace had been written twice —
+    once by the probe and once by the replay. The protocol's fourth blocker
+    ("a crash silently repeats unknown file side effects") is exactly that
+    shape: an effect that happened twice and was recorded once.
+
+    So the workspace is measured too, and it must be the same bytes before and
+    after. The measurement is over the whole workspace rather than over the one
+    path, because "the probe repaired the file it was asked about" is not the
+    only way to repeat a side effect — writing anywhere else under the
+    workspace root is the same defect wearing a different hat.
+    """
+    scenario = build_scenario(env, tmp_path)
+    target = scenario.root.joinpath(*RESOURCE.split("/"))
+    with pytest.raises(InjectedCrash):
+        _run(scenario, faults=arm(CrashPoint.AFTER_ATTEMPTED_BEFORE_WRITE))
+
+    after = scenario.restart()
+    recovery = after.recovery()
+    operation_id = _sole_operation_id(after)
+    recovery.mark_uncertain(after.task_id)
+
+    before_entries = workspace_entries(after.root)
+    before_digest = workspace_digest(after.root)
+
+    outcome = recovery.reconcile(operation_id, expected_sha256=hash_bytes(BODY))
+
+    after_entries = workspace_entries(after.root)
+    assert outcome.resolution is ReconciliationResolution.REPLAY_SAFE
+    assert workspace_digest(after.root) == before_digest, (
+        "reconciliation changed the workspace; the probe must read the filesystem, "
+        "not write to it\n"
+        f"before: {before_entries}\n"
+        f"after:  {after_entries}"
+    )
+    assert not target.exists(), (
+        "the file the probe was asked about must still be absent; the replay that "
+        "follows has to be the first and only write at that path"
+    )
+
+
+def test_the_probe_reads_the_filesystem_and_never_writes_to_it(tmp_path: Path) -> None:
+    """``FileSystemProbe`` declares itself read-only. Nothing was watching that.
+
+    The declaration is the module's own docstring: *"Read-only. Never creates,
+    writes, truncates or removes anything."* A declaration nobody can break is
+    a comment, so each of the probe's four answers is exercised and the
+    workspace is measured before and after it.
+
+    The four answers are the four rows of the probe's table: absent, present
+    and matching, present and differing, and a directory in the way. The first
+    is the one that matters most for the fourth blocker — it is the answer that
+    authorises the replay, so a probe that "repaired" the missing output would
+    make the replay a second write at a path the operation had already used.
+    """
+    root = tmp_path / "workspace"
+    (root / "outputs").mkdir(parents=True)
+    probe = FileSystemProbe(root)
+    expected = hash_bytes(BODY)
+
+    # 1. Absent: the effect provably did not land, and the replay may follow.
+    before = workspace_entries(root)
+    verdict = probe.inspect("outputs/report.md", expected)
+    assert verdict.resolution is ReconciliationResolution.REPLAY_SAFE
+    _assert_workspace_unchanged(before, workspace_entries(root), "the absent branch")
+    assert not (root / "outputs" / "report.md").exists()
+
+    # 2. Present and matching: the effect landed, and must be left alone.
+    target = root / "outputs" / "report.md"
+    target.write_bytes(BODY)
+    before = workspace_entries(root)
+    verdict = probe.inspect("outputs/report.md", expected)
+    assert verdict.resolution is ReconciliationResolution.CONFIRMED
+    _assert_workspace_unchanged(before, workspace_entries(root), "the matching branch")
+    assert target.read_bytes() == BODY
+
+    # 3. Present and differing: a human must decide, so nothing may be touched.
+    target.write_bytes(OTHER_BODY)
+    before = workspace_entries(root)
+    verdict = probe.inspect("outputs/report.md", expected)
+    assert verdict.resolution is ReconciliationResolution.CONFLICT
+    _assert_workspace_unchanged(before, workspace_entries(root), "the differing branch")
+    assert target.read_bytes() == OTHER_BODY
+
+    # 4. A directory in the way: still a conflict, still read-only.
+    occupied = root / "outputs" / "occupied.md"
+    occupied.mkdir()
+    before = workspace_entries(root)
+    verdict = probe.inspect("outputs/occupied.md", expected)
+    assert verdict.resolution is ReconciliationResolution.CONFLICT
+    _assert_workspace_unchanged(before, workspace_entries(root), "the directory branch")
 
 
 def test_at6_reconciliation_flags_conflicting_content_for_human(env, tmp_path):  # type: ignore[no-untyped-def]
@@ -503,6 +616,19 @@ def _assert_no_event(scenario: Scenario, type_value: str) -> None:
         .all()
     )
     assert not found, f"a {type_value} event must not exist"
+
+
+def _assert_workspace_unchanged(before: list[str], after: list[str], label: str) -> None:
+    """Assert the workspace is the same one it was before, in *label*.
+
+    Two snapshots rather than one number, so a failure says what moved. The
+    write counter cannot cover this: it counts calls to ``effect.apply()``, and
+    a probe writes the file itself.
+    """
+    assert after == before, (
+        f"the probe changed the workspace in {label}; it must read the filesystem, "
+        f"not write to it\nbefore: {before}\nafter:  {after}"
+    )
 
 
 def _reset_workspace_for_next_case(scenario: Scenario, after: Scenario) -> None:

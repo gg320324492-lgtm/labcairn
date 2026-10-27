@@ -19,6 +19,10 @@ become a fact in the other.
 * A class that was **not run** has a row that says NOT RUN and gives the
   reason. It does not have a rate of zero, because zero says "every case
   failed" and no cases is not that.
+* The **tree the run measured** is named, not only the commit. A revision
+  names a commit, and the run happened on a working tree: uncommitted
+  changes are part of what was measured, so a dirty tree is said to be
+  dirty.
 * The comparison section prints **pairs** and no verdict, because the
   protocol forbids a superiority claim without like-for-like matched tasks,
   and the structure of the output is what stops one.
@@ -27,6 +31,7 @@ become a fact in the other.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Final
 
@@ -61,6 +66,55 @@ RANKING_WORDS: Final[tuple[str, ...]] = (
 )
 
 
+def comparison_targets(clause: str) -> tuple[str, ...]:
+    """The systems the protocol's superiority clause names.
+
+    **Read out of the clause, not copied out of it.** The protocol names the
+    systems a comparison may not be claimed against, and the vocabulary of
+    words that carry a verdict lives in this module. A second copy of
+    either list, somewhere else in the tree, would go stale without
+    anybody noticing — and the two would then be two answers to the same
+    question.
+
+    A name is a token of the clause that carries an uppercase letter
+    somewhere after its first character, or a digit: ``PaperQA2`` and
+    ``PaperSpine`` are names, and ``others`` is not.
+    """
+    names: list[str] = []
+    for token in re.findall(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", clause):
+        if token in names:
+            continue
+        looks_like_a_name = any(character.isdigit() for character in token) or any(
+            character.isupper() for character in token[1:]
+        )
+        if looks_like_a_name:
+            names.append(token)
+    return tuple(names)
+
+
+#: The inflections a verdict-carrying word may take in prose.
+#:
+#: ``outperform`` alone does not match *"outperforms"*, and the word a
+#: published record would carry is the inflected one.
+_INFLECTION: Final = r"(?:s|es|ed|ing|er|ers)?"
+
+
+def ranking_pattern() -> re.Pattern[str]:
+    """A pattern that finds a verdict-carrying word in prose.
+
+    **The vocabulary is this module's**, so a second list somewhere else in
+    the tree cannot drift from this one.
+    """
+    alternatives = "|".join(re.escape(word) for word in RANKING_WORDS)
+    return re.compile(rf"\b({alternatives}){_INFLECTION}\b", re.IGNORECASE)
+
+
+def target_pattern(targets: tuple[str, ...]) -> re.Pattern[str]:
+    """A pattern that finds a named system in prose."""
+    alternatives = "|".join(re.escape(target) for target in targets)
+    return re.compile(rf"\b({alternatives})\b", re.IGNORECASE)
+
+
 def _rate(value: Measurement) -> str:
     """A measurement as ``numerator/denominator`` with its rate."""
     if not value.measured or value.numerator is None or value.denominator is None:
@@ -84,9 +138,10 @@ def render_markdown(run: EvaluationRun, benchmark_clause: str, superiority_claus
     lines: list[str] = []
     lines.append("# The evaluation — run against the protocol")
     lines.append("")
+    tree = "unknown" if run.working_tree is None else run.working_tree.description
     lines.append(
         f"**Repository:** `{run.repo_root}` · **Revision:** `{run.revision}` · "
-        f"**Protocol:** `{run.protocol_path}`"
+        f"**Working tree:** {tree} · **Protocol:** `{run.protocol_path}`"
     )
     lines.append(f"**Command:** `{run.command}`")
     lines.append(f"**Duration:** {run.duration_seconds:.1f} s")
@@ -300,6 +355,15 @@ def render_json(run: EvaluationRun, benchmark_clause: str, superiority_clause: s
         "duration_seconds": round(run.duration_seconds, 3),
         "benchmark_clause": benchmark_clause,
         "superiority_clause": superiority_clause,
+        "working_tree": (
+            None
+            if run.working_tree is None
+            else {
+                "dirty": run.working_tree.dirty,
+                "changed": list(run.working_tree.changed),
+                "description": run.working_tree.description,
+            }
+        ),
         "classes": [_class_json(result) for result in run.classes],
         "blockers": [_blocker_json(blocker) for blocker in run.blockers],
         "metrics": [_metric_json(row) for row in run.metrics],

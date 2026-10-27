@@ -41,6 +41,14 @@ cannot be read, or a selection cannot be resolved, the selection is
 recorded as a **failure case** and its cells count as not exact. The
 measurement never quietly shrinks its own denominator to make the rate look
 better.
+
+**And there is a second corpus.** The protocol's *Fixed public fixtures*
+section names one — ``tests/fixtures/public/`` — with an answer key of its
+own, and it is measured by :mod:`tests.evaluation.public_corpus`. The two
+measurements feed the same metric rows: the numeric-cell extraction metric
+is measured over both corpora, and the abstention metric is measured over
+the public corpus's negative case, which is the only place abstention can
+be measured at all.
 """
 
 from __future__ import annotations

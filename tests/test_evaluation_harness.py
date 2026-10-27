@@ -17,23 +17,32 @@ test names the property it holds:
   test, not by a convention.
 * **The partition agrees with the repository's own markers.** 33 files
   declare ``unit``, ``integration`` or ``e2e``; where a file declares one,
-  the partition may not contradict it.
+  the partition may not contradict it. And the repository's own class holds
+  the repository's own gates and nothing else, so a file that declares no
+  marker cannot be moved into a protocol class and inflate its denominator.
 * **The protocol is read, not restated.** The parser finds the protocol's
   five gate classes, its metrics and its blockers, and refuses a protocol
   that is not there — a parser that returned nothing would make the harness
-  report an empty, green run.
+  report an empty, green run. The same rule governs the reasons a metric
+  was not measured: they are derived from the tree, so a reason cannot
+  claim an input is missing while the tree holds it.
 * **A skip is not a pass.** The protocol's sixth Phase 1 blocker names
   *"Required CI tests [that] are skipped"*; a skipped witness therefore
   fails its blocker, and a witness that did not run leaves the blocker
   unevaluated rather than held.
 * **Every number carries its denominator**, and a class that collected
-  nothing has **no rate** rather than a rate of zero.
+  nothing has **no rate** rather than a rate of zero. The recovery metric's
+  denominator counts **crash points**, not collected cases.
 * **The corpus measurement agrees with the committed answer key**, counted
-  a second time here.
+  a second time here — and the **public fixture corpus** is measured too,
+  so the protocol's abstention metric is measured over the corpus that
+  makes abstention measurable.
 * **The comparison refuses a baseline that is not like-for-like**, and the
   rendered comparison carries no winner's language.
 * **The real-model smoke is reported as not run**, with its reason, and is
   never counted as a pass.
+* **The report names the tree it measured**, so a revision cannot stand in
+  for a working tree that held changes the commit did not.
 
 **What this file does not do.** It does not run the suite. The harness's
 own end-to-end path is exercised over **one small file** — the whole point
@@ -75,11 +84,15 @@ from evaluation.model import (
     ClassResult,
     EvaluationRun,
     Measurement,
+    MetricRow,
     TestOutcome,
 )
 from evaluation.protocol import parse_protocol, protocol_path
 from evaluation.report import RANKING_WORDS, render_json, render_markdown
 from evaluation.runner import ClassRun, run_class
+
+#: The repository root, from this file's own location.
+_ROOT: Final = Path(__file__).resolve().parent.parent
 
 #: The file the end-to-end path is exercised over. It is small, it is fast,
 #: and it passes in a clean checkout — so a red result means the harness
@@ -397,7 +410,7 @@ def _blockers_with(outcomes: list[TestOutcome], ran: set[str]) -> list[Any]:
         ),
     )
     protocol = _protocol(Path(__file__).resolve().parent.parent)
-    return list(blocker_results(protocol, index_outcomes(runs)))
+    return list(blocker_results(protocol, index_outcomes(runs), repo_root=_ROOT))
 
 
 #: The blocker the three cases below are about, and its witnesses.
@@ -548,8 +561,8 @@ def test_the_report_carries_the_denominators() -> None:
         revision="abc123",
         protocol_path="docs/EVALUATION.md",
         classes=(result,),
-        blockers=blocker_results(protocol, index),
-        metrics=metric_rows(protocol, index, (result,), None, 1.0),
+        blockers=blocker_results(protocol, index, repo_root=_ROOT),
+        metrics=metric_rows(protocol, index, (result,), None, 1.0, repo_root=_ROOT),
         comparison=assess(
             ComparisonBasis(label="this run"),
             ComparisonBasis(label="baseline"),
@@ -765,7 +778,7 @@ def test_the_rendered_comparison_carries_no_winners_language() -> None:
         protocol_path="docs/EVALUATION.md",
         classes=(),
         blockers=(),
-        metrics=metric_rows(protocol, index, (), None, 0.0),
+        metrics=metric_rows(protocol, index, (), None, 0.0, repo_root=_ROOT),
         comparison=assess(_matching_basis("run"), _matching_basis("baseline")),
         duration_seconds=0.0,
         command="python -m tests.evaluation",
@@ -1037,3 +1050,695 @@ def test_the_harness_runs_on_the_pinned_interpreter() -> None:
         "the harness uses PEP 695 type syntax and the project's pinned "
         f"interpreter; this is {sys.version_info}"
     )
+
+
+# --------------------------------------------------------------------------
+# The public fixture corpus
+# --------------------------------------------------------------------------
+
+
+def _public_manifest(repo_root: Path) -> dict[str, Any]:
+    """The public fixture corpus's manifest."""
+    path = repo_root / "tests" / "fixtures" / "public" / "MANIFEST.json"
+    loaded: object = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def test_the_public_corpus_measurement_reads_the_manifest(repo_root: Path) -> None:
+    """The harness's corpus measurement reads the public corpus as well.
+
+    **The corpus is the protocol's fixture corpus**, and a corpus nobody
+    measures against is not evidence: the key says what the answers are, and
+    the harness is what puts the product's own answers beside it. So the
+    counts the harness reports are the manifest's own counts, counted again
+    here from the manifest rather than from the harness.
+    """
+    from evaluation.public_corpus import measure_public_corpus
+
+    payload = _public_manifest(repo_root)
+    fixtures = payload["fixtures"]
+    questions = [question for fixture in fixtures for question in fixture["questions"]]
+    abstentions = [question for question in questions if question["answer"]["kind"] == "not_stated"]
+
+    measurement = measure_public_corpus(repo_root)
+    assert measurement is not None, "the public fixture corpus was not measured at all"
+    assert measurement.fixtures == len(fixtures)
+    assert measurement.questions == len(questions)
+    assert measurement.abstention_questions == len(abstentions)
+    assert measurement.numeric_questions == len(questions) - len(abstentions)
+
+
+def test_the_public_corpus_measurement_agrees_with_the_material(repo_root: Path) -> None:
+    """Every question the corpus asks, the product answers as the key says.
+
+    A disagreement here is a real finding: either the product reads the
+    material differently from the key, or the harness measures the wrong
+    thing. Both are worth a red test.
+    """
+    from evaluation.public_corpus import measure_public_corpus
+
+    measurement = measure_public_corpus(repo_root)
+    assert measurement is not None
+    assert measurement.failures == (), measurement.failures
+    assert measurement.numeric_agreed == measurement.numeric_questions
+    assert measurement.abstentions_honoured == measurement.abstention_questions
+    assert measurement.questions > 0
+    assert measurement.abstention_questions > 0, (
+        "the corpus holds no question whose answer is an abstention, so the "
+        "protocol's abstention metric cannot be measured over it"
+    )
+
+
+def test_the_public_corpus_measurement_can_fail(repo_root: Path, tmp_path: Path) -> None:
+    """The measurement can fail, and this is how it is shown.
+
+    A measurement that cannot fail is not a measurement. So two corruptions
+    are made to a **copy** of the corpus: a key that names a number the
+    material does not give, and a material that carries the quantity an
+    abstention question asks about. The first must be caught as a numeric
+    disagreement and the second as an abstention the product did not make.
+    The committed corpus is never touched.
+    """
+    import shutil
+
+    from evaluation.public_corpus import measure_public_corpus
+
+    def _copy(name: str) -> Path:
+        root = tmp_path / name
+        (root / "tests" / "fixtures").mkdir(parents=True)
+        shutil.copytree(
+            repo_root / "tests" / "fixtures" / "public",
+            root / "tests" / "fixtures" / "public",
+        )
+        return root
+
+    wrong_key = _copy("wrong-key")
+    path = wrong_key / "tests" / "fixtures" / "public" / "MANIFEST.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for fixture in payload["fixtures"]:
+        for question in fixture["questions"]:
+            if question["id"] == "tension.mean_peak_stress_b2":
+                question["answer"]["value"] = 999.0
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    measurement = measure_public_corpus(wrong_key)
+    assert measurement is not None
+    assert measurement.failures, "a key that disagrees with the material was not caught"
+    assert measurement.numeric_agreed < measurement.numeric_questions
+
+    answered = _copy("answered")
+    log = answered / "tests" / "fixtures" / "public" / "no_evidence" / "sample_log.csv"
+    log.write_text(
+        log.read_text(encoding="utf-8")
+        .replace(
+            "incubation_temp (C),material_origin",
+            "incubation_temp (C),buffer_ph,material_origin",
+        )
+        .replace(
+            ",37,SYNTHETIC MATERIAL",
+            ",37,7.2,SYNTHETIC MATERIAL",
+        ),
+        encoding="utf-8",
+    )
+    measurement = measure_public_corpus(answered)
+    assert measurement is not None
+    assert measurement.failures, (
+        "a material that answers the abstention question was not caught, so the "
+        "abstention measurement would pass on a corpus that is not negative"
+    )
+    assert measurement.abstentions_honoured < measurement.abstention_questions
+
+
+def test_the_abstention_metric_is_measured_over_the_public_corpus(repo_root: Path) -> None:
+    """The protocol's abstention metric is measured, and over this corpus.
+
+    The metric used to be reported as NOT MEASURED with the reason that the
+    tree *"holds no no-evidence fixture to abstain over"* — while
+    ``tests/fixtures/public/no_evidence/`` sat in the tree, holding exactly
+    that. A reason that says an input is missing when it is present is worse
+    than no reason: it tells the reader "this cannot be measured" when the
+    truth is "nobody measured it".
+    """
+    from evaluation.public_corpus import measure_public_corpus
+
+    protocol = _protocol(repo_root)
+    rows = metric_rows(protocol, index_outcomes(()), (), None, 0.0, repo_root=repo_root)
+    row = next(entry for entry in rows if entry.key == "unsupported-claim-detection")
+    measurement = measure_public_corpus(repo_root)
+    assert measurement is not None
+
+    assert row.value.measured, row.value.reason
+    assert row.value.denominator == measurement.abstention_questions
+    assert row.value.numerator == measurement.abstentions_honoured
+    assert "public fixture corpus" in row.value.how
+
+
+# --------------------------------------------------------------------------
+# The reasons are derived from the tree
+# --------------------------------------------------------------------------
+
+
+def test_a_not_measured_reason_may_not_contradict_the_tree(repo_root: Path) -> None:
+    """A reason that names a missing input has to be true of this tree.
+
+    The reasons are read out of the tree at run time, the way the protocol
+    itself is read out of ``docs/EVALUATION.md``: a copy goes stale silently,
+    and the copy keeps answering about a tree that is no longer there. So
+    the reason has to carry what the tree holds — the corpus's counts — and
+    it may not deny an input the tree has.
+    """
+    from evaluation.aggregate import not_measured_reason, read_tree_facts
+    from evaluation.public_corpus import measure_public_corpus
+
+    public = measure_public_corpus(repo_root)
+    assert public is not None, "the public fixture corpus is not in this tree"
+    facts = read_tree_facts(repo_root, public)
+
+    delivery = not_measured_reason("end-to-end-task-success", facts)
+    assert "not in this tree" not in delivery, (
+        "the reason says the public fixtures are not in the tree, and they are"
+    )
+    assert str(public.fixtures) in delivery
+    assert str(public.questions) in delivery
+
+    abstention = not_measured_reason("unsupported-claim-detection", facts)
+    assert "no no-evidence fixture" not in abstention, (
+        "the reason says the tree holds no no-evidence fixture, and it holds one"
+    )
+    assert str(public.abstention_questions) in abstention
+
+    locator = not_measured_reason("evidence-locator-validity", facts)
+    assert facts.ground_truth
+    assert "retrieval ground truth" in locator
+
+
+def test_a_reason_about_a_tree_that_is_not_there_is_still_true(tmp_path: Path) -> None:
+    """A tree without the public corpus gets the reason that fits it.
+
+    The reason is derived, so a tree that does not hold the corpus says so
+    — and a tree that does hold it says something else. One reason for both
+    would be one of the two being a lie.
+    """
+    from evaluation.aggregate import not_measured_reason, read_tree_facts
+
+    facts = read_tree_facts(tmp_path, None)
+    delivery = not_measured_reason("end-to-end-task-success", facts)
+    assert "not in this tree" in delivery
+
+    abstention = not_measured_reason("unsupported-claim-detection", facts)
+    assert "no no-evidence fixture" in abstention
+
+
+# --------------------------------------------------------------------------
+# The partition's repository class
+# --------------------------------------------------------------------------
+
+
+def test_the_repository_class_holds_only_the_repository_gates() -> None:
+    """The repository class is the repository's own gates, and nothing else.
+
+    **Where a file declares no marker, the classification is a judgement**,
+    and the partition's own rules say nothing about which way that judgement
+    goes: the marker rule covers only the files that declare one, and the
+    clause vocabulary covers the clause, not the class. So a file with no
+    marker could be moved out of the repository class into a protocol class,
+    and every existing check would still pass — while the protocol class's
+    denominator grew with checks the protocol never asked for, and the
+    repository class's row shrank. That is the very thing the report says
+    the repository class exists to prevent.
+
+    So the judgement is bounded here: the repository class holds the
+    repository's own gates, and no protocol class holds one of them.
+    """
+    for name, (class_key, clause) in manifest.FILE_ASSIGNMENTS.items():
+        if class_key == manifest.REPOSITORY_CLASS:
+            assert clause == "repository-gate", (
+                f"{name} is filed under the repository class but checks "
+                f"{clause!r}, which is not the repository's own gate clause"
+            )
+        else:
+            assert clause != "repository-gate", (
+                f"{name} checks the repository's own gates but is filed under "
+                f"the protocol class {class_key!r}, so a protocol class's "
+                "denominator would carry checks the protocol never asked for"
+            )
+
+
+# --------------------------------------------------------------------------
+# The rendered small denominator
+# --------------------------------------------------------------------------
+
+
+def test_the_rendered_report_says_a_small_denominator_out_loud() -> None:
+    """The rendered text, not the model attribute, is what is watched.
+
+    The model carries ``denominator_is_small`` and a test watched that, and
+    the report's own sentence — *"yes — the denominator is 3, under 10"* —
+    was never rendered by anything. A renderer that said nothing would have
+    left the tree green.
+    """
+    from evaluation.model import SMALL_DENOMINATOR
+
+    protocol = _protocol(_ROOT)
+    small = MetricRow(
+        key="a-metric",
+        text="A metric over a handful of cases.",
+        value=Measurement(
+            status="MEASURED",
+            numerator=2,
+            denominator=3,
+            how="over three cases",
+        ),
+        witnesses=(),
+        witness_score=Measurement(status="NOT_MEASURED", reason="no witnesses"),
+    )
+    large = MetricRow(
+        key="another-metric",
+        text="A metric over enough cases.",
+        value=Measurement(
+            status="MEASURED",
+            numerator=2,
+            denominator=SMALL_DENOMINATOR,
+            how="over ten cases",
+        ),
+        witnesses=(),
+        witness_score=Measurement(status="NOT_MEASURED", reason="no witnesses"),
+    )
+    evaluation = EvaluationRun(
+        repo_root="/tmp/repo",
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=(),
+        metrics=(small, large),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+    )
+    markdown = render_markdown(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
+    assert f"yes — the denominator is 3, under {SMALL_DENOMINATOR}" in markdown, (
+        "the report does not say the denominator is small, so a rate over "
+        "three cases reads like a rate over three hundred"
+    )
+    assert f"yes — the denominator is {SMALL_DENOMINATOR}" not in markdown
+
+
+# --------------------------------------------------------------------------
+# The recovery metric's denominator
+# --------------------------------------------------------------------------
+
+
+def _crash_matrix_run(passing: dict[str, bool]) -> ClassRun:
+    """A run over the crash matrix, with the given cases' outcomes."""
+    from evaluation.faults import read_crash_matrix
+
+    coverage = read_crash_matrix(_ROOT)
+    outcomes = [
+        _outcome(
+            "tests/test_recovery_crash_matrix.py",
+            name,
+            PASSED if passing.get(name, True) else FAILED,
+        )
+        for name in coverage.by_case
+    ]
+    return ClassRun(
+        key="negative",
+        files=("tests/test_recovery_crash_matrix.py",),
+        outcomes=tuple(outcomes),
+        exit_code=0,
+        duration_seconds=0.0,
+        stdout="",
+        stderr="",
+    )
+
+
+def test_the_recovery_metric_counts_crash_points_and_not_cases(repo_root: Path) -> None:
+    """The denominator is the crash points, and the sentence says so.
+
+    The number the earlier version reported was the number of collected test
+    cases, and the sentence called it *"the fault-injection scenarios the
+    crash matrix ran"* — *"one collected test case is one injected fault"*.
+    Neither half was true: the matrix collects more cases than it injects
+    faults, and it injects more faults than it has cases. The number on the
+    page was the number of test functions, and a reader checking it against
+    the matrix would find something else.
+    """
+    from evaluation.faults import read_crash_matrix
+
+    from labcairn.recovery.contracts import CrashPoint
+
+    coverage = read_crash_matrix(repo_root)
+    assert set(coverage.defined) == set(CrashPoint.__members__)
+    assert coverage.missing == (), (
+        f"the matrix does not inject {coverage.missing}, so the layer's coverage is not complete"
+    )
+
+    protocol = _protocol(repo_root)
+    rows = metric_rows(
+        protocol,
+        index_outcomes((_crash_matrix_run({}),)),
+        (),
+        None,
+        0.0,
+        repo_root=repo_root,
+    )
+    row = next(entry for entry in rows if entry.key == "recovery-correctness")
+    assert row.value.measured
+    assert row.value.denominator == len(CrashPoint.__members__)
+    assert row.value.numerator == len(CrashPoint.__members__)
+    assert "crash point" in row.value.how
+    assert "one collected test case is one injected fault" not in row.value.how
+
+
+def test_the_recovery_metric_drops_when_a_crash_point_behaves_wrongly(repo_root: Path) -> None:
+    """A crash point whose case failed is not a crash point that held.
+
+    Otherwise the figure would be a count of cases that happened to pass,
+    and the denominator would be a number the protocol never asked for.
+    """
+    from labcairn.recovery.contracts import CrashPoint
+
+    protocol = _protocol(repo_root)
+    failing = "test_at2_crash_after_write_before_commit_marks_uncertain_and_blocks_replay"
+    rows = metric_rows(
+        protocol,
+        index_outcomes((_crash_matrix_run({failing: False}),)),
+        (),
+        None,
+        0.0,
+        repo_root=repo_root,
+    )
+    row = next(entry for entry in rows if entry.key == "recovery-correctness")
+    assert row.value.measured
+    assert row.value.denominator == len(CrashPoint.__members__)
+    assert row.value.numerator == len(CrashPoint.__members__) - 1, (
+        "a crash point whose case failed still counted as held"
+    )
+
+
+def test_the_crash_matrix_coverage_is_read_from_the_matrix(repo_root: Path) -> None:
+    """The coverage is read out of the matrix's own source.
+
+    A case names the crash point it injects in its body, so the coverage is
+    stated there and nowhere else. The reader is also the thing that would
+    go stale: a matrix that stopped injecting a crash point would have to
+    show up in the metric's rate, and it can only do that if the reader
+    reads the matrix rather than a list somebody wrote down.
+    """
+    from evaluation.faults import read_crash_matrix
+
+    coverage = read_crash_matrix(repo_root)
+    assert coverage.by_case, "the matrix's cases were not read at all"
+    for case, points in coverage.by_case.items():
+        assert points, f"{case} injects no crash point"
+    assert set(coverage.covered) == set(coverage.defined)
+
+
+# --------------------------------------------------------------------------
+# The tree the run measured
+# --------------------------------------------------------------------------
+
+
+def _git(repo: Path, *arguments: str) -> str:
+    """The output of a git command, run to completion."""
+    import subprocess
+
+    completed = subprocess.run(
+        ["git", *arguments],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout
+
+
+def test_the_report_says_when_the_tree_it_measured_was_dirty(tmp_path: Path) -> None:
+    """A revision names a commit; the tree the run happened on may differ.
+
+    The report's ``revision`` is ``git rev-parse HEAD``, and it says nothing
+    about the uncommitted changes that were on disk while the run happened.
+    So a run over a dirty tree reported a number against a commit that did
+    not contain it — and the number was off by whatever the uncommitted
+    change did to the suite. The tree has to be named as well as the commit.
+    """
+    from evaluation.cli import _working_tree
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(
+        repo,
+        "-c",
+        "user.email=watch@example.invalid",
+        "-c",
+        "user.name=Watch",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "the commit",
+    )
+    assert not _working_tree(repo).dirty
+
+    note = repo / "notes.md"
+    note.write_text("an uncommitted note\n", encoding="utf-8")
+    dirty = _working_tree(repo)
+    assert dirty.dirty, "an uncommitted change was not seen"
+    assert "notes.md" in dirty.description
+    assert "notes.md" in dirty.changed
+
+    note.unlink()
+    assert not _working_tree(repo).dirty, "the tree was still called dirty"
+
+
+def test_the_rendered_report_names_the_tree_it_measured() -> None:
+    """The report says which tree it measured, and the JSON carries it too."""
+    from evaluation.model import WorkingTree
+
+    protocol = _protocol(_ROOT)
+    tree = WorkingTree(
+        dirty=True,
+        changed=("docs/notes.md",),
+        description="dirty — 1 file(s) changed and not committed: docs/notes.md",
+    )
+    evaluation = EvaluationRun(
+        repo_root="/tmp/repo",
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=(),
+        metrics=(),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+        working_tree=tree,
+    )
+    markdown = render_markdown(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
+    assert "**Working tree:**" in markdown
+    assert "dirty" in markdown
+    assert "docs/notes.md" in markdown
+
+    document = json.loads(
+        render_json(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
+    )
+    assert document["working_tree"]["dirty"] is True
+    assert document["working_tree"]["changed"] == ["docs/notes.md"]
+
+
+# --------------------------------------------------------------------------
+# The sixth blocker's exclusion
+# --------------------------------------------------------------------------
+
+
+def _skip_blocker_run(skip: str) -> ClassRun:
+    """A run in which one required test had a skipped case."""
+    outcomes = [
+        _outcome(f"tests/{name}", "test_one", PASSED)
+        for name in manifest.BLOCKER_WITNESSES["no-skipped-required-tests"]
+    ]
+    outcomes.append(_outcome(f"tests/{skip}", "test_a_skipped_case", SKIPPED))
+    return ClassRun(
+        key="unit",
+        files=("tests/" + skip,),
+        outcomes=tuple(outcomes),
+        exit_code=0,
+        duration_seconds=0.0,
+        stdout="",
+        stderr="",
+    )
+
+
+def test_the_required_tests_the_run_excluded_are_recorded(repo_root: Path) -> None:
+    """The sixth blocker's row says which required tests the run excluded.
+
+    **The blocker is about skipped required tests**, and its witnesses watch
+    the *mechanism* — the shard list, the isolation, the rule that reads a
+    witness — rather than the required tests and what happened to them. So
+    the fact the blocker is about was invisible: a required test with a
+    skipped case sat in the tree, in the CI shards on both platforms, and
+    the row said HELD.
+
+    So the exclusion is read out of the shard list and stated. Whether a
+    *declared* skip fails the blocker is the owner's ruling and not this
+    harness's, so the harness records the fact and names the file.
+    """
+    protocol = _protocol(repo_root)
+    index = index_outcomes((_skip_blocker_run("test_provider_credentials.py"),))
+    blockers = blocker_results(protocol, index, repo_root=repo_root)
+    blocker = next(b for b in blockers if b.key == "no-skipped-required-tests")
+    assert blocker.status == "HELD"
+    assert "test_provider_credentials.py" in blocker.reason, (
+        "the excluded required test is not in the blocker's row, so the exclusion is not recorded"
+    )
+    assert "skipped" in blocker.reason
+    assert "owner's decision" in blocker.reason
+
+
+def test_the_required_tests_are_read_out_of_the_shard_file(repo_root: Path) -> None:
+    """The required tests come from the CI's own shard list.
+
+    A copy of the shard list inside the harness would drift from the file
+    the CI runs, and a drifted copy would name the wrong required tests —
+    which is the shape of hole the protocol parser exists to close.
+    """
+    from evaluation.shards import required_test_files
+
+    required = required_test_files(repo_root)
+    assert "test_provider_credentials.py" in required, (
+        "the required tests do not name the file that carries the skip"
+    )
+    shard_file = repo_root / ".github" / "ci-shards.json"
+    document = json.loads(shard_file.read_text(encoding="utf-8"))
+    named = {
+        Path(entry).name
+        for shards in document["shards"].values()
+        for shard in shards
+        for entry in shard
+    }
+    assert set(required) == named
+
+
+def test_the_exclusion_is_in_the_rendered_report(repo_root: Path) -> None:
+    """The exclusion is on the page, not only in the model."""
+    protocol = _protocol(repo_root)
+    index = index_outcomes((_skip_blocker_run("test_provider_credentials.py"),))
+    evaluation = EvaluationRun(
+        repo_root=str(repo_root),
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=blocker_results(protocol, index, repo_root=repo_root),
+        metrics=(),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+    )
+    markdown = render_markdown(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
+    assert "test_provider_credentials.py" in markdown
+
+
+# --------------------------------------------------------------------------
+# The published records
+# --------------------------------------------------------------------------
+
+
+def _published_records(repo_root: Path) -> tuple[Path, ...]:
+    """The Markdown the repository ships."""
+    documents = list((repo_root / "docs").rglob("*.md"))
+    documents.extend(repo_root / name for name in ("README.md", "README.zh-CN.md", "CHANGELOG.md"))
+    return tuple(sorted(path for path in documents if path.is_file()))
+
+
+def test_no_published_record_claims_superiority_over_another_system(repo_root: Path) -> None:
+    """The documents a reader reads are watched for a superiority claim.
+
+    The harness watches its own rendered comparison section for the words
+    that carry a verdict, and it keeps that vocabulary in **one** place, so
+    that there is one list. But the documents a reader actually reads — the
+    acceptance records, the review dossier, the release notes, the README —
+    were not watched at all: a sentence saying one system *"outperforms"*
+    another went into a published record and nothing said so.
+
+    So the published records are watched here against **the same
+    vocabulary**, read from the harness rather than restated, and the
+    systems a claim may not be made about are read from **the protocol's own
+    superiority clause**, so neither list is a second copy.
+
+    **The unit is a line, and the claim has to name its target.** A line
+    that carries a verdict word *and* names one of the systems the protocol
+    lists is a superiority claim. A line that carries a verdict word and
+    names nothing is ordinary English — *"worse than no test"*, *"the worst
+    of it"* — and the published records are full of it.
+
+    **A quoted line is not a claim.** A line inside a Markdown block quote
+    or a fenced code block is *being quoted* — the gate's own review
+    reports write down the exact sentence they planted, and the mutation
+    tables write down the exact answer they corrupted, and **the exact
+    sentence is the evidence**. So a quoted line is not a claim about
+    anything, and it is not counted as one.
+
+    **That is the limit of this check, and it is a real one.** A record
+    that dressed a superiority claim as a block quote would pass here.
+    Such a record is still read by the people who write it, and the
+    protocol's rule is on the claim rather than on the punctuation.
+    """
+    from evaluation.report import comparison_targets, ranking_pattern, target_pattern
+
+    protocol = _protocol(repo_root)
+    targets = comparison_targets(protocol.superiority_clause)
+    assert targets, "the protocol's clause names no system to compare against"
+
+    ranking = ranking_pattern()
+    named = target_pattern(targets)
+    sample = "LabCairn outperforms PaperQA2 on citation precision."
+    assert ranking.search(sample) and named.search(sample), (
+        "the watch would not catch the claim it is written for, so it is watching nothing"
+    )
+
+    offenders: list[str] = []
+    for path in _published_records(repo_root):
+        in_fence = False
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence or stripped.startswith(">"):
+                continue
+            if ranking.search(line) and named.search(line):
+                offenders.append(f"{path.relative_to(repo_root)}:{number}: {line.strip()}")
+    assert not offenders, (
+        "a published record carries a word that claims a verdict and names "
+        "another system, which the protocol forbids without like-for-like "
+        "matched-task baselines: " + "; ".join(offenders)
+    )
+
+
+# --------------------------------------------------------------------------
+# The inner run's temporary directory
+# --------------------------------------------------------------------------
+
+
+def test_the_inner_run_gets_its_own_temporary_directory_everywhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``TMPDIR`` is set as well, because it is the one that is read first.
+
+    Python's :func:`tempfile.gettempdir` looks at ``TMPDIR``, then ``TEMP``,
+    then ``TMP`` — in that order, on **every** platform. So an environment
+    that carries a ``TMPDIR`` wins over the two the runner sets, and the
+    inner run puts its temporary files where the runner never looked. The
+    isolation would have a hole in it the same on Windows as on Linux, and
+    the hole would only open on a machine that happens to have a ``TMPDIR``.
+    """
+    from evaluation.runner import _environment
+
+    root = tmp_path / "run"
+    root.mkdir()
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "somewhere-else"))
+    monkeypatch.setenv("TEMP", str(tmp_path / "somewhere-else"))
+    monkeypatch.setenv("TMP", str(tmp_path / "somewhere-else"))
+    environment = _environment(root, _ROOT)
+    assert environment["TMPDIR"] == str(root)
+    assert environment["TEMP"] == str(root)
+    assert environment["TMP"] == str(root)
