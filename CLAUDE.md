@@ -12,10 +12,21 @@ for the thinking, English for everything that lands in the tree.
 
 ## Branches and checkouts
 
-**One checkout holds one branch at a time.** Two agents working in the same
-checkout switch branches under each other and their commits land on someone
-else's branch. When more than one agent writes code, each one gets its own
-worktree (`isolation: "worktree"` on the agent call) and its own branch.
+**One long-lived branch: `main`.** The repository keeps no standing branch
+per gate, per piece or per agent. A branch exists only while the work it
+carries is unpublished, and it is deleted — locally and on the remote — as
+soon as that work has landed. **The owner decided this on 2026-10-27**, after
+the gate's parallel work had left twenty-four local and seven remote branches
+whose contents had every one of them already landed: **a branch that outlives
+its work is a second place to look for the same code, and a promise nothing
+keeps.**
+
+**A worktree is isolation, not a branch.** When more than one agent writes
+code, each one still gets its own worktree (`isolation: "worktree"` on the
+agent call), because **one checkout holds one branch at a time** and two
+agents switching branches in one checkout land each other's commits on the
+wrong branch. What changes is the branch's lifetime: the worktree's branch is
+a scratch ref, its files are reviewed and merged, and then the ref goes.
 
 **A push is not a local action.** Ask before pushing to a shared branch, and
 never force-push to `main`.
@@ -31,7 +42,9 @@ never force-push to `main`.
 3. **The work is reviewed and merged into `main` locally**, and the review
    is the gate: the claims are measured, the witnesses are mutation-checked,
    and the pieces that turned out to be one piece are one piece.
-4. **Then one pull request and one run**, for everything.
+4. **Then one pull request and one run**, for everything — and every branch
+   the work was carried on, the delivery branch included, is deleted once the
+   merge lands.
 
 **Why.** A pull request per piece means a run per piece, and a run is the
 most expensive thing this project does — it is the gate, and it should be
