@@ -236,6 +236,22 @@ what makes "identical inputs" mean something.
 6. **The figure's hash is environment-scoped**, and the manifest must record
    the environment. A matplotlib upgrade changes every figure hash, and the
    fingerprint is what makes the change visible rather than silent.
+7. **The recipe is part of the consented arguments, not a value beside them.**
+   `analysis.run`'s argument model is `path`, `operator_id`, `recipe` and
+   `parameters`, and ADR-0003 C4's digest is computed over exactly that set.
+   The reason is the same one that puts the selection inside the digest: a
+   signature that covered the material, the operator and the parameters but not
+   the recipe would authorise *any* figure the same column can hold, and drawing
+   a figure nobody agreed to is not a smaller thing than analysing data nobody
+   agreed to analyse. The consequence for the run path is that it takes the
+   recipe from the request's own arguments — there is no separate `recipe`
+   parameter beside the consent, and so no second spelling that could drift from
+   the one that was signed. The recipe *file* is read to be hashed into the
+   manifest and drawn from, and the manifest's `recipe.relative_path` plus its
+   hash is what makes later staleness checkable; an approval bound to another
+   recipe path is refused with `approval_refused` (`args_changed`) and spends
+   nothing. Watched by
+   `tests/test_analysis_service.py::test_the_digest_binds_the_recipe_the_figure_is_drawn_from`.
 
 ## What this ADR does not decide
 

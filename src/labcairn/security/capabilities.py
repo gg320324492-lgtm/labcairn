@@ -237,6 +237,15 @@ class AnalysisRunArgs(_Args):
 
     path: ResourceKey
     operator_id: StableId
+    #: The chart recipe the figure is drawn from, by workspace-relative path.
+    #:
+    #: **It is in the consented arguments, not beside them.** A run reads this
+    #: file to hash it into the manifest and to draw the figure from it, and an
+    #: approval that covered the material and the operator but not the recipe
+    #: would let the same consent draw a different figure. The digest is computed
+    #: over these fields, so a recipe swapped after the human signed is a refusal
+    #: rather than a second drawing.
+    recipe: ResourceKey
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -323,7 +323,12 @@ def demonstrate(
 
     operator_id, _version = parse_operator_reference(recipe.data.operator)
     parameters = {**recipe.data.parameters, "selection": selection_payload(selection)}
-    arguments = {"path": key, "operator_id": operator_id, "parameters": parameters}
+    arguments = {
+        "path": key,
+        "operator_id": operator_id,
+        "recipe": RECIPE_KEY,
+        "parameters": parameters,
+    }
     print(f"  operator  : {recipe.data.operator}")
     print(f"  selection : {list(selection.columns)} over rows {_row_span(selection)}")
     print(f"  path      : {key} in root {root_id} (the recipe's {relative_source})")
@@ -347,6 +352,7 @@ def demonstrate(
     other_arguments = {
         "path": key,
         "operator_id": operator_id,
+        "recipe": RECIPE_KEY,
         "parameters": {**recipe.data.parameters, "selection": selection_payload(other)},
     }
     other_approval = grant(
@@ -400,7 +406,6 @@ def demonstrate(
         policy=policy,
         ledger=ledger,
         renderer=renderer,
-        recipe=RECIPE_KEY,
         now=NOW,
     )
     result = run.result
@@ -617,7 +622,6 @@ def _refusal(
                 recipe_ref=recipe_ref,
                 workspace_root=workspace.selected_root,
             ),
-            recipe=RECIPE_KEY,
             now=NOW,
         )
     except AnalysisRefusedError as refused:

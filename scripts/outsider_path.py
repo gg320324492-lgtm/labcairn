@@ -1560,6 +1560,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         arguments = {
             "path": TABLE_NAME,
             "operator_id": operator_id,
+            "recipe": RECIPE_NAME,
             "parameters": {
                 **recipe.data.parameters,
                 "selection": selection_payload(selection),
@@ -1602,7 +1603,6 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),
-            recipe=RECIPE_NAME,
             now=created_at,
         )
         store.session.commit()
@@ -1909,6 +1909,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         arguments = {
             "path": TABLE_NAME,
             "operator_id": operator_id,
+            "recipe": RECIPE_NAME,
             "parameters": {
                 **recipe.data.parameters,
                 "selection": selection_payload(selection),
@@ -1950,7 +1951,6 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),
-            recipe=RECIPE_NAME,
             now=RECORDS_MOMENT,
         )
         store.session.commit()

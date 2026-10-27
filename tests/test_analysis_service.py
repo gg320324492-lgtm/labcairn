@@ -169,12 +169,20 @@ class Scenario:
         *,
         operator_id: str = MEAN,
         selection: Selection | None = None,
+        recipe: str = RECIPE,
         extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """The capability's own arguments, as the caller states them."""
+        """The capability's own arguments, as the caller states them.
+
+        ``recipe`` is one of them rather than an aside, and that is the point:
+        the digest the approval binds is computed over these fields, so the
+        consent covers the recipe the figure is drawn from and not only the
+        material and the operator.
+        """
         return {
             "path": self.key,
             "operator_id": operator_id,
+            "recipe": recipe,
             "parameters": self.parameters(selection, extra),
         }
 
@@ -183,6 +191,7 @@ class Scenario:
         *,
         selection: Selection | None = None,
         operator_id: str = MEAN,
+        recipe: str = RECIPE,
         expected_hash: str | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> ApprovalId:
@@ -199,6 +208,7 @@ class Scenario:
             {
                 "path": self.key,
                 "operator_id": operator_id,
+                "recipe": recipe,
                 "parameters": self.parameters(chosen, extra),
             }
         )
@@ -235,6 +245,7 @@ class Scenario:
         *,
         operator_id: str = MEAN,
         selection: Selection | None = None,
+        recipe: str = RECIPE,
         parameters: dict[str, Any] | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> AnalysisRequest:
@@ -245,6 +256,7 @@ class Scenario:
             arguments={
                 "path": self.key,
                 "operator_id": operator_id,
+                "recipe": recipe,
                 "parameters": (
                     parameters if parameters is not None else self.parameters(selection, extra)
                 ),
@@ -268,7 +280,6 @@ class Scenario:
             policy=self.policy,
             ledger=self.ledger,
             renderer=renderer if renderer is not None else _FakeRenderer(),
-            recipe=RECIPE,
             limits=limits,
             now=self.now,
         )
@@ -665,7 +676,6 @@ def test_a_run_without_an_approval_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.APPROVAL_MISSING
@@ -939,7 +949,6 @@ def test_an_unregistered_operator_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.OPERATOR_NOT_REGISTERED
@@ -967,7 +976,6 @@ def test_parameters_the_operator_does_not_take_are_refused(scenarios: Any) -> No
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.ARGUMENTS_INVALID
@@ -993,7 +1001,6 @@ def test_a_path_outside_the_source_root_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.PATH_REFUSED
@@ -1384,3 +1391,49 @@ def test_the_arguments_of_a_run_are_the_ones_the_approval_is_bound_to(scenarios:
 #      -> test_the_manifests_parameters_are_the_operators_own_arguments
 #  37. the selection passed among the operator's parameters
 #      -> test_the_manifests_parameters_are_the_operators_own_arguments
+
+
+@pytest.mark.unit
+def test_the_digest_binds_the_recipe_the_figure_is_drawn_from(scenarios: Any) -> None:
+    """A different recipe is a different consent, even for the same material.
+
+    **This is why the recipe is in the arguments and not beside them.** The run
+    reads this file to hash it into the manifest and to draw the figure from it,
+    and a consent that covered the material, the operator and the parameters but
+    not the recipe would let one signature draw any figure the same column can
+    hold. The refusal must name the mechanism (``args_changed`` inside
+    ``approval_refused``), and it must spend nothing: re-asking a human is cheap,
+    and burning a signature on a request that was never authorised is not.
+    """
+    scenario = scenarios()
+    granted = scenario.grant()
+
+    with pytest.raises(AnalysisRefusedError) as caught:
+        scenario.run(approval_id=granted, recipe="some-other-recipe.json")
+    assert caught.value.reason is AnalysisRefusal.APPROVAL_REFUSED
+    assert "args_changed" in str(caught.value)
+
+    # The refused call spent nothing, so the same approval still covers the run
+    # it was granted for.
+    run = scenario.run(approval_id=granted)
+    assert run.manifest.recipe.relative_path == RECIPE
+
+
+@pytest.mark.unit
+def test_arguments_without_a_recipe_are_refused_before_anything_runs(
+    scenarios: Any,
+) -> None:
+    """The recipe is required, and its absence is the caller's error.
+
+    ``AnalysisRunArgs`` forbids extra keys, and a missing required one is refused
+    the same way: an argument set that does not say which recipe it draws from
+    describes no figure a human could have agreed to.
+    """
+    scenario = scenarios()
+    arguments = scenario.arguments()
+    assert arguments["recipe"] == RECIPE
+
+    stripped = {key: value for key, value in arguments.items() if key != "recipe"}
+    with pytest.raises(AnalysisRefusedError) as caught:
+        analysis_arguments(stripped)
+    assert caught.value.reason is AnalysisRefusal.ARGUMENTS_INVALID

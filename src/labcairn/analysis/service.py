@@ -285,7 +285,7 @@ class AnalysisRequest:
     one of them.
 
     ``arguments`` are the capability's own arguments -- ``path``,
-    ``operator_id`` and ``parameters`` -- and they are validated against
+    ``operator_id``, ``recipe`` and ``parameters`` -- and they are validated against
     :class:`~labcairn.security.capabilities.AnalysisRunArgs`, whose model is
     closed. An unrecognised key is a typo or a newer caller, and both deserve
     to be loud.
@@ -444,6 +444,7 @@ def analysis_arguments(arguments: Mapping[str, Any]) -> dict[str, object]:
     return {
         "path": capability_args.path,
         "operator_id": capability_args.operator_id,
+        "recipe": capability_args.recipe,
         "parameters": _canonical_parameters(operator, validated),
     }
 
@@ -456,7 +457,6 @@ def run_analysis(
     policy: PermissionPolicy,
     ledger: ApprovalLedger,
     renderer: FigureRenderer,
-    recipe: str,
     limits: RunLimits | None = None,
     now: datetime | None = None,
 ) -> AnalysisRun:
@@ -542,7 +542,7 @@ def run_analysis(
         operator=operator,
         validated=validated,
         result=result,
-        recipe=recipe,
+        recipe=capability_args.recipe,
         workspace=workspace,
     )
     run_token = new_id().hex
