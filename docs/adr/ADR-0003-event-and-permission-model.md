@@ -374,6 +374,12 @@ checkpoint_created, artifact_recorded, source_changed, outbound_consent_requeste
 1. **`operation_attempted` commits before the side effect is attempted, in its own transaction.** Without this, a crash leaves no evidence that anything was in flight, and the system cannot distinguish case 1 from case 2 at all.
 2. **`operation_confirmed` + the receipt + the state change commit in one transaction.** The filesystem is never inside a SQLite transaction and cannot be. That is precisely why the intent is written ahead and the outcome is confirmed behind.
 
+**And who runs the pass: every surface, at the front of every stage run.** `labcairn.application.recovery.reconcile_abandoned` is called by `run_stage` after the policy verdict and before any consent is spent, so neither the CLI nor the local service can plan a second operation over an outcome the record cannot state. It returns the operations that are in `UNCERTAIN` — both the ones it just moved and the ones a previous process already left there — and a stage run that finds any is refused with `operation_uncertain`, naming the operation and the command that answers it.
+
+**What a surface may not do is resolve the doubt by itself.** `reconcile` requires the hash the operation predicted, and that value is not recoverable from the store: it lived in `args`, and therefore inside `args_digest`, which is a hash of a hash. So the answer comes from the operator (`labcairn task reconcile <operation-id> --expected-sha256 <hash>`, which for an inventory stage is the content hash `labcairn sources inspect` prints), and a surface that invented one would be guessing at whether your data moved. A `CONFLICT` keeps the operation `UNCERTAIN`, keeps the stage blocked and writes nothing to the path it probed.
+
+**The half this does not close, stated rather than left implicit.** A probe can say the effect landed, but the transaction the crash interrupted — `operation_confirmed`, the completed stage and the receipts, which C3 says are one fact — was never written, and nothing in the state machine turns a reconciled `CONFIRMED` operation into a completed stage. So the run that follows performs the bookkeeping under its own operation: one effect, two operation rows, and the log says so. Joining the two halves is open work, not a claim this ADR makes.
+
 ### C3 — Transaction boundary
 
 > One SQLite transaction contains: one or more `events` rows with contiguous `seq`, **and** all state-row updates those events describe, **and nothing else.**

@@ -242,6 +242,27 @@ to one request.
 *Evidence:* [docs/handoff/CURRENT.md](handoff/CURRENT.md) §"What does not
 exist yet".
 
+### 2.18 A surface can enter doubt and refuse, but it cannot finish the bookkeeping
+
+**The surfaces run the recovery pass now.** `run_stage` calls it after the policy
+verdict and before any consent is spent, so a crash through the CLI or the service
+leaves its operation `UNCERTAIN`, blocks the stage with the reason the recovery
+layer states, and the next run is **refused** with `operation_uncertain` rather
+than planning a second operation for the same work. Answering the doubt is the
+operator's: `labcairn task reconcile <operation-id> --expected-sha256 <hash>`,
+because the hash a probe needs lived inside `args_digest` — a hash of a hash — and
+no stored row gives it back. A `CONFLICT` keeps the operation `UNCERTAIN`, keeps
+the stage blocked and writes nothing to the path it probed.
+
+*What remains:* the transaction the crash interrupted — confirmation, completed
+stage, receipts, which the ADR's own boundary says are one fact — was never
+written, and a reconciled `CONFIRMED` operation does not complete a stage. So the
+run that follows performs the bookkeeping under **its own** operation: the effect
+happened once, and the log holds two operation rows saying so.
+*Evidence:* [ADR-0003 C2](adr/ADR-0003-event-and-permission-model.md) ·
+`tests/test_application_layer.py::test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned` ·
+`tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`.
+
 ---
 
 ## 3. What the evidence does **not** establish

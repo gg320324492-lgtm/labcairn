@@ -42,35 +42,45 @@ And a third window, in the **ingestion**, which is the one place the CLI
 *writes*: the material is written one file at a time, so a crash there leaves
 the ledger holding some of the material and not the rest.
 
-**What the surfaces do with the second window is a finding, and it is recorded
-here rather than asserted.** The application layer never runs the recovery
-pass — nothing under ``src/labcairn/application/`` calls ``mark_uncertain``
-or ``reconcile`` — so an operation left ``ATTEMPTING`` is never reconciled,
-and the next ``task run`` plans a **second** operation for the same work.
-(The window between the two is the same on disk: a crash after the attempt
-commits but before the effect runs leaves exactly the same record, and the
-effect never ran at all — which is the point of ``UNCERTAIN``, and the reason
-a probe rather than a flag is what resolves it.)
+**What the surfaces do with the second window is the recovery pass, and it runs
+at the front of every stage run.** `labcairn.application.recovery` moves an
+operation a crash left ``ATTEMPTING`` into ``UNCERTAIN``, blocks its stage with
+the reason the recovery layer states, and **refuses** the run rather than
+planning a second operation for work whose outcome is unknown. (The window
+between the two is the same on disk: a crash after the attempt commits but
+before the effect runs leaves exactly the same record, and the effect never ran
+at all — which is the point of ``UNCERTAIN``, and the reason a probe rather than
+a flag is what resolves it.)
 
-That is the protocol's fourth blocker in the shape it takes at a surface, and
-it is not asserted here: a test that asserted it would be asserting either a
-guarantee the product does not make or a defect this gate does not fix
-(``docs/plans/LC-P1-13-14-task-breakdown.md`` §1.3 — G5 measures and hands
-over; anything the evaluation finds missing is a finding for Phase 2).
+**What the pass does not do is answer the doubt by itself.** The hash a probe
+compares against lived inside ``args_digest``, which is a hash of a hash, so no
+value on disk supplies it and the operator does: ``labcairn task reconcile
+<operation-id> --expected-sha256 <hash>``. That is the difference between a
+recovery and a guess, and it is why the run is refused rather than replayed.
+
+That is the protocol's fourth blocker in the shape it takes at a surface, and it
+is watched here rather than described:
+:func:`test_the_surfaces_enter_uncertain_and_refuse_an_abandoned_operation`
+counts the operations and the events, and
+:func:`test_a_run_refused_for_an_uncertain_operation_does_not_spend_its_approval`
+says the refusal consumed nothing.
 
 **What this file does assert** is the four things that breakdown's §2.3
 names, and each of them is watched where it can fail — **with one exception,
 and the exception is stated rather than rounded off:**
 
 ============================  ==========================================================
-no repeated operation        **holds when the crash came before the attempt
-                             was durable**: the authorised operation is adopted,
-                             so one piece of work is planned once — one operation
-                             row, one ``operation_attempted``, one
-                             ``operation_confirmed``. **It does not hold when
-                             the crash came after the effect** — see
-                             ``test_the_surfaces_do_not_reconcile_an_abandoned_operation``,
-                             which is the finding that says so
+no repeated operation        **holds**: an authorised operation is adopted, and an
+                             operation a crash abandoned is entered into
+                             ``UNCERTAIN`` with the run refused, so one piece of
+                             work is never *planned* twice. **The limit is the
+                             bookkeeping, not the effect** — a probe can say the
+                             effect landed, and the transaction the crash
+                             interrupted (confirmation, completed stage,
+                             receipts) is performed by the run that follows, so
+                             the log holds two operations for one work whose side
+                             effect happened once. See
+                             ``test_a_task_continues_from_what_was_recorded_after_a_crash``
 no duplicated side effect    the material a crashed ingestion had already written
                              is written once: the second run writes no rows for
                              it, and the store holds no second copy
@@ -82,14 +92,11 @@ the state is on disk         the task, its run, its stage and its operation are
                              both read them back
 ============================  ==========================================================
 
-**The exception is a finding, not an omission, and it is watched.** §1.3 says
-G5 measures and hands over, and that what the evaluation finds missing is a
-finding for Phase 2 — so the finding is recorded and asserted here **as the
-current behaviour**, which is what makes it survive the hand-over: a reader
-of this file, or a Phase 2 developer, sees the state of the surfaces rather
-than a silence where the state should be. **When Phase 2 gives the surfaces a
-recovery pass, that assertion fails** — and that failure is the signal to
-replace it with one that says the abandoned operation was reconciled.
+**The exception is a limit, not an omission, and it is watched.** §1.3 of the
+breakdown says G5 measures and hands over, and the pass it handed over missing is
+now wired into the layer. What remains is the half a probe cannot do — recording
+the completion of work whose confirmation the crash interrupted — and it is
+asserted above rather than closed by claiming the two halves are one thing.
 
 **What the service can and cannot show.** The service is task-scoped and
 serves the state the store holds, so a service that is killed and restarted
@@ -138,6 +145,15 @@ from labcairn.db.repository import (
     load_task,
 )
 from labcairn.db.session import create_db_engine, create_session_factory
+
+# The payload schema an ``operation_reconciled`` event carries is registered when
+# :mod:`labcairn.recovery.reconciliation` is imported, and ADR-0007's rule is that
+# an event with an unregistered schema must have an empty payload — so a reader of
+# the ledger that never imported the writer's module cannot read the event at all.
+# Every product reader reaches it through the application layer, which imports the
+# recovery module; this file reads the store directly, so it imports it too.
+# The wart is recorded as a carried issue in ``docs/PHASE_1_WORKORDERS.md``.
+from labcairn.recovery import reconciliation as _reconciliation  # noqa: F401
 from labcairn.runtime.event import Event, EventType
 from labcairn.runtime.operation import Operation, OperationState
 
@@ -851,7 +867,28 @@ def test_a_task_continues_from_what_was_recorded_after_a_crash(
     assert len(crashed.operations) == 1
     assert crashed.operations[0].state is OperationState.ATTEMPTING
 
-    # -- the operator continues the task ------------------------------------ #
+    # -- the surfaces refuse to replay it, and the operator answers ------------ #
+    # The recovery pass runs at the front of every stage run, so the resume below
+    # would be refused until the doubt is answered. This is the whole path a
+    # person on the keyboard takes: crash, read the refusal, reconcile, continue.
+    refused = run_cli("--workspace", str(workspace), "task", "run", "--source", source_id, "--json")
+    assert refused.returncode != 0, refused.stdout
+    assert refused.json()["reason"] == "operation_uncertain"
+
+    resolved = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "reconcile",
+        str(crashed.operations[0].operation_id),
+        "--expected-sha256",
+        _content_hash(workspace, source_id),
+        "--json",
+    )
+    assert resolved.returncode == 0, resolved.stderr
+    assert resolved.json()["resolution"] == "confirmed"
+
+    # -- the operator continues the task --------------------------------------- #
     resumed = run_cli(
         "--workspace", str(workspace), "task", "resume", "--source", source_id, "--json"
     )
@@ -880,10 +917,16 @@ def test_a_task_continues_from_what_was_recorded_after_a_crash(
         "the continuation must not erase the operation the crash abandoned: "
         "a record a crash removed is a record nobody can reason about"
     )
-    assert {operation.state for operation in ledger.operations} == {
-        OperationState.ATTEMPTING,
-        OperationState.CONFIRMED,
-    }
+    assert {operation.state for operation in ledger.operations} == {OperationState.CONFIRMED}, (
+        "the abandoned operation is confirmed **because a probe said so**, and the "
+        "continuation's own operation is confirmed because it ran. **This is the "
+        "limit that remains**: a probe can say an effect landed, and the stage's "
+        "bookkeeping — confirmation, completed stage, receipts, which "
+        "``records.complete_operation`` writes in one transaction — was what the "
+        "crash interrupted, so the log holds two operations for one piece of work. "
+        "The effect happened once, and the second operation is a record of its "
+        "completion rather than a second write."
+    )
     assert ledger.count(EventType.STAGE_COMPLETED) == 1, (
         "exactly one stage completed: the one the continuation ran"
     )
@@ -1166,33 +1209,26 @@ def test_the_service_comes_back_to_the_same_state_after_its_process_is_killed(
 
 
 @pytest.mark.e2e
-def test_the_surfaces_do_not_reconcile_an_abandoned_operation(
+def test_the_surfaces_enter_uncertain_and_refuse_an_abandoned_operation(
     workspace: Path, task: str, crash: Crash
 ) -> None:
-    """The finding, asserted: the surfaces never reconcile what a crash abandoned.
+    """What a surface does with an operation a crash abandoned.
 
-    **This is the protocol's fourth blocker in the shape it takes at a
-    surface, and §1.3 says what to do with it.** The breakdown says G5
-    *measures and hands over*, and that what the evaluation finds missing is a
-    finding for Phase 2 — so this file does not fix it. **It asserts it**, and
-    that is the point: an observation nobody watches is a sentence, and a
-    sentence is not evidence. **This assertion is the evidence that the
-    surfaces do not run the recovery pass**, so the hand-over carries the
-    state of the surfaces rather than a silence where the state should be.
+    **This is the successor to the finding G5 handed over.** The gate's own
+    end-to-end test found that nothing under ``src/labcairn/application/`` ran
+    the recovery pass, so an operation left ``ATTEMPTING`` sat there forever and
+    the next ``task run`` planned a **second** operation for the same work — and
+    the file asserted that behaviour as its evidence. The pass is wired now, so
+    this asserts what the surfaces do instead.
 
-    **What the surfaces do.** Nothing under ``src/labcairn/application/``
-    calls ``mark_uncertain`` or ``reconcile``. So an operation left
-    ``ATTEMPTING`` by a crash is never reconciled, and the next ``task run``
-    plans a **second** operation for the same work — the abandoned one stays
-    ``ATTEMPTING`` for ever, and the audit log says the work was planned
-    twice.
-
-    **What this asserts is the current behaviour, deliberately.** When Phase 2
-    gives the surfaces a recovery pass, this test **fails** — and that failure
-    is the signal to replace these assertions with ones that say the
-    abandoned operation was reconciled and no second one was planned. **A test
-    that is quietly deleted when the defect is fixed is a test that was only
-    ever a description.**
+    **What the surface may say, and what it may not.** It may record that the
+    outcome is unknown: ``UNCERTAIN`` is the state recovery *enters*, and the
+    stage is blocked with the reason the recovery layer states. It may **not**
+    resolve the doubt by itself, because the value a probe needs — the hash the
+    operation predicted — is not in the store; it lived inside ``args_digest``,
+    which is a hash of a hash. So the run is refused rather than replayed, and
+    the refusal names the operation, the command that answers it, and the fact
+    that the number has to come from the operator.
     """
     source_id = _bound_source(workspace, task)
 
@@ -1211,30 +1247,93 @@ def test_the_surfaces_do_not_reconcile_an_abandoned_operation(
     assert ledger.operations[0].state is OperationState.ATTEMPTING
 
     again = run_cli("--workspace", str(workspace), "task", "run", "--source", source_id, "--json")
-    assert again.returncode == 0, again.stderr
+
+    # -- the run is refused, with a reason a script can branch on ------------ #
+    assert again.returncode != 0, (
+        "a surface that replanned over an unknown outcome would exit zero here; "
+        "the refusal is the property, so the exit code is the witness"
+    )
+    refused = again.json()
+    assert refused["reason"] == "operation_uncertain", refused
 
     ledger = read_ledger(workspace, task)
 
-    # -- the finding itself: a second operation for the same work ------------ #
-    assert len(ledger.operations) == 2, (
-        "the surfaces reconciled the abandoned operation, so one piece of work "
-        "was planned once. **This is the Phase 2 finding being fixed** — "
-        "replace this assertion with one that says the abandoned operation "
-        "was reconciled and no second one was planned."
+    # -- one operation, and it now says what it does not know ------------------ #
+    assert len(ledger.operations) == 1, (
+        "the abandoned operation must not gain a twin: one piece of work is "
+        "planned once, and a second operation for it is the blocker's shape"
     )
-    assert ledger.operations[0].state is OperationState.ATTEMPTING, (
-        "the abandoned operation must still read as attempting: nothing "
-        "reconciled it, so it is a record of work whose outcome is unknown"
-    )
-    assert ledger.operations[1].state is OperationState.CONFIRMED
-
-    # -- and nothing ever marked it uncertain or reconciled it ---------------- #
-    assert ledger.count(EventType.OPERATION_UNCERTAIN) == 0, (
-        "the surfaces must not mark it uncertain: the application layer never "
-        "runs the recovery pass, so UNCERTAIN — the state recovery *enters* — "
-        "is never entered here"
-    )
+    assert ledger.operations[0].state is OperationState.UNCERTAIN
+    assert ledger.count(EventType.OPERATION_UNCERTAIN) == 1
     assert ledger.count(EventType.OPERATION_RECONCILED) == 0, (
-        "the surfaces must not reconcile it: only a probe may resolve an "
-        "uncertain operation, and the surfaces run no probe"
+        "nothing probed it: a surface that resolved the doubt would have had to "
+        "invent the hash the operation predicted"
     )
+    assert ledger.count(EventType.OPERATION_ATTEMPTED) == 1, (
+        "no second attempt was booked against the work"
+    )
+    blocked = run_cli("--workspace", str(workspace), "task", "status", "--json")
+    assert blocked.returncode == 0, blocked.stderr
+    waiting = [stage for stage in blocked.json()["stages"] if stage["status"] == "blocked"]
+    assert waiting, "the stage the abandoned operation belonged to is blocked"
+    assert "UNCERTAIN" in waiting[0]["blocked_reason"], (
+        "and it says so: a reader must be able to tell a human-approval wait from "
+        "a crash whose outcome is unknown"
+    )
+
+    # -- and the answer the operator holds does resolve it --------------------- #
+    predicted = _content_hash(workspace, source_id)
+    operation_id = str(ledger.operations[0].operation_id)
+    resolved = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "reconcile",
+        operation_id,
+        "--expected-sha256",
+        predicted,
+        "--json",
+    )
+    assert resolved.returncode == 0, resolved.stderr
+    answer = resolved.json()
+    assert answer["operation_id"] == operation_id
+    assert answer["resolution"] == "confirmed", (
+        f"probed {answer['resource_key']!r}: expected {answer['expected_sha256'][:12]}..., "
+        f"observed {answer['observed_sha256']}"
+    )
+    assert answer["observed_sha256"] == predicted
+    assert answer["resulting_state"] == "confirmed"
+    ledger = read_ledger(workspace, task)
+    assert ledger.count(EventType.OPERATION_RECONCILED) == 1
+
+
+@pytest.mark.e2e
+def test_a_run_refused_for_an_uncertain_operation_does_not_spend_its_approval(
+    workspace: Path, task: str, crash: Crash
+) -> None:
+    """The recovery pass runs before the consent is spent, so a refusal burns nothing.
+
+    **Why it matters**: the run path asks a human before it acts, and a refusal
+    that spent the answer would force the question to be asked again for a fact
+    that changed nothing. The layer's own order is policy verdict → recovery pass
+    → approval consumption, and this counts the events to prove the middle step
+    does not consume the consent.
+    """
+    source_id = _bound_source(workspace, task)
+    crash.place(
+        "--workspace",
+        str(workspace),
+        "task",
+        "run",
+        "--source",
+        source_id,
+        window=AFTER_THE_EFFECT,
+    )
+
+    again = run_cli("--workspace", str(workspace), "task", "run", "--source", source_id, "--json")
+    assert again.returncode != 0
+    ledger = read_ledger(workspace, task)
+    assert ledger.count(EventType.OPERATION_UNCERTAIN) == 1, (
+        "the recovery half happened: the abandoned operation is no longer called in flight"
+    )
+    assert ledger.count(EventType.APPROVAL_CONSUMED) == 0, "and nothing was consumed to do it"

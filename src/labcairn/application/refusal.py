@@ -86,6 +86,19 @@ class ApplicationRefusal(StrEnum):
     REPORT_CONTENT_REFUSED = "report_content_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
+    #: A crash left an operation in flight, its outcome is unknown, and the stage
+    #: is blocked until a probe answers it. **The remedy is a reconciliation, not
+    #: a retry**: replaying would plan a second operation for work that may already
+    #: have happened, which is the failure ADR-0003 A2 refuses to assume away.
+    OPERATION_UNCERTAIN = "operation_uncertain"
+    #: Reconciliation was asked for an operation that is not in ``UNCERTAIN``. A
+    #: confirmed one is settled and re-running it would duplicate its effect; an
+    #: authorised one has never been attempted and needs no probe.
+    OPERATION_NOT_UNCERTAIN = "operation_not_uncertain"
+    #: The probe found bytes at the operation's path that this operation did not
+    #: predict. Nothing was overwritten — a human decides, because the alternative
+    #: is a second writer on the one path where a second writer is expensive.
+    OPERATION_CONFLICT = "operation_conflict"
 
 
 class ApplicationRefusedError(RuntimeError):

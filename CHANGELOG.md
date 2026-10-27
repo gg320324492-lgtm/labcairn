@@ -16,7 +16,25 @@ The links are the records.
 
 ## [Unreleased]
 
-### The public alpha (G5) — in flight
+### Since the gates closed
+
+**Added**
+
+- **The recovery pass runs at the surfaces.** `run_stage` calls
+  `labcairn.application.recovery.reconcile_abandoned` after the policy verdict and
+  before any consent is spent: an operation a crash left `ATTEMPTING` becomes
+  `UNCERTAIN`, its stage is blocked with the recovery layer's reason, and the next
+  `task run` or `POST /stages` is refused with `operation_uncertain` rather than
+  planning a second operation for the same work. `labcairn task reconcile
+  <operation-id> --expected-sha256 <hash>` is the operator's half, because the
+  value a probe needs is not recoverable from the store. **The limit that
+  remains** is stated in [ADR-0003 C2](docs/adr/ADR-0003-event-and-permission-model.md)
+  and in [release notes §2.18](docs/RELEASE-NOTES.md).
+- **The approval ledger asks the capability registry.** Both consume paths refuse
+  an id the registry has never held, with a reason of its own
+  (`capability_unregistered`), which closes the defence-in-depth gap G1 recorded.
+
+### The public alpha (G5) — closed on two independent reviews
 
 The handoff: evaluation, fault injection, and the documents.
 

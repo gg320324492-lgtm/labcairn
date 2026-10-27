@@ -316,6 +316,26 @@ class ServiceStarting(Result):
     static_dir: str | None = None
 
 
+class TaskReconciliation(Result):
+    """What a probe answered about one operation a crash abandoned.
+
+    **Both hashes are printed.** The expected one is what the operator supplied
+    and the observed one is what the file actually holds; an outcome that names
+    only the verdict asks the reader to trust a comparison it cannot check.
+    ``observed_sha256`` is ``None`` exactly when nothing was at the path, which
+    is the answer that makes a replay safe rather than a conflict.
+    """
+
+    operation_id: str
+    resource_key: str
+    resolution: str
+    expected_sha256: str
+    observed_sha256: str | None
+    resulting_state: str
+    replay_permitted: bool
+    detail: str
+
+
 __all__ = [
     "ApiSessionFinding",
     "CapabilityFinding",
@@ -325,6 +345,7 @@ __all__ = [
     "ProviderFinding",
     "ServiceStarting",
     "SourceRootFinding",
+    "TaskReconciliation",
     "WorkspaceFinding",
     "WorkspaceInitialised",
     "dumps",

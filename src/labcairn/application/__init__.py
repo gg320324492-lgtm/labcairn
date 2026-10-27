@@ -88,6 +88,11 @@ from labcairn.application.material_ingestion import (
     ingest_material,
 )
 from labcairn.application.models import Result
+from labcairn.application.recovery import (
+    describe_abandoned,
+    reconcile_abandoned,
+    resolve_abandoned,
+)
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.reports import (
     DEFAULT_TEMPLATE_ID,
@@ -149,6 +154,7 @@ __all__ = [
     "TaskStep",
     "consume_approval",
     "create_task",
+    "describe_abandoned",
     "grant_approval",
     "ingest_material",
     "inspect_source",
@@ -160,7 +166,9 @@ __all__ = [
     "read_plan",
     "read_steps",
     "read_task_state",
+    "reconcile_abandoned",
     "render_report",
     "request_approval",
+    "resolve_abandoned",
     "run_stage",
 ]

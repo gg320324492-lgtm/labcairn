@@ -1023,6 +1023,89 @@ def task_resume(
     _run_a_stage(ctx, source=source, task=task, as_json=as_json, resume=True)
 
 
+@task_app.command("reconcile")
+def task_reconcile(
+    ctx: typer.Context,
+    operation_id: Annotated[str, typer.Argument(help="The operation a crash left in flight.")],
+    expected_sha256: Annotated[
+        str,
+        typer.Option(
+            "--expected-sha256",
+            help="The content hash this operation predicted. Not in the store, so it is supplied.",
+        ),
+    ],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Answer the question a crash left open, for one operation.
+
+    ``task run`` and ``task resume`` refuse while an operation is ``UNCERTAIN``,
+    because replaying over an unknown outcome plans a second operation for work
+    that may already have happened. This is the answer that unblocks them: a
+    read-only probe compares the bytes at the operation's own path against the
+    hash **you** state, and the verdict decides — absent means the effect
+    provably did not land and the operation is authorised again; a match means it
+    landed and is confirmed; a different hash is a conflict, the stage stays
+    blocked, and **nothing was overwritten**.
+
+    **Why the hash is an argument.** It is the one fact the store cannot supply:
+    it lived inside the operation's arguments and therefore inside its digest,
+    which is a hash of a hash. ``labcairn sources inspect`` prints the material's
+    content hash, and for the stage that reads a material that is the number.
+    """
+    from labcairn.application import resolve_abandoned
+    from labcairn.cli.models import (
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        TaskReconciliation,
+        emit_model,
+    )
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import OperationId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(operation_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{operation_id!r} is not an operation id: operation ids are UUIDv7, "
+                "as `labcairn task status --json` prints them.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            outcome = resolve_abandoned(
+                context,
+                OperationId(uuid.UUID(operation_id)),
+                expected_sha256=expected_sha256,
+            )
+        reported = TaskReconciliation(
+            operation_id=str(outcome.operation_id),
+            resource_key=outcome.verdict.resource_key,
+            resolution=outcome.resolution.value,
+            expected_sha256=outcome.verdict.expected_sha256,
+            observed_sha256=outcome.verdict.observed_sha256,
+            resulting_state=outcome.resulting_state.value,
+            replay_permitted=outcome.replay_permitted,
+            detail=outcome.verdict.detail,
+        )
+    if as_json:
+        emit_model(reported)
+    else:
+        found = (
+            f"observed {reported.observed_sha256}"
+            if reported.observed_sha256 is not None
+            else "nothing was at the path"
+        )
+        _console().print(
+            f"[bold]{reported.operation_id}[/bold] — {reported.resolution}: "
+            f"{reported.detail}\nexpected {reported.expected_sha256}, {found}. "
+            f"The operation is now [bold]{reported.resulting_state}[/bold]"
+            + (", and a run may replay it." if reported.replay_permitted else ".")
+        )
+
+
 def _run_a_stage(
     ctx: typer.Context,
     *,
