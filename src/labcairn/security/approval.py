@@ -62,6 +62,7 @@ from labcairn.runtime.operation import (
     ApprovalState,
     compute_args_digest,
 )
+from labcairn.security.capabilities import resolve_capability
 from labcairn.security.paths import CanonicalPath
 from labcairn.security.policy import PermissionDecision
 
@@ -188,6 +189,39 @@ def sources_intact(
     return (not changed, tuple(changed))
 
 
+def assert_capability_registered(capability: str) -> None:
+    """Refuse a capability the registry has never heard of.
+
+    **Why this is here and not only in the policy.** ADR-0003 §C5 makes an
+    unregistered id a DENY at :meth:`~labcairn.security.policy.PermissionPolicy.evaluate`,
+    and ADR-0003 §C4 says a caller must evaluate before it consumes. But
+    "must" written as a sentence about call order is not a constraint: nothing
+    in the ledger asked whether the capability existed, so an id that names no
+    registered capability could be issued, granted and **consumed** — and a
+    caller that reached ``consume()`` without evaluating first would have spent
+    a human's consent on a capability that cannot be described, let alone
+    audited. The registry is the only place an id becomes a thing; a consent
+    that never passes through it is consent for nothing.
+
+    This is defence in depth, not a replacement for the policy verdict: the
+    policy still refuses first in the normal path, and this says the same thing
+    from the second choke point, where the ordering was only ever prose.
+
+    :raises AuthorizationRefusedError: with ``capability_unregistered``, which is
+        deliberately not ``args_changed``. ``args_changed`` tells a caller to ask
+        again for the right request; this tells a caller the request names a
+        capability this build does not have, and asking again changes nothing.
+    """
+    if resolve_capability(capability) is None:
+        raise AuthorizationRefusedError(
+            ApprovalRefusal.CAPABILITY_UNREGISTERED,
+            detail=(
+                f"{capability!r} is not a registered capability. No approval can authorise "
+                "an id the registry does not hold."
+            ),
+        )
+
+
 class ApprovalLedger:
     """Single-use accounting for approvals.
 
@@ -231,6 +265,12 @@ class ApprovalLedger:
         itself — the policy digest, the re-hashed sources, and the recomputed
         digest of the arguments **as they are right now**.
 
+        **And one condition the row cannot state at all**: the capability must be
+        in the registry. :func:`assert_capability_registered` runs before
+        anything else, because an id nobody registered is not a fact about this
+        approval — it is a fact about the request, and it is the one the ledger
+        used to take on trust from the policy.
+
         The recomputation at the moment of use is the load-bearing part. §C4
         says the digest is *recomputed at the moment of use* and compared; a
         check that trusted the digest stored on the row would be satisfied by
@@ -240,6 +280,7 @@ class ApprovalLedger:
         :raises NoSuchApprovalError: the id was never issued or is already consumed.
         :raises AuthorizationRefusedError: named with the ADR's own reason enum.
         """
+        assert_capability_registered(capability)
         grant = self._grants.get(approval_id)
         if grant is None:
             raise NoSuchApprovalError(str(approval_id))
@@ -329,6 +370,7 @@ __all__ = [
     "NoSuchApprovalError",
     "PermissionDeniedError",
     "SourceBinding",
+    "assert_capability_registered",
     "content_hash",
     "make_approval",
     "sources_intact",

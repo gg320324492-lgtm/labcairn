@@ -62,6 +62,13 @@ class ApprovalRefusal(StrEnum):
     ARGS_CHANGED = "args_changed"
     SOURCE_CHANGED = "source_changed"
     POLICY_CHANGED = "policy_changed"
+    #: The capability the caller named is not in the registry, so nothing can
+    #: authorise it. Distinct from ``ARGS_CHANGED`` on purpose: the two have
+    #: different remedies. ``args_changed`` means the approval is for a
+    #: different request than this one, and the remedy is to ask again; this
+    #: means the request names a capability that does not exist, and asking
+    #: again does not help.
+    CAPABILITY_UNREGISTERED = "capability_unregistered"
 
 
 class Operation(LabCairnModel):

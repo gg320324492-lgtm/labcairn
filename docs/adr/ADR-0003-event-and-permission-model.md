@@ -408,7 +408,11 @@ Canonicalisation rules, fixed now so they cannot drift:
 
 An approval is **valid** only when **all** hold: `state == granted`; `expires_at > now()`; `task_id` matches; the digest recomputed **at the moment of use** equals `args_digest`; the capability and `resource_key` match; the policy snapshot still equals current policy; and every hash in `depends_on` still matches the file on disk. It is **single-use**: consuming it moves it to `approval_consumed`.
 
-Refusal reasons are enumerated and machine-readable: `expired`, `consumed`, `task_scope_mismatch`, `args_changed`, `source_changed`, `policy_changed`, `not_granted`.
+**And the capability must be one the registry holds — checked where the consent is spent, not only where the verdict is made.** `args_digest` covers `<registered capability id>`, and C5 makes an unregistered id a `deny` at `policy.evaluate()`. For a long time that was the whole rule, which left the ordering — *evaluate, then consume* — as a sentence about callers rather than a constraint: `ApprovalLedger.consume()` and `ApprovalStore.consume()` both accepted any string, so an id that named no registered capability could be issued, granted and **consumed**, and the digest check would pass because the approval had been bound to that same fiction. Both now call `assert_capability_registered` first, before the row is read or spent. **C5 remains the first word**: this is the second choke point, not a replacement for the policy verdict — the two answer different questions, a verdict about whether this request may run and a refusal to spend a consent on a capability that cannot be described.
+
+Refusal reasons are enumerated and machine-readable: `expired`, `consumed`, `task_scope_mismatch`, `args_changed`, `source_changed`, `policy_changed`, `not_granted`, `capability_unregistered`.
+
+`capability_unregistered` is deliberately **not** `args_changed`. `args_changed` tells a caller to ask again for the right request, and asking again does not help a request that names a capability this build does not have. The vocabulary is watched against the enum by `tests/test_runtime_contracts.py::test_adr_c4_and_the_enum_are_one_vocabulary`, so this line and `ApprovalRefusal` cannot drift apart silently.
 
 ### C5 — Permission evaluation
 

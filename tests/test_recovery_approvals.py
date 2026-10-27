@@ -57,14 +57,28 @@ pytestmark = pytest.mark.integration
 # the same idiom as tests/test_store_atomicity.py.
 env = _shared_env
 
-CAPABILITY = "labcairn.artifact.write"
+#: A **registered** capability id. This was ``labcairn.artifact.write``, an id the
+#: registry has never held, and every test here passed anyway — which is the gap
+#: :func:`labcairn.security.approval.assert_capability_registered` closes: the
+#: durable ledger now refuses an unregistered id rather than spending a human's
+#: consent on it. The id the product actually registers is ``artifact.write``.
+CAPABILITY = "artifact.write"
+#: An id the registry has never held — the shape this file used to grant against
+#: without noticing. ``ApprovalLedger.consume`` and ``ApprovalStore.consume`` now
+#: both ask the registry, so this cannot spend a consent.
+UNREGISTERED = "labcairn.artifact.write"
 RESOURCE = "outputs/report.md"
 ARGS: dict[str, object] = {"kind": "report"}
 POLICY = "policy-digest-at-grant"
 BODY = b"# Findings\n"
 
 
-def _granted(env: StoreEnv, tmp_path: Path, **kwargs: object) -> tuple[Scenario, ApprovalId]:
+def _granted(
+    env: StoreEnv,
+    tmp_path: Path,
+    *,
+    capability: str = CAPABILITY,
+) -> tuple[Scenario, ApprovalId]:
     """A scenario plus one GRANTED approval, with the run/stage it needs.
 
     Built in one place because every refusal test needs the identical starting
@@ -75,13 +89,13 @@ def _granted(env: StoreEnv, tmp_path: Path, **kwargs: object) -> tuple[Scenario,
     operation_id = OperationId(new_id())
 
     # The approval's events are Run-scoped, so the operation it names must exist.
-    _seed_operation(scenario, operation_id)
+    _seed_operation(scenario, operation_id, capability=capability)
 
     approval = store.request(
         scenario.task_id,
         scenario.run_id,
         operation_id,
-        capability=CAPABILITY,
+        capability=capability,
         resource_key=RESOURCE,
         args=ARGS,
     )
@@ -90,7 +104,12 @@ def _granted(env: StoreEnv, tmp_path: Path, **kwargs: object) -> tuple[Scenario,
     return scenario, approval.approval_id
 
 
-def _seed_operation(scenario: Scenario, operation_id: OperationId) -> None:
+def _seed_operation(
+    scenario: Scenario,
+    operation_id: OperationId,
+    *,
+    capability: str = CAPABILITY,
+) -> None:
     """Write the operation row an approval's events point at."""
     from labcairn.runtime.operation import Operation, OperationState, compute_args_digest
 
@@ -100,12 +119,12 @@ def _seed_operation(scenario: Scenario, operation_id: OperationId) -> None:
         run_id=scenario.run_id,
         stage_id=scenario.stage_id,
         state=OperationState.PLANNED,
-        capability=CAPABILITY,
+        capability=capability,
         resource_key=RESOURCE,
         depends_on=(),
         args_digest=compute_args_digest(
             task_id=scenario.task_id,
-            capability=CAPABILITY,
+            capability=capability,
             resource_key=RESOURCE,
             args=dict(ARGS),
         ),
@@ -120,6 +139,7 @@ def _consume(
     *,
     args: dict[str, object] | None = None,
     task_id: TaskId | None = None,
+    capability: str = CAPABILITY,
     policy: str = POLICY,
     sources: tuple[SourceBinding, ...] = (),
     resolve_source: Callable[[str], Path] | None = None,
@@ -130,7 +150,7 @@ def _consume(
     return store.consume(
         task_id or scenario.task_id,
         approval_id,
-        capability=CAPABILITY,
+        capability=capability,
         resource_key=RESOURCE,
         args=args if args is not None else dict(ARGS),
         depends_on=(),
@@ -212,6 +232,49 @@ def test_approval_is_single_use(env, tmp_path):  # type: ignore[no-untyped-def]
     with pytest.raises(AuthorizationRefusedError) as raised:
         _consume(scenario, approval_id)
     assert raised.value.refusal is ApprovalRefusal.CONSUMED
+
+
+def test_an_unregistered_capability_is_refused_before_the_grant_is_spent(
+    env,
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    """The ledger asks the registry, so an id that names nothing cannot spend a consent.
+
+    **The ordering is the assertion.** The capability digest would not match
+    either, so a registry check placed *after*
+    :meth:`~labcairn.runtime.operation.Approval.refusal_reason` would answer
+    ``args_changed`` — a reason whose remedy ("ask again for the right request")
+    is wrong for a request that names a capability this build does not have.
+    """
+    scenario, approval_id = _granted(env, tmp_path)
+    with pytest.raises(AuthorizationRefusedError) as raised:
+        _consume(scenario, approval_id, capability=UNREGISTERED)
+    assert raised.value.refusal is ApprovalRefusal.CAPABILITY_UNREGISTERED
+    assert UNREGISTERED in str(raised.value), "the id it refused has to be named"
+    assert _state_of(scenario, approval_id) == "granted", (
+        "a structural refusal must not burn a human's consent any more than a "
+        "condition refusal does"
+    )
+    # The same approval still authorises the request it was granted for.
+    assert _consume(scenario, approval_id).state is ApprovalState.CONSUMED
+
+
+def test_a_grant_made_for_an_unregistered_capability_cannot_be_consumed(
+    env,
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    """G1's gap, stated exactly: issued, granted — and until now, consumed.
+
+    Every condition in :meth:`Approval.refusal_reason` is satisfied here, because
+    the approval was bound to this very string: the digest matches, the task
+    matches, nothing changed. **The only thing that made this safe was the policy
+    being evaluated first, and that was prose about call order.**
+    """
+    scenario, approval_id = _granted(env, tmp_path, capability=UNREGISTERED)
+    with pytest.raises(AuthorizationRefusedError) as raised:
+        _consume(scenario, approval_id, capability=UNREGISTERED)
+    assert raised.value.refusal is ApprovalRefusal.CAPABILITY_UNREGISTERED
+    assert _state_of(scenario, approval_id) == "granted"
 
 
 def test_approval_rejected_when_arguments_change(env, tmp_path):  # type: ignore[no-untyped-def]
