@@ -1086,18 +1086,25 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
 def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
     """What this service can be *asked to do* is five routes and no more.
 
-    Every other route reads. That is the whole of the "the stream carries
-    events and never commands" claim at the level of the contract: a browser
-    that has the token can ask for consent, ask for a stage to run, and ask for
-    the report to be rendered — and can do nothing else at all. A route that
-    changed something else — a route that could delete an artefact, say — would
-    be a permission the CLI does not have either.
+        Every other route reads. That is the whole of the "the stream carries
+        events and never commands" claim at the level of the contract: a browser
+        that has the token can ask for consent, ask for a stage to run, and ask for
+        the report to be rendered — and can do nothing else at all. A route that
+        changed something else — a route that could delete an artefact, say — would
+        be a permission the CLI does not have either.
+
+        **The analysis run is on this list for the same reason the report is: LC-P1-12
+    asks the local service to reach the layer's operations, and a figure the user
+    cannot ask the service to draw is a figure with no surface at all. **It is not
+    the consent's own route** — the approval is asked for over `POST /approvals` and
+    answered over `/approvals/{approval_id}/grant`, and a run that could mint its own
+    consent would not be a consented run.
 
     **The report render is on this list because G4's exit test is *"CLI and Web
-    produce same versioned report"*.** That sentence asks the web to be able to
-    *produce* the report, not only to read one the CLI happened to write; the
-    route is the layer's own operation and the layer's own result model, so the
-    bytes are the same bytes whichever surface asked.
+        produce same versioned report"*.** That sentence asks the web to be able to
+        *produce* the report, not only to read one the CLI happened to write; the
+        route is the layer's own operation and the layer's own result model, so the
+        bytes are the same bytes whichever surface asked.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1112,6 +1119,7 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /approvals/{approval_id}/consume",
         "POST /stages",
         "POST /report",
+        "POST /analysis",
     }
 
 
@@ -1778,3 +1786,60 @@ def test_the_write_path_still_opens_its_transaction_with_begin_immediate(
     assert all(statement.upper() == "BEGIN IMMEDIATE" for statement in begins), (
         f"every transaction must begin IMMEDIATE, saw: {sorted(set(begins))}"
     )
+
+
+def _analysis_body(approval_id: str) -> dict[str, object]:
+    """A figure run the service can be asked for, with no material behind it."""
+    return {
+        "root_id": "source:0",
+        "path": "one.csv",
+        "operator_id": "labcairn.analysis.mean",
+        "recipe": "recipe.json",
+        "parameters": {},
+        "approval_id": approval_id,
+    }
+
+
+def test_an_analysis_run_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that draws a file is behind the origin guard like every change."""
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_an_analysis_run_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to run, and not consent to spend either."""
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_an_analysis_run_reaches_the_layer_and_returns_its_reason(
+    client: TestClient, token: str
+) -> None:
+    """HTTP body -> the layer's request -> the seam's own refusal, in its shape.
+
+    **What this proves and what it does not.** The task under test has no recipe
+    file, so the seam answers `recipe_unreadable` — before the consent, and before
+    the material. That the layer's reason arrives through the service's refusal
+    shape is the plumbing; **it is not a claim that a figure was drawn**, and none
+    was. The run's success path at a surface is witnessed where a material exists:
+    `tests/test_cli.py::test_the_figure_command_refuses_before_the_run_with_the_layers_reasons`
+    walks the same order at the console script, and the seam's own tests cover the
+    consent, the operator and the receipts.
+    """
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.RECIPE_UNREADABLE.value

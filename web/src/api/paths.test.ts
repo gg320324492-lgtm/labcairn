@@ -109,6 +109,7 @@ describe('the route scanner', () => {
     expect(routes.has('/events')).toBe(true)
     expect(routes.has('/stages')).toBe(true)
     expect(routes.has('/report')).toBe(true)
+    expect(routes.has('/analysis')).toBe(true)
     expect(routes.size).toBeGreaterThan(10)
   })
 })

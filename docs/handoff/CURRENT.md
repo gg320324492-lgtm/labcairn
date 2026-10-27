@@ -85,7 +85,11 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 `labcairn task report`, `POST /report` and the workbench's **Render the report**
 button all call the layer's own `render_report`; the surfaces answer with its own
 `ReportRendered`, and a fresh workspace permits
-`report.render` (the registry binds it to output roots). **What the surfaces
+`report.render` (the registry binds it to output roots). **The figure followed
+it**: `labcairn task figure` and `POST /analysis` call `run_figure` through the
+same layer, with `task approval-request` / `task approval-grant` beside them,
+because ADR-0012 constraint 7 moved the recipe inside `analysis.run`'s consented
+arguments. **What the surfaces
 still cannot do is produce a report from nothing**: no operation writes an
 evidence record, so a bare task is refused with `report_content_refused` and the
 output area stays empty, and the success path remains the walk's, which writes

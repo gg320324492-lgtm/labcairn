@@ -104,6 +104,25 @@ class StageBody(Result):
     depends_on: tuple[str, ...] = ()
 
 
+class AnalysisBody(Result):
+    """One figure run, as the API accepts it.
+
+    The six fields are the layer's own request, and all of them are required
+    except the operator's parameters: the material's root and key, the
+    registered operator, the chart recipe, and **the approval that covers exactly
+    this set**. The approval is not inferred and not created here — the service
+    has `POST /approvals` for asking and `/approvals/{id}/grant` for answering,
+    and a run that could mint its own consent would not be a consented run.
+    """
+
+    root_id: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    operator_id: str = Field(min_length=1)
+    recipe: str = Field(min_length=1)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    approval_id: ApprovalId
+
+
 class ReportBody(Result):
     """A report render, as the API accepts it.
 

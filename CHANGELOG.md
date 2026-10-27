@@ -20,6 +20,14 @@ The links are the records.
 
 **Added**
 
+- **The deterministic figure has a surface.** `labcairn task figure` and
+  `POST /analysis` call the layer's own `run_figure`; `labcairn task
+  approval-request` and `labcairn task approval-grant` are the consent it needs,
+  because `recipe` is now one of `analysis.run`'s consented arguments — a
+  signature covers the bytes the figure is drawn from, not only the material
+  (ADR-0012 constraint 7). The run path no longer takes a recipe beside the
+  consent it spends.
+
 - **The report has a surface.** `labcairn task report --path report
   [--template default] [--json]` and `POST /report` on the local service both
   call the application layer's own `render_report` and answer with its own

@@ -12,6 +12,15 @@
 // single quotes and a hundred-column width -- so that a regeneration does
 // not produce a file that prettier would then rewrite.
 
+export type AnalysisBody = {
+  root_id: string
+  path: string
+  operator_id: string
+  recipe: string
+  parameters?: Record<string, unknown>
+  approval_id: RawId
+}
+
 export type Approval = {
   schema_version?: number
   approval_id?: RawId
@@ -103,6 +112,14 @@ export type CapabilityId =
   | 'report.render'
   | 'model.request'
 
+export type ComputationLocator = {
+  locator_kind?: 'computation'
+  operator_id: string
+  operator_version: string
+  parameters?: Record<string, JsonValue>
+  input_hashes: string[]
+}
+
 export type DerivationRef = {
   target_kind: DerivationTargetKind
   target_id: string
@@ -167,6 +184,24 @@ export type EventType =
   | 'source_changed'
   | 'outbound_consent_requested'
 
+export type FigureRun = {
+  source: Source
+  selection: Selection
+  result: Record<string, unknown>
+  result_kind: string
+  manifest: ReproducibilityManifest
+  manifest_receipt: ArtifactReceipt
+  figure_receipt: ArtifactReceipt | null
+}
+
+export type FileRef = {
+  schema_version?: number
+  relative_path: string
+  content_sha256: string
+}
+
+export type FilterOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
+
 export type HTTPValidationError = {
   detail?: ValidationError[]
 }
@@ -178,6 +213,10 @@ export type Health = {
   origins: string[]
   task_id: string
 }
+
+export type JsonValue = unknown
+
+export type MissingPolicy = 'exclude' | 'refuse'
 
 export type Operation = {
   schema_version?: number
@@ -217,6 +256,14 @@ export type RefusalBody = {
   message: string
 }
 
+export type RenderEnvironment = {
+  schema_version?: number
+  matplotlib_version: string
+  svg_hashsalt: string
+  font_families: string[]
+  platform: string
+}
+
 export type ReportBody = {
   path: string
   template_id: string
@@ -225,6 +272,32 @@ export type ReportBody = {
 export type ReportRendered = {
   receipt: ArtifactReceipt
   resource_key: string
+}
+
+export type ReproducibilityManifest = {
+  schema_version?: number
+  input_file: FileRef
+  operator: string
+  locator: ComputationLocator
+  recipe: FileRef
+  output: JsonValue
+  output_sha256: string
+  environment: RenderEnvironment
+}
+
+export type RowFilter = {
+  column: string
+  op: FilterOp
+  value: string
+}
+
+export type RowRange = {
+  start: number
+  end: number
+}
+
+export type RowSet = {
+  rows: number[]
 }
 
 export type Run = {
@@ -238,6 +311,14 @@ export type Run = {
 }
 
 export type RunStatus = 'pending' | 'running' | 'paused' | 'finished' | 'abandoned'
+
+export type Selection = {
+  source_id: string
+  content_sha256: string
+  columns: string[]
+  rows: RowRange | RowSet | RowFilter
+  missing: MissingPolicy
+}
 
 export type SessionInfo = {
   token: string

@@ -40,6 +40,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from labcairn.api.contracts import (
+    AnalysisBody,
     ApprovalBody,
     ApprovalUseBody,
     Health,
@@ -56,6 +57,8 @@ from labcairn.application import (
     ApprovalGranted,
     ApprovalRequested,
     ArtifactView,
+    FigureRequest,
+    FigureRun,
     ReportRendered,
     ReportRequest,
     SourceView,
@@ -75,6 +78,7 @@ from labcairn.application import (
     read_task_state,
     render_report,
     request_approval,
+    run_figure,
     run_stage,
 )
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
@@ -444,6 +448,42 @@ def post_report(
     return render_report(
         context,
         ReportRequest(path=body.path, template_id=body.template_id),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the analysis
+# --------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/analysis",
+    response_model=FigureRun,
+    response_model_by_alias=False,
+    tags=["analysis"],
+)
+def post_analysis(
+    body: AnalysisBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> FigureRun:
+    """Run one vetted operator and draw the figure its recipe describes.
+
+    The layer's own operation, so the policy is asked about the run on the
+    material **and** on the recipe, and the approval is spent by the run path in
+    the order that makes a refusal free: a run that cannot resolve its material
+    never reaches the consent. The renderer belongs to the analysis package and
+    the seam builds it — a web request cannot supply a drawing capability, any
+    more than it can supply a stage's effect.
+    """
+    return run_figure(
+        context,
+        FigureRequest(
+            root_id=body.root_id,
+            path=body.path,
+            operator_id=body.operator_id,
+            recipe=body.recipe,
+            parameters=body.parameters,
+            approval_id=body.approval_id,
+        ),
     )
 
 

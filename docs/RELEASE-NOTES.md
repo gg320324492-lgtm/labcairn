@@ -66,10 +66,12 @@ receipt the POST handed back; its tests cover both the request and the refusal.
 
 **What remains** is the gap in two shapes.
 
-- **The figure still has no surface.** Nothing in the CLI or the service reaches
-  `analysis.run`: the deterministic figure is drawn by the layer's own operation,
-  so the deliverable's "receives … a deterministic scientific plot" still needs a
-  Python import.
+- **A figure needs a granted approval, not only permission.** `labcairn task
+  figure` and `POST /analysis` reach the layer's `run_figure`, and the consent binds
+  the recipe's path as well as the material, the operator and its parameters
+  (ADR-0012 constraint 7) — so `task approval-request` and `task approval-grant`
+  stand beside the run, and there is no one-command shortcut. **The workbench can
+  draw no figure**: the route exists and no UI asks for the approval chain.
 - **A report is refused, not written, when the task has nothing to carry.**
   `labcairn task report` on a bare task answers
   `report_content_refused` and leaves the output area empty — the correct

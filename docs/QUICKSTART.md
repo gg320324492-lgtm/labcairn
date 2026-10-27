@@ -198,14 +198,24 @@ to copy the pattern from.
 
 ### 4.7 The report and the figure
 
-**The report has a command and a route; the figure has neither.**
-`labcairn task report` (and `POST /report` on the local service, and a
-**Render the report** button in the workbench) calls the application layer's own
-`render_report`, and a fresh workspace's policy permits
-`report.render` — which the registry binds to output roots, so the capability
-cannot reach a source file. **The figure is still reached only through the
-layer's `run_analysis`**, and the command line has no command for it. The
-twelve commands that do exist are listed in
+**The report and the figure each have a command and a route.**
+`labcairn task report` (`POST /report`, and a **Render the report** button in the
+workbench) calls the layer's own `render_report`; `labcairn task figure`
+(`POST /analysis`) calls its own `run_figure`. A fresh workspace permits both
+capabilities. **A figure needs consent as well as permission**: the approval binds
+the material, the operator, its parameters and the recipe's path (ADR-0012
+constraint 7), so the steps are
+
+```bash
+labcairn task approval-request --capability analysis.run --root source:0   --resource-key one.csv --arguments-json "$ARGS"
+labcairn task approval-grant <approval-id>
+labcairn task figure --path one.csv --operator labcairn.analysis.mean   --recipe recipe.json --parameters-json "$PARAMS" --approval <approval-id>
+```
+
+where `$ARGS` holds `path`, `operator_id`, `recipe` and `parameters`, spelled
+exactly as the run spells them — a different spelling is a different approval, and
+the run refuses it rather than squinting at it. The fifteen commands that exist are
+listed in
 [the README](../README.md#the-command-line-what-exists-today); `task report`,
 `task reconcile` and the `POST /report` route are newer than that table, and the
 table stays conservative rather than the commands being hidden.
