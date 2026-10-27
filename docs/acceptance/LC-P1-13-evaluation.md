@@ -97,10 +97,12 @@ What the parser found in this tree:
 **On the count of blockers.** The protocol's `## Phase 1 blockers` section
 lists **six** bullets. The task breakdown for this gate
 ([`docs/plans/LC-P1-13-14-task-breakdown.md`](../plans/LC-P1-13-14-task-breakdown.md)
-§2.1) calls them *"seven Phase 1 blockers"* and then quotes six. **The
+§2.1) called them *"seven Phase 1 blockers"* and then quoted six. **The
 harness counts what the protocol lists — six — and the report says six.**
-The protocol is the ruler and it has not been edited here; the
-discrepancy is recorded, not resolved.
+The protocol is the ruler and it has not been edited here. **The
+discrepancy was recorded rather than resolved, and this gate's own review
+found it again; the five shipped documents that repeated the wrong number
+now say six, and the wrong number is gone.**
 
 The two sentences the protocol attaches to the metrics are carried into
 every report verbatim:

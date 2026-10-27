@@ -47,7 +47,7 @@ is already built is how a gate gets re-done twice.
 
 | What G5 needs | What exists | Where |
 |---|---|---|
-| **The evaluation protocol** — five mandatory gate classes, the metrics, the denominators, the seven Phase 1 blockers | **written, 2026-10-15** | [`docs/EVALUATION.md`](../EVALUATION.md) |
+| **The evaluation protocol** — five mandatory gate classes, the metrics, the denominators, the six Phase 1 blockers | **written, 2026-10-15** | [`docs/EVALUATION.md`](../EVALUATION.md) |
 | **Fixtures with expected outputs** | `tests/fixtures/` in three groups — `analysis/` (21 files: CSV and XLSX with a `*.expected.json` beside each), `papers/`, `retrieval/` | `tests/fixtures/` |
 | **A crash matrix** | **eight cases**: AT1 (crash before write — replayable), AT2 (crash after write, before commit — *the only bad case*), AT2b (the write counter as evidence), AT3 (crash after commit, before the receipt — no replay needed), AT3b (a reconnecting client gets exactly the missed events), AT5 (reconciliation detects an absent write), AT6 (reconciliation flags conflicting content for a human), AT7 (the matrix itself, run as a subprocess) | `tests/test_recovery_crash_matrix.py` |
 | **An exit demonstration that is run by a test** | `examples/g4_exit_demo.py`, run as a subprocess whose **exit code is the assertion**, with the fault planted from outside | `tests/test_smoke_path.py` |
@@ -238,7 +238,7 @@ so"* — was applied to G3 and G4 and not to G1 and G2.
 
 `docs/EVALUATION.md` is the protocol, and it is not to be rewritten by G5.
 It names **five mandatory automated gate classes** — unit, integration,
-negative, e2e, real-model smoke — and **seven Phase 1 blockers**:
+negative, e2e, real-model smoke — and **six Phase 1 blockers**:
 
 > - A new user cannot complete a task from a clean environment following README.
 > - Any unauthorized file write/escape or unconsented private-network disclosure.
@@ -392,7 +392,7 @@ says so in its text rather than reaching for it.**
 |---|---|---|---|
 | **T00** | **The three fixtures and the negative one**, with their locators, hashes and answer keys | the protocol's fixture clause | `tests/fixtures/public/`, `docs/acceptance/LC-P1-13-fixtures.md` |
 | **T01** | **The evaluation harness** — one command that runs the protocol's five gate classes and writes the results with their denominators | `EVALUATION.md` | `tests/evaluation/`, `docs/acceptance/LC-P1-13-evaluation.md` |
-| **T02** | **The fault injection through the surfaces** — the matrix, run end to end, plus the two stale exit demonstrations | §2.3 | `tests/test_fault_injection_e2e.py`, `tests/test_stale_exit_demos.py` |
+| **T02** | **The fault injection through the surfaces** — the matrix, run end to end, plus the two stale exit demonstrations | §2.3 | `tests/test_recovery_crash_matrix.py`, `tests/test_earlier_exit_demos.py` |
 | **T03** | **The outsider's script** — a clean clone, the README's commands, a task, a report, a revision, a restart | the first protocol blocker | `scripts/outsider_path.py`, `docs/acceptance/LC-P1-14-outsider-path.md` |
 | **T04** | **The real-provider smoke** — one provider, declared, with its cost recorded | §1.4.2 | `tests/test_real_provider_smoke.py`, `docs/acceptance/LC-P1-14-real-provider.md` |
 | **T05** | **The threat model** — what the product protects, from what, and what it does not claim | the work order's "threat model" | `docs/THREAT-MODEL.md` |
@@ -406,9 +406,14 @@ blocker is *"a new user cannot complete a task from a clean environment
 following README"*, and T03 is what proves it. **The two are one piece of
 work**: the README that T03 follows is the README T06 writes.
 
-**T04 and T09 wait on the owner's answers** (§1.4.2, §1.4.3). **T07's
-NOTICE waits on §1.4.1** — the NOTICE says which third-party notices travel
-with a distribution, and a distribution's terms are the owner's.
+**T04 waits on the owner's answer** (§1.4.2) — the real-provider smoke needs a
+provider, a declared model, and a credential, and none exists. **T09 did not
+wait: it was built to Option C of §1.4.3 — no external comparison — on five
+checked facts, and it says what was measured and what was not and prints no
+ranking. That choice is the work's, not the owner's, and §1.4.3 is still the
+owner's to confirm.** **T07's NOTICE waits on §1.4.1** — the NOTICE says which
+third-party notices travel with a distribution, and a distribution's terms
+are the owner's.
 
 ---
 
