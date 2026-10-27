@@ -35,4 +35,12 @@ Results are benchmarks only when measured on immutable fixture/version labels. D
 - Fake citation presented as verified or unsupported numerical fact presented as measured.
 - A crash silently repeats unknown file side effects.
 - Report claims a verified scientific result based solely on schema or rendering checks.
-- Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance.
+- Required CI tests are skipped, ignored or only pass by mocking the actual
+  behavior under acceptance. **A skip the test itself declares — the
+  capability it needs and the reason it cannot run here — and that the
+  report names, is not a failure of this blocker.** The blocker is about a
+  test that *pretends* to have passed, and about a required test that is
+  quietly ignored. **The exclusion is recorded, not silent**: the report
+  names the excluded required test, the file and the case, and the
+  harness reads the exclusion out of the CI's own shard list so the two
+  cannot drift.

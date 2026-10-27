@@ -53,7 +53,7 @@ from .comparison import (
     pairs,
 )
 from .corpus import CORPUS_FIXTURES, measure_corpus
-from .model import ClassResult, ComparisonOutcome, EvaluationRun, MetricRow
+from .model import ClassResult, ComparisonOutcome, EvaluationRun, MetricRow, WorkingTree
 from .protocol import GateClass, Protocol, parse_protocol, protocol_path
 from .report import write_report
 from .runner import DEFAULT_TIMEOUT_SECONDS, ClassRun, run_class
@@ -67,11 +67,11 @@ EXIT_NOT_RUN: Final = 2
 REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent.parent
 
 
-def _revision(repo_root: Path) -> str:
-    """The commit the tree is at, or a plain statement that it is unknown."""
+def _git(repo_root: Path, *arguments: str) -> str | None:
+    """The output of a git command, or ``None`` when git could not be run."""
     try:
         completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", *arguments],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
@@ -79,10 +79,60 @@ def _revision(repo_root: Path) -> str:
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
-        return "unknown (git could not be run)"
+        return None
     if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def _revision(repo_root: Path) -> str:
+    """The commit the tree is at, or a plain statement that it is unknown."""
+    output = _git(repo_root, "rev-parse", "HEAD")
+    if output is None:
         return "unknown (git could not be run)"
-    return completed.stdout.strip() or "unknown"
+    return output.strip() or "unknown"
+
+
+def _working_tree(repo_root: Path) -> WorkingTree:
+    """The state of the working tree the run was made against.
+
+    **A revision names a commit, and a commit is not a working tree.** The
+    report's ``revision`` is the commit, and it says nothing about the
+    uncommitted changes that were on disk while the run happened. So a run
+    over a dirty tree reported a number against a commit that did not contain
+    it, and the number was off by whatever the uncommitted change did to the
+    suite. A number has to be anchored to the tree it was measured on, and
+    the tree is the working tree — so the report says which one it measured.
+    """
+    output = _git(repo_root, "status", "--porcelain")
+    if output is None:
+        return WorkingTree(
+            dirty=False,
+            changed=(),
+            description="unknown (git could not be run)",
+        )
+    changed: list[str] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:].strip()
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        changed.append(path.strip('"'))
+    if not changed:
+        return WorkingTree(
+            dirty=False,
+            changed=(),
+            description="clean — the commit is the tree that was measured",
+        )
+    return WorkingTree(
+        dirty=True,
+        changed=tuple(sorted(changed)),
+        description=(
+            f"dirty — {len(changed)} file(s) changed and not committed: "
+            + ", ".join(sorted(changed))
+        ),
+    )
 
 
 def _default_classes() -> tuple[str, ...]:
@@ -218,9 +268,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         for run in runs
     )
-    blockers = blocker_results(protocol, index)
+    blockers = blocker_results(protocol, index, repo_root=repo_root)
 
     corpus = measure_corpus(repo_root)
+    revision = _revision(repo_root)
+    working_tree = _working_tree(repo_root)
     metrics = metric_rows(
         protocol,
         index,
@@ -228,18 +280,20 @@ def main(argv: list[str] | None = None) -> int:
         corpus,
         duration,
         context=(
-            f"dataset revision: {_revision(repo_root)}",
+            f"dataset revision: {revision}",
+            f"working tree: {working_tree.description}",
             "seeds: this repository's determinism rule — no RNG and a frozen "
             "clock, and the corpus is committed data — so a run is "
             "reproducible from the revision above.",
         ),
+        repo_root=repo_root,
     )
 
     comparison = _comparison(args.baseline, repo_root, classes, metrics)
 
     run = EvaluationRun(
         repo_root=str(repo_root),
-        revision=_revision(repo_root),
+        revision=revision,
         protocol_path=str(protocol.path),
         classes=classes,
         blockers=blockers,
@@ -247,11 +301,13 @@ def main(argv: list[str] | None = None) -> int:
         comparison=comparison,
         duration_seconds=duration,
         command="python -m tests.evaluation " + " ".join(argv or sys.argv[1:]),
+        working_tree=working_tree,
         notes=(
             "the corpus measurement compares the product's own selection code "
-            "against the committed answer key, cell by cell; the witness "
-            "scores below are the tests that check the same properties, and "
-            "they are not the same number.",
+            "against the committed answer key, cell by cell; the public "
+            "fixture corpus is measured the same way, against its own key, "
+            "and the witness scores below are the tests that check the same "
+            "properties, and they are not the same number.",
         ),
     )
 

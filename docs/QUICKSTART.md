@@ -423,6 +423,6 @@ left for the next reader to find.
 - **[The release notes](RELEASE-NOTES.md)** — this alpha's known
   limitations, in one place.
 - **[The evaluation protocol](EVALUATION.md)** — the five mandatory gate
-  classes and the seven Phase 1 blockers this alpha is measured against.
+  classes and the six Phase 1 blockers this alpha is measured against.
 - **[The acceptance record](acceptance/LC-P1-14-outsider-path.md)** — the
   measured run, its command lines, its exit codes and its seconds.

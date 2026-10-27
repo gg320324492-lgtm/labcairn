@@ -35,6 +35,8 @@ from labcairn.sources.locators import (
     XlsxLocator,
 )
 
+pytestmark = pytest.mark.unit
+
 # --------------------------------------------------------------------------
 # locator_key
 # --------------------------------------------------------------------------

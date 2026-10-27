@@ -48,6 +48,8 @@ from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.workspace.readonly import SourceMaterial
 from labcairn.workspace.roots import Workspace
 
+pytestmark = pytest.mark.unit
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
 env = _shared_env

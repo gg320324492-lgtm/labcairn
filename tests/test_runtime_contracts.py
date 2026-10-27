@@ -56,6 +56,8 @@ from labcairn.runtime.operation import (
     compute_args_digest,
 )
 
+pytestmark = pytest.mark.unit
+
 CAPTURE = "fs.write"
 
 

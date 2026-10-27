@@ -40,6 +40,8 @@ from typer.testing import CliRunner
 
 from labcairn.cli.commands import EXIT_REFUSED, app
 
+pytestmark = pytest.mark.negative
+
 #: The address the command is asked to bind.
 HOST = "127.0.0.1"
 

@@ -35,6 +35,8 @@ from labcairn.material import ingest_bytes
 from labcairn.runtime.lifecycle import Task, TaskGoal
 from labcairn.sources.source import Source
 
+pytestmark = pytest.mark.unit
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
 env = _shared_env

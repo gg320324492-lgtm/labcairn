@@ -247,6 +247,32 @@ class Measurement:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkingTree:
+    """The tree the run was made against, as the report states it.
+
+    **A revision names a commit, and a commit is not a working tree.** The
+    report's ``revision`` is ``git rev-parse HEAD``, and it says nothing
+    about the uncommitted changes that were on disk while the run happened.
+    So a run over a dirty tree reported a number against a commit that did
+    not contain it — and the number was off by whatever the uncommitted
+    change did to the suite. The discipline this repository cares about most
+    is that a number is anchored to the tree it was measured on, and a
+    revision that names a commit the run did not measure is exactly the hole
+    that discipline is about.
+
+    So the state of the tree is reported with the revision, and a dirty tree
+    is said to be dirty.
+    """
+
+    #: Whether the working tree held changes that are not in the commit.
+    dirty: bool
+    #: The files that were changed, in name order.
+    changed: tuple[str, ...]
+    #: What the report says about it.
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
 class MetricRow:
     """A metric and everything the report says about it."""
 
@@ -305,6 +331,9 @@ class EvaluationRun:
     duration_seconds: float
     #: The command the harness was invoked with.
     command: str = ""
+    #: The state of the working tree the run was made against, when the
+    #: harness could read it.
+    working_tree: WorkingTree | None = None
     #: Anything else the run wants to record.
     notes: tuple[str, ...] = field(default=())
 

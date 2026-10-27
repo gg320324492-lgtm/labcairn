@@ -215,6 +215,25 @@ A manifest that says `412.0` where the material says something else fails
 here. A manifest that names the wrong rows fails here, because the rows come
 from the material.
 
+**And there is a third direction, because the first two share the product's
+code — and that is exactly what the requirement forbids.** A key *copied out of
+the product's own output* agrees with a witness that re-derives the key
+through the product: perfectly, and for the wrong reason. So every answer is
+read out of the material **a second time, by code that is not ours** — the
+tables with `csv`, the means with `statistics`, the prose with a plain number
+pattern, the negative fixture with raw bytes. **And the target is taken from
+the question's id, not from the derivation**: `tension.mean_peak_stress_b2`
+names the statistic, the column and the group (`B-2`), so the second reading
+asks the material for *that* group and never asks the prose where to look.
+The derivation is a sentence for a person to read; **it is not allowed to
+decide where the witness looks**, because a derivation and a key can be moved
+together.
+
+**And the id is checked against the question.** An id can be moved too, so the
+names the id yields — the group, the column, the quantity — must appear in the
+prompt the question asks. That is what stops *"move the id, move the key, move
+the derivation"* from being a way past this.
+
 ## 6. The mutation table
 
 Every mutation below was applied to the committed corpus, the suite was
@@ -227,6 +246,17 @@ run, and the corpus was restored afterwards. **Each one went red.**
 | 3 | a material's recorded SHA-256 replaced with zeroes | `test_every_material_file_is_byte_identical_to_its_recorded_hash[physical_tension]` | the material is not the bytes the answer key was derived from |
 | 4 | a pH value written into the negative fixture's prose (`a pH of 7.2`) | `test_the_negative_fixture_really_does_not_answer_the_question` | the negative fixture now answers the question, so it no longer measures abstention |
 | 5 | a material file's line endings changed to CRLF | `test_every_material_file_is_byte_identical_to_its_recorded_hash[physical_tension]`, `test_no_material_file_carries_a_carriage_return[physical_tension]` | the material's bytes are no longer the bytes the answer key was derived from, and the change is invisible to every other assertion — the file reads the same |
+| 6 | **the product's mean broken** (`statistics.fmean(values)` → `statistics.fmean(values[:-1])`) **and the three tabular answers replaced by the product's new output** | `test_every_fixture_has_an_answer_re_derived_without_the_product`, `test_an_independently_re_derived_key_notices_a_corrupted_answer` | the key is now the product's own output, so a witness that re-derives it *through the product* cannot see it — the second reading, by code that is not ours, sees it |
+| 7 | **the derivation and the key moved together**: `tension.mean_peak_stress_b2`'s derivation changed to *B-1's* two rows and its answer to their mean (390.15) | the same two | both witnesses had followed the derivation, so both agreed with the moved key — **and the second reading now takes its target from the question's id, so it asks the material for `B-2` and the moved key does not answer that |
+
+**Mutations 6 and 7 came from this gate's own review, and neither of them was
+found by the delivery.** Mutation 6 is the requirement in §5 taken literally:
+the witness re-derived the key through the product, so the key could *be* the
+product's output and every check would agree. Mutation 7 is the same hole one
+step deeper: the second reading took its target from the derivation, and a
+derivation can be moved with the key. **A corpus whose key is only ever
+checked against the product is a well-witnessed set of materials and nothing
+else**, and the third direction is what makes it an oracle.
 
 **Mutation 5 came from the delivery, not from the design.** The manifest was
 first written with CRLF line endings, and Git's `text=auto eol=lf` rule would

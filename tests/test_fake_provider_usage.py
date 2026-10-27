@@ -40,6 +40,8 @@ from labcairn.core.providers import (
     usage_from_wire,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # The two states are distinct
 # ---------------------------------------------------------------------------

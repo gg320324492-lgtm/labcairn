@@ -45,6 +45,8 @@ from labcairn.core.ids import TaskId
 from labcairn.db.repository import TaskStore, count_events, last_seq
 from labcairn.runtime.event import EventType
 
+pytestmark = pytest.mark.integration
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here. Importing it directly
 # and taking `env` as a parameter makes every signature below an F811

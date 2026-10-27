@@ -56,6 +56,8 @@ from labcairn.evidence.store import (
 from labcairn.material.addressing import render_locator_key
 from labcairn.sources.locators import CsvLocator, PdfLocator
 
+pytestmark = pytest.mark.integration
+
 NOW = dt.datetime(2026, 10, 19, tzinfo=dt.UTC)
 SHA = "a" * 64
 OTHER_SHA = "b" * 64

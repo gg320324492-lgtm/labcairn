@@ -1,6 +1,6 @@
 # LC-P1-14 — The outsider's path
 
-**The claim.** `docs/EVALUATION.md` names seven Phase 1 blockers, and the
+**The claim.** `docs/EVALUATION.md` names six Phase 1 blockers, and the
 first one is the only one that is about a **person** rather than about the
 product:
 

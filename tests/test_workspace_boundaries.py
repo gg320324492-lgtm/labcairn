@@ -35,6 +35,8 @@ from labcairn.workspace.outputs import (
 from labcairn.workspace.readonly import SourceIsReadOnlyError, SourceMaterial
 from labcairn.workspace.roots import Workspace, WorkspaceError
 
+pytestmark = pytest.mark.negative
+
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Workspace:

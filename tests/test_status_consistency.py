@@ -34,6 +34,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 
@@ -260,57 +261,122 @@ def test_a_not_started_work_order_has_no_merged_work(
 ) -> None:
     """The one of the four stale statements that is mechanically decidable.
 
-    Matched against merge-commit *subjects*, where this project's branch
-    convention (``feat/lc-p1-08-...``) puts the work-order id. Matching
-    bodies instead would false-positive: a commit that merges LC-P1-08 says
-    "LC-P1-08 through LC-P1-11" in its message, so LC-P1-09/10/11 would
-    appear to have been worked on.
+    **What counts as a delivery, and what does not.** A pull-request merge
+    is a delivery: GitHub writes it as ``Merge pull request #N from
+    owner/branch``, and the branch is the name the delivery was given. A
+    merge of one branch into another *inside* a delivery branch is not a
+    delivery — it is the branch being assembled — and the two are told
+    apart by their shape, not by a list of exceptions.
+
+    **The name is read off the branch, not off the subject.** The subject
+    is a fixed sentence and the work-order id lives in the branch it
+    carries; and the id is not always in the branch at all. G5 was
+    delivered on ``delivery/g5``, which names the **gate** and neither work
+    order, and a board that says ``LC-P1-13 | NOT STARTED`` while that
+    merge sits in the history is a stale row this check has to be able to
+    see. So the name that is looked for is the work order's **or** its
+    gate's, and both are looked for in the branch.
+
+    **And the commit has to be the commit.** A merge commit's SHA is not
+    the first word of its subject — the subject is a sentence, and its
+    first word is ``Merge`` — so the check reads the SHA out of the log
+    rather than out of the subject, and compares the merge against its
+    first parent. **An earlier draft read the SHA out of the subject, so
+    every comparison failed, every candidate was discarded, and this check
+    passed without having looked at anything.**
     """
     if status != "NOT STARTED":
         return
-    subjects = _merge_subjects()
-    if subjects is None:
+    merges = _merge_commits()
+    if merges is None:
         pytest.skip("shallow checkout; merge history is not available")
-    candidates = [line for line in subjects if work.lower() in line.lower()]
-    hits = [line for line in candidates if _merge_touched_code(line)]
+    candidates = [(sha, subject) for sha, subject in merges if _names_the_work(subject, work, gate)]
+    hits = [f"{sha} {subject}" for sha, subject in candidates if _merge_touched_code(sha)]
     assert not hits, (
-        f"{work} is NOT STARTED but {len(hits)} merge commit(s) that changed "
-        f"code name it: {hits[:3]}. Either the row is stale or the commit is "
-        f"not this work. "
+        f"{work} is NOT STARTED but {len(hits)} pull-request merge(s) that "
+        f"changed code name it or its gate: {hits[:3]}. Either the row is "
+        f"stale or the commit is not this work. "
         f"(Planning commits are ignored: writing "
         f"{len(candidates) - len(hits)} document(s) that plan this work "
         f"order is not doing it.)"
     )
 
 
-def _merge_subjects() -> list[str] | None:
-    result = subprocess.run(
-        ["git", "log", "--merges", "--format=%s"],
-        cwd=REPO,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode != 0:
-        return None
-    # A depth-1 checkout has no merge commits at all, so an empty result
-    # means "cannot tell", not "nothing happened".
-    return result.stdout.splitlines() or None
+def _names_the_work(subject: str, work: str, gate: str) -> bool:
+    """Whether a pull-request merge's branch names this work order or its gate."""
+    branch = _delivered_branch(subject)
+    if branch is None:
+        return False
+    lowered = branch.lower()
+    return work.lower() in lowered or gate.lower() in lowered
 
 
-def _merge_touched_code(subject: str) -> bool:
+def _delivered_branch(subject: str) -> str | None:
+    """The branch a pull-request merge brought in, or ``None``.
+
+    Only the pull-request shape is a delivery. ``Merge branch 'x' into
+    'y'`` is one branch being assembled inside another, and treating it as
+    a delivery would make every work order look delivered the moment its
+    branch was touched.
+    """
+    match = re.match(r"^Merge pull request #\d+ from \S+/(\S+)\s*$", subject)
+    return match.group(1) if match else None
+
+
+def _merge_commits() -> list[tuple[str, str]] | None:
+    """Every pull-request merge that landed on ``main``, as ``(sha, subject)``.
+
+    **The history that carries the deliveries is main's, and main's
+    *first-parent* history at that.** A merge of one branch into another
+    inside a delivery branch sits on the second parent, not on the first,
+    so the first-parent chain is the list of what landed on main and
+    nothing else. And main's history is where the deliveries are: the
+    branch a pull request was made from does not contain the merges that
+    carried the earlier ones, so **asking the current branch would ask a
+    question whose answer is always "nothing landed"**.
+
+    ``origin/main`` is tried first, because a checkout of a pull request
+    has main's remote-tracking ref and not always main itself.
+    """
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "log", "--merges", "--first-parent", ref, "--format=%H%x00%s"],
+            cwd=REPO,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            continue
+        pairs = []
+        for line in result.stdout.splitlines():
+            sha, _, subject = line.partition("\x00")
+            if sha:
+                pairs.append((sha, subject))
+        # A depth-1 checkout has no merge commits at all, so an empty result
+        # means "cannot tell", not "nothing happened".
+        return pairs or None
+    return None
+
+
+def _merge_touched_code(sha: str) -> bool:
     """Whether a merge commit changed ``src/`` or ``migrations/``.
 
-    The distinction matters because the project's own precedent is a
-    planning artefact named for a work order --
+    **The comparison is against the merge's first parent.** A merge commit
+    has more than one parent, and the others are the branches it absorbed;
+    their differences say what those branches carried, not what this merge
+    brought in. The first parent is the state the merge landed on, so the
+    difference against it is the delivery.
+
+    **The distinction matters because the project's own precedent is a
+    planning artefact named for a work order** --
     ``docs/plans/LC-P1-01-approved-amendments.md`` -- so the first PR that
     *plans* a NOT STARTED work order would otherwise turn this row red for
     doing exactly the right thing.
     """
-    sha = subject.split(" ", 1)[0]
     result = subprocess.run(
-        ["git", "show", "--name-only", "--format=", "-m", sha],
+        ["git", "diff", "--name-only", f"{sha}^1", sha],
         cwd=REPO,
         capture_output=True,
         encoding="utf-8",
@@ -497,3 +563,93 @@ def test_relative_links_in_docs_resolve(path: Path) -> None:
         assert (path.parent / clean).resolve().exists(), (
             f"{path.relative_to(REPO)} links to {target!r}, which does not exist."
         )
+
+
+#: A heading, and the text of it.
+_HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
+
+#: The documents outside ``docs/`` whose in-page anchors are watched.
+_ANCHORED_DOCUMENTS: tuple[str, ...] = (
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+)
+
+
+def _slug(heading: str) -> str:
+    """The anchor GitHub gives a heading.
+
+    **GitHub's own rule, in its own order**: drop the markdown emphasis,
+    lowercase what is left, remove everything that is not a letter, a
+    number, a space or a hyphen, and turn the spaces into hyphens.
+
+    **The spaces are why the order matters.** A heading that carries an
+    em-dash between two words loses the dash and keeps *both* spaces, so
+    ``Licence status — not yet granted`` becomes
+    ``licence-status--not-yet-granted`` with two hyphens — while
+    ``许可证状态——尚未授予`` loses the dashes and keeps no space at all,
+    and becomes ``许可证状态尚未授予``. **A link that names one of those
+    resolves and the other does not**, and a reader cannot tell which one
+    the renderer produced.
+    """
+    text = re.sub(r"[`*]", "", heading).strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text, flags=re.UNICODE)
+    return text.replace(" ", "-")
+
+
+def _anchors(path: Path) -> set[str]:
+    """The anchors the headings in a document make."""
+    found: set[str] = set()
+    fence: str | None = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        marker = _FENCE.match(line)
+        if marker:
+            token = marker.group(1)
+            fence = None if fence == token else (fence or token)
+            continue
+        if fence is not None:
+            continue
+        match = _HEADING.match(line)
+        if match:
+            found.add(_slug(match.group(1)))
+    return found
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        *sorted((REPO / "docs").rglob("*.md")),
+        *(REPO / name for name in _ANCHORED_DOCUMENTS),
+    ],
+    ids=str,
+)
+def test_in_page_anchors_resolve(path: Path) -> None:
+    """A link to a heading in this document lands on that heading.
+
+    **The relative-link check above cannot see these.** A target that
+    starts with ``#`` names a heading in the document it is already in,
+    and nothing checked that such a heading existed — so a link to a
+    renamed heading stayed broken. The Chinese README's link to its own
+    licence section was one of them, and it was broken in the way that is
+    hardest to see: the English one beside it resolves, because its
+    heading has a space on each side of the dash and the Chinese one does
+    not.
+    """
+    anchors = _anchors(path)
+    broken: list[str] = []
+    for target in _links(path.read_text(encoding="utf-8")):
+        if not target.startswith("#") or target == "#":
+            continue
+        wanted = unquote(target[1:])
+        if wanted in anchors:
+            continue
+        # GitHub numbers a repeated heading: the second ``## Notes`` is
+        # ``#notes-1``. A link to it is a link to the second one.
+        if re.sub(r"-\d+$", "", wanted) in anchors:
+            continue
+        broken.append(target)
+    assert not broken, (
+        f"{path.relative_to(REPO)} links to an anchor that no heading in it "
+        f"carries: {sorted(set(broken))[:5]}. The slug of a heading is what "
+        "GitHub makes of it, and a link that guesses it is a dead link."
+    )

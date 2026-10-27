@@ -44,6 +44,8 @@ from labcairn.security.policy import (
 )
 from labcairn.workspace import Workspace
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def root(tmp_path: Path) -> Path:

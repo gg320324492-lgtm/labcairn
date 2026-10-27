@@ -26,6 +26,8 @@ from labcairn.material.version import derive_extraction_version
 from labcairn.sources.locators import CsvLocator, TextLocator
 from labcairn.sources.source import SourceKind
 
+pytestmark = pytest.mark.negative
+
 #: Spelled out rather than escaped: a NUL or a newline written as a
 #: backslash sequence inside a generated test file is the kind of thing
 #: that survives a copy and breaks the file.

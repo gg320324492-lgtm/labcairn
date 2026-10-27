@@ -312,6 +312,7 @@ markers = [
     "unit: fast, isolated, no I/O beyond the tmp dir",
     "integration: touches more than one component, still no network",
     "e2e: whole-path tests; slower",
+    "negative: a case that must be refused, or must find nothing",
     "reference_exclusion: asserts reference-study paths never leak into tracked files or artifacts",
     "requires_network: needs outbound network; excluded from the default offline run",
     "requires_provider: needs a real paid provider credential; never runs in CI",

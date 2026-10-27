@@ -85,6 +85,8 @@ from labcairn.reports.receipt import (
 from labcairn.runtime.lifecycle import Task
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 
+pytestmark = pytest.mark.e2e
+
 #: A fixed content hash. Constant so a test that asserts a hash round-trips
 #: is not asserting against a value it generated with the call it is testing.
 _HASH = "b" * 64

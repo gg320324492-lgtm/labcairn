@@ -29,6 +29,8 @@ from typing import Any
 import pdfplumber
 import pytest
 
+pytestmark = pytest.mark.negative
+
 PAPERS = pathlib.Path(__file__).parent / "fixtures" / "papers"
 GROUND_TRUTH = pathlib.Path(__file__).parent / "fixtures" / "retrieval" / "ground_truth.json"
 

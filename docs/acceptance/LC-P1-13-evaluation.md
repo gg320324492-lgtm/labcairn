@@ -27,12 +27,14 @@ thing:
    **NOT RUN** with the reason, and does **not** count it as a pass: a
    class that was not run has no rate, and a rate of zero would say
    *"every case failed"*, which is a different fact.
-2. **Two of the six Phase 1 blockers did not hold.** The first of them —
+2. **One of the six Phase 1 blockers did not hold, in that run.** The one —
    *"A new user cannot complete a task from a clean environment following
-   README"* — because the base branch's own witness skips G1's exit
+   README"* — because the base branch's own witness skipped G1's exit
    demonstration on Windows while the product's 8.3 short-name comparison
-   is unfixed. **That is the tree's state, and it is a finding rather
-   than a defect of the harness.**
+   was unfixed. **That was that tree's state, and it was a finding rather
+   than a defect of the harness.** *The defect was fixed and the skip was
+   removed, so the first blocker holds now; **the table the gate closes on
+   is below**, and it is this row that has changed.*
 3. **Four of the seven metrics were not measured**, and each says which
    input is missing.
 
@@ -97,10 +99,12 @@ What the parser found in this tree:
 **On the count of blockers.** The protocol's `## Phase 1 blockers` section
 lists **six** bullets. The task breakdown for this gate
 ([`docs/plans/LC-P1-13-14-task-breakdown.md`](../plans/LC-P1-13-14-task-breakdown.md)
-§2.1) calls them *"seven Phase 1 blockers"* and then quotes six. **The
+§2.1) called them *"seven Phase 1 blockers"* and then quoted six. **The
 harness counts what the protocol lists — six — and the report says six.**
-The protocol is the ruler and it has not been edited here; the
-discrepancy is recorded, not resolved.
+The protocol is the ruler and it has not been edited here. **The
+discrepancy was recorded rather than resolved, and this gate's own review
+found it again; the five shipped documents that repeated the wrong number
+now say six, and the wrong number is gone.**
 
 The two sentences the protocol attaches to the metrics are carried into
 every report verbatim:
@@ -367,7 +371,7 @@ sixth is the one the protocol names it for. A witness that was not part of
 the run at all cannot be evaluated, and a blocker that could not be
 evaluated **has not held**.
 
-| The protocol's blocker | Status | Witnesses | What the status means |
+| The protocol's blocker | Status at `37ae366` | Witnesses | What the status means |
 |---|---|---:|---|
 | New user cannot complete a task from a clean environment following README. | **FAILED** | 4 | 2 of 51 witness cases did not pass; a skipped witness counts against the blocker |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 1 of 112 witness cases did not pass; a skipped witness counts against the blocker |
@@ -385,13 +389,13 @@ evaluated **has not held**.
 
 - `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` — **skipped** — the Windows drive form is meaningless on POSIX
 
-**Two of the six blockers did not hold, and both of them are skips.** They
-are the two kinds §6 separates:
+**In that run, two of the six blockers did not hold, and both of them were
+skips.** They are the two kinds §6 separates:
 
 * **The protocol's first blocker** — *"A new user cannot complete a task
   from a clean environment following README"* — **FAILED**, because the
   base branch's new witness skips **G1's exit demonstration on Windows**
-  while the product's 8.3 short-name comparison is unfixed
+  while the product's 8.3 short-name comparison was unfixed
   ([the breakdown's §2.6](../plans/LC-P1-13-14-task-breakdown.md)). The
   demonstration of a clean environment does not run on this platform, so
   the blocker that names a clean environment cannot be said to hold. **This
@@ -425,6 +429,26 @@ sixth blocker holds here. The earlier run's numbers are not carried
 forward: a number belongs to the tree it was measured on.
 
 ---
+
+### The table, re-measured on the tree the gate closes on
+
+| The Phase 1 blocker | Status at `c362317` | Witnesses | What the status means |
+|---|---|---|---|
+| New user cannot complete a task from a clean environment following README. | **HELD** | 4 | every witness was collected and passed |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 3 of 114 witness cases did not pass, and **all three are skips**: the POSIX half of a platform pair, and the two 8.3 short-name witnesses, which a volume that generates no short names skips. **No single runner of the CI matrix carries all of them.** |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 4 | every witness was collected and passed |
+| Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness passed, **and the row names the excluded required tests with their reasons** — whether a declared skip fails this blocker is the owner's ruling, not the harness's |
+
+**The real-model smoke class was selected, could not be run, and is reported
+NOT RUN with the reason**, so the harness's exit code is **2**. The three
+metrics that are measured are the **abstention metric at 1/1** — the
+no-evidence fixture's honest *"the material does not say"* — the **recovery
+metric at 4/4**, its denominator being the distinct crash points the matrix
+injects, read out of the matrix itself, and the **numeric extraction at
+84/84**. Four metrics remain NOT MEASURED and the report names the missing
+input for each.
 
 ## 9. The witnesses, and the mutation table
 

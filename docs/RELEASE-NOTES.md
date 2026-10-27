@@ -250,24 +250,27 @@ than left for the next reader to find.**
    table are the same set. The README's table *is* fail-closed in both
    directions against `scripts/outsider_path.py`'s; the quickstart's is not.
    *Evidence:* [quickstart §8](QUICKSTART.md).
-3. **The two witnesses for the Windows short-name property cannot run.** The
-   path layer's fix for the 8.3 short-name trap is real and was measured
-   directly — a new file declared with the short spelling under a
-   long-spelled root is **accepted**, with the key `outputs/summary.md`,
-   exactly as the long spelling is. But the two tests that were written to
-   watch it reference `RootKind.WORKSPACE`, **which does not exist**
-   (`RootKind` has `SOURCE` and `OUTPUT`), so they fail with an
-   `AttributeError` wherever they run — and they **skip** everywhere else,
-   because 8.3 name generation is disabled on the volume this machine's
-   temporary directory is on, and because a CI runner's temporary directory
-   is *already* spelled in the short form. **The property is measured; the
-   witness is broken.**
-   *Measured on 2026-10-25 against `main` at
-   `dd08573650dd28b433c3aac387d88b4b71912cdc`, on the **C:** volume, which
-   does generate 8.3 names: the two tests fail with `AttributeError`, and
-   the product's own `canonicalize` accepts both spellings with the same
-   key. The two witnesses are `tests/test_security_paths.py:428` and
-   `tests/test_security_paths.py:473`.*
+3. **The two witnesses for the Windows short-name property skip where the
+   volume makes no 8.3 short names.** The path layer's fix for the 8.3
+   short-name trap is real: a new file declared with the short spelling
+   under a long-spelled root is **accepted**, with the key
+   `outputs/summary.md`, exactly as the long spelling is. **The witnesses are
+   sound** — they use `RootKind.OUTPUT`, and the `AttributeError` an earlier
+   draft of them raised is gone. But they **skip on a volume that generates
+   no 8.3 names**, and that is the volume this machine's temporary
+   directory is on. **On a runner whose volume does generate them — the CI's
+   Windows runner — they run, and they pass.** So the property **is** watched
+   where the platform can watch it, and it is **NOT MEASURED on a
+   development machine whose volume makes no short names.**
+   *Measured on 2026-10-25 on the **C:** volume, which does generate 8.3
+   names: the product's own `canonicalize` accepts both spellings with the
+   same key, and `examples/g1_exit_demo.py` under a short-spelled `TEMP`
+   exits 0 with its 36 checks — measured by this gate's independent review
+   ([`g5-review-records.md`](acceptance/g5-review-records.md) §10.3) — and
+   on the CI's Windows runner, where the two witnesses run and pass. The two
+   witnesses are
+   `tests/test_security_paths.py::test_a_new_file_under_a_short_spelled_root_is_not_refused`
+   and `::test_a_path_outside_a_short_spelled_root_is_still_refused`.*
 4. **`LICENSE.PENDING.md` §6 predates the decision it describes.** It says
    the PyMuPDF decision "has not been made". It was made on 2026-10-17:
    [ADR-0008](../docs/adr/ADR-0008-pdf-ingestion-library.md) chose
@@ -345,6 +348,6 @@ the gate closing.**
 - **[The threat model](THREAT-MODEL.md)** — what is protected, from what,
   and what is not claimed.
 - **[The evaluation protocol](EVALUATION.md)** — the five gate classes and
-  the seven Phase 1 blockers.
+  the six Phase 1 blockers.
 - **[CHANGELOG.md](../CHANGELOG.md)** — what changed.
 - **[The work orders](PHASE_1_WORKORDERS.md)** — the board, and its status.

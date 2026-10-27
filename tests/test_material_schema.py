@@ -27,6 +27,8 @@ from sqlalchemy.exc import IntegrityError
 from conftest import migrated_database_from
 from labcairn.db.session import create_db_engine, create_session_factory
 
+pytestmark = pytest.mark.integration
+
 SHA = "a" * 64
 OTHER_SHA = "b" * 64
 NOW = datetime(2026, 10, 17, tzinfo=UTC).isoformat()

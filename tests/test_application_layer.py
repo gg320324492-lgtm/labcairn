@@ -113,6 +113,8 @@ from labcairn.sources.locators import ComputationLocator, TextLocator
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 from labcairn.workspace.roots import Workspace
 
+pytestmark = pytest.mark.integration
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
 env = _shared_env

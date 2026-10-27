@@ -66,12 +66,14 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -113,7 +115,58 @@ RECORDS_MOMENT: datetime = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
 #: for "the next closing fence" would read a ```python block as the tail of
 #: the shell block above it, and a line of illustration would be run as a
 #: command.
-SHELL_LANGUAGES: frozenset[str] = frozenset({"", "bash", "sh", "shell"})
+#:
+#: ``console`` is a shell too. It is the language a terminal session is
+#: written in, and a line in one is a line somebody typed.
+SHELL_LANGUAGES: frozenset[str] = frozenset({"", "bash", "sh", "shell", "console"})
+
+#: An inline code span.
+_INLINE_CODE_RE: re.Pattern[str] = re.compile(r"`([^`\n]+)`")
+
+#: The first word of a command line: a program name. Lower case, so a
+#: sentence's own capitalised word is not one, and no path is.
+_PROGRAM_NAME_RE: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9._-]*$")
+
+#: A word that may follow a program name on a command line.
+_ARGUMENT_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._@:/=+-]+$")
+
+
+def _fenced_blocks(text: str) -> Iterator[tuple[str, list[str], list[int]]]:
+    """Every fenced block of a document: its language, its lines, their numbers.
+
+    **A fence is closed by a fence of the same length or longer.** A block
+    wrapped in four backticks may hold three of them, and closing it with
+    three would end it early and read the rest of it as another block --
+    which is how a paragraph of prose ends up being read as a command.
+
+    A block that is never closed runs to the end of the document.
+    """
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if not stripped.startswith("`"):
+            index += 1
+            continue
+        backticks = len(stripped) - len(stripped.lstrip("`"))
+        if backticks < 3:
+            index += 1
+            continue
+        remainder = stripped[backticks:].strip().split(maxsplit=1)
+        language = remainder[0].lower() if remainder else ""
+        numbers = [index]
+        index += 1
+        block: list[str] = []
+        while index < len(lines):
+            candidate = lines[index].strip()
+            if candidate and set(candidate) == {"`"} and len(candidate) >= backticks:
+                numbers.append(index)
+                index += 1
+                break
+            block.append(lines[index])
+            numbers.append(index)
+            index += 1
+        yield language, block, numbers
 
 
 def fenced_blocks(text: str) -> Iterator[tuple[str, list[str]]]:
@@ -123,21 +176,68 @@ def fenced_blocks(text: str) -> Iterator[tuple[str, list[str]]]:
     stands between them on the opening line. A block that is never closed
     runs to the end of the document.
     """
-    lines = text.splitlines()
-    index = 0
-    while index < len(lines):
-        stripped = lines[index].strip()
-        if not stripped.startswith("```"):
-            index += 1
-            continue
-        language = stripped[3:].strip().lower()
-        index += 1
-        block: list[str] = []
-        while index < len(lines) and lines[index].strip() != "```":
-            block.append(lines[index])
-            index += 1
-        index += 1
+    for language, block, _numbers in _fenced_blocks(text):
         yield language, block
+
+
+def _inline_code_spans(text: str) -> list[tuple[int, str]]:
+    """The inline code spans outside the fenced blocks, with the line each is on.
+
+    **The fenced blocks are left out**, because their contents are read as
+    blocks: a line of illustration that carries backticks is not an inline
+    span, and reading it as one would make a shell block's own quoting look
+    like a command.
+    """
+    lines = text.splitlines()
+    fenced: set[int] = set()
+    for _language, _block, numbers in _fenced_blocks(text):
+        fenced.update(numbers)
+    spans: list[tuple[int, str]] = []
+    for number, line in enumerate(lines):
+        if number in fenced:
+            continue
+        for span in _INLINE_CODE_RE.findall(line):
+            spans.append((number, span))
+    return spans
+
+
+def inline_code(text: str) -> list[str]:
+    """The inline code spans of a document, outside its fenced blocks."""
+    return [span for _number, span in _inline_code_spans(text)]
+
+
+def _is_a_command_line(text: str) -> bool:
+    """Whether an inline code span holds a command rather than a name.
+
+    **Two words or more, and the first one is a program name.** A span that
+    names one thing -- ``uv.lock``, ``--json``, ``src/labcairn/`` -- is a
+    name, and a name is not an instruction. A span that names a program and
+    something to do with it is an instruction, and an instruction nobody ran
+    is the failure this extraction exists to catch.
+    """
+    words = text.split()
+    if len(words) < 2:
+        return False
+    if not _PROGRAM_NAME_RE.match(words[0]):
+        return False
+    return all(_ARGUMENT_RE.match(word) for word in words[1:])
+
+
+def console_script_names(repo_root: Path) -> frozenset[str]:
+    """The console scripts the package declares, read out of its manifest.
+
+    **Read out of the manifest rather than written down here**, because the
+    manifest is where the repository already says it, and a second copy of
+    the same list is a list that will drift.
+
+    A tree with no manifest declares no console scripts, and says so by
+    returning none.
+    """
+    manifest = repo_root / "pyproject.toml"
+    if not manifest.is_file():
+        return frozenset()
+    document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    return frozenset(document.get("project", {}).get("scripts", {}))
 
 
 @dataclass(frozen=True)
@@ -241,7 +341,10 @@ README_COMMANDS: tuple[ReadmeCommand, ...] = (
 )
 
 
-def readme_commands(text: str) -> list[str]:
+def readme_commands(
+    text: str,
+    console_scripts: frozenset[str] = frozenset(),
+) -> list[str]:
     """Every runnable command line the README shows, in document order.
 
     Whitespace is collapsed, because a line wrapped in Markdown is still one
@@ -252,22 +355,45 @@ def readme_commands(text: str) -> list[str]:
     type — so the blocks are paired fence by fence rather than matched by a
     pattern, because a pattern that looked for "the next closing fence" would
     read a ```` ```python ```` block as the tail of the shell block above it.
+
+    **A command in an inline code span counts too.** ```` `uv sync` ```` is
+    an instruction just as much as a line in a shell block is, and an
+    extractor that read only the blocks would let a README document a
+    command that nobody ran.
+
+    **A call to a console script is not a repository-maintenance command.**
+    The package's own entry points are the product's surface, and the CLI is
+    the authority on which of them exist — so the caller says which programs
+    are those, and they are left to the gate that asks the CLI.
+
+    **Each command is reported once**, in the order the document shows it.
     """
-    commands: list[str] = []
-    for language, block in fenced_blocks(text):
+    found: list[tuple[int, str]] = []
+    for language, block, numbers in _fenced_blocks(text):
         if language not in SHELL_LANGUAGES:
             continue
-        for raw_line in block:
+        for offset, raw_line in enumerate(block):
             line = " ".join(raw_line.strip().split())
             if not line or raw_line.strip().startswith("#"):
                 continue
-            commands.append(line)
-    return commands
+            found.append((numbers[offset + 1], line))
+    for number, span in _inline_code_spans(text):
+        line = " ".join(span.strip().split())
+        if not _is_a_command_line(line):
+            continue
+        if line.split()[0] in console_scripts:
+            continue
+        found.append((number, line))
+    found.sort(key=lambda entry: entry[0])
+    return list(dict.fromkeys(line for _number, line in found))
 
 
-def commands_the_readme_shows(readme: Path) -> list[str]:
+def commands_the_readme_shows(
+    readme: Path,
+    console_scripts: frozenset[str] = frozenset(),
+) -> list[str]:
     """The README's commands, read out of the README itself."""
-    return readme_commands(readme.read_text(encoding="utf-8"))
+    return readme_commands(readme.read_text(encoding="utf-8"), console_scripts)
 
 
 # --------------------------------------------------------------------------- #
@@ -365,6 +491,12 @@ def child_environment(work: Path) -> dict[str, str]:
     environment = dict(os.environ)
     environment["TEMP"] = str(tmp)
     environment["TMP"] = str(tmp)
+    # `TMPDIR` as well, and that is not optional: `tempfile.gettempdir()`
+    # consults it **before** the other two, on every platform, so an ambient
+    # `TMPDIR` would otherwise hand the clone's children a directory this
+    # script does not own. The isolation claim in the docstring is only true
+    # with this line in it.
+    environment["TMPDIR"] = str(tmp)
     environment["MPLCONFIGDIR"] = str(tmp / "matplotlib")
     environment["PYTHONIOENCODING"] = "utf-8"
     environment["COLUMNS"] = "200"
@@ -508,7 +640,10 @@ def check_the_command_table(clone: Path, recorder: Recorder) -> list[str]:
     is not running the README.
     """
     print(f"\n{'=' * 78}\n2. The README's commands, and this script's table\n{'=' * 78}")
-    documented = commands_the_readme_shows(clone / "README.md")
+    documented = commands_the_readme_shows(
+        clone / "README.md",
+        console_script_names(clone),
+    )
     recorder.check(
         "the README shows at least one command",
         bool(documented),

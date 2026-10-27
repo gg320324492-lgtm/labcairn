@@ -43,6 +43,8 @@ from labcairn.security.capabilities import CapabilityId
 from labcairn.security.untrusted import UntrustedOrigin, UntrustedText
 from labcairn.sources.locators import PdfLocator
 
+pytestmark = pytest.mark.negative
+
 NOW = dt.datetime(2026, 10, 19, tzinfo=dt.UTC)
 SHA = "a" * 64
 

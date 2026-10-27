@@ -30,6 +30,8 @@ from conftest import migrated_database_from
 from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.session import create_db_engine
 
+pytestmark = pytest.mark.integration
+
 NOW = "2026-10-18T00:00:00+00:00"
 SHA = "a" * 64
 OTHER_SHA = "b" * 64

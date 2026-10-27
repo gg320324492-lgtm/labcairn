@@ -32,6 +32,8 @@ from labcairn.workspace.readonly import (
 )
 from labcairn.workspace.roots import Workspace
 
+pytestmark = pytest.mark.negative
+
 NL = chr(10)
 CAPABILITY = CapabilityId.SOURCE_INVENTORY.value
 _DENY_PRIVATE = Rule(

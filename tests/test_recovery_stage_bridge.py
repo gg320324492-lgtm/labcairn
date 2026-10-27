@@ -25,6 +25,8 @@ from labcairn.recovery.stages import (
 from labcairn.runtime.event import EventTransition
 from labcairn.runtime.lifecycle import Run, RunStatus, Stage, StageStatus, Task, TaskGoal
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def store_env(env):  # type: ignore[no-untyped-def]  # noqa: F811

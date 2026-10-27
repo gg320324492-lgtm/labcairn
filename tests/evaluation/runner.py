@@ -114,6 +114,15 @@ def _environment(root: Path, repo_root: Path) -> dict[str, str]:
     matplotlib.mkdir(parents=True, exist_ok=True)
     env["TEMP"] = str(root)
     env["TMP"] = str(root)
+    # ``TMPDIR`` is set as well, and it comes first: Python's
+    # :func:`tempfile.gettempdir` looks at ``TMPDIR``, then ``TEMP``, then
+    # ``TMP`` — in that order, on **every** platform. So an environment that
+    # carries a ``TMPDIR`` wins over the two this module sets, and the inner
+    # run would put its temporary files somewhere this module never looked at.
+    # The isolation would have a hole in it the same on Windows as on Linux,
+    # and the hole would only open on a machine that happens to have a
+    # ``TMPDIR`` set.
+    env["TMPDIR"] = str(root)
     env["MPLCONFIGDIR"] = str(matplotlib)
     env["LABCAIRN_TEMP_ROOT"] = str(root)
     # The inner run must not inherit a base temp directory that pytest would

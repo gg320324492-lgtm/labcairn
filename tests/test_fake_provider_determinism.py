@@ -49,6 +49,8 @@ from labcairn.core.providers import (
 )
 from labcairn.core.providers.transcripts import ALL_TRANSCRIPTS, TOOL_THEN_TEXT, USAGE_ABSENT
 
+pytestmark = pytest.mark.unit
+
 #: The program the cross-process test runs. Sweeps *every* transcript rather
 #: than one, so a transcript added later cannot skip the determinism check —
 #: this snippet picks it up automatically.

@@ -47,6 +47,8 @@ from labcairn.evidence.states import (
 from labcairn.material.addressing import render_locator_key
 from labcairn.sources.locators import CsvLocator
 
+pytestmark = pytest.mark.negative
+
 NOW = dt.datetime(2026, 10, 19, tzinfo=dt.UTC)
 SHA = "a" * 64
 

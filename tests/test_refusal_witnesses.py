@@ -28,7 +28,10 @@ import ast
 from pathlib import Path
 from typing import Final
 
+import pytest
 from refusal_witnesses import compared_texts
+
+pytestmark = pytest.mark.negative
 
 #: The repository's root, found from this file.
 REPOSITORY_ROOT: Final[Path] = Path(__file__).resolve().parents[1]

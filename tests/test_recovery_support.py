@@ -5,7 +5,7 @@ the contract builders come from :mod:`test_store_support`, which LC-P1-05 owns
 and which this ticket does not touch; what is here is only the machinery
 specific to crash recovery.
 
-Two pieces carry the weight.
+Three pieces carry the weight.
 
 :class:`WriteCounter` exists because every acceptance test claiming "the effect
 was not performed twice" has to mean it by something other than reading the file
@@ -18,6 +18,12 @@ a counter, and the counter is what the assertions read.
 a client was and was not told. Distinguishing "not notified" from "notified and
 the notification lost" needs something that records delivery; a sink that simply
 discards makes the two identical, and the test then passes for the wrong reason.
+
+:func:`workspace_entries` exists because a counter that counts only
+``effect.apply()`` cannot see a writer that bypassed the effect — and a probe
+that wrote the output file itself is precisely such a writer. "The effect was
+not performed twice" is the claim that writer would defeat, so the workspace is
+measured as well as the counter.
 """
 
 from __future__ import annotations
@@ -26,6 +32,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 # `env` and `frozen_clock` are imported for their fixture role, not their value:
 # pytest only sees a fixture that is present in the test module's namespace,
@@ -59,6 +67,8 @@ from labcairn.recovery.executor import NULL_SINK
 from labcairn.runtime.event import Event, EventTransition, EventType
 from labcairn.runtime.lifecycle import RunStatus, StageStatus
 
+pytestmark = pytest.mark.integration
+
 #: The one timestamp every scenario runs at. Matches the repository's
 #: ``FROZEN_NOW`` rather than reading a wall clock — see the root ``conftest``.
 SCENARIO_NOW: datetime = datetime(2026, 1, 1, tzinfo=UTC)
@@ -77,6 +87,8 @@ __all__ = [
     "make_stage",
     "make_task",
     "plan_write",
+    "workspace_digest",
+    "workspace_entries",
 ]
 
 
@@ -279,3 +291,52 @@ def plan_write(scenario: Scenario, text: str) -> tuple[WriteCounter, SideEffect,
     counter = scenario.counter()
     body = text.encode("utf-8")
     return counter, counter.plan("outputs/report.md", body), body
+
+
+def workspace_entries(root: Path) -> list[str]:
+    """One line per entry under *root*: what it is, where it is, what it holds.
+
+    Built for the claim that a *read-only* question of the filesystem leaves
+    the filesystem alone. :class:`WriteCounter` cannot witness that claim: it
+    counts calls to ``effect.apply()``, and a probe that wrote the file itself
+    would never go through it — an effect that happened twice and was recorded
+    once is invisible to a counter.
+
+    So the workspace itself is measured. A list rather than a hash, because a
+    comparison that fails should say *what* changed instead of that two hex
+    strings differ.
+
+    Every entry is described by its kind, its path relative to *root*, and its
+    contents — the bytes of a file, the target of a link — plus the timestamp
+    it carries. The timestamp is not decoration: a probe that rewrote a file
+    with the same bytes would leave the content identical and the mtime
+    different, and a rewrite is still a write.
+    """
+    entries: list[str] = []
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            entries.append(f"link {relative} -> {path.readlink()}")
+            continue
+        if path.is_dir():
+            entries.append(f"dir {relative} mtime={path.stat().st_mtime_ns}")
+            continue
+        try:
+            payload = path.read_bytes()
+        except OSError as exc:
+            entries.append(f"unreadable {relative} {type(exc).__name__}")
+            continue
+        entries.append(
+            f"file {relative} bytes={len(payload)} sha256={hash_bytes(payload)} "
+            f"mtime={path.stat().st_mtime_ns}"
+        )
+    return entries
+
+
+def workspace_digest(root: Path) -> str:
+    """A digest of the whole workspace: equal digests mean an identical workspace.
+
+    The single-value form of :func:`workspace_entries`, for the assertion that
+    wants to say "nothing moved" and nothing more.
+    """
+    return hash_bytes("\n".join(workspace_entries(root)).encode("utf-8"))

@@ -16,6 +16,8 @@ import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+import pytest
+
 from labcairn.core.ids import RunId, TaskId, new_id
 from labcairn.evidence.states import VerificationStatus
 from labcairn.skills import (
@@ -50,6 +52,8 @@ from labcairn.skills import (
     ValidationReport,
     ValidationVerdict,
 )
+
+pytestmark = pytest.mark.unit
 
 #: The clock every orchestrator under test reads. Later than the repository-wide
 #: ``FROZEN_NOW`` so a test using both does not trip a "modified at" check.

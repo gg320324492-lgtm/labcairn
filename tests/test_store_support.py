@@ -54,6 +54,8 @@ from labcairn.runtime.operation import (
     compute_args_digest,
 )
 
+pytestmark = pytest.mark.integration
+
 #: A fixed 64-hex content hash. Real-looking but constant, so a test that
 #: asserts a hash round-trips is not asserting against a value it generated
 #: with the same call it is testing.
