@@ -359,7 +359,7 @@ test that never runs anywhere (`requires_provider`); declared platform
 conditionals (`skipif(os.name == "nt")`); and **skips that name an open
 defect** (G1's exit demonstration, waiting on the 8.3 short-name comparison
 of the task breakdown's §2.6). **The third kind fails a Phase 1 blocker**,
-and the recorded run reports two of the six blockers as FAILED for exactly
+and the recorded run — **historical, not current** — reports two of the six blockers as FAILED for exactly
 that reason.
 
 **§3.6 is the same table measured on this tree.** The denominators moved
@@ -375,7 +375,7 @@ unauthorised-write blocker (a declared POSIX-only conditional, skipped on
 Windows). **Both readings are the owner's question** — the task breakdown's
 §1.4.1b asks it and does not answer it. **§3.6 measured the same two as
 FAILED on this tree, with the same witness cases**, so the finding is
-current rather than historical.
+historical rather than current.
 
 ### 3.5 What the comparison mechanism does with an absent baseline
 
@@ -443,7 +443,7 @@ TEMP=<outside the repo> TMP=<outside the repo> MPLCONFIGDIR=<outside the repo> \
 | Unsupported-claim detection and appropriate abstention | **NOT MEASURED** |
 | Revision consistency | **NOT MEASURED** |
 
-**The blockers, on this tree: two of the six FAILED, four HELD** — the same
+**The blockers, in that recorded run: two of the six FAILED, four HELD** — the same
 two as the recorded run and for the same reasons (§3.3).
 
 **And the comparison section of the report, verbatim:**
@@ -736,7 +736,7 @@ statement from "delivered", and it is the one this document makes.
 | New user cannot complete a task from a clean environment following README. | **HELD** | 4 | every witness was collected and passed |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 3 of 114 witness cases did not pass, and **all three are skips**: the POSIX half of a platform pair, and the two 8.3 short-name witnesses, which a volume that generates no short names skips. **No single runner of the CI matrix carries all of them.** |
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
-| A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 4 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
 | Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness passed, **and the row names the excluded required tests with their reasons** — whether a declared skip fails this blocker is the owner's ruling, not the harness's |
 

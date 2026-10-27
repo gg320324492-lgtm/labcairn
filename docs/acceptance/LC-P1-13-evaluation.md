@@ -27,12 +27,14 @@ thing:
    **NOT RUN** with the reason, and does **not** count it as a pass: a
    class that was not run has no rate, and a rate of zero would say
    *"every case failed"*, which is a different fact.
-2. **One of the six Phase 1 blockers did not hold.** The one —
+2. **One of the six Phase 1 blockers did not hold, in that run.** The one —
    *"A new user cannot complete a task from a clean environment following
-   README"* — because the base branch's own witness skips G1's exit
+   README"* — because the base branch's own witness skipped G1's exit
    demonstration on Windows while the product's 8.3 short-name comparison
-   is unfixed. **That is the tree's state, and it is a finding rather
-   than a defect of the harness.**
+   was unfixed. **That was that tree's state, and it was a finding rather
+   than a defect of the harness.** *The defect was fixed and the skip was
+   removed, so the first blocker holds now; **the table the gate closes on
+   is below**, and it is this row that has changed.*
 3. **Four of the seven metrics were not measured**, and each says which
    input is missing.
 
@@ -374,7 +376,7 @@ evaluated **has not held**.
 | New user cannot complete a task from a clean environment following README. | **FAILED** | 4 | 2 of 51 witness cases did not pass; a skipped witness counts against the blocker |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 1 of 112 witness cases did not pass; a skipped witness counts against the blocker |
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
-| A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 4 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
 | Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness was collected and passed |
 
@@ -387,13 +389,13 @@ evaluated **has not held**.
 
 - `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` — **skipped** — the Windows drive form is meaningless on POSIX
 
-**Two of the six blockers did not hold, and both of them are skips.** They
-are the two kinds §6 separates:
+**In that run, two of the six blockers did not hold, and both of them were
+skips.** They are the two kinds §6 separates:
 
 * **The protocol's first blocker** — *"A new user cannot complete a task
   from a clean environment following README"* — **FAILED**, because the
   base branch's new witness skips **G1's exit demonstration on Windows**
-  while the product's 8.3 short-name comparison is unfixed
+  while the product's 8.3 short-name comparison was unfixed
   ([the breakdown's §2.6](../plans/LC-P1-13-14-task-breakdown.md)). The
   demonstration of a clean environment does not run on this platform, so
   the blocker that names a clean environment cannot be said to hold. **This
@@ -435,7 +437,7 @@ forward: a number belongs to the tree it was measured on.
 | New user cannot complete a task from a clean environment following README. | **HELD** | 4 | every witness was collected and passed |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 3 of 114 witness cases did not pass, and **all three are skips**: the POSIX half of a platform pair, and the two 8.3 short-name witnesses, which a volume that generates no short names skips. **No single runner of the CI matrix carries all of them.** |
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
-| A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 4 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
 | Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness passed, **and the row names the excluded required tests with their reasons** — whether a declared skip fails this blocker is the owner's ruling, not the harness's |
 

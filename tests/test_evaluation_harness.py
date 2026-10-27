@@ -1698,15 +1698,10 @@ def _published_records(repo_root: Path) -> tuple[Path, ...]:
 #: then claims another (*"not A, but better than B"*) is let through. It
 #: is stated here rather than left for a reader to discover.
 _NEGATION = re.compile(
-    r"(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
-    r"refuse|refuses|prohibit|prohibits)",
+    r"\b(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
+    r"refuse|refuses|prohibit|prohibits)\b",
     re.IGNORECASE,
 )
-
-
-def _sentences(paragraph: str) -> list[str]:
-    """The sentences of a paragraph, as the text itself separates them."""
-    return [part for part in re.split(r"(?<=[.!?])\s+", paragraph) if part.strip()]
 
 
 def _paragraphs(path: Path) -> list[tuple[int, str]]:
@@ -1799,12 +1794,11 @@ def test_no_published_record_claims_superiority_over_another_system(repo_root: P
     offenders: list[str] = []
     for path in _published_records(repo_root):
         for number, paragraph in _paragraphs(path):
-            for sentence in _sentences(paragraph):
-                if not ranking.search(sentence) or not named.search(sentence):
-                    continue
-                if _NEGATION.search(sentence):
-                    continue
-                offenders.append(f"{path.relative_to(repo_root)}:{number}: {sentence[:180]}")
+            if not ranking.search(paragraph) or not named.search(paragraph):
+                continue
+            if _NEGATION.search(paragraph):
+                continue
+            offenders.append(f"{path.relative_to(repo_root)}:{number}: {paragraph[:180]}")
     assert not offenders, (
         "a published record carries a word that claims a verdict and names "
         "another system, which the protocol forbids without like-for-like "
