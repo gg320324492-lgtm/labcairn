@@ -86,6 +86,38 @@ class ApplicationRefusal(StrEnum):
     REPORT_CONTENT_REFUSED = "report_content_refused"
     #: The operation is declared but not implemented yet.
     NOT_IMPLEMENTED = "not_implemented"
+    # -- the reasons the analysis run path says, carried through the layer ----- #
+    #
+    # **Why these are the layer's own, and not one ``analysis_refused`.** The
+    # layer's argument is that a surface branches on a *reason* rather than
+    # reading a message. The run path already has a fifteen-member vocabulary of
+    # why it said no; flattening it to one reason at the layer's boundary would
+    # throw away the difference between "no such operator" and "the units in that
+    # column contradict its header", which are different remedies for different
+    # people. ``tests/test_analysis_service.py`` closes the two vocabularies
+    # against each other, so a refusal in the run path cannot arrive at a surface
+    # unmapped.
+    #: The catalogue holds no operator with that id.
+    OPERATOR_NOT_REGISTERED = "operator_not_registered"
+    #: The material is not ``readable``. ADR-0004 A7: unreadable material is
+    #: neither analysed nor cited, and unreadable is not the same as empty.
+    SOURCE_UNREADABLE = "source_unreadable"
+    #: The file's bytes are not the bytes the source was ingested from.
+    SOURCE_DRIFTED = "source_drifted"
+    #: The material has more than one sheet, so a row and a header do not name
+    #: one address.
+    SOURCE_AMBIGUOUS = "source_ambiguous"
+    #: The selection names a different source, or different bytes, than the run
+    #: was asked about.
+    SELECTION_MISMATCH = "selection_mismatch"
+    #: The operator's own run was refused, whatever raised it. The message names
+    #: the column and the contradiction; the reason says only that the operator
+    #: refused.
+    OPERATOR_REFUSED = "operator_refused"
+    #: The reproducibility manifest could not be built, so nothing was recorded.
+    MANIFEST_REFUSED = "manifest_refused"
+    #: The chart recipe the figure is to be drawn from is not there to be read.
+    RECIPE_UNREADABLE = "recipe_unreadable"
     #: A crash left an operation in flight, its outcome is unknown, and the stage
     #: is blocked until a probe answers it. **The remedy is a reconciliation, not
     #: a retry**: replaying would plan a second operation for work that may already

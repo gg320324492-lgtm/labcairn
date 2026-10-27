@@ -148,6 +148,18 @@ DEFAULT_POLICY_RULES: tuple[Rule, ...] = (
     Rule(
         effect=Permission.ALLOW,
         pattern="**",
+        capabilities=frozenset({"analysis.run"}),
+        note=(
+            "running a vetted, registered operator over supplied material and drawing "
+            "its figure. The registry binds the capability to source and output roots; "
+            "the recipe it reads is named inside the consented arguments, so the "
+            "approval says which figure a run may draw, and an unregistered operator id "
+            "is refused before anything runs."
+        ),
+    ),
+    Rule(
+        effect=Permission.ALLOW,
+        pattern="**",
         capabilities=frozenset({"report.render"}),
         note=(
             "rendering this task's report into its own output area. The registry binds the "

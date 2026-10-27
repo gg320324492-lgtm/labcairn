@@ -58,11 +58,17 @@ Operation                  Capability
 ``grant_approval``         — (it *is* the consent)
 ``consume_approval``       the approved one
 ``render_report``          ``report.render``
+``run_figure``             ``analysis.run``
 =========================  ===========================================
 """
 
 from __future__ import annotations
 
+from labcairn.application.analysis import (
+    FigureRequest,
+    FigureRun,
+    run_figure,
+)
 from labcairn.application.approvals import (
     ApprovalConsumed,
     ApprovalGranted,
@@ -136,6 +142,8 @@ __all__ = [
     "ArtifactContent",
     "ArtifactView",
     "EventPage",
+    "FigureRequest",
+    "FigureRun",
     "IngestFailure",
     "IngestedFile",
     "MaterialIngested",
@@ -170,5 +178,6 @@ __all__ = [
     "render_report",
     "request_approval",
     "resolve_abandoned",
+    "run_figure",
     "run_stage",
 ]
