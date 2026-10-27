@@ -1686,17 +1686,18 @@ def _published_records(repo_root: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in documents if path.is_file()))
 
 
-#: A sentence that denies, forbids or excludes. **A denial is not a claim.**
+#: A paragraph that denies, forbids or excludes. **A denial is not a claim.**
 #:
 #: The review dossier says outright that it contains *"no claim that LabCairn
 #: is better than any upstream project"*, and quotes the protocol's own ban
 #: on claiming superiority. **Both carry the words the watch looks for** and
-#: both are the opposite of a claim, so a sentence with one of these in it
+#: both are the opposite of a claim, so a paragraph with one of these in it
 #: is not counted.
 #:
-#: **The limit this leaves is real**: a sentence that denies one thing and
-#: then claims another (*"not A, but better than B"*) is let through. It
-#: is stated here rather than left for a reader to discover.
+#: **The limit this leaves is real**: the unit is the paragraph, so a
+#: negation anywhere in it exempts every claim the paragraph carries
+#: (*"there is no baseline, and this beats B"*). It is stated here rather
+#: than left for a reader to discover.
 _NEGATION = re.compile(
     r"\b(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
     r"refuse|refuses|prohibit|prohibits)\b",
@@ -1760,11 +1761,11 @@ def test_no_published_record_claims_superiority_over_another_system(repo_root: P
     systems a claim may not be made about are read from **the protocol's own
     superiority clause**, so neither list is a second copy.
 
-    **The unit is a line, and the claim has to name its target.** A line
-    that carries a verdict word *and* names one of the systems the protocol
-    lists is a superiority claim. A line that carries a verdict word and
-    names nothing is ordinary English — *"worse than no test"*, *"the worst
-    of it"* — and the published records are full of it.
+    **The unit is the paragraph, and the claim has to name its target.** A
+    paragraph that carries a verdict word *and* names one of the systems the
+    protocol lists is a superiority claim. A paragraph that carries a verdict
+    word and names nothing is ordinary English — *"worse than no test"*,
+    *"the worst of it"* — and the published records are full of it.
 
     **A quoted line is not a claim.** A line inside a Markdown block quote
     or a fenced code block is *being quoted* — the gate's own review

@@ -371,12 +371,12 @@ sixth is the one the protocol names it for. A witness that was not part of
 the run at all cannot be evaluated, and a blocker that could not be
 evaluated **has not held**.
 
-| The protocol's blocker | Status | Witnesses | What the status means |
+| The protocol's blocker | Status at `37ae366` | Witnesses | What the status means |
 |---|---|---:|---|
 | New user cannot complete a task from a clean environment following README. | **FAILED** | 4 | 2 of 51 witness cases did not pass; a skipped witness counts against the blocker |
 | Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 1 of 112 witness cases did not pass; a skipped witness counts against the blocker |
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
-| A crash silently repeats unknown file side effects. | **HELD** | 4 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
 | Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness was collected and passed |
 

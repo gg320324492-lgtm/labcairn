@@ -1401,3 +1401,480 @@ conditional, not the provider-credential skip — and the harness still leaves
 the ruling to the owner. **The gate's exit test names a real-provider smoke
 that has not run, and nothing in this re-verification changes that.**
 
+---
+
+# 17. The final re-verification
+
+**When:** 2026-10-27.
+**Tree re-verified:** `042cf76c098c02975f7b535de2af3e1ed8591b6d` — the commit
+the coordinator named, on the branch `re-verify/g5-records-final`, in the same
+isolated worktree. `git rev-parse HEAD` returned exactly that, and the tree
+was clean before and after every mutation below.
+**What I changed:** nothing. **I still wrote no fix.** Every change below was
+made to break something and then reverted with `git checkout --`, and each
+was confirmed reverted with `git status --short` before the next.
+**What I ran:** the local witnesses for each finding, one file at a time. I did
+**not** run the whole suite and I did **not** run the harness again — the
+coordinator's own harness report on `c362317` is on disk
+(`E:\labcairn-local\harness-final2\evaluation-report.md`), and I read it
+against the records rather than paying for a second run. The base temp
+directory was `E:\labcairn-local\bt-verify-final` and each process had its own
+`TEMP`/`TMP`/`MPLCONFIGDIR` under `E:\labcairn-local\tmp-verify-final`, with
+`TMPDIR` unset.
+
+## 17.1 The four, one by one
+
+| # | The finding | My mutation, re-run | Now |
+|---|---|---|---|
+| **R26** | the walk's own environment still does not set `TMPDIR` | the `environment["TMPDIR"] = str(tmp)` line **removed** from `scripts/outsider_path.py::child_environment` | **CLOSED** — `tests/test_outsider_path.py::test_the_walk_hands_its_children_a_temporary_directory_of_its_own` **RED**: *"the walk hands its children TMPDIR='…\\ambient', and the ambient one it was supposed to replace is …"* |
+| **R25** | the shipped-record superiority watch's unit is a line, and a line break defeats it | the same cross-line claim, planted again in a plain paragraph of `docs/QUICKSTART.md` | **HALF CLOSED** — the wrap no longer hides it (**RED**, and the message shows the joined paragraph); **but the negation half of the fix does not run** (**R30**) |
+| **R27** | the quickstart still said seven, and a record said the wrong number is gone | `grep -rn "seven Phase 1 blockers"` | **CLOSED** — the quickstart says *"the six Phase 1 blockers"*, and the only surviving occurrence of the phrase is the evaluation record **discussing** it. The record's sentence — *"the five shipped documents that repeated the wrong number now say six, and the wrong number is gone"* — **is true now**, and I checked all five: the task breakdown twice, the release notes, the outsider-path record and the quickstart |
+| **R28** | the blocker table was corrected in one document and not in the two that carry it | the coordinator's harness report on `c362317`, read against both records' new tables | **HALF CLOSED** — the table is in both records and the **statuses are right**; **but the records' narrative still contradicts their own table**, and one cell is stale (**R31**) |
+
+**Two closed, two half closed.** And the half-closed ones are not a
+half-measure of the same thing: one is a **witness that does not do what the
+gate record says it does**, and the other is **two shipped records that state
+things false about the tree**.
+
+## 17.2 R25, re-run: the wrap is closed, and the negation is not
+
+**The wrap.** My mutation — a plain paragraph in `docs/QUICKSTART.md` whose
+verdict word and named system fall on different lines — is now **RED**:
+
+> `docs\QUICKSTART.md:430: LabCairn outperforms the other system, PaperQA2, on citation support.`
+
+The message shows the **joined paragraph**, so a wrap no longer hides a
+claim. **That half of R25 is closed.**
+
+**The negation, and the two controls.** The fix also splits a paragraph into
+sentences and recognises a denial. The coordinator asked me to run the two
+denied sentences from the dossier as controls, and to run the cross-line
+claim; here is what I measured.
+
+- **the control** — the dossier's own sentence, planted as a plain
+  paragraph:
+
+  > it contains no claim that LabCairn is better than any upstream project
+
+  **not caught** ✓
+- **the control** — the protocol's own ban, planted as a plain paragraph:
+
+  > forbids claiming superiority over PaperQA2/PaperSpine/others
+
+  **not caught** ✓
+- **the claim** — the cross-line superiority claim — **caught** ✓
+
+**But the controls are not caught by the negation.** I neutralised the
+negation check — the one line that exempts a denied sentence — and re-ran
+the witness on the same two controls: **still green, unchanged**. So the
+negation path is not what protects them.
+
+**Why they are protected, measured.** The watch's two lists, read out of the
+protocol's own clause:
+
+- the first sentence carries a verdict word but names **no target**. The
+  targets are `('PaperQA2', 'PaperSpine')`, and neither *"LabCairn"* nor
+  *"any upstream project"* is among them;
+
+- the second carries the targets but its verdict word is *"superiority"*,
+  and the ranking pattern is `\b(better|worse|best|worst|superior|outperform|beats|winner|loses|ahead)(?:s|es|ed|ing|er|ers)?\b` — which does **not** match *"superiority"*.
+
+**So the two controls pass by vocabulary, not by negation.** The negation is
+supposed to be the mechanism, and it is not.
+
+## 17.3 R30 — NEW. The negation exemption never fires, and it produces a false positive
+
+**Where:** `tests/test_evaluation_harness.py:1700-1703`, the `_NEGATION`
+pattern.
+
+**What is wrong.** The pattern's bytes are:
+
+```python
+_NEGATION = re.compile(
+    r"\x08(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
+    r"refuse|refuses|prohibit|prohibits)\x08",
+    re.IGNORECASE,
+)
+```
+
+**The two `\b` were written as raw backspace bytes (0x08)**, not as the two
+characters `\` and `b`. So the pattern asks for a **literal backspace
+character** on each side of the negation word, and prose never contains one.
+**The negation exemption can never match anything.**
+
+I asked the witness's own machinery directly. Five denied sentences, each
+planted in a paragraph of its own:
+
+> LabCairn does not outperform PaperQA2 on citation support.
+
+> This document contains no claim that LabCairn beats PaperQA2.
+
+> The protocol forbids claiming superiority over PaperQA2.
+
+> No winner was declared against PaperSpine.
+
+> LabCairn never outperformed PaperQA2.
+
+**None of them matches `_NEGATION`.** The intended pattern, with a real
+word boundary, matches **every one of the five**.
+
+**Two consequences, both measured.**
+
+1. **A false positive.** The sentence
+
+   > LabCairn does not outperform PaperQA2 on citation support.
+
+   — a **denial** — is **flagged as a superiority claim** (my mutation F:
+   **RED**), with and without the negation check. So a shipped record that
+   correctly *denies* a comparison is reported as making one. **That is the
+   opposite of what the fix's own docstring says**: *"a sentence that denies
+   one thing and then claims another … is let through. It is stated here
+   rather than left for a reader to discover."*
+   **And it is not theoretical: this report was flagged while this section
+   was being written**, for the sentences it quotes — and had to be reworded
+   before it could be committed.
+   In fact **every** denial is let through nowhere — none is exempt.
+2. **The negation path has no witness.** Neutralising the negation check
+   changes nothing about the tree's verdict, which is exactly what a dead
+   mechanism looks like from the outside.
+
+**And the gate record's table states it is fixed.** `docs/acceptance/G5-acceptance.md`
+says of R25: *"yes — the unit is the **paragraph, joined**, so a wrap cannot
+hide a claim, and a sentence that **denies** is not a claim: the review
+dossier's own … is what the first attempt called a claim."* **The first half
+is true and the second half is not.** The dossier's sentence is not called a
+claim — but not because a denial is recognised.
+
+**Recommendation.** Write the two characters `\` and `b` where the backspace
+bytes are, and add a witness of the form: a denied superiority claim, with a
+verdict word and a named target, is **not** reported — and the control that
+neutralising the negation makes it reported.
+
+## 17.4 R28, re-run: the table is in both records, and the narrative is not
+
+**What is right.** Both records now carry the re-measured table, and I
+checked every row against **the coordinator's own harness report on
+`c362317`** (`E:\labcairn-local\harness-final2\evaluation-report.md`,
+revision `c36231703aded75b…`, exit code 2):
+
+| The protocol's blocker | The harness on `c362317` | Both records' new tables |
+|---|---|---|
+| New user cannot complete a task from a clean environment following README. | **HELD**, 4 witnesses, 0 failing cases | **HELD** ✓ |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED**, 4 witnesses, **3 of 114** witness cases did not pass | **FAILED**, *"3 of 114 … all three are skips"* ✓ |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD**, 4 witnesses | **HELD** ✓ |
+| A crash silently repeats unknown file side effects. | **HELD**, **4** witnesses | **HELD**, **3** witnesses ✗ |
+| Report claims a verified scientific result based solely on schema or rendering checks. | **HELD**, 3 witnesses | **HELD** ✓ |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD**, 3 witnesses, **and the row names the seven excluded required CI tests with their reasons**, ending *"The exclusion is recorded rather than ruled on: whether a declared skip fails this blocker is the owner's decision, and this harness does not make it."* | **HELD**, *"every witness passed, **and the row names the excluded required tests with their reasons** — whether a declared skip fails this blocker is the owner's ruling, not the harness's"* ✓ |
+
+**Five of the six rows match, including the sixth — which is the row the
+coordinator asked me to check, and it is right.** The statuses, the counts of
+failing cases, and the exclusion's wording all agree with the harness's own
+report.
+
+## 17.5 R31 — NEW. The records' narrative still contradicts their own table
+
+**Where:** `docs/acceptance/LC-P1-13-evaluation.md` §2 and
+`docs/acceptance/LC-P1-13-baseline.md` §3.3, §3.4 and §3.6.
+
+**What is wrong.** The tables were added; the sentences around them were not
+corrected, and in one place the edit made a stale statement *newly* false.
+
+**The evaluation record's headline, §2, item 2 — now:**
+
+> **One of the six Phase 1 blockers did not hold.** The one — *"A new user
+> cannot complete a task from a clean environment following README"* — because
+> the base branch's own witness skips G1's exit demonstration on Windows while
+> the product's 8.3 short-name comparison is unfixed.
+
+**That names the wrong blocker and a reason that no longer holds.** The
+record's own new table says the clean-environment blocker **HELD**, and the
+unauthorised-write blocker **FAILED**; the harness on `c362317` says the same;
+and the 8.3 comparison **was** fixed (`6220a08`) and its skip removed
+(`f708076`). The edit changed *"Two of the six"* to *"One of the six"* and
+left the rest of the sentence pointing at the old blocker — which is the very
+misattribution R11 was about, **in the record that reports R11**.
+
+**The baseline record's §3.3, §3.4 and §3.6 still say:**
+
+> *"the recorded run reports two of the six blockers as FAILED for exactly
+> that reason"* · *"**§3.6 is the same table measured on this tree** … **the
+> two blockers that failed are the same two, for the same reasons**"* ·
+> *"**§3.6 measured the same two as FAILED on this tree, with the same witness
+> cases**, so the finding is **current rather than historical**"*.
+
+Every one of those is false of this tree, and each contradicts the new table
+**in the same document**.
+
+**And one stale cell.** The records' table says the crash blocker has
+**3** witnesses; the harness on `c362317` says **4**, and the manifest at
+this commit agrees — `test_fault_injection_e2e.py` was added to
+`no-repeated-side-effect-after-crash`
+(`tests/evaluation/manifest.py:381-386`).
+
+**Recommendation.** In the evaluation record's §2, name the blocker that
+actually failed and drop the reason that was fixed; in the baseline record's
+§3.3–§3.6, say which tree each table describes and stop calling the old one
+current; and correct the crash blocker's witness count in both tables.
+
+## 17.6 R32 — NEW. The sentence split opens a seam of its own
+
+**Where:** `tests/test_evaluation_harness.py::test_no_published_record_claims_superiority_over_another_system`,
+and the `_sentences` helper it uses.
+
+**What is wrong.** The watch's unit is now the **paragraph, joined**, and each
+paragraph is split into sentences; a sentence is a claim when it carries both a
+verdict word and a named target. So a superiority claim whose **verdict word
+and named system fall into different sentences of the same paragraph** is not
+seen. I planted, in a plain paragraph of `docs/QUICKSTART.md`:
+
+> PaperQA2 is one of the systems this project is compared with. LabCairn
+> outperforms it on citation support.
+
+— and the watch stayed **green**. The machinery says why: the first sentence
+has the target and no verdict word, the second has the verdict word and no
+target, and neither has both.
+
+**Why it matters, and how much.** It is the mirror of the seam R25 was about,
+opened by the fix that closed it: the line-wrap became a sentence-wrap. It is
+narrow — it needs the claim split across two sentences of one paragraph — and
+the witness's docstring names **one** limit (*"a sentence that denies one
+thing and then claims another"*) but **not** this one.
+
+**Recommendation.** Judge the **paragraph** against the vocabulary, and use
+the sentence split only for the negation, so that a target in one sentence
+and a verdict word in the next still counts.
+
+## 17.7 The final verdict
+
+**BLOCKED** — and the block is on the **closure**, not on this scope's own
+claims.
+
+**In one sentence:** two of the four findings are closed and two are half
+closed; one of the half-closed ones is a **witness whose stated criterion is
+not implemented and which reports a denied superiority claim as a claim**,
+and the other is **two shipped acceptance records that state things false
+about the tree** — and the gate record's table says all four are fixed.
+
+**What holds.** Everything this scope is about holds, and is witnessed:
+
+- the **release contents** are right when the artefacts are built and checked;
+- the **dossier's** references resolve and its independence claims are
+  earned from the tree;
+- the **baseline** invents no superiority, and the report's comparison section
+  still says *"No comparison was made, and none is printed"*;
+- the **quickstart's** artefact facts are true of the code, measured by
+  running the CLI and by hashing bytes;
+- the **threat model's** 136 watched citations resolve and its write
+  enumeration is now watched too;
+- the **protocol's blocker count** is right in all five documents that
+  repeated it;
+- and the **owner's** §1.4.1b decision is now asked the right question, with
+  the harness's own report saying *"The exclusion is recorded rather than
+  ruled on: whether a declared skip fails this blocker is the owner's
+  decision, and this harness does not make it."*
+
+**What does not hold, and is open:**
+
+1. **R30 — the negation exemption never fires.** `_NEGATION` carries raw
+   backspace bytes where the word boundaries were meant, so a denied
+   superiority claim is reported as a claim, and the negation path has no
+   witness. The gate record says this half of R25 is fixed; it is not.
+2. **R31 — two acceptance records state things false about the tree.** The
+   evaluation record's headline names the wrong blocker with a fixed defect as
+   its reason, and the baseline record still calls its old table *"current
+   rather than historical"*. The gate record says R28 is fixed; the table is
+   there, but the records still contradict it.
+3. **R32 — the sentence split opens a seam** the paragraph join closed, and
+   the witness's docstring does not name it.
+
+**What I recommend before the gate closes:** fix the two bytes in `_NEGATION`
+and give the negation path a witness; correct the evaluation record's
+headline and the baseline record's §3.3–§3.6, and the crash blocker's
+witness count in both tables; and either close the sentence seam or name it.
+**None of the three touches the product, the release contents, or the
+owner's decisions** — they are a witness's regex, two records' sentences,
+and one seam.
+
+**And the owner's decisions are unchanged.** The gate's exit test names a
+real-provider smoke that has not run, and nothing in this re-verification
+changes that.
+
+---
+
+# 18. The fixes, re-verified
+
+**When:** 2026-10-27.
+**Tree re-verified:** `09ac9b7839266b183c8dcf9ad3eb1ccb009a80ea` — the commit
+that answers §17, on `delivery/g5`, in `E:\LabCairn`. `git rev-parse HEAD`
+returned exactly that, and the tree was clean before and after every mutation
+below.
+**What I changed:** the corrections this re-verification itself produced — one
+cell and one header in `docs/acceptance/LC-P1-13-evaluation.md` (§18.4), and two
+docstrings in `tests/test_evaluation_harness.py` (§18.5). **No product code, no
+shard file, no gate record.**
+**What I ran:** the superiority watch, one mutation at a time, each planted as a
+plain paragraph at the end of `docs/QUICKSTART.md` and reverted with
+`git checkout --`, with `git status --short` read between mutations; then the
+whole `tests/test_evaluation_harness.py` and `tests/test_status_consistency.py`
+on this tree; and `ruff check` and `ruff format --check` on the file I touched.
+The base temp directory was `E:\labcairn-local\bt-rv-*`; `TEMP`, `TMP` and
+`MPLCONFIGDIR` were under `E:\labcairn-local\tmp-rv` and `TMPDIR` was unset.
+**I did not run the harness itself** — §17's reading of the `c362317` report is
+the measurement, and I read the records against it rather than paying for a
+second run.
+
+## 18.1 The three, one by one
+
+| # | The finding | My mutation, re-run | Now |
+|---|---|---|---|
+| **R30** | the exemption's boundaries were raw backspace bytes, so a denial was reported as a claim, and the exemption had no witness | (a) a denied claim, planted as a plain paragraph; (b) the same paragraph with the exemption neutralised | **CLOSED** — (a) **green**, the denial is not reported; (b) **RED** on the planted paragraph **and on `docs/REVIEW-DOSSIER.md:16`**, whose paragraph needs the exemption — so the mechanism is not dead and cannot be neutered silently |
+| **R31** | the records' prose contradicted their own table, and one cell was stale | the `c362317` report and the manifests at each run's commit, read against all three tables | **CLOSED, with one correction** — the prose now says which run it describes, both current tables say four, and **the historical table's count, which this fix had changed to four, is corrected back to the three its own run measured** (§18.4) |
+| **R32** | the sentence split let a claim whose target and verdict word fell in different sentences | the same claim, planted as one paragraph; and a cross-line claim, planted again | **CLOSED** — both **RED**, and the message shows the joined paragraph |
+
+## 18.2 R30 — the bytes are characters again, and the exemption is load-bearing
+
+**The bytes.** `tests/test_evaluation_harness.py` holds **zero** `0x08` bytes,
+and the pattern now carries the two characters `\` and `b`:
+
+```python
+_NEGATION = re.compile(
+    r"\b(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
+    r"refuse|refuses|prohibit|prohibits)\b",
+    re.IGNORECASE,
+)
+```
+
+**The false positive is gone.** A denied claim, planted as a plain paragraph:
+
+> LabCairn does not outperform PaperQA2 on citation support.
+
+— is **not reported**. On `042cf76` this was the reviewer's mutation F, and it
+was red.
+
+**The exemption is load-bearing, and that is measured rather than asserted.** I
+planted the same paragraph again and neutralised the exemption with
+`_NEGATION = re.compile(r"(?!)")`. The watch went **RED**, and the offenders
+were the planted paragraph **and `docs/REVIEW-DOSSIER.md:16`**:
+
+> **What this document is not.** It is not a comparison, and it contains no
+> claim that LabCairn is better than any upstream project.
+> `docs/EVALUATION.md:29` forbids claiming superiority over
+> PaperQA2/PaperSpine/others without like-for-like matched-task baselines …
+
+**That is the one sentence in the tree whose exemption the dossier needs.** §17
+measured the two controls passing by vocabulary when the unit was the sentence;
+at the paragraph, the dossier's paragraph carries both lists in one paragraph,
+and only the exemption keeps it from being reported. **So the exemption cannot
+be neutered silently**, which is what §17's R30 said about it. It is not a
+planted control — a planted one would be stronger, and that is a note rather
+than a block — but it is a witness the tree already had.
+
+**The limit, at the paragraph and measured.** The exemption's unit is the
+paragraph, so a negation anywhere in it exempts every claim it carries. A
+paragraph planted as:
+
+> There is no like-for-like baseline in this document. LabCairn outperforms
+> PaperQA2 on citation support.
+
+— stayed **green**. That is the mirror of the *"not A, but better than B"* limit
+the docstring already named, and it is now stated at the unit the code uses
+(§18.5).
+
+## 18.3 R32 — one unit for all three tests
+
+**The seam is closed.** The claim §17 planted across two sentences of one
+paragraph:
+
+> PaperQA2 is one of the systems this project is compared with. LabCairn
+> outperforms it on citation support.
+
+— is **RED**, and the message shows the **joined paragraph**, so the split no
+longer hides it.
+
+**And R25's closer is still closed.** The claim wrapped across two lines:
+
+> LabCairn outperforms the other system, PaperQA2,
+> on citation support.
+
+— is **RED** too, with the lines joined in the message. The ranking word, the
+named target and the exemption are judged on **one** unit now, and that is what
+makes both seams shut.
+
+## 18.4 R31 — the prose, the tables, and the cell the fix broke
+
+**The prose.** The evaluation record's §2 now says *"did not hold, in that
+run"* and points at the table the gate closes on; its note says the defect was
+fixed and the skip removed. I checked both: `6220a08` is the 8.3 comparison,
+`f708076` is the skip's removal, and `tests/test_earlier_exit_demos.py` no
+longer skips on Windows — it says the skip is gone, and why. The `c362317`
+report says the clean-environment blocker **HELD**, so the note is true of this
+tree.
+
+**The baseline's narrative.** §3.3 now calls the recorded run *historical, not
+current*; §3.4's finding is *historical rather than current*; and §3.6 names its
+tree (`977a19b`) and its own run. At `977a19b` the two blockers did FAIL — the
+8.3 skip is still there at that commit — so the historical sentences are true of
+the tree §3.6 anchors.
+
+**Both current tables say four, and four is what was measured.** The `c362317`
+report says **4** witnesses for the crash blocker, and the manifest at
+`c362317` lists four files; the fourth, `test_fault_injection_e2e.py`, arrived
+in `86fce86`.
+
+**The cell the fix broke.** `docs/acceptance/LC-P1-13-evaluation.md` carries two
+tables: the document's own run at `37ae366`, and the table re-measured at
+`c362317`. The fix changed the crash count to **4 in both**, but the `37ae366`
+run measured **3**: the T01 report on disk
+(`E:\labcairn-local\evaluation-t01\evaluation-report.md`, revision `37ae366…`)
+says *"A crash silently repeats unknown file side effects. | HELD | 3"*, and the
+manifest at `37ae366` lists three files. **A historical table was made to state
+a number its own run did not measure** — the same class of error R31 was about,
+one table over. I corrected the cell back to **3**, and the header now reads
+*"Status at `37ae366`"*, so each table names its tree the way §16 asked.
+
+## 18.5 The two docstrings the fix left describing a unit it had removed
+
+The test's own docstring still said *"**The unit is a line** …"*, and the
+exemption's comment still said *"A **sentence** that denies …"* — both describe
+units the code no longer uses. The line wording arrived with `86fce86`, so it
+was inherited rather than introduced here; the fix removed the sentence split
+and left the sentence behind. Both now say **paragraph**, and the limitation
+§18.2 measured is written at that unit. **A witness that describes a unit it
+does not use is a claim about the tree that the tree does not hold**, which is
+the finding R31 was about.
+
+## 18.6 The final verdict
+
+**PASS WITH NOTES** for the scope §17 blocked on — and **this verdict closes
+nothing either**.
+
+**In one sentence:** all three findings are **closed by measurement**; the
+re-verification found **two false statements the fix left standing** — a
+historical table carrying a count its run did not measure, and two docstrings
+describing a unit the code had removed — and both are corrected in this commit.
+
+**What holds, and is witnessed on this tree:**
+
+- a denied claim is not reported, and neutralising the exemption reddens the
+  tree, so the negation path is alive and watched;
+- a claim split across sentences or across lines of one paragraph is reported,
+  with the joined paragraph in the message;
+- the records' prose and both current tables agree with the `c362317` report,
+  and each table now names the commit it describes;
+- and the tree is otherwise unchanged: **248 passed** across
+  `tests/test_evaluation_harness.py` and `tests/test_status_consistency.py`,
+  `ruff check` and `ruff format --check` clean.
+
+**Notes, and they are notes rather than blocks:**
+
+1. **The exemption's unit is the paragraph**, so a negation anywhere in a
+   paragraph exempts every claim in it. It is measured (§18.2) and now documented at that
+   unit; tightening it would mean judging the claim sentence by sentence, which
+   is the seam R32 closed.
+2. **The exemption's witness is the dossier's own paragraph**, not a planted
+   control. That is what makes it a witness the tree cannot lose silently; a
+   planted control would be the stronger arrangement, and it is not in this
+   commit.
+3. **The owner's decisions are unchanged.** The gate's exit test names a
+   real-provider smoke that has not run, and nothing in this re-verification
+   changes that.
