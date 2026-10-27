@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import viteConfig from '../../vite.config'
 import { DEV_API_BASE } from './mount'
-import { API_PATHS, APPROVAL_GRANT_PATH, ARTIFACT_CONTENT_PATH } from './paths'
+import { API_PATHS, APPROVAL_GRANT_PATH, ARTIFACT_CONTENT_PATH, REPORT_RENDER_PATH } from './paths'
 
 /**
  * The drift check: the paths the workbench asks for are routes the service
@@ -108,6 +108,7 @@ describe('the route scanner', () => {
     // had somehow learned only the paths in `paths.ts` would pass.
     expect(routes.has('/events')).toBe(true)
     expect(routes.has('/stages')).toBe(true)
+    expect(routes.has('/report')).toBe(true)
     expect(routes.size).toBeGreaterThan(10)
   })
 })
@@ -115,9 +116,12 @@ describe('the route scanner', () => {
 describe('the paths the workbench asks for', () => {
   it('are all routes the service declares', () => {
     const routes = serviceRoutes(routesSource)
-    const asked = [...Object.values(API_PATHS), ARTIFACT_CONTENT_PATH, APPROVAL_GRANT_PATH].map(
-      anonymous,
-    )
+    const asked = [
+      ...Object.values(API_PATHS),
+      ARTIFACT_CONTENT_PATH,
+      APPROVAL_GRANT_PATH,
+      REPORT_RENDER_PATH,
+    ].map(anonymous)
 
     const missing = asked.filter((path) => !routes.has(path))
     expect(

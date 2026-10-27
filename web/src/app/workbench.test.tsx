@@ -142,7 +142,7 @@ describe('the session token', () => {
   })
 })
 
-describe('the one change the workbench makes', () => {
+describe('the changes the workbench makes', () => {
   it('asks the service once, with the token in the header', async () => {
     render(<App />)
     const button = await screen.findByRole('button', { name: 'Grant' })
@@ -236,5 +236,53 @@ describe('where the workbench looks', () => {
       expect(request.url.startsWith('/')).toBe(true)
       expect(request.url).not.toContain('://')
     }
+  })
+})
+
+describe('the report the workbench asks for', () => {
+  it('states the two claims the service takes no default for', async () => {
+    render(<App />)
+    const button = await screen.findByRole('button', { name: 'Render the report' })
+    const readsBefore = fake.requestsTo('/artifacts').length
+
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(fake.reportRenders).toBe(1)
+    })
+    const post = fake.requests.find(
+      (request) => request.method === 'POST' && request.url.endsWith('/report'),
+    )
+    expect(post).toBeDefined()
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({ path: 'report', template_id: 'default' })
+    expect(post?.headers['authorization']).toBe(`Bearer ${FAKE_TOKEN}`)
+
+    // The screen shows records, so it reads the artefact list again rather
+    // than trusting the receipt the POST handed back.
+    await waitFor(() => {
+      expect(fake.requestsTo('/artifacts').length).toBeGreaterThan(readsBefore)
+    })
+    expect(screen.queryByText(/The service refused that/)).toBeNull()
+  })
+
+  it('shows the service’s refusal when the task has nothing to carry', async () => {
+    /**
+     * This is the ordinary case: no operation writes an evidence record, so a
+     * fresh task is refused and **nothing is written**. A screen that showed a
+     * report it did not have, or that swallowed the reason, would be the failure
+     * this test exists to catch.
+     */
+    fake.refuseReport = true
+    render(<App />)
+    const button = await screen.findByRole('button', { name: 'Render the report' })
+
+    fireEvent.click(button)
+
+    expect(await screen.findByText(/The service refused that/)).toBeInTheDocument()
+    expect(screen.getByText(/nothing a report may carry/)).toBeInTheDocument()
+    expect(fake.reportRenders).toBe(1)
+    // The button comes back: a refusal is not a broken page.
+    const again = await screen.findByRole('button', { name: 'Render the report' })
+    expect(again).toBeEnabled()
   })
 })

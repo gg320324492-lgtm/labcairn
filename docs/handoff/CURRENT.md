@@ -82,8 +82,9 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 ## What does not exist yet
 
 **The report gained a surface since the gate; the figure did not.**
-`labcairn task report` and `POST /report` call the layer's own `render_report`
-and answer with its own `ReportRendered`, and a fresh workspace permits
+`labcairn task report`, `POST /report` and the workbench's **Render the report**
+button all call the layer's own `render_report`; the surfaces answer with its own
+`ReportRendered`, and a fresh workspace permits
 `report.render` (the registry binds it to output roots). **What the surfaces
 still cannot do is produce a report from nothing**: no operation writes an
 evidence record, so a bare task is refused with `report_content_refused` and the

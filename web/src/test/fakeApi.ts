@@ -224,6 +224,18 @@ export class FakeApi {
   /** Whether the service refuses a grant, without changing the approval. */
   refuseGrants = false
 
+  /**
+   * Whether the service refuses a report render.
+   *
+   * **This is the normal case, not the unusual one**: no operation writes an
+   * evidence record, so a task the workbench is showing usually has nothing a
+   * report may carry, and the honest answer is a refusal that writes nothing.
+   */
+  refuseReport = false
+
+  /** How many report renders the service has been asked for. */
+  reportRenders = 0
+
   /** How long a grant takes to answer, in milliseconds. */
   grantDelayMs = 0
 
@@ -284,6 +296,39 @@ export class FakeApi {
       approval.granted_at = '2026-10-20T09:30:00+00:00'
       const granted: ApprovalGranted = { approval }
       return jsonResponse(200, granted)
+    }
+
+    if (method === 'POST' && path === '/report') {
+      this.reportRenders += 1
+      if (this.refuseReport) {
+        return jsonResponse(403, {
+          reason: 'report_content_refused',
+          message:
+            'application refused (report_content_refused): the task has nothing a report ' +
+            'may carry. Nothing was written.',
+        })
+      }
+      return jsonResponse(201, {
+        receipt: {
+          receipt_id: 'report-receipt-1',
+          task_id: this.state.task.task.task_id,
+          kind: 'report',
+          relative_path: 'report/v1/report.md',
+          content_sha256: 'a'.repeat(64),
+          size_bytes: 2048,
+          revision: 1,
+          produced_by: 'report_template',
+          producer_id: 'default',
+          derived_from: [],
+          staleness: 'current',
+          staleness_reason: null,
+          media_type: 'text/markdown',
+          created_at: '2026-10-27T09:00:00+00:00',
+          schema_version: 1,
+        },
+        resource_key: 'report',
+        schema_version: 1,
+      })
     }
 
     if (path.startsWith('/artifacts/') && path.endsWith('/content')) {

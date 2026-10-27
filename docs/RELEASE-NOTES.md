@@ -59,7 +59,12 @@ roots, and the content checks — not the rule — decide whether a report may e
 `docs/QUICKSTART.md` §4.7 documents both; the README's command table predates
 them and stays conservative rather than the commands being hidden.
 
-**What remains** is the same gap in two shapes.
+**The workbench asks for it now.** `web/src/app/Workbench.tsx` has a
+**Render the report** action that states the two claims the service takes no
+default for and then reads the artefact list again rather than trusting the
+receipt the POST handed back; its tests cover both the request and the refusal.
+
+**What remains** is the gap in two shapes.
 
 - **The figure still has no surface.** Nothing in the CLI or the service reaches
   `analysis.run`: the deterministic figure is drawn by the layer's own operation,

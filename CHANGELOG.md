@@ -25,7 +25,10 @@ The links are the records.
   call the application layer's own `render_report` and answer with its own
   `ReportRendered`, so the bytes a CLI writes and the bytes the service serves
   are one artefact. A fresh workspace's policy now permits `report.render`, which
-  the registry binds to output roots. **The figure still has no surface**, and
+  the registry binds to output roots. **The workbench asks for it too**: a button
+  that states the two claims the service takes no default for, then reads the
+  artefact list again — and shows the service's own refusal when the task has
+  nothing to carry. **The figure still has no surface**, and
   the report is still refused — writing nothing — when the task holds no record
   to carry, because no surface operation writes an evidence record.
 - **The recovery pass runs at the surfaces.** `run_stage` calls

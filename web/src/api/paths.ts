@@ -73,3 +73,24 @@ export function artifactContentPath(receiptId: string): string {
 export function approvalGrantPath(approvalId: string): string {
   return APPROVAL_GRANT_PATH.replace('{approval_id}', encodeURIComponent(approvalId))
 }
+
+/**
+ * The report render.
+ *
+ * A change, so it needs the session token: the service writes the report's four
+ * forms into the task's own output area and records the revision. It is a POST
+ * with a body rather than a read of an existing artefact because the plan's own
+ * exit test says the **web produces** the same versioned report the CLI produces
+ * — not that it displays one the CLI happened to write.
+ *
+ * The body carries the two claims the caller makes and the service takes no
+ * default for either, so `reportRenderBody` is where this page states them.
+ * `template_id` is `'default'` because exactly one template exists; asking for
+ * another is a refusal that names it rather than a substitution.
+ */
+export const REPORT_RENDER_PATH = '/report'
+
+/** What the workbench asks the service to render, and from which template. */
+export function reportRenderBody(path = 'report', templateId = 'default'): Record<string, string> {
+  return { path, template_id: templateId }
+}

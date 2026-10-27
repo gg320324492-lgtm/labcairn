@@ -199,8 +199,9 @@ to copy the pattern from.
 ### 4.7 The report and the figure
 
 **The report has a command and a route; the figure has neither.**
-`labcairn task report` (and `POST /report` on the local service) calls the
-application layer's own `render_report`, and a fresh workspace's policy permits
+`labcairn task report` (and `POST /report` on the local service, and a
+**Render the report** button in the workbench) calls the application layer's own
+`render_report`, and a fresh workspace's policy permits
 `report.render` — which the registry binds to output roots, so the capability
 cannot reach a source file. **The figure is still reached only through the
 layer's `run_analysis`**, and the command line has no command for it. The
