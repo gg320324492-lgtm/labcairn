@@ -198,27 +198,31 @@ to copy the pattern from.
 
 ### 4.7 The report and the figure
 
-**There is no CLI command that renders a report or draws a figure, and the
-local API has no route for either.** The command line's ten commands are
-listed in [the README](../README.md#the-command-line-what-exists-today), and
-none of them renders one. This is a real gap in the product, not an
-oversight in the documentation: the [acceptance record](acceptance/LC-P1-14-outsider-path.md)
-names it as a finding, and the [release notes](RELEASE-NOTES.md) carry it.
+**The report has a command and a route; the figure has neither.**
+`labcairn task report` (and `POST /report` on the local service) calls the
+application layer's own `render_report`, and a fresh workspace's policy permits
+`report.render` — which the registry binds to output roots, so the capability
+cannot reach a source file. **The figure is still reached only through the
+layer's `run_analysis`**, and the command line has no command for it. The
+twelve commands that do exist are listed in
+[the README](../README.md#the-command-line-what-exists-today); `task report`,
+`task reconcile` and the `POST /report` route are newer than that table, and the
+table stays conservative rather than the commands being hidden.
 
-Both are reached through the application layer's own operations —
-`render_report` and `run_analysis` — and both need a human decision first:
+**What has not changed is the harder half.** A report needs something to carry:
 
-1. **The policy must permit the capability.** The default policy denies
-   everything the report path needs. The walk writes a policy that allows
-   `analysis.run`, `report.render`, `fs.read`, `fs.list` and `fs.write`
-   under the pattern `**`, and no more.
-2. **The claims must exist.** **The product has no operation that writes an
+1. **The claims must exist.** **The product has no operation that writes an
    evidence record or an anchor.** The walk writes the claim's own address
    and the record that rests on it itself, against the addresses the ledger
    holds. The report then carries real claims, cited to real addresses in
    the material the CLI ingested — **but the claims were made by the walk,
    not by the product.** This is the one step of the deliverable that is not
    the product's, and it is named rather than hidden.
+2. **A task with nothing to report is refused, and writes nothing.** Ask the
+   command on a bare task and the answer is `report_content_refused`: the
+   document builder refuses a heading with nothing under it, and the output
+   area stays empty. That refusal is the correct behaviour, not a missing
+   default — a report the ledger does not support must not exist.
 
 The **complete, working** version of this step is
 [`scripts/outsider_path.py`](../scripts/outsider_path.py) — §7.3 of the

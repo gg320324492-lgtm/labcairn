@@ -1083,15 +1083,21 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
             assert method in {"get", "head"}, f"{method.upper()} {path} is not a read"
 
 
-def test_the_mutating_surface_of_the_service_is_exactly_the_consent_routes() -> None:
-    """What this service can be *asked to do* is four routes and no more.
+def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
+    """What this service can be *asked to do* is five routes and no more.
 
     Every other route reads. That is the whole of the "the stream carries
     events and never commands" claim at the level of the contract: a browser
-    that has the token can ask for consent and for a stage to run, and can do
-    nothing else at all. A route that changed something else — a route that
-    could delete an artefact, say — would be a permission the CLI does not
-    have either.
+    that has the token can ask for consent, ask for a stage to run, and ask for
+    the report to be rendered — and can do nothing else at all. A route that
+    changed something else — a route that could delete an artefact, say — would
+    be a permission the CLI does not have either.
+
+    **The report render is on this list because G4's exit test is *"CLI and Web
+    produce same versioned report"*.** That sentence asks the web to be able to
+    *produce* the report, not only to read one the CLI happened to write; the
+    route is the layer's own operation and the layer's own result model, so the
+    bytes are the same bytes whichever surface asked.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1105,7 +1111,91 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_consent_routes() -> 
         "POST /approvals/{approval_id}/grant",
         "POST /approvals/{approval_id}/consume",
         "POST /stages",
+        "POST /report",
     }
+
+
+def test_a_report_render_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that writes an artefact is behind the same origin guard.
+
+    **Why it is watched separately.** A CSRF-able route that produces a file is
+    worth guarding more than one that only reads: the page on another site could
+    make this workspace write a revision of a report nobody asked for.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_a_report_render_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to write."""
+    response = client.post(
+        "/report", json={"path": "report", "template_id": "default"}, headers={"Origin": OWN_ORIGIN}
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason(
+    client: TestClient, token: str
+) -> None:
+    """The route is the layer's operation, and the answer is the layer's answer.
+
+    **What this proves, and what it deliberately does not.** The task under test
+    has no record and no figure, and the document builder refuses a report with
+    nothing to carry — so what comes back is ``report_content_refused``, the
+    layer's own reason, delivered through the service's own refusal shape. That
+    is the plumbing proved end to end: HTTP request → typed body → the layer's
+    ``render_report`` → its refusal → this response.
+
+    **It is not a claim that a report was written.** None was, and nothing was:
+    a refusal that left a file behind would be the worst failure this route could
+    have. The assertion below is that the output area holds no report.
+
+    **Why there is no success path here.** The product has no operation that
+    writes an evidence record (``docs/RELEASE-NOTES.md`` §2.2), so a test that
+    gave this task something to report would have to write the record itself —
+    which is what the outsider's walk does, and says it does. The success path
+    through a surface is witnessed where the record exists:
+    ``tests/test_smoke_path.py`` compares the CLI's bytes with the service's.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.REPORT_CONTENT_REFUSED.value
+    assert "Nothing was written" in response.json()["message"], (
+        "the refusal must say the output area is untouched"
+    )
+
+    listed = client.get("/artifacts", headers={"Origin": OWN_ORIGIN})
+    assert listed.status_code == 200
+    assert listed.json() == [], "a refused report must leave no artefact behind"
+
+
+def test_a_report_render_names_the_template_it_was_asked_for(
+    client: TestClient, token: str
+) -> None:
+    """One template exists, and a request for another is refused rather than guessed.
+
+    **The refusal is the request's, not the content's**: an unknown template is a
+    caller error, and serving the default instead would be the service deciding
+    what the caller meant.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "no-such-template"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] != GuardRefusal.SESSION_REQUIRED.value
+    assert "no-such-template" in response.json()["message"]
 
 
 def test_the_stream_delivers_the_same_page_as_the_json_endpoint(client: TestClient) -> None:

@@ -235,8 +235,8 @@ def test_approval_is_single_use(env, tmp_path):  # type: ignore[no-untyped-def]
 
 
 def test_an_unregistered_capability_is_refused_before_the_grant_is_spent(
-    env,
-    tmp_path,  # type: ignore[no-untyped-def]
+    env: StoreEnv,
+    tmp_path: Path,
 ) -> None:
     """The ledger asks the registry, so an id that names nothing cannot spend a consent.
 
@@ -260,8 +260,8 @@ def test_an_unregistered_capability_is_refused_before_the_grant_is_spent(
 
 
 def test_a_grant_made_for_an_unregistered_capability_cannot_be_consumed(
-    env,
-    tmp_path,  # type: ignore[no-untyped-def]
+    env: StoreEnv,
+    tmp_path: Path,
 ) -> None:
     """G1's gap, stated exactly: issued, granted — and until now, consumed.
 

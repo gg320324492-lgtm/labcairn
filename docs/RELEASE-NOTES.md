@@ -48,16 +48,35 @@ or an open-source distribution.
 **These are the limits of this alpha, and every one of them is measured or
 cited — not estimated.** Each names where the evidence is.
 
-### 2.1 The report and the figure have no surface of their own
+### 2.1 The figure has no surface, and the report's surfaces are newer than the README's table
 
-`labcairn` has **no command that renders a report or draws a figure**, and
-the local API has **no route** for either. Both are reached through the
-application layer's own operations (`render_report` and `run_analysis`).
+**The report has two entries now.** `labcairn task report --path report` renders
+it, and `POST /report` on the local service renders the same document through the
+same layer operation and answers with the same model — so G4's exit test's
+*"same versioned report"* is reachable from either surface, and a fresh
+workspace's policy permits `report.render` (the registry binds it to output
+roots, and the content checks — not the rule — decide whether a report may exist).
+`docs/QUICKSTART.md` §4.7 documents both; the README's command table predates
+them and stays conservative rather than the commands being hidden.
 
-*Consequence:* the last two steps of the deliverable need a Python import
-rather than a command, and a reader following the README alone cannot
-produce a report.
-*Evidence:* [LC-P1-14 acceptance record §7.1](acceptance/LC-P1-14-outsider-path.md).
+**What remains** is the same gap in two shapes.
+
+- **The figure still has no surface.** Nothing in the CLI or the service reaches
+  `analysis.run`: the deterministic figure is drawn by the layer's own operation,
+  so the deliverable's "receives … a deterministic scientific plot" still needs a
+  Python import.
+- **A report is refused, not written, when the task has nothing to carry.**
+  `labcairn task report` on a bare task answers
+  `report_content_refused` and leaves the output area empty — the correct
+  behaviour, and the reason the success path is still the walk's (§2.2: the
+  product writes no evidence record), not a surface's. The bytes the two surfaces
+  produce are compared where a report does exist, in `tests/test_smoke_path.py`.
+
+*Evidence:* [LC-P1-14 acceptance record §7.1](acceptance/LC-P1-14-outsider-path.md)
+(written when neither entry point existed) ·
+`tests/test_cli.py::test_task_report_refuses_a_task_with_nothing_to_carry_and_writes_nothing` ·
+`tests/test_api.py::test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason` ·
+`docs/QUICKSTART.md` §4.7.
 
 ### 2.2 The claim in the report is written by the demonstration, not by the product
 

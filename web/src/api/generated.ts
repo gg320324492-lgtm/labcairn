@@ -217,6 +217,16 @@ export type RefusalBody = {
   message: string
 }
 
+export type ReportBody = {
+  path: string
+  template_id: string
+}
+
+export type ReportRendered = {
+  receipt: ArtifactReceipt
+  resource_key: string
+}
+
 export type Run = {
   schema_version?: number
   run_id?: RawId

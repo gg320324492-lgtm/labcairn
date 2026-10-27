@@ -2303,3 +2303,63 @@ def test_the_packages_docstring_names_exactly_the_commands_there_are() -> None:
     too.
     """
     assert _the_commands_the_package_names() == _the_commands_the_app_registers()
+
+
+def test_task_report_refuses_a_task_with_nothing_to_carry_and_writes_nothing(
+    workspace: Path, task_id: str, source_id: str
+) -> None:
+    """``task report`` is the layer's report operation, and its refusal is its own.
+
+    **What is proved here is the plumbing, not a report.** The task under test has
+    no evidence record, and the document builder refuses a document with nothing
+    under any heading, so what comes back is ``report_content_refused`` — the
+    layer's reason, in the CLI's refusal shape, with ``EXIT_REFUSED`` rather than a
+    zero the caller might read as success. **The second half is the one that
+    matters**: a refusal that left a half-written report in the output area would
+    be an artefact the ledger does not support, and `artifacts list` would show it.
+
+    **Why there is no success path at a surface.** The product has no operation
+    that writes an evidence record (``docs/RELEASE-NOTES.md`` §2.2), so making this
+    task reportable would mean the test writing the record itself. The bytes the
+    two surfaces produce are compared where a report does exist —
+    ``tests/test_smoke_path.py``.
+    """
+    result = run_cli("--workspace", str(workspace), "task", "report", "--path", "report", "--json")
+    assert result.returncode == EXIT_REFUSED, result.stdout
+    payload = result.json()
+    assert payload["reason"] == "report_content_refused"
+    assert "Nothing was written" in payload["message"]
+
+    listed = run_cli("--workspace", str(workspace), "artifacts", "list", "--json")
+    assert listed.returncode == 0, listed.stderr
+    assert listed.json() == [], "a refused report left an artefact behind"
+
+    forms = sorted(
+        path.name for path in (workspace / "output" / task_id).rglob("report*") if path.is_file()
+    )
+    assert forms == [], f"the output area holds {forms}"
+
+
+def test_task_report_refuses_a_template_that_does_not_exist(workspace: Path, task_id: str) -> None:
+    """One template exists; asking for another is refused, not silently replaced.
+
+    **The distinction a caller needs**: an unknown template is the caller's error,
+    so the reason is not the content's refusal and the message names the template
+    that was asked for. Rendering the default instead would be the CLI deciding
+    what the person meant.
+    """
+    result = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "report",
+        "--template",
+        "no-such-template",
+        "--json",
+    )
+    assert result.returncode == EXIT_REFUSED, result.stdout
+    payload = result.json()
+    assert "no-such-template" in payload["message"]
+    assert payload["reason"] != "report_content_refused", (
+        "the request was refused before the document was built, so the reason must say so"
+    )

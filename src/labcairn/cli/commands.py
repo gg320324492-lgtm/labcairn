@@ -1023,6 +1023,62 @@ def task_resume(
     _run_a_stage(ctx, source=source, task=task, as_json=as_json, resume=True)
 
 
+@task_app.command("report")
+def task_report(
+    ctx: typer.Context,
+    path: Annotated[
+        str,
+        typer.Option(
+            "--path",
+            help="The report's key in the task's output area. 'report' is what the "
+            "revision machinery writes under.",
+        ),
+    ] = "report",
+    template: Annotated[
+        str,
+        typer.Option("--template", help="The template to render from. One exists: 'default'."),
+    ] = "default",
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Render the task's report, write it as a revision, and record it.
+
+    The layer's own operation, so this writes the same bytes the local service
+    serves — which is what makes the two surfaces' report one artefact rather than
+    two renderings that happen to agree. **The four forms are written together**
+    (Markdown, HTML, DOCX and PDF) and the receipt carries the chain: the material
+    the claims were read from is named in it, so a later change to that material
+    marks this revision stale.
+
+    **A refusal writes nothing.** The content checks run before the first byte of
+    any form is drawn, so a report the material does not support is refused with
+    ``report_content_refused`` and the check that refused it, and no half-truth is
+    left in the output area.
+    """
+    from labcairn.application import ReportRequest, render_report
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            rendered = render_report(context, ReportRequest(path=path, template_id=template))
+    if as_json:
+        emit_model(rendered)
+    else:
+        receipt = rendered.receipt
+        _console().print(
+            f"[bold]{receipt.relative_path}[/bold] — revision {receipt.revision}, "
+            f"{receipt.content_sha256}.\n"
+            f"{len(receipt.derived_from)} link(s) in its chain; the four forms are "
+            "beside it under the task's output area, and `labcairn artifacts list` "
+            "names them."
+        )
+
+
 @task_app.command("reconcile")
 def task_reconcile(
     ctx: typer.Context,

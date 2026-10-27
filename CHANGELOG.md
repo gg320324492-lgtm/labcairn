@@ -20,6 +20,14 @@ The links are the records.
 
 **Added**
 
+- **The report has a surface.** `labcairn task report --path report
+  [--template default] [--json]` and `POST /report` on the local service both
+  call the application layer's own `render_report` and answer with its own
+  `ReportRendered`, so the bytes a CLI writes and the bytes the service serves
+  are one artefact. A fresh workspace's policy now permits `report.render`, which
+  the registry binds to output roots. **The figure still has no surface**, and
+  the report is still refused — writing nothing — when the task holds no record
+  to carry, because no surface operation writes an evidence record.
 - **The recovery pass runs at the surfaces.** `run_stage` calls
   `labcairn.application.recovery.reconcile_abandoned` after the policy verdict and
   before any consent is spent: an operation a crash left `ATTEMPTING` becomes

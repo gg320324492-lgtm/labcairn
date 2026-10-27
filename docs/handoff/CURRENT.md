@@ -81,6 +81,17 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 ## What does not exist yet
 
+**The report gained a surface since the gate; the figure did not.**
+`labcairn task report` and `POST /report` call the layer's own `render_report`
+and answer with its own `ReportRendered`, and a fresh workspace permits
+`report.render` (the registry binds it to output roots). **What the surfaces
+still cannot do is produce a report from nothing**: no operation writes an
+evidence record, so a bare task is refused with `report_content_refused` and the
+output area stays empty, and the success path remains the walk's, which writes
+the record itself. `run_analysis` still has no command and no route, so the
+deterministic figure is still reached through a Python import.
+`docs/RELEASE-NOTES.md` §2.1 carries both.
+
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
 **G4's exit test is now demonstrated — and it was not, until this gate's own review made it so.** The end-to-end smoke path (T09) runs from a clean workspace and a temporary database, with no network and no credential, and compares the CLI's `task status --json` against the local API's `GET /task` **field by field** — two hundred and fifty-five fields, none differing — and the report's **bytes by hash**, for each of the four forms, against the file the report operation wrote and the bytes the service serves.

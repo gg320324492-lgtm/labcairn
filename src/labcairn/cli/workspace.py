@@ -146,6 +146,16 @@ DEFAULT_POLICY_RULES: tuple[Rule, ...] = (
         note="inventorying the supplied material; the registry keeps this to source roots",
     ),
     Rule(
+        effect=Permission.ALLOW,
+        pattern="**",
+        capabilities=frozenset({"report.render"}),
+        note=(
+            "rendering this task's report into its own output area. The registry binds the "
+            "capability to output roots, so this cannot reach a source file; the content "
+            "checks — not this rule — decide whether a report may be written at all."
+        ),
+    ),
+    Rule(
         effect=Permission.DENY,
         pattern="**/.*",
         note="dotfiles are where credentials live; no research deliverable needs one",

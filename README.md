@@ -141,7 +141,7 @@ The commands, and what each can do today:
 
 **`doctor` reports; it does not repair.** It says what it found. It will not fix a broken database, write a missing policy, or reach a paid model endpoint unless `--probe` says so.
 
-**There is no command that renders a report or draws a figure.** The report path and the deterministic figure are reached through the application layer's own operations — `render_report` and `run_analysis` — and the local API has no route for either. The quickstart says where that leaves a reader, and the release notes carry it as a known limitation rather than a surprise.
+**`labcairn task report` renders the report; nothing draws the figure.** The report path is now a command and a route on the local service, both calling the application layer's own `render_report`, and a fresh workspace's policy permits `report.render` — which the registry binds to the task's own output area. **The deterministic figure is still reached only through the layer's `run_analysis`**: no command and no route asks it. And a report needs something to carry: **no operation writes an evidence record**, so a task with nothing to report is refused with a reason and writes nothing at all. The quickstart says where that leaves a reader, and the release notes carry it as a known limitation rather than a surprise.
 
 ## Principles
 
@@ -304,7 +304,7 @@ uv run labcairn --help
 
 **`doctor` 只报告，不修复。** 它说出它发现了什么。它不会修复损坏的数据库、不会补写缺失的策略，也不会去够付费模型端点——除非 `--probe` 这么要求。
 
-**没有任何命令能渲染报告或画出图。** 报告路径与确定性图是通过应用层自己的操作（`render_report` 与 `run_analysis`）到达的，本地 API 也没有对应路由。快速上手会说明这对读者意味着什么；发布说明把它作为已知限制列出，而不是留作意外。
+**`labcairn task report` 能渲染报告；没有任何命令能画图。** 报告路径现在既有命令也有本地服务的对应路由，两者都调用应用层自己的 `render_report`，而且全新工作区的策略允许 `report.render`——注册表把这一能力绑定在任务自己的输出区。**确定性图仍然只能通过应用层的 `run_analysis` 到达**：命令行和服务都没有为它提供入口。而报告需要有内容可承载：**没有任何操作会写入证据记录**，所以一个无话可说的任务会被拒绝并给出理由，且不会写下任何文件。快速上手会说明这对读者意味着什么；发布说明把它作为已知限制列出，而不是留作意外。
 
 ### 原则
 

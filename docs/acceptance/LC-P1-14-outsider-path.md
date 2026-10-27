@@ -262,6 +262,20 @@ owner to rule on**: either the CLI grows a `labcairn report render` command,
 or the acceptance record says plainly that the report path is reached through
 the application layer.
 
+**Corrected since this was written, and still true of the figure.** The CLI grew
+`task report` and the service grew `POST /report`, both through the layer's own
+`render_report` and answering with its own `ReportRendered`, and a fresh
+workspace's default policy permits `report.render` (the registry binds the
+capability to output roots; the content checks decide whether a report may
+exist). The command list above is the one this walk measured, and it is now
+twelve commands, not the ten it names — `task reconcile` and `task report`
+arrived after the walk ran. **What did not change**: `run_analysis` still has no
+command and no route, so the figure is still reached by import, and **the walk
+still renders the report through the layer rather than through the new command** —
+changing the walk was not measured locally, so the claim below stands as measured
+rather than being rewritten to match the code.
+See [`RELEASE-NOTES.md`](../RELEASE-NOTES.md) §2.1 for the current state.
+
 ### 7.2 The report cannot be recomputed from the revised material
 
 **This is the finding that matters most for the deliverable's "requests a

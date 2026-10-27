@@ -104,6 +104,20 @@ class StageBody(Result):
     depends_on: tuple[str, ...] = ()
 
 
+class ReportBody(Result):
+    """A report render, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.reports.ReportRequest`,
+    field for field, and both are required: **the service takes no default for
+    either.** Which key the report lives under and which template it is drawn
+    from are the caller's claims, and a default here would be the service making
+    them — the same reasoning that keeps a stage's effect out of a web request.
+    """
+
+    path: str = Field(min_length=1)
+    template_id: str = Field(min_length=1)
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 

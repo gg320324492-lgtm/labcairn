@@ -43,6 +43,7 @@ from labcairn.api.contracts import (
     ApprovalBody,
     ApprovalUseBody,
     Health,
+    ReportBody,
     SessionInfo,
     StageBody,
 )
@@ -55,6 +56,8 @@ from labcairn.application import (
     ApprovalGranted,
     ApprovalRequested,
     ArtifactView,
+    ReportRendered,
+    ReportRequest,
     SourceView,
     StageRun,
     TaskPlan,
@@ -70,6 +73,7 @@ from labcairn.application import (
     read_plan,
     read_steps,
     read_task_state,
+    render_report,
     request_approval,
     run_stage,
 )
@@ -413,6 +417,34 @@ def _stage_work(request: Request) -> StageWork:
             "given the work when it starts.",
         )
     return work
+
+
+# --------------------------------------------------------------------------- #
+# the report
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/report", response_model=ReportRendered, tags=["report"])
+def post_report(
+    body: ReportBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ReportRendered:
+    """Render the task's report, write it as a revision, and record it.
+
+    The layer's own operation and the layer's own result model, so the bytes a
+    CLI writes and the bytes this service serves are the same bytes — which is
+    G4's exit test, and the reason this route returns
+    :class:`~labcairn.application.reports.ReportRendered` rather than a
+    service-shaped copy of it.
+
+    **Nothing is written when the report is refused.** The content checks run
+    before the first byte of any form is rendered, so a report the material does
+    not support leaves no file behind and the caller gets
+    ``report_content_refused`` with the check that refused it.
+    """
+    return render_report(
+        context,
+        ReportRequest(path=body.path, template_id=body.template_id),
+    )
 
 
 # --------------------------------------------------------------------------- #
