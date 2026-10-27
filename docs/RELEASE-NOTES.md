@@ -128,9 +128,17 @@ spend money and a credential supplied for that purpose.
 
 *Consequence:* **the fifth of the protocol's five mandatory gate classes is
 not discharged.** `docs/EVALUATION.md` says *"Mock-only success is
-insufficient"* — and no real provider has been called.
+insufficient"*, and the standing witness has never run on any platform, so the
+harness reports the class **NOT RUN** and exits 2.
+**The clause and the class are not the same thing, and this row once conflated
+them**: LC-P1-03's acceptance *"real smoke on at least one provider"* **was met
+once, by hand** — `b237751`, 2026-10-16, on a credential the owner supplied
+against a live Anthropic-protocol endpoint, which is where the
+`tool_calls`/`usage_reporting` results on the status board come from. A probe
+that ran once outside the harness is not a gate class that runs on every commit.
 *Evidence:* [threat model §6.7](THREAT-MODEL.md) ·
-[evaluation protocol §"Mandatory automated gates"](EVALUATION.md).
+[evaluation protocol §"Mandatory automated gates"](EVALUATION.md) ·
+[the gate's exit-test table](acceptance/G5-acceptance.md).
 
 ### 2.8 The competitor baseline has not been run
 
@@ -334,11 +342,20 @@ including the whole test suite in a clean clone — is in
 [the acceptance record](acceptance/LC-P1-14-outsider-path.md) with its
 command lines, exit codes and seconds.
 
-**The gate this release belongs to is not closed.** G5's exit test is
-*"outsider fresh install, 3 fixtures, fault injection, docs and
-real-provider smoke"*; the real-provider smoke (§2.7) and the competitor
-baseline (§2.8) have not run. **Nothing in this document should be read as
-the gate closing.**
+**The board says G5 is closed; this document says the exit test is not fully
+discharged. Both are true, and the difference is the owner's to settle.**
+G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and
+real-provider smoke"*; **four of the five are delivered and watched**, and the
+real-provider smoke (§2.7) and the competitor baseline (§2.8) have not run.
+**This paragraph was written at `dd08573` (2026-10-25), when the gate was still
+open.** The closure landed two days later at `ff9afc5` (PR #118), on two
+independent reviews that wrote none of the gate's fixes, verdict **PASS WITH
+NOTES** — the notes being exactly §2.7 and §2.8, and the four owner decisions
+in [`acceptance/G5-acceptance.md`](acceptance/G5-acceptance.md).
+**So nothing in this document may be read as a claim that the fifth clause ran.**
+Whether a declared, reported skip of it releases the alpha as *"Phase 1 complete"*
+is the task breakdown's §1.4.1b question, and it is the owner's ruling, not this
+document's.
 
 ---
 

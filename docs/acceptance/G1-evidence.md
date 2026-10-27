@@ -1,12 +1,12 @@
 # G1 — Acceptance evidence (LC-P1-02, LC-P1-03, LC-P1-04)
 
-**Status:** implemented; **G1 NOT closed** — one acceptance clause is unmet and needs an authorisation this role cannot give itself.
+**Status:** implemented; **G1 NOT closed** — one acceptance clause is unmet and needs an authorisation this role cannot give itself. *(Written 2026-10-16 02:33; the clause was met ~17 hours later at `b237751` and G1 has since closed — see "The clause that was not met, and what became of it".)*
 **Branch:** `feat/g1-trusted-core` · **PR:** opened from this branch
 **Base:** `main` @ `9f9c4f0` · **Date:** 2026-10-16
 
 ## Verdict requested
 
-`PASS WITH NOTES` for LC-P1-02 and LC-P1-04. **LC-P1-03 cannot be accepted until the real-provider smoke runs** — see "The clause that is not met".
+`PASS WITH NOTES` for LC-P1-02 and LC-P1-04. **LC-P1-03 cannot be accepted until the real-provider smoke runs** — see "The clause that was not met, and what became of it". *(Superseded the same day: the smoke ran, LC-P1-03 is `PASS WITH NOTES` on the board, and what remains unmet is the standing in-suite witness, not the clause.)*
 
 ## What was built
 
@@ -122,7 +122,7 @@ guard does not get a default; it gets to be stated.* A bare `LedgerSnapshot` sta
 at `Unknown(UNPRICED)` and fails a cost ceiling closed; explicit `Known(0)` still
 passes, because a measured zero is a measurement.
 
-## The clause that is not met
+## The clause that was not met, and what became of it
 
 LC-P1-03's acceptance line reads *"real smoke on at least one provider"*. It has not
 run. `providers/pydantic_models.py` says so in its own docstring and
@@ -138,11 +138,37 @@ The flow is `pydantic_models.smoke_test()`; removing the skip and supplying
 question, not a defect**, and until it is answered **G1 cannot close** — the gate's
 exit demonstration is otherwise complete.
 
+### What happened after this was written
+
+This section was committed at `f694b61`, 2026-10-16 02:33. **The same day, at
+19:52, the owner supplied a credential and the smoke ran against a live
+Anthropic-protocol endpoint** — `b237751`, PR #7. What it established, in that
+merge's own words:
+
+| Capability | Outcome at `b237751` |
+|---|---|
+| `tool_calls` | **ok** — a well-formed tool call naming the probe tool |
+| `usage_reporting` | **ok** — after the run exposed that an unread streaming body made every usage block `None`, so every budget refused to run |
+| `structured_output_native` | **inconclusive** — pydantic-ai's Anthropic profile refuses before a request is sent |
+| `structured_output_prompted` | **inconclusive** — `KeyError` on this project's own probe schema shape |
+
+**So the clause was met in the letter, and this document's "cannot close" is the
+stale half of the record.** The board's LC-P1-03 row carries the run; this file
+had never been corrected until now.
+
+**And the skip in the title above is still correct, which is the part worth
+keeping.** What ran was a one-off live call made by hand with a
+credential-supplied endpoint; **the standing in-suite witness has never run on
+any platform**, and `python -m tests.evaluation` therefore still reports the
+protocol's real-model smoke class **NOT RUN** with exit code 2. `docs/RELEASE-NOTES.md`
+§2.7, `docs/acceptance/G5-acceptance.md` §1.4.2 and the board all name that as
+the owner's open decision. **The clause is met; the gate class is not discharged.**
+
 ## Open items
 
 | Item | Severity | Note |
 |---|---|---|
-| Real-provider smoke not run | **blocks G1** | Needs spending authorisation and a credential issued for the purpose |
+| Real-provider smoke not run | **was: blocks G1** — superseded | The clause ran live at `b237751` on 2026-10-16. What remains is the **standing witness**, still skipped, and the harness's real-model smoke class still NOT RUN — the owner's §1.4.2 decision |
 | `ApprovalLedger.consume()` never resolves the capability | defence in depth | An id that has never existed can be issued, granted and consumed; only `policy.evaluate()` turns one into DENY, and nothing enforces that a caller evaluates first. The ordering constraint belongs in an ADR, not buried in a guard |
 | `RunLedger` no longer accepts a default `priced` | breaking for downstream callers | Deliberate; see above |
 | TOCTOU between containment check and `open()` | declared, not closed | Needs OS-level handle-relative opening. Not claimed as solved |
@@ -156,3 +182,8 @@ exit demonstration is otherwise complete.
 No persistence (LC-P1-05), no crash recovery (LC-P1-06), no research capability of
 any kind. The repository still has no CLI, no server, no database and no model call
 that leaves the machine. **G1 is a floor, not a product.**
+
+*(All four of those are historical: the store came with LC-P1-05, the CLI with
+LC-P1-12 and the workbench with it. **The last one is still true of this tree** —
+nothing in `src/labcairn/application/`, `api/` or `skills/` names a provider, so no
+task path calls a model; the only live call the product makes is `doctor --probe`.)*

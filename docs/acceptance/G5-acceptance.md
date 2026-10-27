@@ -8,7 +8,10 @@ the licence audit).
 real-provider smoke"*.
 **Subject:** `main` @ `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f` — the merge of
 PR #116, which carries the whole of G5.
-**Verdict:** *(settled by the independent review below — to be filled in)*
+**Verdict:** **PASS WITH NOTES** — four of the exit test's five clauses delivered and
+watched; the fifth, the real-provider smoke, has not run and is the owner's decision.
+The reasoning is in "The verdict" below, and the notes it carries are in "The
+decisions that are still the owner's".
 **Reviewed against:** `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`
 
 ## Why this gate needed a review of its own
@@ -40,7 +43,7 @@ carried and what carries it, in this repository, at the subject commit.
 | 2 | **3 fixtures** | T00 | `tests/fixtures/public/` — three fixtures with answer keys and locators, **plus one that must find nothing**; the witnesses are `tests/test_public_fixtures.py` and the manifest in `tests/evaluation/manifest.py`. [The record](../acceptance/LC-P1-13-fixtures.md) |
 | 3 | **fault injection** | T02 | `tests/test_recovery_crash_matrix.py` (AT1–AT7) and `tests/test_earlier_exit_demos.py`. [The record](../acceptance/LC-P1-13-evaluation.md) |
 | 4 | **docs** | T06 | `README.md`, `README.zh-CN.md`, `docs/QUICKSTART.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/RELEASE-NOTES.md`; the README's commands are extracted and run by `tests/test_readme_accuracy.py`. [The record](../acceptance/LC-P1-14-outsider-path.md) §4 |
-| 5 | **real-provider smoke** | T04 | **Not run.** No credential exists on this machine and `.env.example` says Phase 1 reads no environment variable. Whether a declared, reported skip is a blocker that failed is the judgement the independent review had to make — see below. |
+| 5 | **real-provider smoke** | T04 | **Not run as a standing witness.** No credential is configured in this tree, and `tests/test_provider_credentials.py:285` is skipped with its reason written into the test. **The project has made one live call in its history** — `b237751`, 2026-10-16, on a credential the owner supplied, which is the run that discharged LC-P1-03's own *"real smoke on at least one provider"*. A manual probe that ran once is not the protocol's real-model smoke **class**, and the harness reports it NOT RUN with exit code 2. Whether a declared, reported skip is a blocker that failed is the judgement the independent review had to make — see below. |
 
 ### The Phase 1 deliverable, clause by clause
 
@@ -56,14 +59,33 @@ the sentence the exit test is meant to discharge:
 
 The walk in `docs/acceptance/LC-P1-14-outsider-path.md` §3 measures **ten**
 steps against it, in the order the sentence names them, and each step names
-the evidence it produced. **Two of them are narrower than the sentence says
-they are**, and the record says so rather than letting the sentence stand:
+the evidence it produced. **This document first said "two of them are narrower
+than the sentence says"; that undercounted its own record.** Reading the walk's
+§5, §6 and §7 against the sentence, **five of its clauses are narrower than it
+says**, and each is listed here with the finding that measured it:
 
-- **"configures an eligible LLM provider"** — Phase 1 reads no environment
-  variable, so there is no provider to configure. The deterministic fixture
-  path is what ran. The record says which steps were made against a fixture
+- **"configures an eligible LLM provider"** — Phase 1's **default offline run**
+  reads no environment variable, so on a fresh workspace there is no provider to
+  configure. The deterministic fixture path is what ran. The record says which
+  steps were made against a fixture
   (§5), and the protocol's own rule — that a mock-only run is insufficient —
   is why the real-provider smoke is still owed.
+- **"receives a report and deterministic scientific plot"** — **neither has a
+  surface of its own**: no CLI command renders a report or draws a figure, and the
+  service has no route for either, so the last two steps of the sentence need a
+  Python import rather than a command. The record's finding
+  [§7.1](LC-P1-14-outsider-path.md) is the evidence, and
+  [`RELEASE-NOTES.md`](../RELEASE-NOTES.md) §2.1 carries it into the handoff.
+- **"an evidence ledger"** — the ledger, its checks and its gate are real and
+  witnessed, **but no surface operation writes a record or an anchor**: the walk
+  writes the claim's address and the record that rests on it itself. So the
+  report carries a real claim cited to a real cell, and **the claim was made by
+  the walk, not by the product** (§7.3, §2.2).
+- **"requests a revision"** — a second revision **is** produced and v1's bytes are
+  unchanged, but the attempt to recompute the report from the revised material is
+  **refused** (the chain names the material twice with different hashes), so the
+  second revision still rests on the material the claims were read from
+  (§7.2, §2.3). This is a Phase 2 finding, recorded rather than fixed.
 - **"the original materials remain unchanged"** — the product wrote **nothing**
   into the research folder, every file it produced is under the task's own
   output area, and the pristine corpus is byte-identical afterwards; but the
@@ -376,18 +398,19 @@ back. **That is the strongest kind of evidence there is** — a defect that
 two independent readings produce from different directions is not one
 person's blind spot.
 
-### The verdict
-
-**See "The verdict" below.**
-
 ## The verdict
 
 **The gate is closed. The verdict is PASS WITH NOTES.**
 
 **The exit test names five things, and four of them are delivered, measured
-and watched.** The fifth — the real-provider smoke — **has not run**, and it
-cannot: there is no credential, and Phase 1 reads no environment variable
-at all. **That is the owner's decision and this document does not make
+and watched.** The fifth — the real-provider smoke — **has not run as a standing
+witness**, and it cannot here: no credential is configured in this tree, and the
+in-suite witness that would run it is skipped with its reason in the test. **The
+one live call this project has made** — `b237751`, 2026-10-16, on an owner-supplied
+credential against a live Anthropic-protocol endpoint — discharged **LC-P1-03's
+acceptance clause**, and it is not the protocol's real-model smoke **class**, which
+the harness still reports NOT RUN with exit code 2. **That is the owner's decision
+and this document does not make
 it**; §1.4.2 asks it and §1.4.1b asks the neighbouring one, and the
 harness answers neither on the owner's behalf.
 
@@ -431,8 +454,9 @@ with §1.4.1b)
 
 **The measurement the decision needs is above.** The harness's exit code was
 **2**: the real-model smoke class was selected, could not run, and is
-reported NOT RUN with the reason. No credential exists on this machine, and
-`.env.example` says Phase 1 reads no environment variable at all.
+reported NOT RUN with the reason. No credential is configured in this tree, and
+`.env.example` says Phase 1's **default offline run** reads none — the provider
+layer reads one, but only where a workspace's `providers.json` names it.
 
 **§1.4.1b is the same decision seen from the other side**, and the
 measurement has sharpened it. The protocol's six Phase 1 blockers: **five
