@@ -22,6 +22,8 @@ import pytest
 from labcairn.evidence.normalize import LIGATURES, normalize
 from labcairn.evidence.states import NormalizationProfile as Profile
 
+pytestmark = pytest.mark.unit
+
 #: Spelled by codepoint rather than pasted. A NO-BREAK SPACE inside a string
 #: literal is invisible to a reader and trips RUF001, and these cases are about
 #: exactly that character.

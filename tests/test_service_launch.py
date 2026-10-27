@@ -54,6 +54,8 @@ from typer.testing import CliRunner
 
 from labcairn.cli.commands import EXIT_REFUSED, app
 
+pytestmark = pytest.mark.integration
+
 #: The origin the service answers to when it binds the default port.
 DEFAULT_ORIGIN = "http://127.0.0.1:8000"
 

@@ -49,6 +49,8 @@ from labcairn.security.untrusted import UntrustedText
 from labcairn.sources.locators import XlsxLocator
 from labcairn.sources.source import SourceKind
 
+pytestmark = pytest.mark.integration
+
 NOW = dt.datetime(2026, 10, 17, tzinfo=dt.UTC)
 
 

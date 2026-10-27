@@ -62,6 +62,8 @@ from labcairn.core.providers import (
     require_known,
 )
 
+pytestmark = pytest.mark.negative
+
 #: Type names whose values may be unknown. Matched with word boundaries so
 #: `UnknownReason` does not match `Unknown`.
 _USAGE_TYPE_PATTERN = re.compile(r"\b(Known|Unknown|UsageValue)\b")

@@ -54,6 +54,8 @@ from labcairn.evidence.states import (
 from labcairn.material.addressing import render_locator_key
 from labcairn.sources.locators import CsvLocator, PdfLocator
 
+pytestmark = pytest.mark.negative
+
 NOW = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)
 
 #: Three distinct hashes, because the three things C1 compares are three

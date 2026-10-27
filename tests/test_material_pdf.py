@@ -23,6 +23,8 @@ from labcairn.material import adapter_for
 from labcairn.material.ingest import ingest_bytes
 from labcairn.sources.source import SourceKind, SourceReadability
 
+pytestmark = pytest.mark.unit
+
 FIXTURES = sorted((Path(__file__).parent / "fixtures" / "papers").glob("*.pdf"))
 NOW = dt.datetime(2026, 10, 17, tzinfo=dt.UTC)
 

@@ -50,6 +50,9 @@ from labcairn.skills import (
     ValidationReport,
     ValidationVerdict,
 )
+import pytest
+
+pytestmark = pytest.mark.unit
 
 #: The clock every orchestrator under test reads. Later than the repository-wide
 #: ``FROZEN_NOW`` so a test using both does not trip a "modified at" check.

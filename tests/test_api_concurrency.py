@@ -63,6 +63,8 @@ from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
+pytestmark = pytest.mark.integration
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
 env = _shared_env

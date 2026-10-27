@@ -42,6 +42,8 @@ from labcairn.reports.receipt import (
 from labcairn.runtime.event import EventTransition, EventType
 from labcairn.runtime.lifecycle import Run, RunStatus, Stage, StageStatus
 
+pytestmark = pytest.mark.integration
+
 env = _shared_env
 
 

@@ -54,6 +54,8 @@ from labcairn.sources.locators import (
 )
 from labcairn.sources.source import AnchorKind, SourceAnchor
 
+pytestmark = pytest.mark.unit
+
 NOW = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)
 SHA = "a" * 64
 OTHER_SHA = "b" * 64

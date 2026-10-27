@@ -40,6 +40,8 @@ from labcairn.material.walk import ingest_workspace
 from labcairn.workspace.readonly import SourceMaterial
 from labcairn.workspace.roots import Workspace
 
+pytestmark = pytest.mark.integration
+
 PAPERS = pathlib.Path(__file__).parent / "fixtures" / "papers"
 NOW = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)
 

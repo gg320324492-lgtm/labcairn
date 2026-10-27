@@ -32,6 +32,8 @@ from labcairn.security.paths import (
     canonicalize,
 )
 
+pytestmark = pytest.mark.negative
+
 IS_WINDOWS = os.name == "nt"
 requires_windows = pytest.mark.skipif(not IS_WINDOWS, reason="Windows path semantics")
 

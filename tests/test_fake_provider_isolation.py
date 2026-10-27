@@ -47,6 +47,8 @@ import pytest
 from labcairn.core.providers import FakeProvider, ModelProvider, ModelRequest
 from labcairn.core.providers.transcripts import ALL_TRANSCRIPTS, USAGE_ABSENT
 
+pytestmark = pytest.mark.unit
+
 #: Any import of these would mean the package *could* reach the network.
 #: Matched on the root module name so ``import urllib.parse`` is caught too.
 _NETWORK_MODULES = frozenset(

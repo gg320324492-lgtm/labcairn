@@ -69,6 +69,8 @@ from labcairn.runtime.lifecycle import Run, Stage, Task
 from labcairn.runtime.operation import Approval, Operation
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 
+pytestmark = pytest.mark.integration
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here.
 env = _shared_env

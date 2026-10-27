@@ -63,6 +63,8 @@ from labcairn.cli.workspace import (
     source_paths,
 )
 
+pytestmark = pytest.mark.negative
+
 #: The reason the CLI gives for a workspace it cannot use.
 #:
 #: The CLI's own vocabulary, from :data:`labcairn.cli.models.CLI_REFUSAL_WORKSPACE_UNUSABLE`.

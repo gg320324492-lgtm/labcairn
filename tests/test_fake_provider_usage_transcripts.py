@@ -59,6 +59,8 @@ from labcairn.core.providers.transcripts import (
     USAGE_ZERO,
 )
 
+pytestmark = pytest.mark.unit
+
 _TOOL_REQUEST = ModelRequest(
     prompt="How many rows does results.csv have?",
     tools=("read_csv", "count_rows"),

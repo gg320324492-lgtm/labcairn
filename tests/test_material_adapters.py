@@ -19,6 +19,8 @@ from labcairn.material.units import (
 from labcairn.sources.locators import CsvLocator, TextLocator
 from labcairn.sources.source import SourceKind
 
+pytestmark = pytest.mark.unit
+
 
 def _line_of(unit: ExtractedUnit) -> TextLocator:
     """Narrow rather than ``ignore``: the union has five members and only one

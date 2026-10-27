@@ -102,6 +102,8 @@ from labcairn.sources.source import (
     SourceReadability,
 )
 
+pytestmark = pytest.mark.unit
+
 # --------------------------------------------------------------------------- #
 # Fixtures and helpers
 # --------------------------------------------------------------------------- #

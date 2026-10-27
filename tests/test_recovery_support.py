@@ -64,6 +64,9 @@ from labcairn.recovery import (
 from labcairn.recovery.executor import NULL_SINK
 from labcairn.runtime.event import Event, EventTransition, EventType
 from labcairn.runtime.lifecycle import RunStatus, StageStatus
+import pytest
+
+pytestmark = pytest.mark.integration
 
 #: The one timestamp every scenario runs at. Matches the repository's
 #: ``FROZEN_NOW`` rather than reading a wall clock — see the root ``conftest``.

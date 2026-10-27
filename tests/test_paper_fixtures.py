@@ -34,6 +34,8 @@ from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 PAPERS = Path(__file__).parent / "fixtures" / "papers"
 MANIFEST = PAPERS / "MANIFEST.md"
 

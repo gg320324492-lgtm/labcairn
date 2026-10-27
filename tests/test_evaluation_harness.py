@@ -103,6 +103,7 @@ SMOKE_FILE: Final = "test_scaffolding.py"
 MARKER_CLASSES: Final[dict[str, str]] = {
     "unit": "unit",
     "integration": "integration",
+    "negative": "negative",
     "e2e": "e2e",
 }
 
@@ -152,20 +153,56 @@ def test_the_partition_agrees_with_the_markers_a_file_declares(repo_root: Path) 
     """Where a file declares a marker, the partition may not contradict it.
 
     The markers are the repository's own statement about what a file is,
-    and 33 files make one. The partition is allowed to choose between two
-    declared classes; it is not allowed to put a file in a class its own
-    markers rule out. That is the check that catches a misclassification
-    before it reaches a report.
+    and every file in a protocol class makes one. The partition is allowed
+    to choose between two declared classes; it is not allowed to put a
+    file in a class its own markers rule out. That is the check that
+    catches a misclassification before it reaches a report.
     """
     for name, (class_key, _clause) in manifest.FILE_ASSIGNMENTS.items():
         text = (repo_root / "tests" / name).read_text(encoding="utf-8")
-        declared = set(re.findall(r"pytest\.mark\.(unit|integration|e2e)\b", text))
+        declared = set(re.findall(r"pytest\.mark\.(unit|integration|negative|e2e)\b", text))
         if not declared:
             continue
         allowed = {MARKER_CLASSES[marker] for marker in declared}
         assert class_key in allowed, (
             f"{name} declares {sorted(declared)} and the partition files it "
             f"under {class_key!r}, which its own markers rule out"
+        )
+
+
+def test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class(
+    repo_root: Path,
+) -> None:
+    """A file that says nothing about its class may not be filed into one.
+
+    The markers are the file's own statement of what it is, and they are
+    the only thing outside the partition table that says so. A file that
+    declares none has said nothing — and a class is a statement about the
+    protocol's denominator, so **a file that has said nothing may not be
+    filed into one.**
+
+    **This is the anchor the table could not be.** The clause beside the
+    class is prose, and prose that nothing checks is not a bound: the same
+    edit that moves a file into a protocol class can move the clause with
+    it, and the class judgement then follows. **The marker is a different
+    field, in a different file**, and this check reads the file rather
+    than the table — which is the shape the answer key's second fix used,
+    and the shape the first one did not.
+    """
+    for name, (class_key, _clause) in manifest.FILE_ASSIGNMENTS.items():
+        text = (repo_root / "tests" / name).read_text(encoding="utf-8")
+        declared = set(re.findall(r"pytest\.mark\.(unit|integration|negative|e2e)\b", text))
+        if class_key == manifest.REPOSITORY_CLASS:
+            assert not declared, (
+                f"{name} is filed under the repository class and declares "
+                f"{sorted(declared)}, so it says it belongs to a protocol "
+                "class the table does not file it in"
+            )
+            continue
+        assert declared, (
+            f"{name} is filed under the protocol class {class_key!r} but "
+            "declares no marker, so nothing outside the partition table says "
+            "which class it belongs to"
         )
 
 

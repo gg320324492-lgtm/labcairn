@@ -38,6 +38,8 @@ from labcairn.evidence.states import NormalizationProfile
 from labcairn.material.addressing import render_locator_key, split_locator_key
 from labcairn.sources.locators import PdfLocator
 
+pytestmark = pytest.mark.integration
+
 PAPERS = pathlib.Path(__file__).parent / "fixtures" / "papers"
 GROUND_TRUTH = pathlib.Path(__file__).parent / "fixtures" / "retrieval" / "ground_truth.json"
 NOW = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)

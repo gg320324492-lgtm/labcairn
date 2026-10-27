@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 PROBE = textwrap.dedent(
     """
     from labcairn.core.ids import RunId, TaskId

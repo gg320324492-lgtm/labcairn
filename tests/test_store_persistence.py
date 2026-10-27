@@ -50,6 +50,9 @@ from labcairn.reports.receipt import ArtifactReceipt
 from labcairn.runtime.event import EventTransition, EventType
 from labcairn.runtime.lifecycle import Run, RunStatus, Stage, Task
 from labcairn.runtime.operation import Approval, Checkpoint, Operation
+import pytest
+
+pytestmark = pytest.mark.integration
 
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here. Importing it directly

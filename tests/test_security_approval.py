@@ -45,6 +45,8 @@ from labcairn.security.policy import (
 )
 from labcairn.workspace.roots import Workspace
 
+pytestmark = pytest.mark.integration
+
 #: The project's frozen clock, from ``conftest.FROZEN_NOW``.
 NOW = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
 #: The instant after which ``NOW + 1h`` would be, but chosen far in the future.

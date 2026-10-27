@@ -21,6 +21,9 @@ from pathlib import Path
 
 from labcairn.providers.capabilities import Capability as ProviderCapability
 from labcairn.security.capabilities import CapabilityId
+import pytest
+
+pytestmark = pytest.mark.unit
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "labcairn"
 

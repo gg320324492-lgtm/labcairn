@@ -459,6 +459,26 @@ is the platform's own conditional count**", and the harness answers neither
 because **that is a judgement about the protocol and the protocol is the
 ruler.**
 
+**The harness does not answer it, and that is deliberate.** It reads the
+excluded required test out of the CI's own shard list and **states the
+exclusion in the blocker's own row**, naming the file and saying that
+whether a declared skip fails the blocker is the owner's ruling. **The
+harness did not make the ruling for the owner, in either direction.**
+
+**What the owner's two answers would each cost.**
+
+- **"A declared skip does not count, and the protocol says so."** Then the
+  protocol is amended — the sixth blocker says what a declared, recorded
+  skip is — the amendment is recorded, and the harness's exclusion becomes
+  the protocol's own wording rather than a note beside it. **The cost:** the
+  gate's exit test then says five classes ran when one of them did not, and
+  the report has to carry the exception everywhere it says "ran".
+- **"A declared skip counts, and the gate waits for the credential."** Then
+  the harness's sixth blocker is **FAILED** on this tree, in writing, and
+  the gate does not close. **The cost:** the licence question of §1.4.1 and
+  the provider question of §1.4.2 both become blocking for the alpha, and
+  a machine with no credential cannot close a gate about a research alpha.
+
 ### 3 — The competitor baseline's scope (§1.4.3)
 
 **The work was done to Option C — no external comparison — on five checked

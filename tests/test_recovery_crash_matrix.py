@@ -68,6 +68,8 @@ from labcairn.reports.receipt import ArtifactKind
 from labcairn.runtime.lifecycle import StageStatus
 from labcairn.runtime.operation import Operation, OperationState
 
+pytestmark = pytest.mark.negative
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name here. Importing it directly
 # and taking `env` as a parameter makes every signature below an F811

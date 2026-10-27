@@ -5,7 +5,9 @@ injection and competitor baseline) and **LC-P1-14** (the public alpha handoff
 and review dossier).
 **Exit test:** *"outsider fresh install, 3 fixtures, fault injection, docs and
 real-provider smoke."*
-**Verdict:** **FAIL** — see [The verdict](#the-verdict).
+**Verdict:** **FAIL** at the gate commit — see [The verdict](#the-verdict).
+**Re-verified at:** `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` — verdict
+**PASS WITH NOTES**; see [The re-verification](#the-re-verification).
 **Reviewed against:** `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`
 **Reviewer:** the independent reviewer dispatched for **scope "product behaviour
 and measurement"** (the answers, the crash, and the fresh install). **This
@@ -769,3 +771,264 @@ reviewer for G5's product-behaviour-and-measurement scope, in a worktree of
 this repository, on Windows 11 (AMD64) with Python 3.12.13. This reviewer
 wrote no fix into this repository; every mutation above was reverted, and the
 only file this review added is this one.*
+
+---
+
+# The re-verification
+
+**Measured at `8c0eb403c70c161b41a2f8e1407613307a7e6cf9`**, the commit that
+carries the gate's fixes for the ten findings above.
+
+**What this section is, and what it is not.** This is the **same reviewer**
+re-running **its own mutations** against the fixed tree — not the coordinator
+re-checking the report's account of them, and not a new reviewer reading the
+fixes. **Every mutation below is the one this review made at `72154cd`**, and
+every "red" below is a named test, not "the suite went red". The fixes were
+written by somebody else; the mutations are this reviewer's, and the results
+are what they are whether the gate's own record agrees with them or not.
+
+**The method is unchanged.** The narrow attack first, the tree restored after
+each mutation, the exit status read separately from the output, one
+`--basetemp` per run, and one `TEMP`/`TMP`/`MPLCONFIGDIR` for the whole
+session. The whole suite was **not** run: the coordinator was running the
+evaluation harness on the same volume, and the repository's own rule is that
+whole-suite runs go one at a time. The runs below are the files each finding
+touches.
+
+**The tree was confirmed clean before and after every mutation**, and
+`git status --short` is empty at `8c0eb40` apart from this file.
+
+## The verdict, after the re-verification
+
+**PASS WITH NOTES.**
+
+**One sentence.** Nine of the ten findings are fixed, and each was confirmed
+by re-running this review's own mutation against the fixed tree and watching
+it go red by name; the tenth is fixed in the form this review reported it, and
+one residual of the same shape survives and is recorded below.
+
+**What changed the verdict.** The first verdict was FAIL because four
+properties the gate states were not held by the tree. **They are held now** —
+each one by a named test that this review's own mutation turns red:
+
+- the probe's silence is watched (R1, three named tests);
+- the public corpus is measured, and the abstention metric is a number (R2,
+  five named tests);
+- the answer key's independence from the product is witnessed (R4, three
+  variants, five named tests);
+- the crash is injected through the surfaces and the surfaces are watched for
+  a repeated operation (R5, two named end-to-end tests);
+- the reason a metric was not measured is read out of the tree (R6);
+- the repository class is bounded (R7, one named test);
+- the rendered small denominator is watched (R8);
+- the board's staleness is watched (R9, four named cases);
+- the recovery metric's unit is read out of the matrix (R10, three named
+  tests, two variants);
+- and the skip that waited for a defect that is gone is gone (R3).
+
+**The note.** R7's bound is the partition's **clause**, and the clause is a
+hand-written label that nothing checks against the file it describes. A
+coordinated edit of a file's class **and** its clause still moves a repository
+gate into a protocol class, silently. It is recorded as **R11** below.
+
+**This verdict does not close the gate.** The gate's exit test names the
+**real-provider smoke**, and it has not run: the harness reports that class as
+**NOT RUN** with the reason and exits **2**. That is the owner's decision
+(§1.4.1b and §1.4.2 of the breakdown), it is not this review's to settle, and
+this review does not pretend it is discharged.
+
+## The ten, re-run
+
+| # | The finding | This review's mutation, re-run at `8c0eb40` | Result |
+|---|---|---|---|
+| **R1** | the crash matrix does not watch whether the recovery path performs a side effect | the probe writes the file when it finds it absent, and keeps its verdict | **RED — 3 named tests**: `test_at5_reconciliation_detects_absent_write`, `test_at5_the_reconciliation_leaves_the_workspace_byte_for_byte_unchanged`, `test_the_probe_reads_the_filesystem_and_never_writes_to_it`. 3 failed, 50 passed |
+| **R2** | the public fixture corpus is not an oracle | the harness's public-corpus measurement does not find the corpus | **RED — 5 named tests**: `test_the_public_corpus_measurement_reads_the_manifest`, `test_the_public_corpus_measurement_agrees_with_the_material`, `test_the_public_corpus_measurement_can_fail`, `test_the_abstention_metric_is_measured_over_the_public_corpus`, `test_a_not_measured_reason_may_not_contradict_the_tree`. 5 failed, 53 passed |
+| **R3** | the protocol's **first** blocker reported FAILED because of a skip whose defect is fixed | **the control, run in both directions** — see below | **FIXED**: the skip is gone, and `tests/test_earlier_exit_demos.py` is **6 passed, 0 skipped** on Windows |
+| **R4** | the answer key's independence from the product is not witnessed | **three variants** — see below | **RED — 2 named tests** under the original two-step and under B-1a, and **5 named tests** under B-1b |
+| **R5** | the fault injection **through the surfaces** is not delivered | the application layer does not adopt the authorised-but-unattempted operation, so a second operation is planned for the same work | **RED — 2 named end-to-end tests**: `test_a_crash_before_the_attempt_is_durable_does_not_repeat_the_operation`, `test_the_report_is_refused_with_a_reason_when_the_policy_asks_after_a_crash`. 2 failed, 5 passed |
+| **R6** | the harness prints two reasons that are false at the commit it measures | the reason is a fixed string again, rather than a fact read out of the tree | **RED — 1 named test**: `test_a_not_measured_reason_may_not_contradict_the_tree` |
+| **R7** | an unmarked test file can be moved into a protocol class | the file's **class** is moved, its clause left alone | **RED — 1 named test**: `test_the_repository_class_holds_only_the_repository_gates`. **But a coordinated class-and-clause edit survives — see R11** |
+| **R8** | the report's "small denominator" note is never rendered | the renderer never says a denominator is small | **RED — 1 named test**: `test_the_rendered_report_says_a_small_denominator_out_loud` |
+| **R9** | the board says the two work orders are `NOT STARTED` at the commit that delivers them | the board's two rows are set to `NOT STARTED` again | **RED — 4 named cases**: `test_a_not_started_work_order_cites_no_commit[LC-P1-13…]`, `…[LC-P1-14…]`, `test_a_not_started_work_order_has_no_merged_work[LC-P1-13…]`, `…[LC-P1-14…]`. **The board was restored to `IN PROGRESS` afterwards** |
+| **R10** | the recovery metric's denominator is labelled as a thing it does not count | **two variants** — the denominator drops a crash point, and the product grows a crash point the matrix never injects | **RED — 3 named tests** under both: `test_the_recovery_metric_counts_crash_points_and_not_cases`, `test_the_recovery_metric_drops_when_a_crash_point_behaves_wrongly`, `test_the_crash_matrix_coverage_is_read_from_the_matrix` |
+
+### R3 — the control, run in both directions
+
+This is the one finding whose fix was **not** a new witness but the removal of
+a stale skip, so it needed a control of its own: **does the defect this skip
+waited for actually exist, and did it actually go away?**
+
+The old path layer was taken from `6220a08^` — the commit *before* the fix —
+and put into the tree, and the product's own `canonicalize` was asked about a
+**new** file declared with the **short** spelling under a real 8.3 short-spelled
+root on the `C:` volume (which generates short names; the `E:` volume does not,
+which is why the repository's own tests skip there).
+
+| | the pre-fix `paths.py` (6220a08^) | the current `paths.py` at `8c0eb40` |
+|---|---|---|
+| long spelling | `C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test` | the same |
+| short spelling | `C:\Users\pc\AppData\Local\Temp\A-VERY~1` | the same |
+| **NEW file, short spelling** | **REFUSED** — `outside_every_root: C:\Users\pc\AppData\Local\Temp\A-VERY~1\outputs\summary.md is not under root 'root-1' (C:\Users\pc\AppData\Local\Temp\a-very-long-directory-name-for-the-short-name-test)` | **accepted**, key `outputs/summary.md` |
+| existing file, short spelling | REFUSED | accepted, key `existing.md` |
+
+**The defect was real, and it is gone.** And the skip that waited for it is
+gone with it: `KNOWN_DEFECT_ON_WINDOWS` and both `pytest.skip` guards no
+longer appear in `tests/test_earlier_exit_demos.py`, and that file is
+**6 passed, 0 skipped** on Windows at `8c0eb40` — the demonstration that had
+been dark since G1 closed now runs here as well as on the runner.
+
+### R4 — three variants, because the first fix was not the fix
+
+The gate's own record says this finding was fixed **twice**, and that the
+first fix still read the derivation. **All three variants were run.**
+
+| Variant | What it changes | Result |
+|---|---|---|
+| **the original two-step** | the product's mean is broken (`statistics.fmean(values[:-1])`), and the three tabular answers are replaced with the product's own output (`415.45`, `7.62`, `0.0003625`) | **RED — 2 named tests**: `test_every_fixture_has_an_answer_re_derived_without_the_product`, `test_an_independently_re_derived_key_notices_a_corrupted_answer`. The message reads *"read from the material by the raw table's mean, the answer is 412.0, but the manifest says 415.45 … this check does not go through the product, so it is not the product agreeing with itself"* |
+| **B-1a** — the derivation and the key move together | `tension.mean_peak_stress_b2`'s derivation names `B-1`, and the key becomes B-1's mean (390.15) | **RED — the same 2 named tests.** The witness takes its target from the **id**, not from the derivation, and the id still says B-2 |
+| **B-1b** — the id, the derivation, the key and the locator all move together | the question is renamed `tension.mean_peak_stress_b1` and everything follows it | **RED — 5 named tests**, including `test_the_question_the_key_answers_is_the_question_the_prompt_asks`. The prompt still names B-2, and the prompt is the external anchor the id is cross-checked against |
+
+**And the prompt cross-check's own anchor was exercised**, because a check
+that can be satisfied by the same edit that made it is not a check: the
+prompt was rewritten so it no longer names B-2, while the id still did. **RED
+— `test_the_question_the_key_answers_is_the_question_the_prompt_asks`.**
+
+**The mechanism behind all three.** The witness now reads the **raw table**
+with the standard library and takes its target from the **question's id**,
+never from the derivation, and cross-checks the id against the **prompt**.
+Three things the derivation could not reach.
+
+### The positive measurements, because a fix is a number too
+
+**The public corpus is measured now** (`measure_public_corpus` at `8c0eb40`):
+
+| | |
+|---|---:|
+| fixtures | 4 |
+| questions | 7 |
+| numeric questions / agreed | 6 / **6** |
+| abstention questions / honoured | 1 / **1** |
+| failures | **none** |
+| the abstention metric | **MEASURED 1 / 1** |
+| the agreement metric | **MEASURED 6 / 6** |
+
+**The protocol's abstention metric — the one this review said was unmeasured
+for a reason the report printed falsely — is a number.** The unit is a
+question, and it is stated in the metric's own row.
+
+**And the crash matrix's coverage is read out of the matrix** rather than
+counted by hand: **4 crash points defined, 4 covered, 0 missing**, with the
+per-case map that says which case injects which — `AT1` →
+`BEFORE_ATTEMPTED_COMMIT`; `AT2`, `AT2b`, `AT6` → `AFTER_WRITE_BEFORE_CONFIRM`;
+`AT3`, `AT3b` → `AFTER_CONFIRM_BEFORE_NOTIFY`; `AT5` →
+`AFTER_ATTEMPTED_BEFORE_WRITE`; and `AT7`, which injects three of them in
+subprocesses it kills. The recovery metric's denominator is **4 crash
+points**, and the sentence on the page says so.
+
+## The claims that were held are still held
+
+The first review's held claims were re-run too, because a fix elsewhere in the
+tree must not have loosened them.
+
+| The mutation | Result |
+|---|---|
+| **M1** — one fixture's citation points at a line that does not exist | **RED — 2 named tests**: `test_every_cited_locator_resolves_to_the_text_the_manifest_expects[physical_tension]`, `test_the_prose_answers_are_re_derived_from_the_resolved_text` |
+| **M11** — a skipped witness counts as a pass | **RED — 1 named test**: `test_a_skipped_witness_fails_its_blocker` |
+| **M13** — `plan_resume` treats a checkpoint whose material moved as still verifying | **RED — 2 named tests**: `test_resume_refuses_to_skip_a_stage_whose_material_moved`, `test_a_deleted_source_fails_the_verification` |
+| **M14** — an extra file planted in the clone | the script refuses by name: **exit 1**, *"the clone's working tree is clean - a-stray-file.txt"* |
+| **M15** — the walk run under the developer's interpreter | the script refuses by name: **exit 1**, *"the walk runs the clone's own code, not the developer's"* |
+| the outsider's path, unmutated | **16 passed** |
+
+And the tree the fixes live on is green where it matters: `tests/test_public_fixtures.py`,
+`tests/test_evaluation_harness.py`, `tests/test_recovery_crash_matrix.py`,
+`tests/test_status_consistency.py` and `tests/test_recovery_resume.py` together —
+**314 passed, 0 failed**.
+
+## R11 — the residual of R7: the clause is the bound, and the clause is unwatched prose
+
+**Severity: low. It is a bookkeeping defect in a hand-maintained table, not a
+defect in the product's behaviour.**
+
+R7's fix bounds the partition's class judgement by the **clause**: the
+repository class holds only `repository-gate` files, and no protocol class
+holds one. **That bound closes this review's original mutation** — moving
+`test_review_dossier.py` from `repository` into `unit` while leaving its clause
+alone is now caught by name.
+
+**What is not caught is the same edit with the clause changed too:**
+
+```python
+# tests/evaluation/manifest.py
+#   "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
+# becomes
+#   "test_review_dossier.py": ("unit", "typed-contracts"),
+```
+
+**Result — 58 passed. The mutation survives.** The witness passes because the
+file is no longer filed under the repository class, and its clause is no
+longer `repository-gate`.
+
+**Why this is a residual and not a new finding.** The clause is a hand-written
+label; `test_every_clause_the_partition_names_is_in_the_vocabulary` checks that
+it is in the vocabulary and **nothing checks that it describes the file**. So
+the class judgement is now bounded by a field that the same edit can move.
+
+**Why it is worth recording anyway, and how far.** The gate's own record
+rejected R4's *first* fix for exactly this reason — *"the first fix still read
+the derivation, so a derivation moved with the key passed"* — and the second
+fix anchored the target to the **id** and cross-checked it against the
+**prompt**, an anchor the edit could not reach. **R7's fix uses the clause,
+which is internal.** By the repository's own standard, that is the same shape
+as the fix that was rejected once.
+
+**How far the damage goes.** Small, and it is stated rather than felt: the
+protocol class's denominator would carry a file the protocol never asked for,
+and the report's "Repository gates" row would shrink. **No product behaviour
+is involved**, and a reader counting the files per class sees the change. It
+is a note, not a blocker.
+
+**What fixing it looks like.** One of two, and the first is cheaper: a witness
+that the clause matches what the file checks — for instance, that a file
+filed under a clause names that clause's vocabulary in its own text — or an
+anchor outside the table, the way the answer key's second fix used the
+prompt.
+
+## What this re-verification did not do
+
+- **It did not run the whole suite.** The coordinator was running the
+  evaluation harness on the same volume, and the repository's rule is that
+  whole-suite runs go one at a time. The harness's own end-to-end numbers at
+  `8c0eb40` are the coordinator's to publish, not this review's to claim.
+- **It did not settle the real-provider smoke.** The class is **NOT RUN** and
+  the harness exits **2**; that is the owner's credential and the owner's
+  decision.
+- **It did not re-audit the fixes for defects of their own**, beyond the
+  controls each finding needed. **Three controls were run anyway** — the
+  prompt cross-check's own anchor (R4), the crash-point coverage read against
+  the product's own enumeration (R10), and the public corpus measured
+  positively rather than broken — and all three behaved.
+- **It did not re-read the upstream tree**, and it read no file under
+  `../labcairn-upstreams/`.
+
+## The recommendation
+
+**Close this scope.** The ten findings this review reported are fixed, and
+the fixes were verified by this review's own mutations rather than by the
+gate's account of them.
+
+**R11 is the one thing left in this scope**, and it is a note: the partition's
+class judgement is bounded by a clause that the same edit can move. It costs a
+witness, not a design change.
+
+**And the gate's own exit test still names the real-provider smoke, which has
+not run.** That is the owner's, and it is the reason this verdict is about
+this scope and not about the gate.
+
+---
+
+*Re-verified at `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` by the same
+independent reviewer, on Windows 11 (AMD64) with Python 3.12.13, in a worktree
+of this repository. This reviewer wrote no fix into this repository at either
+commit; every mutation above was reverted, and the only file this review
+touched is this one.*
+

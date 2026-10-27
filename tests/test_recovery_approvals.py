@@ -49,6 +49,8 @@ from labcairn.security.approval import (
     content_hash,
 )
 
+pytestmark = pytest.mark.integration
+
 # pytest resolves a fixture by the parameter name in a test's signature, so the
 # shared `env` fixture must be bound under that name. Aliasing the import and
 # rebinding it reads as a plain assignment rather than an F811 redefinition —
