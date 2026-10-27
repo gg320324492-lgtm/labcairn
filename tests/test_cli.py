@@ -2363,3 +2363,191 @@ def test_task_report_refuses_a_template_that_does_not_exist(workspace: Path, tas
     assert payload["reason"] != "report_content_refused", (
         "the request was refused before the document was built, so the reason must say so"
     )
+
+
+#: A chart recipe the CLI can draw from: the three parts, with the axes naming
+#: columns the selection holds.
+_RECIPE_TEXT = """{
+  "schema_version": 1,
+  "data": {
+    "operator": "labcairn.analysis.mean@1.0.0",
+    "parameters": {},
+    "selection": {
+      "source": "materials/one.csv",
+      "columns": ["a"],
+      "rows": {"start": 2, "end": 3},
+      "missing": "exclude"
+    }
+  },
+  "encoding": {
+    "mark": "bar",
+    "x": "a",
+    "y": "a",
+    "title": "The a column",
+    "x_label": "a",
+    "y_label": "mean a",
+    "caption": "The mean of the a column."
+  },
+  "output": {"format": "svg", "dpi": 100}
+}
+"""
+
+
+def test_the_cli_asks_for_consent_and_records_the_answer(workspace: Path) -> None:
+    """The consent chain, through the installed console script.
+
+    **Why it is one test and not two**: `approval-request` writes a question and
+    `approval-grant` answers it, and neither means anything alone — the thing the
+    pair has to produce is an approval whose state the task's own record shows, so
+    the witness reads the state back through a third command rather than trusting
+    what the second one printed.
+    """
+    created = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "create",
+        "--title",
+        "Ask and answer",
+        "--objective",
+        "One question.",
+        "--criterion",
+        "An answer.",
+        "--json",
+    )
+    assert created.returncode == 0, created.stderr
+
+    # The approval is asked for over the four fields the run will state, because
+    # the digest is taken over exactly those (ADR-0012 constraint 7): leaving the
+    # recipe or the parameters out is a different approval, and the run says so.
+    arguments = (
+        '{"path":"one.csv","operator_id":"labcairn.analysis.mean",'
+        '"recipe":"recipe.json","parameters":{"selection":{'
+        '"kind":"range","source_id":"00000000-0000-7000-8000-000000000001",'
+        '"content_sha256":"' + "0" * 64 + '","columns":["a"],'
+        '"rows":{"kind":"range","start":2,"end":3},"missing":"exclude"}}}'
+    )
+    requested = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "approval-request",
+        "--capability",
+        "analysis.run",
+        "--root",
+        "source:0",
+        "--resource-key",
+        "one.csv",
+        "--arguments-json",
+        arguments,
+        "--minutes",
+        "30",
+        "--json",
+    )
+    assert requested.returncode == 0, requested.stderr
+    asked = requested.json()
+    assert asked["approval"]["state"] == "pending"
+    approval_id = asked["approval"]["approval_id"]
+
+    granted = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "approval-grant",
+        approval_id,
+        "--json",
+    )
+    assert granted.returncode == 0, granted.stderr
+    assert granted.json()["approval"]["state"] == "granted"
+
+    state = run_cli("--workspace", str(workspace), "task", "status", "--json")
+    assert state.returncode == 0, state.stderr
+    recorded = [
+        approval for approval in state.json()["approvals"] if approval["approval_id"] == approval_id
+    ]
+    assert [approval["state"] for approval in recorded] == ["granted"], (
+        "the task's own record, not the grant command's stdout, is the answer"
+    )
+
+
+def test_the_figure_command_refuses_before_the_run_with_the_layers_reasons(
+    workspace: Path, task_id: str
+) -> None:
+    """Every CLI refusal on the way to a figure names a reason a script can branch on.
+
+    Four windows, in the order the layer reaches them: an approval id that is not
+    one is the caller's typo, answered before the task is opened; a recipe that is
+    not there is `recipe_unreadable`, answered before the consent is looked at; an
+    argument set that is not one JSON object is the caller's error again, named as
+    such; and a selection naming material the ledger never ingested is
+    `source_not_found`, which the run answers before it reaches the consent — so
+    nothing a human granted is spent on a run that could not have started.
+    """
+
+    def figure(*args: str) -> Any:
+        return run_cli(
+            "--workspace",
+            str(workspace),
+            "task",
+            "figure",
+            "--path",
+            "one.csv",
+            "--operator",
+            "labcairn.analysis.mean",
+            "--recipe",
+            "recipe.json",
+            "--parameters-json",
+            """{"selection":{"kind":"range","source_id":"00000000-0000-7000-8000-000000000001","content_sha256":"0000000000000000000000000000000000000000000000000000000000000000","columns":["a"],"rows":{"kind":"range","start":2,"end":3},"missing":"exclude"}}""",
+            *args,
+            "--json",
+        )
+
+    not_an_id = figure("--approval", "01-not-a-uuid")
+    assert not_an_id.returncode == EXIT_REFUSED, not_an_id.stdout
+    assert not_an_id.json()["reason"] == "invalid_arguments"
+
+    unknown = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "approval-grant",
+        "01-not-a-uuid",
+        "--json",
+    )
+    assert unknown.returncode == EXIT_REFUSED, unknown.stdout
+    assert unknown.json()["reason"] == "invalid_arguments"
+
+    # No recipe file yet: that is the first thing the seam answers, before the
+    # consent is even looked at, so a made-up approval id is not the reason.
+    from labcairn.core.ids import new_id
+
+    no_recipe = figure("--approval", str(new_id()))
+    assert no_recipe.returncode == EXIT_REFUSED, no_recipe.stdout
+    assert no_recipe.json()["reason"] == "recipe_unreadable", no_recipe.stdout
+
+    # With the recipe readable and the operator's parameters well-formed, the run
+    # reaches its material and stops there: the selection names a source the ledger
+    # never ingested. **The order is the claim** — a run that cannot resolve its
+    # material never gets as far as the consent, so nothing is spent on it.
+    (workspace / "recipe.json").write_text(_RECIPE_TEXT, encoding="utf-8")
+    unresolved = figure("--approval", str(new_id()))
+    assert unresolved.returncode == EXIT_REFUSED, unresolved.stdout
+    assert unresolved.json()["reason"] == "source_not_found", unresolved.stdout
+
+    bad_json = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "approval-request",
+        "--capability",
+        "analysis.run",
+        "--root",
+        "source:0",
+        "--resource-key",
+        "one.csv",
+        "--arguments-json",
+        "[1,2]",
+        "--json",
+    )
+    assert bad_json.returncode == EXIT_REFUSED, bad_json.stdout
+    assert bad_json.json()["reason"] == "invalid_arguments"

@@ -113,6 +113,13 @@ class FigureRun(Result):
 
     source: Source
     selection: Selection
+    #: The operator's own result, serialised. **The result object itself stays in
+    #: the run path**: a surface prints a number and its lineage, and the demo that
+    #: re-renders from the typed result calls `run_analysis` for that.
+    result: dict[str, Any]
+    #: Which operator's model produced it, by name, so a caller can tell a table
+    #: from a scalar without reading the fields.
+    result_kind: str
     manifest: ReproducibilityManifest
     manifest_receipt: ArtifactReceipt
     figure_receipt: ArtifactReceipt | None
@@ -237,6 +244,8 @@ def run_figure(
     return FigureRun(
         source=run.source,
         selection=run.selection,
+        result=run.result.model_dump(mode="json"),
+        result_kind=type(run.result).__name__,
         manifest=run.manifest,
         manifest_receipt=run.manifest_receipt,
         figure_receipt=run.figure_receipt,

@@ -1659,3 +1659,36 @@ def test_every_run_path_refusal_has_a_layer_name() -> None:
         if layer_reason not in set(ApplicationRefusal)
     }
     assert not invented, f"the mapping names reasons the layer does not have: {invented}"
+
+
+@pytest.mark.integration
+def test_the_seam_asks_the_real_renderer_and_records_what_it_declined(
+    scenarios: Any,
+) -> None:
+    """The seam builds the analysis package's own renderer, and `None` means one thing.
+
+    Every other run here draws with the scenario's stand-in, because a figure's
+    bytes belong to T07 and its own measured tests. That leaves one claim
+    unwitnessed: that the seam hands the **real** renderer the recipe it just read
+    and judged. This runs matplotlib once. What it draws is a manifest and no
+    figure, because a scalar mean is a result that produces no plot — and
+    `render()` returning `None` means exactly that and nothing else, which is
+    the property this asserts at the seam: the manifest and its receipt are still
+    recorded, the recipe the manifest names is still the file the consent signed,
+    and no figure is invented to fill a hole.
+    """
+    scenario = scenarios()
+    root = scenario.workspace.selected_root
+    (root / RECIPE).write_bytes(_chart_recipe(scenario))
+    granted = scenario.grant()
+
+    run = run_figure(_context(scenario), _figure_request(scenario, granted), now=scenario.now)
+
+    assert run.figure_receipt is None, "a mean is not a figure, and the seam must not draw one"
+    assert run.result_kind == "StatisticResult"
+    signed = hashlib.sha256((root / RECIPE).read_bytes()).hexdigest()
+    assert run.manifest.recipe.content_sha256 == signed, (
+        "the manifest names the bytes of the recipe the approval was bound to"
+    )
+    recorded = root / run.manifest_receipt.relative_path
+    assert recorded.is_file(), "the manifest was recorded, figure or none"

@@ -1079,6 +1079,250 @@ def task_report(
         )
 
 
+@task_app.command("approval-request")
+def task_approval_request(
+    ctx: typer.Context,
+    capability: Annotated[
+        str,
+        typer.Option("--capability", help="The capability the run will use, e.g. analysis.run."),
+    ],
+    root: Annotated[
+        str, typer.Option("--root", help="The root the resource lives in, e.g. source:0.")
+    ],
+    resource_key: Annotated[
+        str, typer.Option("--resource-key", help="The resource the operation addresses.")
+    ],
+    arguments: Annotated[
+        str,
+        typer.Option(
+            "--arguments-json",
+            help="The capability's arguments as one JSON object, spelled exactly as "
+            "the run will state them: the consent is bound to their digest.",
+        ),
+    ] = "{}",
+    minutes: Annotated[
+        int, typer.Option("--minutes", help="How long the answer stays valid.")
+    ] = 30,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Ask for consent to one specific operation, and write the question down.
+
+    **The consent is bound to a digest of these arguments**, so the answer that
+    comes back authorises this request and not a later one that happens to name the
+    same file. `labcairn task figure` prints the command that asks correctly; an
+    approval asked for with a different spelling of the same intent is a different
+    approval, and the run refuses it rather than squinting at it.
+
+    A question is not an answer: this records what was asked and leaves it pending.
+    `labcairn task approval-grant` is where a human says yes.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from labcairn.application import request_approval
+    from labcairn.application.approvals import ApprovalRequest, ApprovalUse
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.security.capabilities import CapabilityId
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    try:
+        parsed: dict[str, object] = json.loads(arguments)
+        if not isinstance(parsed, dict):
+            raise TypeError("the arguments must be one JSON object")
+    except (json.JSONDecodeError, TypeError) as error:
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"--arguments-json is not one JSON object: {error}. The consent binds "
+                "the digest of these arguments, so they are stated as the run states them.",
+                as_json=as_json,
+            )
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            requested = request_approval(
+                context,
+                ApprovalRequest(
+                    use=ApprovalUse(
+                        capability=CapabilityId(capability),
+                        arguments=parsed,
+                        root_id=root,
+                        resource_key=resource_key,
+                    ),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=minutes),
+                ),
+            )
+    if as_json:
+        emit_model(requested)
+    else:
+        _console().print(
+            f"[bold]{requested.approval.approval_id}[/bold] — pending, lapsing at "
+            f"{requested.approval.expires_at}.\n"
+            f"It covers {capability} on {resource_key!r} in {root!r}. "
+            "Answer it with `labcairn task approval-grant "
+            f"{requested.approval.approval_id}`."
+        )
+
+
+@task_app.command("approval-grant")
+def task_approval_grant(
+    ctx: typer.Context,
+    approval_id: Annotated[str, typer.Argument(help="The approval being answered.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Record a human's yes to one approval, and nothing besides it.
+
+    **This command is the consent**, which is why it takes no arguments about what
+    is being approved: the question was written down by `approval-request`, and an
+    answer that could restate the request would be a second place for the scope of a
+    consent to be written. It grants the approval as recorded — or refuses, naming
+    why — and the run that later spends it is checked against the digest this
+    answer was given for.
+    """
+    from labcairn.application import grant_approval
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import ApprovalId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(approval_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{approval_id!r} is not an approval id: approval ids are UUIDv7, as "
+                "`labcairn task approval-request` prints them.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            granted = grant_approval(context, ApprovalId(uuid.UUID(approval_id)))
+    if as_json:
+        emit_model(granted)
+    else:
+        _console().print(
+            f"[bold]granted[/bold] {granted.approval.approval_id} — it covers "
+            f"{granted.approval.capability} on {granted.approval.resource_key!r} and "
+            f"lapses at {granted.approval.expires_at}."
+        )
+
+
+@task_app.command("figure")
+def task_figure(
+    ctx: typer.Context,
+    path: Annotated[
+        str, typer.Option("--path", help="The material, by its key inside --source-root.")
+    ],
+    operator: Annotated[
+        str,
+        typer.Option("--operator", help="The registered operator, e.g. labcairn.analysis.mean."),
+    ],
+    recipe: Annotated[
+        str,
+        typer.Option("--recipe", help="The chart recipe, workspace-relative. It is signed."),
+    ],
+    approval: Annotated[
+        str, typer.Option("--approval", help="The granted approval covering this exact run.")
+    ],
+    source_root: Annotated[
+        str, typer.Option("--source-root", help="The root the material lives in.")
+    ] = "source:0",
+    parameters: Annotated[
+        str,
+        typer.Option(
+            "--parameters-json",
+            help="The operator's parameters as one JSON object, including its selection.",
+        ),
+    ] = "{}",
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Draw the deterministic figure a recipe describes, through the layer.
+
+    **What the approval has to cover**: the material, the operator, the operator's
+    parameters *and this recipe's path* — the recipe is one of the consented
+    arguments (ADR-0012 constraint 7), so a signature that authorised one figure
+    cannot be spent on another. `labcairn task approval-request` asks with exactly
+    these four fields:
+
+    ```
+    labcairn task approval-request --capability analysis.run \
+      --root source:0 --resource-key <path> \
+      --arguments-json "$ARGS"
+    ```
+
+    where ``$ARGS`` is the one JSON object holding ``path``, ``operator_id``,
+    ``recipe`` and ``parameters``, spelled as this command spells them.
+
+    Nothing is written when the run is refused: a refusal arrives before the
+    manifest and the figure are written, and a figure the ledger does not support
+    is not a result.
+    """
+    from labcairn.application import FigureRequest, run_figure
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import ApprovalId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    try:
+        parsed_parameters: dict[str, object] = json.loads(parameters)
+        if not isinstance(parsed_parameters, dict):
+            raise TypeError("the parameters must be one JSON object")
+    except (json.JSONDecodeError, TypeError) as error:
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"--parameters-json is not one JSON object: {error}. The operator's own "
+                "argument model validates it, and its parameters are part of the digest "
+                "the approval binds.",
+                as_json=as_json,
+            )
+    with _refusals(as_json):
+        if not is_uuid7(approval):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{approval!r} is not an approval id: pass --approval with the id "
+                "`labcairn task approval-request` prints, after granting it.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            drawn = run_figure(
+                context,
+                FigureRequest(
+                    root_id=source_root,
+                    path=path,
+                    operator_id=operator,
+                    recipe=recipe,
+                    parameters=parsed_parameters,
+                    approval_id=ApprovalId(uuid.UUID(approval)),
+                ),
+            )
+    if as_json:
+        emit_model(drawn)
+    else:
+        figure = drawn.figure_receipt
+        # "no figure" is the renderer's own word for a result it did not draw, and
+        # it is carried rather than inferred: an operator that computes a table of
+        # groups produces a manifest and no plot, and both are answers.
+        where = (
+            figure.relative_path
+            if figure is not None
+            else "no figure (the operator's result is not one)"
+        )
+        _console().print(
+            f"[bold]{where}[/bold] — the derivation is recorded in "
+            f"{drawn.manifest_receipt.relative_path}."
+        )
+
+
 @task_app.command("reconcile")
 def task_reconcile(
     ctx: typer.Context,
