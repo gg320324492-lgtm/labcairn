@@ -7,7 +7,8 @@ and review dossier).
 real-provider smoke."*
 **Verdict:** **FAIL** at the gate commit — see [The verdict](#the-verdict).
 **Re-verified at:** `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` — verdict
-**PASS WITH NOTES**; see [The re-verification](#the-re-verification).
+**PASS WITH NOTES**; then again at `598e78898a3b1a3f3dc358ae81caf374a42b8faf` —
+verdict **PASS**; see [The re-verification](#the-re-verification).
 **Reviewed against:** `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`
 **Reviewer:** the independent reviewer dispatched for **scope "product behaviour
 and measurement"** (the answers, the crash, and the fresh install). **This
@@ -800,12 +801,19 @@ touches.
 
 ## The verdict, after the re-verification
 
-**PASS WITH NOTES.**
+**PASS** — at `598e78898a3b1a3f3dc358ae81caf374a42b8faf`, the tree the gate
+will close on.
 
-**One sentence.** Nine of the ten findings are fixed, and each was confirmed
-by re-running this review's own mutation against the fixed tree and watching
-it go red by name; the tenth is fixed in the form this review reported it, and
-one residual of the same shape survives and is recorded below.
+*(An earlier reading of this section, at `8c0eb40`, said **PASS WITH NOTES**
+and named R11 as the note. R11 is closed; the note is gone; and one finding
+of this round — R12, the lint regression the R11 fix brought — was found,
+recorded and fixed in the tree measured here. The verdict below is the one
+that stands.)*
+
+**One sentence.** Every property this review reported — the ten of the first
+review and the residual of the second — is held by the tree at `598e788`, each
+one by a named test that **this review's own mutation** turns red, and **no
+property in this scope remains that the tree states and does not hold**.
 
 **What changed the verdict.** The first verdict was FAIL because four
 properties the gate states were not held by the tree. **They are held now** —
@@ -819,23 +827,47 @@ each one by a named test that this review's own mutation turns red:
 - the crash is injected through the surfaces and the surfaces are watched for
   a repeated operation (R5, two named end-to-end tests);
 - the reason a metric was not measured is read out of the tree (R6);
-- the repository class is bounded (R7, one named test);
+- the repository class is bounded (R7, two named tests);
 - the rendered small denominator is watched (R8);
 - the board's staleness is watched (R9, four named cases);
 - the recovery metric's unit is read out of the matrix (R10, three named
   tests, two variants);
-- and the skip that waited for a defect that is gone is gone (R3).
+- the skip that waited for a defect that is gone is gone (R3);
+- and **the partition's class judgement is anchored outside the partition
+  table** (R11, one named test, with a control).
 
-**The note.** R7's bound is the partition's **clause**, and the clause is a
-hand-written label that nothing checks against the file it describes. A
-coordinated edit of a file's class **and** its clause still moves a repository
-gate into a protocol class, silently. It is recorded as **R11** below.
+**Why PASS and not PASS WITH NOTES.** A note is for a limit the review
+confirms; **this scope has no residual left to note.** The two things carried
+below are not defects in it: one is a limit the repository has always declared
+(the partition's clause column is a hand-written label), and one is outside
+this scope entirely (the owner's real-provider smoke).
 
-**This verdict does not close the gate.** The gate's exit test names the
-**real-provider smoke**, and it has not run: the harness reports that class as
-**NOT RUN** with the reason and exits **2**. That is the owner's decision
-(§1.4.1b and §1.4.2 of the breakdown), it is not this review's to settle, and
-this review does not pretend it is discharged.
+**The two things carried:**
+
+1. **The partition's clause column is still unwatched prose.** A file's clause
+   can be moved on its own and nothing catches it — measured, and it survives.
+   But the clause is **documentation**: it is read only by
+   `python -m tests.evaluation --list`, it computes no denominator, and the
+   metric and blocker witnesses come from the separate `METRIC_WITNESSES` and
+   `BLOCKER_WITNESSES` tables. **The class — the thing that moves a file into
+   a denominator — is anchored by the marker now.** A wrong clause is a wrong
+   label on the page, and a reader running `--list` sees it.
+2. **This verdict does not close the gate.** The gate's exit test names the
+   **real-provider smoke**, and it has not run: the harness reports that class
+   as **NOT RUN** with the reason and exits **2**. That is the owner's decision
+   (§1.4.1b and §1.4.2 of the breakdown), it is not this review's to settle,
+   and this review does not pretend it is discharged.
+
+**And one thing this round found, which is worth the record.** The commit
+that carried the R11 fix, `338e871`, **broke the repository's own lint** and
+**the tree was red there** — `ruff check .` failed in six files, the README's
+own command witness failed, and the outsider's path failed six tests. **Two
+independent readings found it** — the coordinator's own verification of their
+fix, and this review's, by running the outsider's path first and reading which
+check refused. It is fixed at `598e788`, and **the gate would not have closed
+on `338e871`**. That is the gate's own method working: the README's command
+list is run for real, so a commit that breaks the README's commands does not
+pass.
 
 ## The ten, re-run
 
@@ -993,12 +1025,175 @@ filed under a clause names that clause's vocabulary in its own text — or an
 anchor outside the table, the way the answer key's second fix used the
 prompt.
 
+**And it was fixed, by the second of the two.** See
+[the re-verification of R11](#the-re-verification-of-r11-and-the-lint-regression-the-fix-brought)
+below.
+
+---
+
+## The re-verification of R11, and the lint regression the fix brought
+
+**Measured at `338e871` — the commit that carries the fix — and again at
+`598e788`, the commit that follows it.**
+
+### The fix, and what it does
+
+The fix took the second of the two routes this review offered: **an anchor
+outside the table.**
+
+- **`negative` had no marker at all.** It is one of the protocol's five gate
+  classes, but `pyproject.toml`'s marker table did not name it, so its
+  **nineteen files could not be anchored even in principle**. It is registered
+  now — `negative: a case that must be refused, or must find nothing` — and
+  the harness's marker-to-class map knows it.
+- **Sixty-two files now declare their own class.** Those files were filed by
+  hand; the table said what they were and the files said nothing. Every file
+  in a protocol class now carries that class's marker.
+- **The new witness reads the files, not the table.**
+  `test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class`: a
+  file in a protocol class must declare a marker, and a file in the repository
+  class must declare none. **The marker is a different field, in a different
+  file**, and the edit that moved the clause cannot reach it.
+
+**Measured, at `598e788`: every file in a protocol class declares a marker,
+and every file in the repository class declares none.**
+
+| Class | Files | Declaring a marker | Declaring none |
+|---|---:|---:|---:|
+| `unit` | 46 | **46** | 0 |
+| `integration` | 29 | **29** | 0 |
+| `negative` | 19 | **19** | 0 |
+| `e2e` | 4 | **4** | 0 |
+| `repository` | 11 | 0 | **11** |
+| **total** | **109** | **108** | **11** |
+
+**And `--strict-markers` is on** (`addopts = ["-ra", "--strict-markers",
+"--strict-config"]`), which is why this could not have been done before: a file
+declaring `@pytest.mark.negative` would have *errored* while the marker did
+not exist.
+
+### The mutation, re-run
+
+**The mutation is this review's own**, unchanged — the class and the clause
+move together, and the marker is not touched:
+
+```python
+# tests/evaluation/manifest.py
+#   "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
+# becomes
+#   "test_review_dossier.py": ("unit", "typed-contracts"),
+```
+
+| Where it was run | Result |
+|---|---|
+| `8c0eb40` — before the fix | **58 passed. The mutation survived.** |
+| `338e871` — the fix | **1 failed, 58 passed** — `test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class`, and **only** that one: *"test_review_dossier.py is filed under the protocol class 'unit' but declares no marker, so nothing outside the partition table says which class it belongs to"* |
+| `598e788` — the fix and its lint repair | **1 failed, 58 passed** — the same single witness |
+
+**The control, so that the single red is not a coincidence.** The same table
+edit, with the **file** also declaring its class (`@pytest.mark.unit` added
+to `tests/test_review_dossier.py`), is **59 passed** — because now the file
+says what class it belongs to, and the table agrees with it. **That is what an
+external anchor is:** the table-only edit cannot reach the declaration, so the
+table-only edit is caught; and the edit that *does* reach the declaration is a
+declaration, visible in the file, rather than a silent bookkeeping change.
+
+**R7's original mutation is now caught twice.** Moving the class and leaving
+the clause alone goes red on **both** witnesses —
+`test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class` and
+`test_the_repository_class_holds_only_the_repository_gates` (2 failed, 57
+passed).
+
+**R11 is closed.**
+
+### R12 — the fix was red, and the tree's own witness caught it
+
+**This is a finding of this round, and it is worth the record.**
+
+The commit that carries the R11 fix, `338e871`, **broke the repository's own
+lint**, and the tree was **red** there:
+
+| Measurement at `338e871` | Result |
+|---|---|
+| `ruff check .` | **exit 1** — 6 × `I001 Import block is un-sorted or un-formatted` |
+| the six files | `test_capability_namespaces.py`, `test_cli_refusal_enumeration.py`, `test_recovery_support.py`, `test_refusal_witnesses.py`, `test_skill_support.py`, `test_store_persistence.py` |
+| the same six files at `8c0eb40` | `ruff check .` — **exit 0, "All checks passed!"** |
+| `tests/test_readme_accuracy.py::test_readme_commands_run` | **RED** — *"README documents `uv run ruff check .` but running it failed (exit 1)"* |
+| `tests/test_outsider_path.py` | **6 failed, 10 passed** — the walk refuses at the README's own `uv run ruff check .` |
+
+**What happened.** The markers the fix added were placed after the import
+blocks they belong to, so six files' import order no longer satisfied the
+linter — and the README's command table runs `uv run ruff check .`, and the
+outsider's path runs the README's commands verbatim. **A commit that carries a
+fix for a finding can break one of the gate's five exit-test items.**
+
+**Two independent readings found it**, which is the strongest kind of evidence
+there is: the coordinator's own verification of the fix (their next commit is
+titled *"The imports the markers brought are in the order the linter wants"*),
+and this review's — by running the outsider's path first, seeing it fail on
+`uv run ruff check .`, and then running `ruff check .` directly and reverting
+the six files to their previous versions to show the cause.
+
+**And the tree's own witness caught it too**, which is the part that matters
+for the gate: the README's command list is run for real, so a commit that
+breaks the README's commands does not pass. **The gate would not have closed
+on `338e871`.**
+
+**Fixed at `598e788`**, which moves the imports in exactly those six files.
+Measured there: `ruff check .` — **exit 0, "All checks passed!"**;
+`tests/test_readme_accuracy.py::test_readme_commands_run` — **passes**;
+`tests/test_outsider_path.py` — **16 passed**.
+
+**What this round says about the gate's own method.** The finding is not a
+defect in the tree; it is a fact about the process: **the tree that carries a
+fix must be measured again, not assumed.** This review re-ran every mutation
+at the new commit for that reason, and the numbers below are anchored to
+`598e788`.
+
+### Every mutation, re-run at `598e788`
+
+The whole set was re-run at the tree the gate will close on, because a number
+belongs to the tree it was measured at.
+
+| # | The mutation | Result at `598e788` |
+|---|---|---|
+| **R1** | the probe writes the file when it finds it absent | **RED — 3 named tests**: `test_at5_reconciliation_detects_absent_write`, `test_at5_the_reconciliation_leaves_the_workspace_byte_for_byte_unchanged`, `test_the_probe_reads_the_filesystem_and_never_writes_to_it` |
+| **R2** | the harness's public-corpus measurement does not find the corpus | **RED — 5 named tests**: `test_the_public_corpus_measurement_reads_the_manifest`, `test_the_public_corpus_measurement_agrees_with_the_material`, `test_the_public_corpus_measurement_can_fail`, `test_the_abstention_metric_is_measured_over_the_public_corpus`, `test_a_not_measured_reason_may_not_contradict_the_tree` |
+| **R3** | the stale skip, with the control in both directions | **FIXED** — the pre-fix `paths.py` refuses a new file declared with the short spelling, the current one accepts it, and `tests/test_earlier_exit_demos.py` is **6 passed, 0 skipped** on Windows |
+| **R4a** | the product's mean broken and the key replaced with the product's own output | **RED — 2 named tests**: `test_every_fixture_has_an_answer_re_derived_without_the_product`, `test_an_independently_re_derived_key_notices_a_corrupted_answer` |
+| **R5** | the application layer does not adopt the authorised operation | **RED — 2 named end-to-end tests**: `test_a_crash_before_the_attempt_is_durable_does_not_repeat_the_operation`, `test_the_report_is_refused_with_a_reason_when_the_policy_asks_after_a_crash` |
+| **R6** | the reason is a fixed string again | **RED — 1 named test**: `test_a_not_measured_reason_may_not_contradict_the_tree` |
+| **R7** | the class moves, the clause stays | **RED — 2 named tests**: `test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class`, `test_the_repository_class_holds_only_the_repository_gates` |
+| **R8** | the renderer never says a denominator is small | **RED — 1 named test**: `test_the_rendered_report_says_a_small_denominator_out_loud` |
+| **R9** | the board's two rows set back to `NOT STARTED` | **RED — 4 named cases** — and the board was restored to `IN PROGRESS` afterwards |
+| **R10** | the denominator drops a crash point | **RED — 3 named tests**: `test_the_recovery_metric_counts_crash_points_and_not_cases`, `test_the_recovery_metric_drops_when_a_crash_point_behaves_wrongly`, `test_the_crash_matrix_coverage_is_read_from_the_matrix` |
+| **R11** | the class **and** the clause move together | **RED — 1 named test**: `test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class` |
+| **M1** | one fixture's citation points at a line that does not exist | **RED — 2 named tests**: `test_every_cited_locator_resolves_to_the_text_the_manifest_expects[physical_tension]`, `test_the_prose_answers_are_re_derived_from_the_resolved_text` |
+| **M11** | a skipped witness counts as a pass | **RED — 1 named test**: `test_a_skipped_witness_fails_its_blocker` |
+| **M13** | `plan_resume` treats a checkpoint whose material moved as still verifying | **RED — 2 named tests**: `test_resume_refuses_to_skip_a_stage_whose_material_moved`, `test_a_deleted_source_fails_the_verification` |
+| **M14** | an extra file planted in the clone | the script refuses by name: **exit 1**, *"the clone's working tree is clean"* |
+| **M15** | the walk run under the developer's interpreter | the script refuses by name: **exit 1**, *"the walk runs the clone's own code, not the developer's"* |
+| — | the outsider's path, unmutated | **16 passed** |
+| — | `ruff check .` | **exit 0, "All checks passed!"** |
+| — | the six key files together | **339 passed, 0 failed** |
+
+**One run was discarded and re-made, and why.** A driver script ran the batch
+with a `--basetemp` **two levels deep** (`…/bt-verify-r11/drive2/r2`), and
+pytest's base-temp handling removed the parent before making the child, so
+thirteen fixture-setup errors appeared that had nothing to do with any
+property under test. **Those runs were discarded**, the driver was changed to
+flat base-temp paths, and every number above is from the corrected runs — which
+agree, test for test, with the same mutations run one at a time by hand. This
+is the repository's own rule about base-temp placement, arriving from the other
+direction: *a run that fails for a reason that has nothing to do with the
+property under test is not a measurement of that property.*
+
 ## What this re-verification did not do
 
 - **It did not run the whole suite.** The coordinator was running the
   evaluation harness on the same volume, and the repository's rule is that
-  whole-suite runs go one at a time. The harness's own end-to-end numbers at
-  `8c0eb40` are the coordinator's to publish, not this review's to claim.
+  whole-suite runs go one at a time. The harness's own end-to-end numbers are
+  the coordinator's to publish, not this review's to claim.
 - **It did not settle the real-provider smoke.** The class is **NOT RUN** and
   the harness exits **2**; that is the owner's credential and the owner's
   decision.
@@ -1006,19 +1201,33 @@ prompt.
   controls each finding needed. **Three controls were run anyway** — the
   prompt cross-check's own anchor (R4), the crash-point coverage read against
   the product's own enumeration (R10), and the public corpus measured
-  positively rather than broken — and all three behaved.
+  positively rather than broken — and all three behaved. **R11's control was
+  run too**, and it is the one that shows the anchor is external.
 - **It did not re-read the upstream tree**, and it read no file under
   `../labcairn-upstreams/`.
 
 ## The recommendation
 
-**Close this scope.** The ten findings this review reported are fixed, and
-the fixes were verified by this review's own mutations rather than by the
-gate's account of them.
+**Close this scope.** The eleven findings this review reported — the ten of
+the first review and the residual of the second — are fixed, and every fix was
+verified by **this review's own mutation** rather than by the gate's account
+of it.
 
-**R11 is the one thing left in this scope**, and it is a note: the partition's
-class judgement is bounded by a clause that the same edit can move. It costs a
-witness, not a design change.
+**Two notes are carried, and neither is a defect in this scope:**
+
+1. **The partition's clause column is still unwatched prose.** A file's clause
+   can be moved on its own and nothing catches it — measured, and it survives.
+   **But the clause is documentation**: it is read only by
+   `python -m tests.evaluation --list`, it computes no denominator, and the
+   metric and blocker witnesses come from the separate `METRIC_WITNESSES` and
+   `BLOCKER_WITNESSES` tables. The *class* — the thing that moves a file into
+   a denominator — is anchored by the marker now. A wrong clause is a wrong
+   label on the page, and a reader running `--list` sees it.
+2. **This verdict does not close the gate.** The gate's exit test names the
+   **real-provider smoke**, and it has not run: the harness reports that class
+   as **NOT RUN** with the reason and exits **2**. That is the owner's decision
+   (§1.4.1b and §1.4.2 of the breakdown), and this review does not pretend it
+   is discharged.
 
 **And the gate's own exit test still names the real-provider smoke, which has
 not run.** That is the owner's, and it is the reason this verdict is about
@@ -1026,9 +1235,11 @@ this scope and not about the gate.
 
 ---
 
-*Re-verified at `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` by the same
-independent reviewer, on Windows 11 (AMD64) with Python 3.12.13, in a worktree
-of this repository. This reviewer wrote no fix into this repository at either
-commit; every mutation above was reverted, and the only file this review
-touched is this one.*
+*Reviewed at `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`; re-verified at
+`8c0eb403c70c161b41a2f8e1407613307a7e6cf9` and again at
+`598e78898a3b1a3f3dc358ae81caf374a42b8faf`, by the same independent reviewer,
+on Windows 11 (AMD64) with Python 3.12.13, in a worktree of this repository.
+This reviewer wrote no fix into this repository at any of the three commits;
+every mutation above was reverted, and the only file this review touched is
+this one.*
 

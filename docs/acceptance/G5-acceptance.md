@@ -361,11 +361,13 @@ reading the report's account of it. **The reviews' own numbering is kept**,
 so `R1` is the first finding of the first review and `R11` the first of the
 second; this document's own findings are `S1`–`S6`, above.
 
-### The product-and-measurement scope — verdict FAIL
+### The product-and-measurement scope — verdict FAIL, and PASS after the re-verification
 
-**The report:** [g5-review-product.md](g5-review-product.md). **Measured at**
-`72154cd`. **Verdict: FAIL.** Its reason is G4's reason again: *a property
-table can be entirely clean and the review still fail.*
+**The report:** [g5-review-product.md](g5-review-product.md). **First
+measured at** `72154cd`, and **re-verified at** `598e788`. **First verdict:
+FAIL. Verdict after the re-verification: PASS.** The first verdict's reason
+is G4's reason again: *a property table can be entirely clean and the review
+still fail.*
 
 | # | The finding | The coordinator's re-check | Fixed |
 |---|---|---|---|
@@ -379,6 +381,8 @@ table can be entirely clean and the review still fail.*
 | **R8** | the report's "small denominator" note is never rendered and nothing notices | **the mutation re-run**: the note never rendered, **40 green** | yes |
 | **R9** | the board says the two work orders are `NOT STARTED` at the commit that delivers them, and the watch cannot see it | **re-checked, and it was worse than reported**: the watch was reading the SHA out of the merge's *subject*, so every comparison failed, every candidate was discarded, and **the watch had never looked at anything** | yes — and it now fails, on the board, correctly |
 | **R10** | the recovery metric's denominator is labelled as a thing it does not count | **re-checked**: 8 collected cases, 10 injected faults, 4 distinct crash points | yes — the denominator is read out of the matrix |
+| **R11** | the residual of R7: the clause is the bound, and the clause is unwatched prose | **the mutation re-run**: moving a file into a protocol class **and taking its clause with it** was green across fifty-eight tests | yes — and the **fix's own control settles it**: the same table edit, with the *file* declaring its class as well, is green, because the declaration is a statement and the table is not — so the anchor really is outside the table |
+| **R12** | the fix for R11 landed **red**: the markers went in after the import block, and six files' import order stopped satisfying the linter | **two independent readings found it** — the coordinator's own check of the fix, and the reviewer's, and the tree's own witness found it first: the README's own command list is *run*, and `uv run ruff check .` did not pass | yes — and **the gate could not have closed on the commit that introduced it** |
 
 ### The documents, claims and release scope — verdict PASS WITH NOTES
 
