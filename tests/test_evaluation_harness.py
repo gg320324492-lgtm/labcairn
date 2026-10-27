@@ -1686,6 +1686,70 @@ def _published_records(repo_root: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in documents if path.is_file()))
 
 
+#: A sentence that denies, forbids or excludes. **A denial is not a claim.**
+#:
+#: The review dossier says outright that it contains *"no claim that LabCairn
+#: is better than any upstream project"*, and quotes the protocol's own ban
+#: on claiming superiority. **Both carry the words the watch looks for** and
+#: both are the opposite of a claim, so a sentence with one of these in it
+#: is not counted.
+#:
+#: **The limit this leaves is real**: a sentence that denies one thing and
+#: then claims another (*"not A, but better than B"*) is let through. It
+#: is stated here rather than left for a reader to discover.
+_NEGATION = re.compile(
+    r"(?:not|no|never|without|forbid|forbids|forbidden|cannot|neither|nor|"
+    r"refuse|refuses|prohibit|prohibits)",
+    re.IGNORECASE,
+)
+
+
+def _sentences(paragraph: str) -> list[str]:
+    """The sentences of a paragraph, as the text itself separates them."""
+    return [part for part in re.split(r"(?<=[.!?])\s+", paragraph) if part.strip()]
+
+
+def _paragraphs(path: Path) -> list[tuple[int, str]]:
+    """The ordinary paragraphs of a document, each joined into one line.
+
+    **A paragraph, not a line.** A superiority claim whose verdict word
+    and whose named system fall on different lines is still a claim — and
+    this repository wraps prose at about seventy-nine columns, so a line
+    break at the wrong place is a thing that happens. The unit is
+    therefore the paragraph, joined, so a wrap cannot hide the claim.
+
+    **A quoted line and a fenced line are not a paragraph.** A block
+    quote is a quotation, and the gate's own review reports quote the
+    sentence they planted; a fence is a code sample. Neither is a claim
+    about anything, and neither is joined to what surrounds it.
+    """
+    paragraphs: list[tuple[int, str]] = []
+    current: list[str] = []
+    start = 0
+    in_fence = False
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            if current:
+                paragraphs.append((start, " ".join(current)))
+                current = []
+            continue
+        if in_fence or stripped.startswith(">"):
+            continue
+        if not stripped:
+            if current:
+                paragraphs.append((start, " ".join(current)))
+                current = []
+            continue
+        if not current:
+            start = number
+        current.append(stripped)
+    if current:
+        paragraphs.append((start, " ".join(current)))
+    return paragraphs
+
+
 def test_no_published_record_claims_superiority_over_another_system(repo_root: Path) -> None:
     """The documents a reader reads are watched for a superiority claim.
 
@@ -1734,16 +1798,13 @@ def test_no_published_record_claims_superiority_over_another_system(repo_root: P
 
     offenders: list[str] = []
     for path in _published_records(repo_root):
-        in_fence = False
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.strip()
-            if stripped.startswith("```"):
-                in_fence = not in_fence
-                continue
-            if in_fence or stripped.startswith(">"):
-                continue
-            if ranking.search(line) and named.search(line):
-                offenders.append(f"{path.relative_to(repo_root)}:{number}: {line.strip()}")
+        for number, paragraph in _paragraphs(path):
+            for sentence in _sentences(paragraph):
+                if not ranking.search(sentence) or not named.search(sentence):
+                    continue
+                if _NEGATION.search(sentence):
+                    continue
+                offenders.append(f"{path.relative_to(repo_root)}:{number}: {sentence[:180]}")
     assert not offenders, (
         "a published record carries a word that claims a verdict and names "
         "another system, which the protocol forbids without like-for-like "

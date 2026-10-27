@@ -27,7 +27,7 @@ thing:
    **NOT RUN** with the reason, and does **not** count it as a pass: a
    class that was not run has no rate, and a rate of zero would say
    *"every case failed"*, which is a different fact.
-2. **Two of the six Phase 1 blockers did not hold.** The first of them —
+2. **One of the six Phase 1 blockers did not hold.** The one —
    *"A new user cannot complete a task from a clean environment following
    README"* — because the base branch's own witness skips G1's exit
    demonstration on Windows while the product's 8.3 short-name comparison
@@ -427,6 +427,26 @@ sixth blocker holds here. The earlier run's numbers are not carried
 forward: a number belongs to the tree it was measured on.
 
 ---
+
+### The table, re-measured on the tree the gate closes on
+
+| The Phase 1 blocker | Status at `c362317` | Witnesses | What the status means |
+|---|---|---|---|
+| New user cannot complete a task from a clean environment following README. | **HELD** | 4 | every witness was collected and passed |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | 4 | 3 of 114 witness cases did not pass, and **all three are skips**: the POSIX half of a platform pair, and the two 8.3 short-name witnesses, which a volume that generates no short names skips. **No single runner of the CI matrix carries all of them.** |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 3 | every witness was collected and passed |
+| Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | every witness was collected and passed |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | every witness passed, **and the row names the excluded required tests with their reasons** — whether a declared skip fails this blocker is the owner's ruling, not the harness's |
+
+**The real-model smoke class was selected, could not be run, and is reported
+NOT RUN with the reason**, so the harness's exit code is **2**. The three
+metrics that are measured are the **abstention metric at 1/1** — the
+no-evidence fixture's honest *"the material does not say"* — the **recovery
+metric at 4/4**, its denominator being the distinct crash points the matrix
+injects, read out of the matrix itself, and the **numeric extraction at
+84/84**. Four metrics remain NOT MEASURED and the report names the missing
+input for each.
 
 ## 9. The witnesses, and the mutation table
 

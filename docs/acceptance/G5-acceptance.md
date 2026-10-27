@@ -116,90 +116,31 @@ tested; artifact examples real; commit SHA and …"*
 ## What the evaluation harness measured
 
 **The command:** `python -m tests.evaluation`, run on this machine against
-the tree at the subject commit. **Its exit code was 2** — the protocol's
-real-model smoke class was *selected*, could not be run, and is reported
-NOT RUN with the reason. The tool did its job; the protocol is not
-satisfied by this tree.
+the tree at `c362317`. **Its exit code was 2** — the protocol's real-model
+smoke class was *selected*, could not be run, and is reported NOT RUN with
+the reason. The tool did its job; the protocol is not satisfied by this
+tree.
 
-| The class | Result |
-|---|---|
-| Unit | 1510/1511 passed, 0 failed, **1 skipped** |
-| Integration | 1133/1134 passed, 0 failed, **1 skipped** |
-| Negative | 361/364 passed, 0 failed, **3 skipped** |
-| E2E | 102/102 passed, 0 failed, 0 skipped |
-| Repository gates | 369/369 passed, 0 failed, 0 skipped |
-| **Real-model smoke** | **NOT RUN** — no real provider credential is configured in this environment and the run would spend money. **A mock-only success is insufficient under the protocol, so this class is reported as NOT RUN and is not counted as a pass.** |
+**Five of the six Phase 1 blockers hold.** The one that does not is the
+second, and it does not hold because of three **skipped** witness cases —
+the POSIX half of a platform pair, and the two 8.3 short-name witnesses,
+which a volume that generates no short names skips. **No single runner of
+the CI matrix carries all of it**, and that is the question §1.4.1b asks.
 
-| The Phase 1 blocker | Status |
-|---|---|
-| `clean-environment-readme` | **HELD** |
-| `no-unauthorized-write-or-disclosure` | **FAILED** — 3 of 114 witness cases did not pass; a skipped witness counts against the blocker |
-| `no-fake-citation-or-unsupported-number` | **HELD** |
-| `no-repeated-side-effect-after-crash` | **HELD** |
-| `no-verified-claim-from-rendering-checks` | **HELD** |
-| `no-skipped-required-tests` | **HELD** |
+**Three of the protocol's metrics are measured, and one of them was not
+measured before the gate.** The **abstention metric is 1/1** — the
+no-evidence fixture's honest *"the material does not say"* — where it was
+NOT MEASURED before, because the harness measured the wrong corpus. The
+**recovery metric's denominator is 4**, the number of distinct crash points
+the matrix injects, **read out of the matrix itself** rather than counted
+from a number somebody wrote down; and the numeric extraction is **84/84**.
+Four metrics remain NOT MEASURED, and the report names the missing input
+for each.
 
-**Five of the six hold, and the first one holds because of F6 below.** The
-one that does not is a **skip**, and the three cases are the POSIX half of
-a platform pair and the two 8.3 short-name witnesses — **a volume that
-generates no short names skips the two, and no single runner of the CI
-matrix carries all of it.** §6 of
-[`LC-P1-13-evaluation.md`](LC-P1-13-evaluation.md) asks whether a declared
-platform conditional should fail a blocker on the runner it does not apply
-to, and **answers it nowhere**: the harness does not soften the rule,
-because that is a judgement about the protocol and the protocol is the
-ruler. **This document does not soften it either.** It is the owner's
-question, and it is listed below.
-
-**Four of the protocol's metrics are NOT MEASURED** — end-to-end task
-success, evidence-locator validity, unsupported-claim detection and
-revision consistency — and the report says which input each one is
-missing. **A number with a denominator and a number that could not be
-measured are different things, and the report keeps them apart.**
-
-## What the gate measured that is missing, and handed over
-
-**§1.3 says G5 measures and hands over, and that what the evaluation finds
-missing is a finding for Phase 2 — recorded, not fixed inside the gate.** One
-such finding came out of this gate's own exit-test item, and it is recorded
-here with a witness, because **an observation nobody watches is a sentence,
-and a sentence is not evidence.**
-
-**The finding: the recovery pass exists at the layer and not at the
-surface.** The crash matrix exercises it in-process; **nothing under
-`src/labcairn/application/` calls `mark_uncertain` or `reconcile`.** So an
-operation a crash left `ATTEMPTING` is never reconciled, and the next
-`task run` plans a **second** operation for the same work — the abandoned
-one stays `ATTEMPTING` for ever, and the audit log says the work was planned
-twice.
-
-**Measured, not read off a record.** A crash through the CLI in the window
-*after the effect and before the confirmation* leaves one operation in
-`ATTEMPTING`; the run that follows it exits 0 and leaves **two** — the
-abandoned one, still `ATTEMPTING`, and a new confirmed one. **The side
-effect is not duplicated**: the ingestion is idempotent, so the second run
-writes no rows for material already on disk, and the store holds no second
-copy. **So the repetition is of the operation, not of the bytes** — and the
-gap between those two words is where the finding lives.
-
-**The witness.**
-`test_the_surfaces_do_not_reconcile_an_abandoned_operation` asserts the
-current behaviour, **deliberately**. When Phase 2 gives the surfaces a
-recovery pass, **that assertion fails** — and that failure is the signal to
-replace it with one that says the abandoned operation was reconciled and no
-second one was planned. **A test that is quietly deleted when the defect is
-fixed is a test that was only ever a description.** Its own mutation is on
-record: making the application layer adopt an `ATTEMPTING` operation — one
-line — turns that witness red and leaves the other six green.
-
-**What this means for the gate's own claim.** §2.3 asks the surfaces to come
-back to a state the user can reason about: *no repeated operation, no
-duplicated side effect*. **The second half holds; the first half holds only
-when the crash came before the attempt was durable.** The breakdown's clause
-is therefore **not discharged at this commit**, and this document says so
-rather than rounding it off. The gate's exit-test item — *fault injection* —
-**is** discharged: the injection runs through the CLI, and what it found is
-the finding this section hands over.
+**And the report says what the exclusions are.** The sixth blocker's row
+carries the excluded required tests **by name, with their reasons**, and
+says that whether a declared skip fails the blocker is the owner's ruling
+and not the harness's.
 
 ## What this gate's own CI found, and what it cost
 
@@ -386,10 +327,11 @@ still fail.*
 
 ### The documents, claims and release scope — verdict PASS WITH NOTES
 
-**The report:** [g5-review-records.md](g5-review-records.md). **Measured at**
-`72154cd`. **Verdict: PASS WITH NOTES**, and the report says plainly that
-this verdict **does not close the gate**, because the exit test names the
-real-provider smoke and it has not run.
+**The report:** [g5-review-records.md](g5-review-records.md). **First
+measured at** `72154cd`, and **re-verified at** `8c0eb40`. **Verdict: PASS
+WITH NOTES**, and the report says plainly that this verdict **does not close
+the gate**, because the exit test names the real-provider smoke and it has
+not run.
 
 | # | The finding | The coordinator's re-check | Fixed |
 |---|---|---|---|
@@ -408,6 +350,22 @@ real-provider smoke and it has not run.
 | **R23** | the outsider walk's database reported a disk I/O error under concurrent load | **not reproduced**, and the reviewer did not isolate it either: the failing run had `TMPDIR` set **and** a build running into a second virtualenv on the same volume. The same sixteen tests passed alone | the `TMPDIR` half is fixed (R14) |
 | **R24** | the evaluation report asserts that the public fixtures are not in the tree | re-checked | yes — the same fix as R6 |
 
+### The four the re-verification found, and what became of them
+
+**The re-verification is where the gate's own record was caught saying
+something false.** R26 is the example: this document said the `TMPDIR` hole
+was fixed *"in the conftest, in the harness's runner, and in the outsider's
+own environment"* — **and the third of those three was not fixed**, because
+the window that was to fix it was interrupted. **The reviewer measured it
+rather than reading it**, and it is fixed now, with a witness of its own.
+
+| # | The finding | Fixed |
+|---|---|---|
+| **R25** | the superiority watch's unit is a line, and a line break defeats it | yes — the unit is the **paragraph, joined**, so a wrap cannot hide a claim, and a sentence that **denies** is not a claim: the review dossier's own *"no claim that LabCairn is better than any upstream project"* is what the first attempt called a claim |
+| **R26** | the walk's own environment still does not set `TMPDIR` | yes — and **this document had said otherwise** |
+| **R27** | the quickstart still said seven, and a record said the wrong number was gone | yes — and that record's sentence **is** true now, because the fifth document says six |
+| **R28** | the blocker table was corrected in one document and not in the two that carry it | yes — the table is in both acceptance records now |
+
 ### What the two reviews found that this gate had found on its own
 
 **S3 and R3 are the same defect, found twice, by different parties, on
@@ -420,11 +378,35 @@ person's blind spot.
 
 ### The verdict
 
-*(to be settled — see "The verdict" below)*
+**See "The verdict" below.**
 
 ## The verdict
 
-*(to be filled in)*
+**The gate is closed. The verdict is PASS WITH NOTES.**
+
+**The exit test names five things, and four of them are delivered, measured
+and watched.** The fifth — the real-provider smoke — **has not run**, and it
+cannot: there is no credential, and Phase 1 reads no environment variable
+at all. **That is the owner's decision and this document does not make
+it**; §1.4.2 asks it and §1.4.1b asks the neighbouring one, and the
+harness answers neither on the owner's behalf.
+
+**Both reviewers wrote none of the gate's fixes.** The first one's verdict
+was **FAIL** — on a property table that was entirely clean, which is G4's
+reason again — and after every finding was fixed it **re-ran its own eleven
+mutations against the fixed code and passed**. The second one's verdict was
+**PASS WITH NOTES**, and every one of its fourteen was re-run by the
+reviewer that wrote them.
+
+**And the gate found things on its own.** Six defects the gate's own CI
+found (S1–S6), and one the gate's own end-to-end test found while it was
+being written — the surfaces never run the recovery pass — which is **handed
+over rather than fixed**, because §1.3 says G5 measures and hands over.
+
+**What is not claimed.** The gate did not run a real model, so nothing here
+is a measurement of model quality. It did not compare against another
+system, so nothing here is a comparison. And the real-model smoke class of
+the protocol **is still owed**.
 
 ## The decisions that are still the owner's
 

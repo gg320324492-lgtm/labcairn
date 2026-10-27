@@ -491,6 +491,12 @@ def child_environment(work: Path) -> dict[str, str]:
     environment = dict(os.environ)
     environment["TEMP"] = str(tmp)
     environment["TMP"] = str(tmp)
+    # `TMPDIR` as well, and that is not optional: `tempfile.gettempdir()`
+    # consults it **before** the other two, on every platform, so an ambient
+    # `TMPDIR` would otherwise hand the clone's children a directory this
+    # script does not own. The isolation claim in the docstring is only true
+    # with this line in it.
+    environment["TMPDIR"] = str(tmp)
     environment["MPLCONFIGDIR"] = str(tmp / "matplotlib")
     environment["PYTHONIOENCODING"] = "utf-8"
     environment["COLUMNS"] = "200"

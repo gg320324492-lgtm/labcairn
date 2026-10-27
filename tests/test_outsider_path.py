@@ -576,3 +576,31 @@ def test_the_extractor_finds_nothing_in_a_document_with_no_commands() -> None:
     """
     script = load_script()
     assert script.readme_commands("# A README\n\nOnly prose here.\n") == []
+
+
+def test_the_walk_hands_its_children_a_temporary_directory_of_its_own(
+    tmp_path: Path,
+) -> None:
+    """The walk's children do not inherit an ambient ``TMPDIR``.
+
+    ``tempfile.gettempdir()`` consults ``TMPDIR`` **before** ``TEMP`` and
+    ``TMP``, on every platform. So an environment that carries one hands
+    the clone's children a directory this script does not own — and the
+    script's own docstring says the temporary directory is the script's.
+
+    **The check is on the environment the script builds**, not on what a
+    child later does with it: the script's claim is about what it hands
+    over.
+    """
+    module = load_script()
+    ambient = tmp_path / "ambient"
+    ambient.mkdir()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("TMPDIR", str(ambient))
+        environment = module.child_environment(tmp_path / "work")
+    own = str(tmp_path / "work" / "tmp")
+    assert environment["TMPDIR"] == own, (
+        f"the walk hands its children TMPDIR={environment['TMPDIR']!r}, and the "
+        f"ambient one it was supposed to replace is {ambient!r}"
+    )
+    assert environment["TMPDIR"] != str(ambient)

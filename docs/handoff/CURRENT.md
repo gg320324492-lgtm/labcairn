@@ -1,7 +1,12 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-27
+**Current `main`:** the merge of PR #118 — the merge that carries **G5's whole
+delivery** and closes the gate. G5's own subject is `72154cd`, and the gate's
+record is [`acceptance/G5-acceptance.md`](../acceptance/G5-acceptance.md).
+
 **Date:** 2026-10-25
-**Current `main`:** `d49ec323eb52c6515e45dbc9c1933243056f926f` — the merge that carries
+**Previous `main`:** `d49ec323eb52c6515e45dbc9c1933243056f926f` — the merge that carries
 G4's follow-ups: the tests copy a migrated database instead of migrating one
 each time, the DOCX's font claim is watched, the earlier gates' exit
 demonstrations are run by a test, the font licence audit is measured, and the
@@ -20,6 +25,7 @@ CI runs in six shards per platform (34.5 minutes → 7.3).
 | G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
+| **G5** | **closed** — LC-P1-13 and LC-P1-14 both `PASS WITH NOTES`, and the gate closed on **two independent reviews** that wrote **none** of its fixes: the product-and-measurement scope's first verdict was **FAIL** on a clean property table, and after its findings were fixed **it re-ran its own eleven mutations against the fixed code and passed**; the documents-and-release scope's verdict is **PASS WITH NOTES**, with every one of its fourteen re-run by the reviewer that wrote them. **Twenty-four findings between them, all fixed.** The gate also found six of its own, and its own end-to-end test found one more — the surfaces never run the recovery pass — which is **handed over rather than fixed**. [G5 acceptance](../acceptance/G5-acceptance.md) · [the first review](../acceptance/g5-review-product.md) · [the second](../acceptance/g5-review-records.md) |
 | **G4** | **closed** — LC-P1-11 and LC-P1-12 both `PASS WITH NOTES`, and the gate closed on an **independent review** at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` (verdict **PASS WITH NOTES**; two reviewers who wrote none of the gate's fixes, one per scope — the report path's review **failed the gate five times** on a clean property table, and the three surfaces' review came back **BLOCKED five times and FAIL once**, the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings** — the shared rule's own witness, one command-level refusal, the pairing by value, and the crash fix's two catches — **were fixed, and the review re-verified its own findings against the fixed code and passed**. [G4 acceptance](../acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](../acceptance/LC-P1-12-acceptance.md) |
 
 ## What exists now
@@ -79,7 +85,9 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 Retrieval now answers the two-negative question (T10): a search that breaks is a `PROVIDER_FAILURE` and never a `no_hit`, and the boundary refuses to hand a caller an empty context. What is still unbuilt around it is the model call the evidence would feed. And the gate is reachable from a ledger rather than from a report: nothing renders a `GateResult` yet, so "a report cites nothing when the gate refuses" is enforced at the gate and asserted at the record model, not observed in a rendered document. That demonstration is still to be made. The ledger's conflict rule covers numeric records about the same cell; the claim-side conflict ADR-0004 A5 also describes is not implemented, because the schema's own uniqueness constraint makes two claim records unable to collide.
 
-## Next: G5
+## What G5 closed, and what it handed over
+
+**G5 is closed** — LC-P1-13 (evaluation, fault injection, the competitor baseline) and LC-P1-14 (the public alpha handoff: the delivery documents, the release contents, the review dossier, the licence audit), the last two of Phase 1. Its exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**; the fifth, the real-provider smoke, **has not run** and cannot: there is no credential, and Phase 1 reads no environment variable. **That is the owner's decision**, and the gate did not make it. **Two things it handed over are limits rather than defects**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte*; and the protocol's real-model smoke is still owed.
 
 **G4 is closed** — LC-P1-11 (report assembly, export and artefact
 versioning) and LC-P1-12 (the Typer CLI and the local FastAPI + React

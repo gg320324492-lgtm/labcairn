@@ -12,6 +12,11 @@ one was reverted.
 **Measured commit:** `72154cd27fc99005ab1ee22c6d5e58608e6b5b2f`. `git rev-parse
 HEAD` in my worktree returned exactly this, so I measured the gate commit and
 checked nothing else out.
+**Re-verified against:** `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` — **§16**,
+which re-runs every one of the fourteen findings' own mutations against the
+fixed tree and adds what the re-verification found. **§§1–15 describe the
+gate commit; §16 describes the re-verification, and where the two disagree,
+§16 is the later reading and the measurement is in §16.3.**
 **Worktree:** `E:\LabCairn\.claude\worktrees\agent-a931269a76040f128` — an
 isolated copy of the repository. **The main checkout was not measured.**
 **Date:** 2026-10-25.
@@ -1091,3 +1096,308 @@ assert a fact about it. This is the fix the baseline record already named.
 - **It does not take the owner's decision** on §1.4.1b. It supplies the
   material and a recommendation, and says plainly that the gate's exit test
   is not met whatever is decided.
+
+---
+
+# 16. The re-verification
+
+**When:** 2026-10-27.
+**Tree re-verified:** `8c0eb403c70c161b41a2f8e1407613307a7e6cf9` — the commit
+the coordinator named, on the branch `re-verify/g5-records`, in the same
+isolated worktree. `git rev-parse HEAD` returned exactly that, and the tree
+was clean before and after every mutation below.
+**What I changed:** nothing. **I still wrote no fix.** Every change below was
+made to break something and then reverted with `git checkout --`, and each
+was confirmed reverted with `git status --short` before the next.
+**What I did not do:** I did not run the whole suite as a separate step. The
+coordinator asked for that, and I ran the **evaluation harness** — which runs
+the suite itself — once, alone, after the machine's other harness run had
+finished, and I ran the local witnesses one file at a time. The harness's own
+report is in §16.3.
+
+## 16.1 The fourteen, one by one
+
+The gate's document numbers my findings **R11–R24** (its own F1–F14). The
+column that matters is the third: **does my own mutation now turn it red?**
+
+| # | The finding | My mutation, re-run | Now |
+|---|---|---|---|
+| **R11** | §1.4.1b misattributes which skip failed which blocker, and the blocker table it cites is stale | the provider-credentials file witnesses **no** blocker; the second blocker's reason was incomplete | **PARTLY** — the task breakdown is corrected; the two acceptance records still carry the old table (**R28**) |
+| **R12** | the sixth blocker's "HELD" is not earned | the required tests are read out of the CI's own shard file; a skipped one is named in the blocker's row | **YES** — and the ruling is left to the owner (**§16.2**) |
+| **R13** | nothing watches a shipped document for superiority language | the same plain-paragraph section, planted again in `docs/acceptance/LC-P1-13-baseline.md` | **YES** — `test_no_published_record_claims_superiority_over_another_system`, **RED**, the line named |
+| **R14** | the parallel-run temp isolation is defeated by `TMPDIR` | an ambient `TMPDIR`, with the worker probe | **PARTLY** — `conftest.py` and the harness's runner are fixed and watched; the walk's own environment is not (**R26**) |
+| **R15** | the release gate's font check is by file name | the **real** GPL v2 DarkGarden bytes as `.sfd` and as `.woff2`, in a throwaway copy, a real `uv build`, the workflow's own program | **YES** — **exit 1**, *"carries font files: ['tests/fixtures/papers/fonts/DarkGarden.sfd', 'web/src/assets/labcairn.woff2']"* |
+| **R16** | the README's command extraction misses commands outside a shell fence and inside an inline span, and the gate's two extractors disagree | the same three: a `console` fence at the end, a `console` fence in the middle, an inline code span | **YES** — all three **RED**, and the middle one now names the *command*, not prose. There is **one** extractor now, read from the walk script |
+| **R17** | the threat model's enumeration of the writes in `src/` is not watched | a seventh write, in a module the list has never heard of | **YES** — `test_the_write_enumeration_in_the_threat_model_matches_the_tree`, **RED** |
+| **R18** | the protocol's blocker count is wrong in five shipped documents | `grep -rn "seven Phase 1 blockers"` | **PARTLY** — four of the five now say six; **`docs/QUICKSTART.md` still says seven** (**R27**) |
+| **R19** | a citation is outside the watching regex's extension list | `pyproject.toml:316` → `pyproject.toml:9999` | **YES** — **RED**, *"these citations in the threat model do not resolve"* |
+| **R20** | two in-page anchors cannot resolve, and no test checks any in-page anchor | the Chinese licence anchor, pointed at a heading that is not there | **YES** — `test_in_page_anchors_resolve`, **RED**, the broken anchor named |
+| **R21** | the release notes carry a limitation that was fixed before that commit | read the section | **YES** — it now says the witnesses are **sound** and that they skip only where the volume makes no short names, and it cites this report |
+| **R22** | `.env.example` says Phase 1 reads no environment variable | read the file | **YES** — it now says *"Phase 1's **default offline run** reads no environment variable"* and names the provider layer's read |
+| **R23** | the walk's database reported a disk I/O error under concurrent load | the walk, alone, with no `TMPDIR` and no concurrent build | **NOT REPRODUCED** — and the `TMPDIR` half of the cause is fixed (R14) |
+| **R24** | the evaluation report asserts the public fixtures are not in the tree | the hard-coded reason put back | **YES** — `test_a_not_measured_reason_may_not_contradict_the_tree`, **RED**, *"the reason says the public fixtures are not in the tree, and they are"* |
+
+**Nine fully fixed. Three partly fixed (R11, R14, R18). One not reproduced
+(R23).** The three that are partly fixed are the three whose *document* half
+was not corrected; in each case the *mechanism* is now watched, and what is
+left is a record — which is what §16.4 reports.
+
+## 16.2 R12, judged: does the exclusion record, or does it let anything through?
+
+The coordinator asked me to judge this, so here is the measurement rather
+than the description.
+
+**What the fix does.** `tests/evaluation/shards.py::required_test_files`
+reads the required tests out of **`.github/ci-shards.json`** — the CI's own
+statement of what it runs — so the list cannot drift from the file the CI
+runs. `tests/evaluation/aggregate.py::_excluded_required_tests` then names
+**every** required test that was skipped, or was not run at all, **with the
+test's own reason quoted**, and the sixth blocker's row carries it.
+
+**Three things I measured.**
+
+1. **It is not narrow.** I fabricated a skipped outcome in
+   `tests/test_earlier_exit_demos.py` — a required CI test that is not the
+   provider-credentials one and that carries no marker — and the sixth
+   blocker's row named it, with its reason:
+
+   > `test_earlier_exit_demos.py — 1 case(s) skipped: tests/test_earlier_exit_demos.py::test_a_skipped_case: it did not pass`
+
+   The exclusion does not filter by marker. **Nothing is let through
+   silently.**
+2. **It is on the page, not only in the model.**
+   `test_the_exclusion_is_in_the_rendered_report` **passes**, and the
+   rendered row carries the file name.
+3. **It does not take the owner's decision.** The blocker's status stays
+   **HELD** and the row says, in as many words: *"The exclusion is recorded
+   rather than ruled on: whether a declared skip fails this blocker is the
+   owner's decision, and this harness does not make it."* That is the other
+   of the two options I set out, and the one that does not decide for the
+   owner.
+
+**And one thing a reader should know, which is not a defect.** The row lists
+every required test the run did not cover. In a **full** run that is a short
+list — my own run below lists **seven** — but the harness's `--classes`
+option narrows the selection, and in a narrowed run the row carries a list of
+every file outside the selection (my probe produced 106 entries). That is
+honest, and it is long.
+
+**My judgement: R12 is fixed as designed.** It records the exclusion, it
+names the file and the reason, and it leaves the ruling to the owner. What
+it does **not** do is make the *status* reflect the exclusion — the status
+is still HELD, and the exclusion is visible in the row's prose. That is a
+deliberate choice, and the record states it.
+
+## 16.3 The harness's own report on this tree
+
+**The run:** `python -m tests.evaluation --out E:\labcairn-local\tmp-verify-records\evaluation`,
+with its own `TEMP`/`TMP`/`MPLCONFIGDIR` under
+`E:\labcairn-local\tmp-verify-records`, `TMPDIR` unset, and nothing else
+running on the volume. **Exit code 2** — *"a selected class could not be
+run"* — after 2399.3 s of measured work.
+
+| The protocol's class | Passed / collected | Skipped |
+|---|---:|---:|
+| Unit | **1513/1514** | 1 |
+| Integration | **1133/1134** | 1 |
+| Negative | **363/366** | 3 |
+| E2E | **109/109** | **0** |
+| **Real-model smoke** | **NOT RUN** — *"no real provider credential is configured in this environment, and the run would spend money"* | — |
+| Repository gates | **459/459** | 0 |
+
+**Zero failed and zero errored in every class.** The E2E class — which is
+where the outsider's path lives — has **no skip at all**, and the repository
+gates are **459/459**. So **R23 did not reproduce**, and the tree at
+`8c0eb40` is green on this machine.
+
+**The blocker table, in the harness's own words:**
+
+| The protocol's blocker | Status | What the status means |
+|---|---|---|
+| New user cannot complete a task from a clean environment following README. | **HELD** | every witness was collected and passed — **0** failing cases |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **FAILED** | **3** of 114 witness cases did not pass — the POSIX-only conditional and the two 8.3 short-name witnesses |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | HELD | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | HELD | every witness was collected and passed |
+| Report claims a verified scientific result based solely on schema or rendering checks. | HELD | every witness was collected and passed |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | HELD | every witness was collected and passed — **and the row carries the exclusion**, verbatim: *"This run excluded 7 required CI test(s): test_api.py — 1 case(s) skipped …; test_provider_credentials.py — 1 case(s) skipped: … NOT RUN …; test_recovery_support.py — not part of this run; test_security_paths.py — 3 case(s) skipped …; test_skill_ledger.py — not part of this run; … **The exclusion is recorded rather than ruled on: whether a declared skip fails this blocker is the owner's decision, and this harness does not make it.**"* |
+
+**Three things this settles, and one it does not.**
+
+- **The first blocker now holds**, and the gate's own tool says so — the
+  stale skip is gone, and the blocker's row says *"every witness was
+  collected and passed"*. **R11's substance is confirmed by the tool, not by
+  my reading of it.**
+- **The second blocker fails for three cases**, which is what the corrected
+  §1.4.1b now says. **The record and the tree agree.**
+- **The sixth blocker's HELD carries its exclusion**, with the owner's
+  ruling left open. **R12 is discharged as designed.**
+- **What it does not settle:** whether a declared skip counts. That is still
+  the owner's, and the harness now says so in the row a reviewer reads.
+
+**And the metrics.** `unsupported-claim-detection` is now **1/1** — measured
+over the public corpus rather than reported NOT MEASURED — and
+`recovery-correctness` is **4/4**. The end-to-end reason now reads:
+
+> *"The tree holds the public fixture corpus — **4 fixture(s) and 7
+> question(s)** with their answer keys — but a corpus of questions with known
+> answers is not a record of deliveries, and nothing in the tree records a
+> delivery that was attempted and verified, so the numerator would count
+> nothing."*
+
+**"not in this tree" does not appear in the report at all.** R24 is closed.
+
+**And the comparison section still says what it must:**
+
+> *"**No comparison was made, and none is printed.** … no baseline document was
+> given, so no comparison was made."*
+
+The report also names the revision it measured and says *"working tree:
+clean — the commit is the tree that was measured"*.
+
+## 16.4 What the re-verification found that the first review did not
+
+### R25 — LOW. The shipped-record superiority watch's unit is a line, and a line break defeats it
+
+**Where:** `tests/test_evaluation_harness.py::test_no_published_record_claims_superiority_over_another_system`,
+and the patterns it uses (`tests/evaluation/report.py::ranking_pattern` and
+`::target_pattern`).
+
+**What is wrong.** The watch's unit is a line: a line that carries a verdict
+word **and** names one of the systems the protocol lists is a claim. A
+superiority claim whose verdict word and whose named system fall on
+**different lines** is therefore not seen. I planted, in a plain paragraph of
+`docs/QUICKSTART.md`:
+
+> LabCairn outperforms the other
+> system, PaperQA2, on citation support.
+
+— and the watch stayed **green**. Two other shapes are caught, so the seam is
+narrow and specific: the name on the **same** line, before the verdict word,
+is caught; the name on the same line inside a **code span** is caught; only
+the **line break** between them escapes.
+
+**Why it matters, and how much.** The repository wraps prose at about 79
+columns, so a line break at the wrong place is a thing that happens. The
+witness's own docstring names one limit — *"A record that dressed a
+superiority claim as a block quote would pass here"* — and says plainly that
+it is *"a real one"*. **The line-wrap limit is not named.** That is the
+difference between a stated limit and an unstated one, and it is the only
+thing wrong with an otherwise careful witness.
+
+**Recommendation:** either join the line before the pattern runs, or name the
+limit in the witness's docstring, the way the block-quote limit is named.
+
+### R26 — LOW/MEDIUM. The walk's own environment still does not set `TMPDIR`
+
+**Where:** `scripts/outsider_path.py::child_environment` (the function at
+the tree at `8c0eb40` sets `TEMP`, `TMP` and `MPLCONFIGDIR`, and its own
+docstring says *"The temporary directory is outside the repository, and it is
+the script's own: `TEMP`, `TMP` and `MPLCONFIGDIR` all point inside the
+run's work root"*).
+
+**What is wrong.** `grep -c TMPDIR scripts/outsider_path.py` is **zero** on
+this tree. The gate's review record says R14 was fixed *"in the conftest, in
+the harness's runner, and in the outsider's own environment"* — **the third
+of those three is not fixed at this commit**, and I measured it rather than
+reading it:
+
+| | the walk's environment | a child of the walk gets |
+|---|---|---|
+| no ambient `TMPDIR` | `TEMP`/`TMP` → the walk's own `tmp`, `MPLCONFIGDIR` → its `matplotlib` | **the walk's own `tmp`** |
+| an ambient `TMPDIR` | `TEMP`/`TMP` → the walk's own `tmp`, `TMPDIR` → **not set**, so the ambient one passes through | **the ambient directory** |
+
+So the walk's isolation claim is false on a machine that carries a `TMPDIR`,
+and the walk's children — including the `uv run pytest` it runs in the clone
+— would share that directory with whatever else uses it. **No test watches
+this function**: `grep -rn TMPDIR tests/test_outsider_path.py` is empty, and
+`child_environment` is called from the script alone.
+
+**Recommendation:** set `TMPDIR` in `child_environment` as the other two
+mechanisms now do, and give the walk's environment a witness of its own.
+
+### R27 — LOW. The protocol's blocker count is still "seven" in the quickstart, and a record says the wrong number is gone
+
+**Where:** `docs/QUICKSTART.md:426`, and
+`docs/acceptance/LC-P1-13-evaluation.md:97-104`.
+
+**What is wrong.** Four of the five documents that repeated the wrong number
+now say six — the task breakdown (twice), the release notes and the
+outsider-path record. **The fifth, the quickstart, still says seven.** And
+the evaluation record now says:
+
+> *"The discrepancy was recorded rather than resolved, and this gate's own
+> review found it again; the five shipped documents that repeated the wrong
+> number now say six, and **the wrong number is gone**."*
+
+That is **false of this tree**: `grep -rn "seven Phase 1 blockers" --include=*.md .`
+returns the quickstart's line, beside the two places where the phrase is
+being *discussed*.
+
+**Why it matters.** A record that says a correction is done when it is not
+is the same shape as R11 — and the repository's own rule says the
+measurement wins and the record is corrected.
+
+### R28 — LOW/MEDIUM. The blocker table itself was corrected in one document and not in the two that carry it
+
+**Where:** `docs/acceptance/LC-P1-13-evaluation.md` §8 and
+`docs/acceptance/LC-P1-13-baseline.md` §3.4 and §3.6 — neither of which
+changed at all between `72154cd` and `8c0eb40`.
+
+**What is wrong.** The task breakdown's §1.4.1b is now correct: it says
+**one** of the six did not hold, it attributes it to the second blocker with
+its three skipped witness cases, and it records that the first blocker's skip
+was removed. **The two acceptance records that carry the table still carry
+the old one.** The evaluation record's §8 still says:
+
+> *| New user cannot complete a task from a clean environment following README.
+> | **FAILED** | 4 | 2 of 51 witness cases did not pass …|*
+
+and the baseline record §3.6 still says:
+
+> *"**The blockers, on this tree: two of the six FAILED, four HELD** — the same
+> two as the recorded run and for the same reasons"*, and §3.3 of that record
+> says the finding is *"current rather than historical"*.
+
+The tree has moved: my own run of the harness on it says **one** of the six
+failed and the first blocker **holds**; and the second blocker's failing
+witness cases are **three** on a volume without 8.3 names, not one. **The
+evaluation record's own table is anchored to `37ae366` and says so at the
+top**, so a stale table is not a lie in itself — but the baseline record's
+§3.6 is headed *"A fresh measurement on this tree"* and now describes a tree
+that is not this one.
+
+**Recommendation:** re-measure the blocker table on the tree the gate closes
+on and put it in both records, or move the dated table into a dated section
+and say which tree it describes.
+
+## 16.5 The re-verification's verdict
+
+**PASS WITH NOTES** for the scope I re-verified — the same scope, the same
+vocabulary, and **this verdict closes nothing either**.
+
+**In one sentence:** every one of my fourteen findings was re-tested by
+re-running my own mutation, **nine are now watched and hold, three are
+watched but their document half was not corrected, one was not reproduced** —
+and the re-verification itself found **four new items**: an unstated limit in
+the new superiority watch, a walk environment the gate record says was fixed
+and is not, a quickstart that still says "seven", and two acceptance records
+whose blocker table describes a tree that is not this one.
+
+**What has to happen before the gate closes**, beyond the owner's four
+decisions:
+
+1. **R26** — set `TMPDIR` in `scripts/outsider_path.py::child_environment`,
+   and give it a witness. The gate record currently says this was done.
+2. **R27** — correct `docs/QUICKSTART.md:426`, and correct the evaluation
+   record's claim that the wrong number is gone.
+3. **R28** — re-measure the blocker table on the tree the gate closes on and
+   put it in both acceptance records.
+4. **R25** — name the line-wrap limit in the new witness's docstring, or
+   close it.
+
+**And the owner's open decisions are unchanged by this re-verification.**
+§1.4.1b now asks the right question — the second blocker's platform
+conditional, not the provider-credential skip — and the harness still leaves
+the ruling to the owner. **The gate's exit test names a real-provider smoke
+that has not run, and nothing in this re-verification changes that.**
+
