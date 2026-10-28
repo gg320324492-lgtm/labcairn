@@ -113,8 +113,8 @@ The P1 deliverable, in the order the deliverable names it:
 | 2 | **Bind a research folder** | `labcairn task create --source-dir materials` | Three bound sources: `materials/paper.pdf` (kind `pdf`, readable), `materials/measurements.csv` (kind `csv`), `materials/notes.md` (kind `markdown`) |
 | 3 | **Create a task** | the same command | One task; `labcairn task status --json` reports it |
 | 4 | **A report and a deterministic figure** | the layer's `render_report`, and `run_analysis` under a granted `analysis.run` approval | `report/v1/` holds `report.json`, `report-manifest.json`, `report.md`, `report.html`, `report.docx`, `report.pdf`; the figure is an SVG whose bytes hash to its receipt, and **two renders of the same recipe are byte-identical** |
-| 5 | **Source locators** | three anchors, one per kind of material | The report's citations are locators of three kinds — `csv` (row and column), `pdf` (page), `text` (line and section) — and each address **resolves** in the material the task holds |
-| 6 | **An evidence ledger** | three evidence records | The report's snapshot names `ev-csv`, `ev-md`, `ev-pdf`; every claim cites the address it rests on |
+| 5 | **Source locators** | three claims recorded through the layer's `record_claim`, against addresses `list_source_addresses` reports | The report's citations are locators of three kinds — `csv` (row and column), `pdf` (page), `text` (line and section) — and each address **resolves** in the material the task holds |
+| 6 | **An evidence ledger** | three evidence records, written by `record_claim` | The report's snapshot names the three records the operation returned; every claim cites the address it rests on |
 | 7 | **A revision** | the researcher's own edit to the table | The repository's own measurement says the material moved; the walk marks the report's receipt `STALE` with the repository's own reason and **regenerates nothing**; the report is then generated again as **v2**, with **v1's bytes unchanged**; the refreshed material goes back through `labcairn sources ingest`; the analysis runs again over the revised bytes and draws a **different figure**; and the attempt to **recompute** the report from the revised bytes is **refused** — §7.2 |
 | 8 | **A restart** | the service is started again in a **new process** | The task after the restart is the task before it; the service serves the same task; `labcairn task resume` makes **a new run against the same task** |
 | 9 | **Two surfaces** | the CLI and the local service, against one workspace | 308 fields compared between the CLI's `task status --json` and the API's `/task`; 288 between the two artefact lists; for each of the four forms, the bytes on disk, the bytes the API serves and the receipt's hash **agree** |
@@ -204,7 +204,7 @@ credential. `labcairn doctor` was asked, before anything else, and it reported
 | The material | `tests/fixtures/analysis/groups.csv` (the controlled table whose statistics were written down by hand beside it), `tests/fixtures/papers/arx-2610.10596.pdf` (a text PDF), and a Markdown the script writes |
 | The figure | the repository's own deterministic renderer, driven by a chart recipe the script writes into the workspace |
 | The report | the repository's own renderers — no model call anywhere in the path |
-| The claims | written by the walk itself, because **the product has no operation that writes an evidence record or an anchor** (§7.3) |
+| The claims | recorded through the layer's own `record_claim`, against the addresses `list_source_addresses` reports — the words are the walk's, the record is the product's (§7.3) |
 
 **This is the "deterministic fixture without provider" half of LC-P1-14's
 acceptance clause.** The other half — a real provider under a declared model,
@@ -229,12 +229,12 @@ The run says this in its own output, and the report carries it:
   operation, so there was nothing to drive.
 - **The DOCX and the PDF are not byte-reproducible.** Their bytes are recorded
   and compared as stored against served, not across two renders.
-- **The product has no operation that writes an evidence record or an
-  anchor.** The walk wrote the claims' own addresses and the records that
-  rest on them itself. The report carries real claims, cited to real
-  addresses in the material the CLI ingested — but the claims were made by
-  the walk, not by the product. **This is the one step of the deliverable
-  that is not the product's, and it is named rather than hidden** (§7.3).
+- **The evidence records are extracted, not verified.** The walk records
+  three claims through the product's operation and leaves C1, C2 and C3
+  unrun, so the report carries records the ledger has located but not
+  confirmed. The words of each claim are the walk's: `record_claim` writes
+  what it is told, it does not extract a claim or accept a model's proposal
+  (§7.3).
 
 ---
 
@@ -243,12 +243,12 @@ The run says this in its own output, and the report carries it:
 These are what the walk found on the way. They are findings about the
 repository, not about the script.
 
-### 7.1 The report and the figure have no surface of their own
+### 7.1 The report and the figure had no surface of their own when the walk ran
 
-`labcairn` has no command that renders a report or draws a figure, and the
-API has no route for either. The walk reached them through the application
-layer's own operations — `run_analysis` and `render_report` — which is what
-the G4 demonstration does as well. **A stranger following the README cannot
+At the time of the walk, `labcairn` had no command that rendered a report or
+drew a figure, and the API had no route for either. The walk reached them through
+the application layer's own operations — `run_analysis` and `render_report` —
+which is what the G4 demonstration does as well. **A stranger following the README cannot
 produce a report, because the README's command table has no command that
 produces one.** The commands that exist today are the ones the README's table
 lists (`init`, `doctor`, `task create|run|resume|status`, `sources
@@ -261,6 +261,25 @@ of it need a Python import rather than a command. **This is a gap for the
 owner to rule on**: either the CLI grows a `labcairn report render` command,
 or the acceptance record says plainly that the report path is reached through
 the application layer.
+
+**Corrected since this was written.** The CLI grew `task report`, `task
+reconcile`, `task figure`, `task approval-request` and `task approval-grant`;
+the service grew `POST /report` and `POST /analysis`, both through the layer's
+own operations and answering with the layer's own models; and a fresh
+workspace's default policy permits `report.render` and `analysis.run` (the
+registry binds each capability to its resources, and the content checks and the
+consent — not the rule alone — decide whether an output may exist). The command
+list above is the one this walk measured; it is now seventeen commands, not the
+ten it names. **The walk still renders the report and draws the figure through
+the layer rather than through the new commands** — changing those steps was not
+measured locally, so the claim below stands as measured rather than being
+rewritten to match the code. **The workbench's figure path arrived with its
+Figure panel** — it asks `POST /approvals` and draws with `POST /analysis` once
+the answer is granted. **The evidence writer has a surface now** (§7.3):
+`record_claim` is reached by `labcairn task claim` and `POST /claims`, and the
+walk records its claims through it instead of writing the ledger's rows itself.
+See [`RELEASE-NOTES.md`](../RELEASE-NOTES.md) §2.1 and §2.2 for the current
+state.
 
 ### 7.2 The report cannot be recomputed from the revised material
 
@@ -304,16 +323,35 @@ recorded here because the deliverable says *"requests a revision"*, and the
 honest answer is what the run measured: the revision is generated, and the
 re-computation is refused with a reason that names itself.
 
-### 7.3 The evidence ledger cannot be written through any surface
+### 7.3 The evidence ledger cannot be written through any surface — closed
 
-Already named by G4's demonstration, and confirmed here: there is no product
-operation that writes an evidence record or an anchor. The walk wrote them
-itself, against the addresses **the ledger itself holds** — the addresses are
-read out of `source_texts` and parsed back, rather than guessed, because an
-anchor at an address nothing answers is an anchor to nothing. (That is how the
-Markdown's addresses turned out to be section-qualified: a locator built from
-the line alone names an address the ledger does not hold, and an early run of
-this script was refused for exactly that.)
+**As found.** Already named by G4's demonstration, and confirmed here: there
+was no product operation that wrote an evidence record or an anchor. The walk
+wrote them itself, against the addresses **the ledger itself holds** — the
+addresses are read out of `source_texts` and parsed back, rather than guessed,
+because an anchor at an address nothing answers is an anchor to nothing. (That
+is how the Markdown's addresses turned out to be section-qualified: a locator
+built from the line alone names an address the ledger does not hold, and an
+early run of this script was refused for exactly that.)
+
+**Closed by the layer's `record_claim` and `list_source_addresses`.** The two
+operations are in `src/labcairn/application/evidence.py`; `labcairn task claim`
+and `POST /claims` reach the first, `labcairn sources addresses` and
+`GET /sources/{source_id}/addresses` reach the second. The walk now calls them
+instead of writing `SourceAnchorRow` and `append_record` itself, so the report
+this record describes carries records the product wrote. The operation keeps
+the part of the finding that was the point: it locates the address before it
+writes, refuses one nothing answers, refuses material the task does not hold
+or cannot read, refuses the same span twice, and writes the record as
+`extracted` with `created_by=user`. **What is still not the product's is the
+claim's words**: the caller names the address and supplies the span or value,
+and no surface runs C1, C2 or C3. That is stated in RELEASE-NOTES §2.2 rather
+than left as an implication.
+
+*Witnessed by* `tests/test_application_evidence.py` (the operation's refusals
+and the report that rests on it), `tests/test_cli.py::test_task_claim_makes_the_task_reportable`,
+`tests/test_api.py::test_a_claim_recorded_through_the_service_makes_the_task_reportable`,
+and this walk.
 
 ### 7.4 The base branch was red when this work started
 

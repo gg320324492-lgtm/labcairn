@@ -723,3 +723,16 @@ def test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one(
         resource=same_file_other_case,
     )
     assert decision.permission is Permission.DENY, f"case alone bypassed a deny rule: {decision}"
+    # The DENY must come from the *declared* spelling — that is the only proof
+    # the case-fold ran. Asserting the permission alone is not a witness: on
+    # Windows the resolved spelling (`private/secrets.txt`) matches the deny rule
+    # even with no folding at all, so replacing `_FOLD` with the identity still
+    # returns DENY, just attributed to `resolved`. Measured on a Windows runner:
+    # `_FOLD = str.casefold` -> matched_spelling "declared"; `_FOLD = identity`
+    # -> matched_spelling "resolved". Pinning "declared" is what makes this test
+    # fail if the fold is removed.
+    assert decision.matched_spelling == "declared", (
+        f"the deny was attributed to {decision.matched_spelling!r}, not the declared "
+        "spelling — the case-fold did not run, so a changed-case spelling was never "
+        "reconciled against the rule and the DENY came from the pre-resolved key"
+    )

@@ -375,9 +375,10 @@ REQUIRED_CLAIMS: tuple[str, ...] = (
     "the PDF is a text PDF, so it can be read and cited",
     "the inventory stage ran against the bound material",
     "the ledger holds three records, one for each kind of material",
-    "the address anc-csv resolves in the material the task holds",
-    "the address anc-pdf resolves in the material the task holds",
-    "the address anc-md resolves in the material the task holds",
+    "each claim was recorded as the user's, not a model's proposal",
+    "the csv claim's address resolves in the material the task holds",
+    "the pdf claim's address resolves in the material the task holds",
+    "the markdown claim's address resolves in the material the task holds",
     "the run wrote a figure",
     "the figure on disk is the bytes the receipt records",
     "two renders of one recipe are byte-identical",
@@ -433,15 +434,15 @@ def test_every_claim_the_deliverable_names_was_made(outsider_run: OutsiderRun) -
 def test_the_walk_says_what_it_did_not_exercise(outsider_run: OutsiderRun) -> None:
     """The run named its own limits.
 
-    A run that quietly passed over the browser, over the missing product
-    operation, or over the absence of a real provider would read as a run of
+    A run that quietly passed over the browser, over the checks it did not
+    run, or over the absence of a real provider would read as a run of
     something it is not.
     """
     walk = outsider_run.report["walk"]
     limits = " ".join(walk["not_exercised"]).lower()
     assert "react" in limits, "the run did not say the React application was not run"
-    assert "evidence record" in limits, (
-        "the run did not say that no product operation writes an evidence record"
+    assert "extracted" in limits, (
+        "the run did not say that the evidence it recorded was not verified"
     )
     assert "provider" in limits, "the run did not say that no real provider was called"
 

@@ -8,28 +8,33 @@
  * database's state, and a reload recovers that state rather than a copy of
  * it.
  *
- * **The one thing it changes.** Granting a pending approval. That is a
- * change, so the service wants the session token, and the token goes in a
- * header the client builds — this component never holds it and never shows
- * it. The button is disabled while a grant is in flight, because the plan's
- * rule is that the operation that follows is applied **once**: a double
- * click that sent two grants would be two operations, and one of them would
- * be a grant nobody asked for.
+ * **What it changes.** Three things, and each is a write the service asks the
+ * session token for: granting a pending approval, asking for the consent an
+ * analysis needs, and rendering a report. The figure's run is the fourth, and
+ * it spends the consent the Figure panel asked for. The token goes in a header
+ * the client builds — this component never holds it and never shows it. Every
+ * button is disabled while its request is in flight, because the plan's rule
+ * is that the operation that follows is applied **once**: a double click that
+ * sent two grants would be two operations, and one of them would be a grant
+ * nobody asked for.
  *
  * **What it does not do.** It does not decide whether a report is ready, and
  * it does not draw the report's wording. The report says what it says; the
- * workbench shows the artefacts and their preview.
+ * workbench shows the artefacts and their preview. It does not decide whether
+ * a figure may be drawn either: the Figure panel asks, the Approval panel
+ * answers, and the service's refusal is what the screen shows.
  */
 
 import type { JSX } from 'react'
 import { useCallback, useState } from 'react'
 
 import { api, describeError } from '../api/client'
-import type { ApprovalGranted } from '../api/generated'
-import { approvalGrantPath } from '../api/paths'
+import type { ApprovalGranted, ReportRendered } from '../api/generated'
+import { approvalGrantPath, REPORT_RENDER_PATH, reportRenderBody } from '../api/paths'
 import { ApprovalView } from '../views/ApprovalView'
 import { ArtefactsView } from '../views/ArtefactsView'
 import { EvidenceView } from '../views/EvidenceView'
+import { FigureView } from '../views/FigureView'
 import { PlanView } from '../views/PlanView'
 import { ProjectsView } from '../views/ProjectsView'
 import { RevisionsView } from '../views/RevisionsView'
@@ -41,11 +46,13 @@ import { useWorkbench } from './useWorkbench'
 interface ActionState {
   /** Whether a grant is on its way to the service. */
   readonly granting: boolean
+  /** Whether a report render is on its way to the service. */
+  readonly rendering: boolean
   /** Why the last request was refused, when it was. */
   readonly refusal: string | null
 }
 
-const IDLE: ActionState = { granting: false, refusal: null }
+const IDLE: ActionState = { granting: false, rendering: false, refusal: null }
 
 export function Workbench(): JSX.Element {
   const { reads, readAgain } = useWorkbench(api)
@@ -53,7 +60,7 @@ export function Workbench(): JSX.Element {
 
   const onGrant = useCallback(
     (approvalId: string) => {
-      setAction({ granting: true, refusal: null })
+      setAction({ ...IDLE, granting: true })
       void api.post<ApprovalGranted>(approvalGrantPath(approvalId)).then(
         () => {
           setAction(IDLE)
@@ -63,12 +70,31 @@ export function Workbench(): JSX.Element {
           readAgain()
         },
         (error: unknown) => {
-          setAction({ granting: false, refusal: describeError(error).message })
+          setAction({ ...IDLE, refusal: describeError(error).message })
         },
       )
     },
     [readAgain],
   )
+
+  const onRenderReport = useCallback(() => {
+    setAction({ ...IDLE, rendering: true })
+    void api.post<ReportRendered>(REPORT_RENDER_PATH, reportRenderBody()).then(
+      () => {
+        setAction(IDLE)
+        // The artefact list is the answer, not this page's memory of the
+        // receipt the POST returned: the revision the service wrote is a
+        // record, and the screen shows records.
+        readAgain()
+      },
+      (error: unknown) => {
+        // A refused report writes nothing, so the only thing worth showing is
+        // the service's own reason — including the common one, that this task
+        // holds no record a report may carry.
+        setAction({ ...IDLE, refusal: describeError(error).message })
+      },
+    )
+  }, [readAgain])
 
   const task = reads.state.data?.task ?? null
 
@@ -94,10 +120,22 @@ export function Workbench(): JSX.Element {
         ) : null}
       </header>
 
+      <p className="workbench__actions">
+        <button
+          className="button"
+          type="button"
+          disabled={action.rendering}
+          onClick={onRenderReport}
+        >
+          {action.rendering ? 'Rendering…' : 'Render the report'}
+        </button>
+      </p>
+
       <ProjectsView health={reads.health} tasks={reads.tasks} />
       <PlanView plan={reads.plan} />
       <StepsView steps={reads.steps} />
       <ApprovalView state={reads.state} onGrant={onGrant} granting={action.granting} />
+      <FigureView sources={reads.sources} onChanged={readAgain} />
       <SourcesView sources={reads.sources} />
       <EvidenceView plan={reads.plan} steps={reads.steps} />
       <ArtefactsView artifacts={reads.artifacts} />

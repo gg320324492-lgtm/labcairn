@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +69,13 @@ from labcairn.analysis.service import (
     selection_from_payload,
 )
 from labcairn.analysis.units import UnitDisagreementError
+from labcairn.application.analysis import (
+    ANALYSIS_REFUSALS,
+    FigureRequest,
+    run_figure,
+)
+from labcairn.application.context import ApplicationContext
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId, OperationId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, current_texts, put_source_texts
 from labcairn.db.migrations import upgrade_to_head
@@ -105,6 +113,13 @@ MEAN: str = "labcairn.analysis.mean"
 #: dropped its parameters is invisible under ``mean``, whose only other
 #: argument is none, so the tests that look at the parameters run this one.
 STDEV: str = "labcairn.analysis.stdev"
+
+#: The operator whose result is a table rather than a number -- the one the
+#: real renderer draws a figure from.
+GROUPED: str = "labcairn.analysis.grouped_aggregate"
+
+#: The statistic the grouped aggregate composes, once per group.
+AGGREGATE: str = "labcairn.analysis.mean@1.0.0"
 
 #: The source root the workspace binds, and the root-relative key of the
 #: material inside it.
@@ -169,12 +184,20 @@ class Scenario:
         *,
         operator_id: str = MEAN,
         selection: Selection | None = None,
+        recipe: str = RECIPE,
         extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """The capability's own arguments, as the caller states them."""
+        """The capability's own arguments, as the caller states them.
+
+        ``recipe`` is one of them rather than an aside, and that is the point:
+        the digest the approval binds is computed over these fields, so the
+        consent covers the recipe the figure is drawn from and not only the
+        material and the operator.
+        """
         return {
             "path": self.key,
             "operator_id": operator_id,
+            "recipe": recipe,
             "parameters": self.parameters(selection, extra),
         }
 
@@ -183,6 +206,7 @@ class Scenario:
         *,
         selection: Selection | None = None,
         operator_id: str = MEAN,
+        recipe: str = RECIPE,
         expected_hash: str | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> ApprovalId:
@@ -199,6 +223,7 @@ class Scenario:
             {
                 "path": self.key,
                 "operator_id": operator_id,
+                "recipe": recipe,
                 "parameters": self.parameters(chosen, extra),
             }
         )
@@ -235,6 +260,7 @@ class Scenario:
         *,
         operator_id: str = MEAN,
         selection: Selection | None = None,
+        recipe: str = RECIPE,
         parameters: dict[str, Any] | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> AnalysisRequest:
@@ -245,6 +271,7 @@ class Scenario:
             arguments={
                 "path": self.key,
                 "operator_id": operator_id,
+                "recipe": recipe,
                 "parameters": (
                     parameters if parameters is not None else self.parameters(selection, extra)
                 ),
@@ -268,7 +295,6 @@ class Scenario:
             policy=self.policy,
             ledger=self.ledger,
             renderer=renderer if renderer is not None else _FakeRenderer(),
-            recipe=RECIPE,
             limits=limits,
             now=self.now,
         )
@@ -665,7 +691,6 @@ def test_a_run_without_an_approval_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.APPROVAL_MISSING
@@ -939,7 +964,6 @@ def test_an_unregistered_operator_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.OPERATOR_NOT_REGISTERED
@@ -967,7 +991,6 @@ def test_parameters_the_operator_does_not_take_are_refused(scenarios: Any) -> No
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.ARGUMENTS_INVALID
@@ -993,7 +1016,6 @@ def test_a_path_outside_the_source_root_is_refused(scenarios: Any) -> None:
             policy=scenario.policy,
             ledger=scenario.ledger,
             renderer=_FakeRenderer(),
-            recipe=RECIPE,
             now=scenario.now,
         )
     assert caught.value.reason is AnalysisRefusal.PATH_REFUSED
@@ -1384,3 +1406,381 @@ def test_the_arguments_of_a_run_are_the_ones_the_approval_is_bound_to(scenarios:
 #      -> test_the_manifests_parameters_are_the_operators_own_arguments
 #  37. the selection passed among the operator's parameters
 #      -> test_the_manifests_parameters_are_the_operators_own_arguments
+
+
+@pytest.mark.unit
+def test_the_digest_binds_the_recipe_the_figure_is_drawn_from(scenarios: Any) -> None:
+    """A different recipe is a different consent, even for the same material.
+
+    **This is why the recipe is in the arguments and not beside them.** The run
+    reads this file to hash it into the manifest and to draw the figure from it,
+    and a consent that covered the material, the operator and the parameters but
+    not the recipe would let one signature draw any figure the same column can
+    hold. The refusal must name the mechanism (``args_changed`` inside
+    ``approval_refused``), and it must spend nothing: re-asking a human is cheap,
+    and burning a signature on a request that was never authorised is not.
+    """
+    scenario = scenarios()
+    granted = scenario.grant()
+
+    with pytest.raises(AnalysisRefusedError) as caught:
+        scenario.run(approval_id=granted, recipe="some-other-recipe.json")
+    assert caught.value.reason is AnalysisRefusal.APPROVAL_REFUSED
+    assert "args_changed" in str(caught.value)
+
+    # The refused call spent nothing, so the same approval still covers the run
+    # it was granted for.
+    run = scenario.run(approval_id=granted)
+    assert run.manifest.recipe.relative_path == RECIPE
+
+
+@pytest.mark.unit
+def test_arguments_without_a_recipe_are_refused_before_anything_runs(
+    scenarios: Any,
+) -> None:
+    """The recipe is required, and its absence is the caller's error.
+
+    ``AnalysisRunArgs`` forbids extra keys, and a missing required one is refused
+    the same way: an argument set that does not say which recipe it draws from
+    describes no figure a human could have agreed to.
+    """
+    scenario = scenarios()
+    arguments = scenario.arguments()
+    assert arguments["recipe"] == RECIPE
+
+    stripped = {key: value for key, value in arguments.items() if key != "recipe"}
+    with pytest.raises(AnalysisRefusedError) as caught:
+        analysis_arguments(stripped)
+    assert caught.value.reason is AnalysisRefusal.ARGUMENTS_INVALID
+
+
+# --------------------------------------------------------------------------- #
+# The layer's seam: what a surface actually calls
+# --------------------------------------------------------------------------- #
+
+
+def _chart_recipe(scenario: Scenario) -> bytes:
+    """A chart recipe naming this scenario's material, columns and rows.
+
+    Written out here rather than borrowed from another file: the recipe is the
+    author's own document, and the tests below are about what the layer does
+    with it — a recipe imported from elsewhere would be one more thing a reader
+    had to check was not quietly a different one.
+    """
+    columns = list(scenario.selection.columns)
+    document = {
+        "data": {
+            "operator": f"{MEAN}@1.0.0",
+            "parameters": {},
+            "selection": {
+                "source": scenario.key,
+                "columns": columns,
+                "rows": {"start": 2, "end": 17},
+                "missing": "exclude",
+            },
+        },
+        "encoding": {
+            "mark": "bar",
+            "x": columns[0],
+            "y": columns[-1],
+            "title": "Mean of the value column",
+            "x_label": columns[0],
+            "y_label": "mean " + columns[-1],
+            "caption": "The mean of the value column.",
+        },
+        "output": {"format": "svg", "dpi": 100},
+    }
+    return json.dumps(document, sort_keys=True).encode("utf-8")
+
+
+def _grouped_recipe(scenario: Scenario) -> bytes:
+    """A recipe whose operator returns a table, so the renderer draws a figure.
+
+    The recipe beside every other test names ``mean``, whose result is a
+    scalar: the renderer declines it, which is the correct answer and the one
+    ``test_the_seam_asks_the_real_renderer_and_records_what_it_declined``
+    asserts. This one names the grouped aggregate over the ``groups.csv``
+    corpus, whose result is a table, so a real figure is produced.
+    """
+    document = {
+        "data": {
+            "operator": f"{GROUPED}@1.0.0",
+            "parameters": {"aggregate": AGGREGATE, "by": "group", "of": "value"},
+            "selection": {
+                "source": scenario.key,
+                "columns": ["group", "value"],
+                "rows": {"start": 2, "end": 17},
+                "missing": "exclude",
+            },
+        },
+        "encoding": {
+            "mark": "bar",
+            "x": "group",
+            "y": "value",
+            "title": "Mean value by group",
+            "x_label": "group",
+            "y_label": "mean value",
+            "caption": "The mean of the value column, computed once per group.",
+        },
+        "output": {"format": "svg", "dpi": 100},
+    }
+    return json.dumps(document, sort_keys=True).encode("utf-8")
+
+
+def _context(scenario: Scenario) -> ApplicationContext:
+    """The application context a surface would hold."""
+    return ApplicationContext(
+        workspace=scenario.workspace,
+        store=scenario.store,
+        policy=scenario.policy,
+        ledger=scenario.ledger,
+    )
+
+
+def _figure_request(scenario: Scenario, approval_id: ApprovalId, **changes: Any) -> FigureRequest:
+    """A surface's figure request, bound to this scenario's own consent."""
+    return FigureRequest(
+        root_id=changes.get("root_id", scenario.root_id),
+        path=changes.get("path", scenario.key),
+        operator_id=changes.get("operator_id", MEAN),
+        recipe=changes.get("recipe", RECIPE),
+        parameters=changes.get("parameters", scenario.parameters()),
+        approval_id=approval_id,
+    )
+
+
+@pytest.mark.unit
+def test_the_layer_runs_the_run_path_and_returns_its_receipts(scenarios: Any) -> None:
+    """The seam draws the figure the recipe names, through the run path.
+
+    **What this witnesses**: the recipe is read and hashed from the *consented*
+    arguments, the manifest records that same path, and the receipts come back as
+    the run path recorded them. The renderer is the scenario's stand-in because a
+    figure's bytes belong to T07 and its own tests; the consent, the read and the
+    records belong to this seam.
+    """
+    scenario = scenarios()
+    (scenario.workspace.selected_root / RECIPE).write_bytes(_chart_recipe(scenario))
+    granted = scenario.grant()
+
+    run = run_figure(
+        _context(scenario),
+        _figure_request(scenario, granted),
+        renderer=_FakeRenderer(),
+        now=scenario.now,
+    )
+
+    assert run.figure_receipt is not None
+    assert run.manifest.recipe.relative_path == RECIPE
+    assert run.manifest_receipt.content_sha256
+    assert run.source.source_id == scenario.source.source_id
+
+
+@pytest.mark.unit
+def test_a_recipe_that_cannot_be_read_is_refused_and_spends_nothing(
+    scenarios: Any,
+) -> None:
+    """No consent is spent on a run whose recipe is not there.
+
+    **The order is the claim.** The recipe is judged and read before the consent,
+    so a missing file leaves the approval granted and unspent. The alternative is
+    a human being asked again for a decision that was never why the run stopped.
+    """
+    scenario = scenarios()
+    (scenario.workspace.selected_root / RECIPE).unlink()
+    granted = scenario.grant()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        run_figure(
+            _context(scenario),
+            _figure_request(scenario, granted),
+            renderer=_FakeRenderer(),
+            now=scenario.now,
+        )
+    assert caught.value.reason is ApplicationRefusal.RECIPE_UNREADABLE
+    peeked = scenario.ledger.peek(granted)
+    assert peeked is not None and peeked.approval.state is ApprovalState.GRANTED
+
+
+@pytest.mark.unit
+def test_a_document_that_is_not_a_chart_recipe_is_refused_as_the_callers_error(
+    scenarios: Any,
+) -> None:
+    """The scenario's own recipe bytes are not a chart recipe, and say so.
+
+    Every run-path test in this file runs with a recipe the run path only hashes.
+    A surface that *draws* has to read it, and a document that is not a chart
+    recipe is the caller's error rather than the material's.
+    """
+    scenario = scenarios()
+    granted = scenario.grant()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        run_figure(
+            _context(scenario),
+            _figure_request(scenario, granted),
+            renderer=_FakeRenderer(),
+            now=scenario.now,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert RECIPE in str(caught.value)
+
+
+@pytest.mark.unit
+def test_the_policy_is_asked_about_the_run_on_the_recipes_resource_too(
+    scenarios: Any,
+) -> None:
+    """A run allowed on the material but not on the recipe is refused.
+
+    **This is the sentence the consent change exists to make true.** The recipe's
+    path is inside the arguments the approval binds, and the policy is asked about
+    the capability on that resource before the file is opened — otherwise a run
+    could read a figure definition nobody judged.
+    """
+    scenario = scenarios()
+    (scenario.workspace.selected_root / RECIPE).write_bytes(_chart_recipe(scenario))
+    denial = PermissionPolicy.from_rules([])
+    context = ApplicationContext(
+        workspace=scenario.workspace,
+        store=scenario.store,
+        policy=denial,
+        ledger=scenario.ledger,
+    )
+    granted = scenario.grant()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        run_figure(
+            context,
+            _figure_request(scenario, granted),
+            renderer=_FakeRenderer(),
+            now=scenario.now,
+        )
+    assert caught.value.reason is ApplicationRefusal.PERMISSION_DENIED
+
+
+@pytest.mark.unit
+def test_a_run_paths_refusal_arrives_at_the_surface_with_its_own_reason(
+    scenarios: Any,
+) -> None:
+    """The run path's reason is the surface's reason, not one flattened label.
+
+    An approval id nobody issued is ``approval_missing`` at both levels: the layer
+    translates the *type* and keeps the *name*, because the remedy for "no such
+    approval" and for "no such operator" are not the same conversation.
+    """
+    scenario = scenarios()
+    (scenario.workspace.selected_root / RECIPE).write_bytes(_chart_recipe(scenario))
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        run_figure(
+            _context(scenario),
+            _figure_request(scenario, ApprovalId(new_id())),
+            renderer=_FakeRenderer(),
+            now=scenario.now,
+        )
+    assert caught.value.reason is ApplicationRefusal.APPROVAL_MISSING
+
+
+@pytest.mark.unit
+def test_every_run_path_refusal_has_a_layer_name() -> None:
+    """The two refusal vocabularies are closed against each other.
+
+    **Why a witness rather than a default.** The run path is free to grow a reason
+    — a new shape of material, a new bound it enforces — and a surface must not be
+    where somebody discovers the mapping has a hole in it. The seam looks the
+    reason up rather than falling back, so a missing row is a crash in this table
+    and this test is what keeps it unreachable.
+    """
+    unmapped = {reason for reason in AnalysisRefusal if reason not in ANALYSIS_REFUSALS}
+    assert not unmapped, f"the run path can refuse with {unmapped}, which the layer cannot name"
+    assert len(ANALYSIS_REFUSALS) == len(set(AnalysisRefusal))
+    invented = {
+        layer_reason
+        for layer_reason in ANALYSIS_REFUSALS.values()
+        if layer_reason not in set(ApplicationRefusal)
+    }
+    assert not invented, f"the mapping names reasons the layer does not have: {invented}"
+
+
+@pytest.mark.integration
+def test_the_seam_asks_the_real_renderer_and_records_what_it_declined(
+    scenarios: Any,
+) -> None:
+    """The seam builds the analysis package's own renderer, and `None` means one thing.
+
+    Every other run here draws with the scenario's stand-in, because a figure's
+    bytes belong to T07 and its own measured tests. That leaves one claim
+    unwitnessed: that the seam hands the **real** renderer the recipe it just read
+    and judged. This runs matplotlib once. What it draws is a manifest and no
+    figure, because a scalar mean is a result that produces no plot — and
+    `render()` returning `None` means exactly that and nothing else, which is
+    the property this asserts at the seam: the manifest and its receipt are still
+    recorded, the recipe the manifest names is still the file the consent signed,
+    and no figure is invented to fill a hole.
+    """
+    scenario = scenarios()
+    root = scenario.workspace.selected_root
+    (root / RECIPE).write_bytes(_chart_recipe(scenario))
+    granted = scenario.grant()
+
+    run = run_figure(_context(scenario), _figure_request(scenario, granted), now=scenario.now)
+
+    assert run.figure_receipt is None, "a mean is not a figure, and the seam must not draw one"
+    assert run.result_kind == "StatisticResult"
+    signed = hashlib.sha256((root / RECIPE).read_bytes()).hexdigest()
+    assert run.manifest.recipe.content_sha256 == signed, (
+        "the manifest names the bytes of the recipe the approval was bound to"
+    )
+    recorded = root / run.manifest_receipt.relative_path
+    assert recorded.is_file(), "the manifest was recorded, figure or none"
+
+
+@pytest.mark.integration
+def test_the_seam_draws_a_real_figure_from_a_grouped_aggregate(
+    scenarios: Any,
+) -> None:
+    """The real renderer draws a table, and the file it wrote is the receipt's.
+
+    **The one claim the other seam tests leave unwitnessed.** They draw with the
+    stand-in, and the integration test above runs the real renderer against a
+    scalar, where ``render()`` correctly returns ``None``. So nothing showed a
+    real figure coming *through* the seam: the recipe read and judged by the
+    layer, the grouped operator's table, the renderer's bytes, and a receipt
+    whose hash is the file's. This runs matplotlib once and asserts exactly
+    that chain.
+    """
+    scenario = scenarios(
+        "grouped",
+        fixture="groups.csv",
+        columns=("group", "value"),
+        rows=RowRange(2, 17),
+    )
+    root = scenario.workspace.selected_root
+    (root / RECIPE).write_bytes(_grouped_recipe(scenario))
+    extra = {"aggregate": AGGREGATE, "by": "group", "of": "value"}
+    granted = scenario.grant(operator_id=GROUPED, extra=extra)
+
+    run = run_figure(
+        _context(scenario),
+        _figure_request(
+            scenario,
+            granted,
+            operator_id=GROUPED,
+            parameters=scenario.parameters(extra=extra),
+        ),
+        now=scenario.now,
+    )
+
+    assert run.result_kind == "GroupedResult", "the grouped aggregate returned a table"
+    assert run.figure_receipt is not None, "a table is a figure, and the seam drew none"
+    written = root / run.figure_receipt.relative_path
+    drawn = written.read_bytes()
+    assert b"<svg" in drawn, "the recipe asked for SVG and the file is not one"
+    assert run.figure_receipt.content_sha256 == hashlib.sha256(drawn).hexdigest(), (
+        "the receipt's hash is the bytes the renderer wrote"
+    )
+    assert run.figure_receipt.derived_from[0].target_id == run.manifest_receipt.receipt_id, (
+        "the figure's chain names the manifest that describes its numbers"
+    )
+    signed = hashlib.sha256((root / RECIPE).read_bytes()).hexdigest()
+    assert run.manifest.recipe.content_sha256 == signed

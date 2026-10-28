@@ -4,9 +4,12 @@
 baseline) · **Subtask:** T09 — the competitor baseline, at the scope
 [`docs/plans/LC-P1-13-14-task-breakdown.md`](../plans/LC-P1-13-14-task-breakdown.md)
 §1.4.3 settles.
-**Status of the work order:** **NOT STARTED**, and this document does not
-change that. It records the decision on the baseline's scope, what this
-project measured, and what it did not.
+**Status of the work order:** this document was written while LC-P1-13 was
+`NOT STARTED`. The board now records the work order **`PASS WITH NOTES`** —
+delivered at `72154cd` and `3852cde`, and reviewed by two independent reviewers who
+wrote none of its fixes ([the gate review](G5-acceptance.md)). **What this document
+still does not do is claim its own clause is discharged**, and §6 is the reason:
+half of the work order's baseline sentence is deferred and half is outstanding.
 **Decision:** **Option C — no comparison.** No external competitor was run, no
 number is compared against anything, and **no superiority is claimed**. The
 reasons are in §2, and each one is a fact about this repository or about the
@@ -67,7 +70,7 @@ the fixture versions, **the model**, **the budget**, the baseline's verified
 capabilities, and the baseline's limitations or confidence intervals.
 
 **The offline run declares no model, and that is deliberate.**
-`tests/evaluation/cli.py:328` builds the run's basis with `model=""` and the
+`tests/evaluation/cli.py:401` builds the run's basis with `model=""` and the
 docstring above it says why:
 
 > The model is empty, and that is the fact. The offline run used the
@@ -84,20 +87,30 @@ declares one. Every such baseline is refused. **The comparison is not blocked
 by the competitor being hard; it is blocked by this project not yet having
 the run it would be compared against.**
 
-### 2.2 There is no credential, and Phase 1 does not read one
+### 2.2 There is no credential in this tree, and the offline run reads none
 
-`.env.example` says it in its own words:
+`.env.example` says it in its own words — and it was corrected after this
+document was written, because the sentence this section quoted was the one the
+gate's own review (R22) found to be false of the provider layer:
 
-> Phase 1 currently reads NO environment variable. The FakeProvider in
-> src/labcairn/core/providers/ is deterministic and offline.
+> Phase 1's **default offline run reads no environment variable.** The
+> FakeProvider in src/labcairn/core/providers/ is deterministic and offline, so
+> `uv run pytest` passes with none of these set. **The provider layer does read
+> one — but only when a workspace's `providers.json` names it**, which is the
+> credential lookup, and the reason a real provider is possible at all.
 
-The template names the variables that LC-P1-03 *will* introduce. The provider
+The template names the variables that LC-P1-03 introduced. The provider
 layer is partly built — `labcairn.providers.credentials` reads a workspace's
 `providers.json` and resolves a credential from an environment variable *name*
 or a file path, and `labcairn.providers.adapter.PydanticAiModelProvider` is a
 real HTTP provider behind a capability gate and a budget pre-flight. **What
-is missing is a credential, and the owner's authorisation to spend money on
-one** — which is §1.4.2's decision, and it is not this document's to make.
+is missing is a credential configured in this tree, and the owner's
+authorisation to spend money on one** — which is §1.4.2's decision, and it is
+not this document's to make. **The project has held a credential once**: the
+live probe at `b237751` ran on one the owner supplied, and nothing of it was
+committed. *(Corrected 2026-10-28: **twice now** — the same owner supplied one
+for the probe that ran from the suite on that date, and again, nothing of it was
+committed. The tree still holds no credential, and CI still reads none.)*
 
 **The protocol does not require one for Phase 1's acceptance.** The six
 Phase 1 blockers in `docs/EVALUATION.md` are about the clean-environment
@@ -237,7 +250,7 @@ writing a document.
 |---|---|---|
 | the protocol's rule and the six blockers | `docs/EVALUATION.md` | read-only |
 | the three options and the work order's Build clause | `docs/plans/LC-P1-13-14-task-breakdown.md` §1.4.3; `docs/PHASE_1_WORKORDERS.md` | read-only |
-| the harness's refusal mechanism and its six conditions | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:310-338` | read-only |
+| the harness's refusal mechanism and its six conditions | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:383-413` (`_run_basis`) | read-only |
 | the corpus measurement and its unit | `tests/evaluation/corpus.py` | read-only |
 | the public corpus: 4 fixtures, 7 questions, 19 artifact checks | `tests/fixtures/public/MANIFEST.json` | parsed, counted |
 | PaperQA2's packaging, readers, chunking and types | `E:\labcairn-upstreams\paper-qa` @ `57e89f7` | **text only; nothing executed** |
@@ -477,9 +490,9 @@ rather than replaced by these.
 
 **And one thing in the report is now untrue, which is worth recording
 because the report is the document a reviewer reads.** Two of the
-`NOT_MEASURED` reasons are **hard-coded constants** in
-`tests/evaluation/aggregate.py:61-78`, written before T00's corpus
-existed, and they still say:
+`NOT_MEASURED` reasons **were** hard-coded constants in
+`tests/evaluation/aggregate.py:61-78` at this commit, written before T00's corpus
+existed, and they said:
 
 > *"The public fixtures that would be that corpus are LC-P1-13 T00's
 > deliverable and are not in this tree."*
@@ -501,6 +514,19 @@ generator**, and the correction is to make those two reasons read the tree's
 state rather than assert a fact about it. **That change belongs to T01's
 file, and this subtask does not touch `tests/`.** It is named here as a
 finding, not made.
+
+**Corrected afterwards, and now stale in its own turn.** The gate's two
+independent reviews took this as findings (R6 and R24) and the fix landed: the
+reasons are now built by `not_measured_reason` from a `TreeFacts` read at run
+time (`tests/evaluation/aggregate.py:79-202`), and `_abstention_reason` only
+says the corpus holds no abstention question **when the measurement says so**.
+The abstention metric is now **measured (1/1)** over the public corpus rather
+than reported NOT MEASURED — **at the selection layer**
+(`tests/evaluation/public_corpus.py`: the product's own machinery is asked for
+the quantity an abstention question names, and its refusal is the correct
+answer), **not by driving a task**. **What §3.1 still says, and still says
+truly, is that the corpus has never been driven as a task** — that is why
+end-to-end task success and revision consistency remain NOT MEASURED.
 
 ---
 
@@ -533,19 +559,37 @@ reported skip of the real-model smoke counts as a blocker that failed is
 **§1.4.1b's open question**, and it is the owner's, not this document's.
 
 **And cost and model name are NOT MEASURED for the same reason**: no real
-provider ran, so there is no cost to report, and the offline run's model is
-not a declared model, version and parameter set.
+provider ran **in the harness's run**, so there is no cost to report, and the
+offline run's model is not a declared model, version and parameter set. *(The
+one live call this project has made — `b237751`, 2026-10-16 — was a capability
+probe outside the harness, and it records no cost against this run.)*
 
-### 4.2 The four task-level metrics — NOT MEASURED
+**Corrected 2026-10-28.** Two things in this section were overtaken. The class
+now has its witness file — `tests/test_real_provider_smoke.py`, which
+`manifest.REAL_MODEL_SMOKE_FILE` had named since T04 without one ever existing —
+so the marker's file is no longer a file "nothing runs"; and the probe **has run**
+twice, on a credential the owner supplied for the purpose, against
+`MiniMax-M3.1-Flash` over an Anthropic-protocol endpoint. **What this section
+concludes is unchanged, and for the same reason:** those probes were capability
+probes, not a harness run, so the run's basis still declares no model and no
+cost, and §5.1's precondition still sits in front of any comparison. *"Never
+runs, on any platform"* is now *"skips on every run that holds no credential"*,
+which is the same sentence about CI and a different sentence about the owner's
+machine.
+
+### 4.2 The task-level metrics — three NOT MEASURED, and one measured at the corpus's own layer
 
 | The protocol's metric | The missing input |
 |---|---|
 | End-to-end task success | a corpus of **attempted tasks with verified deliveries**. The run counts test cases; the public corpus exists but has never been driven as a task (§3.1). |
 | Evidence locator validity and citation support precision | a **human-checked sample**. The tree records none, and a machine count is not a substitute for one. |
-| Unsupported-claim detection and appropriate abstention | a **no-evidence fixture to abstain over**. The corpus now has one (`no_evidence`), but it has not been driven as a task, so the numerator would count nothing. |
+| Unsupported-claim detection and appropriate abstention | **no longer missing.** Written when this row was NOT MEASURED; the harness now measures it over the public corpus — **1/1**, the `no_evidence` fixture's honest *"the material does not say"* — at the selection layer, where the product's own machinery is asked for the quantity the question names and its refusal is the correct answer. **What is still missing is the task-level form of the metric**: the corpus has never been driven as a task (§3.1). |
 | Revision consistency | a corpus of **source-change runs** with their outcomes. The tree records none. |
 
-**A warning about the report's own wording of two of these.** The reasons
+**A warning about the report's own wording of two of these.** *(This warning is
+the finding this document made, and it is since fixed — see the correction at the
+end of §3.7. It is kept because it is the shape of the hole, not because it is
+current.)* The reasons
 the harness prints for the first and the third are **hard-coded constants**
 that predate the corpus's arrival, and they say the corpus is absent — which
 it is not (§3.7). **The verdicts above are right; those two sentences are
@@ -582,7 +626,7 @@ set and budget, so that `assess` has something to match.
 1. **The owner's §1.4.2 decision** — which provider, whose credential, and
    the cost ceiling. Until then there is nothing to declare.
 2. **A harness change that this subtask did not make and must not make.**
-   `tests/evaluation/cli.py:310-338` builds the run's basis with `model=""`
+   `tests/evaluation/cli.py:383-413` builds the run's basis with `model=""`
    and `budget=""` hard-coded, because the offline run has none. A run that
    *does* have a provider needs the basis to carry it — the model name,
    version and parameters, and the budget — from the provider configuration
@@ -593,6 +637,31 @@ set and budget, so that `assess` has something to match.
 3. **A re-measurement.** The metrics a comparison would pair are the ones
    in §3.2, and they would have to be measured again on the real-provider
    run, on the same tree.
+
+**Corrected 2026-10-28 — item 1 is done, and it did not clear the wall.** The
+owner's decision arrived: a credential is configured, the smoke ran (three
+capability probes, `LC-P1-13-baseline` §4.1's correction and `RELEASE-NOTES`
+2.7), and the class has its witness file. **The comparison is still blocked, one
+level lower than the credential.** The numbers a comparison would pair on this
+side are produced by the deterministic corpus layer — the product ingesting,
+retrieving and reporting over the fixtures — and **no model answers them**, so
+`cli.py`'s run basis declaring `model=""` is not a placeholder to fill but the
+accurate fact. A competitor that answers *is* a model, so `assess` refuses on the
+model condition alone. **This is the release notes' own Phase-1 non-goal — "no
+task path calls a model."**
+
+Item 2 is therefore **deliberately not made.** Threading a provider's model name
+into the run basis while the numbers still come from `FakeProvider` would turn
+the honest refusal into a green comparison that measured nothing — exactly the
+"number presented as a rate without the limitation attached" the protocol
+forbids. The refusal is now an executed guard instead
+(`tests/test_evaluation_harness.py::test_the_offline_run_refuses_a_competitor_on_the_model_alone`),
+paired with the control that the **same** competitor baseline becomes comparable
+the instant a model-declaring run exists
+(`::test_a_model_declaring_run_makes_that_same_competitor_comparable`) — so the
+seam is proven open toward a real measurement and shut against a fake one. The
+precondition that actually gates any comparison is item 3: **a model-driven
+answer path in the product**, which is Phase-2-scale work, not a harness edit.
 
 ### 5.2 Precondition two — a baseline that verifies its own capabilities
 
@@ -710,6 +779,9 @@ statement from "delivered", and it is the one this document makes.
   is unedited; the one discrepancy found — the task breakdown says *"seven
   Phase 1 blockers"* and quotes six, and the protocol lists six — is
   recorded, as the harness records it, rather than resolved here.
+  *(Resolved after this document, by the gate's second independent review: R18
+  corrected four shipped documents and R27 the quickstart, so `grep -rn "seven
+  Phase 1 blockers"` now survives only in the records that discuss it.)*
 - **It does not change any test.** The harness's refusal mechanism, its
   witnesses and its mutation table are T01's, and this document adds no
   witness to them. **It reports one defect in them and does not fix it:**
@@ -719,7 +791,9 @@ statement from "delivered", and it is the one this document makes.
   does not touch `tests/`.** A claim in this document that is not measured
   is written `NOT MEASURED` — §4.2's four metrics, §4.1's class and §4.3's
   comparison are the ones, and they are the ones a reader should check
-  first.
+  first. *(That defect was fixed after this document, by R6 and R24 — see the
+  correction at the end of §3.7. §4.2's four verdicts stand; two of its
+  sentences no longer do.)*
 - **It does not close the work order.** §6 is a reconciliation, not an
   acceptance.
 - **It is not an independent review.** The same party wrote it and measured

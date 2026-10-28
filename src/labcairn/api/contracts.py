@@ -35,6 +35,7 @@ from pydantic import Field
 
 from labcairn.application.models import Result
 from labcairn.core.ids import ApprovalId, RunId
+from labcairn.evidence.states import EvidenceKind
 from labcairn.security.capabilities import CapabilityId
 
 
@@ -104,6 +105,59 @@ class StageBody(Result):
     depends_on: tuple[str, ...] = ()
 
 
+class AnalysisBody(Result):
+    """One figure run, as the API accepts it.
+
+    The six fields are the layer's own request, and all of them are required
+    except the operator's parameters: the material's root and key, the
+    registered operator, the chart recipe, and **the approval that covers exactly
+    this set**. The approval is not inferred and not created here — the service
+    has `POST /approvals` for asking and `/approvals/{id}/grant` for answering,
+    and a run that could mint its own consent would not be a consented run.
+    """
+
+    root_id: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    operator_id: str = Field(min_length=1)
+    recipe: str = Field(min_length=1)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    approval_id: ApprovalId
+
+
+class ReportBody(Result):
+    """A report render, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.reports.ReportRequest`,
+    field for field, and both are required: **the service takes no default for
+    either.** Which key the report lives under and which template it is drawn
+    from are the caller's claims, and a default here would be the service making
+    them — the same reasoning that keeps a stage's effect out of a web request.
+    """
+
+    path: str = Field(min_length=1)
+    template_id: str = Field(min_length=1)
+
+
+class ClaimBody(Result):
+    """A claim to record, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.evidence.ClaimRequest`,
+    field for field. ``kind`` is the ledger's own vocabulary rather than a
+    string this package translates, so an unknown kind is refused by the model
+    that defines the kinds; which fields a kind requires is the record model's
+    rule, and the service states it nowhere a second time.
+    """
+
+    source_id: str = Field(min_length=1)
+    locator_key: str = Field(min_length=1)
+    kind: EvidenceKind = EvidenceKind.CLAIM
+    text: str | None = None
+    span: str | None = None
+    value: float | None = None
+    unit: str | None = None
+    tolerance: float | None = None
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 
@@ -139,10 +193,13 @@ class Health(Result):
 
 
 __all__ = [
+    "AnalysisBody",
     "ApprovalBody",
     "ApprovalUseBody",
+    "ClaimBody",
     "Health",
     "RefusalBody",
+    "ReportBody",
     "SessionInfo",
     "StageBody",
 ]

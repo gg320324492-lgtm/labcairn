@@ -125,7 +125,7 @@ def _use() -> ApprovalUse:
     """What an approval is spent on."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
+        arguments={"operator_id": "mean", "parameters": {}, "recipe": "figure.recipe.json"},
         root_id="source:0",
         resource_key="one.csv",
     )
@@ -438,7 +438,7 @@ def test_a_stage_that_spends_an_approval_before_it_was_granted_is_refused(
             StageRequest(
                 stage_name="intake",
                 capability=CapabilityId.ANALYSIS_RUN,
-                arguments={"operator_id": "mean", "parameters": {}},
+                arguments={"operator_id": "mean", "parameters": {}, "recipe": "figure.recipe.json"},
                 root_id="source:0",
                 resource_key="one.csv",
                 approval_id=asked.approval.approval_id,

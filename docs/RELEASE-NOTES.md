@@ -48,28 +48,75 @@ or an open-source distribution.
 **These are the limits of this alpha, and every one of them is measured or
 cited — not estimated.** Each names where the evidence is.
 
-### 2.1 The report and the figure have no surface of their own
+### 2.1 A figure takes two steps, and a claim is stated by the caller
 
-`labcairn` has **no command that renders a report or draws a figure**, and
-the local API has **no route** for either. Both are reached through the
-application layer's own operations (`render_report` and `run_analysis`).
+**The report has three entries now.** `labcairn task report --path report` renders
+it, and `POST /report` on the local service renders the same document through the
+same layer operation and answers with the same model — so G4's exit test's
+*"same versioned report"* is reachable from either surface, and a fresh
+workspace's policy permits `report.render` (the registry binds it to output
+roots, and the content checks — not the rule — decide whether a report may exist).
+**The figure has three of its own**: `labcairn task figure`, `POST /analysis`,
+and the workbench's **Figure** panel, all through the layer's `run_figure`.
+`docs/QUICKSTART.md` §4.7 documents both; the README's command table predates
+them and stays conservative rather than the commands being hidden.
 
-*Consequence:* the last two steps of the deliverable need a Python import
-rather than a command, and a reader following the README alone cannot
-produce a report.
-*Evidence:* [LC-P1-14 acceptance record §7.1](acceptance/LC-P1-14-outsider-path.md).
+**The workbench asks for it now.** `web/src/app/Workbench.tsx` has a
+**Render the report** action that states the two claims the service takes no
+default for and then reads the artefact list again rather than trusting the
+receipt the POST handed back; its tests cover both the request and the refusal.
 
-### 2.2 The claim in the report is written by the demonstration, not by the product
+**What remains** is the gap in two shapes.
 
-**The product has no operation that writes an evidence record or an anchor.**
-The walk writes the claim's own address and the record that rests on it
-itself, against the addresses the ledger holds.
+- **A figure needs a granted approval, not only permission.** `labcairn task
+  figure` and `POST /analysis` reach the layer's `run_figure`, and the consent binds
+  the recipe's path as well as the material, the operator and its parameters
+  (ADR-0012 constraint 7) — so `task approval-request` and `task approval-grant`
+  stand beside the run, and there is no one-command shortcut. **The workbench is
+  one of the figure's entry points**, and it does not shortcut the chain either:
+  its Figure panel builds the selection from the source the service reports, asks
+  `POST /approvals`, leaves the question pending in the Approval panel, and draws
+  with `POST /analysis` once the answer is granted. Two steps are the design.
+- **A report is refused, not written, when the task has nothing to carry.**
+  `labcairn task report` on a bare task answers
+  `report_content_refused` and leaves the output area empty — the correct
+  behaviour. **The success path is a surface's now**: `labcairn task claim`
+  records a claim, `POST /claims` does the same over the service, and the
+  report that rests on the record is the next command or request (§2.2). The
+  bytes the CLI and the service produce are still compared where a report
+  exists, in `tests/test_smoke_path.py`.
 
-*Consequence:* the report carries real claims, cited to real addresses in
-the material the CLI ingested — **but the claims were made by the walk, not
-by the product.** A product-shaped path that produces a claim from the
-material is not demonstrated.
-*Evidence:* [threat model §6.4](THREAT-MODEL.md) ·
+*Evidence:* [LC-P1-14 acceptance record §7.1](acceptance/LC-P1-14-outsider-path.md)
+(written when neither entry point existed) ·
+`tests/test_cli.py::test_task_report_refuses_a_task_with_nothing_to_carry_and_writes_nothing` ·
+`tests/test_api.py::test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason` ·
+`docs/QUICKSTART.md` §4.7.
+
+### 2.2 A claim is recorded by the product, but not proposed by it
+
+**The product writes evidence records and anchors now.** The layer's
+`record_claim` writes an anchor — bound to the source's current hash and to
+the text at the address — and an `extracted` record that names it, in one
+commit. The addresses come from `list_source_addresses`, the ledger's own
+account of what the ingestion read. Both are on the surfaces:
+`labcairn task claim` and `POST /claims`; `labcairn sources addresses` and
+`GET /sources/{source_id}/addresses`. The outsider walk records its three
+claims through the operation instead of writing the ledger's rows itself.
+
+**What the product still does not do is decide what the material says.** The
+caller names the address and supplies the span, the value and the unit;
+`record_claim` locates the address, refuses one nothing answers, and writes
+the record — it does not extract a claim, and it does not accept a model's
+proposal (`created_by` is `user`). Nor does it verify: the records it writes
+are `extracted`, and C1, C2 and C3 remain separate acts that no surface runs
+in this alpha.
+
+*Consequence:* a report can be produced end to end from a product-written
+record, and the witness is a surface's own path rather than the
+demonstration's. A model-driven extractor is still not demonstrated.
+*Evidence:* `tests/test_application_evidence.py` ·
+`tests/test_cli.py::test_task_claim_makes_the_task_reportable` ·
+`tests/test_api.py::test_a_claim_recorded_through_the_service_makes_the_task_reportable` ·
 [acceptance record §7.3](acceptance/LC-P1-14-outsider-path.md).
 
 ### 2.3 The report's second revision is not recomputed from the revised material
@@ -117,20 +164,66 @@ workspace. The CLI can.
 *Evidence:* [threat model §6.3](THREAT-MODEL.md) ·
 `src/labcairn/api/routes.py`.
 
-### 2.7 The real-provider smoke has not been executed
+### 2.7 The real-provider smoke runs only where a credential is named
 
-**There is no credential for a real provider in this repository**, and
-Phase 1 has no provider configured — `labcairn doctor` reports an empty
-provider list on a fresh workspace. The smoke test exists
-(`tests/test_provider_credentials.py:293`) and is **skipped**, with the
-reason written down: it needs the project owner's explicit authorisation to
-spend money and a credential supplied for that purpose.
+**No required check holds a credential, and none ever will**, and Phase 1
+configures no provider — `labcairn doctor` reports an empty provider list on a
+fresh workspace. The in-suite witness is
+`tests/test_real_provider_smoke.py::test_real_provider_smoke_records_capabilities_and_usage`:
+it **skips** unless the owner names a credential and a model through
+`LABCAIRN_PROVIDER_SMOKE_KEY` and `LABCAIRN_PROVIDER_SMOKE_MODEL` (optionally
+`..._PROTOCOL` and `..._BASE_URL`), and a key that merely happens to be in a
+developer's environment does not enable it. The rule that decides whether it
+runs is tested in `tests/test_provider_credentials.py`, filed under the unit
+class — a gate that is only checked inside the class it gates is a gate no
+offline run verifies.
 
-*Consequence:* **the fifth of the protocol's five mandatory gate classes is
-not discharged.** `docs/EVALUATION.md` says *"Mock-only success is
-insufficient"* — and no real provider has been called.
+**It has run.** Twice, on 2026-10-28, on a credential the owner supplied for
+this purpose: model `MiniMax-M3.1-Flash`, protocol `anthropic`, endpoint
+`https://api.minimax.cn/anthropic`. `tool_calls` **ok**, `usage_reporting`
+**ok**, `structured_output_native` and `structured_output_prompted`
+**unsupported** — pydantic-ai's profile declines before a request leaves the
+machine, so those two say nothing about the endpoint and §2.14 keeps its
+meaning. The two records differed only in `observed_at`.
+
+*Consequence:* **the fifth of the protocol's five mandatory gate classes is not
+a witness the required checks produce.** `docs/EVALUATION.md` says
+*"Mock-only success is insufficient"*. The default harness run still reports the
+class **NOT RUN** and exits 2, because no required check holds a credential — and
+one never will: a check that runs only where a secret exists is a check branch
+protection would wait on forever, which is exactly what amendment C-1 refuses to
+paper over with a filter. The credential lives in the repository now, and
+`.github/workflows/provider-smoke.yml` is the job that spends it, on a schedule
+and on demand. **It has run there**: dispatch 40663728369 at `0adfbe3` completed
+green on 2026-10-28 09:22 UTC, and the record it printed carries the same
+endpoint fingerprint as the two local runs above — `db47efa5…385c`, `tool_calls`
+and `usage_reporting` ok, both structured-output forms unsupported at the client.
+GitHub masked the key as `***` in the log, which is the only place the run could
+have shown it.
+**What changed on 2026-10-28, besides the file:** the harness used to refuse the
+class even when a reader named it — `--classes real_model_smoke` printed the
+runnability table's sentence about the environment without looking at the
+environment, so the class was not skipped but **unreachable by any invocation**.
+Naming it now runs it. Measured the same day: without a credential the run says
+`0/1` and quotes the witness's own skip reason and exits 1; with the owner's
+credential named it says **`1/1`**, and the command's exit is still 1 because a
+single-class run evaluates none of the blocker witnesses — which is that run's
+honest answer, not a failure of the class.
+What changed is the kind of the gap: it was *"there is nothing to run"* — the
+manifest named a witness file for two gates that no commit ever wrote — and it
+is now *"the thing to run needs a secret this repository does not hold"*, which
+is answered by adding one, not by writing code.
+**The clause and the class are not the same thing, and this row once conflated
+them**: LC-P1-03's acceptance *"real smoke on at least one provider"* **was met
+once, by hand** — `b237751`, 2026-10-16, on a credential the owner supplied
+against a live Anthropic-protocol endpoint, which is where the
+`tool_calls`/`usage_reporting` results on the status board come from. A probe
+that ran by hand is not a gate class that runs on every commit, and the 2026-10-28
+runs are the same half of that distinction — now with a file in the suite that a
+credential can turn on.
 *Evidence:* [threat model §6.7](THREAT-MODEL.md) ·
-[evaluation protocol §"Mandatory automated gates"](EVALUATION.md).
+[evaluation protocol §"Mandatory automated gates"](EVALUATION.md) ·
+[the gate's exit-test table](acceptance/G5-acceptance.md).
 
 ### 2.8 The competitor baseline has not been run
 
@@ -180,13 +273,17 @@ a difference in *how many spellings are refused*, not an escape. The
 document does not quote a number for the refused set.
 *Evidence:* [threat model §1.3a and §6.11](THREAT-MODEL.md).
 
-### 2.12 Two limitations in the product's own code
+### 2.12 One limitation in the product's own code
 
-- **`ApprovalLedger.consume()` does not resolve the capability against the
-  registry** — a defence-in-depth gap whose ordering constraint belongs in an
-  ADR.
 - **`ArtifactLedger` is in memory** — so the ledger does not survive a
   process restart the way the SQLite store does.
+- ~~**`ApprovalLedger.consume()` does not resolve the capability against the
+  registry**~~ — **closed since the gate.** `consume()` asks the registry and
+  refuses an id it does not hold with `capability_unregistered`
+  (`src/labcairn/security/approval.py:215-222`), a reason of its own rather
+  than `args_changed`, so the remedy it names is the true one. Witnessed by
+  `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
+  and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
 
 *Evidence:* [threat model §6.12](THREAT-MODEL.md).
 
@@ -233,6 +330,27 @@ to one request.
 
 *Evidence:* [docs/handoff/CURRENT.md](handoff/CURRENT.md) §"What does not
 exist yet".
+
+### 2.18 A surface can enter doubt and refuse, but it cannot finish the bookkeeping
+
+**The surfaces run the recovery pass now.** `run_stage` calls it after the policy
+verdict and before any consent is spent, so a crash through the CLI or the service
+leaves its operation `UNCERTAIN`, blocks the stage with the reason the recovery
+layer states, and the next run is **refused** with `operation_uncertain` rather
+than planning a second operation for the same work. Answering the doubt is the
+operator's: `labcairn task reconcile <operation-id> --expected-sha256 <hash>`,
+because the hash a probe needs lived inside `args_digest` — a hash of a hash — and
+no stored row gives it back. A `CONFLICT` keeps the operation `UNCERTAIN`, keeps
+the stage blocked and writes nothing to the path it probed.
+
+*What remains:* the transaction the crash interrupted — confirmation, completed
+stage, receipts, which the ADR's own boundary says are one fact — was never
+written, and a reconciled `CONFIRMED` operation does not complete a stage. So the
+run that follows performs the bookkeeping under **its own** operation: the effect
+happened once, and the log holds two operation rows saying so.
+*Evidence:* [ADR-0003 C2](adr/ADR-0003-event-and-permission-model.md) ·
+`tests/test_application_layer.py::test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned` ·
+`tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`.
 
 ---
 
@@ -334,11 +452,20 @@ including the whole test suite in a clean clone — is in
 [the acceptance record](acceptance/LC-P1-14-outsider-path.md) with its
 command lines, exit codes and seconds.
 
-**The gate this release belongs to is not closed.** G5's exit test is
-*"outsider fresh install, 3 fixtures, fault injection, docs and
-real-provider smoke"*; the real-provider smoke (§2.7) and the competitor
-baseline (§2.8) have not run. **Nothing in this document should be read as
-the gate closing.**
+**The board says G5 is closed; this document says the exit test is not fully
+discharged. Both are true, and the difference is the owner's to settle.**
+G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and
+real-provider smoke"*; **four of the five are delivered and watched**, and the
+real-provider smoke (§2.7) and the competitor baseline (§2.8) have not run.
+**This paragraph was written at `dd08573` (2026-10-25), when the gate was still
+open.** The closure landed two days later at `ff9afc5` (PR #118), on two
+independent reviews that wrote none of the gate's fixes, verdict **PASS WITH
+NOTES** — the notes being exactly §2.7 and §2.8, and the four owner decisions
+in [`acceptance/G5-acceptance.md`](acceptance/G5-acceptance.md).
+**So nothing in this document may be read as a claim that the fifth clause ran.**
+Whether a declared, reported skip of it releases the alpha as *"Phase 1 complete"*
+is the task breakdown's §1.4.1b question, and it is the owner's ruling, not this
+document's.
 
 ---
 

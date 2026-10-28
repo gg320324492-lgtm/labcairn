@@ -40,9 +40,12 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from labcairn.api.contracts import (
+    AnalysisBody,
     ApprovalBody,
     ApprovalUseBody,
+    ClaimBody,
     Health,
+    ReportBody,
     SessionInfo,
     StageBody,
 )
@@ -55,6 +58,13 @@ from labcairn.application import (
     ApprovalGranted,
     ApprovalRequested,
     ArtifactView,
+    ClaimRecorded,
+    ClaimRequest,
+    FigureRequest,
+    FigureRun,
+    ReportRendered,
+    ReportRequest,
+    SourceAddress,
     SourceView,
     StageRun,
     TaskPlan,
@@ -64,13 +74,17 @@ from labcairn.application import (
     grant_approval,
     inspect_source,
     list_artifacts,
+    list_source_addresses,
     list_sources,
     list_tasks,
     read_artifact,
     read_plan,
     read_steps,
     read_task_state,
+    record_claim,
+    render_report,
     request_approval,
+    run_figure,
     run_stage,
 )
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
@@ -233,6 +247,58 @@ def get_source(
 ) -> SourceView:
     """One material, as the ledger holds it."""
     return inspect_source(context, source_id)
+
+
+@router.get(
+    "/sources/{source_id}/addresses",
+    response_model=list[SourceAddress],
+    tags=["source"],
+)
+def get_source_addresses(
+    source_id: str, context: Annotated[ApplicationContext, Depends(_context)]
+) -> list[SourceAddress]:
+    """Every address the ledger holds text for in one material.
+
+    What a claim can be recorded at. Each address's text is the ledger's
+    stored text, not the file re-read, and its key is the one ``POST /claims``
+    accepts.
+    """
+    return list(list_source_addresses(context, source_id))
+
+
+# --------------------------------------------------------------------------- #
+# the evidence
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/claims", response_model=ClaimRecorded, status_code=201, tags=["evidence"])
+def post_claim(
+    body: ClaimBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ClaimRecorded:
+    """Record a claim the material supports, at an address it answers.
+
+    The layer's own operation and the layer's own result, so the record this
+    service writes is the record the CLI's ``task claim`` writes. The record is
+    ``extracted``: recording is not verifying, and the checks that can confirm
+    it are separate acts.
+
+    Nothing is written when the claim is refused: the task must hold the
+    material, the material must be readable, and the address must resolve in
+    the bytes the ledger holds now.
+    """
+    return record_claim(
+        context,
+        ClaimRequest(
+            source_id=body.source_id,
+            locator_key=body.locator_key,
+            kind=body.kind,
+            text=body.text,
+            span=body.span,
+            value=body.value,
+            unit=body.unit,
+            tolerance=body.tolerance,
+        ),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -413,6 +479,70 @@ def _stage_work(request: Request) -> StageWork:
             "given the work when it starts.",
         )
     return work
+
+
+# --------------------------------------------------------------------------- #
+# the report
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/report", response_model=ReportRendered, tags=["report"])
+def post_report(
+    body: ReportBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> ReportRendered:
+    """Render the task's report, write it as a revision, and record it.
+
+    The layer's own operation and the layer's own result model, so the bytes a
+    CLI writes and the bytes this service serves are the same bytes — which is
+    G4's exit test, and the reason this route returns
+    :class:`~labcairn.application.reports.ReportRendered` rather than a
+    service-shaped copy of it.
+
+    **Nothing is written when the report is refused.** The content checks run
+    before the first byte of any form is rendered, so a report the material does
+    not support leaves no file behind and the caller gets
+    ``report_content_refused`` with the check that refused it.
+    """
+    return render_report(
+        context,
+        ReportRequest(path=body.path, template_id=body.template_id),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the analysis
+# --------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/analysis",
+    response_model=FigureRun,
+    response_model_by_alias=False,
+    tags=["analysis"],
+)
+def post_analysis(
+    body: AnalysisBody, context: Annotated[ApplicationContext, Depends(_context)]
+) -> FigureRun:
+    """Run one vetted operator and draw the figure its recipe describes.
+
+    The layer's own operation, so the policy is asked about the run on the
+    material **and** on the recipe, and the approval is spent by the run path in
+    the order that makes a refusal free: a run that cannot resolve its material
+    never reaches the consent. The renderer belongs to the analysis package and
+    the seam builds it — a web request cannot supply a drawing capability, any
+    more than it can supply a stage's effect.
+    """
+    return run_figure(
+        context,
+        FigureRequest(
+            root_id=body.root_id,
+            path=body.path,
+            operator_id=body.operator_id,
+            recipe=body.recipe,
+            parameters=body.parameters,
+            approval_id=body.approval_id,
+        ),
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -81,15 +81,17 @@ from labcairn.application import (
     read_plan,
     read_steps,
     read_task_state,
+    reconcile_abandoned,
     render_report,
     request_approval,
+    resolve_abandoned,
     run_stage,
 )
 from labcairn.application import records as records_layer
 from labcairn.application import reports as report_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
-from labcairn.core.ids import ApprovalId, RunId, SourceId, TaskId, new_id
+from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
 from labcairn.db.repository import count_events, events_after, list_operations
 from labcairn.evidence.record import EvidenceRecord
@@ -106,7 +108,7 @@ from labcairn.reports.receipt import (
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, Operation, OperationState
-from labcairn.security.approval import ApprovalLedger
+from labcairn.security.approval import ApprovalLedger, content_hash
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.sources.locators import ComputationLocator, TextLocator
@@ -218,7 +220,9 @@ def _stage_request(
     return StageRequest(
         stage_name=stage_name,
         capability=capability,
-        arguments=arguments if arguments is not None else {"operator_id": "mean", "parameters": {}},
+        arguments=arguments
+        if arguments is not None
+        else {"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id=root_id,
         resource_key=resource_key,
         run_id=run_id,
@@ -317,6 +321,10 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.artifacts",
         "labcairn.application.context",
         "labcairn.application.events",
+        # A layer operation like the readers beside it: it answers through the
+        # store's own readers and writes through ``db.materials``, and its
+        # import of ``LOCAL_USER_ID`` is the actor of a surface operation.
+        "labcairn.application.evidence",
         "labcairn.application.material_ingestion",
         "labcairn.application.records",
         "labcairn.application.sources",
@@ -438,7 +446,14 @@ def test_the_callers_path_argument_cannot_change_what_the_policy_judged(
     honest = run_stage(context, _stage_request(), _work, now=_MOMENT)
     lying = run_stage(
         context,
-        _stage_request(arguments={"path": "other.csv", "operator_id": "mean", "parameters": {}}),
+        _stage_request(
+            arguments={
+                "path": "other.csv",
+                "operator_id": "mean",
+                "recipe": "recipe.json",
+                "parameters": {},
+            }
+        ),
         _work,
         now=_MOMENT,
     )
@@ -578,7 +593,7 @@ def test_an_approval_for_other_arguments_is_refused(env: StoreEnv, workspace_roo
             context,
             _stage_request(
                 approval_id=requested.approval.approval_id,
-                arguments={"operator_id": "median", "parameters": {}},
+                arguments={"operator_id": "median", "recipe": "recipe.json", "parameters": {}},
             ),
             _work,
             now=_MOMENT,
@@ -2199,7 +2214,7 @@ def _use(resource_key: str = "one.csv") -> ApprovalUse:
     """What an approval is spent on, matching the stage request."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
+        arguments={"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id="source:0",
         resource_key=resource_key,
     )
@@ -2220,7 +2235,7 @@ def _a_stage_request_in(run_id: RunId) -> StageRequest:
     return StageRequest(
         stage_name="intake",
         capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
+        arguments={"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id="source:0",
         resource_key="one.csv",
         run_id=run_id,
@@ -2593,3 +2608,261 @@ def test_the_four_forms_the_layer_writes_are_the_canonical_document(
             f"the {form} form the layer wrote does not say what the canonical "
             f"document beside it says"
         )
+
+
+class _TheRunDiedAfterTheAttemptError(Exception):
+    """The staged death: the attempt is durable, the effect never ran here."""
+
+
+def _die_after_the_attempt_is_durable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leave an operation ``ATTEMPTING`` on disk, which is what a kill does.
+
+    **The write happens, and then the run dies.** ``records.move_operation``
+    commits in its own unit of work, so calling the original and raising after it
+    returns leaves exactly the record a killed process leaves: the intent is on
+    disk, the confirmation is not, and nothing in the row can say whether the
+    effect happened.
+    """
+    original = records_layer.move_operation
+    died = False
+
+    def _die(
+        ctx: ApplicationContext,
+        operation: Operation,
+        *,
+        event: EventType,
+        to_state: OperationState,
+        now: datetime,
+    ) -> Operation:
+        nonlocal died
+        moved = original(ctx, operation, event=event, to_state=to_state, now=now)
+        if to_state is OperationState.ATTEMPTING and not died:
+            died = True
+            raise _TheRunDiedAfterTheAttemptError("the run died after the attempt was durable")
+        return moved
+
+    monkeypatch.setattr(records_layer, "move_operation", _die)
+
+
+def _event_reasons(env: StoreEnv, task_id: TaskId) -> list[str]:
+    """Every event type this task has, oldest first."""
+    return [event.type.value for event in events_after(env.session, task_id)]
+
+
+def _resource_of(context: ApplicationContext, request: StageRequest) -> Path:
+    """The file a stage request addresses, as the probe will see it.
+
+    Built from the operation's own ``resolved_key`` rather than from a path this
+    test invented: the key the store holds is the key the probe is asked about,
+    and the two disagreeing would be a test of the test.
+    """
+    root = context.workspace.selected_root
+    key = context.resource_in(request.root_id, request.resource_key).resolved_key
+    return root.joinpath(*key.split("/"))
+
+
+def test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The recovery pass runs at the front of a stage run, and the run is refused.
+
+    **What is watched is the plan, not the message.** The abandoned operation is
+    moved into ``UNCERTAIN`` — the state recovery *enters*, never assumes — and
+    the store still holds **one** operation for the work. A layer that replayed
+    instead would have written a second one, which is the protocol's fourth
+    blocker in the shape a surface takes.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = _stage_request(run_id=RunId(new_id()))
+
+    _die_after_the_attempt_is_durable(monkeypatch)
+    with pytest.raises(_TheRunDiedAfterTheAttemptError):
+        run_stage(context, request, _work, now=_MOMENT)
+    abandoned = next(iter(_the_operations(env, context.task_id).values()))
+    assert abandoned.state is OperationState.ATTEMPTING
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        run_stage(context, request, _work, now=_MOMENT)
+    assert raised.value.reason is ApplicationRefusal.OPERATION_UNCERTAIN
+    assert str(abandoned.operation_id) in raised.value.detail, (
+        "the refusal names the operation the operator has to answer"
+    )
+    assert "task reconcile" in raised.value.detail, "and says what answers it"
+
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        f"the refused run planned a second operation for one piece of work: {operations}"
+    )
+    assert operations[0].state is OperationState.UNCERTAIN
+    reasons = _event_reasons(env, context.task_id)
+    assert reasons.count(EventType.OPERATION_UNCERTAIN.value) == 1
+    assert EventType.OPERATION_RECONCILED.value not in reasons, (
+        "the pass entered doubt; it did not answer it"
+    )
+
+
+def test_the_recovery_pass_leaves_a_task_with_nothing_abandoned_untouched(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The ordinary case is no case: nothing abandoned, nothing written.
+
+    **Why this is here.** The pass runs on every stage run, so a pass that wrote
+    an ``operation_uncertain`` event, or blocked a stage, when nothing was
+    abandoned would put a crash in the record of every task that never had one.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+
+    assert reconcile_abandoned(context) == ()
+    result = run_stage(context, _stage_request(run_id=RunId(new_id())), _work, now=_MOMENT)
+    assert result.operation.state is OperationState.CONFIRMED
+    assert EventType.OPERATION_UNCERTAIN.value not in _event_reasons(env, context.task_id)
+
+
+def test_a_reconciled_absent_effect_is_authorised_again_and_the_next_run_uses_it(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing at the path means the effect provably did not land, so it is replayed.
+
+    **The same operation performs the replay**, not a new one: the work was never
+    done, and two records of it would say it was done twice.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = _stage_request(run_id=RunId(new_id()))
+    _die_after_the_attempt_is_durable(monkeypatch)
+    with pytest.raises(_TheRunDiedAfterTheAttemptError):
+        run_stage(context, request, _work, now=_MOMENT)
+    with pytest.raises(ApplicationRefusedError):
+        run_stage(context, request, _work, now=_MOMENT)
+
+    abandoned = next(iter(_the_operations(env, context.task_id).values()))
+    _resource_of(context, request).unlink(missing_ok=True)
+    outcome = resolve_abandoned(context, abandoned.operation_id, expected_sha256=_HASH)
+
+    assert outcome.resolution.value == "replay_safe"
+    assert outcome.resulting_state is OperationState.AUTHORIZED
+    assert outcome.replay_permitted
+
+    result = run_stage(context, request, _work, now=_MOMENT)
+    operations = list_operations(env.session, context.task_id)
+    assert len(operations) == 1, (
+        "the replay was performed by the operation the crash abandoned, so the log "
+        f"says the work was planned once; found {operations}"
+    )
+    assert result.operation.operation_id == abandoned.operation_id
+    assert result.operation.state is OperationState.CONFIRMED
+
+
+def test_a_reconciled_landed_effect_is_confirmed_by_the_probe_and_not_by_the_run(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bytes matching what the operation predicted mean the effect landed.
+
+    **The confirmation is the probe's, and it is recorded as such** — the event
+    carries its payload, which is the distinction ADR-0004's evidence states
+    exist for: what was concluded, and on what basis. And a landed effect is
+    **not replay-permitted**: replaying it would be a second write.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = _stage_request(run_id=RunId(new_id()))
+    _die_after_the_attempt_is_durable(monkeypatch)
+    with pytest.raises(_TheRunDiedAfterTheAttemptError):
+        run_stage(context, request, _work, now=_MOMENT)
+    entered = reconcile_abandoned(context)
+    assert [operation.operation_id for operation in entered] == [
+        next(iter(_the_operations(env, context.task_id).values())).operation_id
+    ], "the pass reports the operation it moved into doubt"
+    abandoned = next(iter(_the_operations(env, context.task_id).values()))
+    assert abandoned.state is OperationState.UNCERTAIN
+
+    resource = _resource_of(context, request)
+    resource.parent.mkdir(parents=True, exist_ok=True)
+    resource.write_bytes(b"a,b\n1,2\n")
+
+    outcome = resolve_abandoned(
+        context, abandoned.operation_id, expected_sha256=content_hash(resource)
+    )
+    assert outcome.resolution.value == "confirmed"
+    assert outcome.resulting_state is OperationState.CONFIRMED
+    assert not outcome.replay_permitted
+    assert EventType.OPERATION_RECONCILED.value in _event_reasons(env, context.task_id)
+
+
+def test_a_reconciled_conflict_keeps_the_doubt_open_writes_nothing_and_refuses(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Other bytes at the path are a human's decision, not an automatic answer.
+
+    **The refusal has to keep the doubt open.** A conflict resolved as
+    ``replay_safe`` would let the next run write over a file this operation did
+    not produce, which is the one thing the probe's contract exists to prevent.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = _stage_request(run_id=RunId(new_id()))
+    _die_after_the_attempt_is_durable(monkeypatch)
+    with pytest.raises(_TheRunDiedAfterTheAttemptError):
+        run_stage(context, request, _work, now=_MOMENT)
+    entered = reconcile_abandoned(context)
+    assert [operation.operation_id for operation in entered] == [
+        next(iter(_the_operations(env, context.task_id).values())).operation_id
+    ], "the pass reports the operation it moved into doubt"
+    abandoned = next(iter(_the_operations(env, context.task_id).values()))
+    assert abandoned.state is OperationState.UNCERTAIN
+
+    resource = _resource_of(context, request)
+    resource.parent.mkdir(parents=True, exist_ok=True)
+    resource.write_bytes(b"not what the operation predicted\n")
+    before = resource.read_bytes()
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        resolve_abandoned(context, abandoned.operation_id, expected_sha256=_HASH)
+    assert raised.value.reason is ApplicationRefusal.OPERATION_CONFLICT
+
+    assert next(iter(_the_operations(env, context.task_id).values())).state is (
+        OperationState.UNCERTAIN
+    )
+    assert resource.read_bytes() == before, "and nothing was written to the path it probed"
+
+    with pytest.raises(ApplicationRefusedError) as again:
+        run_stage(context, request, _work, now=_MOMENT)
+    assert again.value.reason is ApplicationRefusal.OPERATION_UNCERTAIN
+
+
+def test_reconcile_refuses_a_value_that_is_not_a_digest_and_a_settled_operation(
+    env: StoreEnv, workspace_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Three refusals a caller must not be able to mistake for a resolution.
+
+    A malformed hash is the caller's mistake rather than a fact about the
+    filesystem; no such operation is a name that is not in the store; and an
+    operation that is not ``UNCERTAIN`` is settled, so probing it would write a
+    reconciliation the record cannot support.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    request = _stage_request(run_id=RunId(new_id()))
+
+    with pytest.raises(ApplicationRefusedError) as short:
+        resolve_abandoned(context, OperationId(new_id()), expected_sha256="deadbeef")
+    assert short.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+    with pytest.raises(ApplicationRefusedError) as absent:
+        resolve_abandoned(context, OperationId(new_id()), expected_sha256=_HASH)
+    assert absent.value.reason is ApplicationRefusal.OPERATION_NOT_FOUND
+
+    _die_after_the_attempt_is_durable(monkeypatch)
+    with pytest.raises(_TheRunDiedAfterTheAttemptError):
+        run_stage(context, request, _work, now=_MOMENT)
+    abandoned = next(iter(_the_operations(env, context.task_id).values()))
+    reconcile_abandoned(context)
+    assert abandoned.operation_id is not None
+
+    outcome = resolve_abandoned(
+        context,
+        next(iter(_the_operations(env, context.task_id).values())).operation_id,
+        expected_sha256=_HASH,
+    )
+    assert outcome.resulting_state is OperationState.AUTHORIZED
+    with pytest.raises(ApplicationRefusedError) as settled:
+        resolve_abandoned(context, abandoned.operation_id, expected_sha256=_HASH)
+    assert settled.value.reason is ApplicationRefusal.OPERATION_NOT_UNCERTAIN, (
+        "an authorised operation was never attempted, so there is no doubt to answer"
+    )

@@ -86,6 +86,7 @@ __all__ = [
     "detect_conflicts",
     "load_record",
     "load_task_records",
+    "record_for_span",
     "supersede_record",
 ]
 
@@ -310,6 +311,25 @@ def supersede_record(
     if updated is None:  # pragma: no cover - the row was read a moment ago
         raise UnknownRecordError(f"no record with id {evidence_id!r}")
     return updated
+
+
+def record_for_span(connection: Connection, task_id: str, extracted_span_sha256: str) -> str | None:
+    """The id of the task's record whose extracted span hashes to *value*.
+
+    ``uq_evidence_task_span`` is ``UNIQUE(task_id, extracted_span_sha256)``, so
+    at most one record can answer. A writer asks this **before** it inserts,
+    so a repeated claim is refused with a reason and the existing record's id
+    rather than with a constraint error from the middle of a transaction —
+    and the unique index is still what makes the answer true under two
+    concurrent writers.
+    """
+    return connection.execute(
+        sql_text(
+            "SELECT evidence_id FROM evidence_records"
+            " WHERE task_id = :tid AND extracted_span_sha256 = :sha"
+        ),
+        {"tid": task_id, "sha": extracted_span_sha256},
+    ).scalar()
 
 
 def load_task_records(connection: Connection, task_id: str) -> tuple[EvidenceRecord, ...]:

@@ -146,6 +146,28 @@ DEFAULT_POLICY_RULES: tuple[Rule, ...] = (
         note="inventorying the supplied material; the registry keeps this to source roots",
     ),
     Rule(
+        effect=Permission.ALLOW,
+        pattern="**",
+        capabilities=frozenset({"analysis.run"}),
+        note=(
+            "running a vetted, registered operator over supplied material and drawing "
+            "its figure. The registry binds the capability to source and output roots; "
+            "the recipe it reads is named inside the consented arguments, so the "
+            "approval says which figure a run may draw, and an unregistered operator id "
+            "is refused before anything runs."
+        ),
+    ),
+    Rule(
+        effect=Permission.ALLOW,
+        pattern="**",
+        capabilities=frozenset({"report.render"}),
+        note=(
+            "rendering this task's report into its own output area. The registry binds the "
+            "capability to output roots, so this cannot reach a source file; the content "
+            "checks — not this rule — decide whether a report may be written at all."
+        ),
+    ),
+    Rule(
         effect=Permission.DENY,
         pattern="**/.*",
         note="dotfiles are where credentials live; no research deliverable needs one",

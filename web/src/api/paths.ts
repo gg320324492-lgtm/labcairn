@@ -73,3 +73,112 @@ export function artifactContentPath(receiptId: string): string {
 export function approvalGrantPath(approvalId: string): string {
   return APPROVAL_GRANT_PATH.replace('{approval_id}', encodeURIComponent(approvalId))
 }
+
+/**
+ * The report render.
+ *
+ * A change, so it needs the session token: the service writes the report's four
+ * forms into the task's own output area and records the revision. It is a POST
+ * with a body rather than a read of an existing artefact because the plan's own
+ * exit test says the **web produces** the same versioned report the CLI produces
+ * — not that it displays one the CLI happened to write.
+ *
+ * The body carries the two claims the caller makes and the service takes no
+ * default for either, so `reportRenderBody` is where this page states them.
+ * `template_id` is `'default'` because exactly one template exists; asking for
+ * another is a refusal that names it rather than a substitution.
+ */
+export const REPORT_RENDER_PATH = '/report'
+
+/** What the workbench asks the service to render, and from which template. */
+export function reportRenderBody(path = 'report', templateId = 'default'): Record<string, string> {
+  return { path, template_id: templateId }
+}
+
+/**
+ * The consent request, and the figure run it authorises.
+ *
+ * A figure needs **two** writes, not one: an approval that covers the material,
+ * the operator, its parameters and the recipe's path (ADR-0012 constraint 7),
+ * and the run that spends it. The service exposes both — `POST /approvals` asks
+ * and `POST /analysis` runs — and this page calls them in that order. There is
+ * deliberately no shortcut on this side either: a page that minted its own
+ * consent would be the same bypass as a command that did.
+ */
+export const APPROVAL_REQUEST_PATH = '/approvals'
+export const ANALYSIS_RUN_PATH = '/analysis'
+
+/** The four fields the approval and the run must agree on, spelled once. */
+export interface AnalysisArguments {
+  readonly path: string
+  readonly operatorId: string
+  readonly recipe: string
+  readonly parameters: Record<string, unknown>
+}
+
+/** The capability's arguments, in the one spelling the digest is taken over. */
+interface AnalysisArgumentsBody {
+  readonly path: string
+  readonly operator_id: string
+  readonly recipe: string
+  readonly parameters: Record<string, unknown>
+}
+
+function analysisArguments(inputs: AnalysisArguments): AnalysisArgumentsBody {
+  return {
+    path: inputs.path,
+    operator_id: inputs.operatorId,
+    recipe: inputs.recipe,
+    parameters: inputs.parameters,
+  }
+}
+
+/**
+ * What the workbench asks a human to consent to.
+ *
+ * `resource_key` is the material's key **inside its root**, because that is what
+ * a policy rule is matched against and what the approval binds. `expires_at` is
+ * passed in rather than read from the clock here, so the test can state the
+ * moment and the page can choose its own window.
+ */
+export function analysisApprovalBody(inputs: {
+  readonly rootId: string
+  readonly expiresAt: string
+  readonly arguments: AnalysisArguments
+}): {
+  capability: 'analysis.run'
+  arguments: AnalysisArgumentsBody
+  root_id: string
+  resource_key: string
+  depends_on: string[]
+  expires_at: string
+  stage_name: string
+} {
+  return {
+    capability: 'analysis.run',
+    arguments: analysisArguments(inputs.arguments),
+    root_id: inputs.rootId,
+    resource_key: inputs.arguments.path,
+    depends_on: [],
+    expires_at: inputs.expiresAt,
+    stage_name: 'analysis',
+  }
+}
+
+/** What the workbench asks the service to draw, under the approval it was given. */
+export function analysisBody(
+  inputs: { readonly rootId: string; readonly approvalId: string } & AnalysisArguments,
+): {
+  root_id: string
+  path: string
+  operator_id: string
+  recipe: string
+  parameters: Record<string, unknown>
+  approval_id: string
+} {
+  return {
+    root_id: inputs.rootId,
+    ...analysisArguments(inputs),
+    approval_id: inputs.approvalId,
+  }
+}

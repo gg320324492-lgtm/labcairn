@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, TypedDict
 
 import pytest
@@ -741,3 +742,61 @@ def test_annotation_events_say_so_in_their_error(ids: dict[str, Any]) -> None:
 
     with pytest.raises(ValidationError, match="is Task-level"):
         Event(seq=1, task_id=ids["task"], run_id=ids["run"], type=EventType.TASK_CREATED)
+
+
+#: ADR-0003 is the document that fixes this vocabulary.
+_ADR_0003 = (
+    Path(__file__).resolve().parents[1] / "docs" / "adr" / "ADR-0003-event-and-permission-model.md"
+)
+
+_ADR_LINE_PREFIX = "Refusal reasons are enumerated and machine-readable:"
+
+
+def _adr_refusal_reasons(line: str) -> set[str]:
+    """The reasons C4 lists, and nothing else.
+
+    **It refuses rather than returning an empty set.** A parser that quietly
+    yields nothing on a reworded line turns the closure check below into an
+    assertion that a vocabulary is empty — green forever. This is the shape the
+    project has been caught by three gates running: the watcher that cannot fail
+    is not watching.
+    """
+    if not line.startswith(_ADR_LINE_PREFIX):
+        raise AssertionError(f"the refusal line does not start with its own prefix: {line!r}")
+    reasons = {
+        part.strip().removesuffix(".").strip("`")
+        for part in line.removeprefix(_ADR_LINE_PREFIX).split(",")
+    }
+    reasons.discard("")
+    if not reasons:
+        raise AssertionError(f"the refusal list parsed to nothing usable: {line!r}")
+    return reasons
+
+
+def test_adr_c4_and_the_enum_are_one_vocabulary() -> None:
+    """The ADR names the reasons, the code raises them, and neither may drift.
+
+    `ApprovalRefusal` is what a surface branches on and ADR-0003 C4 is what an
+    auditor reads. When the two differ, the reader is told a fact about a
+    consent model the code does not implement — which is the failure this
+    repository has named in every gate review since G3.
+    """
+    lines = [
+        line
+        for line in _ADR_0003.read_text(encoding="utf-8").splitlines()
+        if line.startswith(_ADR_LINE_PREFIX)
+    ]
+    assert len(lines) == 1, f"expected one refusal-vocabulary line in ADR-0003, found {len(lines)}"
+
+    listed = _adr_refusal_reasons(lines[0])
+    members = {reason.value for reason in ApprovalRefusal}
+    assert listed == members, (
+        f"ADR-0003 C4 names {sorted(listed - members)} that the enum does not have, "
+        f"and the enum has {sorted(members - listed)} the ADR does not name"
+    )
+
+    # -- the control: a list that lost a reason must be caught, not accepted -- #
+    doctored = lines[0].replace(", `capability_unregistered`", "")
+    assert _adr_refusal_reasons(doctored) != members, (
+        "the comparison is decorative: dropping a reason from the ADR left it equal"
+    )

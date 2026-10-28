@@ -149,9 +149,19 @@ EVENT_PAYLOAD_SCHEMAS: dict[EventType, type[LabCairnModel]] = {}
 def register_payload_schema(event_type: EventType, schema: type[LabCairnModel]) -> None:
     """Declare the model an event type's payload must satisfy.
 
-    Called at import by whichever module owns the content. Kept as a function
-    rather than a dict literal so the registration site is greppable and so a
-    duplicate registration is an error rather than a silent overwrite.
+    Kept as a function rather than a dict literal so the registration site is
+    greppable and so a duplicate registration is an error rather than a silent
+    overwrite.
+
+    **Registration must reach the reader, and the reader imports this module
+    and little else.** :func:`~labcairn.db.repository.events_after` validates
+    every stored document through :class:`Event`; it does not import the
+    writer. A schema registered as a side effect of importing a writer is
+    therefore absent in a process that only reads, and every event of that
+    type becomes unreadable there while remaining valid in the writer's own
+    process — a defect no write-path test can see. The payload models for the
+    vocabulary live here for that reason; a schema may be registered elsewhere
+    only if this module (or something it already imports) imports that module.
     """
     if event_type in EVENT_PAYLOAD_SCHEMAS:
         raise ValueError(f"{event_type.value} already has a registered payload schema")
@@ -168,6 +178,37 @@ class EventTransition(LabCairnModel):
 
     from_state: str = Field(min_length=1, max_length=64)
     to_state: str = Field(min_length=1, max_length=64)
+
+
+class ReconciliationPayload(LabCairnModel):
+    """What an ``operation_reconciled`` event carries beyond its transition.
+
+    ADR-0007 added the ``payload`` field the event contract always specified.
+    Before it, ``confirmed_by_probe`` was **re-derivable but not stored**: the
+    resolution had to be inferred from the fact that an operation reached
+    ``CONFIRMED`` while carrying ``operation_reconciled`` and no receipt, which
+    is sound only for as long as C2's vocabulary has exactly those two paths. A
+    reader should not have to reconstruct provenance the log could simply state.
+
+    It lives here rather than beside the coordinator that writes it because
+    the reader imports the vocabulary and not the writer; see
+    :func:`register_payload_schema`.
+    """
+
+    #: The C2 vocabulary word for how this was resolved.
+    resolution: str = Field(min_length=1)
+    #: What the probe actually observed, so a human can judge the answer rather
+    #: than only the conclusion.
+    verdict: str = Field(min_length=1)
+    #: Which mechanism reached it. ``probe`` means bytes were read; a future
+    #: ``policy`` would mean a human decided. Recording the source separately
+    #: from the resolution keeps "what was concluded" and "on what basis"
+    #: distinguishable, which is the distinction ADR-0004's evidence states exist
+    #: for.
+    reached_by: str = Field(min_length=1)
+
+
+register_payload_schema(EventType.OPERATION_RECONCILED, ReconciliationPayload)
 
 
 class Event(LabCairnModel):

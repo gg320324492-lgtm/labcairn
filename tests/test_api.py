@@ -69,6 +69,7 @@ from labcairn.application import (
     ApplicationContext,
     ApplicationRefusedError,
     create_task,
+    ingest_material,
     read_task_state,
 )
 from labcairn.application.refusal import ApplicationRefusal
@@ -1083,15 +1084,33 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
             assert method in {"get", "head"}, f"{method.upper()} {path} is not a read"
 
 
-def test_the_mutating_surface_of_the_service_is_exactly_the_consent_routes() -> None:
-    """What this service can be *asked to do* is four routes and no more.
+def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
+    """What this service can be *asked to do* is seven routes and no more.
 
-    Every other route reads. That is the whole of the "the stream carries
-    events and never commands" claim at the level of the contract: a browser
-    that has the token can ask for consent and for a stage to run, and can do
-    nothing else at all. A route that changed something else — a route that
-    could delete an artefact, say — would be a permission the CLI does not
-    have either.
+        Every other route reads. That is the whole of the "the stream carries
+        events and never commands" claim at the level of the contract: a browser
+        that has the token can ask for consent, ask for a stage to run, and ask for
+        the report to be rendered — and can do nothing else at all. A route that
+        changed something else — a route that could delete an artefact, say — would
+        be a permission the CLI does not have either.
+
+        **The analysis run is on this list for the same reason the report is: LC-P1-12
+    asks the local service to reach the layer's operations, and a figure the user
+    cannot ask the service to draw is a figure with no surface at all. **It is not
+    the consent's own route** — the approval is asked for over `POST /approvals` and
+    answered over `/approvals/{approval_id}/grant`, and a run that could mint its own
+    consent would not be a consented run.
+
+    **The report render is on this list because G4's exit test is *"CLI and Web
+        produce same versioned report"*.** That sentence asks the web to be able to
+        *produce* the report, not only to read one the CLI happened to write; the
+        route is the layer's own operation and the layer's own result model, so the
+        bytes are the same bytes whichever surface asked.
+
+    **The claim route is here because the web could not otherwise make a task
+    reportable.** Recording a claim is what gives a report something to carry
+    (§2.2), and a service that could render a report but not record what it is
+    made of would be a surface that can only show work another surface did.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1105,7 +1124,168 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_consent_routes() -> 
         "POST /approvals/{approval_id}/grant",
         "POST /approvals/{approval_id}/consume",
         "POST /stages",
+        "POST /report",
+        "POST /analysis",
+        "POST /claims",
     }
+
+
+def test_a_report_render_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that writes an artefact is behind the same origin guard.
+
+    **Why it is watched separately.** A CSRF-able route that produces a file is
+    worth guarding more than one that only reads: the page on another site could
+    make this workspace write a revision of a report nobody asked for.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_a_report_render_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to write."""
+    response = client.post(
+        "/report", json={"path": "report", "template_id": "default"}, headers={"Origin": OWN_ORIGIN}
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason(
+    client: TestClient, token: str
+) -> None:
+    """The route is the layer's operation, and the answer is the layer's answer.
+
+    **What this proves, and what it deliberately does not.** The task under test
+    has no record and no figure, and the document builder refuses a report with
+    nothing to carry — so what comes back is ``report_content_refused``, the
+    layer's own reason, delivered through the service's own refusal shape. That
+    is the plumbing proved end to end: HTTP request → typed body → the layer's
+    ``render_report`` → its refusal → this response.
+
+    **It is not a claim that a report was written.** None was, and nothing was:
+    a refusal that left a file behind would be the worst failure this route could
+    have. The assertion below is that the output area holds no report.
+
+    **The success path is the claim route's**: the task under test is refused
+    because it holds no record, and
+    :func:`test_a_claim_recorded_through_the_service_makes_the_task_reportable`
+    records one through this service and then renders the report. What this
+    test proves is the other half — the refusal is the layer's, and nothing was
+    written.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.REPORT_CONTENT_REFUSED.value
+    assert "Nothing was written" in response.json()["message"], (
+        "the refusal must say the output area is untouched"
+    )
+
+    listed = client.get("/artifacts", headers={"Origin": OWN_ORIGIN})
+    assert listed.status_code == 200
+    assert listed.json() == [], "a refused report must leave no artefact behind"
+
+
+def test_a_claim_recorded_through_the_service_makes_the_task_reportable(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    workspace_root: Path,
+) -> None:
+    """The success path: ingest, read an address, record the claim, render.
+
+    Every step except the ingestion is a request to this service, and the
+    ingestion is the layer's (the service has no ingest route). The report that
+    comes back is rendered from a record this service wrote, which is the
+    property §2.2 exists for: a surface can make a task reportable without
+    writing the ledger rows itself.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    ingestion = ingest_material(context)
+    source_id = ingestion.source_ids[0]
+
+    addresses = client.get(f"/sources/{source_id}/addresses", headers={"Origin": OWN_ORIGIN})
+    assert addresses.status_code == 200, addresses.text
+    address = next(item for item in addresses.json() if item["text"].strip() == "2")
+
+    claimed = client.post(
+        "/claims",
+        json={
+            "source_id": source_id,
+            "locator_key": address["locator_key"],
+            "kind": "numeric",
+            "value": 2,
+            "unit": "dimensionless",
+        },
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+
+    assert claimed.status_code == 201, claimed.text
+    recorded = claimed.json()
+    assert recorded["record"]["status"] == "extracted"
+    assert recorded["record"]["value"] == 2.0
+    assert recorded["anchor_id"]
+
+    reported = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert reported.status_code == 200, reported.text
+    assert reported.json()["resource_key"] == "report"
+
+    listed = client.get("/artifacts", headers={"Origin": OWN_ORIGIN})
+    assert listed.status_code == 200
+    assert listed.json(), "the rendered report is not in the ledger"
+
+
+def test_a_claim_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that writes a record is behind the same origin guard."""
+    response = client.post(
+        "/claims",
+        json={"source_id": "src-0123456789abcdef", "locator_key": "k=3:csv|r=1:1|c=1:a"},
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_a_claim_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to write a record."""
+    response = client.post(
+        "/claims",
+        json={"source_id": "src-0123456789abcdef", "locator_key": "k=3:csv|r=1:1|c=1:a"},
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_a_report_render_names_the_template_it_was_asked_for(
+    client: TestClient, token: str
+) -> None:
+    """One template exists, and a request for another is refused rather than guessed.
+
+    **The refusal is the request's, not the content's**: an unknown template is a
+    caller error, and serving the default instead would be the service deciding
+    what the caller meant.
+    """
+    response = client.post(
+        "/report",
+        json={"path": "report", "template_id": "no-such-template"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] != GuardRefusal.SESSION_REQUIRED.value
+    assert "no-such-template" in response.json()["message"]
 
 
 def test_the_stream_delivers_the_same_page_as_the_json_endpoint(client: TestClient) -> None:
@@ -1688,3 +1868,60 @@ def test_the_write_path_still_opens_its_transaction_with_begin_immediate(
     assert all(statement.upper() == "BEGIN IMMEDIATE" for statement in begins), (
         f"every transaction must begin IMMEDIATE, saw: {sorted(set(begins))}"
     )
+
+
+def _analysis_body(approval_id: str) -> dict[str, object]:
+    """A figure run the service can be asked for, with no material behind it."""
+    return {
+        "root_id": "source:0",
+        "path": "one.csv",
+        "operator_id": "labcairn.analysis.mean",
+        "recipe": "recipe.json",
+        "parameters": {},
+        "approval_id": approval_id,
+    }
+
+
+def test_an_analysis_run_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that draws a file is behind the origin guard like every change."""
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_an_analysis_run_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to run, and not consent to spend either."""
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_an_analysis_run_reaches_the_layer_and_returns_its_reason(
+    client: TestClient, token: str
+) -> None:
+    """HTTP body -> the layer's request -> the seam's own refusal, in its shape.
+
+    **What this proves and what it does not.** The task under test has no recipe
+    file, so the seam answers `recipe_unreadable` — before the consent, and before
+    the material. That the layer's reason arrives through the service's refusal
+    shape is the plumbing; **it is not a claim that a figure was drawn**, and none
+    was. The run's success path at a surface is witnessed where a material exists:
+    `tests/test_cli.py::test_the_figure_command_refuses_before_the_run_with_the_layers_reasons`
+    walks the same order at the console script, and the seam's own tests cover the
+    consent, the operator and the receipts.
+    """
+    response = client.post(
+        "/analysis",
+        json=_analysis_body(str(new_id())),
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.RECIPE_UNREADABLE.value

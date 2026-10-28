@@ -666,6 +666,7 @@ def _walk_the_path(root: Path, session: Session) -> int:
     arguments = {
         "path": MATERIAL_KEY,
         "operator_id": operator_id,
+        "recipe": RECIPE_KEY,
         "parameters": {**recipe.data.parameters, "selection": selection_payload(selection)},
     }
 
@@ -702,7 +703,6 @@ def _walk_the_path(root: Path, session: Session) -> int:
         renderer=MatplotlibFigureRenderer(
             recipe=recipe, recipe_ref=recipe_ref, workspace_root=root
         ),
-        recipe=RECIPE_KEY,
         now=NOW,
     )
     session.commit()

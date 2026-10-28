@@ -141,7 +141,7 @@ uv run labcairn --help
 
 **`doctor` 只报告，不修复。** 它说出它发现了什么。它不会修复损坏的数据库、不会补写缺失的策略，也不会去够付费模型端点——除非 `--probe` 这么要求。
 
-**没有任何命令能渲染报告或画出图。** 报告路径与确定性图是通过应用层自己的操作（`render_report` 与 `run_analysis`）到达的，本地 API 也没有对应路由。快速上手会说明这对读者意味着什么；发布说明把它作为已知限制列出，而不是留作意外。
+**`labcairn task report` 能渲染报告，`labcairn task figure` 能画图。** 两者都既有命令、也有本地服务的对应路由（`POST /report` 与 `POST /analysis`），而且都调用应用层自己的操作，不是绕开它另开一条路；**两者在 workbench 上都有入口**——报告是一个按钮，图形是一个面板：先发起批准请求，在 Approval 面板里答复，批准后再运行。**画图除了许可还需要同意**：批准把材料、算子、它的参数**以及配方的路径**一起绑住（ADR-0012 约束 7），所以旁边还有 `labcairn task approval-request` 与 `labcairn task approval-grant`；故意没有一步式的捷径——能自己造同意的运行，就不算被同意过的运行。**两种产出都要有内容可承载**：无话可说的任务会被拒绝并给出理由，且不会写下任何文件。**`labcairn task claim` 是任务获得可承载内容的方式**：它针对摄取写进账本的一个地址，记录一条 `extracted` 证据记录——`labcairn sources addresses` 列出这些地址，而 `POST /claims` 与 `GET /sources/{source_id}/addresses` 是同样两个操作在服务上的形态。快速上手会走这条路径，发布说明则说明还剩下什么（§2.2：记录由产品写入，但内容由调用者陈述，而且 C1、C2、C3 并未运行）。
 
 ### 原则
 

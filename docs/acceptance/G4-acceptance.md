@@ -1364,6 +1364,12 @@ this is the part of the report that makes the rest trustworthy:
   product."* **That is the right thing to do, and it is the third limit this
   work order carries** — the board named only two (the event stream and the
   project selection) and should name this third.
+  **Closed after this review.** The layer now has `record_claim`, reached by
+  `labcairn task claim` and `POST /claims`, and `list_source_addresses`; the
+  outsider walk uses them. The G4 demonstration is unchanged, because it is
+  this gate's record at its commit rather than a description of the current
+  tree. [`LC-P1-14-outsider-path.md`](LC-P1-14-outsider-path.md) §7.3 records
+  the closure.
 - **The board was behind the merged state** when the review ran.
 - **An intermittent flake outside its scope.** `tests/test_analysis_demo.py`'s
   two demonstration tests failed in two of three whole-suite runs and passed
@@ -3687,11 +3693,13 @@ carried, not closed.**
 - **The API's event stream is not consumed by the workbench**, and **the
   workbench cannot switch the selected project**, because the API has no such
   operation. Both say so in prose where a reader will meet them.
-- **The demonstration's own claim** — the claim in the report is **made by
-  the demonstration, not by the product**: no layer operation writes an
-  evidence record or an anchor, so the demonstration writes the claim's own
-  address and the record that rests on it itself, and says so in its own
-  output.
+- **The demonstration's own claim** — at this commit the claim in the report
+  is **made by the demonstration, not by the product**: no layer operation
+  wrote an evidence record or an anchor, so the demonstration writes the
+  claim's own address and the record that rests on it itself, and says so in
+  its own output. **Closed after this gate**: the layer's `record_claim` is
+  reachable from `labcairn task claim` and `POST /claims`
+  ([`LC-P1-14-outsider-path.md`](LC-P1-14-outsider-path.md) §7.3).
 - **The report's own interpretation** — the report carries the **figure's**
   reading, because that is the reading the ledger holds; a reading about the
   report as a whole has no source in Phase 1, and the model's machinery for

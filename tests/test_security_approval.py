@@ -248,6 +248,67 @@ def test_approval_for_a_different_capability_is_refused(workspace: Workspace) ->
     assert caught.value.refusal is ApprovalRefusal.ARGS_CHANGED
 
 
+def test_an_unregistered_capability_is_refused_before_the_grant_is_spent(
+    workspace: Workspace,
+) -> None:
+    """§C4's "evaluate before you consume" was prose; the ledger now asks the registry.
+
+    **The reason is the assertion, not just the refusal.** A mismatched capability
+    fails ``args_changed`` as well, so a registry check sitting after
+    :meth:`Approval.refusal_reason` would answer with the wrong remedy: "ask
+    again for the right request" when the truth is "this build has no such
+    capability, and asking again changes nothing".
+    """
+    ledger = ApprovalLedger()
+    policy = PermissionPolicy()
+    grant, _ = granted(ledger, workspace, policy_digest=policy.digest())
+
+    with pytest.raises(AuthorizationRefusedError) as caught:
+        consume(
+            ledger,
+            grant,
+            workspace,
+            policy_digest=policy.digest(),
+            capability="made.up.capability",
+        )
+    assert caught.value.refusal is ApprovalRefusal.CAPABILITY_UNREGISTERED
+    assert "made.up.capability" in str(caught.value), "the id it refused has to be named"
+    peeked = ledger.peek(grant.approval_id)
+    assert peeked is not None and peeked.approval.state is ApprovalState.GRANTED, (
+        "a structural refusal must not burn the consent"
+    )
+
+
+def test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed(
+    workspace: Workspace,
+) -> None:
+    """G1's gap, in its strongest shape: issued, granted, and consumed.
+
+    Every condition ``refusal_reason`` knows about is satisfied — the approval was
+    bound to this very string, so the digest matches and nothing moved. The only
+    thing standing between a made-up capability id and a spent human consent was
+    the policy verdict, which this call never asks for.
+    """
+    ledger = ApprovalLedger()
+    policy = PermissionPolicy()
+    grant, _ = granted(
+        ledger,
+        workspace,
+        policy_digest=policy.digest(),
+        capability="made.up.capability",
+    )
+
+    with pytest.raises(AuthorizationRefusedError) as caught:
+        consume(
+            ledger,
+            grant,
+            workspace,
+            policy_digest=policy.digest(),
+            capability="made.up.capability",
+        )
+    assert caught.value.refusal is ApprovalRefusal.CAPABILITY_UNREGISTERED
+
+
 def test_approval_for_a_different_resource_is_refused(workspace: Workspace) -> None:
     ledger = ApprovalLedger()
     policy = PermissionPolicy()

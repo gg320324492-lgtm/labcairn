@@ -127,7 +127,11 @@ def main() -> int:
             operation_id=operation_id,
             transition=EventTransition(from_state="planned", to_state="authorized"),
         )
-    check("intent is durable before any file is touched", True, "operation_intent committed")
+    check(
+        "intent is durable before any file is touched",
+        _has_event(db, task_id, "operation_intent") and not target.exists(),
+        "operation_intent committed, target file still absent",
+    )
 
     with store.unit(task_id) as w:
         w.emit(
@@ -160,7 +164,15 @@ def main() -> int:
             )
         )
     check("the file landed and the confirmation committed", target.read_bytes() == BODY)
-    check("a stage-boundary checkpoint was recorded", True, "checkpoint_created")
+    check(
+        "a stage-boundary checkpoint was recorded",
+        _has_checkpoint(db, task_id),
+        "a checkpoints row exists",
+    )
+    # Captured now so the clean-resume check at the end can say what it means:
+    # that the resume pass did not re-run the already-confirmed write. Byte
+    # equality alone proves nothing there — the bytes were already BODY.
+    mtime_after_confirm = target.stat().st_mtime_ns
 
     seq_after_stage = _seqs(db, task_id)
     check(
@@ -228,11 +240,15 @@ def main() -> int:
     now = material.snapshot(["sources/measurements.csv"])
     plan = coordinator.plan_resume(task_id, now=now)
     check(
-        "nothing is in doubt, so nothing needs reconciling",
-        not getattr(plan, "requires_reconciliation", False),
-        f"plan={type(plan).__name__}",
+        "the intact checkpoint means nothing needs re-running",
+        not plan.must_redo,
+        f"stopped_reason={plan.stopped_reason!r}",
     )
-    check("the confirmed artifact was not redone", target.read_bytes() == BODY)
+    check(
+        "the confirmed artifact was not redone",
+        target.stat().st_mtime_ns == mtime_after_confirm,
+        "mtime unchanged across the resume plan",
+    )
 
     rule("4. A pending approval is still pending")
 
@@ -277,6 +293,38 @@ def _seqs(db: Path, task_id: TaskId) -> list[int]:
                 "SELECT seq FROM events WHERE task_id = ? ORDER BY seq", (str(task_id),)
             ).fetchall()
         ]
+    finally:
+        con.close()
+
+
+def _has_event(db: Path, task_id: TaskId, event_type: str) -> bool:
+    """Whether an event of this type actually reached the store.
+
+    The demonstration used to assert `True` where it meant "the emit I just
+    ran committed" — a check that cannot fail is not a witness, and the G1/G2
+    retro-review named exactly these lines. Reading the row back from the
+    database is the claim the label makes.
+    """
+    con = sqlite3.connect(db)
+    try:
+        row = con.execute(
+            "SELECT 1 FROM events WHERE task_id = ? AND type = ? LIMIT 1",
+            (str(task_id), event_type),
+        ).fetchone()
+        return row is not None
+    finally:
+        con.close()
+
+
+def _has_checkpoint(db: Path, task_id: TaskId) -> bool:
+    """Whether `put_checkpoint` wrote its row. It lands in `checkpoints`, not events."""
+    con = sqlite3.connect(db)
+    try:
+        row = con.execute(
+            "SELECT 1 FROM checkpoints WHERE task_id = ? LIMIT 1",
+            (str(task_id),),
+        ).fetchone()
+        return row is not None
     finally:
         con.close()
 

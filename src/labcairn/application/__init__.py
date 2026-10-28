@@ -51,6 +51,8 @@ Operation                  Capability
 ``read_steps``             ``fs.read``
 ``list_sources``           ``source.inventory``
 ``inspect_source``         ``source.inventory``
+``list_source_addresses``  ``source.inventory``
+``record_claim``           ``source.inventory``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
@@ -58,11 +60,17 @@ Operation                  Capability
 ``grant_approval``         — (it *is* the consent)
 ``consume_approval``       the approved one
 ``render_report``          ``report.render``
+``run_figure``             ``analysis.run``
 =========================  ===========================================
 """
 
 from __future__ import annotations
 
+from labcairn.application.analysis import (
+    FigureRequest,
+    FigureRun,
+    run_figure,
+)
 from labcairn.application.approvals import (
     ApprovalConsumed,
     ApprovalGranted,
@@ -81,6 +89,13 @@ from labcairn.application.artifacts import (
 )
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import EventPage, read_events
+from labcairn.application.evidence import (
+    ClaimRecorded,
+    ClaimRequest,
+    SourceAddress,
+    list_source_addresses,
+    record_claim,
+)
 from labcairn.application.material_ingestion import (
     IngestedFile,
     IngestFailure,
@@ -88,6 +103,11 @@ from labcairn.application.material_ingestion import (
     ingest_material,
 )
 from labcairn.application.models import Result
+from labcairn.application.recovery import (
+    describe_abandoned,
+    reconcile_abandoned,
+    resolve_abandoned,
+)
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.reports import (
     DEFAULT_TEMPLATE_ID,
@@ -130,7 +150,11 @@ __all__ = [
     "ApprovalUse",
     "ArtifactContent",
     "ArtifactView",
+    "ClaimRecorded",
+    "ClaimRequest",
     "EventPage",
+    "FigureRequest",
+    "FigureRun",
     "IngestFailure",
     "IngestedFile",
     "MaterialIngested",
@@ -138,6 +162,7 @@ __all__ = [
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "SourceAddress",
     "SourceView",
     "StageOutcome",
     "StageRequest",
@@ -149,10 +174,12 @@ __all__ = [
     "TaskStep",
     "consume_approval",
     "create_task",
+    "describe_abandoned",
     "grant_approval",
     "ingest_material",
     "inspect_source",
     "list_artifacts",
+    "list_source_addresses",
     "list_sources",
     "list_tasks",
     "read_artifact",
@@ -160,7 +187,11 @@ __all__ = [
     "read_plan",
     "read_steps",
     "read_task_state",
+    "reconcile_abandoned",
+    "record_claim",
     "render_report",
     "request_approval",
+    "resolve_abandoned",
+    "run_figure",
     "run_stage",
 ]

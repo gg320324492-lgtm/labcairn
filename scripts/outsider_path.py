@@ -1065,14 +1065,13 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         str(console),
     )
 
-    from sqlalchemy import text as sql_text
-
     from labcairn.analysis.chart.recipe import ChartRecipe
     from labcairn.analysis.chart.render import MatplotlibFigureRenderer
     from labcairn.analysis.manifest import read_recipe, selection_payload
     from labcairn.analysis.operators import parse_operator_reference
     from labcairn.analysis.service import AnalysisRequest, analysis_arguments, run_analysis
     from labcairn.application import render_report
+    from labcairn.application.evidence import ClaimRequest, list_source_addresses, record_claim
     from labcairn.application.reports import ReportRequest
     from labcairn.cli.workspace import (
         DEFAULT_POLICY_RULES,
@@ -1083,20 +1082,16 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         write_policy,
     )
     from labcairn.core.ids import ApprovalId, OperationId, TaskId
-    from labcairn.db.models import SourceAnchorRow
-    from labcairn.evidence.index import LabCairnIndex
-    from labcairn.evidence.record import EvidenceRecord
-    from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
-    from labcairn.evidence.store import append_record
-    from labcairn.material.addressing import render_locator_key, split_locator_key
+    from labcairn.evidence.index import LabCairnIndex, load_anchor
+    from labcairn.evidence.states import EvidenceKind
+    from labcairn.material.addressing import split_locator_key
     from labcairn.recovery.resume import STALE_REASON, MaterialResolver, ResumeCoordinator
     from labcairn.reports.receipt import ArtifactStaleness
     from labcairn.runtime.operation import ApprovalState
     from labcairn.security.approval import ApprovalGrant, SourceBinding, make_approval
     from labcairn.security.capabilities import CapabilityId
     from labcairn.security.policy import Permission, Rule
-    from labcairn.sources.locators import CsvLocator, PdfLocator, TextLocator
-    from labcairn.sources.source import AnchorKind, Source, SourceAnchor
+    from labcairn.sources.source import Source
 
     environment = child_environment(work)
     report.update(
@@ -1116,49 +1111,6 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             workspace,
             environment,
             timeout,
-        )
-
-    def ledger_addresses(store: Any, source: Source) -> list[dict[str, Any]]:
-        """Every address the ledger holds for a source, with its text.
-
-        The addresses are read out of the ledger rather than assumed, so the
-        claim the walk makes rests on an address the material really has.
-        """
-        rows = store.session.execute(
-            sql_text(
-                "SELECT locator_key, text FROM source_texts"
-                " WHERE source_content_sha256 = :sha"
-                " ORDER BY locator_key"
-            ),
-            {"sha": source.content_sha256},
-        ).fetchall()
-        found: list[dict[str, Any]] = []
-        for key, text in rows:
-            try:
-                fields = split_locator_key(str(key))
-            except Exception:  # a key this build cannot parse is not one
-                continue
-            found.append({"fields": fields, "text": str(text or "")})
-        return found
-
-    def locator_for(fields: dict[str, str]) -> Any:
-        """The locator the ledger's own address names.
-
-        **Built from the address rather than guessed.** A Markdown line is
-        addressed by its section as well as by its line, so a locator built
-        from the line alone names an address the ledger does not hold — and an
-        anchor at an address nothing answers is an anchor to nothing.
-        """
-        kind = fields.get("k")
-        if kind == "pdf":
-            return PdfLocator(page=int(fields["p"]))
-        if kind == "text":
-            section = fields.get("s")
-            return TextLocator(line=int(fields["l"]), section=section if section else None)
-        if kind == "csv":
-            return CsvLocator(row=int(fields["r"]), column=fields["c"])
-        raise AssertionError(
-            f"the ledger holds an address of a kind this walk does not read: {fields}"
         )
 
     # -- the workspace ------------------------------------------------------ #
@@ -1335,187 +1287,133 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         store = layer.store
 
         csv_addresses = [
-            address
-            for address in ledger_addresses(store, csv_source)
-            if address["fields"].get("k") == "csv"
+            (address, split_locator_key(address.locator_key))
+            for address in list_source_addresses(layer, csv_source.source_id)
+            if address.locator_kind == "csv"
         ]
         recorder.check(
             "the ledger holds the cells of the table",
             bool(csv_addresses),
             f"{len(csv_addresses)} address(es)",
         )
-        csv_address = next(
+        csv_address, csv_fields = next(
             (
-                address
-                for address in csv_addresses
-                if address["fields"].get("r") == "2" and address["fields"].get("c") == "value"
+                (address, fields)
+                for address, fields in csv_addresses
+                if fields.get("r") == "2" and fields.get("c") == "value"
             ),
             csv_addresses[0],
         )
-        csv_value = csv_address["text"].strip()
+        csv_value = csv_address.text.strip()
         recorder.check(
             "the cell the claim will rest on holds a number",
             csv_value != "",
-            f"row {csv_address['fields'].get('r')} column "
-            f"{csv_address['fields'].get('c')} = {csv_value!r}",
+            f"row {csv_fields.get('r')} column {csv_fields.get('c')} = {csv_value!r}",
         )
 
         pdf_addresses = [
-            address
-            for address in ledger_addresses(store, pdf_source)
-            if address["fields"].get("k") == "pdf"
+            (address, split_locator_key(address.locator_key))
+            for address in list_source_addresses(layer, pdf_source.source_id)
+            if address.locator_kind == "pdf"
         ]
         recorder.check(
             "the ledger holds the PDF's pages as text",
             bool(pdf_addresses),
             f"{len(pdf_addresses)} address(es)",
         )
-        pdf_address = next(
-            (address for address in pdf_addresses if set(address["fields"]) == {"k", "p"}),
+        pdf_address, _pdf_fields = next(
+            ((address, fields) for address, fields in pdf_addresses if set(fields) == {"k", "p"}),
             pdf_addresses[0],
         )
-        pdf_text = pdf_address["text"].strip()
+        pdf_text = pdf_address.text.strip()
 
         md_addresses = [
-            address
-            for address in ledger_addresses(store, by_kind["markdown"])
-            if address["fields"].get("k") == "text"
+            (address, split_locator_key(address.locator_key))
+            for address in list_source_addresses(layer, by_kind["markdown"].source_id)
+            if address.locator_kind == "text"
         ]
         recorder.check(
             "the ledger holds the Markdown's lines as text",
             bool(md_addresses),
             f"{len(md_addresses)} address(es)",
         )
-        md_address = next(
+        md_address, _md_fields = next(
             (
-                address
-                for address in md_addresses
-                if address["text"].strip() and not address["text"].lstrip().startswith("#")
+                (address, fields)
+                for address, fields in md_addresses
+                if address.text.strip() and not address.text.lstrip().startswith("#")
             ),
             md_addresses[0],
         )
-        md_text = md_address["text"].strip()
+        md_text = md_address.text.strip()
 
-        # The product has no operation that writes an evidence record or an
-        # anchor, so the walk writes the claim's own address itself. That gap
-        # is a finding and it is recorded in the acceptance document.
+        # Each claim goes through the product's own operation. The addresses
+        # are read from the ledger with ``list_source_addresses`` and the
+        # records are written by ``record_claim``, which refuses an address
+        # nothing answers. The walk no longer writes the ledger's rows itself:
+        # that hand-write was §2.2's finding, and the operation is the fix.
         created_at = RECORDS_MOMENT
-        anchors: list[SourceAnchor] = []
-        for anchor_id, source, locator, kind, excerpt in (
-            (
-                "anc-csv",
-                csv_source,
-                locator_for(csv_address["fields"]),
-                AnchorKind.NUMERIC,
-                csv_value,
-            ),
-            (
-                "anc-pdf",
-                pdf_source,
-                locator_for(pdf_address["fields"]),
-                AnchorKind.QUOTATION,
-                pdf_text[:200],
-            ),
-            (
-                "anc-md",
-                by_kind["markdown"],
-                locator_for(md_address["fields"]),
-                AnchorKind.QUOTATION,
-                md_text,
-            ),
-        ):
-            anchor = SourceAnchor(
-                anchor_id=anchor_id,
-                source_id=source.source_id,
-                kind=kind,
-                locator=locator,
-                bound_source_sha256=source.content_sha256,
-                excerpt_sha256=digest(excerpt.encode("utf-8")),
-                created_at=created_at,
-            )
-            store.session.add(
-                SourceAnchorRow(
-                    anchor_id=anchor.anchor_id,
-                    source_id=anchor.source_id,
-                    kind=anchor.kind.value,
-                    locator_key=render_locator_key(anchor.locator),
-                    bound_source_sha256=anchor.bound_source_sha256,
-                    excerpt_sha256=anchor.excerpt_sha256,
-                    created_at=anchor.created_at,
-                )
-            )
-            anchors.append(anchor)
-        store.session.commit()
-
-        for anchor in anchors:
-            # The index is built here rather than above: a connection taken
-            # before the commit is released back to the pool by it, and the
-            # index would then be reading through a closed connection.
-            located = LabCairnIndex(store.session.connection()).locate(anchor)
-            recorder.check(
-                f"the address {anchor.anchor_id} resolves in the material the task holds",
-                located is not None and located.resolution.value == "resolved",
-                f"{anchor.anchor_id}: {located.resolution.value if located else 'nothing'}",
-            )
-
-        records = (
-            EvidenceRecord(
-                evidence_id="ev-csv",
-                task_id=str(task_id),
+        csv_claim = record_claim(
+            layer,
+            ClaimRequest(
+                source_id=csv_source.source_id,
+                locator_key=csv_address.locator_key,
                 kind=EvidenceKind.NUMERIC,
-                text=None,
                 value=float(csv_value),
                 unit="dimensionless",
-                anchor_ids=("anc-csv",),
-                extracted_span=csv_value,
-                extracted_span_sha256=digest(csv_value.encode("utf-8")),
-                status=VerificationStatus.EXTRACTED,
-                created_by=EvidenceCreator.RULE,
-                created_by_id="outsider-path",
-                source_content_hash=csv_source.content_sha256,
-                created_at=created_at,
+                span=csv_value,
             ),
-            EvidenceRecord(
-                evidence_id="ev-pdf",
-                task_id=str(task_id),
+            now=created_at,
+        )
+        pdf_claim = record_claim(
+            layer,
+            ClaimRequest(
+                source_id=pdf_source.source_id,
+                locator_key=pdf_address.locator_key,
                 kind=EvidenceKind.CLAIM,
                 text=pdf_text[:200],
-                value=None,
-                unit=None,
-                anchor_ids=("anc-pdf",),
-                extracted_span=pdf_text[:200],
-                extracted_span_sha256=digest(pdf_text[:200].encode("utf-8")),
-                status=VerificationStatus.EXTRACTED,
-                created_by=EvidenceCreator.RULE,
-                created_by_id="outsider-path",
-                source_content_hash=pdf_source.content_sha256,
-                created_at=created_at,
+                span=pdf_text[:200],
             ),
-            EvidenceRecord(
-                evidence_id="ev-md",
-                task_id=str(task_id),
+            now=created_at,
+        )
+        md_claim = record_claim(
+            layer,
+            ClaimRequest(
+                source_id=by_kind["markdown"].source_id,
+                locator_key=md_address.locator_key,
                 kind=EvidenceKind.CLAIM,
                 text=md_text,
-                value=None,
-                unit=None,
-                anchor_ids=("anc-md",),
-                extracted_span=md_text,
-                extracted_span_sha256=digest(md_text.encode("utf-8")),
-                status=VerificationStatus.EXTRACTED,
-                created_by=EvidenceCreator.RULE,
-                created_by_id="outsider-path",
-                source_content_hash=by_kind["markdown"].content_sha256,
-                created_at=created_at,
+                span=md_text,
             ),
+            now=created_at,
         )
-        for record in records:
-            append_record(store.session.connection(), record)
-        store.session.commit()
+        claims_recorded = (csv_claim, pdf_claim, md_claim)
         recorder.check(
             "the ledger holds three records, one for each kind of material",
-            len(records) == 3,
-            ", ".join(record.evidence_id for record in records),
+            len(claims_recorded) == 3,
+            ", ".join(claim.record.evidence_id for claim in claims_recorded),
         )
+        recorder.check(
+            "each claim was recorded as the user's, not a model's proposal",
+            all(claim.record.created_by.value == "user" for claim in claims_recorded),
+            ", ".join(sorted({claim.record.created_by.value for claim in claims_recorded})),
+        )
+        for label, claim in (
+            ("csv", csv_claim),
+            ("pdf", pdf_claim),
+            ("markdown", md_claim),
+        ):
+            # The anchor is read back from the ledger and resolved through the
+            # index, so the check is about the stored anchor rather than the
+            # operation's own word for it.
+            anchor = load_anchor(store.session.connection(), claim.anchor_id)
+            located = LabCairnIndex(store.session.connection()).locate(anchor) if anchor else None
+            recorder.check(
+                f"the {label} claim's address resolves in the material the task holds",
+                located is not None and located.resolution.value == "resolved",
+                f"{claim.anchor_id}: "
+                f"{located.resolution.value if located else 'the ledger holds no such anchor'}",
+            )
 
         # -- the figure ---------------------------------------------------- #
         recipe_document = {
@@ -1560,6 +1458,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         arguments = {
             "path": TABLE_NAME,
             "operator_id": operator_id,
+            "recipe": RECIPE_NAME,
             "parameters": {
                 **recipe.data.parameters,
                 "selection": selection_payload(selection),
@@ -1602,7 +1501,6 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),
-            recipe=RECIPE_NAME,
             now=created_at,
         )
         store.session.commit()
@@ -1672,14 +1570,16 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             f"{len(claims)} claim(s)",
         )
         cited = {anchor_id for claim in claims for anchor_id in claim["record"]["anchor_ids"]}
+        recorded_anchors = {claim.anchor_id for claim in claims_recorded}
         recorder.check(
             "every claim cites the address it rests on",
-            cited == {"anc-csv", "anc-pdf", "anc-md"},
+            cited == recorded_anchors,
             ", ".join(sorted(cited)),
         )
+        recorded_records = sorted(claim.record.evidence_id for claim in claims_recorded)
         recorder.check(
             "the report's snapshot names the records it is a view of",
-            sorted(document["snapshot"]["record_ids"]) == ["ev-csv", "ev-md", "ev-pdf"],
+            sorted(document["snapshot"]["record_ids"]) == recorded_records,
             ", ".join(document["snapshot"]["record_ids"]),
         )
         locators = {footnote["locator"]["locator_kind"] for footnote in document["footnotes"]}
@@ -1909,6 +1809,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         arguments = {
             "path": TABLE_NAME,
             "operator_id": operator_id,
+            "recipe": RECIPE_NAME,
             "parameters": {
                 **recipe.data.parameters,
                 "selection": selection_payload(selection),
@@ -1950,7 +1851,6 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),
-            recipe=RECIPE_NAME,
             now=RECORDS_MOMENT,
         )
         store.session.commit()
@@ -2093,8 +1993,9 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         "the React application was not run in a browser; the workbench was driven "
         "through the API it reads, and the paths used were checked against the "
         "workbench's own list of them",
-        "the product has no operation that writes an evidence record or an anchor, "
-        "so the walk wrote the claim's own address itself",
+        "the evidence records are extracted and not verified: the walk records "
+        "three claims through the product's operation and leaves C1, C2 and C3 "
+        "unrun",
         "no real model provider was called: there is no credential for one in this "
         "repository, so the run is made against the repository's own fixtures",
     ]

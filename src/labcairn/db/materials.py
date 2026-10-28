@@ -29,12 +29,20 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from labcairn.db.models import LOCAL_USER_ID, SourceProblemRow, SourceRow, SourceTextRow
-from labcairn.sources.source import Source
+from labcairn.db.models import (
+    LOCAL_USER_ID,
+    SourceAnchorRow,
+    SourceProblemRow,
+    SourceRow,
+    SourceTextRow,
+)
+from labcairn.material.addressing import render_locator_key
+from labcairn.sources.source import Source, SourceAnchor
 
 __all__ = [
     "ExtractedTextRow",
     "current_texts",
+    "put_anchor",
     "put_source",
     "put_source_problems",
     "put_source_texts",
@@ -267,6 +275,32 @@ def current_texts(session: Session, *, source_content_sha256: str) -> Sequence[S
     for row in rows:
         current.setdefault(row.locator_key, row)
     return tuple(current.values())
+
+
+def put_anchor(session: Session, anchor: SourceAnchor) -> SourceAnchorRow:
+    """Insert the row for ``anchor``.
+
+    **The locator is rendered here, by the one function allowed to render
+    it.** An anchor's row holds the canonical key and nothing else, so a
+    caller that built a key by hand would put an address in the registry that
+    :func:`~labcairn.evidence.index.load_anchor` either cannot rebuild or
+    rebuilds into a different place. The rendering is not a caller's choice.
+
+    No duplicate is skipped: an anchor id names one address in one version of
+    one material, and the layer mints a fresh id per claim. A repeated id is a
+    collision rather than a re-statement, and the primary key refuses it.
+    """
+    row = SourceAnchorRow(
+        anchor_id=anchor.anchor_id,
+        source_id=anchor.source_id,
+        kind=anchor.kind.value,
+        locator_key=render_locator_key(anchor.locator),
+        bound_source_sha256=anchor.bound_source_sha256,
+        excerpt_sha256=anchor.excerpt_sha256,
+        created_at=anchor.created_at,
+    )
+    session.add(row)
+    return row
 
 
 def put_source_problems(

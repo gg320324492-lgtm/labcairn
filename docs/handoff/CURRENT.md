@@ -1,19 +1,27 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-27
-**Current `main`:** the merge of PR #118 — the merge that carries **G5's whole
-delivery** and closes the gate. G5's own subject is `72154cd`, and the gate's
-record is [`acceptance/G5-acceptance.md`](../acceptance/G5-acceptance.md).
+**Current `main`:** `ff9afc5e8a50cf64cb5a5fdf7edaf8d32c60d776` — the merge of
+PR #118 (`delivery/g5`), which carries **G5's own findings fixed and each fix
+watched** (S1–S6) and the two reviewers' re-verifications. G5's review subject
+was `72154cd` (PR #116, the gate's delivery) and `3852cde` (PR #117, the first
+review's findings); the gate's record is
+[`acceptance/G5-acceptance.md`](../acceptance/G5-acceptance.md).
 
-**Date:** 2026-10-25
-**Previous `main`:** `d49ec323eb52c6515e45dbc9c1933243056f926f` — the merge that carries
+**Phase 1's board is complete on its own terms:** every work order
+LC-P1-00 … LC-P1-14 is `PASS` or `PASS WITH NOTES`, and all six gates say
+closed. **What Phase 1 does not deliver is stated in
+[`RELEASE-NOTES.md`](../RELEASE-NOTES.md) §2**, and the two biggest items there
+are that no task path calls a model, and that the report and the figure have no
+surface entry point.
+
+**Date:** 2026-10-25 · **Previous `main`:** `d49ec323eb52c6515e45dbc9c1933243056f926f` — the merge that carries
 G4's follow-ups: the tests copy a migrated database instead of migrating one
 each time, the DOCX's font claim is watched, the earlier gates' exit
 demonstrations are run by a test, the font licence audit is measured, and the
 CI runs in six shards per platform (34.5 minutes → 7.3).
 
-**Date:** 2026-10-23
-**Current `main`:** `e8a63a813ad26d0dfca06dc672442e5dd3e66812` — the merge that closes G4. The gate's own review was at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`, the commit the review measured, which is the merge's second parent. The merges since the previous refresh are #87 (every subprocess in the packaging test now has a ceiling), #88 (the doctor finds the session token, and the service lets go of the store), #89 (**`labcairn serve`**, the command that starts the local API service), #90 (the escape table holds eighteen characters), #91 (the service gives every request a session of its own), #92 (the report's material, the Markdown's whitespace, and the refusals nobody watched), #93 (the ingestion operation: the layer can read the material, and the CLI can bind it), #94 (the walk records where the material is, not the key it was handed), #95 (the material's one source, and the numbers in all four forms), #96 (the four forms are compared with the document they are drawn from), #101 (the demonstration's approval outlives the grant, at any hour — the gate's exit test had a time bomb in it, and no CI run had ever run after 13:00 UTC), #106 (the batch: **the two blockers and the six notes** the three surfaces' independent review found — among them the demonstration's **exit code** was not load-bearing, and a stage run that followed an approval **planned a second operation** — plus the **five defects the fixing found**, one of them an **authorisation bypass**, one of them a **time bomb in the gate's own exit demonstration**, and one of them a duplicated sentence in that demonstration's own output) and #108 (the working rules, written down where a session will read them).
+**Date:** 2026-10-23 · **Earlier `main`:** `e8a63a813ad26d0dfca06dc672442e5dd3e66812` — the merge that closes G4. The gate's own review was at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`, the commit the review measured, which is the merge's second parent. The merges since the previous refresh are #87 (every subprocess in the packaging test now has a ceiling), #88 (the doctor finds the session token, and the service lets go of the store), #89 (**`labcairn serve`**, the command that starts the local API service), #90 (the escape table holds eighteen characters), #91 (the service gives every request a session of its own), #92 (the report's material, the Markdown's whitespace, and the refusals nobody watched), #93 (the ingestion operation: the layer can read the material, and the CLI can bind it), #94 (the walk records where the material is, not the key it was handed), #95 (the material's one source, and the numbers in all four forms), #96 (the four forms are compared with the document they are drawn from), #101 (the demonstration's approval outlives the grant, at any hour — the gate's exit test had a time bomb in it, and no CI run had ever run after 13:00 UTC), #106 (the batch: **the two blockers and the six notes** the three surfaces' independent review found — among them the demonstration's **exit code** was not load-bearing, and a stage run that followed an approval **planned a second operation** — plus the **five defects the fixing found**, one of them an **authorisation bypass**, one of them a **time bomb in the gate's own exit demonstration**, and one of them a duplicated sentence in that demonstration's own output) and #108 (the working rules, written down where a session will read them).
 
 **This file rots on every merge and no test can catch it.** `tests/test_status_consistency.py` checks that the gate table agrees with the plan, that every status is from the declared vocabulary, that a row claiming progress cites evidence, and that relative links resolve — but "how far along is the work" is a semantic judgement, not a parseable fact. This file was **six merges stale** when it was last checked: it named PR #24 as current and claimed no material parsing existed, which stopped being true at #25. It was then stale again at #32, and the claim it made — "Nothing is implemented" for LC-P1-09 — stopped being true at #33. **Thirteen merges passed with no refresh; this is the first refresh in thirteen merges** — the file named `8fb9f18` (PR #68) as current, and the claim it made — "**No research capability yet.** There is no CLI, no server, no web UI" — stopped being true at #73 (the local FastAPI service), #76 (the Typer CLI) and #80 (the React workbench). Refresh it in the PR that reports the change, and check `git log origin/main` rather than trusting it.
 
@@ -22,10 +30,10 @@ CI runs in six shards per platform (34.5 minutes → 7.3).
 | Gate | Status |
 |---|---|
 | G0 | **closed** — LC-P1-00 PASS WITH NOTES, subject `623e3ca` |
-| G1 | **closed** — LC-P1-01 PASS WITH NOTES, LC-P1-02 PASS, LC-P1-04 PASS, LC-P1-03 PASS WITH NOTES |
+| G1 | **closed** — LC-P1-01, LC-P1-02, LC-P1-03 and LC-P1-04 all PASS WITH NOTES (the board and `G1-evidence.md:9` agree; LC-P1-02/04 were corrected from a bare `PASS` on 2026-10-28 to match their own evidence) |
 | **G2** | **closed** — LC-P1-05/06/07 all PASS WITH NOTES. [Acceptance](../acceptance/G2-acceptance.md) · [narrative record](../acceptance/G2-evidence.md) |
 | **G3** | **closed** — LC-P1-08, LC-P1-09 and LC-P1-10 all PASS WITH NOTES, and the gate closed on an **independent review** at `d114810` (verdict PASS WITH NOTES; every one of the gate's fourteen fixes broken, no mutation survived). [Acceptance](../acceptance/G3-acceptance.md) |
-| **G5** | **closed** — LC-P1-13 and LC-P1-14 both `PASS WITH NOTES`, and the gate closed on **two independent reviews** that wrote **none** of its fixes: the product-and-measurement scope's first verdict was **FAIL** on a clean property table, and after its findings were fixed **it re-ran its own eleven mutations against the fixed code and passed**; the documents-and-release scope's verdict is **PASS WITH NOTES**, with every one of its fourteen re-run by the reviewer that wrote them. **Twenty-four findings between them, all fixed.** The gate also found six of its own, and its own end-to-end test found one more — the surfaces never run the recovery pass — which is **handed over rather than fixed**. [G5 acceptance](../acceptance/G5-acceptance.md) · [the first review](../acceptance/g5-review-product.md) · [the second](../acceptance/g5-review-records.md) |
+| **G5** | **closed** — LC-P1-13 and LC-P1-14 both `PASS WITH NOTES`, and the gate closed on **two independent reviews** that wrote **none** of its fixes: the product-and-measurement scope's first verdict was **FAIL** on a clean property table, and after its findings were fixed **it re-ran its own eleven mutations against the fixed code and passed**; the documents-and-release scope's verdict is **PASS WITH NOTES**, with every one of its fourteen re-run by the reviewer that wrote them. **Twenty-four findings between them, all fixed.** The gate also found six of its own, and its own end-to-end test found one more — the surfaces never run the recovery pass — which is **handed over rather than fixed**. **Closed since the gate**, in the section below. [G5 acceptance](../acceptance/G5-acceptance.md) · [the first review](../acceptance/g5-review-product.md) · [the second](../acceptance/g5-review-records.md) |
 | **G4** | **closed** — LC-P1-11 and LC-P1-12 both `PASS WITH NOTES`, and the gate closed on an **independent review** at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` (verdict **PASS WITH NOTES**; two reviewers who wrote none of the gate's fixes, one per scope — the report path's review **failed the gate five times** on a clean property table, and the three surfaces' review came back **BLOCKED five times and FAIL once**, the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings** — the shared rule's own witness, one command-level refusal, the pairing by value, and the crash fix's two catches — **were fixed, and the review re-verified its own findings against the fixed code and passed**. [G4 acceptance](../acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](../acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](../acceptance/LC-P1-12-acceptance.md) |
 
 ## What exists now
@@ -73,6 +81,43 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 ## What does not exist yet
 
+**The report and the figure both gained surfaces since the gate.**
+`labcairn task report`, `POST /report` and the workbench's **Render the report**
+button all call the layer's own `render_report`; the surfaces answer with its own
+`ReportRendered`, and a fresh workspace permits
+`report.render` (the registry binds it to output roots). The figure followed it:
+`labcairn task figure` and `POST /analysis` call `run_figure` through the same
+layer, with `task approval-request` / `task approval-grant` beside them, because
+ADR-0012 constraint 7 moved the recipe inside `analysis.run`'s consented
+arguments. **The surfaces can give a task a claim to carry now.**
+`labcairn task claim` and `POST /claims` call the layer's `record_claim`, and
+`labcairn sources addresses` and `GET /sources/{source_id}/addresses` list the
+addresses a claim can rest on. A bare task is still refused with
+`report_content_refused` and leaves the output area empty — that is the correct
+answer, not the gap. **What remains is that the claim's words are the
+caller's**: no operation extracts a claim from the material, accepts a model's
+proposal, or runs C1, C2 or C3, so the records the product writes stay
+`extracted`. **The workbench draws a figure in the same two steps**: its Figure
+panel builds the selection from the source the service reports, asks
+`POST /approvals`, leaves the question in the Approval panel, and draws with
+`POST /analysis` once the answer is granted; a run whose consent is missing is
+refused with the service's own reason. `docs/RELEASE-NOTES.md` §2.2 carries
+that limit.
+
+**The shard costs are re-measured on the runner, and CI is green.** The three
+files this branch added (`test_application_evidence.py`,
+`test_event_payload_vocabulary.py`, `test_real_provider_smoke.py`) once had no
+measured cost and `tests/test_cli.py` had changed past the partition's slack
+since the old `598e788`, so `tests/test_ci_shard_coverage.py` was red on its two
+cost checks. That was never fixed by inventing numbers — it was fixed by
+`python .github/remeasure_shards.py <run-id>` reading each file's seconds out of
+the completed `pull_request` run at `bc043fa`, writing `measured_at` and the
+costs, and rebuilding the partition (ubuntu balance 1.389, windows 1.000).
+**Head `9799354`: all 17 PR checks pass** — 10 python-quality shards on both
+platforms, secret-scan, reference-exclusion, lockfiles, release and web. The
+point the earlier paragraph made still holds as method: the membership is a
+thing the tree can fix, the numbers are a thing only a runner can produce.
+
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
 **G4's exit test is now demonstrated — and it was not, until this gate's own review made it so.** The end-to-end smoke path (T09) runs from a clean workspace and a temporary database, with no network and no credential, and compares the CLI's `task status --json` against the local API's `GET /task` **field by field** — two hundred and fifty-five fields, none differing — and the report's **bytes by hash**, for each of the four forms, against the file the report operation wrote and the bytes the service serves.
@@ -87,7 +132,12 @@ Retrieval now answers the two-negative question (T10): a search that breaks is a
 
 ## What G5 closed, and what it handed over
 
-**G5 is closed** — LC-P1-13 (evaluation, fault injection, the competitor baseline) and LC-P1-14 (the public alpha handoff: the delivery documents, the release contents, the review dossier, the licence audit), the last two of Phase 1. Its exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**; the fifth, the real-provider smoke, **has not run** and cannot: there is no credential, and Phase 1 reads no environment variable. **That is the owner's decision**, and the gate did not make it. **Two things it handed over are limits rather than defects**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte*; and the protocol's real-model smoke is still owed.
+**G5 is closed** — LC-P1-13 (evaluation, fault injection, the competitor baseline) and LC-P1-14 (the public alpha handoff: the delivery documents, the release contents, the review dossier, the licence audit), the last two of Phase 1. Its exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**; the fifth, the real-provider smoke, **has never run as a standing witness** and cannot here: no credential is configured in this tree, and Phase 1's **default offline run** reads no environment variable (the provider layer reads one, but only where a workspace's `providers.json` names it). **That is the owner's decision**, and the gate did not make it. **The clause and the class are different things**: LC-P1-03's *"real smoke on at least one provider"* was met once, by hand, at `b237751` on an owner-supplied credential; the protocol's real-model smoke **class** is still NOT RUN and the harness exits 2 because of it. **Two things it handed over are limits rather than defects**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte*; and the protocol's real-model smoke is still owed. **Owed in a narrower sense since
+2026-10-28:** the class has its witness file, it has run against a real endpoint
+twice, and the harness will now run it when a reader names it — what is owed is a
+**CI secret**, not an implementation.
+
+**The first of those is closed since the gate, and the second still is not.** `run_stage` now calls `labcairn.application.recovery.reconcile_abandoned` after the policy verdict and before any consent is spent: an operation a crash left `ATTEMPTING` becomes `UNCERTAIN`, its stage is blocked with the recovery layer's own reason, and the next `task run` or `POST /stages` is **refused** with `operation_uncertain` instead of planning a twin. **A surface may not answer the doubt itself** — the hash a probe compares against lived inside `args_digest`, a hash of a hash, and no stored row can give it back — so the operator does, with `labcairn task reconcile <operation-id> --expected-sha256 <hash>`; for the inventory stage that number is the one `labcairn sources inspect` prints, and a `CONFLICT` leaves the operation `UNCERTAIN`, the stage blocked, and the probed path untouched. **What remains is the other half**: the transaction the crash interrupted (confirmation, completed stage, receipts) is performed by the run that follows, so one landed effect leaves two operation rows. That is written in [ADR-0003 C2](../adr/ADR-0003-event-and-permission-model.md) and asserted by `tests/test_fault_injection_e2e.py`.
 
 **G4 is closed** — LC-P1-11 (report assembly, export and artefact
 versioning) and LC-P1-12 (the Typer CLI and the local FastAPI + React
@@ -119,11 +169,34 @@ gate's own composition**, and the demonstration's own comparison of the two
 surfaces is unwatched. **Every finding is fixed**, and both reviewers re-ran
 their own mutations against the fixed code.
 
-**G5 is the public alpha, and it is under way.** LC-P1-13 (evaluation, fault
+**G5 is the public alpha, and it is closed.** LC-P1-13 (evaluation, fault
 injection and a competitor baseline) and LC-P1-14 (the handoff dossier, the
-licence audit, and the two READMEs). **Its task breakdown is written**
-(`docs/plans/LC-P1-13-14-task-breakdown.md`) and T00, T01, T03 and T05 are
-in progress.
+licence audit, and the two READMEs), delivered at `72154cd` (PR #116) and
+`3852cde` (PR #117), closed at `ff9afc5` (PR #118) on **two independent reviews**
+that wrote none of its fixes — the first's verdict moved **FAIL → PASS** after its
+findings were fixed, the second is **PASS WITH NOTES**. Its ten subtasks (T00–T03,
+T05–T09) are merged; **T04 is the owner's** — the real-provider smoke needs a
+credential and an authorisation. **Its half moved on 2026-10-28:** the class now
+has the witness file `manifest.REAL_MODEL_SMOKE_FILE` had named since T04 without
+ever having one — `tests/test_real_provider_smoke.py` — and it **ran twice** on a
+credential the owner supplied for the purpose (`MiniMax-M3.1-Flash`, protocol
+`anthropic`, endpoint `https://api.minimax.cn/anthropic`: `tool_calls` and
+`usage_reporting` ok, both structured-output forms declined inside pydantic-ai
+before a request was sent, which is §2.14's claim re-measured). **What is still the owner's is narrower now, and it is a ruling rather than a
+setup:** the credential is configured on the repository and
+`.github/workflows/provider-smoke.yml` spends it — on a schedule and on demand,
+and **deliberately not as a required status check**, because a check that can
+only pass where a secret exists is one branch protection would wait on forever.
+**The workflow has run on GitHub**: dispatch 40663728369 at `0adfbe3`, 2026-10-28
+09:22 UTC, green, printing the same endpoint fingerprint the two local runs did.
+Getting the file to parse at all was its own finding — `${{ runner.temp }}` is not
+in the job-level `env` context, and GitHub answers such a file with `HTTP 422` at
+dispatch, which looks from inside the repository exactly like a workflow nobody
+ever dispatched. So the default harness run still reports the class NOT RUN and
+exits 2, and the question left is whether a scheduled, non-required witness is
+what §1.4.2 meant.
+The [gate review](../acceptance/G5-acceptance.md)
+carries the method and every finding.
 
 **The licence audit's factual half is done**
 (`acceptance/LC-P1-14-font-licence-audit.md`): no third-party font file
@@ -133,11 +206,19 @@ the root licence, which `LICENSE.PENDING.md` grants no rights over today, and
 which blocks any open-source claim until it is replaced by an actual
 licence.
 
-**And G5 has a first piece of work that was found by accident.** G1's exit
-demonstration has been broken since G1 closed, because nothing ran it, and the
-reason is a defect in the product's path layer: on Windows a write to a new
-file under an 8.3 short-spelled directory is refused. It is written down in
-the breakdown's section 2.6 and it is T02's first job.
+**And the piece of work G5 found by accident is landed.** G1's exit
+demonstration had been broken since G1 closed, because nothing ran it, and the
+reason was a defect in the product's path layer: on Windows a write to a new
+file under an 8.3 short-spelled directory was refused. **It is fixed** —
+`src/labcairn/security/paths.py` counts a short name as one part, with
+`test_a_new_file_under_a_short_spelled_root_is_not_refused` and
+`test_a_path_outside_a_short_spelled_root_is_still_refused` as its witnesses —
+**and the skip that had been waiting for it is gone**, so G1's demonstration is
+watched on every platform (`tests/test_earlier_exit_demos.py`). **That skip was
+itself the finding**: it outlived the defect, and the harness counts a skipped
+witness as a failed blocker, so the protocol's first blocker was held down by a
+reason that had already been fixed (the gate's own review records it as S6/R3,
+found independently by both parties).
 
 ## How G4 went
 
@@ -223,7 +304,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **LC-P1-08:** `UNPARSEABLE` is a mixed bucket — a container that would not
   open, and a page deliberately not read. Both are honestly "not citable, here
   is why", but only the disclosure separates them.
-- **G1:** `ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first. The ordering constraint belongs in an ADR.
+- **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:215-222`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
 - **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
 - **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
 - **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.

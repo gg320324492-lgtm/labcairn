@@ -1,0 +1,168 @@
+# LC-P1-03 / LC-P1-13 T04 — the protocol's fifth gate class, run against a real
+# provider. **Optional by design: this is not a required status check.**
+#
+# ============================================================================
+# WHY THIS IS NOT A `pull_request` CHECK
+# ============================================================================
+# Amendment C-1 forbids path-filtering a *required* check, because GitHub
+# reports a filtered required check as `expected` and branch protection then
+# waits for it forever. The honest alternative for a job that **cannot** run on
+# every pull request — because it spends the project owner's money, and secrets
+# are not available to every actor — is not a filter. It is a workflow that is
+# never required in the first place: it is triggered on a schedule and by hand,
+# and it is reported as its own check name.
+#
+# A job that silently skips would be the worst thing this repository could ship.
+# The gate reviews since G3 have kept finding the same shape — a green row that
+# measured nothing — so this file refuses twice: it fails when the credential is
+# absent rather than skipping, and it fails when the probe case did not actually
+# run rather than reading "1 skipped" as a pass.
+name: provider-smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:30 UTC daily. A cadence rather than an event: nothing in this
+    # repository's push flow can be *awaiting* a paid probe, and a class that
+    # runs weekly rots just as quietly as one that never runs.
+    #
+    # **GitHub only fires a schedule from the default branch**, so this cadence
+    # starts on the day the workflow lands on `main`. Until then the witness runs
+    # when it is dispatched, and a branch run of a scheduled workflow is a
+    # workflow that silently never happens — which is the failure this file
+    # exists to avoid.
+    - cron: "30 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-model-smoke:
+    name: real-model smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LABCAIRN_PROVIDER_SMOKE_KEY: ${{ secrets.LABCAIRN_PROVIDER_SMOKE_KEY }}
+      LABCAIRN_PROVIDER_SMOKE_MODEL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_MODEL }}
+      LABCAIRN_PROVIDER_SMOKE_PROTOCOL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_PROTOCOL }}
+      LABCAIRN_PROVIDER_SMOKE_BASE_URL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_BASE_URL }}
+      # What this job writes goes to the runner's temp, outside the checkout: a
+      # file a run leaves in the working tree can be read back by a later step
+      # and look like an artefact of the build. It is spelled from `RUNNER_TEMP`
+      # inside each script rather than declared here, because `runner` is not in
+      # the job-level `env` context — GitHub refuses to parse a workflow that
+      # uses it there, which is the one error a workflow file can raise before
+      # anything runs at all.
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history, for the same reason `python.yml` takes it: the record
+          # this job produces is quoted against a revision, and a depth-1
+          # checkout cannot name one.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - run: uv sync --frozen
+
+      # ------------------------------------------------------------------
+      # Refuse before spending, and refuse loudly.
+      #
+      # The witness itself skips when a credential is not named — which is
+      # correct for the suite and useless for a gate. A scheduled job whose one
+      # case skipped would report a green run that measured nothing, so the
+      # configuration is checked here first and the names that are missing are
+      # printed, never their values.
+      #
+      # **This job is deliberately stricter than the suite's skip predicate.**
+      # `live_settings` needs only the key and the model (protocol and base URL
+      # have defaults); this guard requires all four to be set, because a paid
+      # run that silently used a default endpoint is not reproducible from the
+      # log. Stricter, never weaker — a run that passes here also runs in the
+      # suite, not the other way round.
+      # ------------------------------------------------------------------
+      - name: require a named credential and a declared model
+        run: |
+          missing=()
+          [ -n "${LABCAIRN_PROVIDER_SMOKE_KEY}" ] || missing+=("secret LABCAIRN_PROVIDER_SMOKE_KEY")
+          [ -n "${LABCAIRN_PROVIDER_SMOKE_MODEL}" ] || missing+=("variable LABCAIRN_PROVIDER_SMOKE_MODEL")
+          [ -n "${LABCAIRN_PROVIDER_SMOKE_PROTOCOL}" ] || missing+=("variable LABCAIRN_PROVIDER_SMOKE_PROTOCOL")
+          [ -n "${LABCAIRN_PROVIDER_SMOKE_BASE_URL}" ] || missing+=("variable LABCAIRN_PROVIDER_SMOKE_BASE_URL")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::this run cannot discharge the real-model class; it is missing: ${missing[*]}"
+            echo "::error::a paid probe that silently skips is worse than one that fails, so this job fails rather than reporting green."
+            exit 1
+          fi
+          echo "the credential is named, the endpoint is declared, and the model is ${LABCAIRN_PROVIDER_SMOKE_MODEL}."
+
+      - name: run the probe
+        run: |
+          LABCAIRN_PROVIDER_SMOKE_RECORD="${RUNNER_TEMP}/probe-record.json" \
+            uv run pytest tests/test_real_provider_smoke.py -q -rs \
+            --junit-xml="${RUNNER_TEMP}/junit.xml"
+
+      # ------------------------------------------------------------------
+      # The skip is the failure, and it is read from the report, not from the
+      # exit code.
+      #
+      # pytest exits 0 when every collected case is skipped. A workflow that
+      # stopped at the exit code would call a skipped probe a pass, which is
+      # exactly the defect the gate reviews have named since G3. So the JUnit
+      # document is parsed with the repository's own reader, the probe case has
+      # to be reported, and it has to have passed.
+      # ------------------------------------------------------------------
+      - name: insist that the probe actually ran
+        # `tests/` is not a package — pytest puts it on the path by being the
+        # rootdir of the files it collects, and this step is not pytest, so the
+        # path is named. The reader is the repository's own, because the thing
+        # being checked is how this repository reads a run.
+        run: |
+          JUNIT_PATH="${RUNNER_TEMP}/junit.xml" PYTHONPATH=tests \
+            uv run python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from evaluation.junit import parse_junit
+
+          outcomes = parse_junit(Path(os.environ["JUNIT_PATH"]))
+          probe = [
+              outcome
+              for outcome in outcomes
+              if outcome.node_id.endswith("test_real_provider_smoke_records_capabilities_and_usage")
+          ]
+          if len(probe) != 1:
+              reported = sorted(outcome.node_id for outcome in outcomes)
+              raise SystemExit(f"the probe case was not reported exactly once: {reported}")
+          outcome = probe[0]
+          if outcome.status != "passed":
+              raise SystemExit(
+                  "the probe did not run and pass; its status was "
+                  f"{outcome.status!r}"
+                  + (f" — {outcome.message}" if outcome.message else "")
+              )
+          print("the probe ran and passed.")
+          PY
+
+      - name: show what the endpoint answered
+        # The record is the evidence this job exists to produce: the model it
+        # probed, the protocol, an endpoint fingerprint that is safe to print,
+        # and one outcome per capability. It carries no key and no cost figure —
+        # Phase 1 has no price table, so the honest statement about money is the
+        # absence of one, and `usage_reporting` says whether the endpoint told
+        # us anything at all.
+        run: |
+          echo "::notice::the record names the endpoint by fingerprint, not by key"
+          cat "${RUNNER_TEMP}/probe-record.json"

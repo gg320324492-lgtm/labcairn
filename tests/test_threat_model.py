@@ -1037,21 +1037,21 @@ def test_the_api_has_no_operation_that_selects_a_workspace() -> None:
         )
 
 
-def test_the_product_has_no_operation_that_writes_an_evidence_record() -> None:
-    """C14 — the claim in the report is written by the demonstration.
+def test_no_product_operation_runs_the_ledger_checks() -> None:
+    """C14 — the product writes claims, but no surface verifies them.
 
-    ``append_record`` is the ledger's write. If a product operation reached
-    it, then a product-shaped path produced a claim, and the threat model's
-    statement that the demonstration wrote the claim itself would be false.
+    ``advance`` is the ledger's only path to a verified state, and
+    ``append_verification`` is the row it writes. If a product module reached
+    either, then a surface produced a verdict, and the threat model's
+    statement that the product's records stay ``extracted`` would be false.
 
-    **Both the import and the call are watched.** An import alone writes
-    nothing — but a module that imports the ledger's write function is one
-    line away from using it, and the threat model's claim is about the
-    product's *surface*, not about the accident of a line not being reached
-    yet. The check is on the name appearing at all outside the ledger
-    itself.
+    **Both the import and the call are watched**, for the same reason the
+    write check watched both when this claim said the opposite thing: a
+    module one line away from the check is a module the document must not
+    describe as not running it.
     """
     root = _repo_root() / "src" / "labcairn"
+    watched = {"advance", "append_verification"}
     users: list[str] = []
     for path in sorted(root.rglob("*.py")):
         if path.name == "store.py" and path.parent.name == "evidence":
@@ -1068,12 +1068,12 @@ def test_the_product_has_no_operation_that_writes_an_evidence_record() -> None:
                 if called is not None:
                     names = [called]
             for name in names:
-                if name == "append_record":
+                if name in watched:
                     line = getattr(node, "lineno", 0)
                     users.append(f"{relative}:{line}")
     assert not users, (
-        "these product modules reach for the ledger's write function, so the "
-        "claim in the report is no longer written by the demonstration:\n  " + "\n  ".join(users)
+        "these product modules reach for the ledger's verification write, so a "
+        "surface now runs a check:\n  " + "\n  ".join(users)
     )
 
 
@@ -1213,7 +1213,7 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         "C11": ("credential", "base_url"),
         "C12": ("outbound_policy", "excerpts"),
         "C13": ("out_of_the_machine", "remote_url"),
-        "C14": ("event_stream", "selects_a_workspace", "evidence_record"),
+        "C14": ("event_stream", "selects_a_workspace", "ledger_checks"),
         "C15": ("write_enumeration",),
     }
     names = " ".join(defined)

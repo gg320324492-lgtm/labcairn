@@ -71,6 +71,16 @@ free-form bag that anything can be dropped into — which is exactly the
 "attributed to no one" state that the `extra="forbid"` config exists to
 prevent, reintroduced through the back door.
 
+**Corrected 2026-10-28: where the registration lives is part of the rule.** A
+schema registered as a side effect of importing the *writer* is absent in a
+process that only reads — `events_after` imports the vocabulary and not the
+recovery layer — so the event validates where it was written and fails where
+it is read. Schemas for the vocabulary therefore live in
+`labcairn.runtime.event`; `ReconciliationPayload` moved there from
+`labcairn.recovery.reconciliation`, and
+`tests/test_event_payload_vocabulary.py` reads a stored event in a fresh
+interpreter that never loads the recovery layer.
+
 ### What this makes possible immediately
 
 LC-P1-06's reconciliation can register

@@ -50,7 +50,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from labcairn.application import consent, records
+from labcairn.application import consent, records, recovery
 from labcairn.application.approvals import spendable_approval
 from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
@@ -169,10 +169,14 @@ def run_stage(
 
     The order is the order that makes the crash answerable, and it is the
     order the recovery layer already uses: the consent is settled **before**
-    the effect, and the effect's outcome is recorded **after** it.
+    the effect, and the effect's outcome is recorded **after** it. **And the
+    recovery pass runs before either**: an operation a crash left ``ATTEMPTING``
+    is moved to ``UNCERTAIN`` and this run is refused, rather than planning a
+    second operation for work whose outcome is unknown.
 
-    :raises ApplicationRefusedError: the policy denied the capability, the
-        policy asked and no approval was supplied, the approval does not cover
+    :raises ApplicationRefusedError: a crash left an operation in flight and
+        nothing has answered it, the policy denied the capability, the policy
+        asked and no approval was supplied, the approval does not cover
         this request, the approval cannot be spent at this moment, or the
         stage's work failed.
     """
@@ -185,6 +189,19 @@ def run_stage(
         resource=resource,
     )
     digest = _args_digest(context, request, resource, authorisation.digest_arguments())
+
+    # -- the recovery pass, before anything is spent or planned --------------- #
+    # A crash this process did not witness may have left an operation in flight.
+    # That is answered first, because the answer decides whether this run may plan
+    # anything: replaying over an unknown outcome plans a second operation for the
+    # same work. The policy verdict above still comes first — a denied request
+    # writes nothing, recovery included.
+    abandoned = recovery.reconcile_abandoned(context)
+    if abandoned:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.OPERATION_UNCERTAIN,
+            recovery.describe_abandoned(abandoned),
+        )
 
     # -- the consent --------------------------------------------------------- #
     approval: Approval | None = None

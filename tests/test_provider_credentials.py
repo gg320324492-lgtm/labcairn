@@ -7,6 +7,13 @@ in this file reads the ambient environment. Every test passes an explicit
 parameter rather than reaching for :data:`os.environ`: a test that *could*
 inherit a developer's real key is a test that eventually prints one.
 
+The one place that does read the environment is the live probe, and it lives in
+:mod:`tests.test_real_provider_smoke` rather than here, so "which file may spend
+money" is answered by a filename rather than by searching for a marker. What is
+witnessed here is the *predicate* that decides whether that file runs — it is
+filed under the unit class, so every offline run checks the rule that keeps it
+offline instead of trusting it.
+
 The synthetic key used throughout is obviously not a real credential.
 """
 
@@ -17,6 +24,14 @@ import json
 from pathlib import Path
 
 import pytest
+from test_real_provider_smoke import (
+    SMOKE_BASE_URL_ENV,
+    SMOKE_KEY_ENV,
+    SMOKE_MODEL_ENV,
+    SMOKE_PROTOCOL_ENV,
+    SMOKE_RECORD_ENV,
+    live_settings,
+)
 
 from labcairn.providers.credentials import (
     DEFAULT_BASE_URLS,
@@ -282,35 +297,71 @@ def test_a_client_without_a_sniffer_is_still_constructible_and_still_safe() -> N
     asyncio.run(client.aclose())
 
 
-@pytest.mark.requires_provider
-@pytest.mark.skip(
-    reason=(
-        "NOT RUN. Requires the project owner's explicit authorisation to spend money and a "
-        "credential they supplied for that purpose. LC-P1-03 must not use a credential found "
-        "in this machine's environment."
-    )
-)
-def test_real_provider_smoke_records_capabilities_and_usage() -> None:
-    """One live call per supported protocol. **Not executed by this work order.**
+# --- the live smoke's gate ---------------------------------------------------
+#
+# The probe itself is in tests/test_real_provider_smoke.py. What decides whether
+# that file runs is tested here, in the unit class, because a rule that gates a
+# class may not be checked only inside the class it gates: the offline run would
+# then never test the rule that keeps it offline.
 
-    The procedure is :func:`~labcairn.providers.pydantic_models.smoke_test`, so
-    running this is a matter of supplying ``LABCAIRN_PROVIDER_SMOKE_*`` and
-    removing the skip — not of writing new code. Recorded here, skipped, so the
-    gap is visible in the suite rather than in a handover note somebody has to
-    remember to read.
 
-    What it asserts when it does run: probe results are recorded per protocol,
-    and usage is ``Known`` or explicitly ``Unknown`` — never silently
-    ``Known(0)``, which is the whole point of the exercise.
+@pytest.mark.unit
+def test_the_live_smoke_is_configured_only_by_the_named_variables() -> None:
+    """Which variables may turn the live smoke on, and which may not.
+
+    Three properties, each of which the version of the probe that lived inside
+    this file got wrong in a different way:
+
+    * the model, protocol and base URL come from the environment, so the run
+      declares what it probed — the old test hard-coded them, and so could not
+      have run against any endpoint the owner actually held;
+    * a key **without** a model is a skip rather than a guess, because a probe
+      against an endpoint's default model names no model;
+    * a credential that merely happens to be in the machine's environment —
+      ``ANTHROPIC_API_KEY``, say — does not enable it. LC-P1-03's rule was that
+      the project must not spend a key it was never given, and that rule belongs
+      in the code that decides whether to run, not in prose.
     """
-    from labcairn.providers.pydantic_models import smoke_test
-
-    result = smoke_test(
-        _settings(protocol=Protocol.ANTHROPIC, credential_env="LABCAIRN_PROVIDER_SMOKE_KEY"),
-        environ={},
+    configured = live_settings(
+        {
+            SMOKE_KEY_ENV: FAKE_KEY,
+            SMOKE_MODEL_ENV: "some-model-id",
+            SMOKE_PROTOCOL_ENV: Protocol.ANTHROPIC.value,
+            SMOKE_BASE_URL_ENV: "https://gateway.example/anthropic",
+        }
     )
-    outcomes = result["outcomes"]
-    assert isinstance(outcomes, dict)
-    assert outcomes
-    for outcome in outcomes.values():
-        assert outcome in {"ok", "unsupported", "unverified", "refused"}
+    assert configured is not None
+    assert configured.model == "some-model-id"
+    assert configured.protocol is Protocol.ANTHROPIC
+    assert configured.effective_base_url == "https://gateway.example/anthropic", (
+        "the gateway prefix is the whole configuration: the SDK appends its own "
+        "path, and a run that dropped the base URL would probe Anthropic instead"
+    )
+    assert configured.credential_env == SMOKE_KEY_ENV, (
+        "the settings must name the variable, so the secret is resolved by the "
+        "credential loader and never carried in the settings object"
+    )
+
+    assert live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None, (
+        "a key with no declared model must not run: the record would name no model"
+    )
+    assert live_settings({SMOKE_MODEL_ENV: "some-model-id"}) is None
+    assert live_settings({"ANTHROPIC_API_KEY": FAKE_KEY, "ANTHROPIC_MODEL": "x"}) is None, (
+        "a credential found in the machine's environment is not one the owner supplied"
+    )
+
+
+@pytest.mark.unit
+def test_the_live_smoke_is_skipped_when_no_credential_was_supplied() -> None:
+    """The CI path is a skip, not a failure and not a spend.
+
+    This is the witness that keeps the ``requires_provider`` marker honest. CI
+    runs test files by name with no marker filter, so the only thing between a
+    green pipeline and a paid request is this predicate — and the record path is
+    an output, so setting it alone must not enable a run.
+    """
+    assert live_settings({}) is None
+    assert live_settings({SMOKE_KEY_ENV: "   ", SMOKE_MODEL_ENV: "m"}) is None, (
+        "a whitespace-only variable is not a credential"
+    )
+    assert live_settings({SMOKE_RECORD_ENV: "out.json", SMOKE_MODEL_ENV: "m"}) is None

@@ -73,6 +73,7 @@ from labcairn.security.approval import (
     AuthorizationRefusedError,
     NoSuchApprovalError,
     SourceBinding,
+    assert_capability_registered,
     sources_intact,
 )
 
@@ -224,10 +225,19 @@ class ApprovalStore:
         "we refused to use it" is not "we used it" — burning it on a refusal
         would punish a caller for asking a question the ADR says to ask.
 
+        **The registry is asked first, before even the row is read.** A capability
+        that is not registered is a fact about the request rather than about the
+        approval, and ADR-0003 §C4's "evaluate before you consume" was only ever
+        prose: nothing here asked whether the id named a capability this build
+        has. See :func:`~labcairn.security.approval.assert_capability_registered`
+        for why the ledger is the second choke point and not a replacement for
+        the policy's verdict.
+
         The conditional update runs last and is the enforcement. Everything
         before it is a check that could, in principle, be wrong; this is the
         statement that makes two spends impossible.
         """
+        assert_capability_registered(capability)
         approval = self._require(task_id, approval_id)
         now = self._clock()
 

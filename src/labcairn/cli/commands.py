@@ -65,7 +65,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from rich.console import Console, RenderableType
 
-    from labcairn.application import ApplicationContext, MaterialIngested
+    from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
     from labcairn.application.sources import SourceView
     from labcairn.application.stages import StageOutcome, TaskPlan
     from labcairn.application.tasks import TaskState
@@ -1023,6 +1023,492 @@ def task_resume(
     _run_a_stage(ctx, source=source, task=task, as_json=as_json, resume=True)
 
 
+@task_app.command("report")
+def task_report(
+    ctx: typer.Context,
+    path: Annotated[
+        str,
+        typer.Option(
+            "--path",
+            help="The report's key in the task's output area. 'report' is what the "
+            "revision machinery writes under.",
+        ),
+    ] = "report",
+    template: Annotated[
+        str,
+        typer.Option("--template", help="The template to render from. One exists: 'default'."),
+    ] = "default",
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Render the task's report, write it as a revision, and record it.
+
+    The layer's own operation, so this writes the same bytes the local service
+    serves — which is what makes the two surfaces' report one artefact rather than
+    two renderings that happen to agree. **The four forms are written together**
+    (Markdown, HTML, DOCX and PDF) and the receipt carries the chain: the material
+    the claims were read from is named in it, so a later change to that material
+    marks this revision stale.
+
+    **A refusal writes nothing.** The content checks run before the first byte of
+    any form is drawn, so a report the material does not support is refused with
+    ``report_content_refused`` and the check that refused it, and no half-truth is
+    left in the output area.
+    """
+    from labcairn.application import ReportRequest, render_report
+    from labcairn.cli.models import emit_model
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            rendered = render_report(context, ReportRequest(path=path, template_id=template))
+    if as_json:
+        emit_model(rendered)
+    else:
+        receipt = rendered.receipt
+        _console().print(
+            f"[bold]{receipt.relative_path}[/bold] — revision {receipt.revision}, "
+            f"{receipt.content_sha256}.\n"
+            f"{len(receipt.derived_from)} link(s) in its chain; the four forms are "
+            "beside it under the task's output area, and `labcairn artifacts list` "
+            "names them."
+        )
+
+
+@task_app.command("claim")
+def task_claim(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The material the claim is read from.")],
+    address: Annotated[
+        str,
+        typer.Option(
+            "--address",
+            help="The address inside the material, as `sources addresses` prints it.",
+        ),
+    ],
+    kind: Annotated[
+        str,
+        typer.Option("--kind", help="The record's kind: 'claim' (a quotation) or 'numeric'."),
+    ] = "claim",
+    text: Annotated[
+        str | None,
+        typer.Option("--text", help="The statement, for --kind claim."),
+    ] = None,
+    span: Annotated[
+        str | None,
+        typer.Option(
+            "--span",
+            help="The literal text copied out of the material. Defaults to the address's text.",
+        ),
+    ] = None,
+    value: Annotated[
+        float | None,
+        typer.Option("--value", help="The quantity, for --kind numeric."),
+    ] = None,
+    unit: Annotated[
+        str | None,
+        typer.Option("--unit", help="The declared unit, for --kind numeric. Never inferred."),
+    ] = None,
+    tolerance: Annotated[
+        float | None,
+        typer.Option("--tolerance", help="The declared comparison tolerance, for --kind numeric."),
+    ] = None,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Record a claim the material supports, at an address it answers.
+
+    This is the product's one way to say *the material says this, here*. It
+    writes an anchor bound to the source's current bytes and an ``extracted``
+    record that cites it, and it runs no check: C1, C2 and C3 are separate acts.
+
+    **The record is refused if any of these is not true**, and nothing is
+    written: the task holds the material, the material is readable, and the
+    address resolves in the bytes the ledger holds now. Read the addresses
+    with `labcairn sources addresses --source <id>`; the text at one of them
+    is what `--span` copies.
+
+    A numeric record declares its unit — ``--unit dimensionless`` is a
+    declaration, and leaving it out is not the same claim.
+    """
+    from labcairn.application import ClaimRequest, record_claim
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.evidence.states import EvidenceKind
+
+    try:
+        parsed_kind = EvidenceKind(kind)
+    except ValueError:
+        kinds = ", ".join(item.value for item in EvidenceKind)
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{kind!r} is not an evidence kind: {kinds}.",
+                as_json=as_json,
+            )
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            recorded = record_claim(
+                context,
+                ClaimRequest(
+                    source_id=source,
+                    locator_key=address,
+                    kind=parsed_kind,
+                    text=text,
+                    span=span,
+                    value=value,
+                    unit=unit,
+                    tolerance=tolerance,
+                ),
+            )
+    if as_json:
+        emit_model(recorded)
+    else:
+        record = recorded.record
+        stated = record.text if record.text is not None else f"{record.value} {record.unit}"
+        _console().print(
+            f"[bold]{record.evidence_id}[/bold] — {record.kind.value}, {record.status.value}\n"
+            f"{stated}\n"
+            f"anchor {recorded.anchor_id} at {address}"
+        )
+
+
+@task_app.command("approval-request")
+def task_approval_request(
+    ctx: typer.Context,
+    capability: Annotated[
+        str,
+        typer.Option("--capability", help="The capability the run will use, e.g. analysis.run."),
+    ],
+    root: Annotated[
+        str, typer.Option("--root", help="The root the resource lives in, e.g. source:0.")
+    ],
+    resource_key: Annotated[
+        str, typer.Option("--resource-key", help="The resource the operation addresses.")
+    ],
+    arguments: Annotated[
+        str,
+        typer.Option(
+            "--arguments-json",
+            help="The capability's arguments as one JSON object, spelled exactly as "
+            "the run will state them: the consent is bound to their digest.",
+        ),
+    ] = "{}",
+    minutes: Annotated[
+        int, typer.Option("--minutes", help="How long the answer stays valid.")
+    ] = 30,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Ask for consent to one specific operation, and write the question down.
+
+    **The consent is bound to a digest of these arguments**, so the answer that
+    comes back authorises this request and not a later one that happens to name the
+    same file. `labcairn task figure` prints the command that asks correctly; an
+    approval asked for with a different spelling of the same intent is a different
+    approval, and the run refuses it rather than squinting at it.
+
+    A question is not an answer: this records what was asked and leaves it pending.
+    `labcairn task approval-grant` is where a human says yes.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from labcairn.application import request_approval
+    from labcairn.application.approvals import ApprovalRequest, ApprovalUse
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.security.capabilities import CapabilityId
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    try:
+        parsed: dict[str, object] = json.loads(arguments)
+        if not isinstance(parsed, dict):
+            raise TypeError("the arguments must be one JSON object")
+    except (json.JSONDecodeError, TypeError) as error:
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"--arguments-json is not one JSON object: {error}. The consent binds "
+                "the digest of these arguments, so they are stated as the run states them.",
+                as_json=as_json,
+            )
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            requested = request_approval(
+                context,
+                ApprovalRequest(
+                    use=ApprovalUse(
+                        capability=CapabilityId(capability),
+                        arguments=parsed,
+                        root_id=root,
+                        resource_key=resource_key,
+                    ),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=minutes),
+                ),
+            )
+    if as_json:
+        emit_model(requested)
+    else:
+        _console().print(
+            f"[bold]{requested.approval.approval_id}[/bold] — pending, lapsing at "
+            f"{requested.approval.expires_at}.\n"
+            f"It covers {capability} on {resource_key!r} in {root!r}. "
+            "Answer it with `labcairn task approval-grant "
+            f"{requested.approval.approval_id}`."
+        )
+
+
+@task_app.command("approval-grant")
+def task_approval_grant(
+    ctx: typer.Context,
+    approval_id: Annotated[str, typer.Argument(help="The approval being answered.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Record a human's yes to one approval, and nothing besides it.
+
+    **This command is the consent**, which is why it takes no arguments about what
+    is being approved: the question was written down by `approval-request`, and an
+    answer that could restate the request would be a second place for the scope of a
+    consent to be written. It grants the approval as recorded — or refuses, naming
+    why — and the run that later spends it is checked against the digest this
+    answer was given for.
+    """
+    from labcairn.application import grant_approval
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import ApprovalId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(approval_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{approval_id!r} is not an approval id: approval ids are UUIDv7, as "
+                "`labcairn task approval-request` prints them.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            granted = grant_approval(context, ApprovalId(uuid.UUID(approval_id)))
+    if as_json:
+        emit_model(granted)
+    else:
+        _console().print(
+            f"[bold]granted[/bold] {granted.approval.approval_id} — it covers "
+            f"{granted.approval.capability} on {granted.approval.resource_key!r} and "
+            f"lapses at {granted.approval.expires_at}."
+        )
+
+
+@task_app.command("figure")
+def task_figure(
+    ctx: typer.Context,
+    path: Annotated[
+        str, typer.Option("--path", help="The material, by its key inside --source-root.")
+    ],
+    operator: Annotated[
+        str,
+        typer.Option("--operator", help="The registered operator, e.g. labcairn.analysis.mean."),
+    ],
+    recipe: Annotated[
+        str,
+        typer.Option("--recipe", help="The chart recipe, workspace-relative. It is signed."),
+    ],
+    approval: Annotated[
+        str, typer.Option("--approval", help="The granted approval covering this exact run.")
+    ],
+    source_root: Annotated[
+        str, typer.Option("--source-root", help="The root the material lives in.")
+    ] = "source:0",
+    parameters: Annotated[
+        str,
+        typer.Option(
+            "--parameters-json",
+            help="The operator's parameters as one JSON object, including its selection.",
+        ),
+    ] = "{}",
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Draw the deterministic figure a recipe describes, through the layer.
+
+    **What the approval has to cover**: the material, the operator, the operator's
+    parameters *and this recipe's path* — the recipe is one of the consented
+    arguments (ADR-0012 constraint 7), so a signature that authorised one figure
+    cannot be spent on another. `labcairn task approval-request` asks with exactly
+    these four fields:
+
+    ```
+    labcairn task approval-request --capability analysis.run \
+      --root source:0 --resource-key <path> \
+      --arguments-json "$ARGS"
+    ```
+
+    where ``$ARGS`` is the one JSON object holding ``path``, ``operator_id``,
+    ``recipe`` and ``parameters``, spelled as this command spells them.
+
+    Nothing is written when the run is refused: a refusal arrives before the
+    manifest and the figure are written, and a figure the ledger does not support
+    is not a result.
+    """
+    from labcairn.application import FigureRequest, run_figure
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import ApprovalId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    try:
+        parsed_parameters: dict[str, object] = json.loads(parameters)
+        if not isinstance(parsed_parameters, dict):
+            raise TypeError("the parameters must be one JSON object")
+    except (json.JSONDecodeError, TypeError) as error:
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"--parameters-json is not one JSON object: {error}. The operator's own "
+                "argument model validates it, and its parameters are part of the digest "
+                "the approval binds.",
+                as_json=as_json,
+            )
+    with _refusals(as_json):
+        if not is_uuid7(approval):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{approval!r} is not an approval id: pass --approval with the id "
+                "`labcairn task approval-request` prints, after granting it.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            drawn = run_figure(
+                context,
+                FigureRequest(
+                    root_id=source_root,
+                    path=path,
+                    operator_id=operator,
+                    recipe=recipe,
+                    parameters=parsed_parameters,
+                    approval_id=ApprovalId(uuid.UUID(approval)),
+                ),
+            )
+    if as_json:
+        emit_model(drawn)
+    else:
+        figure = drawn.figure_receipt
+        # "no figure" is the renderer's own word for a result it did not draw, and
+        # it is carried rather than inferred: an operator that computes a table of
+        # groups produces a manifest and no plot, and both are answers.
+        where = (
+            figure.relative_path
+            if figure is not None
+            else "no figure (the operator's result is not one)"
+        )
+        _console().print(
+            f"[bold]{where}[/bold] — the derivation is recorded in "
+            f"{drawn.manifest_receipt.relative_path}."
+        )
+
+
+@task_app.command("reconcile")
+def task_reconcile(
+    ctx: typer.Context,
+    operation_id: Annotated[str, typer.Argument(help="The operation a crash left in flight.")],
+    expected_sha256: Annotated[
+        str,
+        typer.Option(
+            "--expected-sha256",
+            help="The content hash this operation predicted. Not in the store, so it is supplied.",
+        ),
+    ],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Answer the question a crash left open, for one operation.
+
+    ``task run`` and ``task resume`` refuse while an operation is ``UNCERTAIN``,
+    because replaying over an unknown outcome plans a second operation for work
+    that may already have happened. This is the answer that unblocks them: a
+    read-only probe compares the bytes at the operation's own path against the
+    hash **you** state, and the verdict decides — absent means the effect
+    provably did not land and the operation is authorised again; a match means it
+    landed and is confirmed; a different hash is a conflict, the stage stays
+    blocked, and **nothing was overwritten**.
+
+    **Why the hash is an argument.** It is the one fact the store cannot supply:
+    it lived inside the operation's arguments and therefore inside its digest,
+    which is a hash of a hash. ``labcairn sources inspect`` prints the material's
+    content hash, and for the stage that reads a material that is the number.
+    """
+    from labcairn.application import resolve_abandoned
+    from labcairn.cli.models import (
+        CLI_REFUSAL_INVALID_ARGUMENTS,
+        TaskReconciliation,
+        emit_model,
+    )
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import OperationId, is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(operation_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{operation_id!r} is not an operation id: operation ids are UUIDv7, "
+                "as `labcairn task status --json` prints them.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            outcome = resolve_abandoned(
+                context,
+                OperationId(uuid.UUID(operation_id)),
+                expected_sha256=expected_sha256,
+            )
+        reported = TaskReconciliation(
+            operation_id=str(outcome.operation_id),
+            resource_key=outcome.verdict.resource_key,
+            resolution=outcome.resolution.value,
+            expected_sha256=outcome.verdict.expected_sha256,
+            observed_sha256=outcome.verdict.observed_sha256,
+            resulting_state=outcome.resulting_state.value,
+            replay_permitted=outcome.replay_permitted,
+            detail=outcome.verdict.detail,
+        )
+    if as_json:
+        emit_model(reported)
+    else:
+        found = (
+            f"observed {reported.observed_sha256}"
+            if reported.observed_sha256 is not None
+            else "nothing was at the path"
+        )
+        _console().print(
+            f"[bold]{reported.operation_id}[/bold] — {reported.resolution}: "
+            f"{reported.detail}\nexpected {reported.expected_sha256}, {found}. "
+            f"The operation is now [bold]{reported.resulting_state}[/bold]"
+            + (", and a run may replay it." if reported.replay_permitted else ".")
+        )
+
+
 def _run_a_stage(
     ctx: typer.Context,
     *,
@@ -1132,6 +1618,53 @@ def sources_inspect(
         emit_model(model)
     else:
         _console().print(render.render_source(model))
+
+
+@sources_app.command("addresses")
+def sources_addresses(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to list addresses in.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """List every address the ledger holds text for in one material.
+
+    These are the addresses a claim can be recorded at: each one's text is what
+    `labcairn task claim --span` copies, and the address is what `--address`
+    names. The keys are the ledger's own, so a key printed here is a key the
+    claim accepts.
+
+    The text is what the ingestion stored, not the file re-read.
+    """
+    from labcairn.application import SourceAddress, list_source_addresses
+    from labcairn.cli.models import emit_models
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            addresses = list_source_addresses(context, source)
+    if as_json:
+        emit_models(addresses, SourceAddress)
+    else:
+        _console().print(_render_addresses(addresses))
+
+
+def _render_addresses(addresses: Sequence[SourceAddress]) -> RenderableType:
+    """The addresses, drawn from the same value the ``--json`` form serialises."""
+    from rich.table import Table
+
+    table = Table(title="addresses", show_lines=False)
+    table.add_column("address", style="bold")
+    table.add_column("kind")
+    table.add_column("text")
+    for address in addresses:
+        text = address.text if len(address.text) <= 80 else address.text[:77] + "..."
+        table.add_row(address.locator_key, address.locator_kind, text.replace("\n", "\\n"))
+    return table
 
 
 @sources_app.command("ingest")
