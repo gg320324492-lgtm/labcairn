@@ -67,6 +67,19 @@ The links are the records.
 
 **Fixed**
 
+- **The Windows case-fold now has a witness that bites.** The G1 regression test
+  `test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one` asserted
+  only `permission is DENY`, which a broken fold still satisfies: `evaluate` matches
+  both spellings and the pre-resolved lowercase key hits the deny rule with no
+  folding, so replacing `_FOLD` with the identity left the whole suite green. The
+  Windows branch now also asserts `matched_spelling == "declared"` — the only
+  observable that distinguishes a real case-fold from none. Verified by mutation on
+  a Windows runner: passes under `str.casefold`, fails under the identity
+  (`matched_spelling` reads `resolved`). It bites on the `windows-latest` shard,
+  where the case-insensitive filesystem that makes the bypass possible actually
+  exists; the POSIX early return stays, because there the two spellings are
+  genuinely different files.
+
 - **The real-provider smoke could not have run, and now it can.** The skipped
   witness in `tests/test_provider_credentials.py` hard-coded a protocol and a
   model and passed `environ={}` to the credential loader, so **no credential on

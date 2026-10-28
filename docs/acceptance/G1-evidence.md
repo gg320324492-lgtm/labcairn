@@ -83,14 +83,18 @@ Replacing `_FOLD` with the identity leaves the test **green on every platform**,
 just POSIX: `evaluate` matches both spellings and takes the worst, and the resolved
 spelling `private/secrets.txt` matches the deny rule with no folding, so DENY still
 fires. The only observable difference is `matched_spelling` — `declared` under
-`casefold`, `resolved` under the identity — and the test does not assert that field.
-So the case-fold has no biting witness (the earlier draft of this note wrongly said
-`windows-latest` would catch it; the experiment says it would not). A real witness
-would assert `matched_spelling == "declared"`. This is the same gap LC-P1-04's carried
-note names — "path-guard tests ran on Windows only; POSIX case semantics are
-unverified" — recorded here so the evidence text no longer claims a stronger assertion
-than it makes. Adding the `matched_spelling` witness touches G1's accepted
-security-test surface and is surfaced for the owner rather than done mid-closeout.)*
+`casefold`, `resolved` under the identity.
+
+**The witness was then added** (owner-authorized, 2026-10-28). The Windows branch of
+`test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one` now asserts
+`decision.matched_spelling == "declared"`, and this was verified by mutation: with
+`_FOLD = str.casefold` it passes, with `_FOLD` the identity it fails (`matched_spelling`
+reports `resolved`). It bites on the `windows-latest` shard, where the case-insensitive
+filesystem that makes the bypass real actually exists; on POSIX the two spellings are
+genuinely different files and the `os.name != "nt"` early return is the honest answer,
+not a gap. So LC-P1-04's carried note — "POSIX case semantics unverified" — remains a
+correct statement about *POSIX*, and is no longer a euphemism for an unwitnessed Windows
+fold.)*
 
 ### Blocking, from LC-P1-02's own cross-review
 
