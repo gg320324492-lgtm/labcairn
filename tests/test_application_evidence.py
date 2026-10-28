@@ -267,6 +267,53 @@ def test_a_claim_is_located_resolves_and_carries_the_sources_hash(
     assert located.resolution.value == "resolved"
 
 
+def test_a_denied_source_cannot_have_a_claim_recorded(env: StoreEnv, workspace_root: Path) -> None:
+    """The write half of the same posture the listing test checks.
+
+    `record_claim` asks the policy (`source.inventory` consent) before it
+    resolves or writes. The listing path has a denial witness
+    (`test_a_denied_source_is_not_listed`) but the write path did not, so
+    deleting `record_claim`'s consent ask left every claim test green — a
+    DENY policy would still have written an anchor and an `extracted` record.
+    This closes that: everything the request would otherwise accept is
+    supplied, the only difference from the passing test is a deny-everything
+    policy, and the expectation is a refusal that writes nothing.
+    """
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    csv_id = _source_id(context, "groups.csv")
+    locator_key, _text = _an_address(
+        context, csv_id, predicate=lambda address: address.text.strip() == "1"
+    )
+    deny = PermissionPolicy.from_rules([Rule(effect=Permission.DENY, pattern="**")])
+    denied = ApplicationContext(
+        workspace=context.workspace,
+        store=context.store,
+        policy=deny,
+        ledger=context.ledger,
+    )
+
+    _assert_refused(
+        lambda: record_claim(
+            denied,
+            ClaimRequest(
+                source_id=csv_id,
+                locator_key=locator_key,
+                kind=EvidenceKind.NUMERIC,
+                value=1.0,
+                unit="dimensionless",
+            ),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+
+    connection = denied.store.session.connection()
+    assert load_task_records(connection, str(denied.task_id)) == ()
+    anchors: int = connection.execute(text("SELECT COUNT(*) FROM source_anchors")).scalar_one()
+    assert anchors == 0, "a refused claim must not have left an anchor behind"
+
+
 def test_the_check_path_can_verify_a_product_written_claim(
     env: StoreEnv, workspace_root: Path
 ) -> None:

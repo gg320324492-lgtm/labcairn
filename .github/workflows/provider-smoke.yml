@@ -86,6 +86,13 @@ jobs:
       # case skipped would report a green run that measured nothing, so the
       # configuration is checked here first and the names that are missing are
       # printed, never their values.
+      #
+      # **This job is deliberately stricter than the suite's skip predicate.**
+      # `live_settings` needs only the key and the model (protocol and base URL
+      # have defaults); this guard requires all four to be set, because a paid
+      # run that silently used a default endpoint is not reproducible from the
+      # log. Stricter, never weaker — a run that passes here also runs in the
+      # suite, not the other way round.
       # ------------------------------------------------------------------
       - name: require a named credential and a declared model
         run: |

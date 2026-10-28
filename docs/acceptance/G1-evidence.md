@@ -76,13 +76,20 @@ the caller happened to use.
 regression test "asserts they resolve to the same key" — it does not. It hands
 `make_ref` an already-resolved `key` (`private/secrets.txt`) beside the declared
 spelling (`private/SECRETS.TXT`) and asserts DENY, so the fold is supplied, not
-computed-and-checked; and `if os.name != "nt": return` means the case path is only
-ever exercised on Windows. So the case-fold itself has no biting witness: replacing
-`_FOLD` with the identity leaves the suite green on a POSIX runner, which CI's
-`windows-latest` shard would then not reproduce. This is the same gap LC-P1-04's
-carried note already names — "path-guard tests ran on Windows only; POSIX case
-semantics are unverified" — recorded here so the evidence text no longer claims a
-stronger assertion than it makes. Adding the fold witness touches G1's accepted
+computed-and-checked.
+
+**This was then checked by running the mutation on a Windows box (`os.name == "nt"`).**
+Replacing `_FOLD` with the identity leaves the test **green on every platform**, not
+just POSIX: `evaluate` matches both spellings and takes the worst, and the resolved
+spelling `private/secrets.txt` matches the deny rule with no folding, so DENY still
+fires. The only observable difference is `matched_spelling` — `declared` under
+`casefold`, `resolved` under the identity — and the test does not assert that field.
+So the case-fold has no biting witness (the earlier draft of this note wrongly said
+`windows-latest` would catch it; the experiment says it would not). A real witness
+would assert `matched_spelling == "declared"`. This is the same gap LC-P1-04's carried
+note names — "path-guard tests ran on Windows only; POSIX case semantics are
+unverified" — recorded here so the evidence text no longer claims a stronger assertion
+than it makes. Adding the `matched_spelling` witness touches G1's accepted
 security-test surface and is surfaced for the owner rather than done mid-closeout.)*
 
 ### Blocking, from LC-P1-02's own cross-review

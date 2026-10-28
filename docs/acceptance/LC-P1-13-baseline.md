@@ -70,7 +70,7 @@ the fixture versions, **the model**, **the budget**, the baseline's verified
 capabilities, and the baseline's limitations or confidence intervals.
 
 **The offline run declares no model, and that is deliberate.**
-`tests/evaluation/cli.py:384` builds the run's basis with `model=""` and the
+`tests/evaluation/cli.py:401` builds the run's basis with `model=""` and the
 docstring above it says why:
 
 > The model is empty, and that is the fact. The offline run used the
@@ -250,7 +250,7 @@ writing a document.
 |---|---|---|
 | the protocol's rule and the six blockers | `docs/EVALUATION.md` | read-only |
 | the three options and the work order's Build clause | `docs/plans/LC-P1-13-14-task-breakdown.md` §1.4.3; `docs/PHASE_1_WORKORDERS.md` | read-only |
-| the harness's refusal mechanism and its six conditions | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:366-395` (`_run_basis`) | read-only |
+| the harness's refusal mechanism and its six conditions | `tests/evaluation/comparison.py`, `tests/evaluation/cli.py:383-413` (`_run_basis`) | read-only |
 | the corpus measurement and its unit | `tests/evaluation/corpus.py` | read-only |
 | the public corpus: 4 fixtures, 7 questions, 19 artifact checks | `tests/fixtures/public/MANIFEST.json` | parsed, counted |
 | PaperQA2's packaging, readers, chunking and types | `E:\labcairn-upstreams\paper-qa` @ `57e89f7` | **text only; nothing executed** |
@@ -626,7 +626,7 @@ set and budget, so that `assess` has something to match.
 1. **The owner's §1.4.2 decision** — which provider, whose credential, and
    the cost ceiling. Until then there is nothing to declare.
 2. **A harness change that this subtask did not make and must not make.**
-   `tests/evaluation/cli.py:366-395` builds the run's basis with `model=""`
+   `tests/evaluation/cli.py:383-413` builds the run's basis with `model=""`
    and `budget=""` hard-coded, because the offline run has none. A run that
    *does* have a provider needs the basis to carry it — the model name,
    version and parameters, and the budget — from the provider configuration
