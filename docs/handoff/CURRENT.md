@@ -193,8 +193,13 @@ Getting the file to parse at all was its own finding — `${{ runner.temp }}` is
 in the job-level `env` context, and GitHub answers such a file with `HTTP 422` at
 dispatch, which looks from inside the repository exactly like a workflow nobody
 ever dispatched. So the default harness run still reports the class NOT RUN and
-exits 2, and the question left is whether a scheduled, non-required witness is
-what §1.4.2 meant.
+exits 2, and the question left was whether a scheduled, non-required witness is
+what §1.4.2 meant. **Ruled 2026-10-28: yes.** The owner accepts
+`provider-smoke.yml` (scheduled + dispatched, non-required) as this gate class's
+discharge, because a required check that can only pass where a secret exists is a
+check branch protection would wait on forever. The default harness's NOT RUN
+stays on the record as what the offline path actually reports — a fact, not a
+claim of a passing run.
 The [gate review](../acceptance/G5-acceptance.md)
 carries the method and every finding.
 

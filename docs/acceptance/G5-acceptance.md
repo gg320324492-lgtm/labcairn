@@ -515,6 +515,22 @@ harness did not make the ruling for the owner, in either direction.**
   the provider question of §1.4.2 both become blocking for the alpha, and
   a machine with no credential cannot close a gate about a research alpha.
 
+**Ruled 2026-10-28, after this gate closed and after PR #119 merged.** The
+credential is configured on the repository; the probe file `T04` named exists
+and has run — locally and, dispatch 40663728369 at `0adfbe3`, on GitHub, with
+the same endpoint fingerprint each time. `provider-smoke.yml` spends it on a
+schedule and on demand. **The owner's answer to §1.4.2 is that this shape
+discharges the fifth gate class:** a required check that could pass only where
+a secret exists is a check branch protection waits on forever, and amendment
+C-1 forbids dressing that up with a path filter. The default offline harness
+run still reports the class NOT RUN, and that stays on the record as what the
+offline path actually says, not as a claim that the class ran. **§1.4.1b —
+whether a declared skip fails the sixth blocker — is a different question and
+remains the owner's.** The two are neighbours and have been treated as one in
+earlier drafts of this file; the ruling above speaks to the class, not the
+blocker, and the blocker's row still carries the platform-conditional skips
+this section names.
+
 ### 3 — The competitor baseline's scope (§1.4.3)
 
 **The work was done to Option C — no external comparison — on five checked
