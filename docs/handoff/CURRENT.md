@@ -104,14 +104,19 @@ panel builds the selection from the source the service reports, asks
 refused with the service's own reason. `docs/RELEASE-NOTES.md` §2.2 carries
 that limit.
 
-**The shard file's costs predate this work, and its own witness says so.**
-`tests/test_application_evidence.py` is in shard 0 on both platforms, but it
-has no measured cost recorded, and `tests/test_cli.py` has changed since the
-costs were taken at `598e788`, so `tests/test_ci_shard_coverage.py` is red on
-its two cost checks until the owner re-measures from a CI run:
-`python .github/remeasure_shards.py <run-id>`. **The costs are a measurement
-and are not invented here** — the membership fix is the part a tree can make,
-and the numbers are the part a runner has to produce.
+**The shard costs are re-measured on the runner, and CI is green.** The three
+files this branch added (`test_application_evidence.py`,
+`test_event_payload_vocabulary.py`, `test_real_provider_smoke.py`) once had no
+measured cost and `tests/test_cli.py` had changed past the partition's slack
+since the old `598e788`, so `tests/test_ci_shard_coverage.py` was red on its two
+cost checks. That was never fixed by inventing numbers — it was fixed by
+`python .github/remeasure_shards.py <run-id>` reading each file's seconds out of
+the completed `pull_request` run at `bc043fa`, writing `measured_at` and the
+costs, and rebuilding the partition (ubuntu balance 1.389, windows 1.000).
+**Head `9799354`: all 17 PR checks pass** — 10 python-quality shards on both
+platforms, secret-scan, reference-exclusion, lockfiles, release and web. The
+point the earlier paragraph made still holds as method: the membership is a
+thing the tree can fix, the numbers are a thing only a runner can produce.
 
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
