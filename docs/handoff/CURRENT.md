@@ -182,8 +182,14 @@ setup:** the credential is configured on the repository and
 `.github/workflows/provider-smoke.yml` spends it — on a schedule and on demand,
 and **deliberately not as a required status check**, because a check that can
 only pass where a secret exists is one branch protection would wait on forever.
-So the default harness run still reports the class NOT RUN and exits 2, and the
-question left is whether a non-required scheduled witness is what §1.4.2 meant.
+**The workflow has run on GitHub**: dispatch 40663728369 at `0adfbe3`, 2026-10-28
+09:22 UTC, green, printing the same endpoint fingerprint the two local runs did.
+Getting the file to parse at all was its own finding — `${{ runner.temp }}` is not
+in the job-level `env` context, and GitHub answers such a file with `HTTP 422` at
+dispatch, which looks from inside the repository exactly like a workflow nobody
+ever dispatched. So the default harness run still reports the class NOT RUN and
+exits 2, and the question left is whether a scheduled, non-required witness is
+what §1.4.2 meant.
 The [gate review](../acceptance/G5-acceptance.md)
 carries the method and every finding.
 

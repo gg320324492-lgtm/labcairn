@@ -83,7 +83,9 @@ The links are the records.
   credential and one never will, because a check that can only pass where a
   secret exists is a check branch protection waits on forever — so
   `.github/workflows/provider-smoke.yml` holds it and runs on a schedule and on
-  demand, and fails rather than skipping when a variable is missing. The
+  demand, and fails rather than skipping when a variable is missing — and it has
+  run: dispatch 40663728369 at `0adfbe3`, 2026-10-28, printing the same endpoint
+  fingerprint as the two local runs. The
   predicate that decides whether the witness runs is witnessed in the unit class
   (`tests/test_provider_credentials.py:309` and
   `tests/test_provider_credentials.py:355`), and `requires_provider` was added to

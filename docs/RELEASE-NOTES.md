@@ -194,7 +194,12 @@ one never will: a check that runs only where a secret exists is a check branch
 protection would wait on forever, which is exactly what amendment C-1 refuses to
 paper over with a filter. The credential lives in the repository now, and
 `.github/workflows/provider-smoke.yml` is the job that spends it, on a schedule
-and on demand.
+and on demand. **It has run there**: dispatch 40663728369 at `0adfbe3` completed
+green on 2026-10-28 09:22 UTC, and the record it printed carries the same
+endpoint fingerprint as the two local runs above — `db47efa5…385c`, `tool_calls`
+and `usage_reporting` ok, both structured-output forms unsupported at the client.
+GitHub masked the key as `***` in the log, which is the only place the run could
+have shown it.
 **What changed on 2026-10-28, besides the file:** the harness used to refuse the
 class even when a reader named it — `--classes real_model_smoke` printed the
 runnability table's sentence about the environment without looking at the

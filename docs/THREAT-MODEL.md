@@ -703,10 +703,12 @@ cannot be checked only inside that class. The marker is registered as *"needs a
 real paid provider credential; skipped wherever the owner has not named one"*
 (`pyproject.toml:318`).
 
-**It has run.** Twice on 2026-10-28 against `MiniMax-M3.1-Flash` over an
-Anthropic-protocol endpoint: `tool_calls` and `usage_reporting` **ok**, both
-structured-output capabilities **unsupported** for a reason that is the client's,
-not the endpoint's (§6.9). The records differed only in `observed_at`.
+**It has run.** Three times on 2026-10-28 against `MiniMax-M3.1-Flash` over an
+Anthropic-protocol endpoint — twice locally and once on GitHub, dispatch
+40663728369 at `0adfbe3` — with the same endpoint fingerprint each time:
+`tool_calls` and `usage_reporting` **ok**, both structured-output capabilities
+**unsupported** for a reason that is the client's, not the endpoint's (§6.9).
+The records differed only in `observed_at`.
 
 **So the procedure is written, it has been exercised, and the gate's shape has
 changed.** The Phase 1 protocol requires a real-model smoke with *"results and
