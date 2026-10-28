@@ -69,6 +69,7 @@ from labcairn.application import (
     ApplicationContext,
     ApplicationRefusedError,
     create_task,
+    ingest_material,
     read_task_state,
 )
 from labcairn.application.refusal import ApplicationRefusal
@@ -1084,7 +1085,7 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
 
 
 def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
-    """What this service can be *asked to do* is five routes and no more.
+    """What this service can be *asked to do* is seven routes and no more.
 
         Every other route reads. That is the whole of the "the stream carries
         events and never commands" claim at the level of the contract: a browser
@@ -1105,6 +1106,11 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         *produce* the report, not only to read one the CLI happened to write; the
         route is the layer's own operation and the layer's own result model, so the
         bytes are the same bytes whichever surface asked.
+
+    **The claim route is here because the web could not otherwise make a task
+    reportable.** Recording a claim is what gives a report something to carry
+    (§2.2), and a service that could render a report but not record what it is
+    made of would be a surface that can only show work another surface did.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1120,6 +1126,7 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /stages",
         "POST /report",
         "POST /analysis",
+        "POST /claims",
     }
 
 
@@ -1164,12 +1171,12 @@ def test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason
     a refusal that left a file behind would be the worst failure this route could
     have. The assertion below is that the output area holds no report.
 
-    **Why there is no success path here.** The product has no operation that
-    writes an evidence record (``docs/RELEASE-NOTES.md`` §2.2), so a test that
-    gave this task something to report would have to write the record itself —
-    which is what the outsider's walk does, and says it does. The success path
-    through a surface is witnessed where the record exists:
-    ``tests/test_smoke_path.py`` compares the CLI's bytes with the service's.
+    **The success path is the claim route's**: the task under test is refused
+    because it holds no record, and
+    :func:`test_a_claim_recorded_through_the_service_makes_the_task_reportable`
+    records one through this service and then renders the report. What this
+    test proves is the other half — the refusal is the layer's, and nothing was
+    written.
     """
     response = client.post(
         "/report",
@@ -1185,6 +1192,81 @@ def test_a_report_render_with_the_token_reaches_the_layer_and_reports_its_reason
     listed = client.get("/artifacts", headers={"Origin": OWN_ORIGIN})
     assert listed.status_code == 200
     assert listed.json() == [], "a refused report must leave no artefact behind"
+
+
+def test_a_claim_recorded_through_the_service_makes_the_task_reportable(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    workspace_root: Path,
+) -> None:
+    """The success path: ingest, read an address, record the claim, render.
+
+    Every step except the ingestion is a request to this service, and the
+    ingestion is the layer's (the service has no ingest route). The report that
+    comes back is rendered from a record this service wrote, which is the
+    property §2.2 exists for: a surface can make a task reportable without
+    writing the ledger rows itself.
+    """
+    (workspace_root / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    ingestion = ingest_material(context)
+    source_id = ingestion.source_ids[0]
+
+    addresses = client.get(f"/sources/{source_id}/addresses", headers={"Origin": OWN_ORIGIN})
+    assert addresses.status_code == 200, addresses.text
+    address = next(item for item in addresses.json() if item["text"].strip() == "2")
+
+    claimed = client.post(
+        "/claims",
+        json={
+            "source_id": source_id,
+            "locator_key": address["locator_key"],
+            "kind": "numeric",
+            "value": 2,
+            "unit": "dimensionless",
+        },
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+
+    assert claimed.status_code == 201, claimed.text
+    recorded = claimed.json()
+    assert recorded["record"]["status"] == "extracted"
+    assert recorded["record"]["value"] == 2.0
+    assert recorded["anchor_id"]
+
+    reported = client.post(
+        "/report",
+        json={"path": "report", "template_id": "default"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert reported.status_code == 200, reported.text
+    assert reported.json()["resource_key"] == "report"
+
+    listed = client.get("/artifacts", headers={"Origin": OWN_ORIGIN})
+    assert listed.status_code == 200
+    assert listed.json(), "the rendered report is not in the ledger"
+
+
+def test_a_claim_from_a_foreign_origin_is_refused(client: TestClient) -> None:
+    """The route that writes a record is behind the same origin guard."""
+    response = client.post(
+        "/claims",
+        json={"source_id": "src-0123456789abcdef", "locator_key": "k=3:csv|r=1:1|c=1:a"},
+        headers={"Origin": FOREIGN_ORIGIN},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+def test_a_claim_without_the_token_is_refused(client: TestClient) -> None:
+    """The right origin is not consent to write a record."""
+    response = client.post(
+        "/claims",
+        json={"source_id": "src-0123456789abcdef", "locator_key": "k=3:csv|r=1:1|c=1:a"},
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
 
 
 def test_a_report_render_names_the_template_it_was_asked_for(

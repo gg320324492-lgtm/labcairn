@@ -112,6 +112,26 @@ export type CapabilityId =
   | 'report.render'
   | 'model.request'
 
+export type CheckKind = 'c1' | 'c2' | 'c3' | 'c4'
+
+export type CheckOutcome = 'pass' | 'fail' | 'indeterminate' | 'not_checked'
+
+export type ClaimBody = {
+  source_id: string
+  locator_key: string
+  kind?: EvidenceKind
+  text?: string | null
+  span?: string | null
+  value?: number | null
+  unit?: string | null
+  tolerance?: number | null
+}
+
+export type ClaimRecorded = {
+  record: EvidenceRecord
+  anchor_id: string
+}
+
 export type ComputationLocator = {
   locator_kind?: 'computation'
   operator_id: string
@@ -184,6 +204,31 @@ export type EventType =
   | 'source_changed'
   | 'outbound_consent_requested'
 
+export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
+
+export type EvidenceKind = 'claim' | 'numeric' | 'result'
+
+export type EvidenceRecord = {
+  schema_version?: number
+  evidence_id: string
+  task_id: string
+  kind: EvidenceKind
+  text: string | null
+  value?: StrictFloat | null
+  unit?: string | null
+  tolerance?: StrictNonNegFloat | null
+  anchor_ids?: string[]
+  extracted_span?: string | null
+  extracted_span_sha256?: string | null
+  status: VerificationStatus
+  verification_log?: VerificationRecord[]
+  created_by: EvidenceCreator
+  created_by_id: string
+  source_content_hash?: string | null
+  created_at: string
+  superseded_by?: string | null
+}
+
 export type FigureRun = {
   source: Source
   selection: Selection
@@ -217,6 +262,12 @@ export type Health = {
 export type JsonValue = unknown
 
 export type MissingPolicy = 'exclude' | 'refuse'
+
+export type NormalizationProfile =
+  | 'exact'
+  | 'nfkc_whitespace_collapsed'
+  | 'nfkc_whitespace_collapsed_ligatures'
+  | 'word_boundaries_removed'
 
 export type Operation = {
   schema_version?: number
@@ -339,6 +390,14 @@ export type Source = {
   ingested_at: string
 }
 
+export type SourceAddress = {
+  source_id: string
+  locator_key: string
+  locator_kind: string
+  extraction_version: string
+  text: string
+}
+
 export type SourceIdentifier = {
   kind: SourceIdentifierKind
   value: string
@@ -391,6 +450,10 @@ export type StageRun = {
 
 export type StageStatus = 'pending' | 'entered' | 'blocked' | 'completed' | 'failed'
 
+export type StrictFloat = number
+
+export type StrictNonNegFloat = number
+
 export type StrictNonNegInt = number
 
 export type StrictPosInt = number
@@ -440,3 +503,16 @@ export type ValidationError = {
   input?: unknown
   ctx?: Record<string, never>
 }
+
+export type VerificationRecord = {
+  schema_version?: number
+  check: CheckKind
+  checker_id: string
+  outcome: CheckOutcome
+  detail: string
+  checked_at: string
+  normalization_profile?: NormalizationProfile | null
+}
+
+export type VerificationStatus =
+  'planned' | 'extracted' | 'verified_by_rule' | 'user_attested' | 'conflicted' | 'unsupported'

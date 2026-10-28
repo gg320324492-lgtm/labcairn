@@ -36,9 +36,21 @@ The links are the records.
   the registry binds to output roots. **The workbench asks for it too**: a button
   that states the two claims the service takes no default for, then reads the
   artefact list again — and shows the service's own refusal when the task has
-  nothing to carry. **The figure still has no surface**, and
-  the report is still refused — writing nothing — when the task holds no record
-  to carry, because no surface operation writes an evidence record.
+  nothing to carry. **The workbench asks for the figure's consent too**: a
+  Figure panel builds the selection from the source the service reports, asks
+  for `analysis.run`, leaves the pending question in the Approval panel, and
+  draws once it is granted. Two steps are the design. The report is still
+  refused — writing nothing — when the task holds no record to carry, which is
+  the correct answer rather than a gap: the next bullet is the operation that
+  records one.
+- **A task can be given a claim to carry.** `labcairn task claim` and
+  `POST /claims` call the layer's `record_claim`, which resolves the address in
+  the text the ledger holds for the source's current bytes, refuses one nothing
+  answers, and writes an anchor and an `extracted` record as the user's own.
+  `labcairn sources addresses` and `GET /sources/{source_id}/addresses` list the
+  addresses a claim can rest on. **What it does not do** is extract, propose or
+  verify: the caller supplies the words, and no surface runs C1, C2 or C3.
+  [release notes §2.2](docs/RELEASE-NOTES.md).
 - **The recovery pass runs at the surfaces.** `run_stage` calls
   `labcairn.application.recovery.reconcile_abandoned` after the policy verdict and
   before any consent is spent: an operation a crash left `ATTEMPTING` becomes
@@ -52,6 +64,51 @@ The links are the records.
 - **The approval ledger asks the capability registry.** Both consume paths refuse
   an id the registry has never held, with a reason of its own
   (`capability_unregistered`), which closes the defence-in-depth gap G1 recorded.
+
+**Fixed**
+
+- **The real-provider smoke could not have run, and now it can.** The skipped
+  witness in `tests/test_provider_credentials.py` hard-coded a protocol and a
+  model and passed `environ={}` to the credential loader, so **no credential on
+  any machine could have satisfied it** — the records that said "removing the
+  skip runs it with no new code" were wrong. The probe now lives in
+  `tests/test_real_provider_smoke.py`, the file the evaluation harness had been
+  naming as the protocol's fifth gate class since LC-P1-13 T04 without one ever
+  existing, and it is configured by `LABCAIRN_PROVIDER_SMOKE_KEY` / `_MODEL` /
+  `_PROTOCOL` / `_BASE_URL`. It **ran twice on 2026-10-28** against
+  `MiniMax-M3.1-Flash` over an Anthropic-protocol endpoint: `tool_calls` and
+  `usage_reporting` **ok**, both structured-output forms **unsupported** in
+  pydantic-ai's client before a request is sent. **The gate class is discharged
+  by a job of its own, not by the required checks**: the required checks name no
+  credential and one never will, because a check that can only pass where a
+  secret exists is a check branch protection waits on forever — so
+  `.github/workflows/provider-smoke.yml` holds it and runs on a schedule and on
+  demand, and fails rather than skipping when a variable is missing. The
+  predicate that decides whether the witness runs is witnessed in the unit class
+  (`tests/test_provider_credentials.py:309` and
+  `tests/test_provider_credentials.py:355`), and `requires_provider` was added to
+  the marker-to-class mapping so
+  the fifth class is reachable by construction rather than unreachable in prose.
+  **The harness's own veto went with it:** `--classes real_model_smoke` printed
+  the runnability table's sentence about the environment — *"no real provider
+  credential is configured in this environment"* — without looking at the
+  environment, and invoked nothing, so no reader with a credential could
+  discharge the class. Naming it now runs it; the default run still refuses it,
+  and both halves are pinned
+  (`tests/test_evaluation_harness.py::test_a_class_named_on_the_command_line_is_run_rather_than_refused`,
+  `::test_the_default_run_reports_the_real_model_class_as_not_run`). Measured: the
+  named run says **`1/1`** with the credential and `0/1` without it.
+  [release notes §2.7](docs/RELEASE-NOTES.md).
+- **A reader can decode an `operation_reconciled` row without loading the
+  recovery layer.** `ReconciliationPayload` and its registration moved to
+  `labcairn.runtime.event` — the module the read boundary already imports — so
+  the schema no longer depends on the coordinator having been imported in the
+  same process. Before the move, a direct reader (a diagnostic script, a test
+  calling `events_after`) was refused by the anti-bag rule on a row the writer
+  had accepted. Witness: `tests/test_event_payload_vocabulary.py` reads the
+  stored event in a fresh interpreter that loads no `labcairn.recovery` module;
+  with the registry entry removed, that read fails with the pre-fix message.
+  [ADR-0007](docs/adr/ADR-0007-event-payload.md).
 
 ### The public alpha (G5) — closed on two independent reviews
 

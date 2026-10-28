@@ -637,21 +637,27 @@ mutating consent routes; **none of them selects a workspace**. The CLI can
 (`labcairn init`, `labcairn task create`), and the API cannot. The
 demonstration says so in its own output (`examples/g4_exit_demo.py:1224-1226`).
 
-### 6.4 The claim in the report is written by the demonstration, not the product
+### 6.4 A claim is recorded by the product, but not proposed or verified by it
 
-**The product has no operation that writes an evidence record or an anchor.**
-The G4 exit demonstration writes the claim's own address itself, and says so
-twice — in its docstring (`examples/g4_exit_demo.py:49-51`) and in its own
-output (`examples/g4_exit_demo.py:1228-1233`): *"The product has no operation
-that writes an evidence record or an anchor, so the demonstration wrote the
-claim's own address and the record that rests on it itself. The report carries
-a real claim, cited to a cell of the material the CLI ingested — but the claim
-was made by the demonstration, not by the product."*
+**The product writes evidence records and anchors now.** The layer's
+`record_claim` (`src/labcairn/application/evidence.py`) writes an anchor and
+an `extracted` record that names it, and it is reachable from
+`labcairn task claim` and `POST /claims`; `list_source_addresses` is the
+listing beside it. The outsider walk records its claims through it.
+**The G4 exit demonstration predates that operation** and still writes its
+own claim — it is a record of the gate at its commit, not a description of
+the tree.
 
-**What this means for a reviewer:** the report machinery renders a claim and
-cites an address; the *writing* of that claim is currently the demonstration's
-job. A product-shaped path that produces a claim from the material is not
-demonstrated here.
+**What no surface does is run the ledger's checks.** `evidence.store.advance`
+is the only path to a verified state, and no module under `src/labcairn/`
+calls it — the records the product writes stay `extracted` until a test
+advances them. Nor does any surface accept a model's proposal:
+`record_claim` writes `created_by=user`.
+
+**What this means for a reviewer:** a report can be produced end to end from
+a record the product wrote, but the *words* of that record are the caller's.
+An extractor that proposes a claim from the material, and a surface that runs
+C1, C2 or C3, are not demonstrated.
 
 ### 6.5 G1's and G2's exit demonstrations were not run by a test — until now
 
@@ -682,21 +688,41 @@ was read by an admin-capable session belonging to the **implementing agent**,
 so the required checks are implementer-confirmed, not independently proven
 (`docs/PHASE_1_WORKORDERS.md:48`).
 
-### 6.7 The real-provider smoke has not been executed
+### 6.7 The real-provider smoke runs only where the owner names a credential
 
-**`src/labcairn/providers/pydantic_models.py` says so in its own
-docstring.** There **is** a test for it —
-`tests/test_provider_credentials.py:293` calls `smoke_test()` — and it is
-**skipped**, with the reason written down: it needs the project owner's
-explicit authorisation to spend money and a credential they supplied for
-that purpose (`tests/test_provider_credentials.py:286-292`). The marker is
-registered as *"needs a real paid provider credential; never runs in CI"*
-(`pyproject.toml:316`).
+**`src/labcairn/providers/pydantic_models.py` still says so in its own
+docstring, and it is now accurate in a different way.** The witness is
+`tests/test_real_provider_smoke.py:116`; it skips unless
+`live_settings()` (`tests/test_real_provider_smoke.py:76`) finds both
+`LABCAIRN_PROVIDER_SMOKE_KEY` and `LABCAIRN_PROVIDER_SMOKE_MODEL`, and a
+credential that merely happens to sit in a developer's environment —
+`ANTHROPIC_API_KEY`, say — does not satisfy it. The predicate is itself
+witnessed in the unit class (`tests/test_provider_credentials.py:309` and
+`tests/test_provider_credentials.py:355`), because a rule that gates a class
+cannot be checked only inside that class. The marker is registered as *"needs a
+real paid provider credential; skipped wherever the owner has not named one"*
+(`pyproject.toml:318`).
 
-**So the procedure is written and watched-to-not-run, and the gate itself is
-still open.** The Phase 1 protocol requires a real-model smoke with *"results
-and costs documented"* and says *"Mock-only success is insufficient"*
-(`docs/EVALUATION.md:17`). **That gate is not discharged.**
+**It has run.** Twice on 2026-10-28 against `MiniMax-M3.1-Flash` over an
+Anthropic-protocol endpoint: `tool_calls` and `usage_reporting` **ok**, both
+structured-output capabilities **unsupported** for a reason that is the client's,
+not the endpoint's (§6.9). The records differed only in `observed_at`.
+
+**So the procedure is written, it has been exercised, and the gate's shape has
+changed.** The Phase 1 protocol requires a real-model smoke with *"results and
+costs documented"* and says *"Mock-only success is insufficient"*
+(`docs/EVALUATION.md:17`). The credential now lives in the repository as an
+Actions secret, and `.github/workflows/provider-smoke.yml` is the job that spends
+it — on a schedule and on demand, and **never as a required status check**: a
+check that can only run where a secret exists is a check branch protection would
+wait on forever, and amendment C-1 forbids dressing that up with a path filter.
+The shard matrix therefore still skips this witness, and the gate is discharged
+by the workflow rather than by every pull request.
+**The harness's own veto was removed on 2026-10-28:** naming the class
+(`--classes real_model_smoke`) used to print the runnability table's assertion
+about the environment without checking it, which made the class unreachable by
+any invocation rather than merely skipped; it now runs the class and reports what
+came back.
 
 ### 6.8 `httpx` is not a declared dependency
 
@@ -707,8 +733,13 @@ version is not this project's to pin, and it is not.
 
 ### 6.9 Structured-output capability is unmeasured
 
-Both probes fail in pydantic-ai's client layer before a request is sent, so
+Both probes decline in pydantic-ai's client layer before a request is sent, so
 they say nothing about the endpoint (`docs/PHASE_1_WORKORDERS.md:44`).
+**Re-observed on 2026-10-28** against `MiniMax-M3.1-Flash`: the probe recorded
+`unsupported` with the exception's **class name** — `UserError` for the native
+form, `KeyError` for the prompted one — rather than attributing a local refusal
+to a remote model, which is the framing ADR-0002 refuses to propagate. The
+capability is still unmeasured, not absent.
 
 ### 6.10 Other machines and other processes are not defended against
 
@@ -743,12 +774,15 @@ about the product that is true of one platform and not the other.
 
 Stated here because they are real and because the code flags them itself:
 
-- **`ApprovalLedger.consume()` does not resolve the capability against the
-  registry** — a defence-in-depth gap whose ordering constraint belongs in an
-  ADR (`docs/PHASE_1_WORKORDERS.md:44`).
 - **`ArtifactLedger` is in memory** — so the ledger does not survive a
   process restart the way the SQLite store does
   (`docs/PHASE_1_WORKORDERS.md:42`).
+- ~~**`ApprovalLedger.consume()` does not resolve the capability against the
+  registry**~~ — **closed 2026-10-28.** `consume()` asks the registry and
+  refuses with `capability_unregistered`
+  (`src/labcairn/security/approval.py:210-220`); the fixtures that broke this
+  claim are `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
+  and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
 
 ---
 
@@ -774,7 +808,7 @@ drifts from the tree goes red.
 | C11 | The credential cannot be printed by accident | `test_threat_model.py` |
 | C12 | The declared outbound policy forbids sending document excerpts | `test_threat_model.py` |
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
-| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; the product has no operation that writes an evidence record or an anchor |
+| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; no product operation runs the ledger's checks |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
 
 **And the claims about the document itself are watched too.** The witness

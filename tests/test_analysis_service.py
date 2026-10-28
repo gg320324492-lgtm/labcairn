@@ -114,6 +114,13 @@ MEAN: str = "labcairn.analysis.mean"
 #: argument is none, so the tests that look at the parameters run this one.
 STDEV: str = "labcairn.analysis.stdev"
 
+#: The operator whose result is a table rather than a number -- the one the
+#: real renderer draws a figure from.
+GROUPED: str = "labcairn.analysis.grouped_aggregate"
+
+#: The statistic the grouped aggregate composes, once per group.
+AGGREGATE: str = "labcairn.analysis.mean@1.0.0"
+
 #: The source root the workspace binds, and the root-relative key of the
 #: material inside it.
 ROOT_ID: str = "source:0"
@@ -1486,6 +1493,40 @@ def _chart_recipe(scenario: Scenario) -> bytes:
     return json.dumps(document, sort_keys=True).encode("utf-8")
 
 
+def _grouped_recipe(scenario: Scenario) -> bytes:
+    """A recipe whose operator returns a table, so the renderer draws a figure.
+
+    The recipe beside every other test names ``mean``, whose result is a
+    scalar: the renderer declines it, which is the correct answer and the one
+    ``test_the_seam_asks_the_real_renderer_and_records_what_it_declined``
+    asserts. This one names the grouped aggregate over the ``groups.csv``
+    corpus, whose result is a table, so a real figure is produced.
+    """
+    document = {
+        "data": {
+            "operator": f"{GROUPED}@1.0.0",
+            "parameters": {"aggregate": AGGREGATE, "by": "group", "of": "value"},
+            "selection": {
+                "source": scenario.key,
+                "columns": ["group", "value"],
+                "rows": {"start": 2, "end": 17},
+                "missing": "exclude",
+            },
+        },
+        "encoding": {
+            "mark": "bar",
+            "x": "group",
+            "y": "value",
+            "title": "Mean value by group",
+            "x_label": "group",
+            "y_label": "mean value",
+            "caption": "The mean of the value column, computed once per group.",
+        },
+        "output": {"format": "svg", "dpi": 100},
+    }
+    return json.dumps(document, sort_keys=True).encode("utf-8")
+
+
 def _context(scenario: Scenario) -> ApplicationContext:
     """The application context a surface would hold."""
     return ApplicationContext(
@@ -1692,3 +1733,54 @@ def test_the_seam_asks_the_real_renderer_and_records_what_it_declined(
     )
     recorded = root / run.manifest_receipt.relative_path
     assert recorded.is_file(), "the manifest was recorded, figure or none"
+
+
+@pytest.mark.integration
+def test_the_seam_draws_a_real_figure_from_a_grouped_aggregate(
+    scenarios: Any,
+) -> None:
+    """The real renderer draws a table, and the file it wrote is the receipt's.
+
+    **The one claim the other seam tests leave unwitnessed.** They draw with the
+    stand-in, and the integration test above runs the real renderer against a
+    scalar, where ``render()`` correctly returns ``None``. So nothing showed a
+    real figure coming *through* the seam: the recipe read and judged by the
+    layer, the grouped operator's table, the renderer's bytes, and a receipt
+    whose hash is the file's. This runs matplotlib once and asserts exactly
+    that chain.
+    """
+    scenario = scenarios(
+        "grouped",
+        fixture="groups.csv",
+        columns=("group", "value"),
+        rows=RowRange(2, 17),
+    )
+    root = scenario.workspace.selected_root
+    (root / RECIPE).write_bytes(_grouped_recipe(scenario))
+    extra = {"aggregate": AGGREGATE, "by": "group", "of": "value"}
+    granted = scenario.grant(operator_id=GROUPED, extra=extra)
+
+    run = run_figure(
+        _context(scenario),
+        _figure_request(
+            scenario,
+            granted,
+            operator_id=GROUPED,
+            parameters=scenario.parameters(extra=extra),
+        ),
+        now=scenario.now,
+    )
+
+    assert run.result_kind == "GroupedResult", "the grouped aggregate returned a table"
+    assert run.figure_receipt is not None, "a table is a figure, and the seam drew none"
+    written = root / run.figure_receipt.relative_path
+    drawn = written.read_bytes()
+    assert b"<svg" in drawn, "the recipe asked for SVG and the file is not one"
+    assert run.figure_receipt.content_sha256 == hashlib.sha256(drawn).hexdigest(), (
+        "the receipt's hash is the bytes the renderer wrote"
+    )
+    assert run.figure_receipt.derived_from[0].target_id == run.manifest_receipt.receipt_id, (
+        "the figure's chain names the manifest that describes its numbers"
+    )
+    signed = hashlib.sha256((root / RECIPE).read_bytes()).hexdigest()
+    assert run.manifest.recipe.content_sha256 == signed

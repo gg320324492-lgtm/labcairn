@@ -186,6 +186,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_api.py": ("integration", "api-auth"),
     "test_api_concurrency.py": ("integration", "event-append"),
     "test_application_approvals.py": ("integration", "approvals"),
+    "test_application_evidence.py": ("integration", "dataset-locators"),
     "test_application_ingestion.py": ("integration", "dataset-locators"),
     "test_application_layer.py": ("integration", "approvals"),
     "test_cli.py": ("e2e", "cli-task"),
@@ -208,6 +209,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_evidence_retrieval.py": ("negative", "insufficient-evidence"),
     "test_evidence_schema.py": ("integration", "migrations"),
     "test_evidence_store.py": ("integration", "event-append"),
+    "test_event_payload_vocabulary.py": ("integration", "event-append"),
     "test_paper_fixtures.py": ("unit", "dataset-locators"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
@@ -232,6 +234,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_provider_capabilities.py": ("unit", "typed-contracts"),
     "test_provider_credentials.py": ("unit", "typed-contracts"),
     "test_provider_redaction.py": ("unit", "provider-redaction"),
+    # The protocol's fifth class. The file also carries the offline witnesses
+    # for its own skip predicate, which is how a class that spends money is
+    # kept honest on a run that does not: the rules that decide whether it runs
+    # are tested by name, in CI, and the live probe next to them skips.
+    "test_real_provider_smoke.py": ("real_model_smoke", "real-provider"),
     # -- recovery -----------------------------------------------------------
     "test_recovery_approvals.py": ("integration", "approvals"),
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
@@ -406,9 +413,11 @@ BLOCKER_PREFIXES: Final[dict[str, str]] = {
     "required ci tests are skipped": "no-skipped-required-tests",
 }
 
-#: The file that carries the real-model smoke once it exists. LC-P1-13 T04
-#: owns it; until it lands, the class has no witness and the report says
-#: that, next to the reason the class was not run.
+#: The file that carries the real-model smoke. LC-P1-13 T04 named it and never
+#: wrote it, so the class had no witness and the report could only say NOT RUN
+#: for a reason that was really "there is nothing to run". The file exists now;
+#: the class is still reported as not run offline, because the probe spends
+#: money and no CI run of this repository holds a credential.
 REAL_MODEL_SMOKE_FILE: Final = "test_real_provider_smoke.py"
 
 

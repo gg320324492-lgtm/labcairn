@@ -108,7 +108,9 @@ is missing is a credential configured in this tree, and the owner's
 authorisation to spend money on one** — which is §1.4.2's decision, and it is
 not this document's to make. **The project has held a credential once**: the
 live probe at `b237751` ran on one the owner supplied, and nothing of it was
-committed.
+committed. *(Corrected 2026-10-28: **twice now** — the same owner supplied one
+for the probe that ran from the suite on that date, and again, nothing of it was
+committed. The tree still holds no credential, and CI still reads none.)*
 
 **The protocol does not require one for Phase 1's acceptance.** The six
 Phase 1 blockers in `docs/EVALUATION.md` are about the clean-environment
@@ -561,6 +563,19 @@ provider ran **in the harness's run**, so there is no cost to report, and the
 offline run's model is not a declared model, version and parameter set. *(The
 one live call this project has made — `b237751`, 2026-10-16 — was a capability
 probe outside the harness, and it records no cost against this run.)*
+
+**Corrected 2026-10-28.** Two things in this section were overtaken. The class
+now has its witness file — `tests/test_real_provider_smoke.py`, which
+`manifest.REAL_MODEL_SMOKE_FILE` had named since T04 without one ever existing —
+so the marker's file is no longer a file "nothing runs"; and the probe **has run**
+twice, on a credential the owner supplied for the purpose, against
+`MiniMax-M3.1-Flash` over an Anthropic-protocol endpoint. **What this section
+concludes is unchanged, and for the same reason:** those probes were capability
+probes, not a harness run, so the run's basis still declares no model and no
+cost, and §5.1's precondition still sits in front of any comparison. *"Never
+runs, on any platform"* is now *"skips on every run that holds no credential"*,
+which is the same sentence about CI and a different sentence about the owner's
+machine.
 
 ### 4.2 The task-level metrics — three NOT MEASURED, and one measured at the corpus's own layer
 

@@ -239,14 +239,31 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.monotonic()
     runs = []
+    #: Whether the reader named the classes, rather than taking the default of
+    #: all of them. This is the only distinction between "the run may spend
+    #: money" and "it may not", and it is a command-line fact rather than a
+    #: guess about the environment.
+    named_on_the_command_line = bool(args.classes.strip())
     for gate_class in (*protocol.gate_classes, manifest.REPOSITORY_GATE_CLASS):
         files = manifest.paths_for_class(gate_class.key)
         if gate_class.key not in selected:
             runs.append(_not_selected(gate_class.key, files, "this class was not selected"))
             continue
-        if not gate_class.runnable_offline:
+        if not gate_class.runnable_offline and not named_on_the_command_line:
             runs.append(_not_runnable(gate_class.key, files, gate_class.offline_reason))
             continue
+        if not gate_class.runnable_offline:
+            # The reader named a class the runnability table says is not
+            # runnable offline, so the table's sentence about the environment
+            # is no longer allowed to stand in for an observation: the class's
+            # own witness skips when no credential is named, and the report says
+            # that with the reason the test gave rather than this harness's
+            # guess about somebody else's machine.
+            _print(
+                f"the {gate_class.label} class was named on the command line, so its own "
+                "witness decides what happens — it spends money if a credential is named, "
+                "and skips if not.\n"
+            )
         _print(f"running the {gate_class.label} class ({len(files)} files)...\n")
         runs.append(
             run_class(

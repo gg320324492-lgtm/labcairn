@@ -18,11 +18,16 @@
  */
 
 import type {
+  AnalysisBody,
   Approval,
+  ApprovalBody,
   ApprovalGranted,
+  ApprovalRequested,
   ArtifactReceipt,
   ArtifactView,
+  FigureRun,
   Health,
+  Selection,
   SessionInfo,
   Source,
   SourceView,
@@ -236,6 +241,24 @@ export class FakeApi {
   /** How many report renders the service has been asked for. */
   reportRenders = 0
 
+  /**
+   * Whether the service refuses the figure run.
+   *
+   * A run is refused before anything is written — a consent that does not
+   * cover the exact request, a policy that says no, or a material that moved —
+   * so the page's only correct response is to show the service's reason.
+   */
+  refuseAnalysis = false
+
+  /** Whether the operator's result produces no figure, as a scalar's does. */
+  figureless = false
+
+  /** How many figure runs the service has been asked for. */
+  analysisRuns = 0
+
+  /** How many consent questions the service has been asked to write down. */
+  approvalRequests = 0
+
   /** How long a grant takes to answer, in milliseconds. */
   grantDelayMs = 0
 
@@ -296,6 +319,118 @@ export class FakeApi {
       approval.granted_at = '2026-10-20T09:30:00+00:00'
       const granted: ApprovalGranted = { approval }
       return jsonResponse(200, granted)
+    }
+
+    if (method === 'POST' && path === '/approvals') {
+      this.approvalRequests += 1
+      const body = JSON.parse(init?.body as string) as ApprovalBody
+      const approval: Approval = {
+        approval_id: '0193f0a1-0000-7000-8000-0000000000c3',
+        task_id: TASK_ID,
+        operation_id: '0193f0a1-0000-7000-8000-0000000000c4',
+        capability: body.capability,
+        resource_key: body.resource_key,
+        args_digest: 'f'.repeat(64),
+        state: 'pending',
+        expires_at: body.expires_at,
+      }
+      // Adding it to the task is what lets the Approval panel show it: the
+      // question the page asked is a record, and the screen reads records.
+      this.state.task.approvals.push(approval)
+      const requested: ApprovalRequested = {
+        operation: {
+          task_id: TASK_ID,
+          run_id: '0193f0a1-0000-7000-8000-0000000000d2',
+          stage_id: '0193f0a1-0000-7000-8000-0000000000d1',
+          state: 'awaiting_approval',
+          capability: body.capability,
+          resource_key: body.resource_key,
+          depends_on: body.depends_on ?? [],
+          args_digest: approval.args_digest,
+        },
+        approval,
+      }
+      return jsonResponse(201, requested)
+    }
+
+    if (method === 'POST' && path === '/analysis') {
+      this.analysisRuns += 1
+      const body = JSON.parse(init?.body as string) as AnalysisBody
+      const first = this.state.sources[0]
+      if (first === undefined) {
+        return jsonResponse(404, {
+          reason: 'source_not_found',
+          message: 'this task is bound to no source.',
+        })
+      }
+      if (this.refuseAnalysis) {
+        return jsonResponse(403, {
+          reason: 'approval_missing',
+          message:
+            'analysis refused (approval_missing): the approval does not cover this exact ' +
+            'request. Nothing was written.',
+        })
+      }
+      const selection: Selection = {
+        source_id: first.source.source_id,
+        content_sha256: first.source.content_sha256,
+        columns: ['value'],
+        rows: { start: 2, end: 3 },
+        missing: 'exclude',
+      }
+      const figure = this.figureless
+        ? null
+        : {
+            ...figureReceipt(),
+            receipt_id: '0193f0a1-0000-7000-8000-0000000000a4',
+            relative_path: 'analysis/figure.svg',
+            content_sha256: 'd'.repeat(64),
+          }
+      if (figure !== null) {
+        this.state.task.artifacts.push(figure)
+        this.state.artifacts.push({ receipt: figure, resource_key: figure.relative_path })
+      }
+      const drawn: FigureRun = {
+        source: first.source,
+        selection,
+        result: { groups: [] },
+        result_kind: 'GroupedResult',
+        manifest: {
+          input_file: {
+            relative_path: body.path,
+            content_sha256: first.source.content_sha256,
+          },
+          operator: body.operator_id,
+          locator: {
+            operator_id: body.operator_id,
+            operator_version: '1.0.0',
+            parameters: {},
+            input_hashes: [first.source.content_sha256],
+          },
+          recipe: { relative_path: body.recipe, content_sha256: 'e'.repeat(64) },
+          output: {},
+          output_sha256: 'f'.repeat(64),
+          environment: {
+            matplotlib_version: '3.10.0',
+            svg_hashsalt: '0',
+            font_families: ['DejaVu Sans'],
+            platform: 'win32',
+          },
+        },
+        manifest_receipt: {
+          receipt_id: '0193f0a1-0000-7000-8000-0000000000a3',
+          task_id: TASK_ID,
+          kind: 'manifest',
+          relative_path: 'analysis/manifest.json',
+          content_sha256: 'e'.repeat(64),
+          size_bytes: 512,
+          produced_by: 'analysis_operator',
+          producer_id: body.operator_id,
+          created_at: '2026-10-27T09:10:00+00:00',
+        },
+        figure_receipt: figure,
+      }
+      return jsonResponse(201, drawn)
     }
 
     if (method === 'POST' && path === '/report') {

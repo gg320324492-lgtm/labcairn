@@ -65,7 +65,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from rich.console import Console, RenderableType
 
-    from labcairn.application import ApplicationContext, MaterialIngested
+    from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
     from labcairn.application.sources import SourceView
     from labcairn.application.stages import StageOutcome, TaskPlan
     from labcairn.application.tasks import TaskState
@@ -1079,6 +1079,109 @@ def task_report(
         )
 
 
+@task_app.command("claim")
+def task_claim(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The material the claim is read from.")],
+    address: Annotated[
+        str,
+        typer.Option(
+            "--address",
+            help="The address inside the material, as `sources addresses` prints it.",
+        ),
+    ],
+    kind: Annotated[
+        str,
+        typer.Option("--kind", help="The record's kind: 'claim' (a quotation) or 'numeric'."),
+    ] = "claim",
+    text: Annotated[
+        str | None,
+        typer.Option("--text", help="The statement, for --kind claim."),
+    ] = None,
+    span: Annotated[
+        str | None,
+        typer.Option(
+            "--span",
+            help="The literal text copied out of the material. Defaults to the address's text.",
+        ),
+    ] = None,
+    value: Annotated[
+        float | None,
+        typer.Option("--value", help="The quantity, for --kind numeric."),
+    ] = None,
+    unit: Annotated[
+        str | None,
+        typer.Option("--unit", help="The declared unit, for --kind numeric. Never inferred."),
+    ] = None,
+    tolerance: Annotated[
+        float | None,
+        typer.Option("--tolerance", help="The declared comparison tolerance, for --kind numeric."),
+    ] = None,
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Record a claim the material supports, at an address it answers.
+
+    This is the product's one way to say *the material says this, here*. It
+    writes an anchor bound to the source's current bytes and an ``extracted``
+    record that cites it, and it runs no check: C1, C2 and C3 are separate acts.
+
+    **The record is refused if any of these is not true**, and nothing is
+    written: the task holds the material, the material is readable, and the
+    address resolves in the bytes the ledger holds now. Read the addresses
+    with `labcairn sources addresses --source <id>`; the text at one of them
+    is what `--span` copies.
+
+    A numeric record declares its unit — ``--unit dimensionless`` is a
+    declaration, and leaving it out is not the same claim.
+    """
+    from labcairn.application import ClaimRequest, record_claim
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.evidence.states import EvidenceKind
+
+    try:
+        parsed_kind = EvidenceKind(kind)
+    except ValueError:
+        kinds = ", ".join(item.value for item in EvidenceKind)
+        with _refusals(as_json):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{kind!r} is not an evidence kind: {kinds}.",
+                as_json=as_json,
+            )
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            recorded = record_claim(
+                context,
+                ClaimRequest(
+                    source_id=source,
+                    locator_key=address,
+                    kind=parsed_kind,
+                    text=text,
+                    span=span,
+                    value=value,
+                    unit=unit,
+                    tolerance=tolerance,
+                ),
+            )
+    if as_json:
+        emit_model(recorded)
+    else:
+        record = recorded.record
+        stated = record.text if record.text is not None else f"{record.value} {record.unit}"
+        _console().print(
+            f"[bold]{record.evidence_id}[/bold] — {record.kind.value}, {record.status.value}\n"
+            f"{stated}\n"
+            f"anchor {recorded.anchor_id} at {address}"
+        )
+
+
 @task_app.command("approval-request")
 def task_approval_request(
     ctx: typer.Context,
@@ -1515,6 +1618,53 @@ def sources_inspect(
         emit_model(model)
     else:
         _console().print(render.render_source(model))
+
+
+@sources_app.command("addresses")
+def sources_addresses(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Option("--source", help="The source to list addresses in.")],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """List every address the ledger holds text for in one material.
+
+    These are the addresses a claim can be recorded at: each one's text is what
+    `labcairn task claim --span` copies, and the address is what `--address`
+    names. The keys are the ledger's own, so a key printed here is a key the
+    claim accepts.
+
+    The text is what the ingestion stored, not the file re-read.
+    """
+    from labcairn.application import SourceAddress, list_source_addresses
+    from labcairn.cli.models import emit_models
+    from labcairn.cli.workspace import application_context, locate
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            addresses = list_source_addresses(context, source)
+    if as_json:
+        emit_models(addresses, SourceAddress)
+    else:
+        _console().print(_render_addresses(addresses))
+
+
+def _render_addresses(addresses: Sequence[SourceAddress]) -> RenderableType:
+    """The addresses, drawn from the same value the ``--json`` form serialises."""
+    from rich.table import Table
+
+    table = Table(title="addresses", show_lines=False)
+    table.add_column("address", style="bold")
+    table.add_column("kind")
+    table.add_column("text")
+    for address in addresses:
+        text = address.text if len(address.text) <= 80 else address.text[:77] + "..."
+        table.add_row(address.locator_key, address.locator_kind, text.replace("\n", "\\n"))
+    return table
 
 
 @sources_app.command("ingest")

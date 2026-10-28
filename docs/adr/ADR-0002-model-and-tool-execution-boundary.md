@@ -429,7 +429,7 @@ Implemented by LC-P1-03 (`labcairn/core/`), verified by LC-P1-13 (`tests/integra
 ### Integration
 
 - **`test_fake_provider_e2e_full_task_without_network`** — the whole Phase 1 deliverable path against `FakeProvider`, covering both an `OK` capability set and an `UNSUPPORTED` one.
-- **`test_real_provider_smoke_records_capabilities_and_usage`** — one live call per supported protocol; records probe results and asserts usage is `Known` or explicitly `Unknown` — never silently `Known(0)`.
+- **`tests/test_real_provider_smoke.py::test_real_provider_smoke_records_capabilities_and_usage`** — one live probe of the four capabilities, against the endpoint and model the owner names through `LABCAIRN_PROVIDER_SMOKE_*`; it records which model it probed, and it skips when no credential is named. Corrected 2026-10-28: this test used to live in `test_provider_credentials.py` with the protocol and model hard-coded and `environ={}` passed to the loader, which meant **no credential on any machine could have run it** — the release notes' §2.7 records the first real runs.
 
 ## Re-evaluation trigger
 

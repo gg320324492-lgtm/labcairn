@@ -39,8 +39,10 @@ test names the property it holds:
   makes abstention measurable.
 * **The comparison refuses a baseline that is not like-for-like**, and the
   rendered comparison carries no winner's language.
-* **The real-model smoke is reported as not run**, with its reason, and is
-  never counted as a pass.
+* **The real-model smoke is reported as not run by default**, with its reason,
+  and is never counted as a pass — and a reader who **names** it on the command
+  line gets it run rather than refused, because a class that nothing can ever
+  run is not a class that is skipped, it is a class that is unreachable.
 * **The report names the tree it measured**, so a revision cannot stand in
   for a working tree that held changes the commit did not.
 
@@ -100,12 +102,26 @@ _ROOT: Final = Path(__file__).resolve().parent.parent
 SMOKE_FILE: Final = "test_scaffolding.py"
 
 #: The marker a file may declare, and the gate class each one names.
+#:
+#: ``requires_provider`` names the protocol's fifth class. Without it that class
+#: was **unreachable by construction**: the check below forbids filing a file
+#: that declares no marker, and the only markers the vocabulary held were the
+#: four offline ones — so a real-provider probe could never be filed, which is
+#: one of the reasons the class sat for two gates naming a witness file that did
+#: not exist.
 MARKER_CLASSES: Final[dict[str, str]] = {
     "unit": "unit",
     "integration": "integration",
     "negative": "negative",
     "e2e": "e2e",
+    "requires_provider": "real_model_smoke",
 }
+
+#: What a declared marker looks like. One pattern, read by both checks below, so
+#: the two cannot drift into different definitions of the same word.
+MARKER_PATTERN: Final = re.compile(
+    r"pytest\.mark\.(unit|integration|negative|e2e|requires_provider)\b"
+)
 
 
 def _protocol(repo_root: Path) -> Any:
@@ -160,7 +176,7 @@ def test_the_partition_agrees_with_the_markers_a_file_declares(repo_root: Path) 
     """
     for name, (class_key, _clause) in manifest.FILE_ASSIGNMENTS.items():
         text = (repo_root / "tests" / name).read_text(encoding="utf-8")
-        declared = set(re.findall(r"pytest\.mark\.(unit|integration|negative|e2e)\b", text))
+        declared = set(MARKER_PATTERN.findall(text))
         if not declared:
             continue
         allowed = {MARKER_CLASSES[marker] for marker in declared}
@@ -191,7 +207,7 @@ def test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class(
     """
     for name, (class_key, _clause) in manifest.FILE_ASSIGNMENTS.items():
         text = (repo_root / "tests" / name).read_text(encoding="utf-8")
-        declared = set(re.findall(r"pytest\.mark\.(unit|integration|negative|e2e)\b", text))
+        declared = set(MARKER_PATTERN.findall(text))
         if class_key == manifest.REPOSITORY_CLASS:
             assert not declared, (
                 f"{name} is filed under the repository class and declares "
@@ -874,6 +890,27 @@ def test_the_real_model_smoke_is_reported_as_not_run_with_its_reason() -> None:
     assert "mock-only success is insufficient" in smoke.offline_reason
 
 
+def test_the_real_model_smoke_class_has_a_file_that_carries_it(
+    repo_root: Path,
+) -> None:
+    """The fifth class is **not runnable**, which is not the same as **has no witness**.
+
+    ``REAL_MODEL_SMOKE_FILE`` named a file for two gates and never had one, so
+    the report said NOT RUN for a reason that was really "there is nothing to
+    run", and the only live probe the project ever made was a hand-call in a
+    merge message. This check is what stops that quietly coming back: a renamed
+    or deleted probe file leaves the class without its witness and fails here.
+    """
+    filed = manifest.files_for_class("real_model_smoke")
+    assert filed == (manifest.REAL_MODEL_SMOKE_FILE,), (
+        f"the class's witness file is named in one place and filed in another: {filed}"
+    )
+    assert (repo_root / "tests" / manifest.REAL_MODEL_SMOKE_FILE).is_file(), (
+        "the harness names a probe file that is not in the tree, so the class "
+        "reports NOT RUN while nothing could run it on any machine"
+    )
+
+
 def test_the_real_model_smoke_is_not_counted_as_a_pass() -> None:
     """A class that did not run has no rate, and is not a pass.
 
@@ -980,18 +1017,21 @@ def test_the_command_writes_a_report_and_says_what_it_found(
     assert code in (EXIT_OK, EXIT_FAILED)
 
 
-def test_the_command_reports_the_classes_it_could_not_run(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+def test_the_default_run_reports_the_real_model_class_as_not_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Selecting the real-model smoke reports it as NOT RUN and exits 2.
+    """The default run refuses the class that spends money, and says so.
 
-    The default selection includes it, so the default run says the truth
-    about the protocol not being satisfied: the tool did its job and the
-    protocol is still unmet, because there is no credential for a real
-    provider.
+    The default selection includes every class, so the default report says the
+    truth about the protocol not being satisfied: the tool did its job and the
+    protocol is still unmet, because no credential was named. **What this test
+    is really watching is that the inner run was never invoked for that class**
+    — a harness that reported NOT RUN while quietly spending money would be
+    worse than one that refuses.
     """
     from evaluation import cli
+
+    called: list[str] = []
 
     def fake_run_class(
         repo_root: Path,
@@ -1000,11 +1040,73 @@ def test_the_command_reports_the_classes_it_could_not_run(
         temp_root: Path,
         **kwargs: Any,
     ) -> ClassRun:
+        called.append(key)
         return ClassRun(
             key=key,
             files=files,
-            outcomes=(),
+            outcomes=(_outcome("tests/test_one.py", "test_passes", PASSED),),
             exit_code=0,
+            duration_seconds=0.0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(cli, "run_class", fake_run_class)
+    out = tmp_path / "report"
+    code = main(["--out", str(out)])
+    markdown = (out / "evaluation-report.md").read_text(encoding="utf-8")
+    assert "real_model_smoke" not in called, "the default run invoked the class that spends money"
+    assert code == EXIT_NOT_RUN
+    assert "NOT RUN" in markdown
+    assert "real supported provider" in markdown
+
+
+def test_a_class_named_on_the_command_line_is_run_rather_than_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Naming the fifth class makes the harness **run it**, not decline it.
+
+    The runnability table is a statement about the *default* run. It was also
+    being used as a veto: selecting the class still refused it, on a sentence
+    the harness asserted about the environment without looking — so the
+    protocol's fifth class could not be discharged by any invocation, only
+    reported. That is the difference between a gate class that is skipped and
+    one that is unreachable, and a reader who supplied a credential had no way
+    to tell the two apart.
+
+    **What the report must then carry is the witness's own reason, not the
+    table's.** A skip that names `LABCAIRN_PROVIDER_SMOKE_KEY` is a fact about
+    this run; the table's paragraph is a fact about the protocol.
+    """
+    from evaluation import cli
+
+    called: list[str] = []
+    skip_reason = (
+        "NOT RUN. Needs the project owner's authorisation to spend money, "
+        "expressed as LABCAIRN_PROVIDER_SMOKE_KEY and LABCAIRN_PROVIDER_SMOKE_MODEL"
+    )
+
+    def fake_run_class(
+        repo_root: Path,
+        key: str,
+        files: tuple[str, ...],
+        temp_root: Path,
+        **kwargs: Any,
+    ) -> ClassRun:
+        called.append(key)
+        outcome = TestOutcome(
+            file="tests/test_real_provider_smoke.py",
+            node_id="tests/test_real_provider_smoke.py::test_real_provider_smoke_records_capabilities_and_usage",
+            status=SKIPPED,
+            duration_seconds=0.0,
+            message=skip_reason,
+        )
+        return ClassRun(
+            key=key,
+            files=files,
+            outcomes=(outcome,),
+            exit_code=1,
             duration_seconds=0.0,
             stdout="",
             stderr="",
@@ -1014,9 +1116,17 @@ def test_the_command_reports_the_classes_it_could_not_run(
     out = tmp_path / "report"
     code = main(["--out", str(out), "--classes", "real_model_smoke"])
     markdown = (out / "evaluation-report.md").read_text(encoding="utf-8")
-    assert code == EXIT_NOT_RUN
-    assert "NOT RUN" in markdown
-    assert "real supported provider" in markdown
+
+    assert called == ["real_model_smoke"], f"the class was named and not run: {called}"
+    assert code == EXIT_FAILED, (
+        "a class whose witness skipped is a failure to pass, not a harness that "
+        "could not run anything — the two are different facts and the exit code "
+        "is where a reader tells them apart"
+    )
+    assert skip_reason in markdown, (
+        "the report carried the table's sentence about the environment instead "
+        "of the reason the witness actually gave"
+    )
 
 
 def test_the_report_and_the_json_say_the_same_thing(

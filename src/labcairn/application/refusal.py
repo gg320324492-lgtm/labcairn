@@ -60,6 +60,18 @@ class ApplicationRefusal(StrEnum):
     TASK_NOT_FOUND = "task_not_found"
     #: The ledger holds no source with that id.
     SOURCE_NOT_FOUND = "source_not_found"
+    #: The source exists, and the task does not hold it. A claim rested on
+    #: material the task does not carry would be an anchor the report builder
+    #: refuses, so the write is refused where the mistake is made.
+    SOURCE_NOT_BOUND = "source_not_bound"
+    #: The ledger holds no text at the address named, in the bytes the source
+    #: currently holds.
+    ADDRESS_NOT_FOUND = "address_not_found"
+    #: The task's ledger already holds a record whose extracted span hashes to
+    #: the same value. ``uq_evidence_task_span`` permits one record per span
+    #: per task, so the second write is refused by name rather than by a
+    #: constraint error out of the middle of the transaction.
+    CLAIM_ALREADY_RECORDED = "claim_already_recorded"
     #: The store holds no artefact with that id.
     ARTIFACT_NOT_FOUND = "artifact_not_found"
     #: The store holds no operation with that id.

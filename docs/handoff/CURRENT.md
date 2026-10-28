@@ -81,21 +81,37 @@ And, from LC-P1-12: **three surfaces behind one application layer.** The layer t
 
 ## What does not exist yet
 
-**The report gained a surface since the gate; the figure did not.**
+**The report and the figure both gained surfaces since the gate.**
 `labcairn task report`, `POST /report` and the workbench's **Render the report**
 button all call the layer's own `render_report`; the surfaces answer with its own
 `ReportRendered`, and a fresh workspace permits
-`report.render` (the registry binds it to output roots). **The figure followed
-it**: `labcairn task figure` and `POST /analysis` call `run_figure` through the
-same layer, with `task approval-request` / `task approval-grant` beside them,
-because ADR-0012 constraint 7 moved the recipe inside `analysis.run`'s consented
-arguments. **What the surfaces
-still cannot do is produce a report from nothing**: no operation writes an
-evidence record, so a bare task is refused with `report_content_refused` and the
-output area stays empty, and the success path remains the walk's, which writes
-the record itself. `run_analysis` still has no command and no route, so the
-deterministic figure is still reached through a Python import.
-`docs/RELEASE-NOTES.md` §2.1 carries both.
+`report.render` (the registry binds it to output roots). The figure followed it:
+`labcairn task figure` and `POST /analysis` call `run_figure` through the same
+layer, with `task approval-request` / `task approval-grant` beside them, because
+ADR-0012 constraint 7 moved the recipe inside `analysis.run`'s consented
+arguments. **The surfaces can give a task a claim to carry now.**
+`labcairn task claim` and `POST /claims` call the layer's `record_claim`, and
+`labcairn sources addresses` and `GET /sources/{source_id}/addresses` list the
+addresses a claim can rest on. A bare task is still refused with
+`report_content_refused` and leaves the output area empty — that is the correct
+answer, not the gap. **What remains is that the claim's words are the
+caller's**: no operation extracts a claim from the material, accepts a model's
+proposal, or runs C1, C2 or C3, so the records the product writes stay
+`extracted`. **The workbench draws a figure in the same two steps**: its Figure
+panel builds the selection from the source the service reports, asks
+`POST /approvals`, leaves the question in the Approval panel, and draws with
+`POST /analysis` once the answer is granted; a run whose consent is missing is
+refused with the service's own reason. `docs/RELEASE-NOTES.md` §2.2 carries
+that limit.
+
+**The shard file's costs predate this work, and its own witness says so.**
+`tests/test_application_evidence.py` is in shard 0 on both platforms, but it
+has no measured cost recorded, and `tests/test_cli.py` has changed since the
+costs were taken at `598e788`, so `tests/test_ci_shard_coverage.py` is red on
+its two cost checks until the owner re-measures from a CI run:
+`python .github/remeasure_shards.py <run-id>`. **The costs are a measurement
+and are not invented here** — the membership fix is the part a tree can make,
+and the numbers are the part a runner has to produce.
 
 **There is still no model call that leaves the machine.** All four cite-support checks now have bodies, and `IMPLEMENTED_CHECKS` is every one of them — the set no longer distinguishes "implemented" from "not", and what still separates them is that C4 can never return a pass.
 
@@ -111,7 +127,10 @@ Retrieval now answers the two-negative question (T10): a search that breaks is a
 
 ## What G5 closed, and what it handed over
 
-**G5 is closed** — LC-P1-13 (evaluation, fault injection, the competitor baseline) and LC-P1-14 (the public alpha handoff: the delivery documents, the release contents, the review dossier, the licence audit), the last two of Phase 1. Its exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**; the fifth, the real-provider smoke, **has never run as a standing witness** and cannot here: no credential is configured in this tree, and Phase 1's **default offline run** reads no environment variable (the provider layer reads one, but only where a workspace's `providers.json` names it). **That is the owner's decision**, and the gate did not make it. **The clause and the class are different things**: LC-P1-03's *"real smoke on at least one provider"* was met once, by hand, at `b237751` on an owner-supplied credential; the protocol's real-model smoke **class** is still NOT RUN and the harness exits 2 because of it. **Two things it handed over are limits rather than defects**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte*; and the protocol's real-model smoke is still owed.
+**G5 is closed** — LC-P1-13 (evaluation, fault injection, the competitor baseline) and LC-P1-14 (the public alpha handoff: the delivery documents, the release contents, the review dossier, the licence audit), the last two of Phase 1. Its exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**; the fifth, the real-provider smoke, **has never run as a standing witness** and cannot here: no credential is configured in this tree, and Phase 1's **default offline run** reads no environment variable (the provider layer reads one, but only where a workspace's `providers.json` names it). **That is the owner's decision**, and the gate did not make it. **The clause and the class are different things**: LC-P1-03's *"real smoke on at least one provider"* was met once, by hand, at `b237751` on an owner-supplied credential; the protocol's real-model smoke **class** is still NOT RUN and the harness exits 2 because of it. **Two things it handed over are limits rather than defects**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte*; and the protocol's real-model smoke is still owed. **Owed in a narrower sense since
+2026-10-28:** the class has its witness file, it has run against a real endpoint
+twice, and the harness will now run it when a reader names it — what is owed is a
+**CI secret**, not an implementation.
 
 **The first of those is closed since the gate, and the second still is not.** `run_stage` now calls `labcairn.application.recovery.reconcile_abandoned` after the policy verdict and before any consent is spent: an operation a crash left `ATTEMPTING` becomes `UNCERTAIN`, its stage is blocked with the recovery layer's own reason, and the next `task run` or `POST /stages` is **refused** with `operation_uncertain` instead of planning a twin. **A surface may not answer the doubt itself** — the hash a probe compares against lived inside `args_digest`, a hash of a hash, and no stored row can give it back — so the operator does, with `labcairn task reconcile <operation-id> --expected-sha256 <hash>`; for the inventory stage that number is the one `labcairn sources inspect` prints, and a `CONFLICT` leaves the operation `UNCERTAIN`, the stage blocked, and the probed path untouched. **What remains is the other half**: the transaction the crash interrupted (confirmation, completed stage, receipts) is performed by the run that follows, so one landed effect leaves two operation rows. That is written in [ADR-0003 C2](../adr/ADR-0003-event-and-permission-model.md) and asserted by `tests/test_fault_injection_e2e.py`.
 
@@ -152,7 +171,20 @@ licence audit, and the two READMEs), delivered at `72154cd` (PR #116) and
 that wrote none of its fixes — the first's verdict moved **FAIL → PASS** after its
 findings were fixed, the second is **PASS WITH NOTES**. Its ten subtasks (T00–T03,
 T05–T09) are merged; **T04 is the owner's** — the real-provider smoke needs a
-credential and an authorisation. The [gate review](../acceptance/G5-acceptance.md)
+credential and an authorisation. **Its half moved on 2026-10-28:** the class now
+has the witness file `manifest.REAL_MODEL_SMOKE_FILE` had named since T04 without
+ever having one — `tests/test_real_provider_smoke.py` — and it **ran twice** on a
+credential the owner supplied for the purpose (`MiniMax-M3.1-Flash`, protocol
+`anthropic`, endpoint `https://api.minimax.cn/anthropic`: `tool_calls` and
+`usage_reporting` ok, both structured-output forms declined inside pydantic-ai
+before a request was sent, which is §2.14's claim re-measured). **What is still the owner's is narrower now, and it is a ruling rather than a
+setup:** the credential is configured on the repository and
+`.github/workflows/provider-smoke.yml` spends it — on a schedule and on demand,
+and **deliberately not as a required status check**, because a check that can
+only pass where a secret exists is one branch protection would wait on forever.
+So the default harness run still reports the class NOT RUN and exits 2, and the
+question left is whether a non-required scheduled witness is what §1.4.2 meant.
+The [gate review](../acceptance/G5-acceptance.md)
 carries the method and every finding.
 
 **The licence audit's factual half is done**
@@ -261,7 +293,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **LC-P1-08:** `UNPARSEABLE` is a mixed bucket — a container that would not
   open, and a page deliberately not read. Both are honestly "not citable, here
   is why", but only the disclosure separates them.
-- **G1:** `ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first. The ordering constraint belongs in an ADR.
+- **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:210-220`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
 - **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
 - **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
 - **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.

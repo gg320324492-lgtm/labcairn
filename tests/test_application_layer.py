@@ -220,7 +220,9 @@ def _stage_request(
     return StageRequest(
         stage_name=stage_name,
         capability=capability,
-        arguments=arguments if arguments is not None else {"operator_id": "mean", "parameters": {}},
+        arguments=arguments
+        if arguments is not None
+        else {"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id=root_id,
         resource_key=resource_key,
         run_id=run_id,
@@ -319,6 +321,10 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.artifacts",
         "labcairn.application.context",
         "labcairn.application.events",
+        # A layer operation like the readers beside it: it answers through the
+        # store's own readers and writes through ``db.materials``, and its
+        # import of ``LOCAL_USER_ID`` is the actor of a surface operation.
+        "labcairn.application.evidence",
         "labcairn.application.material_ingestion",
         "labcairn.application.records",
         "labcairn.application.sources",
@@ -440,7 +446,14 @@ def test_the_callers_path_argument_cannot_change_what_the_policy_judged(
     honest = run_stage(context, _stage_request(), _work, now=_MOMENT)
     lying = run_stage(
         context,
-        _stage_request(arguments={"path": "other.csv", "operator_id": "mean", "parameters": {}}),
+        _stage_request(
+            arguments={
+                "path": "other.csv",
+                "operator_id": "mean",
+                "recipe": "recipe.json",
+                "parameters": {},
+            }
+        ),
         _work,
         now=_MOMENT,
     )
@@ -580,7 +593,7 @@ def test_an_approval_for_other_arguments_is_refused(env: StoreEnv, workspace_roo
             context,
             _stage_request(
                 approval_id=requested.approval.approval_id,
-                arguments={"operator_id": "median", "parameters": {}},
+                arguments={"operator_id": "median", "recipe": "recipe.json", "parameters": {}},
             ),
             _work,
             now=_MOMENT,
@@ -2201,7 +2214,7 @@ def _use(resource_key: str = "one.csv") -> ApprovalUse:
     """What an approval is spent on, matching the stage request."""
     return ApprovalUse(
         capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
+        arguments={"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id="source:0",
         resource_key=resource_key,
     )
@@ -2222,7 +2235,7 @@ def _a_stage_request_in(run_id: RunId) -> StageRequest:
     return StageRequest(
         stage_name="intake",
         capability=CapabilityId.ANALYSIS_RUN,
-        arguments={"operator_id": "mean", "parameters": {}},
+        arguments={"operator_id": "mean", "recipe": "recipe.json", "parameters": {}},
         root_id="source:0",
         resource_key="one.csv",
         run_id=run_id,

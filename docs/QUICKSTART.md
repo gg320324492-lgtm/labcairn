@@ -187,22 +187,23 @@ It reports one source as the ledger holds it: `kind`, `display_name`,
 **This is where the locators come from.** The ledger stores the material's
 text **addressed** — a page for a PDF, a row and a column for a CSV, a line
 and a section for a Markdown — and each address resolves against the
-material the task holds. The walk reads those addresses **out of the ledger**
-rather than constructing them, because an anchor at an address nothing
-answers is an anchor to nothing.
-
-To see the addresses themselves, read the `source_texts` rows for the
-source's `content_sha256`. The walk does this in
-[`scripts/outsider_path.py`](../scripts/outsider_path.py) and is the place
-to copy the pattern from.
+material the task holds. The product reads those addresses **out of the
+ledger** rather than constructing them, because an anchor at an address
+nothing answers is an anchor to nothing. `labcairn sources addresses
+--source <source-id>` lists them — the locator key, its kind, the extraction
+version and the stored text — and `GET /sources/{source_id}/addresses` is the
+same listing over the service. An address nothing answers cannot be recorded
+as a claim (§4.7).
 
 ### 4.7 The report and the figure
 
 **The report and the figure each have a command and a route.**
 `labcairn task report` (`POST /report`, and a **Render the report** button in the
 workbench) calls the layer's own `render_report`; `labcairn task figure`
-(`POST /analysis`) calls its own `run_figure`. A fresh workspace permits both
-capabilities. **A figure needs consent as well as permission**: the approval binds
+(`POST /analysis`) calls its own `run_figure`. The workbench's **Figure** panel
+reaches the figure's two routes: it asks for the approval, leaves the question
+in the Approval panel, and draws once the answer is granted. A fresh workspace
+permits both capabilities. **A figure needs consent as well as permission**: the approval binds
 the material, the operator, its parameters and the recipe's path (ADR-0012
 constraint 7), so the steps are
 
@@ -214,31 +215,36 @@ labcairn task figure --path one.csv --operator labcairn.analysis.mean   --recipe
 
 where `$ARGS` holds `path`, `operator_id`, `recipe` and `parameters`, spelled
 exactly as the run spells them — a different spelling is a different approval, and
-the run refuses it rather than squinting at it. The fifteen commands that exist are
+the run refuses it rather than squinting at it. The seventeen commands that exist are
 listed in
 [the README](../README.md#the-command-line-what-exists-today); `task report`,
-`task reconcile` and the `POST /report` route are newer than that table, and the
-table stays conservative rather than the commands being hidden.
+`task figure`, `task claim`, `task approval-request`, `task approval-grant`,
+`task reconcile`, `sources addresses` and the `POST /report` / `POST /analysis`
+/ `POST /claims` routes are newer than that table, and the table stays
+conservative rather than the commands being hidden.
 
-**What has not changed is the harder half.** A report needs something to carry:
+**A report needs something to carry, and a claim is how it gets it:**
 
-1. **The claims must exist.** **The product has no operation that writes an
-   evidence record or an anchor.** The walk writes the claim's own address
-   and the record that rests on it itself, against the addresses the ledger
-   holds. The report then carries real claims, cited to real addresses in
-   the material the CLI ingested — **but the claims were made by the walk,
-   not by the product.** This is the one step of the deliverable that is not
-   the product's, and it is named rather than hidden.
+1. **Record a claim.** `labcairn task claim` takes a source, one of its
+   addresses (§4.6), a kind (`claim` or `numeric`) and the text or value the
+   claim states, and calls the layer's `record_claim`; `POST /claims` is the
+   same operation over the service. It writes an anchor bound to the source's
+   current hash and an `extracted` evidence record that names it. It refuses
+   material the task does not hold, material that cannot be read, an address
+   nothing answers, and the same span twice — each with a reason and nothing
+   written. **The record is the product's; the words are the caller's**: this
+   alpha does not extract a claim or accept a model's proposal, and it does
+   not run C1, C2 or C3.
 2. **A task with nothing to report is refused, and writes nothing.** Ask the
-   command on a bare task and the answer is `report_content_refused`: the
-   document builder refuses a heading with nothing under it, and the output
-   area stays empty. That refusal is the correct behaviour, not a missing
-   default — a report the ledger does not support must not exist.
+   report command on a bare task and the answer is `report_content_refused`:
+   the document builder refuses a heading with nothing under it, and the
+   output area stays empty. That refusal is the correct behaviour, not a
+   missing default — a report the ledger does not support must not exist.
 
 The **complete, working** version of this step is
-[`scripts/outsider_path.py`](../scripts/outsider_path.py) — §7.3 of the
-acceptance record says what it writes and where. What the report path
-produces is:
+[`scripts/outsider_path.py`](../scripts/outsider_path.py), which records its
+claims through `record_claim` — §7.3 of the acceptance record says what it
+writes and where. What the report path produces is:
 
 - `report/v1/` holding `report.json`, `report-manifest.json`, `report.md`,
   `report.html`, `report.docx` and `report.pdf`;

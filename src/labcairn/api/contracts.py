@@ -35,6 +35,7 @@ from pydantic import Field
 
 from labcairn.application.models import Result
 from labcairn.core.ids import ApprovalId, RunId
+from labcairn.evidence.states import EvidenceKind
 from labcairn.security.capabilities import CapabilityId
 
 
@@ -137,6 +138,26 @@ class ReportBody(Result):
     template_id: str = Field(min_length=1)
 
 
+class ClaimBody(Result):
+    """A claim to record, as the API accepts it.
+
+    The application layer's :class:`~labcairn.application.evidence.ClaimRequest`,
+    field for field. ``kind`` is the ledger's own vocabulary rather than a
+    string this package translates, so an unknown kind is refused by the model
+    that defines the kinds; which fields a kind requires is the record model's
+    rule, and the service states it nowhere a second time.
+    """
+
+    source_id: str = Field(min_length=1)
+    locator_key: str = Field(min_length=1)
+    kind: EvidenceKind = EvidenceKind.CLAIM
+    text: str | None = None
+    span: str | None = None
+    value: float | None = None
+    unit: str | None = None
+    tolerance: float | None = None
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 
@@ -172,10 +193,13 @@ class Health(Result):
 
 
 __all__ = [
+    "AnalysisBody",
     "ApprovalBody",
     "ApprovalUseBody",
+    "ClaimBody",
     "Health",
     "RefusalBody",
+    "ReportBody",
     "SessionInfo",
     "StageBody",
 ]

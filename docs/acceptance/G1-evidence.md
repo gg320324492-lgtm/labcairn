@@ -138,6 +138,22 @@ The flow is `pydantic_models.smoke_test()`; removing the skip and supplying
 question, not a defect**, and until it is answered **G1 cannot close** — the gate's
 exit demonstration is otherwise complete.
 
+**Corrected 2026-10-28 — the sentence above was false, and the falsity was a
+defect.** The skipped test hard-coded `protocol=anthropic` and a model name, and
+it passed `environ={}` to the credential loader, so **no credential on any
+machine could have run it**: the loader was handed an empty mapping and raised
+`MissingCredentialError` before anything was sent. Running the class took a
+rewrite, which it now has: `tests/test_real_provider_smoke.py`, configured from
+`LABCAIRN_PROVIDER_SMOKE_KEY` / `_MODEL` / `_PROTOCOL` / `_BASE_URL`, with the
+predicate that decides whether it runs witnessed in the unit class
+(`tests/test_provider_credentials.py:309` and
+`tests/test_provider_credentials.py:355`). **It ran twice on
+2026-10-28** against `MiniMax-M3.1-Flash` over an Anthropic-protocol endpoint:
+`tool_calls` and `usage_reporting` **ok**, both structured-output forms
+**unsupported** because the client declines before a request leaves the machine
+— which is §2.14's claim re-measured, not re-argued. The authorisation question
+below was always the real one; *"no new code"* made it sound cheaper than it was.
+
 ### What happened after this was written
 
 This section was committed at `f694b61`, 2026-10-16 02:33. **The same day, at

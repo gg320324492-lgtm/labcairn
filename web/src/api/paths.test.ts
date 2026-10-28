@@ -7,7 +7,14 @@ import { describe, expect, it } from 'vitest'
 
 import viteConfig from '../../vite.config'
 import { DEV_API_BASE } from './mount'
-import { API_PATHS, APPROVAL_GRANT_PATH, ARTIFACT_CONTENT_PATH, REPORT_RENDER_PATH } from './paths'
+import {
+  ANALYSIS_RUN_PATH,
+  API_PATHS,
+  APPROVAL_GRANT_PATH,
+  APPROVAL_REQUEST_PATH,
+  ARTIFACT_CONTENT_PATH,
+  REPORT_RENDER_PATH,
+} from './paths'
 
 /**
  * The drift check: the paths the workbench asks for are routes the service
@@ -121,6 +128,8 @@ describe('the paths the workbench asks for', () => {
       ...Object.values(API_PATHS),
       ARTIFACT_CONTENT_PATH,
       APPROVAL_GRANT_PATH,
+      APPROVAL_REQUEST_PATH,
+      ANALYSIS_RUN_PATH,
       REPORT_RENDER_PATH,
     ].map(anonymous)
 

@@ -3,6 +3,9 @@
   "shards": {
     "ubuntu-latest": [
       [
+        "tests/test_application_evidence.py",
+        "tests/test_event_payload_vocabulary.py",
+        "tests/test_real_provider_smoke.py",
         "tests/test_cli.py",
         "tests/test_skill_execution.py",
         "tests/test_security_paths.py",
@@ -124,6 +127,9 @@
     ],
     "windows-latest": [
       [
+        "tests/test_application_evidence.py",
+        "tests/test_event_payload_vocabulary.py",
+        "tests/test_real_provider_smoke.py",
         "tests/test_cli.py",
         "tests/test_recovery_approvals.py",
         "tests/test_material_indexing.py",

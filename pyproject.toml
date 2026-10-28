@@ -315,7 +315,7 @@ markers = [
     "negative: a case that must be refused, or must find nothing",
     "reference_exclusion: asserts reference-study paths never leak into tracked files or artifacts",
     "requires_network: needs outbound network; excluded from the default offline run",
-    "requires_provider: needs a real paid provider credential; never runs in CI",
+    "requires_provider: needs a real paid provider credential; skipped wherever the owner has not named one",
 ]
 # NOTE: `testpaths` is intentionally NOT set. tests/ does not exist yet (owned by a
 # later task) and pinning testpaths to a missing directory makes a bare `pytest`

@@ -173,6 +173,15 @@ defect in the demonstration, and it is a limit of its own kind — the other
 three are the event stream, the project selection, and the workbench never
 being driven against the live service — so the board records **four**.
 
+**That fourth limit is closed after this acceptance.** The layer now has
+`record_claim` and `list_source_addresses`, reached by `labcairn task claim`
+and `POST /claims` and by `labcairn sources addresses` and
+`GET /sources/{source_id}/addresses`; the outsider walk records its claims
+through the operation. The demonstration is unchanged, because it is this
+acceptance's record at its commit. The remaining limit is that the claim's
+words are the caller's and no surface runs C1, C2 or C3 —
+[`LC-P1-14-outsider-path.md`](LC-P1-14-outsider-path.md) §7.3.
+
 **The three things this clause needed, and the three that were missing
 when it was first read.**
 

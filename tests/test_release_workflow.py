@@ -34,6 +34,17 @@ that is not permissive -- and the gate did not know that extension, so the
 file the audit names could have gone into a source distribution unnoticed.
 So the list is compared with the audit's own list, and the gate's own program
 is run over a release that carries a font.
+
+**And the paid probe is watched, because a green row that ran nothing is this
+repository's recurring failure.** ``provider-smoke.yml`` discharges the
+protocol's fifth gate class, and it can only do that where a secret exists --
+which is precisely the condition under which a workflow most easily reports
+success while running nothing. Four things are therefore required of it: it can
+never become a required status check, it refuses before spending when a variable
+is empty, it reads a report that distinguishes a skip from a pass rather than
+trusting an exit code, and the record it leaves goes to the runner's temp and not
+into the checkout. Each is put to a doctored version of the same input as well,
+so the checks are shown able to fail.
 """
 
 from __future__ import annotations
@@ -573,4 +584,171 @@ def test_the_release_gate_accepts_a_release_that_carries_no_font(
         f"the release gate refused a release that carries no font "
         f"(exit {result.returncode}).\n--- stdout ---\n{result.stdout[-4000:]}\n"
         f"--- stderr ---\n{result.stderr[-4000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The paid probe's own workflow
+# ---------------------------------------------------------------------------
+
+#: The workflow that discharges the protocol's fifth gate class, and its job.
+PROVIDER_SMOKE_WORKFLOW: Final[str] = "provider-smoke.yml"
+PROVIDER_SMOKE_JOB: Final[str] = "real-model-smoke"
+
+#: The variables the live probe is configured by. A guard that checks three of
+#: the four lets a run spend money against an endpoint nobody named.
+PROBE_ENVIRONMENT: Final[tuple[str, ...]] = (
+    "LABCAIRN_PROVIDER_SMOKE_KEY",
+    "LABCAIRN_PROVIDER_SMOKE_MODEL",
+    "LABCAIRN_PROVIDER_SMOKE_PROTOCOL",
+    "LABCAIRN_PROVIDER_SMOKE_BASE_URL",
+)
+
+#: A guard line in the credential check: `[ -n "${NAME}" ] || missing+=(...)`.
+_CREDENTIAL_GUARD: Final[re.Pattern[str]] = re.compile(r'\[\s*-n\s+"\$\{(\w+)\}"\s*\]')
+
+
+def _smoke_document(repo_root: Path) -> Any:
+    """The provider-smoke workflow, parsed.
+
+    ``on:`` is YAML 1.1 boolean ``True``, so the trigger map is read under both
+    keys — the same compromise the file's other readers make, and the reason
+    this hands back an untyped mapping rather than a ``dict[str, Any]``.
+    """
+    text = (repo_root / WORKFLOW_DIR / PROVIDER_SMOKE_WORKFLOW).read_text(encoding="utf-8")
+    document = yaml.safe_load(text)
+    assert isinstance(document, dict), f"{PROVIDER_SMOKE_WORKFLOW} is not a mapping"
+    return document
+
+
+def _smoke_triggers(document: Any) -> dict[str, Any]:
+    triggers = document.get("on", document.get(True))
+    assert isinstance(triggers, dict), "the workflow declares no triggers"
+    return triggers
+
+
+def _smoke_step_script(document: Any, step_name: str) -> str:
+    """The script of one named step, or a failure naming the steps that are there."""
+    steps = ((document.get("jobs") or {}).get(PROVIDER_SMOKE_JOB) or {}).get("steps") or []
+    for step in steps:
+        if isinstance(step, dict) and step.get("name") == step_name:
+            script = step.get("run")
+            assert isinstance(script, str), (
+                f"{PROVIDER_SMOKE_JOB}: step {step_name!r} has no script"
+            )
+            return script
+    names = [
+        str(step.get("name", step.get("uses", "<unnamed>")))
+        for step in steps
+        if isinstance(step, dict)
+    ]
+    raise AssertionError(f"{PROVIDER_SMOKE_JOB} has no step named {step_name!r}; it has {names}")
+
+
+def _unguarded_probe_variables(script: str) -> set[str]:
+    """Which probe variables this script does **not** refuse an empty value for."""
+    guarded = set(_CREDENTIAL_GUARD.findall(script))
+    return {name for name in PROBE_ENVIRONMENT if name not in guarded}
+
+
+def _requires_the_probe_to_have_passed(script: str) -> bool:
+    """Whether this script reads a report that distinguishes a skip from a pass.
+
+    ``pytest`` exits 0 when every collected case skipped, so a workflow whose
+    only signal is the exit code reports a paid probe that never ran as a
+    success. Reading the JUnit document is what tells the two apart.
+    """
+    return "parse_junit" in script and '"passed"' in script and "SystemExit" in script
+
+
+def _can_become_a_required_check(triggers: dict[str, Any]) -> bool:
+    """Whether this workflow can be demanded of a pull request.
+
+    A paid probe must not be. Branch protection cannot wait for a check that
+    runs only where a secret exists, and amendment C-1 forbids rescuing that
+    with a path filter, because a filtered required check is reported as
+    `expected` and waits forever.
+    """
+    return "pull_request" in triggers or "push" in triggers
+
+
+def test_the_provider_smoke_workflow_can_never_be_a_required_check(repo_root: Path) -> None:
+    """The paid gate is dispatched and scheduled, and asked of nobody's PR.
+
+    **The control:** adding a `push` trigger to the parsed triggers has to make
+    the helper say it could be demanded, or the helper is a check that passes
+    everything.
+    """
+    triggers = _smoke_triggers(_smoke_document(repo_root))
+    assert "workflow_dispatch" in triggers, "the probe fires on a timer only, never on demand"
+    assert "schedule" in triggers, "a paid probe nobody schedules rots as quietly as one never run"
+    assert not _can_become_a_required_check(triggers), (
+        f"{PROVIDER_SMOKE_WORKFLOW} triggers {sorted(triggers)}, so branch "
+        "protection could wait on a job that runs only where a secret exists"
+    )
+    assert _can_become_a_required_check({**triggers, "push": {"branches": ["main"]}}), (
+        "the trigger check cannot see a push trigger, so it cannot fail"
+    )
+
+
+def test_the_provider_smoke_workflow_refuses_loudly_without_a_credential(repo_root: Path) -> None:
+    """Missing configuration is an error, never a skip that reports green.
+
+    The witness in the suite skips when no credential is named, which is right
+    for `uv run pytest` and wrong for a gate: a scheduled job whose single case
+    skipped would print a pass. So the job refuses **before** spending, naming
+    the variables that are empty and never their values.
+
+    **The control:** the same script with one guard line removed has to be
+    reported as unguarded, or this test is reading the file for atmosphere.
+    """
+    script = _smoke_step_script(
+        _smoke_document(repo_root),
+        "require a named credential and a declared model",
+    )
+    assert _unguarded_probe_variables(script) == set(), (
+        f"the guard ignores {sorted(_unguarded_probe_variables(script))}; a run "
+        "would spend money against an endpoint nobody named"
+    )
+    assert "exit 1" in script, "the guard finds a problem and continues anyway"
+
+    doctored = "\n".join(
+        line for line in script.splitlines() if 'LABCAIRN_PROVIDER_SMOKE_MODEL}"' not in line
+    )
+    assert _unguarded_probe_variables(doctored) == {"LABCAIRN_PROVIDER_SMOKE_MODEL"}, (
+        "the guard check passed a script that had stopped checking the model"
+    )
+
+
+def test_the_provider_smoke_workflow_reads_the_report_not_the_exit_code(repo_root: Path) -> None:
+    """A skipped probe is a failed gate, and the JUnit document is how it knows.
+
+    **The control:** the bare pytest command — which is what this step would
+    otherwise be — has to be reported as not requiring the probe to have run,
+    because it does not: it trusts an exit code that says nothing about skips.
+    """
+    document = _smoke_document(repo_root)
+    script = _smoke_step_script(document, "insist that the probe actually ran")
+    assert _requires_the_probe_to_have_passed(script), (
+        "the step does not read a report that distinguishes a skip from a pass"
+    )
+    assert "JUNIT_PATH" in script, "the report it reads is not the one pytest wrote"
+    assert not _requires_the_probe_to_have_passed(
+        "uv run pytest tests/test_real_provider_smoke.py -q\n"
+    ), "the exit-code-only form would have satisfied this test, and that is the bug"
+
+
+def test_the_probe_record_is_written_outside_the_checkout(repo_root: Path) -> None:
+    """The evidence a paid run leaves goes to the runner's temp, not the tree.
+
+    Every temp root in this repository lives outside the working tree for one
+    reason: a file a run wrote into the checkout can be read back by a later
+    step and presented as an artefact of the build.
+    """
+    document = _smoke_document(repo_root)
+    job = (document.get("jobs") or {}).get(PROVIDER_SMOKE_JOB) or {}
+    env = job.get("env") or {}
+    record = str(env.get("LABCAIRN_PROVIDER_SMOKE_RECORD", ""))
+    assert record.startswith("${{ runner.temp }}"), (
+        f"the probe record goes to {record!r}; a paid run must not write into the checkout"
     )
