@@ -47,7 +47,9 @@ The kill is genuine. The child writes a sentinel, prints ready, and sleeps; the 
 
 ## The load-bearing decisions
 
-**`seq` is per-Task and is not the rowid.** Verified from outside the suite: two interleaved Tasks each get `seq` 1..5 while their rowids interleave as `1,3,5,7,9` and `2,4,6,8,10`. Those cannot both hold if `seq` were the rowid. After disposing the connection pool and reopening from the file alone, the next event took 6, not 1.
+**`seq` is per-Task and is not the rowid.** Asserted in `test_store_events.py`: two interleaved Tasks get a contiguous per-Task `seq` (`A` → 1,2,3,4; `B` → 1,2,3) while their table-wide rowids interleave (`A` → 1,3,4,7; `B` → 2,5,6); both could not hold if `seq` were the rowid. `test_store_persistence.py` shows a restart keeps issuing per Task — reopening from the file alone, the next event continues the Task's sequence rather than restarting at 1.
+
+*(Corrected 2026-10-28: this paragraph previously quoted `1..5`, rowids `1,3,5,7,9` and `2,4,6,8,10`, and "the next event took 6" — figures from a hand probe outside the suite that no test asserts, which the G1/G2 retro-review caught. They are replaced with the arrays the tests actually check, so the claim is verifiable rather than transcribed. The decision it supports is unchanged and still true.)*
 
 **`UNCERTAIN` is a state recovery enters, not one it assumes away.** Probing is over bytes: absent and a matching SHA256 are decidable; a different hash, a directory, or an unreadable target are not. **Unreadable is deliberately CONFLICT** — it is not evidence that nothing landed, it is evidence that we cannot tell. CONFLICT falls back to `UNCERTAIN` rather than `FAILED`, because `FAILED` would read as retryable to a later round and this one needs a human.
 

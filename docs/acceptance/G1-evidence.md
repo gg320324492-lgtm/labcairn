@@ -70,9 +70,20 @@ private/secrets.txt  -> deny     rule=DENY private/secrets.txt
 Both halves are fixed: both spellings are evaluated and the most restrictive outcome
 wins, so "declared first" now means *reported first in the audit trail*, and segment
 matching folds case on Windows so it follows the filesystem rather than the spelling
-the caller happened to use. A regression test constructs both spellings as one file
-and requires DENY, first asserting they resolve to the same key so it cannot pass
-for the wrong reason elsewhere.
+the caller happened to use.
+
+*(Corrected 2026-10-28, from the G1/G2 retro-review. The prior wording said the
+regression test "asserts they resolve to the same key" — it does not. It hands
+`make_ref` an already-resolved `key` (`private/secrets.txt`) beside the declared
+spelling (`private/SECRETS.TXT`) and asserts DENY, so the fold is supplied, not
+computed-and-checked; and `if os.name != "nt": return` means the case path is only
+ever exercised on Windows. So the case-fold itself has no biting witness: replacing
+`_FOLD` with the identity leaves the suite green on a POSIX runner, which CI's
+`windows-latest` shard would then not reproduce. This is the same gap LC-P1-04's
+carried note already names — "path-guard tests ran on Windows only; POSIX case
+semantics are unverified" — recorded here so the evidence text no longer claims a
+stronger assertion than it makes. Adding the fold witness touches G1's accepted
+security-test surface and is surfaced for the owner rather than done mid-closeout.)*
 
 ### Blocking, from LC-P1-02's own cross-review
 
