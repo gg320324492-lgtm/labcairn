@@ -661,6 +661,29 @@ def _requires_the_probe_to_have_passed(script: str) -> bool:
     return "parse_junit" in script and '"passed"' in script and "SystemExit" in script
 
 
+#: The three ways this job spells a path it writes to.
+_WRITE_TARGETS: Final[tuple[str, ...]] = (
+    "--junit-xml=",
+    "LABCAIRN_PROVIDER_SMOKE_RECORD=",
+    "cat ",
+)
+
+
+def _paths_written_inside_the_checkout(scripts: str) -> list[str]:
+    """Every written path in these scripts that is not under the runner's temp."""
+    offenders: list[str] = []
+    for line in scripts.splitlines():
+        stripped = line.strip()
+        for target in _WRITE_TARGETS:
+            if target not in stripped:
+                continue
+            remainder = stripped.split(target, 1)[1]
+            value = remainder.split('"')[1] if '"' in remainder else remainder.split()[0]
+            if not value.startswith("${RUNNER_TEMP}/"):
+                offenders.append(value)
+    return offenders
+
+
 def _can_become_a_required_check(triggers: dict[str, Any]) -> bool:
     """Whether this workflow can be demanded of a pull request.
 
@@ -739,16 +762,54 @@ def test_the_provider_smoke_workflow_reads_the_report_not_the_exit_code(repo_roo
 
 
 def test_the_probe_record_is_written_outside_the_checkout(repo_root: Path) -> None:
-    """The evidence a paid run leaves goes to the runner's temp, not the tree.
+    """Every path this job writes goes to the runner's temp, not the tree.
 
-    Every temp root in this repository lives outside the working tree for one
-    reason: a file a run wrote into the checkout can be read back by a later
-    step and presented as an artefact of the build.
+    A file a run leaves in the checkout can be read back by a later step and
+    presented as an artefact of the build, which is why every temp root in this
+    repository lives outside the working tree -- CI included.
+
+    **The control:** the same scripts with a report path spelled into the working
+    directory have to be reported, or the check only passes by accident.
     """
     document = _smoke_document(repo_root)
-    job = (document.get("jobs") or {}).get(PROVIDER_SMOKE_JOB) or {}
-    env = job.get("env") or {}
-    record = str(env.get("LABCAIRN_PROVIDER_SMOKE_RECORD", ""))
-    assert record.startswith("${{ runner.temp }}"), (
-        f"the probe record goes to {record!r}; a paid run must not write into the checkout"
+    scripts = "\n".join(
+        _smoke_step_script(document, name)
+        for name in (
+            "run the probe",
+            "insist that the probe actually ran",
+            "show what the endpoint answered",
+        )
+    )
+    offenders = _paths_written_inside_the_checkout(scripts)
+    assert not offenders, f"this job writes into the checkout: {offenders}"
+
+    doctored = scripts.replace("${RUNNER_TEMP}/junit.xml", "junit.xml")
+    assert _paths_written_inside_the_checkout(doctored) == ["junit.xml"], (
+        "the path check passed a report written into the working tree"
+    )
+
+
+def test_the_workflow_avoids_the_context_github_refuses_to_parse(repo_root: Path) -> None:
+    """A workflow file that cannot be parsed runs nothing, and says so only on dispatch.
+
+    ``${{ runner.temp }}`` is not in the job-level ``env`` context. GitHub
+    answers a workflow that uses it there with ``HTTP 422: failed to parse
+    workflow`` at dispatch time -- measured, not reasoned: this file was written
+    that way first, and the dispatch was refused before a single step existed.
+    A workflow that never parses looks identical, from the repository's side, to
+    a workflow that nobody dispatched.
+    """
+    text = (repo_root / WORKFLOW_DIR / PROVIDER_SMOKE_WORKFLOW).read_text(encoding="utf-8")
+    document = _smoke_document(repo_root)
+    jobs = document.get("jobs") or {}
+    for job_name, job in jobs.items():
+        env = (job or {}).get("env") or {}
+        for name, value in env.items():
+            assert "runner." not in str(value), (
+                f"{PROVIDER_SMOKE_WORKFLOW}, job {job_name}, env {name}: the "
+                "job-level env references the `runner` context, which GitHub "
+                "will not parse — the paths under it are spelled in the steps"
+            )
+    assert "${RUNNER_TEMP}" in text, (
+        "nothing writes to the runner's temp, so this job's scratch is somewhere else"
     )

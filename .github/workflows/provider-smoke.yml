@@ -50,11 +50,13 @@ jobs:
       LABCAIRN_PROVIDER_SMOKE_MODEL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_MODEL }}
       LABCAIRN_PROVIDER_SMOKE_PROTOCOL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_PROTOCOL }}
       LABCAIRN_PROVIDER_SMOKE_BASE_URL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_BASE_URL }}
-      # Outside the working tree, like every other temp root in this repository:
-      # a run that writes into the checkout can be read back by a later step and
-      # look like evidence, when it is only this machine's scratch.
-      LABCAIRN_PROVIDER_SMOKE_RECORD: ${{ runner.temp }}/probe-record.json
-      JUNIT_PATH: ${{ runner.temp }}/junit.xml
+      # What this job writes goes to the runner's temp, outside the checkout: a
+      # file a run leaves in the working tree can be read back by a later step
+      # and look like an artefact of the build. It is spelled from `RUNNER_TEMP`
+      # inside each script rather than declared here, because `runner` is not in
+      # the job-level `env` context — GitHub refuses to parse a workflow that
+      # uses it there, which is the one error a workflow file can raise before
+      # anything runs at all.
 
     steps:
       - uses: actions/checkout@v7
@@ -101,8 +103,9 @@ jobs:
 
       - name: run the probe
         run: |
-          uv run pytest tests/test_real_provider_smoke.py -q -rs \
-            --junit-xml="${JUNIT_PATH}"
+          LABCAIRN_PROVIDER_SMOKE_RECORD="${RUNNER_TEMP}/probe-record.json" \
+            uv run pytest tests/test_real_provider_smoke.py -q -rs \
+            --junit-xml="${RUNNER_TEMP}/junit.xml"
 
       # ------------------------------------------------------------------
       # The skip is the failure, and it is read from the report, not from the
@@ -119,10 +122,9 @@ jobs:
         # rootdir of the files it collects, and this step is not pytest, so the
         # path is named. The reader is the repository's own, because the thing
         # being checked is how this repository reads a run.
-        env:
-          PYTHONPATH: tests
         run: |
-          uv run python - <<'PY'
+          JUNIT_PATH="${RUNNER_TEMP}/junit.xml" PYTHONPATH=tests \
+            uv run python - <<'PY'
           import os
           from pathlib import Path
 
@@ -156,4 +158,4 @@ jobs:
         # us anything at all.
         run: |
           echo "::notice::the record names the endpoint by fingerprint, not by key"
-          cat "${LABCAIRN_PROVIDER_SMOKE_RECORD}"
+          cat "${RUNNER_TEMP}/probe-record.json"
