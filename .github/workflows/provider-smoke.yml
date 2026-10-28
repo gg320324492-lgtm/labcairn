@@ -21,15 +21,16 @@ name: provider-smoke
 
 on:
   workflow_dispatch:
-    inputs:
-      model:
-        description: override the configured model for this one run
-        required: false
-        type: string
   schedule:
     # 03:30 UTC daily. A cadence rather than an event: nothing in this
     # repository's push flow can be *awaiting* a paid probe, and a class that
     # runs weekly rots just as quietly as one that never runs.
+    #
+    # **GitHub only fires a schedule from the default branch**, so this cadence
+    # starts on the day the workflow lands on `main`. Until then the witness runs
+    # when it is dispatched, and a branch run of a scheduled workflow is a
+    # workflow that silently never happens — which is the failure this file
+    # exists to avoid.
     - cron: "30 3 * * *"
 
 permissions:
@@ -41,16 +42,9 @@ concurrency:
 
 jobs:
   real-model-smoke:
-    name: real-model smoke (${{ matrix.label }})
+    name: real-model smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # One entry today. The matrix exists so that adding a second provider is
-        # a line here rather than a new workflow, and so the check name already
-        # says which provider it speaks for.
-        label: ["minimax-anthropic"]
     env:
       LABCAIRN_PROVIDER_SMOKE_KEY: ${{ secrets.LABCAIRN_PROVIDER_SMOKE_KEY }}
       LABCAIRN_PROVIDER_SMOKE_MODEL: ${{ vars.LABCAIRN_PROVIDER_SMOKE_MODEL }}
