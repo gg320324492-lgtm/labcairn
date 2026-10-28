@@ -49,6 +49,22 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
 
 **Verification basis for Phase 1 onwards.** Verification basis: internal double review — the implementing agent and a reviewer who was not the implementer. This is **not** an external independent audit. Branch protection was read by an admin-capable session belonging to the **implementing agent**, so the six required checks are implementer-confirmed, not independently proven.
 
+**Ruled 2026-10-28 by the owner, closing the last two open Phase-1 decisions:**
+
+- **§1.4.2 (real-model smoke class).** The scheduled/dispatched, non-required
+  `provider-smoke.yml` **is** the discharge of the protocol's fifth gate class.
+  A required check that could pass only where a secret exists is a check branch
+  protection waits on forever — C-1 forbids dressing that up with a path filter.
+  The default offline harness run still reports NOT RUN, and that stays on the
+  record as a fact about the offline path, not as a claim of a passing run.
+- **G1/G2 independent-review rule.** The two rounds of AI-agent retro-review on
+  this branch (which wrote none of the fixes and whose findings were each
+  re-verified against the code before acting) are **accepted as closeout
+  evidence for Phase 1**. They are **procedural independence, not human**, and
+  they do **not discharge** the board's rule for G1 or G2 — a human independent
+  review of those two gates remains an open follow-up, named as such rather
+  than papered over.
+
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 
 | Issue | Owner work order | Note |

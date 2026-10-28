@@ -212,7 +212,13 @@ honest answer, not a failure of the class.
 What changed is the kind of the gap: it was *"there is nothing to run"* — the
 manifest named a witness file for two gates that no commit ever wrote — and it
 is now *"the thing to run needs a secret this repository does not hold"*, which
-is answered by adding one, not by writing code.
+is answered by adding one, not by writing code. **Ruled 2026-10-28 (§1.4.2):** the
+credential has been added, and the owner accepts the scheduled/dispatched
+`provider-smoke.yml` as this gate class's discharge. The default required-check
+path reports NOT RUN offline and always will — a check that runs only where a
+secret exists is a check branch protection waits on forever, and amendment C-1
+forbids dressing that up with a path filter. **The class is discharged; the
+sentence "the required checks prove it ran" is false, and stays so.**
 **The clause and the class are not the same thing, and this row once conflated
 them**: LC-P1-03's acceptance *"real smoke on at least one provider"* **was met
 once, by hand** — `b237751`, 2026-10-16, on a credential the owner supplied
@@ -248,6 +254,19 @@ fixes, who broke each fix in turn.
 *Consequence:* two rows of the work-order board say "accepted" on evidence
 the board's own rule does not accept. **This is stated on the rows, not left
 implicit.**
+
+**Ruled 2026-10-28.** The two rounds of retro-review this branch ran against
+G1 and G2 were performed by AI agents that wrote none of the fixes — the
+independence is **procedural, not human**. The owner accepts those reviews as
+closeout evidence for Phase 1: the findings were worked through and the
+record/code contradictions they surfaced are corrected on this branch. The
+board's rule — an independent review at a named commit by a party that wrote
+none of the fixes — **is not thereby discharged for G1 or G2**; a human
+independent review of those two gates remains an open follow-up, not a
+completed item. What changed is what Phase 1's handoff *claims*: the AI review
+was real, the corrections it caught landed, and the rule it does not satisfy is
+named as still open rather than papered over.
+
 *Evidence:* [threat model §6.6](THREAT-MODEL.md) ·
 [docs/README.md](../docs/README.md) §"Division of responsibility".
 
