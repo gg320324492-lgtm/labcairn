@@ -638,6 +638,31 @@ set and budget, so that `assess` has something to match.
    in §3.2, and they would have to be measured again on the real-provider
    run, on the same tree.
 
+**Corrected 2026-10-28 — item 1 is done, and it did not clear the wall.** The
+owner's decision arrived: a credential is configured, the smoke ran (three
+capability probes, `LC-P1-13-baseline` §4.1's correction and `RELEASE-NOTES`
+2.7), and the class has its witness file. **The comparison is still blocked, one
+level lower than the credential.** The numbers a comparison would pair on this
+side are produced by the deterministic corpus layer — the product ingesting,
+retrieving and reporting over the fixtures — and **no model answers them**, so
+`cli.py`'s run basis declaring `model=""` is not a placeholder to fill but the
+accurate fact. A competitor that answers *is* a model, so `assess` refuses on the
+model condition alone. **This is the release notes' own Phase-1 non-goal — "no
+task path calls a model."**
+
+Item 2 is therefore **deliberately not made.** Threading a provider's model name
+into the run basis while the numbers still come from `FakeProvider` would turn
+the honest refusal into a green comparison that measured nothing — exactly the
+"number presented as a rate without the limitation attached" the protocol
+forbids. The refusal is now an executed guard instead
+(`tests/test_evaluation_harness.py::test_the_offline_run_refuses_a_competitor_on_the_model_alone`),
+paired with the control that the **same** competitor baseline becomes comparable
+the instant a model-declaring run exists
+(`::test_a_model_declaring_run_makes_that_same_competitor_comparable`) — so the
+seam is proven open toward a real measurement and shut against a fake one. The
+precondition that actually gates any comparison is item 3: **a model-driven
+answer path in the product**, which is Phase-2-scale work, not a harness edit.
+
 ### 5.2 Precondition two — a baseline that verifies its own capabilities
 
 **What the protocol asks for:** *"verified capabilities, and documented

@@ -101,6 +101,19 @@ The links are the records.
   `::test_the_default_run_reports_the_real_model_class_as_not_run`). Measured: the
   named run says **`1/1`** with the credential and `0/1` without it.
   [release notes §2.7](docs/RELEASE-NOTES.md).
+- **The competitor baseline's real blocker is now a test, not a sentence.** After
+  the credential landed, the question was whether the §5.1 harness change —
+  carrying a provider's model into the run basis — was the next step. Reading the
+  code says no: the compared numbers come from the deterministic corpus layer, not
+  a model, so the run basis declaring `model=""` is the accurate fact, and
+  threading a model the run never used would manufacture the exact
+  "rate-without-a-limitation" the protocol forbids. The refusal is now executed
+  (`tests/test_evaluation_harness.py::test_the_offline_run_refuses_a_competitor_on_the_model_alone`)
+  with a control proving the same baseline becomes comparable the instant a
+  model-declaring run exists
+  (`::test_a_model_declaring_run_makes_that_same_competitor_comparable`). The gate
+  on any comparison is a **model-driven answer path in the product** — Phase-2
+  work, not a harness edit. [LC-P1-13 baseline §5.1](docs/acceptance/LC-P1-13-baseline.md).
 - **A reader can decode an `operation_reconciled` row without loading the
   recovery layer.** `ReconciliationPayload` and its registration moved to
   `labcairn.runtime.event` — the module the read boundary already imports — so

@@ -802,6 +802,82 @@ def test_a_baseline_on_different_tasks_is_refused() -> None:
     assert any("not matched" in reason for reason in outcome.reasons)
 
 
+def _competitor_baseline_built_on(run: ComparisonBasis) -> ComparisonBasis:
+    """A PaperQA2-shaped baseline matched to *run* in everything but the model.
+
+    A competitor that answers questions **is** a model, so a real baseline
+    necessarily declares one; that single declaration is the thing this run
+    cannot answer. Fixtures, versions and budget are copied from the run's own
+    basis precisely so the model is the **only** unmet condition, and the test
+    below can say which wall is the real one rather than listing every reason
+    the protocol can produce.
+    """
+    return ComparisonBasis(
+        label="paper-qa",
+        fixture_labels=run.fixture_labels,
+        fixture_versions=dict(run.fixture_versions),
+        model="litellm/claude-sonnet-@declared",
+        budget=run.budget,
+        verified_capabilities=("chunking", "retrieval", "summary context", "citation-key emission"),
+        limitations="one run per fixture, no repetition, so no interval is computable",
+    )
+
+
+def test_the_offline_run_refuses_a_competitor_on_the_model_alone(repo_root: Path) -> None:
+    """§5.1's blocker, executed rather than described.
+
+    The competitor baseline matches the run's fixtures, versions and budget and
+    carries both required disclosures, and the comparison is **still** refused,
+    with the model the only unmet condition. That is the finding the credential
+    did not clear: our side has no run that declares a model, because the
+    numbers this comparison would pair come from the deterministic corpus layer,
+    not from a model answering. The release notes' own non-goal — "no task path
+    calls a model" — is what this assertion pins.
+    """
+    from evaluation.cli import _run_basis
+
+    run = _run_basis(repo_root, ())
+    assert run.model == "", "the offline run must declare no model"
+    competitor = _competitor_baseline_built_on(run)
+    outcome = assess(run, competitor)
+    assert not outcome.comparable, outcome
+    assert any("models are not matched" in reason for reason in outcome.reasons), outcome.reasons
+
+    # Every other condition the protocol names is satisfied on both sides, so
+    # the model is the whole of the refusal — not a matcher that rejects all.
+    joined = " | ".join(outcome.reasons)
+    assert "tasks are not matched" not in joined, outcome.reasons
+    assert "budgets are not matched" not in joined, outcome.reasons
+    assert "verified capabilities" not in joined, outcome.reasons
+    assert "confidence intervals nor limitations" not in joined, outcome.reasons
+
+
+def test_a_model_declaring_run_makes_that_same_competitor_comparable(repo_root: Path) -> None:
+    """The control: the refusal above is our empty basis, not a broken compare.
+
+    The **same** competitor baseline that the offline run refuses becomes
+    comparable once the run declares a model. So the moment the product answers
+    the fixtures through a declared model, the comparison machinery reaches it —
+    and until then nothing should be built to route around the empty basis,
+    because a basis stamped with a model the run never used would be the exact
+    fabrication §5.1's re-measurement is there to prevent.
+    """
+    from evaluation.cli import _run_basis
+
+    offline = _run_basis(repo_root, ())
+    competitor = _competitor_baseline_built_on(offline)
+    declared = ComparisonBasis(
+        label="this run, on a model",
+        fixture_labels=competitor.fixture_labels,
+        fixture_versions=dict(competitor.fixture_versions),
+        model=competitor.model,
+        budget=competitor.budget,
+        verified_capabilities=competitor.verified_capabilities,
+        limitations=competitor.limitations,
+    )
+    assert assess(declared, competitor).comparable
+
+
 def test_the_comparison_prints_pairs_and_never_a_verdict() -> None:
     """The structure stops a ranking, not a disclaimer.
 
