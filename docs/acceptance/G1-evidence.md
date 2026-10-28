@@ -180,11 +180,19 @@ protocol's real-model smoke class **NOT RUN** with exit code 2. `docs/RELEASE-NO
 §2.7, `docs/acceptance/G5-acceptance.md` §1.4.2 and the board all name that as
 the owner's open decision. **The clause is met; the gate class is not discharged.**
 
+**Corrected 2026-10-28 — the second half of that sentence moved.** The in-suite
+witness was rewritten into its own file and **has now run on a runner**
+(`provider-smoke.yml` dispatch 40663728369 at `0adfbe3`, green, printing the same
+endpoint fingerprint as the local runs). What the harness's *default* run still
+reports as NOT RUN is not "there is nothing to run" — it is "no required check
+holds a credential," which is answered by the scheduled workflow, not by code.
+`RELEASE-NOTES.md` §2.7 and `CURRENT.md` carry the same correction.
+
 ## Open items
 
 | Item | Severity | Note |
 |---|---|---|
-| Real-provider smoke not run | **was: blocks G1** — superseded | The clause ran live at `b237751` on 2026-10-16. What remains is the **standing witness**, still skipped, and the harness's real-model smoke class still NOT RUN — the owner's §1.4.2 decision |
+| Real-provider smoke not run | **was: blocks G1** — superseded | The clause ran live at `b237751` on 2026-10-16. **Updated 2026-10-28:** the standing witness now exists as its own file (`tests/test_real_provider_smoke.py`) and has run on GitHub (`provider-smoke.yml` dispatch 40663728369 at `0adfbe3`); what remains is only that no *required* check holds a credential, so the default harness run still reports NOT RUN — discharged by a scheduled/dispatched workflow rather than every pull request, which is the owner's §1.4.2 ruling |
 | `ApprovalLedger.consume()` never resolves the capability | defence in depth | An id that has never existed can be issued, granted and consumed; only `policy.evaluate()` turns one into DENY, and nothing enforces that a caller evaluates first. The ordering constraint belongs in an ADR, not buried in a guard |
 | `RunLedger` no longer accepts a default `priced` | breaking for downstream callers | Deliberate; see above |
 | TOCTOU between containment check and `open()` | declared, not closed | Needs OS-level handle-relative opening. Not claimed as solved |

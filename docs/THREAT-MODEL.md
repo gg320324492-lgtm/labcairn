@@ -782,7 +782,7 @@ Stated here because they are real and because the code flags them itself:
 - ~~**`ApprovalLedger.consume()` does not resolve the capability against the
   registry**~~ — **closed 2026-10-28.** `consume()` asks the registry and
   refuses with `capability_unregistered`
-  (`src/labcairn/security/approval.py:210-220`); the fixtures that broke this
+  (`src/labcairn/security/approval.py:215-222`); the fixtures that broke this
   claim are `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
   and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
 

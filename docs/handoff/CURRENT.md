@@ -299,7 +299,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **LC-P1-08:** `UNPARSEABLE` is a mixed bucket — a container that would not
   open, and a page deliberately not read. Both are honestly "not citable, here
   is why", but only the disclosure separates them.
-- **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:210-220`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
+- **G1:** ~~`ApprovalLedger.consume()` does not resolve the capability against the registry. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first.~~ **Closed**: `consume()` now asks the registry and refuses with `capability_unregistered` (`src/labcairn/security/approval.py:215-222`); `tests/test_security_approval.py` and `tests/test_recovery_approvals.py` are the witnesses.
 - **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
 - **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
 - **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.

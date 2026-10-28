@@ -280,7 +280,7 @@ document does not quote a number for the refused set.
 - ~~**`ApprovalLedger.consume()` does not resolve the capability against the
   registry**~~ — **closed since the gate.** `consume()` asks the registry and
   refuses an id it does not hold with `capability_unregistered`
-  (`src/labcairn/security/approval.py:210-220`), a reason of its own rather
+  (`src/labcairn/security/approval.py:215-222`), a reason of its own rather
   than `args_changed`, so the remedy it names is the true one. Witnessed by
   `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
   and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
