@@ -288,8 +288,10 @@ def test_a_grant_whose_scope_does_not_reach_the_material_is_refused() -> None:
     else" is a grant that has been widened by a guess, and it is the
     narrow reading that is safe.
     """
-    grant = _grant(scope="proj-2")
-    decision = _decide([grant])
+    # **The grant belongs to this project** -- otherwise the refusal would
+    # be "no grant", which is a different fact.
+    grant = _grant(scope="proj-1/drafts/**")
+    decision = _decide([grant], material_ref="proj-1/final/submission.docx")
 
     assert decision.allowed is False
     assert decision.reason is ConsentRefusal.SCOPE_NOT_COVERED

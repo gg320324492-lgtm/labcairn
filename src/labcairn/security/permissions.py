@@ -183,6 +183,12 @@ class ConsentDecision:
 def _scope_covers(scope: str, material_ref: str) -> bool:
     """Whether a grant's scope reaches a material.
 
+    **The scope and the material are in the same coordinate system.** A
+    grant's scope names the material paths it reaches, and a material is
+    named the same way, so the comparison is between two paths in one
+    system — and **the scope's own prefix is the project's**, which is why
+    a grant on ``proj-1`` carries a scope like ``proj-1/**``.
+
     **A prefix match, and the prefix is explicit.** ``proj-1/**`` covers
     ``proj-1`` and everything under it; ``proj-1`` covers only itself. **A
     scope that does not end in ``/**`` is a scope of one thing**, which is
@@ -190,12 +196,9 @@ def _scope_covers(scope: str, material_ref: str) -> bool:
     is read as "this paper and anything else" is a grant that has been
     widened by a guess.
 
-    **The scope is matched against the *material*, not against the
-    subject.** The two are different questions: the subject is *whose
-    project this is*, and the scope is *which of its material this grant
-    reaches*. A grant for one project cannot answer for another, and a
-    grant whose scope does not reach the material refuses rather than
-    permits.
+    **And a sibling that merely shares a prefix is not under the scope**:
+    ``proj-1-secrets`` does not begin with ``proj-1/``, so it is not
+    covered by ``proj-1/**``.
     """
     if scope.endswith("/**"):
         prefix = scope[:-3]

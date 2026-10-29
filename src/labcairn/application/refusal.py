@@ -143,6 +143,42 @@ class ApplicationRefusal(StrEnum):
     #: predict. Nothing was overwritten — a human decides, because the alternative
     #: is a second writer on the one path where a second writer is expensive.
     OPERATION_CONFLICT = "operation_conflict"
+    # -- LC-P2-06: the consent machinery ------------------------------- #
+    #: No grant covers this use. **The permission is denied by the absence of
+    #: a row**, so the remedy is a grant and not an exemption -- ADR-0015 D2.
+    CONSENT_NO_GRANT = "consent_no_grant"
+    #: A grant covers the permission but not the purpose. The remedy is a
+    #: grant for this purpose.
+    CONSENT_PURPOSE_NOT_GRANTED = "consent_purpose_not_granted"
+    #: A grant covers the permission and the purpose but names another
+    #: destination. **A grant naming provider A does not authorise provider
+    #: B** -- ADR-0015 D3.
+    CONSENT_DESTINATION_NOT_GRANTED = "consent_destination_not_granted"
+    #: The grant that would have covered this use was withdrawn. **This is not
+    #: the same as never having been permitted**, and only the first is a
+    #: question about a person.
+    CONSENT_GRANT_WITHDRAWN = "consent_grant_withdrawn"
+    #: The grant existed and has run out.
+    CONSENT_GRANT_EXPIRED = "consent_grant_expired"
+    #: The grant is recorded but its window has not opened.
+    CONSENT_GRANT_NOT_YET_ACTIVE = "consent_grant_not_yet_active"
+    #: A grant exists for this subject, permission and purpose, but its scope
+    #: does not reach this material.
+    CONSENT_SCOPE_NOT_COVERED = "consent_scope_not_covered"
+    #: An archive declares a compression ratio beyond the declared ceiling.
+    #: **The bomb is refused by its declaration**, so the check never expands
+    #: the archive.
+    INTAKE_ZIP_BOMB = "intake_zip_bomb"
+    #: An archive entry's path escapes the extraction root.
+    INTAKE_PATH_TRAVERSAL = "intake_path_traversal"
+    #: A macro-enabled document. **The macro is not executed, and the file is
+    #: not cleaned**: a refusal is honest where a partial acceptance is not.
+    INTAKE_MACRO_NOT_EXECUTED = "intake_macro_not_executed"
+    #: An archive is larger than the declared ceiling.
+    INTAKE_ARCHIVE_TOO_LARGE = "intake_archive_too_large"
+    #: The bytes are not an archive this reader can open. It is inventoried
+    #: and hashed, and nothing is taken from it.
+    INTAKE_NOT_AN_ARCHIVE = "intake_not_an_archive"
 
 
 class ApplicationRefusedError(RuntimeError):
