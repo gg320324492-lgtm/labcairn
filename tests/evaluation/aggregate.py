@@ -20,6 +20,17 @@
    that matters is between *not run* and *passed*, and the harness keeps
    it everywhere.
 
+   **§1.4.1b puts one category outside that rule, and keeps it visible.** A
+   skip whose reason names a fact of the machine — an OS, a filesystem, a
+   volume with no 8.3 names — is not evidence that a blocker failed, because
+   the CI matrix runs both platforms and no single runner carries the pair.
+   Those skips, and a test in a class the owner has ruled is discharged
+   outside the offline run, are **accepted and still named** in the row.
+   A skip whose reason names no standing category **fails**, on both sides:
+   a witness case that skipped that way fails its blocker, and a required CI
+   test that skipped that way fails the sixth. See
+   :func:`_witness_cases` and :func:`_excluded_required_tests`.
+
 **What a metric's value is, and what its witnesses are.** These are two
 different numbers and the report keeps them apart. The *value* is what the
 protocol asks for — the rate over a corpus, a sample, or a run. The
@@ -227,6 +238,12 @@ class OutcomeIndex:
 
     by_file: Mapping[str, tuple[TestOutcome, ...]]
     files_run: frozenset[str]
+    #: The files the run *asked* pytest for, whether or not a case came out of
+    #: them. A support module named `test_*.py` is selected and collects
+    #: nothing, and that is a different fact from a file no class holds — the
+    #: first says a required test checked nothing here, the second says only
+    #: that this run did not look.
+    files_selected: frozenset[str]
 
     def of(self, files: tuple[str, ...]) -> tuple[TestOutcome, ...]:
         """The outcomes of these files, in the order the files are given."""
@@ -244,7 +261,10 @@ def index_outcomes(runs: tuple[ClassRun, ...]) -> OutcomeIndex:
     """File every outcome of the run by its file."""
     by_file: dict[str, list[TestOutcome]] = {}
     files_run: set[str] = set()
+    files_selected: set[str] = set()
     for run in runs:
+        for path in run.files:
+            files_selected.add(PurePosixPath(path.replace("\\", "/")).name)
         for outcome in run.outcomes:
             name = PurePosixPath(outcome.file).name
             by_file.setdefault(name, []).append(outcome)
@@ -252,6 +272,7 @@ def index_outcomes(runs: tuple[ClassRun, ...]) -> OutcomeIndex:
     return OutcomeIndex(
         by_file={name: tuple(outcomes) for name, outcomes in by_file.items()},
         files_run=frozenset(files_run),
+        files_selected=frozenset(files_selected),
     )
 
 
@@ -274,35 +295,240 @@ def class_result(gate_class: GateClass, run: ClassRun, *, selected: bool = True)
 SKIPPED_TESTS_BLOCKER: Final = "no-skipped-required-tests"
 
 
-def _excluded_required_tests(index: OutcomeIndex, repo_root: Path) -> tuple[str, ...]:
+#: A required test skipped because of a fact about the machine the run happens
+#: to sit on — an OS, a filesystem feature, a volume with no 8.3 names. The CI
+#: matrix spans both platforms, so no single runner carries a platform pair, and
+#: ruling these a failure would demand the suite prove a POSIX fact on Windows.
+PLATFORM_CONDITIONAL: Final = "platform-conditional"
+
+#: A required test in a class the default run never selects, in a class the
+#: owner has ruled on from the other side: the real-model smoke, discharged by
+#: the scheduled workflow (§1.4.2). Its absence is a fact about the protocol's
+#: offline posture, not a required test that skipped.
+OWNER_RULED_ABSENT: Final = "owner-ruled-absent"
+
+#: A required test the run did not select, in a class the default run *does*
+#: select. Naming this a skip would be a claim about a test that was never
+#: skipped, so it carries its own category: recorded, and not something the
+#: blocker's status is decided by.
+NOT_IN_RUN: Final = "not-in-this-run"
+
+#: A required test the run asked pytest for, and in which pytest collected no
+#: case. A support module named `test_*.py` is the shape: it is selected, it is
+#: in the CI's shard list, and it carries nothing to check. Naming it is the
+#: point — calling it "not selected" would be false, and calling it a pass
+#: would be worse.
+COLLECTED_NOTHING: Final = "selected-and-collected-nothing"
+
+#: Neither. §1.4.1b's ruling is that these **fail** the sixth blocker: "required
+#: CI tests are skipped" is exactly the hole the blocker watches, and a reason
+#: that names no standing category is not a declaration.
+UNDECLARED: Final = "undeclared"
+
+#: The phrases that make a skip's reason a platform or filesystem fact. Read as
+#: substrings of the reason the test itself gave, so the declaration lives with
+#: the skip and there is no second list to keep in step. A new machine-conditional
+#: skip whose wording misses these becomes UNDECLARED and fails the blocker —
+#: failing closed, and loud enough that the fix is to add the phrase here with a
+#: sentence about which fact of the machine it names.
+_PLATFORM_REASON: Final[tuple[str, ...]] = (
+    "POSIX permission bits",
+    "meaningless on POSIX",
+    "Windows path semantics",
+    "8.3 short names",
+    "Windows facility",
+    "Windows-specific",
+    "mklink /J unavailable",
+    "junction creation refused",
+    "symlink creation unavailable",
+    "alternate data streams unavailable",
+    "does not exist on this machine",
+    "refused by the OS",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ExcludedTest:
+    """One required CI test this run did not carry to a pass, and why."""
+
+    name: str
+    category: str
+    detail: str
+
+
+def _category_of(
+    file_name: str, reason: str, *, selected: bool = True, collected: bool = True
+) -> str:
+    """Which standing category a required test's exclusion falls in, per §1.4.1b.
+
+    **A file the run does not even select is classified by its class, not its
+    message** — the real-model smoke never reaches a skip on the offline path,
+    because its class is not run at all. The class table (`OFFLINE_CLASSES`) is
+    the existing declaration of that, so this reads it rather than naming a
+    file, and a future non-offline class is covered by the same rule. A file in
+    an *offline* class that this particular run left out was not skipped
+    either, so it gets its own category rather than the failure one — and a
+    file the run *did* ask for that produced no case gets a third, because
+    saying it "was not selected" would be false.
+    """
+    if any(phrase in reason for phrase in _PLATFORM_REASON):
+        return PLATFORM_CONDITIONAL
+    class_key = manifest.FILE_ASSIGNMENTS.get(file_name, (None, None))[0]
+    if class_key is None:
+        return UNDECLARED
+    if not manifest.OFFLINE_CLASSES.get(class_key, (True,))[0]:
+        return OWNER_RULED_ABSENT
+    if not selected:
+        return NOT_IN_RUN
+    if not collected:
+        return COLLECTED_NOTHING
+    return UNDECLARED
+
+
+def _excluded_required_tests(index: OutcomeIndex, repo_root: Path) -> tuple[ExcludedTest, ...]:
     """The required CI tests this run excluded — skipped, or not run at all.
 
-    **The exclusion is recorded, not ruled on.** The protocol's sixth blocker
-    is about required CI tests that are skipped, and the harness's witnesses
-    for it watch the *mechanism* rather than the required tests themselves.
-    So the fact the blocker is about was invisible: a required test with a
-    skipped case sat in the tree, in the CI shards on both platforms, and
-    the report's row said HELD.
-
-    Whether a **declared** skip fails that blocker is the owner's ruling and
-    not this harness's: the harness says what happened, names the file, and
-    quotes the reason the test gave for not running. The exclusion is in the
-    report, so a reader sees it, and the ruling is still open.
+    **The exclusion used to be recorded and not ruled on, and §1.4.1b has now
+    ruled.** The protocol's sixth blocker is about required CI tests that are
+    skipped; the harness's witnesses watch the *mechanism* rather than the
+    required tests themselves, so the fact the blocker is about was invisible.
+    The owner's answer splits the exclusions into the categories above and one
+    failure mode: a machine-conditional skip and a test in a class the owner has
+    ruled discharged elsewhere are accepted and still named; so is a test this
+    run simply did not select, because it was not skipped. A required test that
+    skipped for a reason naming no standing category fails the blocker, by name
+    and with the reason the test gave.
     """
-    excluded: list[str] = []
+    excluded: list[ExcludedTest] = []
     for name in required_test_files(repo_root):
         outcomes = index.by_file.get(name, ())
+        selected = name in index.files_selected
         if not outcomes:
-            excluded.append(f"{name} — not part of this run")
+            excluded.append(
+                ExcludedTest(
+                    name=name,
+                    category=_category_of(name, "", selected=selected, collected=False),
+                    detail="no case was collected in it",
+                )
+            )
             continue
         skipped = [outcome for outcome in outcomes if outcome.status == SKIPPED]
         if not skipped:
             continue
-        reasons = "; ".join(
-            f"{outcome.node_id}: {outcome.message or 'no reason given'}" for outcome in skipped[:3]
-        )
-        excluded.append(f"{name} — {len(skipped)} case(s) skipped: {reasons}")
+        for outcome in skipped:
+            excluded.append(
+                ExcludedTest(
+                    name=name,
+                    category=_category_of(name, outcome.message, selected=selected),
+                    detail=f"{outcome.node_id}: {outcome.message or 'no reason given'}",
+                )
+            )
     return tuple(excluded)
+
+
+#: The wording each standing category carries in a row, so the two notes below
+#: cannot drift apart by saying the same thing in two different sentences.
+_STANDING_LABEL: Final[dict[str, str]] = {
+    PLATFORM_CONDITIONAL: "a platform or filesystem fact, which the CI "
+    "matrix's other platform carries (§1.4.1b)",
+    OWNER_RULED_ABSENT: "a test in a class the owner has ruled is discharged outside it (§1.4.1b)",
+    NOT_IN_RUN: "a test this run did not select, which is a fact about the "
+    "run's scope and not a skipped test (§1.4.1b)",
+    COLLECTED_NOTHING: "a test this run asked pytest for and in which no case "
+    "was collected, which is not a skip and is not a check either (§1.4.1b)",
+}
+
+#: The categories §1.4.1b accepts. `NOT_IN_RUN` is absent because it can only
+#: describe a file the run never touched, and a file the run never touched is
+#: not a witness case — the witness rule reports that as unevaluated.
+ACCEPTED_CATEGORIES: Final[frozenset[str]] = frozenset({PLATFORM_CONDITIONAL, OWNER_RULED_ABSENT})
+
+
+def _exclusion_note(excluded: tuple[ExcludedTest, ...]) -> str:
+    """The row's account of what the run excluded, grouped by category.
+
+    Every one is shown, including the accepted ones: an acceptance that hides
+    what it accepted is the same invisibility this blocker exists to close.
+    """
+    if not excluded:
+        return ""
+    parts: list[str] = []
+    for category, label in _STANDING_LABEL.items():
+        named = [e for e in excluded if e.category == category]
+        if named:
+            # One line per file, not per case: three platform skips in one file
+            # are three facts, and listing the file three times reads as three
+            # files. The per-case detail is what the refused listing carries.
+            files = list(dict.fromkeys(e.name for e in named))
+            parts.append(
+                f"This run accepted {len(files)} required CI test(s) as {label}: "
+                + ", ".join(files)
+                + "."
+            )
+    refused = [e for e in excluded if e.category == UNDECLARED]
+    if refused:
+        parts.append(
+            f"This run found {len(refused)} required CI test(s) skipped with no "
+            "standing category, which fails the blocker (§1.4.1b): "
+            + "; ".join(f"{e.name} — {e.detail}" for e in refused)
+            + "."
+        )
+    return " " + " ".join(parts)
+
+
+def _witness_cases(
+    outcomes: tuple[TestOutcome, ...],
+) -> tuple[tuple[ExcludedTest, ...], tuple[FailureCase, ...]]:
+    """The witness cases that did not pass, split into accepted and counted.
+
+    **§1.4.1b seen from the witness side.** The CI matrix runs both platforms
+    and no single runner carries a platform pair, so a witness case that
+    skipped for a fact of the machine is not evidence that the blocker failed —
+    it is evidence that this runner is one of the two. Every other non-passing
+    case counts against the blocker exactly as it always has: a failure, an
+    error, or a skip whose reason names no standing category.
+    """
+    accepted: list[ExcludedTest] = []
+    failures: list[FailureCase] = []
+    for outcome in outcomes:
+        if outcome.passed:
+            continue
+        if outcome.status == SKIPPED:
+            category = _category_of(PurePosixPath(outcome.file).name, outcome.message)
+            if category in ACCEPTED_CATEGORIES:
+                accepted.append(
+                    ExcludedTest(name=outcome.node_id, category=category, detail=outcome.message)
+                )
+                continue
+        failures.append(
+            FailureCase(
+                node_id=outcome.node_id,
+                file=outcome.file,
+                status=outcome.status,
+                message=outcome.message,
+            )
+        )
+    return tuple(accepted), tuple(failures)
+
+
+def _acceptance_note(accepted: tuple[ExcludedTest, ...]) -> str:
+    """The row's account of the witness cases it accepted, case by case.
+
+    The case and the reason pytest recorded are both printed: an acceptance
+    that does not say what it accepted is indistinguishable from a hole.
+    """
+    if not accepted:
+        return ""
+    parts: list[str] = []
+    for category, label in _STANDING_LABEL.items():
+        named = [e for e in accepted if e.category == category]
+        if named:
+            parts.append(
+                f"This run accepted {len(named)} witness case(s) as {label}: "
+                + "; ".join(f"{e.name} — {e.detail or 'no reason given'}" for e in named)
+                + "."
+            )
+    return " " + " ".join(parts)
 
 
 def blocker_results(
@@ -312,30 +538,27 @@ def blocker_results(
 
     **The rule.** A blocker is held when every one of its witnesses was
     collected **and passed**. A witness that was skipped is a witness that
-    did not hold: the protocol's sixth blocker is exactly about required
-    tests that do not run, and a witness that is skipped is a required test
-    that did not run. A witness that was not part of the run at all cannot
-    be evaluated, and a blocker that could not be evaluated has not held.
+    did not hold — unless §1.4.1b accepts the skip's reason, which is the
+    ruling's other half and is what `_witness_cases` applies. A witness that
+    was not part of the run at all cannot be evaluated, and a blocker that
+    could not be evaluated has not held.
 
-    **And the sixth blocker carries its exclusion.** Its witnesses watch the
-    mechanism, not the required tests, so a required test that was skipped
-    would not show up in them. The exclusion is therefore read out of the
-    shard list and stated in the row — recorded, not ruled on.
+    **And the sixth blocker rules on the required tests themselves.** Its
+    witnesses watch the mechanism, not the required tests, so a required test
+    that was skipped would not show up in them. §1.4.1b's ruling is that a
+    skip naming no standing category fails the blocker, and an accepted one
+    is still named in the row: the exclusion is read out of the shard list,
+    classified, and stated.
     """
     results: list[BlockerResult] = []
     for blocker in protocol.blockers:
         witnesses = manifest.BLOCKER_WITNESSES.get(blocker.key, ())
+        excluded: tuple[ExcludedTest, ...] = ()
         excluded_note = ""
         if blocker.key == SKIPPED_TESTS_BLOCKER:
             excluded = _excluded_required_tests(index, repo_root)
-            if excluded:
-                excluded_note = (
-                    f" This run excluded {len(excluded)} required CI test(s): "
-                    + "; ".join(excluded)
-                    + ". The exclusion is recorded rather than ruled on: "
-                    "whether a declared skip fails this blocker is the owner's "
-                    "decision, and this harness does not make it."
-                )
+            excluded_note = _exclusion_note(excluded)
+        refused = tuple(e for e in excluded if e.category == UNDECLARED)
         if not witnesses:
             results.append(
                 BlockerResult(
@@ -352,16 +575,31 @@ def blocker_results(
             continue
         missing = index.not_run(witnesses)
         outcomes = index.of(witnesses)
-        failures = tuple(
-            FailureCase(
-                node_id=outcome.node_id,
-                file=outcome.file,
-                status=outcome.status,
-                message=outcome.message,
+        accepted, failures = _witness_cases(outcomes)
+        witness_note = _acceptance_note(accepted)
+        if refused:
+            results.append(
+                BlockerResult(
+                    key=blocker.key,
+                    text=blocker.text,
+                    witnesses=witnesses,
+                    status="FAILED",
+                    failures=failures,
+                    reason=(
+                        f"{len(refused)} required CI test(s) the run skipped for "
+                        "a reason that names no standing category, which is what "
+                        "this blocker watches"
+                        + (
+                            "; its witnesses were also not part of this run: " + ", ".join(missing)
+                            if missing
+                            else ""
+                        )
+                        + witness_note
+                        + excluded_note
+                    ),
+                )
             )
-            for outcome in outcomes
-            if not outcome.passed
-        )
+            continue
         if missing:
             results.append(
                 BlockerResult(
@@ -372,7 +610,10 @@ def blocker_results(
                     failures=failures,
                     reason=(
                         "these witness files were not part of this run, so the "
-                        "blocker could not be evaluated: " + ", ".join(missing) + excluded_note
+                        "blocker could not be evaluated: "
+                        + ", ".join(missing)
+                        + witness_note
+                        + excluded_note
                     ),
                 )
             )
@@ -387,7 +628,8 @@ def blocker_results(
                     failures=failures,
                     reason=(
                         f"{len(failures)} of {len(outcomes)} witness cases did "
-                        "not pass; a skipped witness counts against the blocker" + excluded_note
+                        "not pass; a case that did not pass counts against the "
+                        "blocker unless §1.4.1b accepts it" + witness_note + excluded_note
                     ),
                 )
             )
@@ -398,7 +640,17 @@ def blocker_results(
                 text=blocker.text,
                 witnesses=witnesses,
                 status="HELD",
-                reason="every witness was collected and passed" + excluded_note,
+                reason=(
+                    "every witness was collected and passed"
+                    + (
+                        f" ({len(accepted)} witness case(s) skipped for a reason "
+                        "this harness's ruling accepts)"
+                        if accepted
+                        else ""
+                    )
+                    + witness_note
+                    + excluded_note
+                ),
             )
         )
     return tuple(results)

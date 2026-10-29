@@ -52,27 +52,47 @@ def _trim(text: str) -> str:
     return collapsed[: MESSAGE_LIMIT - 1] + "…"
 
 
-def _file_of(case: ElementTree.Element, classname: str) -> str:
-    """The repository-relative path of the file a case lives in.
+def _location(case: ElementTree.Element, classname: str, repo_root: Path | None) -> tuple[str, str]:
+    """Where the case lives: its repository-relative file, and its class path.
 
-    pytest writes the path in the ``file`` attribute. The classname is the
-    fallback, and it is not always the same shape: with the repository's
-    current layout (``tests/`` holds no ``__init__.py``) pytest's module
-    name is the bare file name, and a package layout would give
-    ``tests.test_foo`` instead.
+    **The classname is a module path and then, maybe, a class path — and the
+    two are not separable from the string alone.** pytest writes the dotted
+    name of the *module*, then the test's class if it has one, and Python's
+    grammar lets a module and a class be spelled the same way. The reader used
+    to assume there was no class and turned `tests.test_skill_ledger.TestDigests`
+    into `tests/test_skill_ledger/TestDigests.py` — a file that is not in the
+    tree, so 22 cases entered the index under a name the manifest, the shard
+    list and the witness tables do not know, and the metric they witness lost
+    its whole denominator without saying so.
+
+    So the split is read off the tree when the tree is named: the longest
+    dotted prefix that is an actual file is the module, and what is left is the
+    class path. Without a tree to ask, the old guess is all there is, and it is
+    stated in the fallback rather than in a promise.
     """
     given = case.get("file")
     if given:
-        return given.replace("\\", "/")
+        return given.replace("\\", "/"), ""
     if not classname:
-        return ""
+        return "", ""
+    parts = classname.split(".")
+    if repo_root is not None and len(parts) > 1:
+        for cut in range(len(parts), 0, -1):
+            candidate = Path(*parts[:cut]).with_suffix(".py")
+            if (repo_root / candidate).is_file():
+                return candidate.as_posix(), "::".join(parts[cut:])
     if "." in classname:
-        return classname.replace(".", "/") + ".py"
-    return f"tests/{classname}.py"
+        return classname.replace(".", "/") + ".py", ""
+    return f"tests/{classname}.py", ""
 
 
-def parse_junit(path: Path) -> tuple[TestOutcome, ...]:
+def parse_junit(path: Path, *, repo_root: Path | None = None) -> tuple[TestOutcome, ...]:
     """Every test case in a JUnit XML file, in the order pytest wrote them.
+
+    `repo_root` is the tree the run happened on, and naming it is what lets a
+    case in a test **class** be keyed to its file. Reading a report without it
+    still works for a suite with no test classes; with one, a class's cases
+    land under a path that is not in the tree.
 
     A file that is not there, or that is not XML, is an error rather than an
     empty result: an empty result would report a class of zero collected
@@ -85,16 +105,17 @@ def parse_junit(path: Path) -> tuple[TestOutcome, ...]:
     tree = ElementTree.parse(path)
     outcomes: list[TestOutcome] = []
     for case in tree.getroot().iter("testcase"):
-        outcomes.append(_outcome_of(case))
+        outcomes.append(_outcome_of(case, repo_root))
     return tuple(outcomes)
 
 
-def _outcome_of(case: ElementTree.Element) -> TestOutcome:
+def _outcome_of(case: ElementTree.Element, repo_root: Path | None = None) -> TestOutcome:
     """One test case's outcome."""
     classname = case.get("classname", "")
     name = case.get("name", "")
-    file = _file_of(case, classname)
-    node_id = f"{file}::{name}" if file else name
+    file, class_path = _location(case, classname, repo_root)
+    tail = f"{class_path}::{name}" if class_path else name
+    node_id = f"{file}::{tail}" if file else tail
 
     failure = case.find("failure")
     error = case.find("error")
