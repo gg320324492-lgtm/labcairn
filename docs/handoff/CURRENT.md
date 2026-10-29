@@ -377,7 +377,41 @@ Three facts about the rest of it are worth having before the code is written, be
 
 ## Merge authority
 
-The implementing agent merges its own PRs after both the parent and a non-implementing reviewer have signed off and all required CI checks pass. Merge authorisation comes from the project plan, not from an external auditor.
+**Ruled by the owner on 2026-10-29, and this is the rule as it now
+stands.**
+
+The implementing agent merges its own PRs when the required CI checks pass.
+**No human sign-off is required before the merge.** The project plan
+authorises the merge; the plan is not an external auditor.
+
+**What changed, and what did not.** Before this ruling the rule was that
+both the parent and a **non-implementing reviewer** had to sign off first.
+That rule is suspended, and it was suspended by the person who owns the
+project — not by the agent that would have benefited from the suspension.
+
+**What replaces it: the review happens later, and it happens properly.**
+The owner will run a **final review** — by another agent, reading the
+merged tree from the online repository — and the findings come back as
+feedback. So the review is not skipped; it is **moved after the merge**,
+where it is done against the thing that actually shipped rather than
+against a branch.
+
+**And that move has an obligation, which is the reason this ruling is
+written down rather than acted on.** A review after the merge cannot be
+answered by the agent that wrote the code, so **what a reviewer should
+attack has to be recorded while the work is being done**, not remembered
+later. The running list is
+[`docs/plans/PHASE_2-review-points.md`](../plans/PHASE_2-review-points.md),
+and it carries, for each claim: the file it lives in, the mutation that
+breaks it, and the witness that catches it.
+
+**What did not change.** The CI checks still gate the merge, and the
+shard costs still come from a runner. The branch's lifetime is unchanged:
+**a delivery branch is deleted once its work has landed** — the Phase 2
+work's branch was deleted when PR #126 merged.
+
+Merge authorisation comes from the project plan, not from an external
+auditor.
 
 ## Escalate to the project lead
 
