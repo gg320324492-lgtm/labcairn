@@ -58,6 +58,7 @@ twenty minutes is a witness nobody runs.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -2311,3 +2312,41 @@ def test_the_inner_run_gets_its_own_temporary_directory_everywhere(
     assert environment["TMPDIR"] == str(root)
     assert environment["TEMP"] == str(root)
     assert environment["TMP"] == str(root)
+
+
+def test_the_evaluation_record_names_every_witness_in_this_file(repo_root: Path) -> None:
+    """The record's witness table is re-read from this file, not remembered.
+
+    **Why this is watched.** `docs/acceptance/LC-P1-13-evaluation.md` §9 lists
+    the harness's witnesses and says how many there are, and by the time this
+    witness was written the count was stale by thirty functions: the file grew
+    across four merges and nobody re-read the table. A record that says *"39
+    test functions"* while the tree holds twice that is the same shape as a
+    reason naming an input the tree no longer has — it keeps answering after the
+    thing it describes has moved, and the reader has no way to tell.
+
+    The check runs in one direction only, and the direction is the honest one:
+    **every witness this file defines must have a row in the record's table.**
+    The record may name functions from other files, and may discuss any of them
+    in prose — so a line is counted only when it **opens** a table row with the
+    function in backticks. Read as *"does the name appear anywhere in the file"*
+    the check is weak, and it was shown to be: the first version of this witness
+    stayed green with the table row deleted, because the prose above it still
+    quoted the name.
+    """
+    record = repo_root / "docs" / "acceptance" / "LC-P1-13-evaluation.md"
+    named = {
+        match.group(1)
+        for line in record.read_text(encoding="utf-8").splitlines()
+        if (match := re.match(r"\|\s*`(test_[a-z0-9_]+)`\s*\|", line))
+    }
+    here = {
+        node.name
+        for node in ast.parse(Path(__file__).read_text(encoding="utf-8")).body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    }
+    missing = sorted(here - named)
+    assert not missing, (
+        "the evaluation record's witness table has no row for these witnesses, so "
+        f"it is a memory rather than a reading: {missing}"
+    )
