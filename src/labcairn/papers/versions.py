@@ -28,6 +28,8 @@ nothing.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Final
@@ -37,12 +39,15 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from labcairn.sources.primitives import ContentHash, NonEmptyText
 
 __all__ = [
+    "Confirmation",
+    "ConfirmationOutcome",
     "EdgeSource",
     "PaperProject",
     "PaperVersion",
     "StageCandidate",
     "VersionEdge",
     "VersionStatus",
+    "confirm_edge",
 ]
 
 
@@ -292,3 +297,177 @@ EVIDENCE_KINDS: Final[tuple[str, ...]] = (
     "matching_passage",
     "matching_number",
 )
+
+
+# --------------------------------------------------------------------------- #
+# T03: the human confirmation path
+# --------------------------------------------------------------------------- #
+
+
+class ConfirmationOutcome(StrEnum):
+    """What a person did with a proposed relationship.
+
+    **Three, and they are not the same thing.** The design's rule is that
+    a human correction produces a **new version** rather than silently
+    replacing what was there, and the three outcomes are what makes that
+    possible:
+
+    - ``ACCEPTED`` — the proposal was right. The edge gains an acceptor and
+      the relationship is settled.
+    - ``CORRECTED`` — the proposal pointed at the wrong parent. **A new
+      edge** is written, naming the parent the person meant, and the
+      proposal it corrects stays readable.
+    - ``REJECTED`` — there is no relationship here. The proposal is
+      refused, and **the record of the refusal is kept**, because "a person
+      looked at this and said no" is information the archive needs.
+    """
+
+    ACCEPTED = "accepted"
+    CORRECTED = "corrected"
+    REJECTED = "rejected"
+
+
+@dataclass(frozen=True)
+class Confirmation:
+    """What a person's decision produced.
+
+    **A correction never overwrites.** It produces a second edge with a
+    higher ``edge_version`` and a ``superseded_by`` naming the edge it
+    replaces, and the edge it replaces is still there to be read. The
+    project's rule is that a human revision produces a new version rather
+    than silently replacing what was there, and a correction that overwrote
+    would destroy the evidence that the system was wrong.
+    """
+
+    outcome: ConfirmationOutcome
+    #: Who decided.
+    decided_by: str
+    #: When they decided.
+    decided_at: datetime
+    #: The edge as it now stands. For a rejection there is no edge, and
+    #: this is ``None``.
+    edge: VersionEdge | None = None
+    #: The edge this decision corrects, when it corrects one.
+    corrects: VersionEdge | None = None
+    #: Why, in their words. Empty is allowed; the decision is what matters.
+    reason: str = ""
+
+
+def confirm_edge(
+    edge: VersionEdge,
+    outcome: ConfirmationOutcome,
+    *,
+    decided_by: str,
+    decided_at: datetime,
+    reason: str = "",
+    corrected_parent_version_id: str | None = None,
+    edge_id_factory: Callable[[], str] | None = None,
+) -> Confirmation:
+    """Apply a person's decision to a proposed edge.
+
+    **The three outcomes produce three different shapes**, and each is the
+    only shape that says what happened:
+
+    - **accepted** — the same edge, with an acceptor and a timestamp.
+      The confidence does not change: the person accepted the
+      relationship, and how strong the evidence was is still a fact about
+      the evidence.
+    - **corrected** — a **new edge** naming the parent the person meant,
+      with a higher ``edge_version`` and a ``superseded_by`` naming the
+      edge it replaces. **The corrected edge is returned and the original
+      is returned beside it**, and the original stays readable.
+    - **rejected** — **no edge**, and the refusal is recorded. The
+      proposal is not deleted; the confirmation says it was refused, by
+      whom and when.
+
+    **A correction without a parent is refused**, because a correction
+    that does not say what the right answer is is not a correction.
+
+    **What this refuses.** A decision by nobody; an acceptance with no
+    time; a correction naming a parent that is the child (the same
+    contradiction the schema refuses); and a correction of an edge that is
+    already settled — because correcting a settled relationship is a new
+    decision, not a re-reading of an old one.
+    """
+    if not decided_by.strip():
+        raise ValueError(
+            "a confirmation is a person's decision and it must name them: decided_by is empty."
+        )
+    if edge.accepted_by is not None:
+        raise ValueError(
+            f"edge {edge.edge_id!r} was already accepted by "
+            f"{edge.accepted_by!r}. Correcting a settled relationship is a new "
+            f"decision, not a re-reading of an old one, so it starts from the "
+            f"proposal that was made."
+        )
+
+    if outcome is ConfirmationOutcome.REJECTED:
+        return Confirmation(
+            outcome=outcome,
+            edge=None,
+            corrects=edge,
+            decided_by=decided_by,
+            decided_at=decided_at,
+            reason=reason,
+        )
+
+    if outcome is ConfirmationOutcome.ACCEPTED:
+        accepted = edge.model_copy(
+            update={
+                "source": EdgeSource.HUMAN,
+                "accepted_by": decided_by,
+                "accepted_at": decided_at,
+            }
+        )
+        return Confirmation(
+            outcome=outcome,
+            edge=accepted,
+            decided_by=decided_by,
+            decided_at=decided_at,
+            reason=reason,
+        )
+
+    # A correction.
+    if corrected_parent_version_id is None:
+        raise ValueError(
+            f"a correction of edge {edge.edge_id!r} must name the parent that "
+            f"is correct. A correction that does not say what the right answer "
+            f"is is not a correction."
+        )
+    if corrected_parent_version_id == edge.child_version_id:
+        raise ValueError(
+            f"edge {edge.edge_id!r} was corrected to make "
+            f"{corrected_parent_version_id!r} the parent of "
+            f"{edge.child_version_id!r}, which would make a version its own "
+            f"parent."
+        )
+    if edge_id_factory is None:
+        raise ValueError(
+            "a correction writes a new edge, and the new edge needs an id. "
+            "edge_id_factory is how the caller mints one."
+        )
+    corrected = edge.model_copy(
+        update={
+            "edge_id": edge_id_factory(),
+            "parent_version_id": corrected_parent_version_id,
+            "source": EdgeSource.HUMAN,
+            "confidence": edge.confidence,
+            "accepted_by": decided_by,
+            "accepted_at": decided_at,
+            "edge_version": edge.edge_version + 1,
+            "superseded_by": None,
+        }
+    )
+    # The edge it corrects now names the edge that replaced it. **The
+    # original is not modified in place** -- a copy carries the change, so
+    # the proposal the system made stays readable and the decision that
+    # overrode it is on the record.
+    superseded = edge.model_copy(update={"superseded_by": corrected.edge_id})
+    return Confirmation(
+        outcome=outcome,
+        edge=corrected,
+        corrects=superseded,
+        decided_by=decided_by,
+        decided_at=decided_at,
+        reason=reason,
+    )
