@@ -235,6 +235,16 @@ def test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspe
     still = spendable_approval(context, approval, now=NOW)
     assert still.approval_id == approval
 
+    # **And the store says it was not spent.** `spendable_approval` asks
+    # whether the moment is right to spend, not whether it has been spent
+    # already — so it alone would not notice a path that spent the
+    # approval and then refused the request. **The record of what was
+    # spent is a fact about the store**, and this is that fact read.
+    rows = list_approvals(context.store.session, context.task_id)
+    assert all(row.state != "consumed" for row in rows), (
+        "the request was refused and the approval was spent anyway"
+    )
+
 
 def test_a_read_grant_does_not_authorise_a_transmission() -> None:
     """**The two gates are not the same gate.**
