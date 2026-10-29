@@ -484,7 +484,15 @@ in [`acceptance/G5-acceptance.md`](acceptance/G5-acceptance.md).
 **So nothing in this document may be read as a claim that the fifth clause ran.**
 Whether a declared, reported skip of it releases the alpha as *"Phase 1 complete"*
 is the task breakdown's §1.4.1b question, and it is the owner's ruling, not this
-document's.
+document's. **Both neighbours of that question are now ruled.** §1.4.2 was ruled
+on 2026-10-28 — the scheduled `provider-smoke.yml` probe discharges the fifth
+gate class, and the offline run still reports it NOT RUN. §1.4.1b was ruled on
+2026-10-29: a skip whose reason names **a fact of the machine** no longer fails a
+blocker, **any other skip does**, and the accepted ones are named in the row — a
+witness case by its node id and pytest's own reason, a required CI test by its
+file under the category it fell in. [The evaluation
+record](acceptance/LC-P1-13-evaluation.md) carries the measured run, and the
+[R5 gate](acceptance/G5-acceptance.md) carries the ruling.
 
 ---
 

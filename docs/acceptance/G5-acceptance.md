@@ -531,6 +531,38 @@ earlier drafts of this file; the ruling above speaks to the class, not the
 blocker, and the blocker's row still carries the platform-conditional skips
 this section names.
 
+**Ruled 2026-10-29, and the harness carries the answer now.** The paragraphs
+above stand as what was true when this gate closed; the owner's ruling has
+since landed in `tests/evaluation/aggregate.py`, and it is **neither bullet
+above whole**:
+
+- A skip whose reason names **a fact of the machine** — an OS, a filesystem, a
+  volume that generates no 8.3 short names — **does not fail** a blocker. Nor
+  does a test in a class the owner ruled discharged outside the offline run,
+  nor a file a partial run simply did not select, which is scope and not a
+  skip.
+- **Any other skip fails it**, by name and with the reason the test gave — for
+  a blocker's own witness cases and for the sixth blocker's required CI tests,
+  which are read out of the CI's own shard list.
+- The accepted exclusions are **named in the row**: a witness case by its node id
+  and the reason pytest recorded, a required CI test by its file, under the
+  standing category it fell in. A refused skip carries both. An acceptance that
+  does not say what it accepted is the invisibility this blocker exists to close.
+
+**Which is why the second blocker's status changes.** It was FAILED on Windows
+because three of its witness cases skip for platform facts — the POSIX half of
+a pair, and the two 8.3 short-name witnesses — and no single runner of the
+matrix carries all of them. The owner was asked whether the ruling covers
+witness cases and not only the sixth blocker's required tests, and chose **all
+blockers**. [The evaluation record](LC-P1-13-evaluation.md) carries the run
+this was measured on.
+
+**What this is not.** It is not an amendment of `EVALUATION.md`, whose sixth
+blocker still reads *"Required CI tests are skipped, ignored or only pass by
+mocking the actual behavior under acceptance"*. The protocol is the ruler; this
+is the harness's reading of one clause in it, recorded so the reading can be
+checked against the ruling.
+
 ### 3 — The competitor baseline's scope (§1.4.3)
 
 **The work was done to Option C — no external comparison — on five checked

@@ -29,7 +29,11 @@ test names the property it holds:
 * **A skip is not a pass.** The protocol's sixth Phase 1 blocker names
   *"Required CI tests [that] are skipped"*; a skipped witness therefore
   fails its blocker, and a witness that did not run leaves the blocker
-  unevaluated rather than held.
+  unevaluated rather than held. §1.4.1b's ruling extends that to the required
+  tests themselves: a required test that skipped for a reason naming no
+  standing category **fails** the blocker, and the two standing categories —
+  a platform or filesystem fact, and a class the owner ruled is discharged
+  outside the offline run — are accepted **and still named**.
 * **Every number carries its denominator**, and a class that collected
   nothing has **no rate** rather than a rate of zero. The recovery metric's
   denominator counts **crash points**, not collected cases.
@@ -54,6 +58,7 @@ twenty minutes is a witness nobody runs.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -370,6 +375,107 @@ def test_a_real_pytest_run_is_read_as_outcomes(repo_root: Path, tmp_path: Path) 
     assert {outcome.status for outcome in run.outcomes} == {PASSED}
 
 
+#: A test file that holds **classes**, not bare module-level functions. Chosen
+#: because it is the shape the JUnit reader used to get wrong, and it is small.
+CLASS_FILE: Final = "test_skill_ledger.py"
+
+
+def test_a_real_run_keys_a_test_class_to_the_file_it_lives_in(
+    repo_root: Path,
+) -> None:
+    """A case in a class belongs to the file the shard list names.
+
+    **What the reader used to do, and where it went.** pytest writes the module
+    path and the class in one dotted `classname` —
+    `tests.test_skill_ledger.TestDigests` — and a module and a class are not
+    separable from that string: the reader assumed there was no class, turned
+    it into `tests/test_skill_ledger/TestDigests.py`, and filed 22 real cases
+    under a path that is not in the tree. The manifest, the CI shard list and
+    the witness tables all name files, so those cases entered **no**
+    denominator: the `unsupported-claim-detection` metric lost a witness file
+    it thinks it has, and the required test looked like one the run never
+    selected.
+
+    The split is read off the tree, which the run has in front of it.
+    """
+    import tempfile
+
+    run = run_class(
+        repo_root,
+        "unit",
+        (f"tests/{CLASS_FILE}",),
+        Path(tempfile.gettempdir()),
+    )
+    assert run.ran, f"the run did not happen: {run.error}"
+    assert run.outcomes, "the run collected nothing"
+    assert {outcome.file for outcome in run.outcomes} == {f"tests/{CLASS_FILE}"}, (
+        "a case in a test class was keyed somewhere other than its own file"
+    )
+    cases = [outcome.node_id for outcome in run.outcomes]
+    assert len(set(cases)) == len(cases), (
+        "two cases with the same name in two classes collapsed into one node id, "
+        "and one of them is now invisible to the denominators"
+    )
+    assert all("::Test" in node_id for node_id in cases), (
+        f"the class is dropped from the node id, so {CLASS_FILE}'s cases cannot be pointed at"
+    )
+
+
+def test_a_file_attribute_still_keeps_the_test_class(tmp_path: Path) -> None:
+    """A report that names the file still has the class in its classname.
+
+    **Why this is a separate case.** pytest's legacy JUnit family writes a
+    `file` attribute; the current default does not. Reading the file from that
+    attribute and then dropping the class is the same collision the tree-read
+    avoids — two classes with one test name become one node id — and it arrives
+    the moment someone sets `junit_family`. So the classname is still consulted,
+    against the now-known module prefix.
+    """
+    rows = "\n".join(
+        '  <testcase classname="tests.test_x.Test' + cls + '" name="test_same_name"'
+        ' file="tests/test_x.py" time="0.001"/>'
+        for cls in ("First", "Second")
+    )
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        f'<testsuites><testsuite name="pytest" tests="2">\n{rows}\n</testsuite></testsuites>\n'
+    )
+    path = tmp_path / "junit.xml"
+    path.write_text(xml, encoding="utf-8")
+    outcomes = parse_junit(path, repo_root=tmp_path)
+    assert [outcome.file for outcome in outcomes] == ["tests/test_x.py"] * 2
+    assert outcomes[0].node_id == "tests/test_x.py::TestFirst::test_same_name"
+    assert len({outcome.node_id for outcome in outcomes}) == 2, (
+        "two cases with the same name in two classes collapsed into one node id"
+    )
+
+
+def test_the_blockers_table_says_what_its_cases_column_counts() -> None:
+    """A HELD blocker can carry cases that did not pass, and the column says so.
+
+    **The row that made this a requirement.** §1.4.1b accepts three platform
+    skips on the second blocker and names them in its reason; the number in the
+    column beside the status is the count of the cases that did not pass, which
+    is not zero. A header that says only *"Cases"* invites a reader to multiply
+    it into *"three cases failed this blocker"*, and the row says the opposite.
+    """
+    blockers = _blockers_with([], set())
+    evaluation = EvaluationRun(
+        repo_root=str(_ROOT),
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=tuple(blockers),
+        metrics=(),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+    )
+    markdown = render_markdown(evaluation, "the benchmark clause", "the superiority clause")
+    assert "| Cases that did not pass |" in markdown
+    assert "| Cases |" not in markdown
+
+
 def test_the_junit_reader_tells_a_skip_from_an_expected_failure(tmp_path: Path) -> None:
     """A ``pytest.skip`` and an ``xfail`` are both ``<skipped>`` elements.
 
@@ -473,6 +579,90 @@ CITATION_BLOCKER: Final = "no-fake-citation-or-unsupported-number"
 def _citation_witnesses() -> tuple[str, ...]:
     """Every witness of the citation blocker."""
     return manifest.BLOCKER_WITNESSES[CITATION_BLOCKER]
+
+
+def _skipped_outcome(file: str, name: str, reason: str) -> TestOutcome:
+    """One skipped case carrying the reason pytest would have recorded."""
+    return TestOutcome(
+        file=file,
+        node_id=f"{file}::{name}",
+        status=SKIPPED,
+        duration_seconds=0.0,
+        message=reason,
+    )
+
+
+def test_a_platform_conditional_witness_skip_is_accepted_and_named() -> None:
+    """§1.4.1b: a witness skipped for a fact of the machine does not fail.
+
+    **This is not a softening of the rule above, and the reason is concrete.**
+    No single runner of the CI matrix carries a platform pair — the POSIX half
+    of a pair runs on ubuntu and the Windows half runs on windows, and the 8.3
+    witnesses depend on a volume that generates short names. Ruling those a
+    failure demands that the suite prove a POSIX fact on Windows.
+
+    So the acceptance is conditional on the skip's own wording, and the row
+    says what it accepted, case by case and in those words: an acceptance that
+    hides what it accepted is the invisibility this blocker exists to close.
+    """
+    witnesses = _citation_witnesses()
+    outcomes = [
+        _skipped_outcome(witnesses[0], "test_one", PLATFORM_SKIP_REASON)
+        if index == 0
+        else _outcome(name, "test_one", PASSED)
+        for index, name in enumerate(witnesses)
+    ]
+    blockers = _blockers_with(outcomes, set(witnesses))
+    blocker = next(b for b in blockers if b.key == CITATION_BLOCKER)
+    assert blocker.status == "HELD"
+    assert not blocker.failures, (
+        "an accepted skip is still listed among the cases that failed the blocker"
+    )
+    assert f"{witnesses[0]}::test_one" in blocker.reason
+    assert PLATFORM_SKIP_REASON in blocker.reason
+
+
+def test_a_witness_skip_outside_the_accepted_categories_still_fails() -> None:
+    """The control the witness above needs: the same skip, a different reason.
+
+    One skipped case, one file, one status — only the wording differs, and the
+    blocker's status turns on it. Without this, the case above would prove only
+    that *some* skip is accepted.
+    """
+    witnesses = _citation_witnesses()
+    outcomes = [
+        _skipped_outcome(witnesses[0], "test_one", "the vendor service was down")
+        if index == 0
+        else _outcome(name, "test_one", PASSED)
+        for index, name in enumerate(witnesses)
+    ]
+    blockers = _blockers_with(outcomes, set(witnesses))
+    blocker = next(b for b in blockers if b.key == CITATION_BLOCKER)
+    assert blocker.status == "FAILED"
+    assert len(blocker.failures) == 1
+
+
+def test_every_platform_phrase_is_carried_by_a_skip_in_the_tree() -> None:
+    """A phrase no skip carries is a dead entry in the ruling.
+
+    **Why this is watched.** The phrase list *is* the declaration: §1.4.1b
+    accepts a skip because the test's own reason says which fact of the machine
+    it waits on. An entry that nothing in the tree ever says is a rule about a
+    skip that does not exist, and a list of those is how the ruling stops
+    matching anything without stopping to say so.
+
+    The harness's own test file is left out of the corpus, so this file cannot
+    keep a dead phrase alive by quoting it.
+    """
+    from evaluation.aggregate import _PLATFORM_REASON
+
+    corpus = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (_ROOT / "tests").glob("test_*.py")
+        if path.name != "test_evaluation_harness.py"
+    )
+    dead = tuple(phrase for phrase in _PLATFORM_REASON if phrase not in corpus)
+    assert not dead, f"these phrases match no skip in the tree: {dead}"
 
 
 def test_a_skipped_witness_fails_its_blocker() -> None:
@@ -1769,17 +1959,34 @@ def test_the_rendered_report_names_the_tree_it_measured() -> None:
 
 
 # --------------------------------------------------------------------------
-# The sixth blocker's exclusion
+# The sixth blocker's exclusions, and §1.4.1b's ruling over them
 # --------------------------------------------------------------------------
 
+#: A skip whose reason names a fact of the machine, worded as the Windows
+#: runner actually words it — read out of a real run's ``-rs`` sweep rather
+#: than invented, because the classifier matches on these phrases.
+PLATFORM_SKIP_REASON: Final = "this machine's volume has no 8.3 short names"
 
-def _skip_blocker_run(skip: str) -> ClassRun:
-    """A run in which one required test had a skipped case."""
+
+def _skip_blocker_run(skip: str, reason: str = "it did not pass") -> ClassRun:
+    """A run in which one required test had a skipped case.
+
+    ``reason`` is the skip's own wording, because under §1.4.1b the wording is
+    what classifies the exclusion: the declaration lives with the skip.
+    """
     outcomes = [
         _outcome(f"tests/{name}", "test_one", PASSED)
         for name in manifest.BLOCKER_WITNESSES["no-skipped-required-tests"]
     ]
-    outcomes.append(_outcome(f"tests/{skip}", "test_a_skipped_case", SKIPPED))
+    outcomes.append(
+        TestOutcome(
+            file="tests/" + skip,
+            node_id=f"tests/{skip}::test_a_skipped_case",
+            status=SKIPPED,
+            duration_seconds=0.0,
+            message=reason,
+        )
+    )
     return ClassRun(
         key="unit",
         files=("tests/" + skip,),
@@ -1791,30 +1998,188 @@ def _skip_blocker_run(skip: str) -> ClassRun:
     )
 
 
-def test_the_required_tests_the_run_excluded_are_recorded(repo_root: Path) -> None:
-    """The sixth blocker's row says which required tests the run excluded.
-
-    **The blocker is about skipped required tests**, and its witnesses watch
-    the *mechanism* — the shard list, the isolation, the rule that reads a
-    witness — rather than the required tests and what happened to them. So
-    the fact the blocker is about was invisible: a required test with a
-    skipped case sat in the tree, in the CI shards on both platforms, and
-    the row said HELD.
-
-    So the exclusion is read out of the shard list and stated. Whether a
-    *declared* skip fails the blocker is the owner's ruling and not this
-    harness's, so the harness records the fact and names the file.
-    """
+def _sixth_blocker(repo_root: Path, run: ClassRun) -> Any:
+    """The sixth blocker's row for a synthetic run."""
     protocol = _protocol(repo_root)
-    index = index_outcomes((_skip_blocker_run("test_provider_credentials.py"),))
-    blockers = blocker_results(protocol, index, repo_root=repo_root)
-    blocker = next(b for b in blockers if b.key == "no-skipped-required-tests")
-    assert blocker.status == "HELD"
-    assert "test_provider_credentials.py" in blocker.reason, (
-        "the excluded required test is not in the blocker's row, so the exclusion is not recorded"
+    index = index_outcomes((run,))
+    return next(
+        b
+        for b in blocker_results(protocol, index, repo_root=repo_root)
+        if b.key == "no-skipped-required-tests"
     )
-    assert "skipped" in blocker.reason
-    assert "owner's decision" in blocker.reason
+
+
+def test_a_platform_conditional_skip_is_accepted_and_named(repo_root: Path) -> None:
+    """A required test skipped for a fact of the machine holds, and is named.
+
+    **§1.4.1b's ruling.** The CI matrix runs both platforms, so no single
+    runner carries a platform pair: ruling these a failure would demand that
+    the suite prove a POSIX fact on Windows. So the blocker holds and the row
+    still says which tests were accepted, because an acceptance that hides
+    what it accepted is the invisibility this blocker exists to close.
+    """
+    blocker = _sixth_blocker(
+        repo_root,
+        _skip_blocker_run("test_security_paths.py", PLATFORM_SKIP_REASON),
+    )
+    assert blocker.status == "HELD"
+    assert "test_security_paths.py" in blocker.reason
+    assert "platform or filesystem fact" in blocker.reason, (
+        "the row does not say on what standing the skip was accepted"
+    )
+
+
+def test_a_skip_that_names_no_standing_category_fails_the_blocker(repo_root: Path) -> None:
+    """A required test skipped for a reason outside the categories fails it.
+
+    **"Required CI tests are skipped" is exactly the hole this blocker
+    watches**, and a reason that names no standing category is not a
+    declaration. The row carries the file, the case and the reason the test
+    gave, so a reader can act on it rather than only see red.
+    """
+    blocker = _sixth_blocker(
+        repo_root,
+        _skip_blocker_run("test_provider_credentials.py", "needs a fixture the tree does not hold"),
+    )
+    assert blocker.status == "FAILED"
+    assert "no\n" not in blocker.reason
+    assert "test_provider_credentials.py" in blocker.reason
+    assert "needs a fixture the tree does not hold" in blocker.reason, (
+        "the skip's own reason is not in the row, so the row cannot be acted on"
+    )
+
+
+def test_the_real_model_smoke_file_is_accepted_as_ruled_elsewhere(repo_root: Path) -> None:
+    """The offline run's absence of the smoke class is not a skipped test.
+
+    §1.4.2 discharged the real-model class from the scheduled workflow, so the
+    offline run never selects it. That is a fact about the protocol's offline
+    posture, not a required test that skipped — and the classification comes
+    from the class table the harness already holds, not from a named file.
+    """
+    blocker = _sixth_blocker(
+        repo_root,
+        _skip_blocker_run("test_security_paths.py", PLATFORM_SKIP_REASON),
+    )
+    assert "test_real_provider_smoke.py" in blocker.reason
+    assert "class the owner has ruled is discharged outside it" in blocker.reason
+
+
+def test_a_required_test_the_run_did_not_select_is_not_called_a_skip(
+    repo_root: Path,
+) -> None:
+    """Leaving a required test out of a run is scope, not a skip.
+
+    **The wording is the whole claim.** A partial run must not report that a
+    test was skipped when it was never selected, and it must not fail the
+    blocker for it either — so the category is separate and the sentence says
+    "did not select". Making these files undeclared instead would flip the
+    status, which is what the assertion below would catch.
+    """
+    blocker = _sixth_blocker(
+        repo_root,
+        _skip_blocker_run("test_security_paths.py", PLATFORM_SKIP_REASON),
+    )
+    assert blocker.status == "HELD"
+    assert "test_cite_c1.py" in blocker.reason, (
+        "a required test this run left out is not named at all"
+    )
+    assert "did not select" in blocker.reason
+
+
+def test_a_required_test_that_collected_nothing_is_named_as_that(repo_root: Path) -> None:
+    """Selected-and-empty is neither "not selected" nor a pass.
+
+    **Three of the CI's own required test files are support modules** that
+    define no ``test_*`` function — ``test_store_support.py`` and its two
+    siblings, which other test files import for their fixtures. They are in the
+    shard list, CI pays to collect them, and nothing in them is collected. The
+    row has to say that, because the two things a reader might otherwise infer
+    are both wrong: that the run skipped the file, or that the file checked
+    something and passed.
+    """
+    from evaluation.aggregate import COLLECTED_NOTHING, _excluded_required_tests
+
+    run = _skip_blocker_run(
+        "test_security_paths.py", "this machine's volume has no 8.3 short names"
+    )
+    selected = ClassRun(
+        key="unit",
+        files=(*run.files, "tests/test_store_support.py"),
+        outcomes=run.outcomes,
+        exit_code=0,
+        duration_seconds=0.0,
+        stdout="",
+        stderr="",
+    )
+    index = index_outcomes((selected,))
+    entry = next(
+        e for e in _excluded_required_tests(index, repo_root) if e.name == "test_store_support.py"
+    )
+    assert entry.category == COLLECTED_NOTHING, (
+        "a file the run asked for is reported as one it never selected"
+    )
+    blocker = _sixth_blocker(repo_root, selected)
+    assert "no case was collected" in blocker.reason
+    assert "test_store_support.py" in blocker.reason
+
+
+def test_one_file_with_three_skips_is_counted_as_one_file(repo_root: Path) -> None:
+    """The row counts files, and says so in the number it prints.
+
+    Three platform skips in one file are three facts, and a row that names the
+    file three times reads as three files — which is how a count stops meaning
+    what the sentence around it says. This is the shape the first measured run
+    produced: `test_security_paths.py` listed three times under "4 required CI
+    tests".
+    """
+    outcomes = [
+        _outcome(f"tests/{name}", "test_one", PASSED)
+        for name in manifest.BLOCKER_WITNESSES["no-skipped-required-tests"]
+    ]
+    outcomes.extend(
+        _skipped_outcome(f"tests/{CLASS_FILE}", f"test_skip_{index}", PLATFORM_SKIP_REASON)
+        for index in range(3)
+    )
+    run = ClassRun(
+        key="unit",
+        files=(f"tests/{CLASS_FILE}",),
+        outcomes=tuple(outcomes),
+        exit_code=0,
+        duration_seconds=0.0,
+        stdout="",
+        stderr="",
+    )
+    blocker = _sixth_blocker(repo_root, run)
+    assert "accepted 1 required CI test(s)" in blocker.reason, blocker.reason
+    assert blocker.reason.count(f"{CLASS_FILE}") == 1
+
+
+def test_the_exclusion_is_in_the_rendered_report(repo_root: Path) -> None:
+    """The exclusion is on the page, not only in the model."""
+    protocol = _protocol(repo_root)
+    index = index_outcomes(
+        (
+            _skip_blocker_run(
+                "test_provider_credentials.py", "needs a fixture the tree does not hold"
+            ),
+        )
+    )
+    evaluation = EvaluationRun(
+        repo_root=str(repo_root),
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=blocker_results(protocol, index, repo_root=repo_root),
+        metrics=(),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+    )
+    markdown = render_markdown(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
+    assert "test_provider_credentials.py" in markdown
+    assert "needs a fixture the tree does not hold" in markdown
+    assert "FAILED" in markdown
 
 
 def test_the_required_tests_are_read_out_of_the_shard_file(repo_root: Path) -> None:
@@ -1839,25 +2204,6 @@ def test_the_required_tests_are_read_out_of_the_shard_file(repo_root: Path) -> N
         for entry in shard
     }
     assert set(required) == named
-
-
-def test_the_exclusion_is_in_the_rendered_report(repo_root: Path) -> None:
-    """The exclusion is on the page, not only in the model."""
-    protocol = _protocol(repo_root)
-    index = index_outcomes((_skip_blocker_run("test_provider_credentials.py"),))
-    evaluation = EvaluationRun(
-        repo_root=str(repo_root),
-        revision="abc123",
-        protocol_path="docs/EVALUATION.md",
-        classes=(),
-        blockers=blocker_results(protocol, index, repo_root=repo_root),
-        metrics=(),
-        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
-        duration_seconds=0.0,
-        command="python -m tests.evaluation",
-    )
-    markdown = render_markdown(evaluation, protocol.benchmark_clause, protocol.superiority_clause)
-    assert "test_provider_credentials.py" in markdown
 
 
 # --------------------------------------------------------------------------
@@ -2021,3 +2367,46 @@ def test_the_inner_run_gets_its_own_temporary_directory_everywhere(
     assert environment["TMPDIR"] == str(root)
     assert environment["TEMP"] == str(root)
     assert environment["TMP"] == str(root)
+
+
+def test_the_evaluation_record_names_every_witness_in_this_file(repo_root: Path) -> None:
+    """The record's witness table is re-read from this file, not remembered.
+
+    **Why this is watched.** `docs/acceptance/LC-P1-13-evaluation.md` §9 lists
+    the harness's witnesses and says how many there are, and by the time this
+    witness was written the count was stale by thirty functions: the file grew
+    across four merges and nobody re-read the table. A record that says *"39
+    test functions"* while the tree holds twice that is the same shape as a
+    reason naming an input the tree no longer has — it keeps answering after the
+    thing it describes has moved, and the reader has no way to tell.
+
+    The check runs in one direction only, and the direction is the honest one:
+    **every witness this file defines must have a row in the record's table.**
+    The record may name functions from other files, and may discuss any of them
+    in prose — so a line is counted only when it **opens** a table row with the
+    function in backticks. Read as *"does the name appear anywhere in the file"*
+    the check is weak, and it was shown to be: the first version of this witness
+    stayed green with the table row deleted, because the prose above it still
+    quoted the name.
+    """
+    record = repo_root / "docs" / "acceptance" / "LC-P1-13-evaluation.md"
+    named = {
+        match.group(1)
+        for line in record.read_text(encoding="utf-8").splitlines()
+        if (match := re.match(r"\|\s*`(test_[a-z0-9_]+)`\s*\|", line))
+    }
+    here = {
+        node.name
+        for node in ast.parse(Path(__file__).read_text(encoding="utf-8")).body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    }
+    missing = sorted(here - named)
+    assert not missing, (
+        "the evaluation record's witness table has no row for these witnesses, so "
+        f"it is a memory rather than a reading: {missing}"
+    )
+    stated = re.search(r"\*\*(\d+) test functions", record.read_text(encoding="utf-8"))
+    assert stated is not None and int(stated.group(1)) == len(here), (
+        f"the record says {stated.group(1) if stated else 'nothing'} test functions; "
+        f"this file defines {len(here)}"
+    )

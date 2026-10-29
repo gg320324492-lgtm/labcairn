@@ -450,54 +450,187 @@ injects, read out of the matrix itself, and the **numeric extraction at
 84/84**. Four metrics remain NOT MEASURED and the report names the missing
 input for each.
 
+---
+
+### The table, re-measured after §1.4.1b was ruled and the harness was told
+
+**Corrected 2026-10-29.** The two rows above describe the second blocker as
+FAILED for three platform skips, and the sixth blocker's row said whether a
+declared skip fails it *"is the owner's ruling, not the harness's"*. The owner
+has ruled, and `tests/evaluation/aggregate.py` now acts on it rather than
+describing it:
+
+- a skip whose reason names **a fact of the machine** — an OS, a filesystem, a
+  volume that generates no 8.3 short names — does not fail a blocker;
+- a test in a class the owner has ruled is discharged outside the offline run
+  (§1.4.2) does not fail it either; neither does a file this run did not select
+  (scope, not a skip), nor one it asked pytest for in which no case was
+  collected;
+- **any other skip fails it**, by name and with the reason the test gave;
+- and every accepted exclusion is **named in the row**: a witness case by its
+  node id and the reason pytest recorded, a required CI test by its file under
+  the standing category it fell in.
+
+The owner was asked whether the ruling covers witness cases and not only the
+sixth blocker's required CI tests, and chose **all blockers** — which is what
+the second blocker's row needed.
+
+At `22e2f2d`, on a clean tree (`--out` under the system temp directory,
+**1788.3 s**, exit code **2**):
+
+| The Phase 1 blocker | Status at `22e2f2d` | Witnesses | Cases that did not pass | What the status means |
+|---|---|---|---:|---|
+| New user cannot complete a task from a clean environment following README. | **HELD** | 4 | 0 | every witness was collected and passed |
+| Any unauthorized file write/escape or unconsented private-network disclosure. | **HELD** | 4 | 3 | **accepted, and named**: three witness cases skipped for a platform or filesystem fact |
+| Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | 0 | every witness was collected and passed |
+| A crash silently repeats unknown file side effects. | **HELD** | 4 | 0 | every witness was collected and passed |
+| Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | 0 | every witness was collected and passed |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | 0 | every witness passed, and the row names the six required test **files** it accepted, in the three categories: two skipped for a fact of the machine, one in a class discharged outside the run, three in which pytest collected no case |
+
+**All six hold, and the second one holds by being told what to accept.** Its row
+carries the three cases verbatim, because an acceptance that does not say what
+it accepted is indistinguishable from a hole:
+
+> `tests/test_security_paths.py::test_windows_drive_path_is_refused_on_posix` —
+> the Windows drive form is meaningless on POSIX;
+> `tests/test_security_paths.py::test_a_new_file_under_a_short_spelled_root_is_not_refused`
+> and `…::test_a_path_outside_a_short_spelled_root_is_still_refused` — this
+> machine's volume has no 8.3 short names.
+
+**The exit code is still 2, and it is 2 for the reason it has always been 2.**
+The real-model smoke class is selected, cannot run offline, and is reported NOT
+RUN. The ruling changes which blockers hold; it does not make the fifth gate
+class run, and this sentence is here because the two are easy to lose in each
+other.
+
+**The sixth blocker's row, verbatim, is the ruling made visible:**
+
+> This run accepted 2 required CI test(s) as a platform or filesystem fact,
+> which the CI matrix's other platform carries (§1.4.1b): test_api.py,
+> test_security_paths.py. This run accepted 1 required CI test(s) as a test in a
+> class the owner has ruled is discharged outside it (§1.4.1b):
+> test_real_provider_smoke.py. This run accepted 3 required CI test(s) as a test
+> this run asked pytest for and in which no case was collected, which is not a
+> skip and is not a check either (§1.4.1b): test_recovery_support.py,
+> test_skill_support.py, test_store_support.py.
+
+**Two defects in the harness's own numbers were found by reading the tree to
+check this ruling, and both are witnessed.**
+
+- **A test class's cases were keyed to a file that does not exist.** pytest
+  writes the module and the test class in one dotted `classname`, and the JUnit
+  reader assumed there was no class: `tests.test_skill_ledger.TestDigests` became
+  `tests/test_skill_ledger/TestDigests.py`. Six files in this suite hold their
+  cases in classes, so **their cases entered no denominator at all** — and the
+  metric that names one of them as a witness, `unsupported-claim-detection`,
+  reported a witness score of **34/34** when the same suite was read by the old
+  reader, where the tree actually held **82** cases behind it. The run above,
+  read by the fixed reader, reports **82/82**. The split is now taken from the
+  tree (the longest dotted prefix that is an actual file is the module), and
+  `test_a_real_run_keys_a_test_class_to_the_file_it_lives_in` runs the real
+  pytest subprocess over `tests/test_skill_ledger.py` to hold it.
+- **Three files in the CI's own shard list collect nothing.**
+  `test_store_support.py` and `test_recovery_support.py` say so in their own
+  docstrings (*"Not a test module — it defines no `test_*` functions"*), and
+  `test_skill_support.py` describes itself as *"shared fixtures and honest stage
+  bodies"*; other test files import them for their builders. They are filed in a
+  gate class, they are in every shard, CI pays to collect them, and no case comes
+  out. The row used to report them as files *"this run did not select"*, which is
+  false — the run selected them; nothing was there. `test_ci_shard_coverage` and
+  the partition's own witnesses cannot see this, because both ask *"is every test
+  file in a class?"* and never *"is there a test in it?"*.
+  **Whether a required test file that carries no case belongs in the shard list
+  is a question this record does not settle**, and it is carried to Phase 2.
+
 ## 9. The witnesses, and the mutation table
 
-`tests/test_evaluation_harness.py` — **39 test functions, 40 test cases**
-(one of them is parameterised), and each one names the property it holds.
+`tests/test_evaluation_harness.py` — **74 test functions, 75 test cases** (one
+of them is parameterised), and each one names the property it holds. **The table
+below is re-read from the file, not remembered**:
+`test_the_evaluation_record_names_every_witness_in_this_file` fails if a witness
+this file defines has no row in it, or if the count above is not the number of
+`def test_` in the file — which is the only way a table like this one stays true.
+It had drifted by thirty functions before that witness was written.
+
 A mechanism that nobody watches can be neutered, and then the tree stays
 green while the evaluation stops measuring anything.
 
 | The witness | The property it holds |
 |---|---|
-| `test_the_partition_files_every_test_file_exactly_once` | no test file is in no gate class, so no test's cases enter no denominator |
-| `test_every_file_the_partition_names_exists` | a filed file that is not there is a class that quietly runs less |
-| `test_the_partition_agrees_with_the_markers_a_file_declares` | the partition may not contradict a file's own markers |
-| `test_every_clause_the_partition_names_is_in_the_vocabulary` | a clause outside the vocabulary is a clause the report cannot place |
-| `test_the_repository_class_is_not_one_of_the_protocols_five` | the repository's own gates are counted apart from the protocol's |
-| `test_the_parser_reads_the_protocol` | the parser finds the classes, the metrics and the blockers; a parser that returned nothing would make the harness report an empty, green run |
-| `test_the_parser_refuses_a_protocol_that_is_not_there` | a missing section is an error, not an empty result |
-| `test_the_parser_refuses_an_item_it_has_no_witness_key_for` | a protocol item with no witness is an error, not a silent omission |
-| `test_every_metric_the_protocol_names_has_witnesses` | a metric with no witness is a metric this repository does not check |
-| `test_every_blocker_the_protocol_names_has_witnesses` | a blocker with no witness is a blocker nobody is watching |
-| `test_every_witness_file_is_one_the_partition_files` | a witness outside the partition would never run, and would look like a pass |
-| `test_a_real_pytest_run_is_read_as_outcomes` | the runner and the JUnit reader work on a real pytest run |
-| `test_the_junit_reader_tells_a_skip_from_an_expected_failure` | a `pytest.skip` and an `xfail` are both `<skipped>` elements, and they are different facts |
-| `test_the_junit_reader_refuses_a_report_that_is_not_there` | a missing report is an error, not an empty result |
-| `test_the_runner_refuses_a_temporary_directory_inside_the_repository` | a temporary directory inside the checkout makes the run depend on the tree it runs in |
-| `test_a_skipped_witness_fails_its_blocker` | **a skip is not a pass** |
-| `test_a_failed_witness_fails_its_blocker` | a failing witness fails its blocker, and the case is listed |
-| `test_a_witness_that_did_not_run_leaves_the_blocker_unevaluated` | "not run" and "passed" are different facts |
-| `test_a_blocker_whose_witnesses_all_passed_holds` | the positive case, so the three above are not passing vacuously |
-| `test_a_class_that_collected_nothing_has_no_rate` | no cases is not zero cases |
-| `test_a_small_denominator_is_said_so` | a rate over a handful of cases is called small, in the row itself |
-| `test_the_report_carries_the_denominators` | the rendered report states each rate as numerator over denominator |
-| `test_the_corpus_measurement_agrees_with_the_committed_answer_key` | the measurement's denominator is the corpus's own, **counted a second time in the test** |
-| `test_the_corpus_measurement_reports_no_failure` | every cell is read exactly as the key says, and every refusal refuses |
-| `test_a_like_for_like_baseline_is_comparable` | the positive case for the comparison |
-| `test_a_baseline_missing_a_requirement_is_refused` | a baseline that does not meet the protocol's rule is not compared |
-| `test_a_baseline_on_different_tasks_is_refused` | matched tasks are the first requirement |
-| `test_the_comparison_prints_pairs_and_never_a_verdict` | the structure stops a ranking, not a disclaimer |
-| `test_the_rendered_comparison_carries_no_winners_language` | the **rendered** section names no winner |
-| `test_a_baseline_document_is_read_with_its_numbers` | the numbers are read; they are only printed if the basis matched |
-| `test_the_real_model_smoke_is_reported_as_not_run_with_its_reason` | the class that needs a credential says so, and says why |
-| `test_the_real_model_smoke_is_not_counted_as_a_pass` | a class that did not run has no rate, and the exit code says so |
-| `test_the_command_lists_the_partition` | `--list` prints the partition and runs nothing |
-| `test_the_command_refuses_a_class_it_does_not_know` | an unknown class is refused, not ignored |
-| `test_the_command_writes_a_report_and_says_what_it_found` | the command's whole path, with the run stubbed out |
-| `test_the_command_reports_the_classes_it_could_not_run` | selecting the real-model smoke reports it as NOT RUN and exits 2 |
-| `test_the_report_and_the_json_say_the_same_thing` | both renderings come from one run, and neither is derived from the other |
-| `test_the_measurement_carries_its_denominator_and_its_reason` | a measurement that is not a number says why |
-| `test_the_harness_runs_on_the_pinned_interpreter` | the harness runs under the interpreter the project pins |
+| `test_the_partition_files_every_test_file_exactly_once` | No test file is in no class, and none is in two |
+| `test_every_file_the_partition_names_exists` | A filed file that is not there is a class that quietly runs less |
+| `test_the_partition_agrees_with_the_markers_a_file_declares` | Where a file declares a marker, the partition may not contradict it |
+| `test_a_file_that_declares_no_protocol_marker_is_in_no_protocol_class` | A file that says nothing about its class may not be filed into one |
+| `test_every_clause_the_partition_names_is_in_the_vocabulary` | A clause outside the vocabulary is a clause the report cannot place |
+| `test_the_repository_class_is_not_one_of_the_protocols_five` | The repository's own gates are reported separately from the protocol's |
+| `test_the_parser_reads_the_protocol` | The protocol's classes, metrics and blockers are found |
+| `test_the_parser_refuses_a_protocol_that_is_not_there` | A document without the protocol's sections is an error, not an empty result |
+| `test_the_parser_refuses_an_item_it_has_no_witness_key_for` | A protocol item with no witness key is an error, not a silent omission |
+| `test_every_metric_the_protocol_names_has_witnesses` | A metric with no witness is a metric this repository does not check |
+| `test_every_blocker_the_protocol_names_has_witnesses` | A blocker with no witness is a blocker nobody is watching |
+| `test_every_witness_file_is_one_the_partition_files` | A witness outside the partition would never run, and would look like a pass |
+| `test_a_real_pytest_run_is_read_as_outcomes` | The runner and the JUnit reader work on a real pytest run |
+| `test_a_real_run_keys_a_test_class_to_the_file_it_lives_in` | A case in a class belongs to the file the shard list names |
+| `test_a_file_attribute_still_keeps_the_test_class` | A report that names the file still has the class in its classname |
+| `test_the_blockers_table_says_what_its_cases_column_counts` | A HELD blocker can carry cases that did not pass, and the column says so |
+| `test_the_junit_reader_tells_a_skip_from_an_expected_failure` | A pytest.skip and an xfail are both <skipped> elements |
+| `test_the_junit_reader_refuses_a_report_that_is_not_there` | A missing report is an error, not an empty result |
+| `test_the_runner_refuses_a_temporary_directory_inside_the_repository` | A temporary directory inside the checkout makes the run depend on the tree |
+| `test_a_platform_conditional_witness_skip_is_accepted_and_named` | §1.4.1b: a witness skipped for a fact of the machine does not fail |
+| `test_a_witness_skip_outside_the_accepted_categories_still_fails` | The control the witness above needs: the same skip, a different reason |
+| `test_every_platform_phrase_is_carried_by_a_skip_in_the_tree` | A phrase no skip carries is a dead entry in the ruling |
+| `test_a_skipped_witness_fails_its_blocker` | A required test that did not run is a blocker that did not hold |
+| `test_a_failed_witness_fails_its_blocker` | A failing witness fails its blocker, and the case is listed |
+| `test_a_witness_that_did_not_run_leaves_the_blocker_unevaluated` | A blocker that could not be evaluated has not held |
+| `test_a_blocker_whose_witnesses_all_passed_holds` | The positive case, so the three above are not passing vacuously |
+| `test_a_class_that_collected_nothing_has_no_rate` | No cases is not zero cases |
+| `test_a_small_denominator_is_said_so` | A rate over a handful of cases is called small, in the row itself |
+| `test_the_report_carries_the_denominators` | The rendered report states each rate as numerator over denominator |
+| `test_the_corpus_measurement_agrees_with_the_committed_answer_key` | The measurement's denominator is the corpus's own, counted twice |
+| `test_the_corpus_measurement_reports_no_failure` | Every cell is read exactly as the key says, and every refusal refuses |
+| `test_a_like_for_like_baseline_is_comparable` | The positive case: everything the protocol names is present |
+| `test_a_baseline_missing_a_requirement_is_refused` | A baseline that does not meet the protocol's rule is not compared |
+| `test_a_baseline_on_different_tasks_is_refused` | Matched tasks are the first requirement, and it is not optional |
+| `test_the_offline_run_refuses_a_competitor_on_the_model_alone` | §5.1's blocker, executed rather than described |
+| `test_a_model_declaring_run_makes_that_same_competitor_comparable` | The control: the refusal above is our empty basis, not a broken compare |
+| `test_the_comparison_prints_pairs_and_never_a_verdict` | The structure stops a ranking, not a disclaimer |
+| `test_the_rendered_comparison_carries_no_winners_language` | The report's comparison section names no winner |
+| `test_a_baseline_document_is_read_with_its_numbers` | A baseline file carries its basis and its numbers |
+| `test_the_real_model_smoke_is_reported_as_not_run_with_its_reason` | The class that needs a credential says so, and says why |
+| `test_the_real_model_smoke_class_has_a_file_that_carries_it` | The fifth class is not runnable, which is not the same as has no witness |
+| `test_the_real_model_smoke_is_not_counted_as_a_pass` | A class that did not run has no rate, and is not a pass |
+| `test_the_command_lists_the_partition` | --list prints the partition and runs nothing |
+| `test_the_command_refuses_a_class_it_does_not_know` | An unknown class is refused rather than silently ignored |
+| `test_the_command_writes_a_report_and_says_what_it_found` | The command's whole path, with the run stubbed out |
+| `test_the_default_run_reports_the_real_model_class_as_not_run` | The default run refuses the class that spends money, and says so |
+| `test_a_class_named_on_the_command_line_is_run_rather_than_refused` | Naming the fifth class makes the harness run it, not decline it |
+| `test_the_report_and_the_json_say_the_same_thing` | Both renderings come from one run, and neither is derived from the other |
+| `test_the_measurement_carries_its_denominator_and_its_reason` | A measurement that is not a number says why, and says so in the model |
+| `test_the_harness_runs_on_the_pinned_interpreter` | The harness runs under the interpreter the project pins |
+| `test_the_public_corpus_measurement_reads_the_manifest` | The harness's corpus measurement reads the public corpus as well |
+| `test_the_public_corpus_measurement_agrees_with_the_material` | Every question the corpus asks, the product answers as the key says |
+| `test_the_public_corpus_measurement_can_fail` | The measurement can fail, and this is how it is shown |
+| `test_the_abstention_metric_is_measured_over_the_public_corpus` | The protocol's abstention metric is measured, and over this corpus |
+| `test_a_not_measured_reason_may_not_contradict_the_tree` | A reason that names a missing input has to be true of this tree |
+| `test_a_reason_about_a_tree_that_is_not_there_is_still_true` | A tree without the public corpus gets the reason that fits it |
+| `test_the_repository_class_holds_only_the_repository_gates` | The repository class is the repository's own gates, and nothing else |
+| `test_the_rendered_report_says_a_small_denominator_out_loud` | The rendered text, not the model attribute, is what is watched |
+| `test_the_recovery_metric_counts_crash_points_and_not_cases` | The denominator is the crash points, and the sentence says so |
+| `test_the_recovery_metric_drops_when_a_crash_point_behaves_wrongly` | A crash point whose case failed is not a crash point that held |
+| `test_the_crash_matrix_coverage_is_read_from_the_matrix` | The coverage is read out of the matrix's own source |
+| `test_the_report_says_when_the_tree_it_measured_was_dirty` | A revision names a commit; the tree the run happened on may differ |
+| `test_the_rendered_report_names_the_tree_it_measured` | The report says which tree it measured, and the JSON carries it too |
+| `test_a_platform_conditional_skip_is_accepted_and_named` | A required test skipped for a fact of the machine holds, and is named |
+| `test_a_skip_that_names_no_standing_category_fails_the_blocker` | A required test skipped for a reason outside the categories fails it |
+| `test_the_real_model_smoke_file_is_accepted_as_ruled_elsewhere` | The offline run's absence of the smoke class is not a skipped test |
+| `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` | Leaving a required test out of a run is scope, not a skip |
+| `test_a_required_test_that_collected_nothing_is_named_as_that` | Selected-and-empty is neither "not selected" nor a pass |
+| `test_one_file_with_three_skips_is_counted_as_one_file` | The row counts files, and says so in the number it prints |
+| `test_the_exclusion_is_in_the_rendered_report` | The exclusion is on the page, not only in the model |
+| `test_the_required_tests_are_read_out_of_the_shard_file` | The required tests come from the CI's own shard list |
+| `test_no_published_record_claims_superiority_over_another_system` | The documents a reader reads are watched for a superiority claim |
+| `test_the_inner_run_gets_its_own_temporary_directory_everywhere` | TMPDIR is set as well, because it is the one that is read first |
+| `test_the_evaluation_record_names_every_witness_in_this_file` | The record's witness table is re-read from this file, not remembered |
 
 ### The mutation table
 
@@ -519,6 +652,42 @@ restored.
 | M8 | the real-model smoke is claimed to be runnable offline | `test_the_real_model_smoke_is_reported_as_not_run_with_its_reason` — **RED**: `assert not True` |
 | M9 | the parser forgets the blockers | `test_the_parser_reads_the_protocol` — **RED**: the parser refuses outright — *"the protocol at …/docs/EVALUATION.md names no blocker"* — and a parser that answers with nothing is what the watch is for |
 | M10 | an unrunnable class exits zero | `test_the_real_model_smoke_is_not_counted_as_a_pass` — **RED**: `assert 0 == 2` |
+
+### The mutation table, extended for §1.4.1b (2026-10-29)
+
+| # | The mutation | The witness that went red, and what it said |
+|---|---|---|
+| M11 | the runner stops naming the tree to the JUnit reader | `test_a_real_run_keys_a_test_class_to_the_file_it_lives_in` — **RED**: a real pytest subprocess over `tests/test_skill_ledger.py` keyed its 22 cases to `tests/test_skill_ledger/TestDigests.py` |
+| M12 | a file that collected nothing is reported as one the run never selected | `test_a_required_test_that_collected_nothing_is_named_as_that` — **RED**: `assert 'not-in-this-run' == 'selected-and-collected-nothing'` |
+| M13 | the accepted listing counts cases instead of files | see M21 — the same mutation, applied again after its witness was written |
+| M14 | the witness acceptance is removed | `test_a_platform_conditional_witness_skip_is_accepted_and_named` — **RED**: `assert 'FAILED' == 'HELD'` |
+| M15 | every skipped witness is accepted, whatever its reason says | `test_a_witness_skip_outside_the_accepted_categories_still_fails` — **RED**: `assert 'HELD' == 'FAILED'` |
+| M16 | a phrase nothing in the tree says is added to the list | `test_every_platform_phrase_is_carried_by_a_skip_in_the_tree` — **RED**: *"these phrases match no skip in the tree: ('a phrase nothing says',)"* |
+| M17 | the platform branch of the classifier is dropped | `test_a_platform_conditional_skip_is_accepted_and_named`, `test_a_platform_conditional_witness_skip_is_accepted_and_named`, `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` and `test_one_file_with_three_skips_is_counted_as_one_file` — **four RED**, every row that was HELD became FAILED |
+| M18 | "this run did not select" is folded into "undeclared" | `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` — **RED**: `assert 'FAILED' == 'HELD'` |
+| M19 | "a class discharged outside this run" is folded into "undeclared" | `test_the_real_model_smoke_file_is_accepted_as_ruled_elsewhere` — **RED**: the row no longer named `test_real_provider_smoke.py` under that standing |
+| M20 | a required test skipped with no standing category no longer fails the blocker | `test_a_skip_that_names_no_standing_category_fails_the_blocker` and `test_the_exclusion_is_in_the_rendered_report` — **RED**: `assert 'HELD' == 'FAILED'`, and the rendered page carried no **FAILED** row |
+| M21 | the accepted listing counts cases instead of files | `test_one_file_with_three_skips_is_counted_as_one_file` — **RED**: the row said *"accepted 3 required CI test(s)"* and named one file three times |
+| M22 | the JUnit reader drops the class when the XML names the file | `test_a_file_attribute_still_keeps_the_test_class` — **RED**: two cases in two classes collapsed to one node id |
+| M23 | the blockers table's column header is the bare word "Cases" | `test_the_blockers_table_says_what_its_cases_column_counts` — **RED**: the header carried no statement of what the number counts |
+| M24 | the function count above is put back to the stale `**39 test functions**` | `test_the_evaluation_record_names_every_witness_in_this_file` — **RED**: *"the record says 39 test functions; this file defines 74"* |
+| M21 | a row of the witness table above is renamed, then deleted | `test_the_evaluation_record_names_every_witness_in_this_file` — **RED** both times: *"the evaluation record's witness table has no row for these witnesses"* |
+
+**M21 needed two tries to become a witness.** Its first version asked whether the
+name appears **anywhere in the record**, and with the table row deleted the check
+stayed green — the prose two sections above still quoted the name, and a mention
+is not a row. Read against the table's own lines it goes red for a rename and for
+a deletion, which is the property the sentence claims. **The weak version is the
+finding, not the footnote**: a check written against a document has to say which
+part of it it reads, or it reports the document's memory rather than its contents.
+
+**M13 survived its first attempt, and that is the finding.** The dedupe was
+applied before any witness was aimed at it: the mutation ran, the whole file
+stayed green, and nothing said *"three facts in one file is not three files"*.
+The witness was written after, and the same mutation then went red. **A
+mechanism change that no witness answers to is not measured, however sensible
+it looks** — which is the reason §8's rulings now arrive with their witnesses in
+the same branch rather than after the fact.
 
 **Two mutations were tried and corrected before the table above**, and
 both corrections are worth recording because they are what a mutation

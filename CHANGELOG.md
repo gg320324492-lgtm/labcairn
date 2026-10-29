@@ -65,7 +65,47 @@ The links are the records.
   an id the registry has never held, with a reason of its own
   (`capability_unregistered`), which closes the defence-in-depth gap G1 recorded.
 
+**Changed**
+
+- **§1.4.1b is the harness's behaviour, not a note beside it.** The owner ruled
+  on 2026-10-29, and `tests/evaluation/aggregate.py` now classifies every
+  non-passing case by **what the skip's own reason says**: a fact of the machine
+  (an OS, a filesystem, a volume with no 8.3 short names) and a test in a class
+  the owner ruled discharged outside the offline run are **accepted**, a file the
+  run did not select and a file in which pytest collected no case are named as
+  what they are, and **any other skip fails the blocker** — for a blocker's own
+  witnesses and for the sixth blocker's required CI tests alike. Accepted
+  exclusions are printed in the row — a witness case by its node id and pytest's
+  own reason, a required CI test by its file under the category it fell in.
+  Scope: the owner
+  chose **all blockers**, not only the sixth, which is what the second blocker's
+  Windows row needed. `docs/EVALUATION.md` is not amended — this is the harness's
+  reading of one clause, recorded so it can be checked.
+
 **Fixed**
+
+- **A test class's cases are keyed to the file that holds them.** pytest writes
+  the module and the test class in one dotted `classname`, and the JUnit reader
+  assumed there was no class, so `tests.test_skill_ledger.TestDigests` became
+  `tests/test_skill_ledger/TestDigests.py` — a path that is not in the tree. Six
+  files in this suite hold their cases in classes, and their cases entered no
+  denominator: the `unsupported-claim-detection` metric reported **34/34** witness
+  cases where the tree held **82**. The reader now takes the module from the tree
+  (the longest dotted prefix that is an actual file), the test class stays in the
+  node id, and `tests/evaluation/runner.py` names the tree it is reading. The
+  same class is kept when a report carries a `file` attribute (pytest's legacy
+  JUnit family writes one), so switching `junit_family` cannot reintroduce the
+  collision. And the blockers table's column that counts cases which did not
+  pass — three, on the second blocker, all of them accepted platform skips — now
+  says **"Cases that did not pass"** instead of a bare *"Cases"*, because a HELD
+  blocker beside the number 3 invites exactly the wrong reading.
+- **Three CI shard files that collect nothing are reported as such.**
+  `test_store_support.py`, `test_recovery_support.py` and `test_skill_support.py`
+  are support modules other tests import; they are filed in a gate class and in
+  every shard, and pytest collects no case in them. The blocker's row used to say
+  the run "did not select" them. It now says no case was collected, which is the
+  finding — **and whether a required test file that carries no case belongs in
+  the shard list is carried to Phase 2 rather than settled here.**
 
 - **The Windows case-fold now has a witness that bites.** The G1 regression test
   `test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one` asserted

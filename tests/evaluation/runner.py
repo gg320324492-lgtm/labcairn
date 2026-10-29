@@ -232,7 +232,7 @@ def run_class(
             ),
         )
 
-    outcomes = parse_junit(junit)
+    outcomes = parse_junit(junit, repo_root=repo_root)
     return ClassRun(
         key=key,
         files=files,

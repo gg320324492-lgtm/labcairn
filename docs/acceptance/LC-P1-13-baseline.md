@@ -390,6 +390,15 @@ Windows). **Both readings are the owner's question** — the task breakdown's
 FAILED on this tree, with the same witness cases**, so the finding is
 historical rather than current.
 
+**Corrected 2026-10-29.** The owner has since answered, and the harness now
+carries the answer: a skip whose reason names **a fact of the machine** — an OS,
+a filesystem, a volume with no 8.3 short names — does not fail a blocker, and
+**any other skip does**, named in the row with the reason the test gave. So the
+unauthorised-write blocker's three platform-conditional witness cases no longer
+hold it down, and the clean-environment blocker's skip was removed with the
+defect it waited on. See [`aggregate.py`](../../tests/evaluation/aggregate.py)
+and [the evaluation record](LC-P1-13-evaluation.md).
+
 ### 3.5 What the comparison mechanism does with an absent baseline
 
 The harness refuses, and the refusal is structural rather than promised:
@@ -557,6 +566,13 @@ classes include the real-model smoke, so **the gate class is not discharged**.
 **None of the six Phase 1 blockers requires one** (§2.2). Whether a declared,
 reported skip of the real-model smoke counts as a blocker that failed is
 **§1.4.1b's open question**, and it is the owner's, not this document's.
+**Answered 2026-10-29, in both halves.** The smoke's own skip is not a required
+test that skipped on the offline path — the run never selects its class, which
+the owner ruled discharged by the scheduled probe (§1.4.2) — so the harness
+classifies it as a standing category and **names it in the blocker's row**
+rather than calling it a pass; and a required test that skips for a reason
+naming **no** standing category fails the sixth blocker. What the offline path
+reports for the class itself is unchanged: **NOT RUN**, with its reason.
 
 **And cost and model name are NOT MEASURED for the same reason**: no real
 provider ran **in the harness's run**, so there is no cost to report, and the
