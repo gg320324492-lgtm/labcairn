@@ -1,7 +1,29 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-27
-**Current `main`:** `ff9afc5e8a50cf64cb5a5fdf7edaf8d32c60d776` — the merge of
+**Date:** 2026-10-29 · **Current `main`:** `6db48ef` — the merge of PR #124, and
+the last of the Phase 1 closeout merges. **What landed since `ff9afc5`:** PR #119
+(a claim recorded by the product's own operation, the reconciled event readable by
+a process that never imported the writer, and **the paid probe made runnable** —
+the smoke test that hard-coded a protocol and passed `environ={}` could never
+have run on any machine; it now reads four variables, ran three times against a
+real endpoint, and `.github/workflows/provider-smoke.yml` holds the gate class
+the required checks will never carry), PR #120 (the approval-store wiring scoped
+to Phase 2, with its schema cost named), PR #121 (the owner's closeout rulings
+recorded), PR #122 (**§1.4.1b is now the harness's behaviour**: a skip whose
+reason names a fact of the machine no longer fails a blocker, any other skip
+does, and accepted ones are named in the row — plus the two defects that
+surfaced while reading the tree to check it: class-based cases were keyed to
+files that do not exist, costing a metric 48 of its 82 witness cases, and three
+files in the CI shard list collect no test at all), and PR #124 (the
+**G1/G2 human-review checklist**, prepared and not executed, with a witness that
+resolves every node id it cites). **Every Phase 1 owner question asked is now
+ruled.** What remains is not a question: the licence and copyright ownership,
+which the owner has ruled stays PENDING and which blocks any open-source claim,
+and a human pair of eyes on G1 and G2, which has a checklist and no reviewer.
+The first Phase 2 work-order list is drafted at
+[`plans/PHASE_2-work-orders-draft.md`](../plans/PHASE_2-work-orders-draft.md).
+
+**Date:** 2026-10-27 · **Previous `main`:** `ff9afc5e8a50cf64cb5a5fdf7edaf8d32c60d776` — the merge of
 PR #118 (`delivery/g5`), which carries **G5's own findings fixed and each fix
 watched** (S1–S6) and the two reviewers' re-verifications. G5's review subject
 was `72154cd` (PR #116, the gate's delivery) and `3852cde` (PR #117, the first

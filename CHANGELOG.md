@@ -20,6 +20,22 @@ The links are the records.
 
 **Added**
 
+- **The first Phase 2 work-order list, as a draft.**
+  [`docs/plans/PHASE_2-work-orders-draft.md`](docs/plans/PHASE_2-work-orders-draft.md):
+  six tickets with prerequisites, cost and acceptance clauses, in the order they
+  have to happen — freeze the Phase 1 baseline (the exit gate's
+  *"measured capability gain"* has no denominator until then), restart-durable
+  consent (whose blocker is measured: `ApprovalRow` holds no grant-time policy
+  digest and no bound-source column, so `ApprovalStore.consume` is not itself
+  restart-durable for the two checks that make a consent mean something), the
+  product's first model call, the competitor baseline **gated on that call** (our
+  compared figures come from the deterministic corpus layer, so naming a model in
+  the run basis would fabricate the comparison — a wall already witnessed),
+  citation identity, and retrieval beyond three papers. **Nothing is dispatched.**
+  Five carried Phase 1 debts are listed with what inheriting each one costs, and
+  the licence, the spending authorisation and the G1/G2 human reviewer are named
+  as **not tickets**.
+
 - **The G1/G2 human review has a checklist.**
   [`docs/acceptance/G1-G2-human-review-checklist.md`](docs/acceptance/G1-G2-human-review-checklist.md)
   gives a named reviewer every clause of the two gates with the node id that
