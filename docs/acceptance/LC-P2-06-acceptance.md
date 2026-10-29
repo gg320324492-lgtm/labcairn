@@ -38,7 +38,7 @@ person's**; this is the mechanism that enforces it.
 | A5 | A transmit grant with no destination is refused by the schema | `test_a_transmit_grant_with_no_destination_is_refused` |
 | A6 | A request with no transmit grant is refused and the approval is not spent | `test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent` |
 | A7 | The transmit check runs before the approval is consumed | `test_the_transmit_check_runs_before_the_approval_is_consumed` |
-| A8 | Withdrawing a grant invalidates the copies derived from it | `test_a_withdrawn_grant_invalidates_the_copies_derived_from_it` |
+| A8 | Withdrawing a grant invalidates the copies derived from it — **and so does a grant whose window has closed**, which is the other way a grant stops holding | `test_a_withdrawn_grant_invalidates_the_copies_derived_from_it`, `test_a_grant_whose_window_has_closed_makes_its_copies_stale` |
 | A9 | A withdrawal records who and when | `test_a_withdrawal_records_who_and_when` |
 | A10 | `owner_id` authorises nothing | `test_the_owner_scope_authorises_nothing` |
 | A11 | No real material reaches the repository or a CI artefact | `test_no_real_material_reaches_the_repository_or_a_ci_artefact` |
@@ -52,7 +52,7 @@ supposed to meet it.
 
 ## 3. The mutations, and what each broke
 
-**Twenty-one mutations were applied.** Each is recorded here with the test that
+**Twenty-four mutations were applied.** Each is recorded here with the test that
 caught it.
 
 | # | The mutation | What went red |
@@ -78,6 +78,9 @@ caught it.
 | 19 | every `check()` in the demonstration's step 2 is deleted | `test_the_demonstrations_guards_are_guards` |
 | 20 | the grant table grows a `permitted` column | `test_the_table_holds_only_grants_and_therefore_has_no_way_to_say_denied`, and `test_the_migrated_schema_matches_the_orm_models` |
 | 21 | the scope is asked about the **subject** rather than about the material | `test_a_grant_whose_scope_does_not_reach_the_material_is_refused`, and `test_a_wildcard_scope_does_not_cover_a_sibling` |
+| 22 | the copy check reads the grant's **state column** instead of asking the grant at a moment | four tests, including `test_a_grant_whose_window_has_closed_makes_its_copies_stale` and `test_the_copy_check_and_the_permission_check_do_not_disagree` |
+| 23 | a row is removed from the layer's consent-refusal mapping | `test_every_consent_refusal_has_a_layer_name` |
+| 24 | the operation approval is consumed **before** the transmit gate | `test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent`, `test_the_transmit_check_runs_before_the_approval_is_consumed`, **and the demonstration itself**, which exits non-zero |
 
 ### 3.1 The one that was reported as surviving and was not
 
@@ -134,8 +137,9 @@ and the witness for that shape now asserts the whole set.
 
 ## 4. What the tests found in the implementation
 
-**Six defects, and none of them would have been found by reading the code
-twice.**
+**Seven defects. Six of them would not have been found by reading the code
+twice; the seventh was found by an independent review of the merged tree,
+and by a witness that was not a witness.**
 
 1. **The window's lower bound was missing.** A check that asks only "has it
    expired?" lets a grant for a *future* window permit a use today.
@@ -162,6 +166,16 @@ twice.**
    about reading and about transmitting, so **the clause was true of the
    code and unwatched**. The witness now asks for all four permissions,
    and the mutation that permits a training use by default turns it red.
+7. **The expiry half of the propagation never fired.** The copy check read
+   the grant's `state` column, and **nothing in the product ever writes
+   `state='expired'`** on an access grant — an expiry is a clock fact, and
+   a grant whose `expires_at` has passed is still `active` by state. So a
+   grant that had run out left its copies live, while `may_use` refused
+   the same grant with `grant_expired`. **The witness did not catch it
+   because the witness built the expired grant by hand**, writing a state
+   the product cannot reach — and so it watched a branch that never runs.
+   **The witness that now carries it builds the grant the way the product
+   can produce one**, and the state-column mutation turns four tests red.
 
 **The sixth is the one worth keeping.** The other five were found by
 writing code and running it; this one was found by **reading the task
@@ -170,6 +184,14 @@ permission the clause names had no case that reached it. A clause that
 names a permission, and a suite that never mentions it, is a claim with
 nothing behind it — and the suite was green throughout.
 
+**And the seventh is worth keeping for the other half of the reason.**
+It was found by **the independent review of the merged tree**, and the
+defect it found had a witness — a witness that was not a witness, because
+it built a state the product cannot write. **A witness that constructs an
+unreachable state watches a branch that never runs**, and it goes green
+whether the branch is right or wrong. That is the failure the project's
+own rule is about: *a mutation must make an assertion fail*, and a
+witness that cannot fail is not a witness.
 
 ## 4.1 The gate-class partition, and the one file outside the ownership map
 
@@ -245,7 +267,7 @@ change is re-measured, not carried forward*.
   link watcher would (and does) refuse.
 - **The review points are recorded**, in
   [`docs/plans/PHASE_2-review-points.md`](../plans/PHASE_2-review-points.md),
-  with the mutations and the witnesses that catch them — eighteen
+  with the mutations and the witnesses that catch them — nineteen
   properties, what to break in each, and the five rules a reviewer is
   held to.
 - **No real material, and no grant has been issued.** The machinery is

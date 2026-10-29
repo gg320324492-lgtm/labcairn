@@ -291,9 +291,9 @@ def main() -> int:
         location="vectors/c-1",
         subject_ref="proj-1",
     )
-    print(f"   before: the copy is stale? {is_copy_stale(copy, [_transmit_grant()])}")
+    print(f"   before: the copy is stale? {is_copy_stale(copy, [_transmit_grant()], at=NOW)}")
     check(
-        is_copy_stale(copy, [_transmit_grant()]) is False,
+        is_copy_stale(copy, [_transmit_grant()], at=NOW) is False,
         "the copy is fresh while the grant stands",
     )
 
@@ -303,11 +303,14 @@ def main() -> int:
         at=NOW,
         reason="the material left the lab",
     )
-    stale = stale_copies([copy], [withdrawn])
-    print(f"   after:  the copy is stale? {is_copy_stale(copy, [withdrawn])}")
+    stale = stale_copies([copy], [withdrawn], at=NOW)
+    print(f"   after:  the copy is stale? {is_copy_stale(copy, [withdrawn], at=NOW)}")
     print(f"   stale copies: {[c.copy_id for c in stale]}")
     print(f"   withdrawn by {withdrawn.withdrawn_by!r} on {withdrawn.withdrawn_at.isoformat()}")
-    check(is_copy_stale(copy, [withdrawn]) is True, "the copy is stale after the withdrawal")
+    check(
+        is_copy_stale(copy, [withdrawn], at=NOW) is True,
+        "the copy is stale after the withdrawal",
+    )
     check(len(stale) == 1, "the withdrawal reaches the copy")
     check(withdrawn.withdrawn_by == "Prof. Lin", "the withdrawal names who")
     check(withdrawn.state == "withdrawn", "the state says withdrawn, not absent")

@@ -19,18 +19,30 @@ wrong direction of error.
 say *"this was withdrawn by the advisor on 2026-03-02"* cannot answer the
 question a person will ask, and the record of a grant that was withdrawn
 is itself a record.
+
+**And a grant is asked at a moment, not read from a column.** An expiry is
+a **clock fact**: nothing in the product ever writes ``state='expired'`` on
+an access grant, so a grant whose window has closed is still ``active`` in
+the row. **A witness that builds the expired grant by hand writes a state
+the product cannot reach**, and then it watches a branch that never runs.
+So the expired grant below is built the way the product can actually
+produce one — ``expires_at`` in the past and the state still ``active`` —
+and the hand-written ``state='expired'`` case is kept beside it as what it
+is: a second way of saying the same thing.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from labcairn.security.permissions import (
+    ConsentRefusal,
     DerivedCopy,
     Grant,
     is_copy_stale,
+    may_use,
     stale_copies,
     withdraw_grant,
 )
@@ -44,6 +56,8 @@ def _grant(
     grant_id: str = "g1",
     *,
     state: str = "active",
+    granted_at: datetime = NOW,
+    expires_at: datetime | None = None,
     withdrawn_by: str | None = None,
     withdrawn_at: datetime | None = None,
 ) -> Grant:
@@ -55,8 +69,8 @@ def _grant(
         scope="proj-1/**",
         destination=None,
         granted_by="Dr. Chen",
-        granted_at=NOW,
-        expires_at=None,
+        granted_at=granted_at,
+        expires_at=expires_at,
         state=state,
         withdrawn_at=withdrawn_at,
         withdrawn_by=withdrawn_by,
@@ -146,10 +160,10 @@ def test_a_withdrawn_grant_invalidates_the_copies_derived_from_it() -> None:
     grant = _grant()
     copy = _copy()
 
-    assert is_copy_stale(copy, [grant]) is False
+    assert is_copy_stale(copy, [grant], at=NOW) is False
 
     withdrawn = withdraw_grant(grant, withdrawn_by="Prof. Lin", at=NOW)
-    assert is_copy_stale(copy, [withdrawn]) is True
+    assert is_copy_stale(copy, [withdrawn], at=NOW) is True
 
 
 def test_the_stale_copies_are_listed_and_not_a_promise() -> None:
@@ -175,7 +189,7 @@ def test_the_stale_copies_are_listed_and_not_a_promise() -> None:
 
     withdrawn = withdraw_grant(grants[0], withdrawn_by="Prof. Lin", at=NOW)
 
-    assert stale_copies(copies, [withdrawn]) == (copies[0], copies[1], copies[2])
+    assert stale_copies(copies, [withdrawn], at=NOW) == (copies[0], copies[1], copies[2])
 
 
 def test_a_copy_whose_grant_is_not_on_the_record_is_stale() -> None:
@@ -189,20 +203,77 @@ def test_a_copy_whose_grant_is_not_on_the_record_is_stale() -> None:
     """
     copy = _copy(grant_id="g-not-on-record")
 
-    assert is_copy_stale(copy, []) is True
+    assert is_copy_stale(copy, [], at=NOW) is True
 
 
 def test_a_copy_of_a_still_live_grant_is_not_stale() -> None:
     """The ordinary case: the grant is in force, the copy is fine."""
-    assert is_copy_stale(_copy(), [_grant()]) is False
+    assert is_copy_stale(_copy(), [_grant()], at=NOW) is False
 
 
-def test_an_expired_grant_also_makes_its_copies_stale() -> None:
-    """A grant that ran out is not a live grant either.
+def test_a_grant_whose_window_has_closed_makes_its_copies_stale() -> None:
+    """**The expiry the product can actually produce.**
 
-    **What breaks it:** checking only the withdrawal state. A grant whose
-    window closed produced the same copies, and those copies are just as
-    unauthorised as the ones a withdrawal orphaned.
+    **A grant that ran out is not a live grant either**, and its copies
+    are just as unauthorised as the ones a withdrawal orphaned.
+
+    **What breaks it:** a check that reads the state column. The grant
+    here has the shape every real expiry has — ``expires_at`` in the past
+    and the state still ``active``, because **nothing in the product ever
+    writes ``state='expired'``**. A check that asks the column instead of
+    the clock keeps this copy alive on the strength of a row that says
+    nothing about the window.
+
+    **And the permission check refuses the same grant.** The two ask one
+    question of one grant, so they cannot disagree: ``may_use`` reports
+    ``grant_expired`` while ``is_copy_stale`` said the copy was fresh.
+    """
+    expired = _grant(expires_at=NOW - timedelta(days=1))
+
+    # The state is what the product leaves behind, and it says nothing
+    # about the window.
+    assert expired.state == "active"
+    assert expired.is_in_force(NOW) is False
+
+    assert is_copy_stale(_copy(), [expired], at=NOW) is True
+
+
+def test_the_copy_check_and_the_permission_check_do_not_disagree() -> None:
+    """**One grant, one question, one answer.**
+
+    **What breaks it:** the two checks asking the grant different
+    questions. ``may_use`` refuses a grant whose window has closed, and
+    the copy check used to call a copy made under the very same grant
+    fresh — so the product said *"you may not use this"* and *"the
+    derived copy is fine"* about one row, at one moment.
+
+    **They are the same rule now, asked at the same moment**, and this is
+    the witness that says so.
+    """
+    expired = _grant(expires_at=NOW - timedelta(days=1))
+
+    decision = may_use(
+        [expired],
+        permission="store_read",
+        purpose="read",
+        subject_ref="proj-1",
+        material_ref="proj-1/drafts/v1.docx",
+        at=NOW,
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == ConsentRefusal.GRANT_EXPIRED
+    assert is_copy_stale(_copy(), [expired], at=NOW) is True
+
+
+def test_a_grant_marked_expired_by_hand_also_makes_its_copies_stale() -> None:
+    """**The same property, said a second way.**
+
+    A grant whose state was written to ``expired`` by hand is not a live
+    grant either. **The product never writes that state**, so this case
+    is not the reachable one — the clock case above is — but the check
+    must still refuse it rather than pass on the strength of a vocabulary
+    the product does not use.
     """
     expired = Grant(
         **{
@@ -210,7 +281,50 @@ def test_an_expired_grant_also_makes_its_copies_stale() -> None:
             "state": "expired",
         }
     )
-    assert is_copy_stale(_copy(), [expired]) is True
+    assert is_copy_stale(_copy(), [expired], at=NOW) is True
+
+
+def test_a_copy_of_a_grant_that_has_not_run_out_is_not_stale() -> None:
+    """**The clock decides, and a live window is a live window.**
+
+    **What breaks it:** a check that treats the *presence* of an expiry
+    as the expiry. A grant that runs out next week is in force today, and
+    its copies are in force today too — otherwise every standing grant
+    would silently orphan the copies made under it.
+    """
+    live = _grant(expires_at=NOW + timedelta(days=1))
+
+    assert live.is_in_force(NOW) is True
+    assert is_copy_stale(_copy(), [live], at=NOW) is False
+
+
+def test_a_copy_of_a_grant_that_has_not_opened_yet_is_stale() -> None:
+    """**The window is both ends, for the copy as well as for the use.**
+
+    **What breaks it:** a check that asks only "has it expired?". A grant
+    whose window has not opened cannot have authorised anything yet, so
+    the copy made under it is unauthorised — and the wrong direction of
+    error is the expensive one.
+    """
+    future = _grant(granted_at=NOW + timedelta(days=1))
+
+    assert future.is_in_force(NOW) is False
+    assert is_copy_stale(_copy(), [future], at=NOW) is True
+
+
+def test_the_stale_copies_include_the_ones_whose_grant_ran_out() -> None:
+    """**The list has to carry the expiry half too.**
+
+    **What breaks it:** a list that finds the withdrawn copies and misses
+    the expired ones. A withdrawal has to act on the whole list, and the
+    copy whose grant has merely run out is on it as much as the one whose
+    grant was taken back.
+    """
+    expired = _grant("g-expired", expires_at=NOW - timedelta(days=1))
+    live = _grant("g-live", expires_at=NOW + timedelta(days=1))
+    copies = [_copy("c-expired", "g-expired"), _copy("c-live", "g-live")]
+
+    assert stale_copies(copies, [expired, live], at=NOW) == (copies[0],)
 
 
 def test_the_withdrawal_keeps_the_copies_addressable() -> None:
@@ -225,7 +339,7 @@ def test_the_withdrawal_keeps_the_copies_addressable() -> None:
     copy = _copy()
     withdrawn = withdraw_grant(grant, withdrawn_by="Prof. Lin", at=NOW)
 
-    stale = stale_copies([copy], [withdrawn])
+    stale = stale_copies([copy], [withdrawn], at=NOW)
 
     assert len(stale) == 1
     assert stale[0].copy_id == copy.copy_id
