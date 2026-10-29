@@ -237,10 +237,20 @@ in the same round.
 
 **And one thing that is not a ticket:** the CI shard cost for this work
 order's six new test files, by the two-step process the Phase 2 evidence
-pack records — the first run apportions, the second measures. **The first
-run has happened.** PR #128's own run could not execute a file that was in
-no shard, so the tool apportioned the unaccounted time by test count, and
-**the number it carries is apportioned rather than measured.** The second
-run executes those files, and the measurement after that replaces it. The
-table is `.github/ci-shards.json`, and `measured_at` names the commit its
-costs belong to.
+pack records — the first run apportions, the second measures. **Both
+steps have happened.** The first run could not execute a file that was in
+no shard, so the tool apportioned the unaccounted time by test count; the
+second run executed them, and the costs now in `.github/ci-shards.json`
+are the runner's own, with `measured_at` naming the commit they belong
+to.
+
+**And the apportionment was wrong in both directions**, which is the
+point of measuring on the runner rather than on the laptop: the
+demonstration's file was apportioned at 0.13 s and measured at **1.16 s**
+— nine times larger — and the intake guards' file was apportioned at
+0.49 s and measured at **0.06 s**, eight times smaller. **A locally
+measured number would have been wrong by a different factor again.**
+
+**The partition those costs produce is better balanced than the one they
+replaced**: **1.162** on Ubuntu and **1.000** on Windows, against 1.449
+and 1.180.
