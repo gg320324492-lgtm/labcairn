@@ -26,15 +26,35 @@ printed would be prose.
 from __future__ import annotations
 
 import sys
-from datetime import UTC, datetime
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from labcairn.application.approvals import (
+    ApprovalRequest,
+    ApprovalUse,
+    grant_approval,
+    request_approval,
+)
+from labcairn.application.context import ApplicationContext
 from labcairn.application.model_transmit import (
     check_transmit,
+    transmit_request,
 )
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.tasks import create_task
+from labcairn.core.ids import ApprovalId
+from labcairn.db.migrations import upgrade_to_head
+from labcairn.db.repository import TaskStore, list_approvals
+from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.material.intake import IntakeRefusal, inspect_archive
+from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.security.approval import ApprovalLedger
+from labcairn.security.capabilities import CapabilityId
 from labcairn.security.permissions import (
     DerivedCopy,
     Grant,
@@ -43,8 +63,76 @@ from labcairn.security.permissions import (
     stale_copies,
     withdraw_grant,
 )
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
+
+
+@contextmanager
+def _an_approval() -> Iterator[tuple[ApplicationContext, ApprovalId]]:
+    """A context with an approval asked for and granted, and **not yet spent**.
+
+    **A temporary workspace and a temporary store**, so the demonstration
+    leaves nothing behind: the directory goes when the block ends, and it
+    was never in the repository.
+
+    **The real machinery, not a stand-in.** The claim this demonstration
+    makes is about an *operation approval*, and a claim about the
+    approval ledger is witnessed by the approval ledger — a made-up
+    approval would make the demonstration prove something about itself.
+    """
+    with tempfile.TemporaryDirectory(prefix="labcairn-consent-demo-") as root:
+        base = Path(root)
+        workspace_root = base / "workspace"
+        (workspace_root / "materials").mkdir(parents=True)
+        database = base / "demo.db"
+        upgrade_to_head(database)
+        engine = create_db_engine(database)
+        store = TaskStore(create_session_factory(engine)())
+        created = create_task(
+            store=store,
+            policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+            workspace_root=workspace_root,
+            title="Consent demonstration",
+            goal=TaskGoal(
+                objective="Show that a refused request does not spend the approval.",
+                success_criterion="The approval is still spendable after the refusal.",
+            ),
+            source_dirs=(workspace_root / "materials",),
+        )
+        context = ApplicationContext(
+            workspace=created.workspace,
+            store=store,
+            policy=PermissionPolicy.from_rules([Rule(effect=Permission.ASK, pattern="**")]),
+            ledger=ApprovalLedger(),
+        )
+        asked = request_approval(
+            context,
+            ApprovalRequest(
+                use=ApprovalUse(
+                    capability=CapabilityId.ANALYSIS_RUN,
+                    arguments={
+                        "operator_id": "mean",
+                        "parameters": {},
+                        "recipe": "figure.recipe.json",
+                    },
+                    root_id="source:0",
+                    resource_key="one.csv",
+                ),
+                expires_at=NOW + timedelta(hours=1),
+            ),
+            now=NOW,
+        )
+        granted = grant_approval(context, asked.approval.approval_id, now=NOW)
+        try:
+            yield context, granted.approval.approval_id
+        finally:
+            # **The store is closed before the directory goes.** A SQLite
+            # file that is still open cannot be deleted on Windows, and a
+            # demonstration that leaves its temporary directory behind is
+            # a demonstration that does not clean up after itself.
+            store.session.close()
+            engine.dispose()
 
 
 def check(condition: bool, message: str) -> None:
@@ -131,7 +219,46 @@ def main() -> int:
         "the refusal names the purpose that was not granted",
     )
     check("remedy" in check_result.detail, "the refusal names the remedy")
-    print("   The operation approval was never consumed: asking is not spending.")
+
+    # **And the same refusal through the path that spends the approval.**
+    # A real approval is behind this one, so the sentence below is carried
+    # by something: the path is asked, the path refuses, and the store is
+    # read to say that the approval is untouched.
+    with _an_approval() as (context, approval_id):
+        try:
+            transmit_request(
+                context,
+                approval_id,
+                [_read_grant()],
+                use=ApprovalUse(
+                    capability=CapabilityId.ANALYSIS_RUN,
+                    arguments={
+                        "operator_id": "mean",
+                        "parameters": {},
+                        "recipe": "figure.recipe.json",
+                    },
+                    root_id="source:0",
+                    resource_key="one.csv",
+                ),
+                subject_ref="proj-1",
+                destination="api.minimax.cn",
+                at=NOW,
+            )
+        except ApplicationRefusedError as error:
+            print(f"   refused:    {error.reason.value}")
+            print("   The operation approval was never consumed: asking is not spending.")
+            check(
+                error.reason is ApplicationRefusal.CONSENT_PURPOSE_NOT_GRANTED,
+                "the path refuses for the reason the gate gave",
+            )
+            spent = [
+                row
+                for row in list_approvals(context.store.session, context.task_id)
+                if row.state == "consumed"
+            ]
+            check(not spent, "the refusal did not spend the approval")
+        else:
+            check(False, "the path permitted a transmission with no transmit grant")
 
     # -- 3. a destination the grant does not name --------------------------- #
     print("\n3. A request to a destination the grant does not name")
