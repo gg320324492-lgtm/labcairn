@@ -21,8 +21,16 @@ stops at the point where the owner approves.
 **The numbering.** `LC-P2-06` … `LC-P2-14` are the numbers the two external
 planning documents proposed and the owner asked about. They are used here
 because they are **free** — PR #125 stops at `05` — and because changing
-them later would mean renumbering in three places. If the owner prefers a
-different scheme, this is the moment to change it.
+them later would mean renumbering in three places. **The owner kept them on
+2026-10-29**, and this line is now part of Phase 2 as an additional line
+beside PR #125's six.
+
+**The order the owner chose (2026-10-29).** LC-P2-08 first — the paper
+project and the version graph — because LC-P2-06's grant table names the
+paper project it covers, and because the reader's events have nowhere to
+live until the tables exist. Then LC-P2-06, then LC-P2-09, then LC-P2-10,
+which is the one that cannot be parallelised and needs people rather than
+code.
 
 ---
 

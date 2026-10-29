@@ -220,10 +220,31 @@ are learned and which are inherited. That is a scientific-integrity reason
 to ground Phase 2's guidance in a citable, attributable rule store, and it
 is independent of the licensing question.
 
-## 5. The decisions that are the owner's
+## 5. The decisions that were the owner's — and what was decided
 
-These are the ones this pack cannot make, and each one changes what happens
-next.
+**All three were decided on 2026-10-29**, and the reasoning is kept below
+with the ruling, because a ruling without its reasoning is a decision that
+cannot be re-examined when the next fact arrives.
+
+| | The question | The ruling |
+|---|---|---|
+| **D1** | Is the mentor-trajectory line part of Phase 2? | **Yes — as an additional line.** PR #125's six tickets keep their numbers and scope. |
+| **D2** | What is the pilot's deployment? | **A controlled single machine** with an offline intake directory, one administrator and a few invited annotators. Not a shared server. |
+| **D3** | Which papers enter the first pilot, and who arbitrates? | **Deferred** — it needs the pilot corpus, which needs the deployment, and it needs people this project does not have yet. |
+| **D4** | Is the retrieval corpus widened before the guidance agent? | **Deferred** to LC-P2-11's start. It is a real ceiling on LC-P2-14, and it is recorded there. |
+| **D5** | The numbering `LC-P2-06` … `LC-P2-14`? | **Kept.** They are free and they are now on the board. |
+| **D6** | The CI shard cost for the new test files? | **Measured** — §6 and the acceptance record. |
+
+**And the one that was added by the work itself:**
+
+| | The question | The ruling |
+|---|---|---|
+| **D7** | Who merges PR #126, given that no agent may act as the non-implementing reviewer? | **The owner reviews and merges.** The project's rule — *"the implementing agent merges its own PRs after both the parent and a non-implementing reviewer have signed off"* — is kept, and the owner is the non-implementing reviewer: they wrote none of this code. |
+
+**What D1 and D2 changed in the records.** `docs/ROADMAP.md` now names both
+lines under Phase 2 and carries the three rulings; the work-order draft
+records that LC-P2-06 depends on LC-P2-08's table.
+
 
 ### D1 — Is the mentor-trajectory line part of Phase 2?
 
@@ -238,6 +259,14 @@ it may deserve its own phase.
 as a *supplement* to PR #125, not as a replacement, so either answer leaves
 the six existing tickets standing.
 
+> **RULED 2026-10-29: it is part of Phase 2, as an additional line.** The
+> reasoning that carried the most weight was that the trajectory line needs
+> **the Phase 1 spine more than any other Phase 2 feature does** — the task
+> store, the evidence ledger, the refusal vocabulary and the anchor registry
+> are all things it must reuse rather than rebuild, and Phase 1 left the
+> exact slots it needs empty. A separate phase would have had to rebuild
+> them.
+
 ### D2 — The pilot's deployment
 
 **ADR-0015 D6 assumes a controlled single machine, an offline intake
@@ -245,10 +274,34 @@ directory, one administrator and a few invited annotators** — not a LAN
 service and not a public one. The alternative needs a separate ADR for
 identity and row-level access, and the conditions are written down.
 
+> **RULED 2026-10-29: a controlled single machine with invited
+> annotators.** The reasoning is the one ADR-0015 already gave: **the
+> single-user security assumption is a *floor*, and opening a service
+> without the identity work would make the product's claim of isolation
+> false.** The pilot can start collecting and parsing material on this
+> shape, and the multi-user work becomes a later ADR rather than a
+> precondition for the first data.
+>
+> **What the ruling does not settle.** It does not say the deployment is
+> *finished*. The conditions ADR-0015 D6 lists — the identity model, the
+> audit trail, the withdrawal-deletion consistency check — are the
+> **acceptance list for the moment the pilot opens to anyone beyond the
+> administrator**, and they are written down rather than left to be
+> discovered.
+
 ### D3 — Which three to five papers enter the first pilot, and who arbitrates
 
 **A person's decision, not a ticket's.** The corpus this line needs does
 not exist yet.
+
+> **DEFERRED 2026-10-29**, and the deferral has a reason rather than a
+> date: **the decision needs the corpus, the deployment, and the people.**
+> D2 settles the deployment, so the corpus can start being collected; but
+> *which* papers, and *who* arbitrates the annotation conflicts, are
+> questions for the advisor and the annotators, and this project cannot
+> answer them by writing a document. **It becomes decidable when there is
+> material to decide about**, and LC-P2-10's task breakdown is where it
+> will be asked.
 
 ### D4 — Whether the retrieval corpus is widened before the guidance agent
 
@@ -256,6 +309,13 @@ not exist yet.
 `NOT MEASURED`.** LC-P2-11's retrieval has no measurement to be measured
 against until LC-P2-05 widens it, and LC-P2-14's ablation inherits the
 ceiling.
+
+> **DEFERRED 2026-10-29, to LC-P2-11's start.** The deferral is not a
+> dismissal: **the ceiling is real and it is recorded**, and the decision
+> is best made when there is a rule store to retrieve *from* and a
+> retrieval change to measure *against*. Widening the corpus earlier is
+> possible — LC-P2-05 is a Phase 2 ticket in its own right — but doing it
+> before there is anything to retrieve is preparation without a question.
 
 ### D5 — The numbering `LC-P2-06` … `LC-P2-14`
 
