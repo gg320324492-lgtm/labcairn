@@ -215,6 +215,18 @@ in. The owner was asked whether the ruling covers witness cases and not
 only the sixth blocker's required tests, and chose **all blockers** — which is
 what the second blocker's FAILED row needed.
 
+**The G1/G2 human review is prepared, not done.**
+[`acceptance/G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md)
+is the document a named human works from: every clause of both gates with the
+node id that holds it, the mutation that must go red for each one, the three exit
+demonstrations with their check counts re-counted from the source (36 / 14 / 18),
+the commits each gate has taken since it closed, and the four places where these
+two records are weakest — most of all that **four of G1's thirteen clause rows
+and all six of LC-P1-07's were recorded by behaviour rather than by node id**, which is why
+the checklist re-derives them and why a witness now checks that the re-derived
+ids still exist. The ruling that the retro-reviews are *procedural independence,
+not human* stands until that review is executed and written back.
+
 **The licence audit's factual half is done**
 (`acceptance/LC-P1-14-font-licence-audit.md`): no third-party font file
 reaches any artefact, so the GPL font reportlab bundles does not attach to

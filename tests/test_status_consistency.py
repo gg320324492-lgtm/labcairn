@@ -653,3 +653,55 @@ def test_in_page_anchors_resolve(path: Path) -> None:
         f"carries: {sorted(set(broken))[:5]}. The slug of a heading is what "
         "GitHub makes of it, and a link that guesses it is a dead link."
     )
+
+
+# --------------------------------------------------------------------------
+# the G1/G2 human-review checklist names node ids, and they have to exist
+# --------------------------------------------------------------------------
+
+#: The checklist a human reviewer works from. Its whole value is that each row
+#: names something a reader can run and read, so a node id that does not exist
+#: is not a typo — it is a clause nobody can re-verify.
+CHECKLIST = REPO / "docs" / "acceptance" / "G1-G2-human-review-checklist.md"
+
+#: A citation of a test file, followed by one or more `::` segments. The whole
+#: match is what a reader would type, so no capturing group is used.
+_CITED_NODE = re.compile(r"tests/[a-z_0-9]+\.py(?:::[A-Za-z_0-9]+)+")
+
+
+def test_the_human_review_checklists_node_ids_exist() -> None:
+    """Every `tests/...py::...` the checklist cites is a thing in this tree.
+
+    **Why this is watched mechanically.** The checklist was written from the two
+    gate records, and the records cite whole files rather than node ids for most
+    of G1's clauses — §6.1 of the checklist says so. Re-deriving the node ids by
+    hand produced two wrong ones on the first pass: a class named
+    `TestApprovalGate` where the tree has `TestApprovalCheckpoint`, and a file
+    `tests/test_recovery_probe.py` that has never existed. Both were plausible,
+    both were unfalsifiable by reading, and a reviewer following either would
+    conclude the witness is missing when the witness is fine.
+    """
+    text = CHECKLIST.read_text(encoding="utf-8")
+    cited = sorted({match.group(0) for match in _CITED_NODE.finditer(text)})
+    assert cited, "the checklist names no node id, so this check proves nothing"
+    broken: list[str] = []
+    for node_id in cited:
+        parts = node_id.split("::")
+        source = REPO / parts[0]
+        if not source.is_file():
+            broken.append(node_id)
+            continue
+        body = source.read_text(encoding="utf-8")
+        for segment in parts[1:]:
+            pattern = (
+                rf"^class {re.escape(segment)}\b"
+                if segment[:1].isupper()
+                else rf"^\s*def {re.escape(segment)}\b"
+            )
+            if not re.search(pattern, body, re.MULTILINE):
+                broken.append(f"{node_id} (no {segment})")
+                break
+    assert not broken, (
+        "the checklist cites node ids that are not in the tree, so a reviewer "
+        f"following it would report a missing witness: {broken}"
+    )

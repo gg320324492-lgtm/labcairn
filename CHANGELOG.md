@@ -20,6 +20,23 @@ The links are the records.
 
 **Added**
 
+- **The G1/G2 human review has a checklist.**
+  [`docs/acceptance/G1-G2-human-review-checklist.md`](docs/acceptance/G1-G2-human-review-checklist.md)
+  gives a named reviewer every clause of the two gates with the node id that
+  holds it, the mutation that must go red, the commits each gate has taken since
+  it closed, the three exit demonstrations with their check counts re-counted
+  from the source (36 / 14 / 18), and the four places the two records are
+  weakest — starting with the fact that four of G1's thirteen clause rows and all
+  six of LC-P1-07's were recorded **by behaviour, not by node id**. **It carries no
+  verdict**: the owner's ruling stands that the two AI retro-review rounds are
+  procedural independence, not human, so the board's rule for G1 and G2 stays
+  open until a person executes it.
+  `tests/test_status_consistency.py::test_the_human_review_checklists_node_ids_exist`
+  checks that every id the checklist cites is still in the tree — writing the
+  checklist produced two wrong ones by hand (`TestApprovalGate` for
+  `TestApprovalCheckpoint`, and a `tests/test_recovery_probe.py` that never
+  existed), which is the reason the check exists.
+
 - **The deterministic figure has a surface.** `labcairn task figure` and
   `POST /analysis` call the layer's own `run_figure`; `labcairn task
   approval-request` and `labcairn task approval-grant` are the consent it needs,

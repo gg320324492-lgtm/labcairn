@@ -63,7 +63,11 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
   evidence for Phase 1**. They are **procedural independence, not human**, and
   they do **not discharge** the board's rule for G1 or G2 — a human independent
   review of those two gates remains an open follow-up, named as such rather
-  than papered over.
+  than papered over. **The follow-up is now prepared, not executed:**
+  [`acceptance/G1-G2-human-review-checklist.md`](acceptance/G1-G2-human-review-checklist.md)
+  lists the clauses, the node id that holds each one, the mutation that must go
+  red, the commits each gate has accumulated since it closed, and the four
+  places its own records are weakest. It carries no verdict.
 
 **Ruled 2026-10-29, and landed in the harness rather than only recorded:**
 
