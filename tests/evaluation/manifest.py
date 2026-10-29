@@ -228,6 +228,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_material_schema.py": ("integration", "migrations"),
     "test_material_walk.py": ("unit", "permission-resolution"),
     "test_material_walk_paths.py": ("unit", "dataset-locators"),
+    # LC-P2-07. The OOXML reader's addresses: a package part, an element
+    # path, a view and a character range. The protocol's locator clause is
+    # the one it exercises.
+    "test_ooxml_revisions.py": ("unit", "dataset-locators"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

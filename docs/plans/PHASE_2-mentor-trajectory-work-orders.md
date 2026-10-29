@@ -79,18 +79,25 @@ measurement established:
 | | |
 |---|---|
 | **Objective** | The four independent permissions, the grant table, and the refusal paths that enforce them. |
-| **Depends on** | ADR-0015 (drafted). Nothing else. |
+| **Depends on** | ADR-0015 (drafted), and **LC-P2-08's `PaperProject` table** — the grant names the paper project it covers, so the table cannot be written before the thing it points at exists. |
 | **Cost** | Medium: one table, one migration, one refusal vocabulary extension, one intake path. |
 | **Acceptance** | Material with no grant is not readable for the restricted purpose; `external_transmit` and `train_reuse` are **denied by absence**; a grant naming provider A does not authorise provider B; withdrawing a grant invalidates the embeddings, index entries, cached transcripts and queued runs derived from it; `owner_id` authorises nothing; no real manuscript's bytes appear in the repository, in any CI artefact, or in the public evaluation corpus. |
 | **Must not** | Model a data permission as an operation approval, or the two become one thing and the default-deny for transmission and training has no representation. |
 | **Status** | ADR-0015 is drafted; the ticket needs the owner's ruling before code. |
+| **The ordering constraint, stated.** This ticket is written as *"depends on
+  nothing"*, and that was wrong: `AccessGrant.subject_ref` names the paper
+  project, so **LC-P2-08's `PaperProject` table has to exist first**. The
+  two are otherwise independent, and the cheapest order is LC-P2-08's
+  **table** first and LC-P2-06's **refusals** after it — the refusal paths
+  do not need the table to be written, only to be *pointed at* something
+  real. |
 
 ### LC-P2-07 — DOCX revision and comment fidelity
 
 | | |
 |---|---|
 | **Objective** | The OOXML-native reader: `w:ins`, `w:del`, `w:moveFrom`, `w:moveTo`, `w:commentRangeStart/End`, `w:commentReference`, with authors, dates, anchors and the three views. |
-| **Depends on** | LC-P2-06 (a document must be permitted before it is parsed); ADR-0014 (drafted). |
+| **Depends on** | ADR-0014 (drafted). **Not** on LC-P2-06, as the ticket originally said: the reader is a pure function over bytes and enforces no permission, so it can be written and measured before the consent table exists. LC-P2-06 governs **who may call it**, and the product path that calls it is where the two meet. |
 | **Cost** | Large: a new adapter, a new `SourceKind`, a new `LocatorKind`, a migration, and the reader itself. |
 | **Acceptance** | The measured target from [`LC-P2-07-fidelity-baseline.md`](../acceptance/LC-P2-07-fidelity-baseline.md): **revision recall 1.0 and deletion recovery 1.0 on the synthetic corpus**; **comment recall 1.0**, with the four un-anchorable comments reported as `UNKNOWN` with a reason rather than dropped; the anchor is the comment's **range**, not the paragraph's; the original bytes are unchanged; a missing author or date is `UNKNOWN`, never guessed. |
 | **Must not** | Extend the *report* revision model to manuscripts — the two answer different questions and the reuse matrix §4.1 says why. |

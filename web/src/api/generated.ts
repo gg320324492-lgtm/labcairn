@@ -405,7 +405,7 @@ export type SourceIdentifier = {
 
 export type SourceIdentifierKind = 'doi' | 'arxiv' | 'isbn' | 'local'
 
-export type SourceKind = 'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'other'
+export type SourceKind = 'pdf' | 'markdown' | 'text' | 'csv' | 'xlsx' | 'docx' | 'other'
 
 export type SourceReadability = 'readable' | 'unreadable_no_ocr' | 'unparseable'
 
