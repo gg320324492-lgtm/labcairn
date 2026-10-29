@@ -5,7 +5,7 @@ alignment) · **Subtasks:** T00–T05.
 **Task breakdown:** [`docs/plans/LC-P2-08-task-breakdown.md`](../plans/LC-P2-08-task-breakdown.md)
 **Status of the work order:** **implemented and measured**, and **not
 independently reviewed** — see §6.
-**Measured:** 2026-10-29 on the tree at `ef1a36c`, on Windows 11 (AMD64),
+**Measured:** 2026-10-29 on the tree at `4aff29b`, on Windows 11 (AMD64),
 Python 3.12.13.
 
 **What this is.** The first implementation of the mentor-trajectory line:

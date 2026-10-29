@@ -228,6 +228,18 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_material_schema.py": ("integration", "migrations"),
     "test_material_walk.py": ("unit", "permission-resolution"),
     "test_material_walk_paths.py": ("unit", "dataset-locators"),
+    # LC-P2-06. The consent machinery: the grant table's schema, the
+    # permission check that answers whether a use is permitted, the two
+    # gates that stand between a request and a transmission, the
+    # withdrawal that reaches the copies derived from it, the intake
+    # guards that refuse an archive before it is opened, and the exit
+    # demonstration that runs all of it.
+    "test_access_grant_schema.py": ("integration", "migrations"),
+    "test_consent_demo.py": ("integration", "approvals"),
+    "test_consent_two_gates.py": ("integration", "approvals"),
+    "test_consent_withdrawal.py": ("integration", "approvals"),
+    "test_dataset_consent.py": ("unit", "permission-resolution"),
+    "test_intake_guards.py": ("negative", "path-traversal"),
     # LC-P2-07. The OOXML reader's addresses: a package part, an element
     # path, a view and a character range. The protocol's locator clause is
     # the one it exercises.

@@ -120,8 +120,8 @@ it failed. Run the command, then read its status separately.
 **The owner decided this on 2026-10-24**, and it is recorded in
 `docs/plans/LC-P1-11-12-task-breakdown.md` §1.5.
 
-- **Do not push to start a run.** The suite is six shards per platform, so a
-  push starts twelve python jobs; that is the owner's call, not the
+- **Do not push to start a run.** The suite is five shards per platform, so a
+  push starts ten python jobs; that is the owner's call, not the
   session's.
 - **Do not open a pull request.** Not for a finished piece of work, not for
   a document, not for a commit that is "ready to be reviewed". The work
@@ -155,12 +155,18 @@ measured at, and rebuilds the partition. **The numbers must come from a
 runner**: a development machine gives a different answer, not only a different
 total but a different *order*, which is why the partition is one per platform.
 
-**The suite is split into six shards per platform, and each shard runs in its
+**The suite is split into five shards per platform, and each shard runs in its
 own job on its own runner.** The reason is measured: the Windows job spent
 34.5 minutes and the Ubuntu job 17.5, and every other required check
 together came to under two minutes, so the suite was the whole of the wait.
 One runner doing everything is the worst possible arrangement for a suite
 whose cost is spread unevenly.
+
+**And the count is measured as well.** Six shards were tried on 2026-10-25,
+and the best arrangement their costs allow was a balance factor of 1.603;
+five is better, and a sixth shard only adds a job without shortening the
+wall clock. **The workflow's matrix is the authority** — `shard: [0, 1, 2, 3,
+4]` — and `tests/test_ci_shard_coverage.py` checks the partition against it.
 
 **Adding a test file means adding it to the shard list**, and
 `tests/test_ci_shard_coverage.py` is what says so: it fails if a test file

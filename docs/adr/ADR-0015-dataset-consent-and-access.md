@@ -320,16 +320,16 @@ material can then be deleted with the propagation rule still enforced.
 
 | # | Contract | Witness |
 |---|---|---|
-| C1 | Material with no grant is **not readable** for the restricted purpose, and the refusal names the missing permission | to be written at LC-P2-06 |
-| C2 | `external_transmit` with no grant refuses an outbound model request, **and the refusal does not spend the operation approval** | to be written at LC-P2-01/06 |
-| C3 | An `external_transmit` grant naming provider A does not authorise a request to provider B | to be written at LC-P2-01/06 |
-| C4 | An `external_transmit` grant on the material is refused when the request's material set includes material outside the grant's scope | to be written at LC-P2-01/06 |
-| C5 | `train_reuse` with no grant excludes the material from every training queue, embedding index and derived corpus | to be written at LC-P2-06 |
-| C6 | Withdrawing a grant invalidates the embeddings, index entries, cached transcripts and queued runs derived from that material | to be written at LC-P2-06 |
-| C7 | A granted `store_read` plus a denied `external_transmit` is representable, and the denial survives a restart | to be written at LC-P2-06 |
-| C8 | The `owner_id` of a project authorises nothing: setting it does not grant any permission | to be written at LC-P2-06 |
-| C9 | No real manuscript's bytes, text, comment or metadata appear in the repository, in any CI artefact, or in the public evaluation corpus | to be written at LC-P2-06 |
-| C10 | A withdrawal is recorded with a reason and an actor, and the record is not deletable by the withdrawing party | to be written at LC-P2-06 |
+| C1 | Material with no grant is **not readable** for the restricted purpose, and the refusal names the missing permission | **written** — `test_material_with_no_grant_is_not_readable`, and `test_a_refusal_names_what_would_satisfy_it` |
+| C2 | `external_transmit` with no grant refuses an outbound model request, **and the refusal does not spend the operation approval** | **written at LC-P2-06** — `test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent`, `test_the_transmit_check_runs_before_the_approval_is_consumed`. **The model call itself is LC-P2-01's**, and no call is made here |
+| C3 | An `external_transmit` grant naming provider A does not authorise a request to provider B | **written at LC-P2-06** — `test_a_grant_for_one_destination_does_not_authorise_another` |
+| C4 | An `external_transmit` grant on the material is refused when the request's material set includes material outside the grant's scope | **written at LC-P2-06** — `test_a_grant_whose_scope_does_not_reach_the_material_is_refused` |
+| C5 | `train_reuse` with no grant excludes the material from every training queue, embedding index and derived corpus | **written at LC-P2-06** — `test_a_permission_with_no_row_is_denied_by_absence`: a training use with no grant is refused by the absence of a row, and a read grant is not a training grant. **The queues, indexes and corpora that hold the material are LC-P2-09's**, and their exclusion is not yet witnessed |
+| C6 | Withdrawing a grant invalidates the embeddings, index entries, cached transcripts and queued runs derived from that material | **written at LC-P2-06** — `test_a_withdrawn_grant_invalidates_the_copies_derived_from_it`, `test_a_copy_whose_grant_is_not_on_the_record_is_stale`. **A copy records the grant it came from**, and the specific stores are LC-P2-09's |
+| C7 | A granted `store_read` plus a denied `external_transmit` is representable, and the denial survives a restart | **partly written** — `test_a_read_grant_does_not_authorise_a_transmission` carries the representability, and `test_a_permission_with_no_row_is_denied_by_absence` carries the absence. **The denial surviving a restart has no witness yet**: the check reads grants the caller fetches, and no test here reopens the store |
+| C8 | The `owner_id` of a project authorises nothing: setting it does not grant any permission | **written** — `test_the_owner_scope_authorises_nothing` |
+| C9 | No real manuscript's bytes, text, comment or metadata appear in the repository, in any CI artefact, or in the public evaluation corpus | **written** — `test_no_real_material_reaches_the_repository_or_a_ci_artefact` |
+| C10 | A withdrawal is recorded with a reason and an actor, and the record is not deletable by the withdrawing party | **written** — `test_a_withdrawal_records_who_and_when`, `test_the_grant_row_is_kept_and_not_deleted` |
 
 **C2 is the one to watch.** It is the difference between "the model call is
 approved" and "the data may leave the machine", and a mutation that removes
