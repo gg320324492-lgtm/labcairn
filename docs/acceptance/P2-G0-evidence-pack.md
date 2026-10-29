@@ -378,11 +378,17 @@ file this work changed.
 
 **Not measured, and not claimed:**
 
-- **No Phase 2 code exists.** No table migrated, no reader written, no
-  agent built.
-- **The guidance agent has never been shown to work.** LC-P2-14 exists to
-  find out, and its acceptance explicitly allows the answer to be "no
-  measurable gain".
+- **The trajectory's own tables do not exist.** No `PaperProject`, no
+  `PaperVersion`, no `RevisionEvent` — those are LC-P2-06, LC-P2-08 and
+  LC-P2-09. **One migration has landed** (`0009_docx_locator`), and it
+  makes a DOCX addressable; it adds no trajectory table. The reader
+  exists and is measured (§2.3); **nothing it produces is persisted yet**,
+  because the tables it would live in are LC-P2-08's.
+- **No agent has been built.** The guidance agent, the response-linker and
+  the experience store are all still tickets.
+- **The guidance agent has never been shown to work**, and nothing in this
+  list says it will. LC-P2-14 exists to find out, and its acceptance
+  explicitly allows the answer to be "no measurable gain".
 - **No number here is about real Word documents.** The corpus is synthetic;
   ten real-world cases are listed in the corpus's `KNOWN_GAPS`.
 - **Docling was read, not run.** Its own number is not measured, and this

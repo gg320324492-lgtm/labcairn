@@ -486,8 +486,17 @@ checked against the tree at `66dde87`:
 | `python-docx` is declared | `pyproject.toml` dependencies block |
 | the migration head is `0008_c2_profile` | `migrations/versions/` listing |
 
-**What is not verified by this matrix.** No number in it was measured by
-running Phase 2 code, because Phase 2 code does not exist yet. The
-performance-related claims in §3.6 and §3.7 are quoted from the Phase 1
-records they name (`RELEASE-NOTES.md` §2.13, the LC-P1-13 evaluation record)
-and are marked as inherited measurements, not as measurements taken here.
+**What is not verified by this matrix.** Every row above is a reading of
+**the tree as it stood at `66dde87`**, and no number in it was measured by
+running Phase 2 code — because the matrix is about what Phase 2 would
+*build on*, and that is a reading of what exists. The performance-related
+claims in §3.6 and §3.7 are quoted from the Phase 1 records they name
+(`RELEASE-NOTES.md` §2.13, the LC-P1-13 evaluation record) and are marked
+as inherited measurements, not as measurements taken here.
+
+**What happened after it.** LC-P2-07's reader was written against this
+matrix's §3.2 and §3.4, and it is measured by
+[`LC-P2-07-fidelity-baseline.md`](../acceptance/LC-P2-07-fidelity-baseline.md)
+— a measurement taken **after** the matrix, which is the order the design
+asks for: the inventory first, and the acceptance test written before the
+code it judges.
