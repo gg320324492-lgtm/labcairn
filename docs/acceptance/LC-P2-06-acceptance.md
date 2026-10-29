@@ -102,14 +102,20 @@ that is neither committed nor ignored **lands in the source distribution**.
 An index-only check would not have seen it, and the material would have
 shipped.
 
-### 3.3 The four the independent review found unwatched
+### 3.3 The seven the independent review found
 
 **An independent review of the merged tree at `ff93b1d` read the property
-list against the tree and found four properties the suite stated and did not
-watch.** None of them is a defect in the shipped behaviour: the product
-refuses correctly in every one of these cases, and the review measured
-that. **What was missing was a test that would notice if it stopped**, and
-mutations 18–21 are the witnesses that were added.
+list against the tree and found seven things.** Four of them were properties
+the suite stated and did not watch; **two were dead vocabulary and an
+unwired order** — claims that were true of the code and true of nothing
+else; and **one was a defect in the behaviour**, a grant whose window had
+closed leaving its derived copies live. Mutations 18–24 are the witnesses
+that were added.
+
+**Every one of the seven was checked against the shipped tree before it
+was checked against the mutation**, and the tree was restored after each
+one — a mutation that never applied looks exactly like a success, and that
+is the mistake this work order's own record already tells of.
 
 **The row that is worth reading twice is 21.** The scope witness refused
 for the right answer and the wrong reason: its scope did not cover the
@@ -124,11 +130,16 @@ subject and not the material named.
 in the consent suite asked a question in which the *purpose* already
 excluded the grant, so the permission clause was never the binding
 constraint: **the whole suite was green under the mutation**, and the
-permission was the one axis of the four that nothing held.
+permission was the one axis that nothing held.
 
-**The tree was restored after each mutation**, and the mutations were
-checked against the shipped tree before they were checked against the
-mutation — a mutation that never applied looks exactly like a success.
+**Rows 23 and 24 are the two that were not about a witness.** Row 23: the
+twelve refusal names the work order added to the layer were **names nothing
+raised**, and the layer could not render a single consent refusal; row 24:
+the order the work order claimed — *a refused request does not spend the
+operation approval* — was claimed by a witness that held no approval, on a
+path that was wired to nothing. **Both were true of the code and true of
+nothing else**, and the fix was to make the path exist and to give it a
+witness that holds a real approval.
 
 **And one record was corrected.** ADR-0015 D1's column list named twelve
 columns and omitted the destination its own D3 requires and the schema has
@@ -137,9 +148,9 @@ and the witness for that shape now asserts the whole set.
 
 ## 4. What the tests found in the implementation
 
-**Seven defects. Six of them would not have been found by reading the code
-twice; the seventh was found by an independent review of the merged tree,
-and by a witness that was not a witness.**
+**Nine defects. Six of them would not have been found by reading the code
+twice; the last three were found by an independent review of the merged
+tree.**
 
 1. **The window's lower bound was missing.** A check that asks only "has it
    expired?" lets a grant for a *future* window permit a use today.
@@ -176,6 +187,25 @@ and by a witness that was not a witness.**
    the product cannot reach — and so it watched a branch that never runs.
    **The witness that now carries it builds the grant the way the product
    can produce one**, and the state-column mutation turns four tests red.
+8. **The refusals never reached a surface.** The work order added twelve
+   refusal names to the layer's vocabulary, and **nothing raised them**: the
+   consent machinery's vocabulary is `ConsentRefusal` and the intake's is
+   `IntakeRefusal`, and neither was mapped onto the layer. So a refusal
+   produced by either could not become an `ApplicationRefusedError` and no
+   surface could print it — and the drift was already there, with
+   `IntakeRefusal.NO_GRANT` having no name in the layer at all. **Two
+   closed tables and a lookup instead of a default**, and a witness that
+   closes the two vocabularies against each other in both directions.
+9. **The order was never wired.** A6 and A7 claimed that a refused request
+   leaves the operation approval unspent, and **the witness named for the
+   claim held no approval**; the demonstration printed the sentence
+   unconditionally; and the transmit gate was called from no production code
+   at all, so there was no path on which an approval could be spent before
+   it. **There is a path now**, and the witness holds a real approval — and
+   **reads the store** to say the approval was not spent, because
+   `spendable_approval` asks whether the moment is right to spend and not
+   whether the approval has been spent already, which is a weaker question
+   than the one the claim asks.
 
 **The sixth is the one worth keeping.** The other five were found by
 writing code and running it; this one was found by **reading the task
@@ -259,12 +289,12 @@ change is re-measured, not carried forward*.
 ## 6. The review, and what is still open
 
 - **The independent review has been carried out** against the merged tree
-  at `ff93b1d`, and it found four properties the suite stated and did not
-  watch. **They are the four of §3.3**, and they are witness gaps rather
-  than defects in the behaviour. The review's own document is
-  `docs/acceptance/LC-P2-06-review.md` — **not linked here, because it is
-  not in this tree**, and a link the tree cannot resolve is a link the
-  link watcher would (and does) refuse.
+  at `ff93b1d`, and it found **seven things**: four properties the suite
+  stated and did not watch, two claims that were true of the code and of
+  nothing else, and one defect in the behaviour. **They are the seven of
+  §3.3**, and the review's own document is
+  [`LC-P2-06-review.md`](LC-P2-06-review.md) — in this tree now, so the
+  link resolves.
 - **The review points are recorded**, in
   [`docs/plans/PHASE_2-review-points.md`](../plans/PHASE_2-review-points.md),
   with the mutations and the witnesses that catch them — nineteen
