@@ -1589,3 +1589,165 @@ class VersionEdgeRow(Base):
             name="version_edges_acceptance_names_an_acceptor",
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# LC-P2-06: the access grant table
+# --------------------------------------------------------------------------- #
+
+
+class AccessGrantRow(Base):
+    """One permission, granted to somebody, for one purpose and one place.
+
+    **This table holds only grants.** There is no row shape that means
+    "denied", and there is no ``permitted`` column — because ADR-0015 D2 says
+    the permission is *denied in the model*: *"There is no row, so there is
+    nothing to check, so the path cannot proceed."* A column that could
+    hold ``False`` could also be flipped to ``True`` by an update nobody
+    audited, and the whole design is that **the answer is a fact on the
+    record rather than a flag somebody flipped**.
+
+    **The four permissions are four grant kinds**, each independently
+    absent, independently withdrawn, independently expiring. They are not
+    one row with four flags, because that is the shape that lets one
+    withdrawal quietly leave the other three standing.
+
+    **A grant names one purpose and one destination**, and both are
+    narrower than "the material may be used". ADR-0015 D3's rule is that
+    *"a grant naming provider A does not authorise provider B"*, so the
+    destination is a field rather than an assumption.
+
+    **No name, no email, no author.** ADR-0015 D5 keeps a person's identity
+    apart from the material, and this table carries only the pseudonymous
+    subject reference.
+    """
+
+    __tablename__ = "access_grants"
+
+    #: Caller-minted, not a row number: a grant is cited from an earlier run
+    #: and from a decision record, so identity cannot depend on insertion
+    #: order.
+    grant_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: What the grant covers: a paper project's id, or a body of material.
+    subject_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What the grant **is**. One of the four.
+    permission: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What the grant is **for**. The narrow axis: the same permission can
+    #: be granted for reading and refused for training.
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Which material the grant covers.
+    scope: Mapped[str] = mapped_column(String(2000), nullable=False)
+    #: Where the material may go. **Required for ``external_transmit`` and
+    #: forbidden for the other three** -- see the constraint below.
+    destination: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Who granted it. A grant without a granter is a permission nobody
+    #: conferred.
+    granted_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    granted_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: When it runs out. Optional: a grant with no expiry is a standing
+    #: grant, and that is a thing a person may decide on purpose.
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: ``active``, ``withdrawn`` or ``expired``.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    withdrawn_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    withdrawal_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_access_grants_subject", "subject_ref"),
+        Index("ix_access_grants_permission", "permission"),
+        CheckConstraint(
+            "length(grant_id) > 0 AND length(subject_ref) > 0 AND length(scope) > 0 "
+            "AND length(granted_by) > 0",
+            name="access_grants_ids_present",
+        ),
+        # The four permissions, closed. A typo like ``transmit`` instead of
+        # ``external_transmit`` must not sail through as a permission
+        # nobody holds -- and it must not be *coerced* into one either.
+        CheckConstraint(
+            "permission IN ('store_read', 'parse_annotate', 'external_transmit', 'train_reuse')",
+            name="access_grants_permission_vocabulary",
+        ),
+        # The five purposes, closed, on the same standard.
+        CheckConstraint(
+            "purpose IN ('read', 'annotate', 'retrieve', 'transmit', 'train')",
+            name="access_grants_purpose_vocabulary",
+        ),
+        CheckConstraint(
+            "state IN ('active', 'withdrawn', 'expired')",
+            name="access_grants_state_vocabulary",
+        ),
+        # **A transmit grant names one destination, and the other three
+        # name none.** A transmit grant with no destination is a grant to
+        # send anywhere, which is the thing D3 exists to prevent. A read
+        # grant *with* a destination is a grant that says where the
+        # material goes, which nothing needs.
+        CheckConstraint(
+            "(permission = 'external_transmit' AND destination IS NOT NULL "
+            "AND length(destination) > 0) OR "
+            "(permission <> 'external_transmit' AND destination IS NULL)",
+            name="access_grants_destination_belongs_to_transmit",
+        ),
+        # **A withdrawal names who and when.** A state of ``withdrawn`` with
+        # no granter is a refusal nobody made, and a permission check that
+        # cannot say *who* withdrew it cannot answer the question a person
+        # will ask.
+        CheckConstraint(
+            "(state = 'withdrawn' AND withdrawn_by IS NOT NULL "
+            "AND length(withdrawn_by) > 0 AND withdrawn_at IS NOT NULL) OR "
+            "(state <> 'withdrawn' AND withdrawn_by IS NULL AND withdrawn_at IS NULL)",
+            name="access_grants_withdrawal_names_who_and_when",
+        ),
+    )
+
+
+class DerivedCopyRow(Base):
+    """Something made **from** material, and the grant it came from.
+
+    **The row exists so a withdrawal can reach its copies.** ADR-0015 D4:
+    *"Withdrawing a grant must invalidate what depended on it: derived
+    embeddings, index entries built from the material, queued training
+    runs, cached model transcripts, and any guidance rule distilled from
+    it."*
+
+    **And the design asks the question precisely** — *"撤回同意后历史
+    embedding/缓存/训练队列是否失效"* — so the answer has to be a fact and
+    not a promise. **A copy records the grant it came from**, and a check
+    asks whether that grant is still active.
+
+    **What this cannot do, and says so.** It cannot find copies written
+    before the mechanism existed, and it cannot undo a copy that has
+    already been used. **It makes the next use impossible**, which is the
+    part that is enforceable.
+    """
+
+    __tablename__ = "derived_copies"
+
+    copy_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The grant this copy was made under. **The provenance**, and the
+    #: whole reason the row exists.
+    grant_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("access_grants.grant_id", ondelete="CASCADE"), nullable=False
+    )
+    #: What kind of copy: an index entry, an embedding, a queued run, a
+    #: cached transcript, a distilled rule.
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Where the copy lives, so a withdrawal can find it.
+    location: Mapped[str] = mapped_column(String(2000), nullable=False)
+    #: The material the copy was made from.
+    subject_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_derived_copies_grant", "grant_id"),
+        CheckConstraint(
+            "length(copy_id) > 0 AND length(grant_id) > 0 AND length(kind) > 0 "
+            "AND length(location) > 0 AND length(subject_ref) > 0",
+            name="derived_copies_ids_present",
+        ),
+        CheckConstraint(
+            "kind IN ('index_entry', 'embedding', 'queued_run', 'cached_transcript', "
+            "'distilled_rule')",
+            name="derived_copies_kind_vocabulary",
+        ),
+    )

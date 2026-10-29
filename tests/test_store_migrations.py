@@ -99,6 +99,13 @@ EXPECTED_TABLES = frozenset(
         "paper_projects",
         "paper_versions",
         "version_edges",
+        # LC-P2-06. The consent machinery. `access_grants` holds only
+        # grants -- there is no row shape that means "denied", because
+        # ADR-0015 D2 says the permission is denied by *absence*. And
+        # `derived_copies` records the grant a copy was made under, so a
+        # withdrawal can reach the copies that depended on it.
+        "access_grants",
+        "derived_copies",
     }
 )
 
