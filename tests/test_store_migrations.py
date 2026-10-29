@@ -90,6 +90,15 @@ EXPECTED_TABLES = frozenset(
         # an index that quietly did not get created reads as a database with
         # nothing to find.
         "evidence_fts",
+        # LC-P2-08. The mentor-trajectory line's first tables: the
+        # manuscript a body of material belongs to, the versions of it, and
+        # the directed edges between those versions. The edges are separate
+        # because the process **branches** -- a student sent two different
+        # revised drafts -- and a column on the version could hold only one
+        # parent.
+        "paper_projects",
+        "paper_versions",
+        "version_edges",
     }
 )
 

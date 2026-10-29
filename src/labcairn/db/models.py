@@ -1361,3 +1361,231 @@ class VerificationRecordRow(Base):
         ),
         Index("ix_verification_records_evidence", "evidence_id"),
     )
+
+
+# --------------------------------------------------------------------------- #
+# LC-P2-08: the paper project and the version graph
+# --------------------------------------------------------------------------- #
+
+
+class PaperProjectRow(Base):
+    """One manuscript — the body of material a version graph hangs from.
+
+    **A project is not a Task.** Phase 1's ``tasks`` table owns *work*; a
+    paper project owns *material*, and the material outlives the work that
+    read it. The same reason ``sources`` has no ``task_id``: a material
+    belongs to a workspace, not to a Task, and it must outlive the Tasks
+    that cite it.
+
+    **``subject_pseudonym`` is not the author's name.** ADR-0015 D5 keeps a
+    person's name apart from the material and the analysis; this table
+    holds the pseudonym and points at the name held elsewhere. A row with
+    a name in it would defeat that separation, and the separation is what
+    makes the material shareable with an annotator who is not the author.
+
+    **``consent_ref`` is a reference and not a permission.** It names the
+    grant that LC-P2-06 will resolve; it grants nothing by being present.
+    A project with no grant is **readable as a project and unreadable as
+    material**, and those are two different states rather than one state
+    with a missing field.
+    """
+
+    __tablename__ = "paper_projects"
+
+    #: Caller-minted, not a row number: a project may be cited from an
+    #: earlier run, so identity cannot depend on insertion order.
+    project_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The workspace the material lives in. A project's material is in a
+    #: workspace, and the workspace is what the permission boundary is
+    #: checked against.
+    workspace_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: A pseudonym for the subject. **Never** the author's name — see the
+    #: class docstring.
+    subject_pseudonym: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: The reference LC-P2-06 resolves to a grant. ``None`` means no grant
+    #: has been recorded, and the material is not readable.
+    consent_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "length(project_id) > 0 AND length(workspace_id) > 0 AND length(subject_pseudonym) > 0",
+            name="paper_projects_ids_present",
+        ),
+        CheckConstraint(
+            "consent_ref IS NULL OR length(consent_ref) > 0",
+            name="paper_projects_consent_ref_non_empty",
+        ),
+    )
+
+
+class PaperVersionRow(Base):
+    """One version of a manuscript — a node in the version graph.
+
+    **There is no ``parent_id`` column, and that is the point.** The
+    teacher's process contains **parallel branches**: a student sent two
+    different revised drafts and the advisor replied to both. A column that
+    holds one parent cannot hold two, so the parent lives in
+    :class:`VersionEdgeRow` and the graph can branch.
+
+    **``version_label_raw`` is kept verbatim and is not evidence.** It is
+    whatever the author's file name said — ``最终版2.docx``, ``投稿版.docx``
+    — and the design says plainly that such a name is not a statement about
+    which is newer. It is kept because a person reading the archive needs to
+    see what the file was called, not because it decides anything.
+
+    **``status`` is ``unresolved`` until the version's place in the sequence
+    is established.** An unresolved version is **listed**: it exists, it is
+    material in the project, and hiding it because its parent is unknown
+    would make the archive look complete when it is not.
+    """
+
+    __tablename__ = "paper_versions"
+
+    version_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The ingested file this version came from. A version with no file is
+    #: not a version; the bytes are what the version *is*.
+    source_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("sources.source_id", ondelete="CASCADE"), nullable=False
+    )
+    #: The label the author's file name gave, kept verbatim. **Not
+    #: evidence of order** — see the class docstring.
+    version_label_raw: Mapped[str] = mapped_column(String(2000), nullable=False)
+    #: The stage the system inferred, and ``unknown`` when it inferred
+    #: nothing. A closed vocabulary, because a stage that could hold any
+    #: string is a stage that carries no information.
+    stage_candidate: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: ``resolved`` or ``unresolved``.
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_paper_versions_project", "project_id"),
+        CheckConstraint(
+            "length(version_id) > 0 AND length(project_id) > 0 AND length(source_id) > 0",
+            name="paper_versions_ids_present",
+        ),
+        CheckConstraint(
+            "stage_candidate IN ('draft', 'advisor_reviewed', 'submitted', "
+            "'camera_ready', 'unknown')",
+            name="paper_versions_stage_vocabulary",
+        ),
+        CheckConstraint(
+            "status IN ('resolved', 'unresolved')",
+            name="paper_versions_status_vocabulary",
+        ),
+    )
+
+
+class VersionEdgeRow(Base):
+    """A directed relationship between two versions: parent to child.
+
+    **Three separate facts, and conflating any two of them is the
+    failure this table exists to make impossible.**
+
+    ================ ==================================================
+    ``source``        **how** the relationship was established —
+                      ``evidence``, ``human`` or ``model``.
+    ``confidence``    how strong the evidence is — **a number**, and not
+                      a decision.
+    ``accepted_by``   **who** accepted it — ``None`` until a person does.
+    ================ ==================================================
+
+    **A similarity score may never silently decide an order.** So an
+    ``evidence`` edge with a confidence of 0.99 is still **unaccepted**, and
+    the version graph reports it as a proposal. A ``human`` edge records
+    who accepted it, and that is what makes it settled.
+
+    **The constraint is the way round that is easy to get backwards.** An
+    edge that *claims* an acceptance must name **who** accepted it — that is
+    a human decision with nobody behind it, and it is refused. An edge with
+    no acceptor is not refused: it is simply unaccepted, and that is the
+    state a proposal is in.
+
+    **A correction is a new version of the edge, not an overwrite.** The
+    project's rule is that a human revision produces a new version rather
+    than silently replacing what was there, and ``edge_version`` and
+    ``superseded_by`` carry that: the previous edge stays readable.
+    """
+
+    __tablename__ = "version_edges"
+
+    edge_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    parent_version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    child_version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: **How** the relationship was established. ``evidence`` is a
+    #: proposal; ``human`` is a decision; ``model`` is a proposal the system
+    #: made and no person has accepted.
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: How strong the evidence is. **A number, not a decision.**
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    #: What supports the edge, as text. A reader must be able to see why.
+    evidence_spans: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    #: **Who** accepted it. ``None`` while the edge is a proposal.
+    accepted_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: The edge's own revision number, for corrections.
+    edge_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: The edge this one corrects, when it is a correction.
+    superseded_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_version_edges_child", "child_version_id"),
+        Index("ix_version_edges_project", "project_id"),
+        CheckConstraint(
+            "length(edge_id) > 0 AND length(project_id) > 0 "
+            "AND length(parent_version_id) > 0 AND length(child_version_id) > 0",
+            name="version_edges_ids_present",
+        ),
+        # A version cannot be its own parent. That is not a self-loop to be
+        # tolerated; it is a contradiction, and the schema says so rather
+        # than letting the application layer decide.
+        CheckConstraint(
+            "parent_version_id <> child_version_id",
+            name="version_edges_not_self_parent",
+        ),
+        CheckConstraint(
+            "source IN ('evidence', 'human', 'model')",
+            name="version_edges_source_vocabulary",
+        ),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0",
+            name="version_edges_confidence_in_range",
+        ),
+        CheckConstraint(
+            "edge_version >= 1",
+            name="version_edges_version_positive",
+        ),
+        # **An edge that claims an acceptance names who accepted it.** An
+        # ``accepted_by`` with no acceptor is a human decision with nobody
+        # behind it, and a proposal wearing a person's name is the same
+        # forgery by another route. The absence of an acceptor is NOT an
+        # error -- that is what a proposal looks like -- and the two are
+        # told apart by this constraint rather than by the application
+        # layer's discretion.
+        CheckConstraint(
+            "(accepted_by IS NULL AND accepted_at IS NULL) OR "
+            "(accepted_by IS NOT NULL AND length(accepted_by) > 0 "
+            "AND accepted_at IS NOT NULL)",
+            name="version_edges_acceptance_names_an_acceptor",
+        ),
+    )
