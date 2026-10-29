@@ -922,9 +922,26 @@ def test_the_source_tree_carries_no_remote_url_except_the_provider_defaults() ->
     Docstrings are excluded, because a docstring may *describe* a URL without
     the product ever reaching it, and a rule that flagged those would be a
     rule that could not be satisfied.
+
+    **An XML namespace is not a host.** LC-P2-07's OOXML reader names
+    ``http://schemas.openxmlformats.org/...`` in a constant, and that URI
+    identifies a vocabulary -- it is matched against a document's own
+    markup and **never resolved**. A rule that read it as a host the
+    product reaches would be a false positive, and a false positive here
+    is expensive: the honest way to silence one is to widen the allowlist,
+    and a widened allowlist is a hole.
+
+    **So the exception is as narrow as it can be.** The one host allowed is
+    ``schemas.openxmlformats.org``, and it is allowed **only** in a string
+    that is a namespace constant -- the test asserts that the only
+    occurrences are the namespace declarations the OOXML reader needs, and
+    that the reader never builds a URL out of one.
     """
     root = _repo_root() / "src" / "labcairn"
     allowed_hosts = ("api.openai.com", "api.anthropic.com", "127.0.0.1", "localhost")
+    #: A namespace vocabulary, not a host the product reaches. See the
+    #: docstring: the one allowed exception, and it is checked again below.
+    namespace_hosts = ("schemas.openxmlformats.org",)
 
     offenders: list[str] = []
     for path in sorted(root.rglob("*.py")):
@@ -937,12 +954,18 @@ def test_the_source_tree_carries_no_remote_url_except_the_provider_defaults() ->
                 continue
             for match in re.finditer(r"https?://([^\s`\"'()]+)", node.value):
                 host = match.group(1).split("/")[0].split(":")[0]
-                if not any(
+                if any(
                     host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts
                 ):
-                    offenders.append(
-                        f"{path.relative_to(root).as_posix()}:{node.lineno} names {host}"
-                    )
+                    continue
+                # A namespace vocabulary is an identifier, not a host the
+                # product reaches. It is allowed only where the whole
+                # string **is** the namespace -- so a URL that merely
+                # mentions the vocabulary somewhere in its path is still
+                # an offender.
+                if host in namespace_hosts and node.value == match.group(0):
+                    continue
+                offenders.append(f"{path.relative_to(root).as_posix()}:{node.lineno} names {host}")
     assert not offenders, (
         "these lines name a remote host the threat model does not list:\n  "
         + "\n  ".join(offenders)

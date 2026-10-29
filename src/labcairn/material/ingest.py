@@ -103,6 +103,9 @@ _KINDS: Final[dict[str, SourceKind]] = {
     ".csv": SourceKind.CSV,
     ".tsv": SourceKind.CSV,
     ".xlsx": SourceKind.XLSX,
+    # LC-P2-07. A Word document is addressable material because the OOXML
+    # reader produces paragraphs, revisions and comments as located text.
+    ".docx": SourceKind.DOCX,
 }
 
 

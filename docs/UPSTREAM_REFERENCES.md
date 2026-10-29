@@ -193,3 +193,40 @@ These are recorded here because they will otherwise be re-discovered as false co
 - **The tracked tree is no longer 14 LabCairn-authored files**, and LabCairn has its own test suite (174 tests) that is independent of upstream behaviour. That supplies the *material* the last bullet's dossier must distinguish — the dossier itself still belongs to LC-P1-14 (G5) and that checkbox remains **unchecked**.
 
 The frozen bullets above describe `main` as it stood at LC-P1-00. Since `89c16d4` they are **superseded on `main`** by the disposition above; they are left unchanged because they are a record of a review that happened, not a live status.
+
+---
+
+## Phase 2's reference repositories (2026-10-29)
+
+**This section is appended rather than inserted, and that is deliberate.**
+The dossier cites this file **by line number**, so a paragraph added at the
+top would move every cited line and break every citation. The frozen
+bullets above are left unchanged for the same reason they were: they are a
+record of a review that happened, and so is this.
+
+Phase 2's six reference clones are catalogued **separately**, in
+[`docs/research/upstream-study/`](./research/upstream-study/), and their
+list is not repeated here — two catalogues for one set of pins is two
+catalogues that drift. Each record carries its own SHA, its own licence
+reading, and **what it failed**, because the licence is not why none of
+them is used.
+
+| Clone | SHA (2026-10-29) | Licence, read from the file | The finding |
+|---|---|---|---|
+| `arXivEdits` | `113913d6` | **none in the tree** | the README's licences are the *corpus's*, not the code's; the aligner needs CUDA and an unmaintained dependency |
+| `XtraGPT` | `9f4be5c6` | **not established** | the README asserts MG0-2.0 and points at a `LICENSE` file the repository does not ship |
+| `docx2python` | `66b1ae3e` | MIT, verified | reads no `w:ins`/`w:del`; loses every comment when the range and element counts differ |
+| `Docling` | `8f7ae544` | MIT, verified | a deleted run reads empty and is dropped; comments anchor at paragraph granularity |
+| `PeerRead` | `9bb37751` | **none in the tree** | no action and no outcome, so no rule could be learned from it |
+| `openreview-py` | `9e8ba8e6` | MIT, verified | reaches other people's material, and has no manuscript history |
+
+**Three of the six ship no licence file at all**, which is the design's
+warning confirmed rather than assumed: *"a clone is not a reuse
+permission"*. The three that do ship one are permissive, and **that is not
+why none of them is used** — each fails a property the phase needs, and the
+failure is recorded in its own study.
+
+**Nothing was copied, no weights were downloaded, no corpus was ingested.**
+The clones were made with `git clone --filter=blob:none` into a directory
+outside the repository, and no install script, container, network service or
+model weight was touched.

@@ -98,6 +98,11 @@ class SourceKind(StrEnum):
     TEXT = "text"
     CSV = "csv"
     XLSX = "xlsx"
+    #: A Word document. **LC-P2-07.** It is addressable because the OOXML
+    #: reader produces paragraphs, revisions and comments as located text --
+    #: and a Word file with tracked changes is the one material whose
+    #: *history* is part of its bytes.
+    DOCX = "docx"
     OTHER = "other"
 
 

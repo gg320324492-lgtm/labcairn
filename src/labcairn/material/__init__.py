@@ -23,6 +23,7 @@ rather than a registry somebody has to remember to populate.
 """
 
 from labcairn.material import delimited as _delimited  # noqa: F401 - registration
+from labcairn.material import ooxml as _ooxml  # noqa: F401 - registration
 from labcairn.material import pdf as _pdf  # noqa: F401 - registration
 from labcairn.material import spreadsheet as _spreadsheet  # noqa: F401 - registration
 from labcairn.material import text as _text  # noqa: F401 - registration
@@ -40,6 +41,14 @@ from labcairn.material.ingest import (
     ingest_into_store,
     kind_for_path,
     to_text_row,
+)
+from labcairn.material.ooxml import (
+    CommentAnchor,
+    CommentEvent,
+    DocxAdapter,
+    RevisionDocument,
+    RevisionEvent,
+    read_document,
 )
 from labcairn.material.pdf import PdfAdapter
 from labcairn.material.spreadsheet import SpreadsheetAdapter, render_cell
@@ -64,7 +73,10 @@ from labcairn.material.walk import WalkReport, ingest_workspace
 
 __all__ = [
     "Adapter",
+    "CommentAnchor",
+    "CommentEvent",
     "CsvAdapter",
+    "DocxAdapter",
     "ExtractedUnit",
     "ExtractionProblem",
     "ExtractionResult",
@@ -76,6 +88,8 @@ __all__ = [
     "MarkdownAdapter",
     "PdfAdapter",
     "PlainTextAdapter",
+    "RevisionDocument",
+    "RevisionEvent",
     "SpreadsheetAdapter",
     "UnknownAdapterError",
     "WalkReport",
@@ -88,6 +102,7 @@ __all__ = [
     "ingest_workspace",
     "kind_for_path",
     "library_versions",
+    "read_document",
     "register",
     "registered_kinds",
     "render_cell",

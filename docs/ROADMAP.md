@@ -33,11 +33,45 @@
 | Phase | Focus | Exit gate |
 |---|---|---|
 | P1 — Foundation & MVP | Standalone local-first Agent, typed tools, task/resume, evidence anchors, bounded analysis with a deterministic scientific plot, a first-party research Skill, report delivery, CLI + local Web | Fresh external install and end-to-end evidence-backed task, with security/recovery/quality tests |
-| P2 — Scientific Intelligence | Better retrieval, citation identity/support, advanced analysis sandbox, higher-fidelity scientific plots, editing, expanded research Skills, conditional reviewers/subagents | Measured capability gain against a frozen P1 baseline, no scientific-claim inflation |
+| P2 — Scientific Intelligence | Better retrieval, citation identity/support, advanced analysis sandbox, higher-fidelity scientific plots, editing, expanded research Skills, conditional reviewers/subagents, **and the mentor-guidance trajectory line** (learning a paper's revision history, not its final text) | Measured capability gain against a frozen P1 baseline, no scientific-claim inflation |
 | P3 — Production & Ecosystem | Stronger isolation, packaging, plugin/MCP trust, Windows/macOS/Linux distribution, robustness, observability, docs, benchmark expansion | Secure, maintainable, multi-platform public release and documented operational limits |
 | P4 — Continuous Improvement | User feedback, targeted refinements, provider/format coverage, incremental UX/performance improvements | Small reviewable releases with regression tests and clear changelogs |
 
 Phase 2 items listed against scientific plots and research Skills are **upgrades** of Phase 1 capabilities, not their first delivery. Phase 1 **delivers** a deterministic plot (`LC-P1-10`) and a first-party `research-report` Skill (`LC-P1-07`) — both are on the status board as `PASS WITH NOTES`; Phase 2 raises their fidelity and breadth.
+
+### Phase 2 has two lines, and the owner ruled on both (2026-10-29)
+
+**Line A — the six foundational tickets** in
+[`plans/PHASE_2-work-orders-draft.md`](plans/PHASE_2-work-orders-draft.md)
+(`LC-P2-00` … `LC-P2-05`): freeze the P1 baseline, restart-durable consent,
+the model-call path, the competitor baseline, citation identity, and
+retrieval quality.
+
+**Line B — the mentor-guidance trajectory**, in
+[`plans/PHASE_2-mentor-trajectory-work-orders.md`](plans/PHASE_2-mentor-trajectory-work-orders.md)
+(`LC-P2-06` … `LC-P2-14`): the system learns how a paper was *corrected* —
+the draft, the advisor's tracked changes and comments, the student's
+response, the review, the outcome — and proposes guidance on a new paper it
+has never seen.
+
+**Three owner rulings, 2026-10-29:**
+
+1. **Line B is part of Phase 2**, as an additional line. PR #125's six
+   tickets keep their numbers and their scope, and neither line waits for the
+   other.
+2. **The pilot is a controlled single machine** with an offline intake
+   directory, one administrator and a few invited annotators — ADR-0015 D6's
+   assumption. **Not** a shared server: the multi-user identity and
+   row-level access work is a later ADR, and opening a LAN or public
+   service before it exists is out of scope.
+3. **The first implementation is LC-P2-08** (the paper project and the
+   version graph), because LC-P2-06's grant table names the paper project
+   it covers, and because a revision event that nothing can store is a
+   reading and not a record.
+
+**What the ruling does not say.** It does not say the guidance agent
+works. LC-P2-14 exists to find out, and its acceptance explicitly allows
+the answer to be *"no measurable gain"*.
 
 ## Phase 1 upstream research
 

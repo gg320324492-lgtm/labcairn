@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from labcairn.sources.locators import (
     CsvLocator,
+    DocxLocator,
     PdfLocator,
     SourceLocator,
     TextLocator,
@@ -84,6 +85,26 @@ def _xlsx_fields(locator: XlsxLocator) -> list[str]:
     return [_field("sh", locator.sheet_name), _field("c", locator.cell_ref)]
 
 
+def _docx_fields(locator: DocxLocator) -> list[str]:
+    """The DOCX fields, in the order they render.
+
+    The **view** is a field and not an implicit default, because the same
+    element in the accepted view and in the rejected view resolves to
+    different text, and two addresses that resolve to different text must
+    not share a key. The character range is optional: absent means the whole
+    element, and the key has to say so -- a whole element and a range that
+    happens to start at 0 are different addresses.
+    """
+    fields = [
+        _field("p", locator.part),
+        _field("e", locator.element_path),
+        _field("v", locator.view),
+    ]
+    if locator.char_start is not None and locator.char_end is not None:
+        fields.append(_field("c", f"{locator.char_start}-{locator.char_end}"))
+    return fields
+
+
 def _fields_for(locator: SourceLocator) -> list[str]:
     """Dispatch on the locator's concrete type.
 
@@ -100,6 +121,8 @@ def _fields_for(locator: SourceLocator) -> list[str]:
         return _csv_fields(locator)
     if isinstance(locator, XlsxLocator):
         return _xlsx_fields(locator)
+    if isinstance(locator, DocxLocator):
+        return _docx_fields(locator)
     # LocatorKind.COMPUTATION, and anything a future kind adds before its
     # adapter exists.
     raise LocatorKeyError(

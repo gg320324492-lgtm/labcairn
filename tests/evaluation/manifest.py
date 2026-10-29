@@ -228,6 +228,21 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_material_schema.py": ("integration", "migrations"),
     "test_material_walk.py": ("unit", "permission-resolution"),
     "test_material_walk_paths.py": ("unit", "dataset-locators"),
+    # LC-P2-07. The OOXML reader's addresses: a package part, an element
+    # path, a view and a character range. The protocol's locator clause is
+    # the one it exercises.
+    "test_ooxml_revisions.py": ("unit", "dataset-locators"),
+    # LC-P2-08. The version graph: the schema's refusals, the contracts,
+    # the alignment's evidence and its refusal to decide, the human
+    # confirmation path, the duplicate and missing-round checks, and the
+    # exit demonstration. The clause is the locator clause: these tests
+    # are about where a version sits and what addresses it.
+    "test_paper_version_graph.py": ("unit", "dataset-locators"),
+    "test_paper_version_demo.py": ("unit", "dataset-locators"),
+    "test_version_alignment.py": ("unit", "dataset-locators"),
+    "test_version_confirmation.py": ("unit", "dataset-locators"),
+    "test_version_contracts.py": ("unit", "typed-contracts"),
+    "test_version_duplicates.py": ("unit", "dataset-locators"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),
@@ -276,6 +291,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_refusal_witnesses.py": ("negative", "insufficient-evidence"),
     "test_smoke_path.py": ("e2e", "fresh-install"),
     "test_ci_shard_coverage.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),

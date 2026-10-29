@@ -86,7 +86,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final, cast
+from typing import Final, Literal, cast
 
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
@@ -95,6 +95,7 @@ from labcairn.evidence.cite_support import LocatedContent, LocationResolution
 from labcairn.material.addressing import LocatorKeyError, render_locator_key, split_locator_key
 from labcairn.sources.locators import (
     CsvLocator,
+    DocxLocator,
     PdfLocator,
     SourceLocator,
     TextLocator,
@@ -369,6 +370,23 @@ def locator_from_key(locator_key: str) -> SourceLocator:
         )
     if kind == "csv":
         return CsvLocator(row=_integer(fields, "r"), column=fields["c"])
+    if kind == "docx":
+        # LC-P2-07. A Word address names a package part, an element path in
+        # it, the view the range is in, and the range. **The view is part
+        # of the address** because the same range means different
+        # characters in the accepted and the rejected text, and an address
+        # that could mean either is not an address.
+        view = _docx_view(fields["v"])
+        span = fields.get("c")
+        if span is None:
+            return DocxLocator(part=fields["p"], element_path=fields["e"], view=view)
+        return DocxLocator(
+            part=fields["p"],
+            element_path=fields["e"],
+            view=view,
+            char_start=_span_start(span),
+            char_end=_span_end(span),
+        )
     return XlsxLocator(sheet_name=fields["sh"], cell_ref=fields["c"])
 
 
@@ -380,6 +398,7 @@ _REQUIRED_COMPONENTS: Final[dict[str, frozenset[str]]] = {
     "text": frozenset({"k", "l"}),
     "csv": frozenset({"k", "r", "c"}),
     "xlsx": frozenset({"k", "sh", "c"}),
+    "docx": frozenset({"k", "p", "e", "v"}),
 }
 
 _OPTIONAL_COMPONENTS: Final[dict[str, frozenset[str]]] = {
@@ -387,6 +406,7 @@ _OPTIONAL_COMPONENTS: Final[dict[str, frozenset[str]]] = {
     "text": frozenset({"le", "s"}),
     "csv": frozenset(),
     "xlsx": frozenset(),
+    "docx": frozenset({"c"}),
 }
 
 
@@ -402,6 +422,26 @@ def _check_components(locator_key: str, kind: str, fields: dict[str, str]) -> No
             f"Unexpected: {sorted(unexpected) or 'none'}. "
             f"A {kind!r} locator may carry {sorted(allowed)}."
         )
+
+
+def _docx_view(value: str) -> Literal["accepted", "rejected"]:
+    """The view a Word address names, or refused.
+
+    **The view is part of the address**, and a key that names a view the
+    contract does not have is a corrupt key -- the same standard every
+    other component is held to. Rebuilding it as "accepted" because that
+    is the first one would resolve a citation against the wrong text, and
+    nothing would raise.
+    """
+    if value == "accepted":
+        return "accepted"
+    if value == "rejected":
+        return "rejected"
+    raise LocatorKeyError(
+        f"component 'v' holds {value!r}, which is not one of 'accepted' or "
+        f"'rejected'. A Word address names the view its range is in, and a "
+        f"third view would be an address that resolves to nothing."
+    )
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
