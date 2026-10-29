@@ -99,6 +99,46 @@ where a claim could be true of the code and false of the product.**
 
 ---
 
+## LC-P2-08 — The paper project and the version graph
+
+**The acceptance record:**
+[`docs/acceptance/LC-P2-08-acceptance.md`](../acceptance/LC-P2-08-acceptance.md)
+**The task breakdown:**
+[`docs/plans/LC-P2-08-task-breakdown.md`](LC-P2-08-task-breakdown.md)
+**The design:**
+[`docs/adr/ADR-0014-paper-revision-provenance.md`](../adr/ADR-0014-paper-revision-provenance.md)
+
+### The properties, and what to break
+
+| # | The property | The witness | The mutation to apply |
+|---|---|---|---|
+| 1 | **A version graph, never a version list.** The process branches, so a column holding one parent cannot hold two. | `test_a_branch_is_representable` | Put the parent back into a column on `paper_versions`. |
+| 2 | **Two files with the same name and different bytes are two versions**, and two with the same bytes are one. | `test_two_files_with_the_same_name_and_different_bytes_are_two_versions`, `test_the_same_bytes_are_one_version_whatever_the_name` | Decide identity by name, and then by content alone. **Both directions have to break separately**: the first merges two versions, the second splits one. |
+| 3 | **The order is never taken from a file name or an mtime.** | `test_a_file_name_never_decides_the_order`, `test_a_modification_time_never_decides_the_order` | Sort by name, or by modification time. **A timestamp is the tempting one** — it is always there, and it is wrong whenever the file was copied. |
+| 4 | **A proposal with high confidence is still unaccepted.** The confidence is not the decision. | `test_a_confident_proposal_is_still_unaccepted` | Accept by confidence. |
+| 5 | **An edge that claims a human acceptance must name the acceptor**, and an edge with `source='evidence'` may not name one at all. | `test_an_edge_with_no_acceptor_is_refused`, `test_a_proposal_wearing_a_persons_name_is_refused` | Drop the constraint, or make the model's refusal of a proposal naming an acceptor disappear. |
+| 6 | **The alignment refuses to decide when the evidence points two ways.** | `test_the_alignment_refuses_when_the_evidence_points_two_ways` | Remove the ambiguity margin, so a near-tie always decides. |
+| 7 | **Two drafts whose prose matches and whose numbers differ are two versions.** | `test_two_drafts_that_differ_only_in_their_results_are_two_versions` | Collect **no numbers** in the fingerprint. |
+| 8 | **A missing round is reported, and no version is invented to fill it.** | `test_a_missing_round_is_reported_and_nothing_is_invented` | Renumber the gap away, or invent the round. |
+| 9 | **A correction is a new version of the edge, and the old one stays readable.** | `test_a_correction_is_a_new_version_and_the_old_one_stays_readable` | Overwrite the proposal instead of superseding it. |
+| 10 | **An edge whose parent is outside the project is refused.** | `test_an_edge_to_a_version_outside_the_project_is_refused` | Allow the cross-project edge. **A CHECK constraint cannot catch this one** — it is a fact about three rows — so the model has to say it. |
+| 11 | **A version with no established parent is `unresolved`, and it is listed.** | `test_a_version_with_no_established_parent_is_unresolved_and_listed` | Make the unresolved version disappear, or make it look established. |
+| 12 | **A rejection writes no edge and keeps the proposal.** | `test_a_rejection_writes_no_edge_and_keeps_the_proposal` | Discard the proposal a rejection was about. |
+| 13 | **The demonstration runs, and a test runs it.** | `test_the_paper_version_demo_runs` | Invert one of the demonstration's checks. |
+
+### What this work order does not claim
+
+- **A similarity score is not a fact about the document's history.** It is
+  evidence about a proposal, and the proposal is not the decision.
+- **The version graph is presently fed by hand.** LC-P2-07's reader
+  produces the revision events these tables hold, and nothing writes them
+  into the store yet.
+- **No real material.** Everything measured here is synthetic; a real
+  manuscript brings run fragmentation inside a revision that a synthetic
+  corpus does not.
+
+---
+
 ## How this file grows
 
 **Each work order adds its own section, and the file is edited in the
@@ -106,7 +146,9 @@ same commit as the work order it describes.** A review points file that
 is written after the merge is a file written by memory, and memory is
 what this project has been bitten by before.
 
-The next section is LC-P2-07, the DOCX revision and comment fidelity —
-its fidelity baseline already carries its own numbers and its own
-mutations, and the properties it names are the ones a reviewer should
-break.
+Two sections are still to come. **LC-P2-07**, the DOCX revision and
+comment fidelity — its fidelity baseline already carries its own numbers
+and its own mutations, and the properties it names are the ones a
+reviewer should break. And **LC-P2-09**, the feedback chain, which is
+where this line's `derived_copies` will point when a distilled rule is
+made from a case.

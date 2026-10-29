@@ -122,6 +122,8 @@ measurement established:
 | **Cost** | Large. |
 | **Acceptance** | Two files with identical names and different bytes are two versions; a document with two parallel branches is representable and **no total order is implied**; an edge carries `source` (`evidence \| human \| model`), `confidence`, `evidence_spans` and `accepted_by`; **a version order is never inferred from a filename**; an unresolved relationship stays `UNRESOLVED` rather than being decided. |
 | **Must not** | Use similarity alone to decide an edge, and never present a similarity score as a fact about the document's history. |
+| **Status** | **Implemented and measured**, 2026-10-29: `paper_versions` and `version_edges` (migration `0010_paper_version_graph.py`), the contracts, the alignment that **proposes** an edge without deciding it, the human confirmation path, the duplicate and missing-round checks, and the exit demonstration — six test files, and **the whole suite green** (3894 passed, 5 skipped, 0 failed, in 34 minutes 56 seconds) on the tree at `ef1a36c`. The record is [`LC-P2-08-acceptance.md`](../acceptance/LC-P2-08-acceptance.md). |
+| **Not yet done** | The **independent review**, which the owner's ruling of 2026-10-29 moves to after the merge. **LC-P2-07's reader produces the revision events these tables hold, and nothing writes them into the store yet**: the reader exists, the store exists, and the seam between them is not wired — so the version graph is presently fed by hand. |
 
 ### LC-P2-09 — Feedback, response and follow-up
 
