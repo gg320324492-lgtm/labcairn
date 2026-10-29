@@ -143,6 +143,8 @@ AccessGrant:
   purpose            what the grant is for (read | annotate | retrieve | transmit | train)
   permission         store_read | parse_annotate | external_transmit | train_reuse
   scope              which material it covers
+  destination        where the material may go — required for external_transmit,
+                     forbidden for the other three (D3)
   granted_by         a named person
   granted_at
   expires_at         optional
@@ -151,6 +153,14 @@ AccessGrant:
   withdrawn_by
   withdrawal_reason
 ```
+
+**The list is the whole shape of the row.** A column that is not on it is
+a column the design does not have, and a column that could hold a yes or a
+no is a column this design refuses — D2's *"there is no row, so there is
+nothing to check"*. `destination` is on the list because D3 requires the
+grant to name the recipient; the schema has carried it since the table was
+created, and naming it here is the record catching up with the decision it
+belongs to.
 
 **Absence is denial.** A permission with no grant is denied, and the code
 path that reads it must treat the missing row as a refusal, not as a

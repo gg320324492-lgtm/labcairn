@@ -179,6 +179,43 @@ def test_a_permission_with_no_row_is_denied_by_absence() -> None:
     assert decision.closest.permission == "store_read"
 
 
+def test_a_grant_for_one_permission_does_not_answer_for_another() -> None:
+    """**The permission is an axis of its own, and the purpose is not a
+    substitute for it.**
+
+    **What breaks it:** a check that lets one permission stand in for
+    another. A grant to read is not a grant to train, and ADR-0015's
+    fourth permission is one of the two that *"carry consequences a student
+    cannot undo"* — so a read grant answering a training use is the
+    failure the four separate grant kinds exist to prevent.
+
+    **The purpose is held fixed on purpose.** Every other witness in this
+    file asks a question in which the *purpose* already excludes the
+    grant, so the permission clause is never the binding constraint and
+    the axis goes unwatched: dropping ``grant.permission == permission``
+    from the covering test lets a read grant answer for a training use,
+    and every other witness here stays green. **So this one holds the
+    purpose at the grant's own purpose and changes only the permission** —
+    which is the case the missing clause decides.
+    """
+    grant = _grant(permission="store_read", purpose="read", scope="proj-1/**")
+    decision = _decide(
+        [grant],
+        permission="train_reuse",
+        purpose="read",
+        material_ref="proj-1/drafts/v1.docx",
+    )
+
+    assert decision.allowed is False
+    assert decision.reason is ConsentRefusal.NO_GRANT
+    assert decision.grant_id is None
+    assert "train_reuse" in decision.detail
+    # And the refusal names the grant that came closest, so the reader
+    # knows which one to look at.
+    assert decision.closest is not None
+    assert decision.closest.grant_id == "g1"
+
+
 # --------------------------------------------------------------------------- #
 # the refusals, and what they say
 # --------------------------------------------------------------------------- #
@@ -319,15 +356,42 @@ def test_a_grant_whose_scope_does_not_reach_the_material_is_refused() -> None:
     A grant that says "this paper" and is read as "this paper and anything
     else" is a grant that has been widened by a guess, and it is the
     narrow reading that is safe.
-    """
-    # **The grant belongs to this project** -- otherwise the refusal would
-    # be "no grant", which is a different fact.
-    grant = _grant(scope="proj-1/drafts/**")
-    decision = _decide([grant], material_ref="proj-1/final/submission.docx")
 
-    assert decision.allowed is False
-    assert decision.reason is ConsentRefusal.SCOPE_NOT_COVERED
-    assert "scope" in decision.detail
+    **And the scope is asked about the material, not about the subject.**
+    The subject says *whose project this is*; the scope says *which of its
+    files may be used*; and the two are two coordinate systems, which is
+    why the acceptance record calls the mixing of them the hard case.
+    **So the grant below reaches its own subject and still refuses the
+    material** — which is what makes the refusal about the scope rather
+    than about the subject, and what makes this witness survive a check
+    that asks the scope about the subject instead.
+    """
+    # **A wildcard scoped to a subdirectory does not reach a sibling
+    # subdirectory of the same project.**
+    drafts = _grant(scope="proj-1/drafts/**")
+    final = _decide([drafts], material_ref="proj-1/final/submission.docx")
+
+    assert final.allowed is False
+    assert final.reason is ConsentRefusal.SCOPE_NOT_COVERED
+    assert "scope" in final.detail
+
+    # **A wildcard over the project reaches the project, and not a sibling
+    # project's path** — the two share a prefix and nothing else, and a
+    # prefix match without the separator is the cross-project failure.
+    wildcard = _grant(scope="proj-1/**")
+    sibling = _decide([wildcard], material_ref="proj-1-secrets/x.docx")
+
+    assert sibling.allowed is False
+    assert sibling.reason is ConsentRefusal.SCOPE_NOT_COVERED
+
+    # **And a scope that names one thing is a scope of one thing.** The
+    # material is inside the very project the grant belongs to, and the
+    # scope still does not reach it.
+    narrow = _grant(scope="proj-1")
+    inside = _decide([narrow], material_ref="proj-1/drafts/v1.docx")
+
+    assert inside.allowed is False
+    assert inside.reason is ConsentRefusal.SCOPE_NOT_COVERED
 
 
 # --------------------------------------------------------------------------- #
