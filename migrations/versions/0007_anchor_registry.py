@@ -78,8 +78,10 @@ and until then C1 says it cannot address it rather than guessing.
 
 Direct DDL, for the reason 0002 records: a frozen revision must not import
 today's ``labcairn.db.models``, or editing that class would silently rewrite
-what this revision meant to create. ``tests/test_evidence_schema.py``'s parity
-test is what holds the two together.
+what this revision meant to create. ``tests/test_store_migrations.py``'s
+parity test holds the two together, and ``tests/test_evidence_schema.py``
+holds them together again by writing the rows this revision must refuse --
+a text comparison cannot catch a migration and a model wrong together.
 """
 
 from __future__ import annotations

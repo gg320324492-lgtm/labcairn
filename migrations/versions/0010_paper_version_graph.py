@@ -32,7 +32,9 @@ is not.
 Direct DDL, for the reason 0007 records: a frozen revision must not import
 today's ``labcairn.db.models``, or editing that class would silently
 rewrite what this revision meant to create.
-``tests/test_evidence_schema.py``'s parity test holds the two together.
+``tests/test_store_migrations.py``'s parity test holds the two together, and
+the rows this revision must refuse are witnessed again by writing them -- a
+text comparison cannot catch a migration and a model wrong together.
 """
 
 from __future__ import annotations
