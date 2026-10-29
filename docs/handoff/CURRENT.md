@@ -14,12 +14,17 @@ reason names a fact of the machine no longer fails a blocker, any other skip
 does, and accepted ones are named in the row — plus the two defects that
 surfaced while reading the tree to check it: class-based cases were keyed to
 files that do not exist, costing a metric 48 of its 82 witness cases, and three
-files in the CI shard list collect no test at all), and PR #124 (the
-**G1/G2 human-review checklist**, prepared and not executed, with a witness that
-resolves every node id it cites). **Every Phase 1 owner question asked is now
-ruled.** What remains is not a question: the licence and copyright ownership,
-which the owner has ruled stays PENDING and which blocks any open-source claim,
-and a human pair of eyes on G1 and G2, which has a checklist and no reviewer.
+files in the CI shard list collect no test at all), PR #123 (the board naming the
+commit that review was made at), and PR #124 (the **G1/G2 human-review
+checklist**, prepared and not executed, with a witness that resolves every node
+id it cites). **Every Phase 1 owner question the records put to the owner now has
+a ruling written against it** — §1.4.2 on 2026-10-28, and §1.4.1b, §1.4.1 and
+§1.4.3 on 2026-10-29, all four in the board's ruling block. **What those rulings
+do not close** is the fact behind §1.4.1: who holds the copyright is outside this
+repository, and "no licence declared" leaves the ownership exactly as open as it
+was — the ruling closes the question *what do we claim*, not the question *what do
+we own*. The human pair of eyes G1 and G2 still owe the board likewise has a
+checklist and no reviewer.
 The first Phase 2 work-order list is drafted at
 [`plans/PHASE_2-work-orders-draft.md`](../plans/PHASE_2-work-orders-draft.md).
 
