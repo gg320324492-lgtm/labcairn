@@ -7,8 +7,15 @@ review outcome; every box is empty on purpose.
 *"A row is never marked done because something looks finished — it is marked done
 when an independent review at a named commit says so"*
 ([`docs/PHASE_1_WORKORDERS.md:19`](../PHASE_1_WORKORDERS.md)). G1 and G2 closed in
-October 2026 on reviews written by the same party that wrote the fixes. Two rounds
-of AI-agent retro-review have since re-examined both gates, found real defects,
+October 2026 on **internal cross-validation**: a reviewing agent that did not
+implement the work it was checking, but sat inside the same project and the same
+session that wrote it. Their own records say what that is not —
+*"internal cross-validation by two agents, not an external independent audit, and
+is not evidence of one"* ([`G2-acceptance.md:98`](G2-acceptance.md)), and
+[release notes §2.9](../RELEASE-NOTES.md) names G1's and G2's work orders as the
+ones with **no independent review**, which is the condition G3, G4 and G5 each met
+with a review at a named commit by a party outside the work. Two rounds of
+AI-agent retro-review have since re-examined both gates, found real defects,
 and had each finding re-tested against the code — and the owner ruled on
 2026-10-28 that this is **accepted as closeout evidence for Phase 1** but is
 *"procedural independence, not human"*, so it **does not discharge** the board's
@@ -93,8 +100,8 @@ carry **dated corrections** — see §6 before trusting any figure in them.
 | Work orders | LC-P1-02 (versioned contracts), LC-P1-03 (providers, budgets, capability probing), LC-P1-04 (workspace, permissions, approvals) |
 | Gate exit test | *"fake provider, typed tools, safe workspace; ≥2 architecture comparison ADRs"* |
 | Closed at | `main` @ `9f9c4f0`, 2026-10-16 |
-| Tests at close | 672 passed, 1 skipped (204 / 98 / 174 / 10 cross-cutting) |
-| The ADR clause | `docs/adr/` holds **13** ADR files at the time this checklist was written; the clause asks for at least two **comparison** ADRs, so the reviewer counts the ones that compare alternatives (ADR-0008, ADR-0012 and ADR-0013 are of that shape) rather than the file count |
+| Tests at close | 672 passed, 1 skipped. The record's per-package figures are 204 / 98 / 174 and 10 cross-cutting — **those four are the work orders' own packages and do not sum to 672**, which also counts the tests that predated the gate |
+| The ADR clause | `docs/adr/` holds **twelve ADRs and a template** at the time this checklist was written. The clause asks for at least two **comparison** ADRs, so the reviewer counts the ones that compare alternatives — ADR-0008 (PDF ingestion library), ADR-0012 (chart renderer) and ADR-0013 (report export libraries) are of that shape — rather than counting files |
 
 ### 2.2 G2 — Durable work
 
@@ -137,7 +144,7 @@ families in the material schema, and the fabrication/unreadable-file defects) an
 **`recovery/` — G2's reconciliation and approvals (LC-P1-06):** `26ab4cb`,
 `7fa7821`.
 
-**skills / orchestrator (LC-P1-07):** 1 commit (`7fa7821`'s stage-side change).
+**skills / orchestrator (LC-P1-07):** 1 commit — `ba07dd5` (the source id's type, which touched `skills/artifacts.py`). `git log --oneline a361a7c..HEAD -- src/labcairn/skills` returns exactly that one line.
 **`core/`, `runtime/`, `sources/`, `evidence/`, `reports/`** (LC-P1-02): 3 / 7 /
 6 / 15 / 8 commits, mostly later gates' features rather than changes to G1's
 contracts — the reviewer should confirm that rather than assume it:
@@ -155,7 +162,7 @@ contracts — the reviewer should confirm that rather than assume it:
 | Writing to source material is refused structurally, not by a rule | `tests/test_workspace_boundaries.py` (the record names the behaviour, **not a node id** — the reviewer's first job here is to name it) | grant `ALLOW **` and attempt a root-kind write | |
 | An unapproved outbound send is refused before any send | `tests/test_provider_redaction.py`, `tests/test_workspace_boundaries.py` (**whole-file citations in the record**) | default `ALLOW` for the disclosure capability | |
 | A real Windows junction escaping the root is refused; a junction pointing back inside is admitted | `tests/test_security_paths.py::test_junction_escaping_the_root_is_refused`, `::test_a_junction_is_not_reported_as_a_symlink`, `::test_junction_pointing_back_inside_the_root_is_admitted` | compare the declared path instead of the resolved one — the *admitted* case is what stops that mutation from passing | |
-| A path denied under its resolved spelling beats an allow on the declared spelling (the case-fold bypass) | `tests/test_security_policy.py::test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one`, and on Windows the `matched_spelling == "declared"` assertion | set `_FOLD` to the identity (`security/policy.py`). **This mutation passed the whole suite for a year of commits until the assertion was added** — see [`G1-evidence.md:75-97`](G1-evidence.md) | |
+| A path denied under its resolved spelling beats an allow on the declared spelling (the case-fold bypass) | `tests/test_security_policy.py::test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one`, and on Windows the `matched_spelling == "declared"` assertion | set `_FOLD` to the identity (`security/policy.py`) — **on a POSIX runner this mutation cannot bite**, because `_FOLD` is already the identity there, so run it on Windows. **It passed the whole suite for every commit the repository has ever had**: the root commit is dated 2026-10-15 and the assertion was added 2026-10-28, so no version of this suite ever caught it — see [`G1-evidence.md:75-97`](G1-evidence.md) | |
 | A ceiling that cannot be measured raises rather than continuing | `tests/test_provider_budget.py::test_cost_ceiling_fails_closed_when_price_unknown`, `::test_token_ceiling_fails_closed_when_tokens_unknown` | return the last known cost instead of raising | |
 | A measured zero passes every ceiling; a measured value past the ceiling is terminal | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_measured_value_past_the_ceiling_raises_and_is_terminal` | treat zero as unknown | |
 | A provider that omits usage reports `Unknown`; one that reports a real zero is believed | `tests/test_fake_provider_usage.py` (**whole-file citation**) | default the missing field to zero | |
@@ -205,7 +212,7 @@ written; the reviewer should re-derive them and note any that do not exist.
 |---|---|---|---|
 | Every stage consumes the actual previous artifacts | `tests/test_skill_execution.py::TestForgedUpstreamArtifactsAreRefused::test_a_stage_that_names_a_partial_lineage_is_refused`, `::test_a_substituted_upstream_artifact_is_caught_when_the_next_stage_reads_it` | widen `_upstream_for` to a name lookup | |
 | The run's signature offers no way to supply a plan | `tests/test_skill_plan.py::TestThePlanIsNotAuthoritative::test_the_run_signature_offers_no_way_to_supply_a_plan` | add a `plan=` parameter | |
-| No empty placeholder passes (four executable conditions) | `tests/test_skill_execution.py::TestPlaceholderOutputIsRefused::test_a_stage_returning_a_placeholder_shell_is_refused_and_retried`, `::test_a_stage_that_returns_nothing_useful_is_refused`, `::test_a_draft_citing_claims_nobody_produced_is_refused`; `tests/test_skill_quality.py::TestPlaceholderVocabulary`, `::test_placeholder_text_in_a_body_is_refused`, `::test_the_schema_refuses_an_empty_primary_collection` | the record's own limit applies here: **three of the four conditions are textual heuristics**, so prose that reads well passes. Ask the author of the clause whether that was the intent | |
+| No empty placeholder passes (four executable conditions) | `tests/test_skill_execution.py::TestPlaceholderOutputIsRefused::test_a_stage_returning_a_placeholder_shell_is_refused_and_retried`, `::test_a_stage_that_returns_nothing_useful_is_refused`, `::test_a_draft_citing_claims_nobody_produced_is_refused`; `tests/test_skill_quality.py::TestPlaceholderVocabulary` (the marker vocabulary) and `::TestSubstanceRejection::test_placeholder_text_in_a_body_is_refused`, `::test_the_schema_refuses_an_empty_primary_collection` | the record's own limit applies here: **three of the four conditions are textual heuristics**, so prose that reads well passes. Ask the author of the clause whether that was the intent | |
 | A blocked user decision awaits approval, and bypassing the orchestrator raises | `tests/test_skill_execution.py::TestApprovalCheckpoint::test_a_direct_attempt_to_enter_the_guarded_stage_is_refused`, `::test_an_approval_for_a_different_proposal_digest_is_refused`, `::test_an_expired_approval_is_refused`, `::test_a_blocked_stage_leaves_a_checkpoint_naming_what_it_is_waiting_for`; `tests/test_skill_approval.py` | hardcode the checkpoint instead of declaring it | |
 | Limited retries on no progress, where "no progress" is byte-identical output | `tests/test_skill_execution.py::TestBoundedRetries::test_a_stage_that_never_varies_is_failed_after_exactly_the_declared_attempts`, `::test_the_reason_names_the_byte_identical_repetition`, with `::TestPlaceholderOutputIsRefused::test_an_unexpected_exception_propagates_rather_than_retrying` as the negative | compare a hash instead of bytes, or compare nothing — the record says deleting the check turns *the naming test* red, which is the thing to re-verify | |
 | Cancellation loses no prior valid work | `tests/test_skill_execution.py::TestCancellationPreservesVerifiedWork::test_cancelling_before_a_stage_leaves_every_earlier_artifact_intact`, `::test_every_verified_artifact_survives_a_cancellation`, `::test_a_stage_in_flight_when_cancellation_arrives_still_has_its_artifact_kept`, `::test_a_cancelled_run_can_be_re_entered_and_finishes` | cancel mid-stage and discard the stage's output | |

@@ -223,8 +223,9 @@ demonstrations with their check counts re-counted from the source (36 / 14 / 18)
 the commits each gate has taken since it closed, and the four places where these
 two records are weakest — most of all that **four of G1's thirteen clause rows
 and all six of LC-P1-07's were recorded by behaviour rather than by node id**, which is why
-the checklist re-derives them and why a witness now checks that the re-derived
-ids still exist. The ruling that the retro-reviews are *procedural independence,
+the checklist re-derives them, and why a witness now resolves each cited id
+against the class the citation names — three of the first hand-derived ids were
+wrong in ways reading cannot detect. The ruling that the retro-reviews are *procedural independence,
 not human* stands until that review is executed and written back.
 
 **The licence audit's factual half is done**

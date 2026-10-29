@@ -32,10 +32,13 @@ The links are the records.
   procedural independence, not human, so the board's rule for G1 and G2 stays
   open until a person executes it.
   `tests/test_status_consistency.py::test_the_human_review_checklists_node_ids_exist`
-  checks that every id the checklist cites is still in the tree — writing the
-  checklist produced two wrong ones by hand (`TestApprovalGate` for
-  `TestApprovalCheckpoint`, and a `tests/test_recovery_probe.py` that never
-  existed), which is the reason the check exists.
+  resolves every id the checklist cites — `::` continuations included — against
+  the class the citation names, which is what a reader typing the id does.
+  Writing the checklist produced three wrong ids by hand (`TestApprovalGate` for
+  `TestApprovalCheckpoint`, a `tests/test_recovery_probe.py` that never existed,
+  and two methods cited under the wrong class), and the first version of this
+  check missed the third because it asked whether each segment exists *anywhere*
+  in the file. Bare-file citations are still unchecked, and the witness says so.
 
 - **The deterministic figure has a surface.** `labcairn task figure` and
   `POST /analysis` call the layer's own `run_figure`; `labcairn task

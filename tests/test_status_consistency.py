@@ -31,6 +31,7 @@ not, and fired on eight ordinary phrasings of the gate line.
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 from pathlib import Path
@@ -664,43 +665,99 @@ def test_in_page_anchors_resolve(path: Path) -> None:
 #: is not a typo — it is a clause nobody can re-verify.
 CHECKLIST = REPO / "docs" / "acceptance" / "G1-G2-human-review-checklist.md"
 
-#: A citation of a test file, followed by one or more `::` segments. The whole
-#: match is what a reader would type, so no capturing group is used.
-_CITED_NODE = re.compile(r"tests/[a-z_0-9]+\.py(?:::[A-Za-z_0-9]+)+")
+#: A citation, in the two forms the checklist uses: a file with its `::`
+#: segments, or a bare `::segment` continuation that inherits the file — and,
+#: when the earlier citation carried a class, the class — of the citation before
+#: it. An optional `[parameterisation]` suffix is part of a node id a reader
+#: would type but not part of a definition's name.
+_CITATION = re.compile(
+    r"(?P<file>tests/[a-z_0-9]+\.py)(?P<full>(?:::[A-Za-z_0-9]+(?:\[[^\]]*\])?)*)|"
+    r"(?P<cont>::[A-Za-z_0-9]+(?:\[[^\]]*\])?(?:::[A-Za-z_0-9]+(?:\[[^\]]*\])?)*)"
+)
+
+
+def _file_symbols(source: Path) -> tuple[set[str], dict[str, set[str]]]:
+    """The module-level tests of a file, and each test class's methods."""
+    module_tests: set[str] = set()
+    classes: dict[str, set[str]] = {}
+    for node in ast.parse(source.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            module_tests.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            classes[node.name] = {
+                method.name
+                for method in node.body
+                if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
+            }
+    return module_tests, classes
+
+
+def _segments(raw: str) -> list[str]:
+    """The `::` segments of a citation, without their parameterisation suffixes."""
+    return [part.split("[", 1)[0] for part in raw.split("::") if part]
 
 
 def test_the_human_review_checklists_node_ids_exist() -> None:
-    """Every `tests/...py::...` the checklist cites is a thing in this tree.
+    """Every node id the checklist cites exists, **under the class it claims**.
 
     **Why this is watched mechanically.** The checklist was written from the two
-    gate records, and the records cite whole files rather than node ids for most
-    of G1's clauses — §6.1 of the checklist says so. Re-deriving the node ids by
-    hand produced two wrong ones on the first pass: a class named
-    `TestApprovalGate` where the tree has `TestApprovalCheckpoint`, and a file
-    `tests/test_recovery_probe.py` that has never existed. Both were plausible,
-    both were unfalsifiable by reading, and a reviewer following either would
-    conclude the witness is missing when the witness is fine.
+    gate records, and those records cite whole files rather than node ids for
+    most of G1's clauses — §6.1 of the checklist says so. Re-deriving the ids by
+    hand went wrong three times: a class named `TestApprovalGate` where the tree
+    has `TestApprovalCheckpoint`, a file `tests/test_recovery_probe.py` that has
+    never existed, and two methods cited under `TestPlaceholderVocabulary` that
+    live in `TestSubstanceRejection`. All three were plausible, none was
+    falsifiable by reading, and a reviewer following any of them would report a
+    missing witness where the witness is fine.
+
+    **And why the first version of this check was not enough.** It matched only
+    citations carrying the file prefix — a quarter of them — and it asked whether
+    each segment appears anywhere in the file rather than whether the method is
+    **inside the class the citation names**. The third error above slipped
+    through green. So continuations are resolved against the file and class of
+    the citation before them, which is exactly what a reader typing the id does,
+    and the definitions are read out of the file's syntax tree rather than by
+    regular expression.
+
+    **What it still does not do.** A citation of a bare file (`tests/x.py`, no
+    `::`) is not checked — the checklist uses those deliberately, and §6.1 counts
+    them. And existence is not the same as *sufficiency*: this witness cannot
+    tell whether a test that exists actually establishes the property its row
+    claims. That is the reviewer's job.
     """
-    text = CHECKLIST.read_text(encoding="utf-8")
-    cited = sorted({match.group(0) for match in _CITED_NODE.finditer(text)})
-    assert cited, "the checklist names no node id, so this check proves nothing"
     broken: list[str] = []
-    for node_id in cited:
-        parts = node_id.split("::")
-        source = REPO / parts[0]
-        if not source.is_file():
-            broken.append(node_id)
+    checked = 0
+    file: str | None = None
+    klass: str | None = None
+    symbols: dict[str, tuple[set[str], dict[str, set[str]]]] = {}
+    for match in _CITATION.finditer(CHECKLIST.read_text(encoding="utf-8")):
+        raw = match.group("full") if match.group("file") else match.group("cont")
+        if match.group("file"):
+            file = match.group("file")
+            klass = None
+        if not file or not raw:
             continue
-        body = source.read_text(encoding="utf-8")
-        for segment in parts[1:]:
-            pattern = (
-                rf"^class {re.escape(segment)}\b"
-                if segment[:1].isupper()
-                else rf"^\s*def {re.escape(segment)}\b"
-            )
-            if not re.search(pattern, body, re.MULTILINE):
-                broken.append(f"{node_id} (no {segment})")
-                break
+        parts = _segments(raw)
+        if not parts:
+            continue
+        checked += 1
+        if file not in symbols:
+            source = REPO / file
+            symbols[file] = _file_symbols(source) if source.is_file() else (set(), {})
+        module_tests, classes = symbols[file]
+        if parts[0][:1].isupper():
+            klass = parts[0]
+            if klass not in classes:
+                broken.append(f"{file}::{'::'.join(parts)} (no class {klass})")
+                continue
+            if len(parts) > 1 and parts[1] not in classes[klass]:
+                broken.append(f"{file}::{'::'.join(parts)} (no {parts[1]} in {klass})")
+        else:
+            owner = classes.get(klass, set()) if klass else module_tests
+            if parts[0] not in owner:
+                where = f"the class {klass}" if klass else "module level"
+                broken.append(f"{file}::{'::'.join(parts)} (no {parts[0]} at {where})")
+    assert checked >= 20, f"the check resolved only {checked} citations, so it proves nothing"
     assert not broken, (
         "the checklist cites node ids that are not in the tree, so a reviewer "
         f"following it would report a missing witness: {broken}"
