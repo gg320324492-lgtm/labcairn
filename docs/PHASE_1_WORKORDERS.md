@@ -89,6 +89,21 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
   quoted row names six files — plus four notes, all re-tested and all fixed at
   `00dcb84`), 17 checks green on both runners, merged at `16517e6`. The measured
   table is [the evaluation record's §8](acceptance/LC-P1-13-evaluation.md).
+- **§1.4.1 (which licence, once ownership is settled).** Ruled: **none declared.**
+  `LICENSE.PENDING.md` stays, grants nothing, and no open-source claim of any kind
+  may be made anywhere in the delivery documents. **What this does not close is
+  the ownership question itself** — who holds the copyright is a fact outside this
+  repository, and until the owner settles it the ruling is that the project says
+  nothing about licensing. A placeholder is not a licence, and a premature MIT
+  would grant rights no one here can grant.
+- **§1.4.3 (the competitor baseline's scope).** Ruled: **Option C stands — no
+  external comparison**, and the full three-task comparison is folded into Phase 2
+  *behind* the product's model-call path, because the figures the harness compares
+  come from the deterministic corpus layer and a run basis naming a model would
+  describe a model no code called. §2.8 of the release notes keeps reporting
+  *"No comparison has been made"*, and the roadmap's own note that the choice was
+  the work's rather than the owner's is now answered: it is the owner's, and this
+  is the answer.
 
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 
