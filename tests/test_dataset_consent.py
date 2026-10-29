@@ -128,13 +128,43 @@ def test_a_permission_with_no_row_is_denied_by_absence() -> None:
     **What breaks it:** a grant for one permission standing in for another.
     A read grant is not a transmit grant.
 
+    **And the absence is the same absence for all four.** A training use
+    with no grant is refused the way a read with no grant is refused,
+    which is ADR-0015 D2's point: the denial is in the model rather than
+    in a default, and it does not depend on which permission is being
+    asked for. **The training permission is the one a caller reaches for
+    by accident** — the material is in the workspace and the queue wants
+    it — so it is the one that has to be exercised, and it is the one a
+    check that only ever asked about reading would never reach.
+
     **And the refusal names the closest grant, which is the read one** --
     so the reason is *purpose*, not *permission*: the grant covers a
     permission and not the purpose. That is the more useful answer, and it
     is the difference between "you have nothing" and "you have the wrong
     thing".
     """
+    for permission, purpose in (
+        ("store_read", "read"),
+        ("parse_annotate", "annotate"),
+        ("external_transmit", "transmit"),
+        ("train_reuse", "train"),
+    ):
+        absent = _decide([], permission=permission, purpose=purpose)
+        assert absent.allowed is False, f"{permission} was permitted with no grant"
+        assert absent.reason is ConsentRefusal.NO_GRANT, (
+            f"{permission} was refused for the wrong reason"
+        )
+        assert absent.grant_id is None
+
     read_only = [_grant(permission="store_read", purpose="read")]
+
+    # And a read grant is not a training grant. Reading the material is
+    # not a permission to train on it, and the refusal says so.
+    training = _decide(read_only, permission="train_reuse", purpose="train")
+    assert training.allowed is False
+    assert training.reason is ConsentRefusal.PURPOSE_NOT_GRANTED
+    assert training.closest is not None
+    assert training.closest.permission == "store_read"
 
     decision = _decide(
         read_only,
