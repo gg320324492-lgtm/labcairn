@@ -281,6 +281,11 @@ evidence until a runner says otherwise; the CI run on the review-fix pull
 request replaces it, and its shard costs replace the apportioned one for
 the new test file in the same round.
 
+**And nothing that the number depends on has changed since.** The only
+commit after `6c367c4` changes the shard table, and **the number does not
+depend on the shard table** — the partition decides which job runs which
+file, not what a file asserts.
+
 ## 6. The review, and what is still open
 
 - **The independent review has been carried out** against the merged tree
@@ -334,3 +339,10 @@ measured number would have been wrong by a different factor again.**
 **The partition those costs produce is better balanced than the one they
 replaced**: **1.162** on Ubuntu and **1.000** on Windows, against 1.449
 and 1.180.
+
+**And the one file the review's own fixing added** — the refusal
+vocabulary's witness — went through the same two steps, and the
+apportionment was **low by two times and by four**: 0.16 s and 0.07 s
+apportioned, **0.34 s and 0.27 s measured**. **A file that checks a
+vocabulary against two enums is not the average of the files around it**,
+and the apportionment divides the unaccounted time by test count.
