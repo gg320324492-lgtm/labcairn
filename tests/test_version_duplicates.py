@@ -24,11 +24,15 @@ decision with a person.
 
 from __future__ import annotations
 
+import pytest
+
 from labcairn.papers.duplicates import (
     VersionSummary,
     check_duplicates,
     check_missing_rounds,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _version(

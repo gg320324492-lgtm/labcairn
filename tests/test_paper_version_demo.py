@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 #: The demonstration, as a person runs it.
 DEMO: Path = Path(__file__).parent.parent / "examples" / "paper_version_demo.py"
 

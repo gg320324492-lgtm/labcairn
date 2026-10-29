@@ -30,6 +30,8 @@ from labcairn.papers.alignment import (
     propose_alignment,
 )
 
+pytestmark = pytest.mark.unit
+
 #: Two versions of one paper. The second adds a section and a number.
 DRAFT_V1 = """Introduction
 We estimate the parameter from a single observation.

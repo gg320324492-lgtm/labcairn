@@ -44,6 +44,8 @@ from labcairn.papers.versions import (
     check_edge_within_project,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _edge(**overrides: Any) -> dict[str, Any]:
     """A well-formed edge, so each test changes one thing."""

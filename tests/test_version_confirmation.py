@@ -36,6 +36,8 @@ from labcairn.papers.versions import (
     confirm_edge,
 )
 
+pytestmark = pytest.mark.unit
+
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 
