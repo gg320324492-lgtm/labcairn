@@ -18,14 +18,41 @@ unrepresentable.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
+from test_store_support import StoreEnv
+from test_store_support import env as _shared_env
 
-from labcairn.application.model_transmit import check_transmit, transmit_refusal_for
+from labcairn.application import create_task
+from labcairn.application.approvals import (
+    ApprovalRequest,
+    ApprovalUse,
+    grant_approval,
+    request_approval,
+    spendable_approval,
+)
+from labcairn.application.context import ApplicationContext
+from labcairn.application.model_transmit import (
+    check_transmit,
+    transmit_refusal_for,
+    transmit_request,
+)
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.core.ids import ApprovalId
+from labcairn.db.repository import list_approvals
+from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.security.approval import ApprovalLedger
+from labcairn.security.capabilities import CapabilityId
 from labcairn.security.permissions import Grant
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.integration
+
+# pytest resolves a fixture by the parameter name in a test's signature, so the
+# shared `env` fixture must be bound under that name here.
+env = _shared_env
 
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
@@ -75,6 +102,84 @@ def _read_grant(grant_id: str = "g2") -> Grant:
 
 
 # --------------------------------------------------------------------------- #
+# the approval the path spends
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def workspace_root(tmp_path: Path) -> Path:
+    """A workspace with a source directory in it."""
+    root = tmp_path / "workspace"
+    (root / "materials").mkdir(parents=True)
+    return root
+
+
+def _make_context(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
+    """A context for a task that exists, under a policy that asks.
+
+    Built here rather than imported from another test module, so that this
+    file stands on its own and does not have to be re-read whenever that one
+    is edited.
+    """
+    created = create_task(
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        workspace_root=workspace_root,
+        title="Test task",
+        goal=TaskGoal(
+            objective="Establish whether the observation holds.",
+            success_criterion="A cited answer, or an honest 'not established'.",
+        ),
+        source_dirs=(workspace_root / "materials",),
+    )
+    return ApplicationContext(
+        workspace=created.workspace,
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ASK, pattern="**")]),
+        ledger=ApprovalLedger(),
+    )
+
+
+def _use() -> ApprovalUse:
+    """What the approval is spent on.
+
+    **The capability is the analysis one**, and that is deliberate: which
+    capability a *model* request runs under is the model path's business
+    (LC-P2-01), and this file is about the **order** the two gates run in,
+    not about the capability the request carries. The order does not depend
+    on it, and choosing it here would only be a way of asserting something
+    the model path has not decided yet.
+    """
+    return ApprovalUse(
+        capability=CapabilityId.ANALYSIS_RUN,
+        arguments={"operator_id": "mean", "parameters": {}, "recipe": "figure.recipe.json"},
+        root_id="source:0",
+        resource_key="one.csv",
+    )
+
+
+@pytest.fixture
+def context(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
+    """A context with a task under it."""
+    return _make_context(env, workspace_root)
+
+
+@pytest.fixture
+def approval(context: ApplicationContext) -> ApprovalId:
+    """An approval asked for and granted, and **not yet spent**."""
+    asked = request_approval(
+        context,
+        ApprovalRequest(
+            use=_use(),
+            expires_at=NOW + timedelta(hours=1),
+        ),
+        now=NOW,
+    )
+    granted = grant_approval(context, asked.approval.approval_id, now=NOW)
+    return granted.approval.approval_id
+
+
+# --------------------------------------------------------------------------- #
 # the gate
 # --------------------------------------------------------------------------- #
 
@@ -93,25 +198,42 @@ def test_a_transmit_grant_permits_the_request() -> None:
     assert check.decision.grant_id == "g1"
 
 
-def test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent() -> None:
-    """**The absence of a grant is the refusal**, and the refusal is not an
-    exception.
+def test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent(
+    context: ApplicationContext,
+    approval: ApprovalId,
+) -> None:
+    """**The refusal does not spend the approval.**
 
-    **What breaks it:** a path that raises instead of refusing, or one that
-    treats the operation's approval as sufficient. **A model request with
-    no transmit grant must be refused *with a reason*** — the model call
-    itself is the thing that leaves the machine.
+    **What breaks it:** a path that consumes the approval before it asks
+    the gate, so that a request refused for want of a grant costs the
+    person their approval as well. **Asking is not spending** — the
+    existing consent layer already holds to that, and this path has to hold
+    to it too, or a person would need a fresh approval every time the
+    grant was missing.
+
+    **And the refusal is the layer's own.** A model request with no
+    transmit grant must be refused *with a reason* — the model call itself
+    is the thing that leaves the machine — and the reason is one a surface
+    can render, looked up in the layer's vocabulary rather than invented
+    here.
     """
-    check = check_transmit(
-        [],
-        subject_ref="proj-1",
-        destination="api.minimax.cn",
-        at=NOW,
-    )
+    with pytest.raises(ApplicationRefusedError) as caught:
+        transmit_request(
+            context,
+            approval,
+            [],
+            use=_use(),
+            subject_ref="proj-1",
+            destination="api.minimax.cn",
+            at=NOW,
+        )
 
-    assert check.permitted is False
-    assert check.reason == "no_grant"
-    assert "remedy" in check.detail
+    assert caught.value.reason is ApplicationRefusal.CONSENT_NO_GRANT
+    assert "remedy" in caught.value.detail
+
+    # **And the approval is still spendable.** Asking is not spending.
+    still = spendable_approval(context, approval, now=NOW)
+    assert still.approval_id == approval
 
 
 def test_a_read_grant_does_not_authorise_a_transmission() -> None:
@@ -197,16 +319,54 @@ def test_the_refusal_reason_is_the_consent_layer_s_own_string() -> None:
         assert transmit_refusal_for(check) == expected
 
 
-def test_the_transmit_check_runs_before_the_approval_is_consumed() -> None:
-    """**The gate is a question, and asking is not spending.**
+def test_the_transmit_check_runs_before_the_approval_is_consumed(
+    context: ApplicationContext,
+    approval: ApprovalId,
+) -> None:
+    """**The gate runs first, and only a permitted request spends the approval.**
 
-    **What breaks it:** a check that consumed the approval as a side
-    effect. The caller would have to ask for a new approval every time
-    the grant was missing, and the person would be paying for a refusal.
+    **What breaks it:** a path that consumes the approval before it asks
+    the gate, so that a request refused for want of a grant costs the
+    person their approval as well. The caller would have to ask for a new
+    approval every time the grant was missing, and the person would be
+    paying for a refusal.
 
-    **The check takes no approval and returns no approval.** That is the
-    property: the two gates are separate, and the second one does not
-    touch the first one's state.
+    **And the other direction has to hold as well.** A request the gate
+    permits **does** spend the approval — or "the check runs first" would
+    be satisfied by a path that never spends anything at all, which is
+    not the property and would pass for it.
+    """
+    check = transmit_request(
+        context,
+        approval,
+        [_transmit_grant()],
+        use=_use(),
+        subject_ref="proj-1",
+        destination="api.minimax.cn",
+        at=NOW,
+    )
+
+    assert check.permitted is True
+    assert check.decision.grant_id == "g1"
+
+    # And the approval is spent — **read from the store**, because the
+    # record of what was spent is a fact about the store and not a fact
+    # about the function that spent it.
+    rows = list_approvals(context.store.session, context.task_id)
+    assert any(row.state == "consumed" for row in rows), (
+        "the request was permitted and the approval was not spent"
+    )
+
+
+def test_the_gate_takes_no_approval_of_its_own() -> None:
+    """**The two gates are separate, and the second one does not touch the
+    first one's state.**
+
+    The gate is a question: it asks whether the material may go, and it
+    answers. **It does not spend anything and it does not carry an
+    approval** — the path above is what holds the two together, and the
+    gate's own signature is what says it is not two gates wearing one
+    name.
     """
     import inspect
 

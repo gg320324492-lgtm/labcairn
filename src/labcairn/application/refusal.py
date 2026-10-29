@@ -31,7 +31,11 @@ acceptance clause asks of the task state.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
+
+from labcairn.material.intake import IntakeRefusal
+from labcairn.security.permissions import ConsentRefusal
 
 
 class ApplicationRefusal(StrEnum):
@@ -165,6 +169,11 @@ class ApplicationRefusal(StrEnum):
     #: A grant exists for this subject, permission and purpose, but its scope
     #: does not reach this material.
     CONSENT_SCOPE_NOT_COVERED = "consent_scope_not_covered"
+    #: No grant covers this material. **The file is not opened, not listed
+    #: and not measured**, because reading it is what the grant is about, and
+    #: a refusal that has already read the file has done the thing the grant
+    #: forbade.
+    INTAKE_NO_GRANT = "intake_no_grant"
     #: An archive declares a compression ratio beyond the declared ceiling.
     #: **The bomb is refused by its declaration**, so the check never expands
     #: the archive.
@@ -208,4 +217,65 @@ class ApplicationRefusedError(RuntimeError):
         return {"reason": self.reason.value, "message": str(self)}
 
 
-__all__ = ["ApplicationRefusal", "ApplicationRefusedError"]
+#: Every refusal the consent machinery can make, and the layer's name for it.
+#:
+#: **Closed, and checked closed**, for the reason
+#: :data:`labcairn.application.analysis.ANALYSIS_REFUSALS` records: a member of
+#: :class:`~labcairn.security.permissions.ConsentRefusal` with no row here
+#: would reach a surface as an unmapped reason, and the layer would have to
+#: invent a label for somebody else's refusal at the moment somebody needed
+#: to read it.
+CONSENT_REFUSALS: Mapping[ConsentRefusal, ApplicationRefusal] = {
+    ConsentRefusal.NO_GRANT: ApplicationRefusal.CONSENT_NO_GRANT,
+    ConsentRefusal.PURPOSE_NOT_GRANTED: ApplicationRefusal.CONSENT_PURPOSE_NOT_GRANTED,
+    ConsentRefusal.DESTINATION_NOT_GRANTED: ApplicationRefusal.CONSENT_DESTINATION_NOT_GRANTED,
+    ConsentRefusal.GRANT_WITHDRAWN: ApplicationRefusal.CONSENT_GRANT_WITHDRAWN,
+    ConsentRefusal.GRANT_EXPIRED: ApplicationRefusal.CONSENT_GRANT_EXPIRED,
+    ConsentRefusal.GRANT_NOT_YET_ACTIVE: ApplicationRefusal.CONSENT_GRANT_NOT_YET_ACTIVE,
+    ConsentRefusal.SCOPE_NOT_COVERED: ApplicationRefusal.CONSENT_SCOPE_NOT_COVERED,
+}
+
+#: Every refusal the intake guards can make, and the layer's name for it.
+#:
+#: **The same closure, over the intake's own vocabulary.** The guards refuse
+#: before they open, and their reasons are the ones a person needs to read:
+#: *no grant*, *too large*, *the path escapes*, *the macro is not
+#: executed*. A reason the layer cannot name is a reason a surface cannot
+#: render.
+INTAKE_REFUSALS: Mapping[IntakeRefusal, ApplicationRefusal] = {
+    IntakeRefusal.NO_GRANT: ApplicationRefusal.INTAKE_NO_GRANT,
+    IntakeRefusal.ZIP_BOMB: ApplicationRefusal.INTAKE_ZIP_BOMB,
+    IntakeRefusal.PATH_TRAVERSAL: ApplicationRefusal.INTAKE_PATH_TRAVERSAL,
+    IntakeRefusal.MACRO_NOT_EXECUTED: ApplicationRefusal.INTAKE_MACRO_NOT_EXECUTED,
+    IntakeRefusal.ARCHIVE_TOO_LARGE: ApplicationRefusal.INTAKE_ARCHIVE_TOO_LARGE,
+    IntakeRefusal.NOT_AN_ARCHIVE: ApplicationRefusal.INTAKE_NOT_AN_ARCHIVE,
+}
+
+
+def consent_refusal_name(reason: ConsentRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the consent machinery.
+
+    **Looked up, not defaulted.** A reason with no row above is a bug in
+    that table, and it must arrive as one rather than wearing somebody
+    else's label.
+    """
+    return CONSENT_REFUSALS[reason]
+
+
+def intake_refusal_name(reason: IntakeRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the intake guards.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return INTAKE_REFUSALS[reason]
+
+
+__all__ = [
+    "CONSENT_REFUSALS",
+    "INTAKE_REFUSALS",
+    "ApplicationRefusal",
+    "ApplicationRefusedError",
+    "consent_refusal_name",
+    "intake_refusal_name",
+]
