@@ -264,11 +264,11 @@ six `pytestmark` lines to the files themselves.
 
 ## 5. The suite on this tree
 
-**Measured on `d7de4fb`** — the tree the measurement was taken on, on
+**Measured on `6c367c4`** — the tree the measurement was taken on, on
 Windows 11 (AMD64), Python 3.12.13.
 
 ```
-3967 passed, 5 skipped, 0 failed, in 32 minutes 40 seconds
+3982 passed, 5 skipped, 0 failed, in 37 minutes 31 seconds
 ```
 
 **The five skips are all of the project's own accepted kinds**: a
@@ -277,14 +277,9 @@ owner's credential, and three Windows-path cases. **None of them is new**,
 and none of them is about this work order.
 
 **This is a local measurement, and it says so.** The number is the
-evidence until a runner says otherwise; the run that will replace it is
-the CI run on PR #128, and its shard costs replace the apportioned ones
-in the same round.
-
-**The four witnesses of §3.3 were added after that measurement, so the
-number above does not count them.** The measurement belongs to `d7de4fb`
-and to nothing later, and the rule is the project's own: *a value that can
-change is re-measured, not carried forward*.
+evidence until a runner says otherwise; the CI run on the review-fix pull
+request replaces it, and its shard costs replace the apportioned one for
+the new test file in the same round.
 
 ## 6. The review, and what is still open
 
