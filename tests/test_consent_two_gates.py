@@ -25,6 +25,8 @@ import pytest
 from labcairn.application.model_transmit import check_transmit, transmit_refusal_for
 from labcairn.security.permissions import Grant
 
+pytestmark = pytest.mark.integration
+
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 
@@ -91,7 +93,7 @@ def test_a_transmit_grant_permits_the_request() -> None:
     assert check.decision.grant_id == "g1"
 
 
-def test_a_request_without_a_transmit_grant_is_refused() -> None:
+def test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent() -> None:
     """**The absence of a grant is the refusal**, and the refusal is not an
     exception.
 
@@ -195,7 +197,7 @@ def test_the_refusal_reason_is_the_consent_layer_s_own_string() -> None:
         assert transmit_refusal_for(check) == expected
 
 
-def test_the_check_does_not_spend_anything() -> None:
+def test_the_transmit_check_runs_before_the_approval_is_consumed() -> None:
     """**The gate is a question, and asking is not spending.**
 
     **What breaks it:** a check that consumed the approval as a side

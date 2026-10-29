@@ -33,6 +33,8 @@ from labcairn.security.permissions import (
     may_use,
 )
 
+pytestmark = pytest.mark.unit
+
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 
@@ -382,3 +384,36 @@ def test_the_decision_is_frozen() -> None:
     decision = _decide([_grant()])
     with pytest.raises((AttributeError, TypeError)):
         decision.allowed = False  # type: ignore[misc]
+
+
+def test_the_owner_scope_authorises_nothing() -> None:
+    """**A scope label is not a permission.**
+
+    ADR-0015 D7: ``owner_id`` records *whose* project this is. It is not
+    authentication and it authorises nothing, and the same has to be true
+    of the grant table: **a project that belongs to somebody is not a
+    project somebody may read.**
+
+    **What breaks it:** a check that treats the subject as a permission,
+    or a grant whose ``subject_ref`` is the owner's id and whose presence
+    is taken as consent. A project with no grant is refused, and the
+    refusal is the missing grant — not "you are not the owner."
+    """
+    # A project on its own, with no grant beside it.
+    decision = _decide([])
+
+    assert decision.allowed is False
+    assert decision.reason is ConsentRefusal.NO_GRANT
+    assert "owner" not in decision.detail.lower()
+
+    # And the reason names the grant, not the owner.
+    grant = _grant(granted_by="Dr. Chen")
+    decision = _decide(
+        [grant],
+        permission="external_transmit",
+        purpose="transmit",
+        destination="api.minimax.cn",
+    )
+    assert decision.allowed is False
+    assert decision.closest is not None
+    assert decision.closest.granted_by == "Dr. Chen"

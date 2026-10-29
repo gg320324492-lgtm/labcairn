@@ -35,6 +35,8 @@ from labcairn.security.permissions import (
     withdraw_grant,
 )
 
+pytestmark = pytest.mark.integration
+
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 

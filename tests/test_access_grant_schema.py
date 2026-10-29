@@ -44,6 +44,8 @@ from labcairn.db.migrations import upgrade_to_head
 from labcairn.db.repository import TaskStore
 from labcairn.db.session import create_db_engine, create_session_factory
 
+pytestmark = pytest.mark.integration
+
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 

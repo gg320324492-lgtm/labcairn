@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 #: The demonstration, as a person runs it.
 DEMO: Path = Path(__file__).parent.parent / "examples" / "consent_demo.py"
 
