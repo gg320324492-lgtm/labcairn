@@ -1,7 +1,10 @@
 # ADR-0014: Paper revision provenance — what a manuscript version is, and where a change is anchored
 
 **Status:** Proposed
-**Work order:** LC-P2-06, LC-P2-07, LC-P2-08 (proposed; not yet dispatched)
+**Work order:** LC-P2-06, LC-P2-07, LC-P2-08 (proposed; not yet dispatched).
+**Status:** the ADR is drafted and **not accepted**; LC-P2-07's reader
+implements D4a and D5 against it (2026-10-29), and the contracts below
+name the witnesses that hold it.
 **Date:** 2026-10-29
 
 ## Context and concrete problem
@@ -204,6 +207,34 @@ For each parsed version:
 derived text is a convenience for reading; it is not where a revision event
 lives, because the deleted text does not exist in it (§C above).
 
+### D4a — The view is part of the address, and that is what gives the deleted text one
+
+**Added by LC-P2-07's implementation, 2026-10-29.** D4 names two texts, and
+this is the consequence that was not visible until the reader was written.
+
+**The same character range means different characters in the two views**, so
+an address that did not say which view it was in would be ambiguous — and
+an ambiguous address is not an address. So the view is a **field of the
+locator**, and it is in the rendered key with everything else.
+
+**This is also the answer to "what addresses the deleted text".** The
+deleted text is not in the accepted view at all, so no range there could name
+it — which is why a reader that works in one view cannot cite a deletion at
+all. Under D4a, a `w:del` element's text **in the rejected view** is
+exactly the deleted text, and that is the locator the deletion event
+carries. One rule covers every case:
+
+| The addressed element | The view | Its text |
+|---|---|---|
+| a paragraph | accepted | the paragraph as it now reads |
+| a `w:ins` element | accepted | the inserted text |
+| a `w:del` element | rejected | the deleted text |
+
+**Two locators for one element in the two views are different addresses**,
+and they resolve to different text — which is correct, because they *are*
+different text. The consequence for the store is that `view` is a column and
+a key component, and a row that names a third view is refused.
+
 ### D5 — A change is anchored by part, element path, range and hash
 
 A `RevisionEvent` carries, at minimum:
@@ -326,18 +357,19 @@ Phase 1 exactly as it was.
 
 | # | Contract | Witness |
 |---|---|---|
-| C1 | A `w:ins` with an author and a date yields one event carrying both, the anchored text, and the anchored hash | to be written at LC-P2-07 |
-| C2 | A `w:ins` with **no** author yields `author_status = UNKNOWN` and an empty author, and **never** a guessed one | to be written at LC-P2-07 |
-| C3 | A `w:ins` with **no** date yields `timestamp_status = UNKNOWN` | to be written at LC-P2-07 |
-| C4 | A `w:del`'s text is present in the recorded event, and absent from the accepted view | to be written at LC-P2-07 |
-| C5 | The accepted view contains the inserted text; the rejected view contains the deleted text; both are derivable from the same event set | to be written at LC-P2-07 |
-| C6 | Every event's `element_path` resolves back to an element in the original part, and the text at that path hashes to the recorded `text_sha256` | to be written at LC-P2-07 |
-| C7 | An orphan comment marker yields an `UNKNOWN` event naming the reason, and the other comments are still returned | to be written at LC-P2-07 |
-| C8 | A nested revision (a `w:del` inside a `w:ins`) yields two events with distinct paths, and the flattening is detectable | to be written at LC-P2-07 |
-| C9 | Parsing leaves the original bytes unchanged; the hash before and the hash after are equal | to be written at LC-P2-07 |
+| C1 | A `w:ins` with an author and a date yields one event carrying both, the anchored text, and the anchored hash | **written** — `test_every_revision_carries_its_kind_text_author_and_date` |
+| C2 | A `w:ins` with **no** author yields `author_status = UNKNOWN` and an empty author, and **never** a guessed one | **written** — `test_a_missing_author_or_date_is_unknown_and_never_guessed` |
+| C3 | A `w:ins` with **no** date yields `timestamp_status = UNKNOWN` | **written** — the same test |
+| C4 | A `w:del`'s text is present in the recorded event, and absent from the accepted view | **written** — `test_every_deletion_text_is_recovered` |
+| C5 | The accepted view contains the inserted text; the rejected view contains the deleted text; both are derivable from the same event set | **written** — `test_the_two_views_are_the_texts_adr_0014_names` |
+| C6 | Every event's `element_path` resolves back to an element in the original part, and the text at that path hashes to the recorded `text_sha256` | **written** — `test_a_revision_locator_resolves_to_the_revisions_own_text` |
+| C6a | **D4a**: a deletion is addressed in the rejected view, and the same element in the two views is two addresses | **written** — `test_a_deletion_is_addressed_in_the_rejected_view`, `test_the_same_element_in_the_two_views_is_two_addresses` |
+| C7 | An orphan comment marker yields an `UNKNOWN` event naming the reason, and the other comments are still returned | **written** — `test_a_comment_with_no_resolvable_anchor_is_still_a_comment`, `test_each_unresolvable_anchor_names_its_own_reason` |
+| C8 | A nested revision (a `w:del` inside a `w:ins`) yields two events with distinct paths, and the flattening is detectable | **written** — `test_a_revision_nested_inside_another_is_reported_separately` |
+| C9 | Parsing leaves the original bytes unchanged; the hash before and the hash after are equal | **written** — `test_reading_does_not_change_the_bytes`, and the stronger `test_the_reader_module_writes_nothing` |
 | C10 | A version graph with two parallel branches is representable, and no total order is implied | to be written at LC-P2-08 |
 | C11 | Two files with identical names and different bytes are two versions, not one | to be written at LC-P2-06 |
-| C12 | A `DOCX` locator resolves through the report's link check, and an unresolvable one is refused rather than cited | to be written at LC-P2-07 |
+| C12 | A `DOCX` locator resolves through the report's link check, and an unresolvable one is refused rather than cited | **partly written** — the locator resolves (`test_a_revision_locator_resolves_to_the_revisions_own_text`); the link check's own path is **not** — the report's citation machinery has no DOCX case yet |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that fails because of an unrelated encoding or lint matter
