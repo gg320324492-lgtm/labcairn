@@ -22,7 +22,7 @@ a measurement, and the six decisions in §5 are the owner's.
 | 1. the current state and a capability reuse matrix | [`docs/plans/PHASE_2-capability-reuse-matrix.md`](../plans/PHASE_2-capability-reuse-matrix.md) | 23 capabilities: 9 reuse, 8 extend, 6 cannot |
 | 2. the A-level reference repos cloned, pinned and licensed | [`docs/research/upstream-study/`](../research/upstream-study/) | 6 clones, 6 SHAs, 6 records |
 | 3. three ADRs | [ADR-0014](../adr/ADR-0014-paper-revision-provenance.md), [ADR-0015](../adr/ADR-0015-dataset-consent-and-access.md), [ADR-0016](../adr/ADR-0016-model-proposal-and-human-confirmation.md) | drafted, **not accepted** |
-| 4. 20+ synthetic DOCX revision/comment negatives and a two-parser fidelity measurement | [`tests/docx_corpus.py`](../../tests/docx_corpus.py), [`tests/docx_fixtures.py`](../../tests/docx_fixtures.py), [`tests/test_docx_fixture_corpus.py`](../../tests/test_docx_fixture_corpus.py), [`tests/evaluation_docx_fidelity.py`](../../tests/evaluation_docx_fidelity.py) | 28 fixtures, 97 tests, measurement run |
+| 4. 20+ synthetic DOCX revision/comment negatives and a two-parser fidelity measurement | [`tests/docx_corpus.py`](../../tests/docx_corpus.py), [`tests/docx_fixtures.py`](../../tests/docx_fixtures.py), [`tests/test_docx_fixture_corpus.py`](../../tests/test_docx_fixture_corpus.py), [`tests/evaluation_docx_fidelity.py`](../../tests/evaluation_docx_fidelity.py) | 28 fixtures, 97 corpus tests, measurement run — **and the reader, since LC-P2-07**: [`src/labcairn/material/ooxml.py`](../../src/labcairn/material/ooxml.py), 21 tests, revision recall 30/30, deletion recovery 8/8, comment recall 14/14 |
 | 5. new work orders and a file-ownership map | [`docs/plans/PHASE_2-mentor-trajectory-work-orders.md`](../plans/PHASE_2-mentor-trajectory-work-orders.md) | LC-P2-06 … LC-P2-14, and the map |
 | 6. an end-to-end pilot plan | the same document, §4 and §7 | drafted |
 
@@ -178,6 +178,15 @@ tree"*, and this is that, with the drive the project's own files live on.
 The clones were made with `git clone --filter=blob:none`, so no blob was
 fetched until a file was actually read, and no install script, container,
 network service or model weight was touched.
+
+**What the four findings cost the phase, and what they bought.**
+
+| The finding | What it decides |
+|---|---|
+| no text arm reports a revision as an event | the reader must be **written**, not configured — and it has been (§2.3) |
+| no arm recovers a deletion | the deleted text is the phase's subject, so its **address** is a first-class design question — and the `view` field in `DocxLocator` is its answer |
+| pandoc drops an insertion with no author | "missing metadata is `UNKNOWN`" is a **rule with a cost**, not a nicety |
+| docx2python loses eight of fourteen comments | a comment with an unusable anchor is **still a comment**, and the reader says so with a reason |
 
 | Project | SHA | Licence, read from the file | The finding |
 |---|---|---|---|

@@ -212,15 +212,16 @@ def _no_edge_whitespace(column: str) -> str:
 
 
 def _locator_kind_glob_check() -> str:
-    """SQL restricting ``locator_key`` to the four kinds LabCairn can resolve.
+    """SQL restricting ``locator_key`` to the kinds LabCairn can resolve.
 
     A rendered key opens with its length-prefixed discriminator --
-    ``k=3:csv|``, ``k=4:xlsx|`` -- so the prefix is *generated* from the kind
-    rather than written out, for two reasons that each cost a bug:
+    ``k=3:csv|``, ``k=4:xlsx|``, ``k=4:docx|`` -- so the prefix is
+    *generated* from the kind rather than written out, for two reasons that
+    each cost a bug:
 
     * the prefix length is the kind's spelling length and is not constant
-      (``pdf`` and ``csv`` are 3, ``text`` and ``xlsx`` are 4). A hand-written
-      ``k=3:`` accepted the first two and refused the other two;
+      (``pdf`` and ``csv`` are 3, ``text``, ``xlsx`` and ``docx`` are 4). A
+      hand-written ``k=3:`` accepted the first two and refused the others;
     * the length prefix is exactly what makes the key injective, so a
       constraint that ignores it is not constraining the thing the key is for.
 
@@ -230,14 +231,22 @@ def _locator_kind_glob_check() -> str:
 
     **No ``?`` wildcard, and that is not an oversight.** ``locator_key GLOB
     'k=?:csv|*'`` reads better and cannot be used: SQLAlchemy reads ``:csv`` as
-    a bind parameter, so all four alternatives compiled to the literal
+    a bind parameter, so all the alternatives compiled to the literal
     ``'k=?NULL|*'`` and the table accepted nothing. The parity test passed
     through it, because the migration and the ORM were mangled identically --
     a test comparing two texts cannot catch both being wrong. Only writing a
     row that must be refused catches it.
+
+    **LC-P2-07 added ``docx``**, which is the fifth kind rather than a
+    widening of the four. It is a separate kind because a Word address is
+    structurally different: it names a package part and an element path
+    rather than a page or a cell, and it carries the **view** the character
+    range is in -- which is what makes the same range mean different
+    characters in the accepted and the rejected text.
     """
     return " OR ".join(
-        f"locator_key GLOB 'k={len(kind)}:{kind}|*'" for kind in ("pdf", "text", "csv", "xlsx")
+        f"locator_key GLOB 'k={len(kind)}:{kind}|*'"
+        for kind in ("pdf", "text", "csv", "xlsx", "docx")
     )
 
 
@@ -855,6 +864,16 @@ class SourceTextRow(Base):
     column_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     sheet_name: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     cell_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: LC-P2-07. The DOCX address: which package part, which element in
+    #: it, which view, and the character range within that element's text.
+    #: ``view`` is a column and not an implicit default because the same
+    #: range means different characters in the accepted and the rejected
+    #: text, and an address that could mean either is not an address.
+    docx_part: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    docx_element_path: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    docx_view: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    docx_char_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    docx_char_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     #: The extracted text. Wrapped in
     #: :class:`labcairn.security.untrusted.UntrustedText` on the way *out*, not
     #: on the way in: storage is not what makes material untrusted, and
@@ -879,7 +898,7 @@ class SourceTextRow(Base):
         # derived number is addressed by the operator that produced it, so it
         # belongs in no row of this table.
         CheckConstraint(
-            "locator_kind IN ('pdf', 'text', 'csv', 'xlsx')",
+            "locator_kind IN ('pdf', 'text', 'csv', 'xlsx', 'docx')",
             name="source_texts_kind_vocabulary",
         ),
         # Exactly the typed columns each locator kind defines, and no others.
@@ -893,26 +912,55 @@ class SourceTextRow(Base):
         CheckConstraint(
             "locator_kind <> 'pdf' OR (page IS NOT NULL AND line_start IS NULL "
             "AND line_end IS NULL AND section IS NULL AND row_number IS NULL "
-            "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
+            "AND column_name IS NULL AND sheet_name IS NULL AND cell_ref IS NULL "
+            "AND docx_part IS NULL AND docx_element_path IS NULL AND docx_view IS NULL "
+            "AND docx_char_start IS NULL AND docx_char_end IS NULL)",
             name="source_texts_pdf_shape",
         ),
         CheckConstraint(
             "locator_kind <> 'text' OR (line_start IS NOT NULL AND page IS NULL "
             "AND row_number IS NULL AND column_name IS NULL AND sheet_name IS NULL "
-            "AND cell_ref IS NULL)",
+            "AND cell_ref IS NULL AND docx_part IS NULL AND docx_element_path IS NULL "
+            "AND docx_view IS NULL AND docx_char_start IS NULL "
+            "AND docx_char_end IS NULL)",
             name="source_texts_text_shape",
         ),
         CheckConstraint(
             "locator_kind <> 'csv' OR (row_number IS NOT NULL AND column_name IS NOT NULL "
             "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
-            "AND section IS NULL AND sheet_name IS NULL AND cell_ref IS NULL)",
+            "AND section IS NULL AND sheet_name IS NULL AND cell_ref IS NULL "
+            "AND docx_part IS NULL AND docx_element_path IS NULL AND docx_view IS NULL "
+            "AND docx_char_start IS NULL AND docx_char_end IS NULL)",
             name="source_texts_csv_shape",
         ),
         CheckConstraint(
             "locator_kind <> 'xlsx' OR (sheet_name IS NOT NULL AND cell_ref IS NOT NULL "
             "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
-            "AND section IS NULL AND row_number IS NULL AND column_name IS NULL)",
+            "AND section IS NULL AND row_number IS NULL AND column_name IS NULL "
+            "AND docx_part IS NULL AND docx_element_path IS NULL AND docx_view IS NULL "
+            "AND docx_char_start IS NULL AND docx_char_end IS NULL)",
             name="source_texts_xlsx_shape",
+        ),
+        # LC-P2-07. A DOCX address names a package part, an element path in
+        # it, the view the range is in, and the range itself. The view is
+        # constrained to the two ADR-0014 D4 views because a third would be
+        # an address that resolves to nothing.
+        #
+        # The character range is optional -- absent means the whole element --
+        # and both endpoints are set or neither, exactly as the PDF locator
+        # requires. A one-ended range cannot be located, and inferring the
+        # missing end would be the silent correction LC-P1-02 forbids.
+        CheckConstraint(
+            "locator_kind <> 'docx' OR (docx_part IS NOT NULL "
+            "AND docx_element_path IS NOT NULL AND docx_view IS NOT NULL "
+            "AND docx_view IN ('accepted', 'rejected') "
+            "AND ((docx_char_start IS NULL AND docx_char_end IS NULL) "
+            "OR (docx_char_start IS NOT NULL AND docx_char_end IS NOT NULL "
+            "AND docx_char_end >= docx_char_start)) "
+            "AND page IS NULL AND line_start IS NULL AND line_end IS NULL "
+            "AND section IS NULL AND row_number IS NULL AND column_name IS NULL "
+            "AND sheet_name IS NULL AND cell_ref IS NULL)",
+            name="source_texts_docx_shape",
         ),
         # Every kind pins line_end and section to its own columns. text may
         # carry them; nothing else may.

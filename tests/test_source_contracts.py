@@ -237,10 +237,24 @@ def test_computation_locator_records_inputs_operator_and_parameters() -> None:
     assert anchor.locator.input_hashes == (HASH_A, HASH_B)
 
 
-def test_locator_kinds_are_closed_at_five_members() -> None:
-    """ADR-0004 I2's spirit applied to locators: no "and then some other format"."""
-    assert {member.value for member in LocatorKind} == {"pdf", "text", "csv", "xlsx", "computation"}
-    assert len(LOCATOR_MODELS) == 5
+def test_locator_kinds_are_closed_at_six_members() -> None:
+    """ADR-0004 I2's spirit applied to locators: no "and then some other format".
+
+    **Six, since LC-P2-07.** The fifth was ``computation``, which addresses
+    a derived number and has no extracted text. The sixth is ``docx``, which
+    addresses a package part and an element path -- and it exists because
+    an ingest path now produces it, which is the condition the module
+    docstring states for a kind to belong here at all.
+    """
+    assert {member.value for member in LocatorKind} == {
+        "pdf",
+        "text",
+        "csv",
+        "xlsx",
+        "docx",
+        "computation",
+    }
+    assert len(LOCATOR_MODELS) == 6
     # Every member of the union is reachable from LOCATOR_MODELS, so the
     # "exhaustive tests" comment on it cannot rot.
     assert {model.__name__ for model in LOCATOR_MODELS} == {
@@ -248,6 +262,7 @@ def test_locator_kinds_are_closed_at_five_members() -> None:
         "TextLocator",
         "CsvLocator",
         "XlsxLocator",
+        "DocxLocator",
         "ComputationLocator",
     }
 
@@ -327,18 +342,95 @@ def test_missing_required_field_is_rejected() -> None:
 
 
 def test_unknown_enum_values_are_rejected_not_coerced() -> None:
-    """An unlisted enum member reaches no model and raises — ADR-0003 §C1's rule."""
-    for unknown in ("docx", "PDF", "verified", "pdf "):
+    """An unlisted enum member reaches no model and raises — ADR-0003 §C1's rule.
+
+    **``docx`` was this test's example of an unknown kind until LC-P2-07**
+    gave it an ingest path. It is now a *known* kind, so the example moved
+    to a spelling that is still unknown -- and the second assertion below
+    now says the DOCX kind is accepted rather than refused, because a
+    contract that changed and whose test did not would be a contract that
+    only one of the two was true of.
+    """
+    for unknown in ("rtf", "PDF", "verified", "pdf "):
         message = rejects(Source, _source_payload(kind=unknown))
         assert unknown.strip() in message
 
-    message = rejects(SourceAnchor, _anchor_payload({"locator_kind": "docx", "page": 3}))
-    assert "docx" in message
+    message = rejects(SourceAnchor, _anchor_payload({"locator_kind": "rtf", "page": 3}))
+    assert "rtf" in message
 
     message = rejects(
         SourceAnchor, _anchor_payload({"locator_kind": "pdf", "page": 3}, kind="quote")
     )
     assert "quote" in message
+
+
+def test_a_docx_locator_is_accepted_and_addresses_a_part_and_a_view() -> None:
+    """LC-P2-07: the DOCX kind is real, and its fields are its own.
+
+    A Word address names a package part, an element path in it, the view
+    the character range is in, and the range. **The view is what makes the
+    same range mean different characters in the accepted and the rejected
+    text**, so a payload without it is refused rather than defaulted -- a
+    default would silently pick one of the two texts.
+    """
+    anchor = SourceAnchor.model_validate(
+        _anchor_payload(
+            {
+                "locator_kind": "docx",
+                "part": "word/document.xml",
+                "element_path": "/w:document/w:body/w:p[3]/w:ins[1]",
+                "view": "accepted",
+                "char_start": 0,
+                "char_end": 12,
+            }
+        )
+    )
+    assert anchor.locator.locator_kind.value == "docx"
+
+    # The same element in the other view is a different address, and it
+    # resolves to different text.
+    rejected = SourceAnchor.model_validate(
+        _anchor_payload(
+            {
+                "locator_kind": "docx",
+                "part": "word/document.xml",
+                "element_path": "/w:document/w:body/w:p[3]/w:ins[1]",
+                "view": "rejected",
+                "char_start": 0,
+                "char_end": 12,
+            }
+        )
+    )
+    assert anchor.locator != rejected.locator
+
+    # A view that is not one of ADR-0014 D4's two is refused, rather than
+    # stored as an address that resolves to nothing.
+    message = rejects(
+        SourceAnchor,
+        _anchor_payload(
+            {
+                "locator_kind": "docx",
+                "part": "word/document.xml",
+                "element_path": "/w:document/w:body/w:p[3]",
+                "view": "final",
+            }
+        ),
+    )
+    assert "final" in message
+
+    # And a DOCX locator may not carry another kind's fields.
+    message = rejects(
+        SourceAnchor,
+        _anchor_payload(
+            {
+                "locator_kind": "docx",
+                "part": "word/document.xml",
+                "element_path": "/w:document/w:body/w:p[3]",
+                "page": 3,
+            }
+        ),
+    )
+    assert "page" in message
 
 
 def test_cross_type_locator_fields_are_rejected() -> None:
@@ -651,12 +743,19 @@ def test_anchor_kinds_are_closed() -> None:
 
 
 def test_source_kinds_are_closed() -> None:
+    """No "and then some other format" — the material vocabulary is closed.
+
+    **Seven, since LC-P2-07.** ``docx`` joined because the OOXML reader
+    produces paragraphs, revisions and comments as addressable text; a
+    format with no adapter and no text would have been ``other``.
+    """
     assert {member.value for member in SourceKind} == {
         "pdf",
         "markdown",
         "text",
         "csv",
         "xlsx",
+        "docx",
         "other",
     }
 

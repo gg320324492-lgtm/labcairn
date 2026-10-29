@@ -1,4 +1,4 @@
-# LC-P2-07 — DOCX revision fidelity: the baseline measurement
+# LC-P2-07 — DOCX revision fidelity: the baseline measurement, and the reader
 
 **Date:** 2026-10-29 · **Base commit:** `66dde87` · **Measured by:** the
 executor, on the development machine
@@ -8,13 +8,15 @@ the synthetic corpus in `tests/docx_corpus.py`. It answers one
 question: **when a reader opens a Word file with tracked changes, how much
 of the revision history does it recover?**
 
-**What it is not.** It is not a verdict on the arms, and it is not a
-benchmark of real Word documents. The corpus is synthetic, the arms are
-particular versions, and every number below is a number *about this corpus,
-on this machine*. It is also **not yet a result for LabCairn** — the
-OOXML-native arm is the work LC-P2-07 has still to do, and it is present in
-the table as a row of zeros so that the shape of the comparison is fixed
-before the reader is written.
+**And the reader it is a baseline for.** `src/labcairn/material/ooxml.py` is
+LC-P2-07's deliverable, and §5 records what it scores against these
+numbers. The measurement was written **before** the reader, on purpose: a
+scoring function written after the parser exists tends to score what the
+parser does.
+
+**What it is not.** It is not a benchmark of real Word documents. The corpus
+is synthetic, the arms are particular versions, and every number below is a
+number *about this corpus, on this machine*.
 
 ---
 
@@ -216,7 +218,106 @@ paragraph", which is a materially weaker claim.
 | *"Docling/docx2python/Pandoc 与原始 XML 的保真率做对照报告"* | **Done here**, for three of the four; Docling is not installed and is not needed to make the finding, which is structural rather than specific to it. |
 | *"对缺失元数据输出 UNKNOWN，不伪造作者和时间"* | **Supported.** pandoc discards such an edit entirely, which is the failure this rule exists to prevent. |
 
-## 5. The numbers this does **not** establish
+## 5. The reader, measured against this baseline
+
+**`src/labcairn/material/ooxml.py` is written against ECMA-376 / ISO-IEC
+29500, and it is held to the numbers above.** The arm that was a row of
+zeros is now the reader, and the measurement is its acceptance test.
+
+| Property | The baseline | The reader |
+|---|---|---|
+| revision recall | 0 of 30 for every text arm | **30 of 30** |
+| deletion recovery | 0 of 8 for every text arm | **8 of 8** — the text, not an empty run |
+| comment recall | 0.429 (docx2python), 0 for the rest | **14 of 14**, including the four un-anchorable |
+| the anchor is the comment's **range** | paragraph-granular (docx2python) | **the range** |
+| a missing author or date | — | `UNKNOWN`, never a guess |
+| the original bytes | — | unchanged, and the module has **no write path at all** |
+
+### 5.1 How the reader reaches the deleted text
+
+**The deleted text lives in `w:delText`, and every text-producing reader
+reads `w:t`.** That is the whole of the difference, and it is why the
+reader reads the XML itself.
+
+**The view is part of the address.** A Word document reads two ways, and
+ADR-0014 D4 names them: *accepted* and *rejected*. The same character range
+means different characters in each, so `DocxLocator` carries a `view`
+field and the rendered key carries it too — two addresses for one element
+in the two views are different addresses, and they resolve to different
+text, which is correct because they *are* different text.
+
+**The deleted text has an address because of that field.** It is not in
+the accepted view at all, so no range there could name it. A `w:del`
+element's text in the **rejected** view is exactly the deleted text, and
+that is the locator the deletion event carries.
+
+### 5.2 The four un-anchorable comments, and what each one says
+
+The reader does not lump them. A range that starts and never ends, a range
+that ends and never started, and a comment with no range at all are three
+different defects, and each is reported with its own reason:
+
+| Case | The reader's answer |
+|---|---|
+| the range starts and never ends | the comment, with an **unknown anchor** and the reason *"the comment's range starts but never ends"* |
+| the range ends and never started | the comment, with an **unknown anchor** and the reason *"the comment's range ends but never starts"* |
+| no range markers at all | the comment, with an **unknown anchor** and the reason *"the comment carries no range markers"* |
+
+**The comment's body, author and date are reported in all three cases**,
+because they are in the file. Dropping them is the failure the upstream
+study found in a library, and it is what §5.4's second mutation does.
+
+### 5.3 What the reader refuses
+
+| Case | The refusal |
+|---|---|
+| bytes that are not a Word document | `docx_unreadable` — inventoried and hashed, and *no* history extracted, because a history we could not read is not an empty history |
+| an archive with no `word/document.xml` | `docx_part_absent` |
+| a part that declares a **DTD** | `docx_part_refused`, naming the part — entity expansion is a denial-of-service vector and this reader does not expand entities |
+| a comment the body references but the archive does not hold | `docx_comment_reference_unknown` — the reference is real and points at nothing, and the comment is not invented |
+| a revision nested inside another revision | `docx_nested_revision` — the inner one is reported separately with its own path and text |
+
+### 5.4 The mutations, and what each one broke
+
+**A witness that has never been broken is not known to be a witness.** Four
+mutations were applied to the reader, and each is named with the test that
+caught it.
+
+| # | The mutation | What went red |
+|---|---|---|
+| 1 | the deleted text is dropped instead of read from `w:delText` | `test_every_deletion_text_is_recovered`, `test_every_revision_carries_its_kind_text_author_and_date`, `test_the_two_views_are_the_texts_adr_0014_names`, `test_a_revision_nested_inside_another_is_reported_separately` |
+| 2 | a comment whose anchor does not resolve is dropped — **the upstream library's bug** | `test_every_comment_is_reported_including_the_unanchorable_ones`, `test_a_comment_with_no_resolvable_anchor_is_still_a_comment`, `test_each_unresolvable_anchor_names_its_own_reason` |
+| 3 | a missing author is filled in with a placeholder | `test_a_missing_author_or_date_is_unknown_and_never_guessed`, `test_every_revision_carries_its_kind_text_author_and_date` |
+| 4 | the locator forgets the view | `test_a_revision_locator_resolves_to_the_revisions_own_text`, `test_a_deletion_is_addressed_in_the_rejected_view` |
+
+**One mutation survived, and the reason matters.** The fifth was "the reader
+writes to the file it read", and it **survived** — the whole file was green
+— because `read_document` takes **bytes** and therefore *cannot* change the
+file they came from. The property held by construction, not by the
+reader's care, and the file-bytes test was watching something that could
+not fail.
+
+**That is a weak witness, and it has been replaced.** The strong half is
+now `test_the_reader_module_writes_nothing`, which reads the reader's
+**source** and refuses any write call in it. A mutation that adds a
+`write_bytes` to the module is caught by that test — verified, and the
+verification is recorded here because the first attempt at it did not
+apply (the mutation's text did not match the formatted source), which is
+how a mutation can be reported as surviving when it was never applied.
+
+**The lesson is the project's own**: *"a measurement that is transcribed is
+a measurement that can be wrong."* The same holds for a mutation that was
+never applied. Both were caught by asking what the number actually
+measured.
+
+### 5.5 The three cases the corpus cannot reach
+
+They are tested against documents built in the test file, and the corpus's
+`KNOWN_GAPS` says why they are not there: **a revision nested inside
+another revision**, **a part that declares a DTD**, and **a corrupt
+archive**.
+
+## 6. The numbers this does **not** establish
 
 - **Nothing about real Word documents.** The corpus is synthetic. A real
   Word file fragments a revised sentence across several runs, renumbers
@@ -227,32 +328,28 @@ paragraph", which is a materially weaker claim.
   (`docs/research/upstream-study/docling.md`) predicts the deletion loss,
   and the prediction is confirmed for the other three arms — but Docling's
   own number is not measured here, and this record does not claim it.
-- **Nothing about the OOXML-native arm's quality.** It is a row of zeros
-  because it does not exist. When it is written, this measurement becomes
-  its acceptance test, and the acceptance is: **the revision recall and the
-  deletion recovery must be 1.0 on this corpus**, and the comment recall
-  must be 1.0 including the four un-anchorable comments, which must be
-  reported as `UNKNOWN` with a reason rather than dropped.
+- **Nothing about the OOXML-native arm's behaviour on real documents.** §5
+  records what it does on the synthetic corpus — revision recall 1.0,
+  deletion recovery 1.0, comment recall 1.0 — and that is a number about
+  **this corpus**, whose revisions are one element each, whose comments
+  live in `word/comments.xml`, and whose paragraphs are plain runs. The
+  ten cases in the corpus's `KNOWN_GAPS` are the ones a real Word file
+  brings and this one does not: run fragmentation inside a revision, Word
+  renumbering revision ids on save, comments in headers and footnotes, a
+  document whose revisions have been accepted, and the rest.
 - **Nothing about how a reader performs on the pilot corpus.** That is a
-  second measurement, and it is the one that decides whether the parser is
+  second measurement, and it is the one that decides whether the reader is
   good enough.
 
-## 6. What this record asks of LC-P2-07
+## 6. What this record asked of LC-P2-07, and what answered it
 
-1. **The OOXML-native reader must recover every revision and every deletion
-   on this corpus**, with the author and date reported as `UNKNOWN` where
-   the file omits them. Zero of the comparison arms manage this.
-2. **The reader must report every comment, including the four whose anchor
-   is unresolvable**, with `anchor_status = UNKNOWN` and a reason naming
-   the unmatched marker. `docx2python` loses eight of fourteen; the
-   requirement is fourteen of fourteen with four of them marked unknown.
-3. **The reader's anchor must be the comment's range, not the paragraph's.**
-   Measured against `docx2python`'s paragraph-granular anchor.
-4. **The reader must not modify the original bytes.** The corpus's
-   byte-reproducibility test is the first half; the reader's own test is
-   the second.
-5. **A parser that returns nothing must not score well.** The false-
-   negative floor in §3 is what keeps that true, and it must survive into
+| The requirement | Answered by | Measured |
+|---|---|---|
+| **The OOXML-native reader must recover every revision and every deletion on this corpus**, with the author and date reported as `UNKNOWN` where the file omits them. Zero of the comparison arms manage this. | `src/labcairn/material/ooxml.py` | 30 of 30 revisions, 8 of 8 deletions |
+| **The reader must report every comment, including the four whose anchor is unresolvable**, with an unknown anchor and a reason naming the unmatched marker. `docx2python` loses eight of fourteen; the requirement is fourteen of fourteen with four of them marked unknown. | the same | 14 of 14, four of them with a reason |
+| **The reader's anchor must be the comment's range, not the paragraph's.** Measured against `docx2python`'s paragraph-granular anchor. | the same | the range |
+| **The reader must not modify the original bytes.** | the same, and a source-level watch on the module | unchanged, and the module has no write path |
+| **A parser that returns nothing must not score well.** The false-negative floor in §3 is what keeps that true, and it must survive into
    the acceptance test.
 
 ## 7. The commits and the environment
@@ -263,6 +360,9 @@ paragraph", which is a materially weaker claim.
 | Corpus | `tests/docx_corpus.py`, `tests/docx_fixtures.py` |
 | Corpus test | `tests/test_docx_fixture_corpus.py` (97 cases) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
+| **The reader** | `src/labcairn/material/ooxml.py` |
+| **The reader's test** | `tests/test_ooxml_revisions.py` (21 cases) |
+| **The migration** | `migrations/versions/0009_docx_locator.py` |
 | pandoc | 3.10 (installed on the machine; GPL-2.0, used as a comparison only) |
 | python-docx | the project's own declared dependency, 1.2.0 |
 | docx2python | 66b1ae3e24ffa7040ed5244490ce2872ac2e86bb, run via `uv run --with` |

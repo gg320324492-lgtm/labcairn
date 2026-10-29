@@ -94,7 +94,8 @@ measurement established:
 | **Cost** | Large: a new adapter, a new `SourceKind`, a new `LocatorKind`, a migration, and the reader itself. |
 | **Acceptance** | The measured target from [`LC-P2-07-fidelity-baseline.md`](../acceptance/LC-P2-07-fidelity-baseline.md): **revision recall 1.0 and deletion recovery 1.0 on the synthetic corpus**; **comment recall 1.0**, with the four un-anchorable comments reported as `UNKNOWN` with a reason rather than dropped; the anchor is the comment's **range**, not the paragraph's; the original bytes are unchanged; a missing author or date is `UNKNOWN`, never guessed. |
 | **Must not** | Extend the *report* revision model to manuscripts — the two answer different questions and the reuse matrix §4.1 says why. |
-| **Status** | The corpus and the measurement exist and are green (97 cases). The reader does not. |
+| **Status** | **Implemented and measured**, 2026-10-29: `src/labcairn/material/ooxml.py`, with `DocxLocator`, `SourceKind.DOCX`, migration `0009`, and 21 tests. Revision recall **30/30**, deletion recovery **8/8**, comment recall **14/14** on the synthetic corpus, and four mutations were applied to prove the witnesses fail for their properties. The record is [`LC-P2-07-fidelity-baseline.md`](../acceptance/LC-P2-07-fidelity-baseline.md) §5. |
+| **Not yet done** | The reader's behaviour on **real** Word documents — the corpus is synthetic, and the ten cases in its `KNOWN_GAPS` are the pilot corpus's job. The **store** side of the trajectory — the `PaperVersion` and `RevisionEvent` tables — is LC-P2-08's, and the reader's events are not persisted yet. |
 
 ### LC-P2-08 — Version graph and cross-version alignment
 
@@ -223,7 +224,7 @@ touching them is a declared dependency, not a convenience.**
 | Ticket | Files it owns (new unless stated) | Phase 1 files it touches |
 |---|---|---|
 | LC-P2-06 | `src/labcairn/security/consent.py` (new), `src/labcairn/db/models.py` (**grant rows**), `src/labcairn/db/migrations.py` (**migration 0009**), `src/labcairn/security/capabilities.py` (**new capability ids**), `tests/test_dataset_consent.py` (new) | `db/models.py`, `db/migrations.py`, `security/capabilities.py` |
-| LC-P2-07 | `src/labcairn/material/ooxml.py` (new), `src/labcairn/sources/locators.py` (**new locator kind**), `src/labcairn/sources/source.py` (**new source kind**), `src/labcairn/material/addressing.py` (**new locator fields**), `tests/test_ooxml_revisions.py` (new) | `sources/locators.py`, `sources/source.py`, `material/addressing.py`, `material/units.py` |
+| LC-P2-07 | **done**: `src/labcairn/material/ooxml.py`, `src/labcairn/sources/locators.py` (**new locator kind**), `src/labcairn/sources/source.py` (**new source kind**), `src/labcairn/material/addressing.py` (**new locator fields**), `src/labcairn/material/ingest.py` (**extension map**), `src/labcairn/material/__init__.py` (**registration**), `migrations/versions/0009_docx_locator.py` (**migration**), `db/models.py` (**the new columns and constraints**), `tests/test_ooxml_revisions.py` | as above, plus `tests/test_source_contracts.py` (**the closed sets moved**) |
 | LC-P2-08 | `src/labcairn/papers/versions.py` (new), `src/labcairn/papers/alignment.py` (new), `tests/test_version_graph.py` (new) | `db/models.py` (new tables), `db/migrations.py` |
 | LC-P2-09 | `src/labcairn/papers/feedback.py` (new), `tests/test_feedback_response.py` (new) | `db/models.py`, `db/migrations.py` |
 | LC-P2-10 | `docs/papers/annotation-guide.md` (new), `docs/papers/gold-set-manifest.json` (new), `tests/fixtures/papers-gold/` (new) | — |
@@ -290,13 +291,23 @@ a different home, it is a rename before the first file lands, not after.
 
 **Not true, and not claimed:**
 
-- No Phase 2 code exists. No table has been migrated. No reader has been
-  written.
+- **The trajectory's own tables do not exist.** No `PaperProject`, no
+  `PaperVersion`, no `RevisionEvent` — those are LC-P2-06, LC-P2-08 and
+  LC-P2-09. **One migration has landed** (`0009_docx_locator`), and it
+  makes a DOCX addressable; it adds no trajectory table.
+- **The reader is written; the reader is not yet fed by the product.** It
+  reads a document's history correctly on the synthetic corpus, and its
+  events are **not persisted**, because the tables they would live in are
+  LC-P2-08's.
 - **The guidance agent has never been shown to work**, and nothing in this
   list says it will. LC-P2-14 exists to find out, and its acceptance
   explicitly allows the answer to be "no measurable gain".
 - The upstream repositories were **read, not used**. No code was copied, no
-  weights downloaded, no corpus ingested. Two of the six ship no licence
+  weights downloaded, no corpus ingested. **Three of the six ship no licence
+  file at all** — arXivEdits, XtraGPT and PeerRead — and the licences that
+  do ship are permissive. Neither fact is why none of the six is used: each
+  fails a property the phase needs, and each failure is recorded in its own
+  study.
   file at all.
 - The corpora this line will need — advisor comments, student responses,
   review outcomes — **do not exist yet** and need the pilot, which needs
