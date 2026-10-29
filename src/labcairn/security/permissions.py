@@ -455,3 +455,113 @@ def _detail_for(
                 f"grant {closest.grant_id!r} does not cover {permission!r} for "
                 f"{purpose!r}. The remedy is a grant."
             )
+
+
+# --------------------------------------------------------------------------- #
+# T03: withdrawal, and the propagation that is checkable
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class DerivedCopy:
+    """Something made **from** material, and the grant it came from.
+
+    **The provenance is the whole reason the row exists.** ADR-0015 D4:
+    *"Withdrawing a grant must invalidate what depended on it: derived
+    embeddings, index entries built from the material, queued training
+    runs, cached model transcripts, and any guidance rule distilled from
+    it."*
+
+    **And the design asks the question precisely** — *"撤回同意后历史
+    embedding/缓存/训练队列是否失效"* — so the answer has to be a fact and
+    not a promise. **A copy records the grant it came from**, and a check
+    asks whether that grant is still in force.
+    """
+
+    copy_id: str
+    #: The grant this copy was made under.
+    grant_id: str
+    #: What kind of copy: an index entry, an embedding, a queued run, a
+    #: cached transcript, a distilled rule.
+    kind: str
+    #: Where the copy lives, so a withdrawal can find it.
+    location: str
+    #: The material the copy was made from.
+    subject_ref: str
+
+
+def withdraw_grant(
+    grant: Grant,
+    *,
+    withdrawn_by: str,
+    at: datetime,
+    reason: str = "",
+) -> Grant:
+    """Withdraw a grant, and say who and when and why.
+
+    **The row is not deleted.** A permission check that cannot say *"this
+    was withdrawn by the advisor on 2026-03-02"* cannot answer the question
+    a person will ask, and **the record of a grant that was withdrawn is
+    itself a record**.
+
+    **And the state moves to ``withdrawn``, not to something softer.** A
+    grant that was taken back is not a grant that lapsed and not a grant
+    that was never made, and the check tells the three apart.
+    """
+    if not withdrawn_by.strip():
+        raise ValueError(
+            "a withdrawal is a person's decision and it must name them: withdrawn_by is empty."
+        )
+    if grant.state == "withdrawn":
+        raise ValueError(
+            f"grant {grant.grant_id!r} was already withdrawn by "
+            f"{grant.withdrawn_by!r}. Withdrawing it twice would make the "
+            f"record say two things about one decision."
+        )
+    return Grant(
+        grant_id=grant.grant_id,
+        subject_ref=grant.subject_ref,
+        permission=grant.permission,
+        purpose=grant.purpose,
+        scope=grant.scope,
+        destination=grant.destination,
+        granted_by=grant.granted_by,
+        granted_at=grant.granted_at,
+        expires_at=grant.expires_at,
+        state="withdrawn",
+        withdrawn_at=at,
+        withdrawn_by=withdrawn_by,
+        withdrawal_reason=reason,
+    )
+
+
+def is_copy_stale(copy: DerivedCopy, grants: list[Grant]) -> bool:
+    """Whether a derived copy has outlived the grant that produced it.
+
+    **This is the question the design asks**: *"撤回同意后历史
+    embedding/缓存/训练队列是否失效"*. The answer is **yes**, and it is a
+    fact rather than a promise because the copy records its provenance and
+    this checks it.
+
+    **And a copy whose grant is not on the record is stale.** A copy with
+    no findable grant has no provenance to check, and treating "I cannot
+    find the grant" as "the grant is fine" would be the wrong direction of
+    error: it would keep a copy alive on the strength of a missing row.
+    """
+    grant = next(
+        (candidate for candidate in grants if candidate.grant_id == copy.grant_id),
+        None,
+    )
+    if grant is None:
+        return True
+    return grant.state in ("withdrawn", "expired")
+
+
+def stale_copies(copies: list[DerivedCopy], grants: list[Grant]) -> tuple[DerivedCopy, ...]:
+    """Every copy that has outlived its grant.
+
+    **The list is what a withdrawal has to act on**, and it is a list
+    rather than a promise because a promise about derived copies is exactly
+    the kind of claim that cannot be checked later.
+    """
+    return tuple(copy for copy in copies if is_copy_stale(copy, grants))
