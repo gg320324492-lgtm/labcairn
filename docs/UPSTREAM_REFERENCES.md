@@ -27,6 +27,20 @@ If local IDE constraints require it, use `labcairn/_references/` as an *ignored*
 
 ## Curated catalog
 
+> **Phase 2's reference repositories are catalogued separately**, in
+> [`docs/research/upstream-study/`](../research/upstream-study/), and this
+> section does not repeat them. Two catalogs for one set of pins is two
+> catalogs that drift: the six Phase 2 clones (arXivEdits, XtraGPT,
+> docx2python, Docling, PeerRead, openreview-py) were read on **2026-10-29**
+> against a **different** question — the mentor-trajectory line — and each
+> has its own record with its own SHA, its own licence reading, and what it
+> failed. **Three of the six ship no licence file at all**, which is a
+> finding in its own right and is recorded there rather than here.
+>
+> The rule this page states still holds for them: **a clone is not a reuse
+> permission**, and none of the six was used — no code copied, no weights
+> downloaded, no corpus ingested.
+
 For the five repositories that are cloned, the license column below was **verified by opening the LICENSE files at the pinned commit**, not by reading GitHub repository metadata. Subdirectories were walked separately — see [Verified license boundaries](#verified-license-boundaries-measured-2026-10-15). These labels are still not a legal assessment, and transitive dependencies may carry other licenses.
 
 The commit SHA column records the local shallow-clone snapshot taken on **2026-10-15**. Because the clones were made with `--depth 1 --single-branch`, each SHA was read from a **local** object store rather than resolved from the remote — so a fresh `git clone` of the default branch is not guaranteed to reproduce it, and upstream force-push or garbage collection can invalidate it at any time. Treat each SHA as valid for the snapshot on this machine.

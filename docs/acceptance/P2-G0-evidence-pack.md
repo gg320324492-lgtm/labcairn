@@ -300,12 +300,33 @@ number that goes in the table must come from a runner, and **this pack does
 not write a locally-measured number into a table that says the numbers are
 from runners.**
 
+**Update, 2026-10-29: the owner opened PR #126, and the measurement has
+run.** The chain was:
+
+1. **PR #126's first CI run** measured the corpus — and red, because the
+   file was in no shard and had no cost. Two checks, the project's own
+   accepted intermediate state.
+2. **`python .github/remeasure_shards.py <run-id>`** read that run's log
+   and wrote the costs. The new file was in no shard, so the run never
+   executed it, and **the tool apportions the unaccounted time by test
+   count** — the number it wrote is *apportioned, not measured*, and the
+   commit that wrote it says so.
+3. **`make_ci_shards.py`** then rebuilt the partition with the file in it.
+4. **The next CI run executed it**, and the measurement after that replaces
+   the apportioned numbers with the runner's.
+
+**That is two runs, and it is the tool's own design** — the file cannot be
+measured until a run executes it, and it cannot be put in a run until it
+has a cost. The intermediate number is labelled as apportioned rather than
+passed off as a measurement, which is the project's rule about a value that
+can change.
+
 ## 6. What is measured, and what is not
 
 **Measured, and the numbers are in this pack:**
 
 - **The whole suite, on the tree this pack was committed on**
-  (`62bdea6`): **3783 passed, 5 skipped, 0 failed**, in 31 minutes 27
+  (`b1d73a3`): **3783 passed, 5 skipped, 0 failed**, in 31 minutes 27
   seconds on this machine. The five skips are all of the project's own
   accepted kinds — a POSIX-only permission-bit case, the real-provider
   smoke that needs the owner's credential, and three Windows-path cases —
