@@ -15,6 +15,7 @@ from typing import cast
 
 import pytest
 
+from labcairn.evidence.index import locator_from_key
 from labcairn.material.addressing import (
     LocatorKeyError,
     render_locator_key,
@@ -29,6 +30,7 @@ from labcairn.material.version import (
 from labcairn.sources.locators import (
     ComputationLocator,
     CsvLocator,
+    DocxLocator,
     PdfLocator,
     SourceLocator,
     TextLocator,
@@ -63,6 +65,22 @@ def test_a_character_range_is_part_of_the_key() -> None:
         TextLocator(line=5, line_end=9, section="Methods"),
         CsvLocator(row=12, column="mean"),
         XlsxLocator(sheet_name="Sheet1", cell_ref="B2"),
+        # LC-P2-07. A Word address, in both views and with and without a
+        # range: **the view is part of the address**, because the same
+        # range means different characters in the accepted and the
+        # rejected text.
+        DocxLocator(
+            part="word/document.xml",
+            element_path="/w:document/w:body/w:p[3]/w:ins[1]",
+            view="accepted",
+        ),
+        DocxLocator(
+            part="word/document.xml",
+            element_path="/w:document/w:body/w:p[3]/w:ins[1]",
+            view="rejected",
+            char_start=0,
+            char_end=12,
+        ),
     ],
 )
 def test_rendering_round_trips(locator: SourceLocator) -> None:
@@ -234,3 +252,50 @@ def test_the_version_is_a_short_domain_separated_digest(tmp_path: Path) -> None:
     version = derive_extraction_version((module,), {})
     assert len(version) == 32
     assert all(c in "0123456789abcdef" for c in version)
+
+
+def test_a_docx_locator_is_rebuilt_from_its_key() -> None:
+    """LC-P2-07: the Word address survives the round trip through the key.
+
+    **Why this is a separate test.** ``locator_from_key`` is the inverse
+    direction, and the project's own comment on it says why the direction
+    matters: *"a wrong reconstruction does not raise, it returns a
+    **different valid** address, and every check downstream then resolves
+    happily against the wrong page."*
+
+    **And the view is the part that can go wrong quietly.** A
+    reconstruction that dropped it would produce a Word address that
+    resolved to the *other* text — the accepted one where the rejected one
+    was meant — and nothing would raise.
+    """
+    locator = DocxLocator(
+        part="word/document.xml",
+        element_path="/w:document/w:body/w:p[3]/w:ins[1]",
+        view="rejected",
+        char_start=0,
+        char_end=12,
+    )
+
+    rebuilt = locator_from_key(render_locator_key(locator))
+
+    assert rebuilt == locator
+
+
+def test_the_two_views_of_one_element_are_two_addresses() -> None:
+    """**The view is part of the address**, and the key says so.
+
+    **What breaks it:** a key that omitted the view. The two addresses
+    would collide on one row, and the UNIQUE would protect the wrong one --
+    and the text a citation resolves to would depend on which version of
+    the document was ingested first.
+    """
+    accepted = DocxLocator(
+        part="word/document.xml",
+        element_path="/w:document/w:body/w:p[3]",
+        view="accepted",
+    )
+    rejected = accepted.model_copy(update={"view": "rejected"})
+
+    assert render_locator_key(accepted) != render_locator_key(rejected)
+    assert split_locator_key(render_locator_key(accepted))["v"] == "accepted"
+    assert split_locator_key(render_locator_key(rejected))["v"] == "rejected"

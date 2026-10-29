@@ -369,7 +369,7 @@ Phase 1 exactly as it was.
 | C9 | Parsing leaves the original bytes unchanged; the hash before and the hash after are equal | **written** — `test_reading_does_not_change_the_bytes`, and the stronger `test_the_reader_module_writes_nothing` |
 | C10 | A version graph with two parallel branches is representable, and no total order is implied | to be written at LC-P2-08 |
 | C11 | Two files with identical names and different bytes are two versions, not one | to be written at LC-P2-06 |
-| C12 | A `DOCX` locator resolves through the report's link check, and an unresolvable one is refused rather than cited | **partly written** — the locator resolves (`test_a_revision_locator_resolves_to_the_revisions_own_text`); the link check's own path is **not** — the report's citation machinery has no DOCX case yet |
+| C12 | A `DOCX` locator resolves through the report's link check, and an unresolvable one is refused rather than cited | **written** — `test_a_docx_locator_is_rebuilt_from_its_key`, `test_the_two_views_of_one_element_are_two_addresses`. The reconstruction from the key is the direction that fails silently, so it has its own witness: a reconstruction that dropped the view would resolve to the *other* text and nothing would raise |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that fails because of an unrelated encoding or lint matter
