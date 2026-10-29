@@ -321,6 +321,24 @@ has a cost. The intermediate number is labelled as apportioned rather than
 passed off as a measurement, which is the project's rule about a value that
 can change.
 
+**And the difference between the two numbers is the project's rule,
+measured rather than quoted.**
+
+| The two new test files | apportioned (Ubuntu) | **measured (Ubuntu)** | overestimated by |
+|---|---|---|---|
+| `test_docx_fixture_corpus.py` | 0.65 s | **0.01 s** | 65× |
+| `test_ooxml_revisions.py` | 0.89 s | **0.04 s** | 22× |
+
+The corpus is twenty-eight synthetic documents written and read in
+milliseconds, and the apportionment — which divides the unaccounted time
+by test count — had no way to know that. **A locally-measured number would
+have been wrong by a different factor again**: this machine's 0.19 s is
+twenty times the runner's 0.01 s for the same file, on the same code.
+
+CLAUDE.md says *"a development machine gives a different answer, not only a
+different total"*; this is that sentence with a number attached, and it is
+the reason the table takes its numbers from a runner and nowhere else.
+
 ## 6. What is measured, and what is not
 
 **Measured, and the numbers are in this pack:**
