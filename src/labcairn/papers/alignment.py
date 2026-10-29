@@ -280,11 +280,19 @@ def _evidence_for(
     child_only = [number for number in child.numbers if number not in set(parent.numbers)]
     parent_only = [number for number in parent.numbers if number not in set(child.numbers)]
     if shared_numbers or child_only or parent_only:
-        # **The number signal is reported whenever the numbers differ, even
-        # when none of them is shared** — a result that moved is worth
-        # seeing on its own. But it carries **no weight** in that case: it
-        # is a difference, not a link, and a difference is not evidence
-        # that one document came from the other.
+        # **The weight says what the signal means, and it is not the same
+        # in both cases.** Numbers that appear in *both* versions are the
+        # strong case: the two documents are talking about the same
+        # quantities, so they are the same study. Numbers that appear in
+        # only one are the weak case: a number that moved is worth seeing,
+        # but a number that appeared for the first time says nothing about
+        # which document came first.
+        #
+        # **And the strong case is the one the design's case lives in.**
+        # Two drafts whose results moved share every *other* number and
+        # differ on one; the shared numbers are what say "same study", and
+        # the moved one is what says "the result changed".
+        weight = min(1.0, len(shared_numbers) / 5.0) if shared_numbers else 0.0
         evidence.append(
             AlignmentEvidence(
                 kind="matching_number",
@@ -299,7 +307,7 @@ def _evidence_for(
                 # see the change; a span holding only the child's number
                 # says a number appeared, not that a result moved.
                 spans=tuple(shared_numbers[:8] + child_only[:8] + parent_only[:8]),
-                weight=min(1.0, len(shared_numbers) / 10.0) if shared_numbers else 0.0,
+                weight=weight,
             )
         )
 

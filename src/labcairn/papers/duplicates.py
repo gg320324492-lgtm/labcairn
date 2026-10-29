@@ -108,25 +108,42 @@ class GapReport:
 
 
 def _round_from_label(label: str) -> int | None:
-    """The round a label suggests, or ``None``.
+    """The round a label declares, or ``None``.
 
     **This reads a label, and it decides nothing.** It answers one narrow
-    question — *"does this name carry a round number?"* — so that a gap in
-    the sequence can be **reported**. The order of the versions still comes
-    from the edges, and a label that carries no round is a version whose
+    question — *"does this name declare a round?"* — so that a gap in the
+    sequence can be **reported**. The order of the versions still comes
+    from the edges, and a label that declares no round is a version whose
     round is unknown rather than a version in round zero.
 
-    **And a label that suggests a round does not become one.** The design
+    **And a label that declares a round does not become one.** The design
     says the order is never taken from a file name; a name that carries a
     number is a *hint about what a person called the file*, and the hint is
     reported, never obeyed.
+
+    **Only an explicit marker counts.** The design's own vocabulary is
+    ``v2``, ``version 2``, ``第2稿`` -- a number with something around it
+    that says it is a round. A bare number in a name is not one:
+    ``experiment2.csv`` is not round two, and reading it as such would put
+    a version in a place the archive has no evidence for. The patterns are
+    therefore anchored on both sides.
     """
     import re
 
-    for match in re.finditer(r"(?<!\d)(\d{1,3})(?!\d)", label):
-        number = int(match.group(1))
-        if 0 < number < 1000:
-            return number
+    patterns = (
+        # v2, v02, V2 -- a letter, the number, and nothing else.
+        r"(?<![A-Za-z0-9])v(\d{1,3})(?![A-Za-z0-9])",
+        # version 2, revision 2, round 2, draft 2 -- a word and a number.
+        r"(?<![A-Za-z])(?:version|revision|round|draft|copy|稿|版本|轮)\s*[-_]?\s*(\d{1,3})(?![0-9])",
+        # 第2稿, 第 2 版 -- the number between two Chinese characters.
+        r"第\s*(\d{1,3})\s*[稿版]",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, label, flags=re.IGNORECASE)
+        if match:
+            number = int(match.group(1))
+            if 0 < number < 1000:
+                return number
     return None
 
 
