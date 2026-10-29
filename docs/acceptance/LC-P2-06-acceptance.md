@@ -4,8 +4,9 @@
 **Subtasks:** T00–T06.
 **Task breakdown:** [`docs/plans/LC-P2-06-task-breakdown.md`](../plans/LC-P2-06-task-breakdown.md)
 **ADR:** [`ADR-0015`](../adr/ADR-0015-dataset-consent-and-access.md)
-**Status of the work order:** **implemented and measured**, and **not
-independently reviewed** — see §6.
+**Status of the work order:** **implemented and measured**, and
+**independently reviewed** against the merged tree at `ff93b1d` — see §3.3
+and §6.
 **Measured:** 2026-10-29 on the tree at `d7de4fb`.
 
 **What this is.** The consent machinery for the mentor-trajectory line: a
@@ -32,7 +33,7 @@ person's**; this is the mechanism that enforces it.
 |---|---|---|
 | A1 | Material with no grant is not readable | `test_material_with_no_grant_is_not_readable` — **and the witness is a file that could not be opened**, so an open would fail the test |
 | A2 | The refusal names what is missing and what would satisfy it | `test_a_refusal_names_what_would_satisfy_it` |
-| A3 | `external_transmit` and `train_reuse` are denied by absence | `test_a_permission_with_no_row_is_denied_by_absence` |
+| A3 | `external_transmit` and `train_reuse` are denied by absence | `test_a_permission_with_no_row_is_denied_by_absence` — **and `test_a_grant_for_one_permission_does_not_answer_for_another`**, which holds the purpose fixed and changes the permission, because a read grant is not a training grant |
 | A4 | A grant naming provider A does not authorise provider B | `test_a_grant_for_one_destination_does_not_authorise_another` |
 | A5 | A transmit grant with no destination is refused by the schema | `test_a_transmit_grant_with_no_destination_is_refused` |
 | A6 | A request with no transmit grant is refused and the approval is not spent | `test_a_request_without_a_transmit_grant_is_refused_and_the_approval_is_unspent` |
@@ -42,7 +43,7 @@ person's**; this is the mechanism that enforces it.
 | A10 | `owner_id` authorises nothing | `test_the_owner_scope_authorises_nothing` |
 | A11 | No real material reaches the repository or a CI artefact | `test_no_real_material_reaches_the_repository_or_a_ci_artefact` |
 | A12 | The archive guards refuse what the design names | `test_the_archive_guards_refuse_what_the_design_names` |
-| A13 | The demo is run by a test | `test_the_consent_demo_runs` |
+| A13 | The demo is run by a test | `test_the_consent_demo_runs` — **and `test_the_demonstrations_guards_are_guards`**, because a demonstration that runs is not a demonstration that still asserts |
 | A14 | The refusal reasons are in the enumeration the CLI renders | the existing enumeration witness |
 
 **The names in this table are the work order's, and the tests were renamed
@@ -51,7 +52,7 @@ supposed to meet it.
 
 ## 3. The mutations, and what each broke
 
-**Seventeen mutations were applied.** Each is recorded here with the test that
+**Twenty-one mutations were applied.** Each is recorded here with the test that
 caught it.
 
 | # | The mutation | What went red |
@@ -73,6 +74,10 @@ caught it.
 | 15 | the intake's macro check is dropped | `test_the_archive_guards_refuse_what_the_design_names` |
 | 16 | the intake's grant gate is removed | `test_the_archive_guards_refuse_what_the_design_names` |
 | 17 | a training use with no grant is permitted by default | `test_a_permission_with_no_row_is_denied_by_absence` |
+| 18 | the covering test drops the grant's **permission** clause, so a read grant answers a training use | `test_a_grant_for_one_permission_does_not_answer_for_another` — **the only test in the suite that notices** |
+| 19 | every `check()` in the demonstration's step 2 is deleted | `test_the_demonstrations_guards_are_guards` |
+| 20 | the grant table grows a `permitted` column | `test_the_table_holds_only_grants_and_therefore_has_no_way_to_say_denied`, and `test_the_migrated_schema_matches_the_orm_models` |
+| 21 | the scope is asked about the **subject** rather than about the material | `test_a_grant_whose_scope_does_not_reach_the_material_is_refused`, and `test_a_wildcard_scope_does_not_cover_a_sibling` |
 
 ### 3.1 The one that was reported as surviving and was not
 
@@ -94,18 +99,38 @@ that is neither committed nor ignored **lands in the source distribution**.
 An index-only check would not have seen it, and the material would have
 shipped.
 
+### 3.3 The four the independent review found unwatched
 
-### 3.1 The one that was reported as surviving and was not
+**An independent review of the merged tree at `ff93b1d` read the property
+list against the tree and found four properties the suite stated and did not
+watch.** None of them is a defect in the shipped behaviour: the product
+refuses correctly in every one of these cases, and the review measured
+that. **What was missing was a test that would notice if it stopped**, and
+mutations 18–21 are the witnesses that were added.
 
-**Mutation 7's first attempt changed nothing.** The text inserted was
-``if False: pass`` immediately before the real check, so the check still
-ran and the suite stayed green — and the mutation was about to be reported
-as surviving. **It was not a mutation at all**, and the way to know was to
-look at what the code did rather than at what the test said.
+**The row that is worth reading twice is 21.** The scope witness refused
+for the right answer and the wrong reason: its scope did not cover the
+subject either, so a check that conflated the two coordinate systems still
+refused, and the witness could not tell the difference. **It was green
+under the mutation, and the way to know was to apply the mutation and read
+which test went red** — the sibling witness, and not the one whose name
+matches the property. The witness now uses grants whose scope reaches the
+subject and not the material named.
 
-**The rule, which is in the review points and in the mutation memory:**
-*a mutation must make an assertion fail*, and a survivor must be checked
-for having been applied at all.
+**And row 18 is the axis that had no witness at all.** Every other witness
+in the consent suite asked a question in which the *purpose* already
+excluded the grant, so the permission clause was never the binding
+constraint: **the whole suite was green under the mutation**, and the
+permission was the one axis of the four that nothing held.
+
+**The tree was restored after each mutation**, and the mutations were
+checked against the shipped tree before they were checked against the
+mutation — a mutation that never applied looks exactly like a success.
+
+**And one record was corrected.** ADR-0015 D1's column list named twelve
+columns and omitted the destination its own D3 requires and the schema has
+carried since the table was created. **The list is the shape of the row**,
+and the witness for that shape now asserts the whole set.
 
 ## 4. What the tests found in the implementation
 
@@ -204,12 +229,20 @@ evidence until a runner says otherwise; the run that will replace it is
 the CI run on PR #128, and its shard costs replace the apportioned ones
 in the same round.
 
-## 6. What this work order has not had
+**The four witnesses of §3.3 were added after that measurement, so the
+number above does not count them.** The measurement belongs to `d7de4fb`
+and to nothing later, and the rule is the project's own: *a value that can
+change is re-measured, not carried forward*.
 
-- **No independent review.** The project's rule is that a work order is
-  accepted on an independent review at a named commit, and the owner's
-  ruling of 2026-10-29 moves the review after the merge, to be run by
-  another agent against the merged tree.
+## 6. The review, and what is still open
+
+- **The independent review has been carried out** against the merged tree
+  at `ff93b1d`, and it found four properties the suite stated and did not
+  watch. **They are the four of §3.3**, and they are witness gaps rather
+  than defects in the behaviour. The review's own document is
+  `docs/acceptance/LC-P2-06-review.md` — **not linked here, because it is
+  not in this tree**, and a link the tree cannot resolve is a link the
+  link watcher would (and does) refuse.
 - **The review points are recorded**, in
   [`docs/plans/PHASE_2-review-points.md`](../plans/PHASE_2-review-points.md),
   with the mutations and the witnesses that catch them — eighteen
