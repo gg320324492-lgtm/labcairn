@@ -276,6 +276,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_refusal_witnesses.py": ("negative", "insufficient-evidence"),
     "test_smoke_path.py": ("e2e", "fresh-install"),
     "test_ci_shard_coverage.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_parallel_temp_isolation.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_readme_accuracy.py": (REPOSITORY_CLASS, "repository-gate"),
