@@ -203,6 +203,17 @@ claim of a passing run.
 The [gate review](../acceptance/G5-acceptance.md)
 carries the method and every finding.
 
+**§1.4.1b is ruled too, and the harness has the answer rather than a note
+beside it** (2026-10-29). A skip whose reason names **a fact of the machine** —
+an OS, a filesystem, a volume with no 8.3 short names — does not fail a blocker,
+because the CI matrix runs both platforms and no single runner carries the pair;
+**any other skip fails it**, by name and with the reason the test gave, for a
+blocker's own witness cases and for the sixth blocker's required CI tests alike.
+The accepted ones are **named in the row, case by case, in the tests' own
+words**. The owner was asked whether the ruling covers witness cases and not
+only the sixth blocker's required tests, and chose **all blockers** — which is
+what the second blocker's FAILED row needed.
+
 **The licence audit's factual half is done**
 (`acceptance/LC-P1-14-font-licence-audit.md`): no third-party font file
 reaches any artefact, so the GPL font reportlab bundles does not attach to
@@ -223,7 +234,12 @@ watched on every platform (`tests/test_earlier_exit_demos.py`). **That skip was
 itself the finding**: it outlived the defect, and the harness counts a skipped
 witness as a failed blocker, so the protocol's first blocker was held down by a
 reason that had already been fixed (the gate's own review records it as S6/R3,
-found independently by both parties).
+found independently by both parties). **§1.4.1b's ruling keeps that case
+failing**: the categories turn on what the skip's own reason says, and a reason
+that names an open product defect names no fact of the machine —
+`test_a_witness_skip_outside_the_accepted_categories_still_fails` is the witness
+that such a skip still holds its blocker down. The two are classified apart on
+purpose: a defect-skip is one the suite must not settle for.
 
 ## How G4 went
 

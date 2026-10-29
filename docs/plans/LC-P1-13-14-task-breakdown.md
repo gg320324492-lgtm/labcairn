@@ -176,6 +176,35 @@ So the choice is made here, once, and the harness is told the answer.
   protocol is amended, which is a bigger change than either of the above
   and needs its own record.
 
+**Ruled 2026-10-29, and the harness now carries the answer.** The owner's
+ruling is **neither option whole**: a skip whose reason names a **fact of the
+machine** — an OS, a filesystem, a volume that generates no 8.3 names — **does
+not** fail a blocker, because the CI matrix runs both platforms and no single
+runner carries the pair; **any other skip does fail it**, by name and with the
+reason the test gave. The owner chose the wider scope when asked whether it
+covers witness cases and not only the sixth blocker's required tests, because
+the second blocker was failing on exactly this.
+
+So `tests/evaluation/aggregate.py` classifies every non-passing witness case
+and every excluded required CI test into **standing categories** — a platform
+or filesystem fact, a class the owner has ruled is discharged outside the
+offline run (§1.4.2's answer), and a file this run simply did not select, which
+is scope and not a skip — and one failure mode. The accepted categories are
+**named in the blocker's row, case by case and in the test's own words**: an
+acceptance that hides what it accepted is the same invisibility the sixth
+blocker exists to close. The phrases that make a reason a machine fact are read
+out of the skip's own wording, so the declaration lives with the skip and there
+is no second list to keep in step; a new conditional skip whose wording misses
+them **fails, loudly**, and the remedy is to add the phrase with a sentence
+about which fact of the machine it names. `test_every_platform_phrase_is_carried_by_a_skip_in_the_tree`
+watches that every phrase is still said by something in the tree.
+
+**What this is not.** It is not an amendment of `EVALUATION.md`, whose sixth
+blocker still reads *"Required CI tests are skipped, ignored or only pass by
+mocking the actual behavior under acceptance"*. The protocol is the ruler and
+this is the harness's reading of one clause in it, recorded here so the reading
+can be checked against the ruling.
+
 #### 1.4.2 Which provider, and whose credential, for the real smoke
 
 **The facts:** `EVALUATION.md` requires *"at least one real supported

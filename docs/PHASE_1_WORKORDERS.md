@@ -65,6 +65,22 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
   review of those two gates remains an open follow-up, named as such rather
   than papered over.
 
+**Ruled 2026-10-29, and landed in the harness rather than only recorded:**
+
+- **§1.4.1b (whether a declared skip counts as a blocker that did not hold).**
+  The owner's ruling is split by **what the skip's own reason says**: a reason
+  naming **a fact of the machine** (an OS, a filesystem, a volume with no 8.3
+  short names) does **not** fail a blocker, because the CI matrix runs both
+  platforms and no single runner carries the pair; a reason naming **no**
+  standing category **does** fail it, by name and with the reason recorded. A
+  test in a class the owner ruled discharged outside the offline run (§1.4.2),
+  and a file a partial run did not select, are standing categories too. The
+  owner was asked whether this covers witness cases and not only the sixth
+  blocker's required CI tests, and chose **all blockers** — which is what the
+  second blocker's FAILED row on Windows needed. Accepted exclusions are **named
+  in the row**, so an acceptance never hides what it accepted. This is the
+  harness's reading of one clause of `EVALUATION.md`, not an amendment of it.
+
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 
 | Issue | Owner work order | Note |
