@@ -467,7 +467,9 @@ describing it:
   (scope, not a skip), nor one it asked pytest for in which no case was
   collected;
 - **any other skip fails it**, by name and with the reason the test gave;
-- and every accepted exclusion is **named in the row**, in the test's own words.
+- and every accepted exclusion is **named in the row**: a witness case by its
+  node id and the reason pytest recorded, a required CI test by its file under
+  the standing category it fell in.
 
 The owner was asked whether the ruling covers witness cases and not only the
 sixth blocker's required CI tests, and chose **all blockers** — which is what
@@ -483,7 +485,7 @@ At `22e2f2d`, on a clean tree (`--out` under the system temp directory,
 | Fake citation presented as verified or unsupported numerical fact presented as measured. | **HELD** | 4 | 0 | every witness was collected and passed |
 | A crash silently repeats unknown file side effects. | **HELD** | 4 | 0 | every witness was collected and passed |
 | Report claims a verified scientific result based solely on schema or rendering checks. | **HELD** | 3 | 0 | every witness was collected and passed |
-| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | 0 | every witness passed, and the row names the four required tests it accepted and the categories they fall in |
+| Required CI tests are skipped, ignored or only pass by mocking the actual behavior under acceptance. | **HELD** | 3 | 0 | every witness passed, and the row names the six required test **files** it accepted, in the three categories: two skipped for a fact of the machine, one in a class discharged outside the run, three in which pytest collected no case |
 
 **All six hold, and the second one holds by being told what to accept.** Its row
 carries the three cases verbatim, because an acceptance that does not say what
@@ -542,13 +544,13 @@ check this ruling, and both are witnessed.**
 
 ## 9. The witnesses, and the mutation table
 
-`tests/test_evaluation_harness.py` — **72 test functions, 73 test cases** (one
+`tests/test_evaluation_harness.py` — **74 test functions, 75 test cases** (one
 of them is parameterised), and each one names the property it holds. **The table
 below is re-read from the file, not remembered**:
 `test_the_evaluation_record_names_every_witness_in_this_file` fails if a witness
-this file defines is missing from it, which is the only way a table like this
-one stays true — it had drifted by thirty functions before that witness was
-written.
+this file defines has no row in it, or if the count above is not the number of
+`def test_` in the file — which is the only way a table like this one stays true.
+It had drifted by thirty functions before that witness was written.
 
 A mechanism that nobody watches can be neutered, and then the tree stays
 green while the evaluation stops measuring anything.
@@ -569,6 +571,8 @@ green while the evaluation stops measuring anything.
 | `test_every_witness_file_is_one_the_partition_files` | A witness outside the partition would never run, and would look like a pass |
 | `test_a_real_pytest_run_is_read_as_outcomes` | The runner and the JUnit reader work on a real pytest run |
 | `test_a_real_run_keys_a_test_class_to_the_file_it_lives_in` | A case in a class belongs to the file the shard list names |
+| `test_a_file_attribute_still_keeps_the_test_class` | A report that names the file still has the class in its classname |
+| `test_the_blockers_table_says_what_its_cases_column_counts` | A HELD blocker can carry cases that did not pass, and the column says so |
 | `test_the_junit_reader_tells_a_skip_from_an_expected_failure` | A pytest.skip and an xfail are both <skipped> elements |
 | `test_the_junit_reader_refuses_a_report_that_is_not_there` | A missing report is an error, not an empty result |
 | `test_the_runner_refuses_a_temporary_directory_inside_the_repository` | A temporary directory inside the checkout makes the run depend on the tree |
@@ -655,14 +659,18 @@ restored.
 |---|---|---|
 | M11 | the runner stops naming the tree to the JUnit reader | `test_a_real_run_keys_a_test_class_to_the_file_it_lives_in` — **RED**: a real pytest subprocess over `tests/test_skill_ledger.py` keyed its 22 cases to `tests/test_skill_ledger/TestDigests.py` |
 | M12 | a file that collected nothing is reported as one the run never selected | `test_a_required_test_that_collected_nothing_is_named_as_that` — **RED**: `assert 'not-in-this-run' == 'selected-and-collected-nothing'` |
-| M13 | the accepted listing counts cases instead of files | `test_one_file_with_three_skips_is_counted_as_one_file` — **RED**: the row said *"accepted 3 required CI test(s)"* and named one file three times |
+| M13 | the accepted listing counts cases instead of files | see M21 — the same mutation, applied again after its witness was written |
 | M14 | the witness acceptance is removed | `test_a_platform_conditional_witness_skip_is_accepted_and_named` — **RED**: `assert 'FAILED' == 'HELD'` |
 | M15 | every skipped witness is accepted, whatever its reason says | `test_a_witness_skip_outside_the_accepted_categories_still_fails` — **RED**: `assert 'HELD' == 'FAILED'` |
 | M16 | a phrase nothing in the tree says is added to the list | `test_every_platform_phrase_is_carried_by_a_skip_in_the_tree` — **RED**: *"these phrases match no skip in the tree: ('a phrase nothing says',)"* |
-| M17 | the platform branch of the classifier is dropped | `test_a_platform_conditional_skip_is_accepted_and_named` and `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` — **RED**: both rows said FAILED |
+| M17 | the platform branch of the classifier is dropped | `test_a_platform_conditional_skip_is_accepted_and_named`, `test_a_platform_conditional_witness_skip_is_accepted_and_named`, `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` and `test_one_file_with_three_skips_is_counted_as_one_file` — **four RED**, every row that was HELD became FAILED |
 | M18 | "this run did not select" is folded into "undeclared" | `test_a_required_test_the_run_did_not_select_is_not_called_a_skip` — **RED**: `assert 'FAILED' == 'HELD'` |
 | M19 | "a class discharged outside this run" is folded into "undeclared" | `test_the_real_model_smoke_file_is_accepted_as_ruled_elsewhere` — **RED**: the row no longer named `test_real_provider_smoke.py` under that standing |
 | M20 | a required test skipped with no standing category no longer fails the blocker | `test_a_skip_that_names_no_standing_category_fails_the_blocker` and `test_the_exclusion_is_in_the_rendered_report` — **RED**: `assert 'HELD' == 'FAILED'`, and the rendered page carried no **FAILED** row |
+| M21 | the accepted listing counts cases instead of files | `test_one_file_with_three_skips_is_counted_as_one_file` — **RED**: the row said *"accepted 3 required CI test(s)"* and named one file three times |
+| M22 | the JUnit reader drops the class when the XML names the file | `test_a_file_attribute_still_keeps_the_test_class` — **RED**: two cases in two classes collapsed to one node id |
+| M23 | the blockers table's column header is the bare word "Cases" | `test_the_blockers_table_says_what_its_cases_column_counts` — **RED**: the header carried no statement of what the number counts |
+| M24 | the function count above is put back to the stale `**39 test functions**` | `test_the_evaluation_record_names_every_witness_in_this_file` — **RED**: *"the record says 39 test functions; this file defines 74"* |
 | M21 | a row of the witness table above is renamed, then deleted | `test_the_evaluation_record_names_every_witness_in_this_file` — **RED** both times: *"the evaluation record's witness table has no row for these witnesses"* |
 
 **M21 needed two tries to become a witness.** Its first version asked whether the

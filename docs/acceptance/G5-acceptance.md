@@ -544,9 +544,10 @@ above whole**:
 - **Any other skip fails it**, by name and with the reason the test gave — for
   a blocker's own witness cases and for the sixth blocker's required CI tests,
   which are read out of the CI's own shard list.
-- The accepted exclusions are **named in the row, case by case, in the tests'
-  own words.** An acceptance that hides what it accepted is the same
-  invisibility this blocker exists to close.
+- The accepted exclusions are **named in the row**: a witness case by its node id
+  and the reason pytest recorded, a required CI test by its file, under the
+  standing category it fell in. A refused skip carries both. An acceptance that
+  does not say what it accepted is the invisibility this blocker exists to close.
 
 **Which is why the second blocker's status changes.** It was FAILED on Windows
 because three of its witness cases skip for platform facts — the POSIX half of

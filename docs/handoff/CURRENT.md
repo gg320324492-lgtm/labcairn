@@ -207,10 +207,11 @@ carries the method and every finding.
 beside it** (2026-10-29). A skip whose reason names **a fact of the machine** —
 an OS, a filesystem, a volume with no 8.3 short names — does not fail a blocker,
 because the CI matrix runs both platforms and no single runner carries the pair;
-**any other skip fails it**, by name and with the reason the test gave, for a
+**any other skip fails it**, by name and with the reason recorded, for a
 blocker's own witness cases and for the sixth blocker's required CI tests alike.
-The accepted ones are **named in the row, case by case, in the tests' own
-words**. The owner was asked whether the ruling covers witness cases and not
+The accepted ones are **named in the row** — a witness case by its node id and
+pytest's own reason, a required CI test by its file under the category it fell
+in. The owner was asked whether the ruling covers witness cases and not
 only the sixth blocker's required tests, and chose **all blockers** — which is
 what the second blocker's FAILED row needed.
 

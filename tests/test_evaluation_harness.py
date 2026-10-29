@@ -421,6 +421,61 @@ def test_a_real_run_keys_a_test_class_to_the_file_it_lives_in(
     )
 
 
+def test_a_file_attribute_still_keeps_the_test_class(tmp_path: Path) -> None:
+    """A report that names the file still has the class in its classname.
+
+    **Why this is a separate case.** pytest's legacy JUnit family writes a
+    `file` attribute; the current default does not. Reading the file from that
+    attribute and then dropping the class is the same collision the tree-read
+    avoids — two classes with one test name become one node id — and it arrives
+    the moment someone sets `junit_family`. So the classname is still consulted,
+    against the now-known module prefix.
+    """
+    rows = "\n".join(
+        '  <testcase classname="tests.test_x.Test' + cls + '" name="test_same_name"'
+        ' file="tests/test_x.py" time="0.001"/>'
+        for cls in ("First", "Second")
+    )
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        f'<testsuites><testsuite name="pytest" tests="2">\n{rows}\n</testsuite></testsuites>\n'
+    )
+    path = tmp_path / "junit.xml"
+    path.write_text(xml, encoding="utf-8")
+    outcomes = parse_junit(path, repo_root=tmp_path)
+    assert [outcome.file for outcome in outcomes] == ["tests/test_x.py"] * 2
+    assert outcomes[0].node_id == "tests/test_x.py::TestFirst::test_same_name"
+    assert len({outcome.node_id for outcome in outcomes}) == 2, (
+        "two cases with the same name in two classes collapsed into one node id"
+    )
+
+
+def test_the_blockers_table_says_what_its_cases_column_counts() -> None:
+    """A HELD blocker can carry cases that did not pass, and the column says so.
+
+    **The row that made this a requirement.** §1.4.1b accepts three platform
+    skips on the second blocker and names them in its reason; the number in the
+    column beside the status is the count of the cases that did not pass, which
+    is not zero. A header that says only *"Cases"* invites a reader to multiply
+    it into *"three cases failed this blocker"*, and the row says the opposite.
+    """
+    blockers = _blockers_with([], set())
+    evaluation = EvaluationRun(
+        repo_root=str(_ROOT),
+        revision="abc123",
+        protocol_path="docs/EVALUATION.md",
+        classes=(),
+        blockers=tuple(blockers),
+        metrics=(),
+        comparison=assess(ComparisonBasis(label="run"), ComparisonBasis(label="baseline")),
+        duration_seconds=0.0,
+        command="python -m tests.evaluation",
+    )
+    markdown = render_markdown(evaluation, "the benchmark clause", "the superiority clause")
+    assert "| Cases that did not pass |" in markdown
+    assert "| Cases |" not in markdown
+
+
 def test_the_junit_reader_tells_a_skip_from_an_expected_failure(tmp_path: Path) -> None:
     """A ``pytest.skip`` and an ``xfail`` are both ``<skipped>`` elements.
 
@@ -2349,4 +2404,9 @@ def test_the_evaluation_record_names_every_witness_in_this_file(repo_root: Path)
     assert not missing, (
         "the evaluation record's witness table has no row for these witnesses, so "
         f"it is a memory rather than a reading: {missing}"
+    )
+    stated = re.search(r"\*\*(\d+) test functions", record.read_text(encoding="utf-8"))
+    assert stated is not None and int(stated.group(1)) == len(here), (
+        f"the record says {stated.group(1) if stated else 'nothing'} test functions; "
+        f"this file defines {len(here)}"
     )

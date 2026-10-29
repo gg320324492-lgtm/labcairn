@@ -216,7 +216,9 @@ def render_markdown(run: EvaluationRun, benchmark_clause: str, superiority_claus
 
     lines.append("## The Phase 1 blockers")
     lines.append("")
-    lines.append("| Blocker | Status | Witnesses | Cases | What the status means |")
+    lines.append(
+        "| Blocker | Status | Witnesses | Cases that did not pass | What the status means |"
+    )
     lines.append("|---|---|---|---:|---|")
     for blocker in run.blockers:
         cases = sum(

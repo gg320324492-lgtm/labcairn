@@ -69,10 +69,21 @@ def _location(case: ElementTree.Element, classname: str, repo_root: Path | None)
     dotted prefix that is an actual file is the module, and what is left is the
     class path. Without a tree to ask, the old guess is all there is, and it is
     stated in the fallback rather than in a promise.
+
+    **A `file` attribute does not end the question.** pytest's legacy JUnit
+    family writes one, and it names the file while the classname still carries
+    the class, so the class is taken from the classname against that known
+    prefix rather than dropped — which is the same collision the tree-read
+    avoids, arriving by a different route.
     """
     given = case.get("file")
     if given:
-        return given.replace("\\", "/"), ""
+        file = given.replace("\\", "/")
+        stem = file[:-3] if file.endswith(".py") else file
+        prefix = stem.replace("/", ".")
+        if classname.startswith(prefix + "."):
+            return file, "::".join(classname[len(prefix) + 1 :].split("."))
+        return file, ""
     if not classname:
         return "", ""
     parts = classname.split(".")

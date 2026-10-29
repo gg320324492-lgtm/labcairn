@@ -75,7 +75,9 @@ The links are the records.
   run did not select and a file in which pytest collected no case are named as
   what they are, and **any other skip fails the blocker** — for a blocker's own
   witnesses and for the sixth blocker's required CI tests alike. Accepted
-  exclusions are printed in the row, in the tests' own words. Scope: the owner
+  exclusions are printed in the row — a witness case by its node id and pytest's
+  own reason, a required CI test by its file under the category it fell in.
+  Scope: the owner
   chose **all blockers**, not only the sixth, which is what the second blocker's
   Windows row needed. `docs/EVALUATION.md` is not amended — this is the harness's
   reading of one clause, recorded so it can be checked.
@@ -90,7 +92,13 @@ The links are the records.
   denominator: the `unsupported-claim-detection` metric reported **34/34** witness
   cases where the tree held **82**. The reader now takes the module from the tree
   (the longest dotted prefix that is an actual file), the test class stays in the
-  node id, and `tests/evaluation/runner.py` names the tree it is reading.
+  node id, and `tests/evaluation/runner.py` names the tree it is reading. The
+  same class is kept when a report carries a `file` attribute (pytest's legacy
+  JUnit family writes one), so switching `junit_family` cannot reintroduce the
+  collision. And the blockers table's column that counts cases which did not
+  pass — three, on the second blocker, all of them accepted platform skips — now
+  says **"Cases that did not pass"** instead of a bare *"Cases"*, because a HELD
+  blocker beside the number 3 invites exactly the wrong reading.
 - **Three CI shard files that collect nothing are reported as such.**
   `test_store_support.py`, `test_recovery_support.py` and `test_skill_support.py`
   are support modules other tests import; they are filed in a gate class and in

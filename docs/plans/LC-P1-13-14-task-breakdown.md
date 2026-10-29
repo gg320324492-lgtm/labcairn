@@ -188,11 +188,13 @@ the second blocker was failing on exactly this.
 So `tests/evaluation/aggregate.py` classifies every non-passing witness case
 and every excluded required CI test into **standing categories** — a platform
 or filesystem fact, a class the owner has ruled is discharged outside the
-offline run (§1.4.2's answer), and a file this run simply did not select, which
-is scope and not a skip — and one failure mode. The accepted categories are
-**named in the blocker's row, case by case and in the test's own words**: an
-acceptance that hides what it accepted is the same invisibility the sixth
-blocker exists to close. The phrases that make a reason a machine fact are read
+offline run (§1.4.2's answer), a file this run simply did not select (scope and
+not a skip), and a file it asked pytest for in which no case was collected — and
+one failure mode. The accepted categories are **named in the blocker's row**: a
+witness case by its node id and the reason pytest recorded, a required CI test by
+its file under the category it fell in, and a refusal carries both. An acceptance
+that hides what it accepted is the same invisibility the sixth blocker exists to
+close. The phrases that make a reason a machine fact are read
 out of the skip's own wording, so the declaration lives with the skip and there
 is no second list to keep in step; a new conditional skip whose wording misses
 them **fails, loudly**, and the remedy is to add the phrase with a sentence
