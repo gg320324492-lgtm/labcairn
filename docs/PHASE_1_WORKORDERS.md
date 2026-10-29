@@ -80,6 +80,11 @@ A work order being accepted is not a gate being closed. G1 closes when all four 
   second blocker's FAILED row on Windows needed. Accepted exclusions are **named
   in the row**, so an acceptance never hides what it accepted. This is the
   harness's reading of one clause of `EVALUATION.md`, not an amendment of it.
+  **Landed as PR #122**: reviewed independently at `e9b56ba` (verdict **FAIL** on
+  one number in the record — *"the four required tests it accepted"* where the
+  quoted row names six files — plus four notes, all re-tested and all fixed at
+  `00dcb84`), 17 checks green on both runners, merged at `16517e6`. The measured
+  table is [the evaluation record's §8](acceptance/LC-P1-13-evaluation.md).
 
 **Carried open issues** — not owned by any single work order, each needs a decision before it can be closed:
 
