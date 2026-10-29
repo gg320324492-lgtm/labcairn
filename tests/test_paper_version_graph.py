@@ -35,6 +35,7 @@ these say that what they agree on is the right thing.
 
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -52,15 +53,31 @@ pytestmark = pytest.mark.unit
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
 
-@pytest.fixture()
-def store(tmp_path: Path) -> TaskStore:
-    """A migrated store, with one project and two sources to hang things on."""
-    database = tmp_path / "versions.db"
+@pytest.fixture(scope="module")
+def migrated_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """The migrated database, **once for the whole module**, with the seed rows.
+
+    **Why the migration is not per test.** The first version of this file
+    migrated in a function-scoped fixture, and the runner's measurement
+    found the cost: **38 seconds on Windows**, against 1.97 on Ubuntu. The
+    cause was the migration itself, run twelve times, once per test.
+
+    **And the number is the point.** The apportioned cost -- what the
+    shard table carried before this file was ever executed -- said 0.64
+    seconds, and the measured cost was **38**. A file that costs sixty
+    times its apportioned estimate is a file that would have been placed
+    wrongly in the partition, and **the partition is balanced on the
+    measured numbers.** Migrating once is both faster and more honest.
+
+    **The seed rows live here too**, so the copy below carries them and
+    every test starts from the same state.
+    """
+    directory = tmp_path_factory.mktemp("version-graph")
+    database = directory / "template.db"
     upgrade_to_head(database)
+
     engine = create_db_engine(database)
     session = create_session_factory(engine)()
-    task_store = TaskStore(session)
-
     session.execute(
         text(
             "INSERT INTO sources (source_id, owner_id, kind, display_name, "
@@ -90,7 +107,26 @@ def store(tmp_path: Path) -> TaskStore:
         {"t": NOW.isoformat()},
     )
     session.commit()
-    return task_store
+    session.close()
+    engine.dispose()
+    return database
+
+
+@pytest.fixture()
+def store(migrated_database: Path, tmp_path: Path) -> TaskStore:
+    """A store on a **copy** of the migrated database.
+
+    **A copy, and not the template itself.** The tests write rows and some
+    of them are meant to be refused, so a refused write leaves the
+    transaction in a state the next test must not inherit. A copy is a
+    fresh database per test, and a file copy is a fraction of the cost of
+    running the migrations again.
+    """
+    database = tmp_path / "versions.db"
+    shutil.copyfile(migrated_database, database)
+    engine = create_db_engine(database)
+    session = create_session_factory(engine)()
+    return TaskStore(session)
 
 
 def _insert_version(session: Session, version_id: str, source_id: str, **overrides: object) -> None:
