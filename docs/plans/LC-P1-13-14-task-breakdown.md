@@ -62,6 +62,16 @@ the board and the handoff name them, and G5 has to cover them:
   found their defects and the fixes that answered them were the same party in
   every case, and the board's rule is that a row is marked done when an
   *independent* review says so.
+  **Corrected 2026-10-29.** This sentence's reason was wrong, though its
+  conclusion held: the gates' own records say the reviewer *"did not implement
+  any of this"* and call the method *"internal cross-validation by two agents,
+  not an external independent audit"*
+  ([`G2-acceptance.md:98`](../acceptance/G2-acceptance.md)). What makes the rule
+  unmet is that the reviewer was inside the project rather than an independent
+  party at a named commit — and, since the owner's ruling of 2026-10-28, that
+  the retro-review agents are **procedural independence, not human**. See
+  [`G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md),
+  prepared 2026-10-29 for the human review and not yet executed.
 - **G1's and G2's exit demonstrations are run by nothing.** No test and no CI
   job runs `examples/g1_exit_demo.py` or `examples/g2_exit_demo.py`, so they
   can rot without anyone noticing. **The repository says so itself, in two
