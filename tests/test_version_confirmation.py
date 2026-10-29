@@ -126,7 +126,7 @@ def test_an_acceptance_with_nobody_behind_it_is_refused() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_a_correction_writes_a_new_edge_and_leaves_the_old_one_readable() -> None:
+def test_a_correction_is_a_new_version_and_the_old_one_stays_readable() -> None:
     """**The rule this file exists for.**
 
     **What breaks it:** writing the corrected parent over the proposal.

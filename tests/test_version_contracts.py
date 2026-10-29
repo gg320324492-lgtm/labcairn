@@ -41,6 +41,7 @@ from labcairn.papers.versions import (
     StageCandidate,
     VersionEdge,
     VersionStatus,
+    check_edge_within_project,
 )
 
 
@@ -87,7 +88,7 @@ def test_a_version_cannot_be_its_own_parent() -> None:
     assert "cannot be its own parent" in str(refused.value)
 
 
-def test_a_human_decision_must_name_its_acceptor() -> None:
+def test_an_edge_with_no_acceptor_is_refused() -> None:
     """``source='human'`` with no ``accepted_by`` is refused.
 
     **What breaks it:** allowing it. The edge would read "a person decided
@@ -101,7 +102,7 @@ def test_a_human_decision_must_name_its_acceptor() -> None:
     assert "nobody behind it" in str(refused.value)
 
 
-def test_a_proposal_may_not_name_an_acceptor() -> None:
+def test_a_proposal_wearing_a_persons_name_is_refused() -> None:
     """``source='evidence'`` with an ``accepted_by`` is refused.
 
     **What breaks it:** allowing it. A proposal wearing a person's name is
@@ -236,7 +237,7 @@ def test_a_blank_project_id_is_refused() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_a_proposal_is_accepted_as_a_proposal() -> None:
+def test_a_confident_proposal_is_still_unaccepted() -> None:
     """An edge with no acceptor is a valid edge, and it says so.
 
     **This is the counterpart of the refusal above, and it is the one that
@@ -313,3 +314,57 @@ def test_an_edge_is_frozen() -> None:
     edge = VersionEdge(**_edge())
     with pytest.raises(ValidationError):
         edge.confidence = 0.1
+
+
+def test_a_version_with_no_established_parent_is_unresolved_and_listed() -> None:
+    """A version whose parent is unknown is ``unresolved``, and it is listed.
+
+    **What breaks it:** a version that only exists once its relationship is
+    known. The relationship cannot be established until the version is
+    recorded, so that rule would make the version unrecordable — and
+    **the absence of an edge is not the absence of a version**.
+
+    **And "listed" is the half that is easy to lose.** A version whose
+    parent is unknown is still material in the project; hiding it because
+    its relationship is unknown would make the archive look complete when
+    it is not.
+    """
+    version = PaperVersion(**_version())
+
+    assert version.status is VersionStatus.UNRESOLVED
+    # It is a version, and it is storable: the model does not require a
+    # parent, because a parent is a fact about an edge and this is a fact
+    # about a version.
+    assert version.version_id == "v1"
+    assert version.project_id == "proj-1"
+
+
+def test_an_edge_to_a_version_outside_the_project_is_refused() -> None:
+    """An edge may not name a version belonging to another manuscript.
+
+    **This is the check a CHECK constraint cannot make.** The schema sees
+    one row; this is a fact about three — the edge's project and the
+    projects of the two versions it names. A row can satisfy every column
+    constraint and still say that a version of one manuscript came from a
+    version of another.
+
+    **And an edge that crosses projects is a claim about a lineage that
+    does not exist.** The graph would show a paper that is its own
+    ancestor, and every count over the graph would be wrong.
+    """
+    edge = VersionEdge(**_edge())
+    other_project = PaperVersion(**_version(version_id="other-v1", project_id="proj-2"))
+    inside = PaperVersion(**_version(version_id="v1"))
+
+    # A version the caller does not hold is a refusal, not an assumption.
+    with pytest.raises(ValueError) as refused:
+        check_edge_within_project(edge, {"v2": inside})
+    assert "not among the versions given" in str(refused.value)
+
+    # And a version that belongs to another project is refused.
+    with pytest.raises(ValueError) as refused:
+        check_edge_within_project(edge, {"v1": inside, "v2": other_project})
+    assert "across projects" in str(refused.value)
+
+    # And the same edge, with both versions inside the project, is fine.
+    check_edge_within_project(edge, {"v1": inside, "v2": inside})

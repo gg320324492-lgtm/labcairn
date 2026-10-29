@@ -44,7 +44,7 @@ def _version(
 # --------------------------------------------------------------------------- #
 
 
-def test_the_same_name_with_different_bytes_is_two_versions() -> None:
+def test_two_files_with_the_same_name_and_different_bytes_are_two_versions() -> None:
     """**The design's case: 同名不同字节.**
 
     Two files called ``draft.docx`` with different content are two
@@ -66,7 +66,7 @@ def test_the_same_name_with_different_bytes_is_two_versions() -> None:
     assert report.has_duplicates is True
 
 
-def test_the_same_bytes_with_different_names_is_one_version() -> None:
+def test_the_same_bytes_are_one_version_whatever_the_name() -> None:
     """**The design's other case: 哈希一致不同名.**
 
     Two names, one set of bytes: the same document saved twice. **The
@@ -132,7 +132,7 @@ def test_a_label_with_no_round_is_reported_as_unlabelled() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_a_missing_round_is_reported() -> None:
+def test_a_missing_round_is_reported_and_nothing_is_invented() -> None:
     """v1, v2 and v4 has a missing v3, and the report says so.
 
     **What breaks it:** renumbering, or reporting the rounds as 1, 2, 3. A

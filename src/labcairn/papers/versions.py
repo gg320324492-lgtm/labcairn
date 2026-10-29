@@ -204,6 +204,12 @@ class VersionEdge(_Frozen):
     is that a human revision produces a new version rather than silently
     replacing what was there, so a correction carries a higher
     ``edge_version`` and names the edge it supersedes.
+
+    **And the two versions an edge names must belong to the same project
+    as the edge.** The schema cannot say that — a CHECK constraint sees
+    one row, and this is a fact about three — so the model says it, and
+    the project id is here for the caller to check it against the
+    versions it holds.
     """
 
     edge_id: NonEmptyText
@@ -471,3 +477,49 @@ def confirm_edge(
         decided_at=decided_at,
         reason=reason,
     )
+
+
+def check_edge_within_project(
+    edge: VersionEdge,
+    versions: dict[str, PaperVersion],
+) -> None:
+    """Refuse an edge whose versions belong to another project.
+
+    **This is the check a CHECK constraint cannot make.** The schema sees
+    one row; this is a fact about three — the edge's project, and the
+    projects of the two versions it names. A row can satisfy every
+    column constraint and still say that a version of one manuscript came
+    from a version of another.
+
+    **Why it matters.** An edge that crosses projects is a **claim about
+    a lineage**, and a lineage that crosses manuscripts is not a lineage at
+    all — it is two archives stitched together. The graph would then show
+    a paper that is its own ancestor, and every count over the graph would
+    be wrong.
+
+    **The versions are looked up by their own ids**, and a version the
+    caller does not hold is a **refusal** rather than an assumption: the
+    check cannot say a version is inside the project when it has not been
+    shown the version.
+
+    :raises ValueError: when a version is missing, or belongs to another
+        project.
+    """
+    for label, version_id in (
+        ("parent", edge.parent_version_id),
+        ("child", edge.child_version_id),
+    ):
+        version = versions.get(version_id)
+        if version is None:
+            raise ValueError(
+                f"edge {edge.edge_id!r} names {label} version {version_id!r}, "
+                f"which is not among the versions given. An edge may not "
+                f"point at a version nobody holds."
+            )
+        if version.project_id != edge.project_id:
+            raise ValueError(
+                f"edge {edge.edge_id!r} is in project {edge.project_id!r} but "
+                f"its {label} version {version_id!r} is in project "
+                f"{version.project_id!r}. An edge across projects is a "
+                f"claim about a lineage that does not exist."
+            )

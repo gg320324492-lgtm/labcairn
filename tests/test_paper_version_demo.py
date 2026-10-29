@@ -64,7 +64,7 @@ def demonstration(repo_root: Path) -> subprocess.CompletedProcess[str]:
     return completed
 
 
-def test_the_demonstration_exits_zero(demonstration: subprocess.CompletedProcess[str]) -> None:
+def test_the_paper_version_demo_runs(demonstration: subprocess.CompletedProcess[str]) -> None:
     """Every claim the demonstration makes still holds.
 
     **This is the assertion that matters.** The exit code carries every
