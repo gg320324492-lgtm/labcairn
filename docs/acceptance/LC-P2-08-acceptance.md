@@ -121,11 +121,48 @@ papered over.
 
 ## 5. The suite on this tree
 
-**Measured on `ef1a36c`** — the commit this record was written at.
+**Measured on `4aff29b`** — the commit the runner measured, and the tree
+this record was written at.
 
 ```
-(see the number below)
+3894 passed, 5 skipped, 0 failed, in 34 minutes 56 seconds
 ```
+
+**The five skips are all of the project's own accepted kinds**: a
+POSIX-only permission-bit case, the real-provider smoke that needs the
+owner's credential, and three Windows-path cases. **None of them is new**,
+and none of them is about this work order.
+
+**And the CI run on the same tree is green**: 17 checks, both platforms,
+all five shards each.
+
+### 5.1 The shard cost, and the sixty-fold error it caught
+
+**The two-step process found a real defect, and this is why it exists.**
+
+| | The apportioned cost | The measured cost |
+|---|---|---|
+| `test_paper_version_graph.py` on Windows | 0.64 s | **38.06 s** |
+
+The apportioned number is what the shard table carried before the file was
+ever executed, and it was **sixty times too small**. The cause was the
+fixture: the migration ran in a **function-scoped** fixture, so the whole
+schema was built twelve times, once per test, and the measured durations
+showed every test's *setup* at about a third of a second.
+
+**Fixed** — the migration runs once for the module and each test gets a
+**copy** of the migrated file (a copy matters: several of these tests have
+their writes *refused*, and a refused write leaves a transaction the next
+test must not inherit). The file went from 3.9 s to 0.4 s here, and from
+**38.06 s to 1.52 s** on the Windows runner.
+
+**A file placed on a sixty-fold error would have been put in the wrong
+shard**, and the partition is balanced on the measured numbers. The rule
+that the costs come from a runner is not ceremony: **the runner is the only
+place that can tell "this file is slow" from "this file migrates the
+schema twelve times."**
+
+`measured_at` is `4aff29b`, and both platforms balance at 1.000.
 
 ## 6. What this work order has not had
 
