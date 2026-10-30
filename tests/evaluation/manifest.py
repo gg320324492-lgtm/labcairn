@@ -316,6 +316,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # evidence, because an item with one reading, or with no arbiter, is an
     # item whose evidence is short.
     "test_gold_set_manifest.py": ("unit", "insufficient-evidence"),
+    # The corpus and the manifest that names it: every item names a comment
+    # the corpus has, the corpus section records the bytes that are written,
+    # the archives carry no clock, the feedback ids are the chain's own, and
+    # the annotations are all or nothing. Its clause is the dataset
+    # locators, because the property is that the gold set's rows address the
+    # material they name -- and that the two do not drift apart.
+    "test_gold_set_corpus.py": ("unit", "dataset-locators"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

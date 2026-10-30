@@ -189,7 +189,7 @@ exists and calls that an annotation.
 |---|---|
 | T00 | `src/labcairn/papers/labels.py`, `src/labcairn/papers/gold_manifest.py`, `tests/test_gold_set_labels.py` |
 | T01 | `docs/papers/annotation-guide.md` |
-| T02 | `docs/papers/gold-set-manifest.json`, `tests/fixtures/papers-gold/`, `tests/gold_set_fixtures.py` |
+| T02 | `docs/papers/gold-set-manifest.json`, `tests/fixtures/papers-gold/`, `tests/gold_set_fixtures.py`, `tests/test_gold_set_corpus.py` |
 | T03 | `tests/test_gold_set_agreement.py` |
 | T04 | `tests/test_gold_set_manifest.py` |
 | T05 | `docs/acceptance/LC-P2-10-acceptance.md`, `.github/ci-shards.json`, `tests/evaluation/manifest.py` |
@@ -212,6 +212,15 @@ project in two partitions, two readings by one annotator — while
 `require_annotated` says the *gold set* is finished. **Conflating them
 would mean the manifest T02 dispatches, whose readings nobody has written
 yet, could not be read at all.**
+
+**`tests/test_gold_set_corpus.py` watches the pair, and it was not in the
+first draft of this table.** The corpus and the manifest drift apart
+quietly: one is regenerated and the other is not, and every witness that
+reads the manifest alone stays green while the gold set starts pointing at
+comments that are no longer there. **The witnesses are written to hold
+either way** — the annotations are nobody's work yet, so they do not
+insist on that emptiness, only that whatever state the manifest is in is
+a state the completion check reads correctly.
 
 ## 7. What "done" means
 
