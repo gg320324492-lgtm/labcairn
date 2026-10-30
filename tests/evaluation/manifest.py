@@ -266,6 +266,19 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # version sits* in the graph; this one checks that what is stored is the
     # model and not the row.
     "test_version_store.py": ("integration", "typed-contracts"),
+    # LC-P2-09. The feedback chain. ``test_feedback_events.py`` carries the
+    # row's two addresses and the anchored text -- the locator clause, and
+    # the place the DOCX reader's own change is witnessed.
+    # ``test_edit_actions.py`` carries the actor kind's closed vocabulary:
+    # who made a change is a typed contract, and a model's change is not
+    # the advisor's. ``test_response_links.py`` carries the state machine:
+    # four states, and the rules about reaching them.
+    # ``test_followup_assessments.py`` carries the evidence an assessment
+    # needs of its own, and the recurrence an issue key makes visible.
+    "test_feedback_events.py": ("integration", "dataset-locators"),
+    "test_edit_actions.py": ("integration", "typed-contracts"),
+    "test_response_links.py": ("integration", "state-transitions"),
+    "test_followup_assessments.py": ("integration", "insufficient-evidence"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

@@ -38,6 +38,14 @@ indexes -- a schema that lost one silently would not fail anything.
 nullability, unique constraints and CHECK bodies, so a divergence here is
 a test failure rather than a discovery.
 
+**LC-P2-09 amended the vocabulary to name ``docx``.** ``SourceKind.DOCX``
+already existed and said a Word document *is* addressable, and the
+``source_texts`` table already had the DOCX columns and the DOCX shape
+CHECK -- but this vocabulary refused the kind, so **no Word document
+could be ingested at all**. The same amendment is in revision 0003, which
+created the table this revision rebuilds, so the two revisions tell the
+same story.
+
 Direct DDL, for the reason 0002 records. The helpers below are copied
 from 0003, not imported: a frozen revision must not depend on today's
 source.
@@ -112,7 +120,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("source_id", name="uq_sources_source_id"),
         sa.CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
         sa.CheckConstraint(
-            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
+            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'docx', 'other')",
             name="source_kind_vocabulary",
         ),
         sa.CheckConstraint(

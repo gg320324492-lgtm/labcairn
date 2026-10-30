@@ -68,6 +68,11 @@ class ExtractedTextRow:
         "cell_ref",
         "column_name",
         "created_at",
+        "docx_char_end",
+        "docx_char_start",
+        "docx_element_path",
+        "docx_part",
+        "docx_view",
         "line_end",
         "line_start",
         "locator_key",
@@ -96,6 +101,11 @@ class ExtractedTextRow:
         column_name: str | None = None,
         sheet_name: str | None = None,
         cell_ref: str | None = None,
+        docx_part: str | None = None,
+        docx_element_path: str | None = None,
+        docx_view: str | None = None,
+        docx_char_start: int | None = None,
+        docx_char_end: int | None = None,
     ) -> None:
         self.locator_kind = locator_kind
         self.locator_key = locator_key
@@ -110,6 +120,11 @@ class ExtractedTextRow:
         self.column_name = column_name
         self.sheet_name = sheet_name
         self.cell_ref = cell_ref
+        self.docx_part = docx_part
+        self.docx_element_path = docx_element_path
+        self.docx_view = docx_view
+        self.docx_char_start = docx_char_start
+        self.docx_char_end = docx_char_end
 
     def _values(self) -> dict[str, Any]:
         return {name: getattr(self, name) for name in self.__slots__}

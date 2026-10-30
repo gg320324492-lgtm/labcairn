@@ -315,7 +315,13 @@ def to_text_row(text: IngestedText, *, created_at: datetime) -> ExtractedTextRow
     ``else: raise`` turns the same mistake into a loud one.
     """
     from labcairn.db.materials import ExtractedTextRow
-    from labcairn.sources.locators import CsvLocator, PdfLocator, TextLocator, XlsxLocator
+    from labcairn.sources.locators import (
+        CsvLocator,
+        DocxLocator,
+        PdfLocator,
+        TextLocator,
+        XlsxLocator,
+    )
 
     locator = text.locator
     if isinstance(locator, PdfLocator):
@@ -357,6 +363,23 @@ def to_text_row(text: IngestedText, *, created_at: datetime) -> ExtractedTextRow
             created_at=created_at,
             sheet_name=locator.sheet_name,
             cell_ref=locator.cell_ref,
+        )
+    if isinstance(locator, DocxLocator):
+        # **The DOCX address is the one that names a view.** The same
+        # character range means different characters in the accepted and
+        # the rejected text, so the view is a column rather than a
+        # convention — ADR-0014 D4.
+        return ExtractedTextRow(
+            locator_kind=locator.locator_kind.value,
+            locator_key=text.locator_key,
+            text=text.text,
+            text_sha256=text.text_sha256,
+            created_at=created_at,
+            docx_part=locator.part,
+            docx_element_path=locator.element_path,
+            docx_view=locator.view,
+            docx_char_start=locator.char_start,
+            docx_char_end=locator.char_end,
         )
     raise TypeError(f"no row shape for {type(locator).__name__}")
 
