@@ -336,6 +336,28 @@ revised?"* is a question about the history.
 the four tables, and they are what make the chain traversable; the events
 say that the chain happened.
 
+**And the payload carries a copy of the judgement, not only the ids.** An
+id says *which row*; the chain the report renders is a chain of
+**judgements** — "this change answered that comment", "this change was
+made by a model", "this assessment found it not established". So the
+payload carries the row's own word for the judgement — the response's
+`state`, the edit's `actor_kind`, the assessment's verdict — **as plain
+optional strings, so that the table keeps its vocabulary and the runtime
+layer does not import it.**
+
+**Why the copy matters.** The event stream is the one thing the report's
+hash chain covers. With ids alone the chain proves *"these rows existed at
+these times"* and **not what they said** — so the forgery ADR-0016's third
+promotion path describes would be caught by the row and not by the chain.
+The copy makes the chain carry the substance.
+
+**And the chain's order is defined within one Task.** The event stream's
+`seq` is **per-Task**, and `occurred_at` is *"informational only. Never
+used to order anything."* So the four events of one chain are replayable in
+order **when the chain lives in one Task**, which is the natural case, and
+the `project_id` in the payload is what joins a chain that spans Tasks. **A
+reader must not order two Tasks' events by their timestamps.**
+
 ### D9 — The version graph needs a writer, and that is the first subtask
 
 **`paper_projects`, `paper_versions` and `version_edges` have no writer.**
