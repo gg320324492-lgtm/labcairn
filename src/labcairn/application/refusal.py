@@ -379,7 +379,6 @@ def intake_refusal_name(reason: IntakeRefusal) -> ApplicationRefusal:
     return INTAKE_REFUSALS[reason]
 
 
-<<<<<<< HEAD
 #: Every refusal the version graph can make, and the layer's name for it.
 #:
 #: **The same closure, over the version graph's own vocabulary.** The store
@@ -400,17 +399,19 @@ PAPER_REFUSALS: Mapping[PaperRefusal, ApplicationRefusal] = {
 
 def paper_refusal_name(reason: PaperRefusal) -> ApplicationRefusal:
     """The layer's name for a refusal of the version graph.
-=======
-def chain_refusal_name(reason: ChainRefusal) -> ApplicationRefusal:
-    """The layer's name for a refusal of the feedback chain.
->>>>>>> worktree-agent-ab9cb9c3062fe16e6
 
     **Looked up, not defaulted**, for the reason
     :func:`consent_refusal_name` records.
     """
-<<<<<<< HEAD
     return PAPER_REFUSALS[reason]
-=======
+
+
+def chain_refusal_name(reason: ChainRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the feedback chain.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
     return CHAIN_REFUSALS[reason]
 
 
@@ -423,7 +424,6 @@ def chain_refused(reason: ChainRefusal, detail: str) -> ApplicationRefusedError:
     four to draw one error eventually misses one.
     """
     return ApplicationRefusedError(chain_refusal_name(reason), detail)
->>>>>>> worktree-agent-ab9cb9c3062fe16e6
 
 
 __all__ = [

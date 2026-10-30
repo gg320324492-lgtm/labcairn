@@ -279,6 +279,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_edit_actions.py": ("integration", "typed-contracts"),
     "test_response_links.py": ("integration", "state-transitions"),
     "test_followup_assessments.py": ("integration", "insufficient-evidence"),
+    # LC-P2-09. The feedback chain's four events: they are annotations, they
+    # carry a registered payload schema naming the row they are about, and
+    # the chain is replayable from the stream alone. The clause is the event
+    # append clause: the witnesses write through the unit of work and read
+    # back through the store's event reader.
+    "test_feedback_event_stream.py": ("integration", "event-append"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

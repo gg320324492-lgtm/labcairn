@@ -203,6 +203,10 @@ export type EventType =
   | 'artifact_recorded'
   | 'source_changed'
   | 'outbound_consent_requested'
+  | 'feedback_recorded'
+  | 'edit_action_recorded'
+  | 'response_recorded'
+  | 'followup_assessed'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 
