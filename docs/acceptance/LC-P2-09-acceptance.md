@@ -157,17 +157,28 @@ smoke that needs the owner's credential, a Windows drive form that is
 meaningless on POSIX, and two 8.3 short-name cases this machine's volume cannot
 carry.
 
-### 5.2 The shard cost is apportioned, and that is what it is
+### 5.2 The shard cost is measured, in two steps
 
-**Neither the runner nor a previous run has executed the seven new test files.**
-The costs in `.github/ci-shards.json` are the local suite's measurements
-multiplied by the platform ratio the table already carries (`ubuntu = 0.473 ×
-windows`), and `measured_at` names the commit they were apportioned at.
+**The first step was apportioned, and the second is a measurement.** The seven
+new test files had never run, so the table carried the local suite's seconds
+multiplied by the platform ratio it already holds (`ubuntu = 0.473 × windows`).
+**Then the CI run at `b20fa1b` (run `41025301922`) executed them**, and
+`.github/remeasure_shards.py` read each file's seconds out of the durations
+section of that run's logs and wrote them back with `measured_at = b20fa1b`.
 
-**The shard coverage witness is green on that number, and the number is not a
-measurement.** The next CI run executes the files, and the measurement after it
-replaces this one — the same two-step the Phase 2 evidence pack records, and the
-same honesty LC-P2-06's record used.
+| | Ubuntu | Windows |
+|---|---|---|
+| **Shard balance factor** | **1.545** | **1.000** |
+
+**The Ubuntu partition is the lopsided one**, and the reason is a single file
+that costs more than the rest of its shard's contents; the greedy balance lands
+there and the coverage witness accepts it, because no file can be moved to
+shorten the longest shard. **The Windows partition is even to three decimals.**
+
+**The two numbers that matter are that the files ran and that the table says
+which run measured them.** The apportioned step is kept in the history rather
+than rewritten: it is what the table held before any runner had executed the
+files, and the difference between the two is the point of the process.
 
 ## 6. Limits, and what is left for the reviewer
 
@@ -175,7 +186,8 @@ same honesty LC-P2-06's record used.
   witnesses and no mutation recorded against them in this record (§4).
 - **The review is not independent.** The agent that wrote most of the code also
   merged it; the board's independent-review rule is **not discharged**.
-- **The shard costs are apportioned, not measured** (§5.2).
+- **The shard costs are measured at `b20fa1b`**, and the Ubuntu partition's
+  balance factor is 1.545 (§5.2).
 - **The chain is not rendered.** Whether a report shows it, and what a reader
   sees, is the owner's decision — ADR-0017's first re-evaluation trigger.
 - **Identity is kinds, not people.** ADR-0015 D6's conditions are open, and they
