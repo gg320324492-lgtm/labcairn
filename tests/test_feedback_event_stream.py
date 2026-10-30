@@ -21,6 +21,10 @@ payload schema that names the row it is about.
    chain come back in the order they were written, and their payloads are
    enough to walk from the comment to the assessment without a query the
    reader has to guess.
+5. **The judgement survives the write and the read.** Who made the change,
+   what was judged and what was concluded are the rows' own words, carried
+   by the events, so the chain the report's hash chain covers is a replay of
+   the judgement and not only of the bookkeeping.
 
 **And the registration has to reach the reader.** A payload schema
 registered only where the writer was imported makes every event of that type
@@ -84,6 +88,13 @@ RESPONSE: Final = "response-1"
 ASSESSMENT: Final = "assessment-1"
 ISSUE_KEY: Final = "issue-key-1"
 
+#: The three judgements, as the rows' own words. The chain carries the
+#: substance and not only the bookkeeping: a reader replaying the stream has
+#: to see who made the change, what was judged, and what was concluded.
+ACTOR_KIND: Final = "student"
+STATE: Final = "addressed"
+VERDICT: Final = "not established"
+
 #: The four events of ADR-0017 D8, in the order the chain records them.
 CHAIN_TYPES: Final[tuple[EventType, ...]] = (
     EventType.FEEDBACK_RECORDED,
@@ -100,34 +111,48 @@ CHAIN_SCHEMAS: Final[dict[EventType, type[LabCairnModel]]] = {
     EventType.FOLLOWUP_ASSESSED: FollowupAssessedPayload,
 }
 
+
 #: The payload each chain event carries, built from the models the emitters
 #: use. Comparing what comes back against these is what says the event names
-#: the row it is about.
-CHAIN_PAYLOADS: Final[dict[EventType, dict[str, object]]] = {
-    EventType.FEEDBACK_RECORDED: FeedbackRecordedPayload(
-        feedback_id=FEEDBACK,
-        project_id=PROJECT,
-        version_id=VERSION,
-    ).model_dump(mode="json"),
-    EventType.EDIT_ACTION_RECORDED: EditActionRecordedPayload(
-        edit_action_id=EDIT,
-        project_id=PROJECT,
-        version_edge_id=EDGE,
-        feedback_id=FEEDBACK,
-    ).model_dump(mode="json"),
-    EventType.RESPONSE_RECORDED: ResponseRecordedPayload(
-        response_id=RESPONSE,
-        project_id=PROJECT,
-        feedback_id=FEEDBACK,
-        edit_action_id=EDIT,
-    ).model_dump(mode="json"),
-    EventType.FOLLOWUP_ASSESSED: FollowupAssessedPayload(
+#: the row it is about — and carries the judgement it is about.
+#:
+#: A function and not a table of constants, on purpose: a table is built at
+#: import, so a schema that could no longer carry a judgement's word would
+#: stop the whole file from loading, and the witness that says so would be a
+#: collection error rather than the round-trip going red. Built here, the
+#: round-trip is the test that notices.
+def chain_payload(event_type: EventType) -> dict[str, object]:
+    """The payload the emitter of *event_type* writes, built from the models."""
+    if event_type is EventType.FEEDBACK_RECORDED:
+        return FeedbackRecordedPayload(
+            feedback_id=FEEDBACK,
+            project_id=PROJECT,
+            version_id=VERSION,
+        ).model_dump(mode="json")
+    if event_type is EventType.EDIT_ACTION_RECORDED:
+        return EditActionRecordedPayload(
+            edit_action_id=EDIT,
+            project_id=PROJECT,
+            version_edge_id=EDGE,
+            feedback_id=FEEDBACK,
+            actor_kind=ACTOR_KIND,
+        ).model_dump(mode="json")
+    if event_type is EventType.RESPONSE_RECORDED:
+        return ResponseRecordedPayload(
+            response_id=RESPONSE,
+            project_id=PROJECT,
+            feedback_id=FEEDBACK,
+            edit_action_id=EDIT,
+            state=STATE,
+        ).model_dump(mode="json")
+    return FollowupAssessedPayload(
         assessment_id=ASSESSMENT,
         project_id=PROJECT,
         feedback_id=FEEDBACK,
         issue_key=ISSUE_KEY,
-    ).model_dump(mode="json"),
-}
+        verdict=VERDICT,
+    ).model_dump(mode="json")
+
 
 #: The payload field that names the row an event is about, and the row's id.
 ROW_ID_FIELD: Final[dict[EventType, str]] = {
@@ -142,6 +167,23 @@ ROW_IDS: Final[dict[EventType, str]] = {
     EventType.EDIT_ACTION_RECORDED: EDIT,
     EventType.RESPONSE_RECORDED: RESPONSE,
     EventType.FOLLOWUP_ASSESSED: ASSESSMENT,
+}
+
+#: The payload field that carries the judgement an event is about, and the
+#: word it carries. The feedback event has none: a comment is an
+#: observation, and nothing was judged about it yet.
+JUDGEMENT_FIELD: Final[dict[EventType, str | None]] = {
+    EventType.FEEDBACK_RECORDED: None,
+    EventType.EDIT_ACTION_RECORDED: "actor_kind",
+    EventType.RESPONSE_RECORDED: "state",
+    EventType.FOLLOWUP_ASSESSED: "verdict",
+}
+
+JUDGEMENTS: Final[dict[EventType, str | None]] = {
+    EventType.FEEDBACK_RECORDED: None,
+    EventType.EDIT_ACTION_RECORDED: ACTOR_KIND,
+    EventType.RESPONSE_RECORDED: STATE,
+    EventType.FOLLOWUP_ASSESSED: VERDICT,
 }
 
 
@@ -161,6 +203,7 @@ def emit_one(work: UnitOfWork, event_type: EventType) -> None:
             project_id=PROJECT,
             version_edge_id=EDGE,
             feedback_id=FEEDBACK,
+            actor_kind=ACTOR_KIND,
         )
     elif event_type is EventType.RESPONSE_RECORDED:
         emit_response_recorded(
@@ -169,6 +212,7 @@ def emit_one(work: UnitOfWork, event_type: EventType) -> None:
             project_id=PROJECT,
             feedback_id=FEEDBACK,
             edit_action_id=EDIT,
+            state=STATE,
         )
     elif event_type is EventType.FOLLOWUP_ASSESSED:
         emit_followup_assessed(
@@ -177,6 +221,7 @@ def emit_one(work: UnitOfWork, event_type: EventType) -> None:
             project_id=PROJECT,
             feedback_id=FEEDBACK,
             issue_key=ISSUE_KEY,
+            verdict=VERDICT,
         )
     else:  # pragma: no cover - the parameterisation is closed
         raise AssertionError(f"not a chain event: {event_type.value}")
@@ -204,7 +249,7 @@ def test_the_chain_events_are_annotations_with_registered_payloads(
     the same name.
     """
     task_id = TaskId(new_id())
-    payload = CHAIN_PAYLOADS[event_type]
+    payload = chain_payload(event_type)
 
     assert event_type in ANNOTATION_EVENTS
     assert event_requires_run(event_type) is False
@@ -283,9 +328,49 @@ def test_a_chain_event_round_trips_through_the_store(env: StoreEnv, event_type: 
     assert [event.type for event in stored] == [event_type]
 
     payload = stored[0].payload
-    assert dict(payload) == CHAIN_PAYLOADS[event_type]
+    assert dict(payload) == chain_payload(event_type)
     assert payload[ROW_ID_FIELD[event_type]] == ROW_IDS[event_type]
     assert payload["project_id"] == PROJECT
+
+    judgement_field = JUDGEMENT_FIELD[event_type]
+    if judgement_field is not None:
+        assert payload.get(judgement_field) == JUDGEMENTS[event_type], (
+            f"the {judgement_field} the event was written with did not survive "
+            f"the write and the read: {dict(payload)}"
+        )
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [event_type for event_type in CHAIN_TYPES if JUDGEMENT_FIELD[event_type] is not None],
+)
+def test_the_judgement_an_event_is_about_survives_the_write_and_the_read(
+    env: StoreEnv, event_type: EventType
+) -> None:
+    """The chain carries the substance and not only the bookkeeping.
+
+    A reader replaying the stream has to see **who made the change, what was
+    judged, and what was concluded** — the words are the rows' own, carried
+    verbatim, and this says they arrive.
+
+    The feedback event has no judgement: a comment is an observation, and
+    nothing was judged about it yet.
+    """
+    store = env.store()
+    task = make_task()
+    store.create_task(task)
+
+    with store.unit(task.task_id) as work:
+        emit_one(work, event_type)
+
+    stored = events_after(env.session, task.task_id, after_seq=1)
+    assert [event.type for event in stored] == [event_type]
+
+    field = JUDGEMENT_FIELD[event_type]
+    assert field is not None
+    assert stored[0].payload.get(field) == JUDGEMENTS[event_type], (
+        f"the {field} did not survive the write and the read: {dict(stored[0].payload)}"
+    )
 
 
 # --------------------------------------------------------------------------
@@ -348,6 +433,12 @@ def test_a_reader_can_follow_the_chain_from_the_stream_alone(env: StoreEnv) -> N
     assert assessment["feedback_id"] == feedback["feedback_id"]
     assert assessment["issue_key"] == ISSUE_KEY
 
+    # And the judgements, so the reader sees what was said and not only
+    # which rows said it.
+    assert edit["actor_kind"] == ACTOR_KIND
+    assert response["state"] == STATE
+    assert assessment["verdict"] == VERDICT
+
 
 # --------------------------------------------------------------------------
 # The registration reaches the reader
@@ -409,4 +500,4 @@ def test_a_process_that_only_reads_decodes_the_chain_events(env: StoreEnv) -> No
     assert isinstance(events, list)
     chain = [event for event in events if event["type"] in {t.value for t in CHAIN_TYPES}]
     assert [event["type"] for event in chain] == [t.value for t in CHAIN_TYPES]
-    assert [event["payload"] for event in chain] == [CHAIN_PAYLOADS[t] for t in CHAIN_TYPES]
+    assert [event["payload"] for event in chain] == [chain_payload(t) for t in CHAIN_TYPES]

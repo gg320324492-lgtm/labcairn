@@ -31,12 +31,22 @@ event:
 
 That is what the four models below carry, and nothing more.
 
-**The judgement itself belongs to the row, not to the event.** ADR-0017 D8
-says it plainly: *"the events are not the links... the events say that the
-chain happened."* So the response's state, the edit's actor and the
-assessment's verdict are not copied here. A second copy of a closed
-vocabulary is a second thing that can drift from the first, and the tables
-are where the chain's content lives.
+**The judgement's word is carried; its authority is not.** ADR-0017 D8 says
+*"the events are not the links... the events say that the chain happened"* —
+the chain's substance is not the payload's business. But the **word** the
+row used is: a response's state, an edit's actor, an assessment's verdict.
+Carrying it means a reader replaying the stream sees what was judged without
+a second query, and it puts the claim inside the report's hash chain rather
+than outside it — which is the difference between a chain that proves the
+bookkeeping and one that proves the judgement.
+
+**The vocabulary is the row's, and this module checks nothing against it.**
+A payload that refused a word the table does not have would couple the
+runtime layer to a table that does not exist yet, and the layer must not
+import the store's layer. So the words are carried verbatim, and a reader
+who wants the row's own value reads the row; the two are the same string
+unless something changed one of them, which is exactly what a reader
+comparing them would want to see.
 
 **Why the models are not in** :mod:`~labcairn.runtime.event`. That file is
 the vocabulary; these are the trajectory's. The registration still reaches
@@ -126,6 +136,22 @@ class EditActionRecordedPayload(LabCairnModel):
     version_edge_id: str = Field(min_length=1)
     #: The comment it answers, when it answers one.
     feedback_id: str | None = Field(default=None, min_length=1)
+    #: **Who made the change, as the row's own word** — ``student``,
+    #: ``advisor``, ``model`` or ``human``, whatever the row says.
+    #:
+    #: The word is carried so that a reader replaying the stream sees the
+    #: substance and not only the bookkeeping, and so that the chain carries
+    #: what ADR-0017 D4 calls the whole point of the table: a change made by
+    #: a model and recorded as somebody else's is a forged signature, and the
+    #: column that makes one impossible to write by accident is the one the
+    #: chain has to cover. The vocabulary is the row's, and this module checks
+    #: nothing against it — a payload that refused a word the table does not
+    #: have would couple the runtime layer to a table that does not exist
+    #: yet. So the word is copied verbatim, and a reader who wants the row's
+    #: own value reads the row; the two are the same string unless something
+    #: changed one of them, which is exactly what a reader comparing them
+    #: would want to see.
+    actor_kind: str | None = Field(default=None, min_length=1)
 
 
 class ResponseRecordedPayload(LabCairnModel):
@@ -135,12 +161,14 @@ class ResponseRecordedPayload(LabCairnModel):
     rows the link joins, which is what makes the chain traversable from the
     stream: the comment, the change, and the response that connects them.
 
-    **The state is the row's, not the event's.** ADR-0017 D5's states are
-    the hardest clause of the work order — an unaddressed comment must not
-    be reported as addressed — and the rule that decides them lives in the
-    row and in the evidence behind it. Copying the state here would put a
-    second copy of a closed vocabulary beside the first, and the two could
-    disagree.
+    **The state is the row's word, carried verbatim.** ADR-0017 D5's states
+    are the hardest clause of the work order — an unaddressed comment must
+    not be reported as addressed — and the rule that decides them lives in
+    the row and in the evidence behind it. What the chain carries is the
+    **word the row used**, not the authority behind it: the evidence and the
+    decision stay in the row, and this module checks the word against
+    nothing, because a closed vocabulary that lives in a table this layer
+    must not know would be a second vocabulary to keep in step.
     """
 
     #: The row this event is about.
@@ -151,6 +179,20 @@ class ResponseRecordedPayload(LabCairnModel):
     feedback_id: str = Field(min_length=1)
     #: The change the response judges.
     edit_action_id: str = Field(min_length=1)
+    #: **The judgement, as the row's own word** — ``pending``,
+    #: ``addressed``, ``partially_addressed`` or ``not_addressed``, whatever
+    #: the row says.
+    #:
+    #: Carried so that a reader replaying the stream sees what was judged
+    #: without a second query: "a response was recorded" says that something
+    #: happened, and this says what was concluded. The vocabulary is the
+    #: row's — the payload copies the word and checks nothing against it,
+    #: because a payload that refused a state the table does not have would
+    #: couple the runtime layer to a table that does not exist yet. A reader
+    #: who wants the row's own value reads the row; the two are the same
+    #: string unless something changed one of them, which is exactly what a
+    #: reader comparing them would want to see.
+    state: str | None = Field(default=None, min_length=1)
 
 
 class FollowupAssessedPayload(LabCairnModel):
@@ -162,8 +204,11 @@ class FollowupAssessedPayload(LabCairnModel):
     in different rounds are one recurring issue and not two unrelated
     comments.
 
-    **The verdict is the row's.** The assessment's own evidence, and its
-    ability to say *"not established"*, are D7's business and stay there.
+    **The verdict is the row's word, carried verbatim.** ADR-0017 D7's hard
+    line lives in the row — an assessment must carry its own evidence and be
+    able to say *"not established"* — and that evidence stays there. What the
+    chain carries is the **word the row used**, so that a reader replaying
+    the stream can see what was concluded without a second query.
     """
 
     #: The row this event is about.
@@ -175,6 +220,18 @@ class FollowupAssessedPayload(LabCairnModel):
     #: The issue the assessment is about, when it is about an issue rather
     #: than a single comment.
     issue_key: str | None = Field(default=None, min_length=1)
+    #: **The verdict, as the row's own word** — including, when the row says
+    #: so, *"not established"*.
+    #:
+    #: The vocabulary is the row's, and this module checks nothing against
+    #: it: a payload that refused a verdict the table does not have would
+    #: couple the runtime layer to a table that does not exist yet. So the
+    #: word is copied verbatim, and a reader who wants the row's own value
+    #: reads the row; the two are the same string unless something changed
+    #: one of them, which is exactly what a reader comparing them would want
+    #: to see. The word alone is not the assessment's authority — that is the
+    #: evidence, which lives in the row and not here.
+    verdict: str | None = Field(default=None, min_length=1)
 
 
 register_payload_schema(EventType.FEEDBACK_RECORDED, FeedbackRecordedPayload)
@@ -218,11 +275,18 @@ def emit_edit_action_recorded(
     project_id: str,
     version_edge_id: str,
     feedback_id: str | None = None,
+    actor_kind: str | None = None,
 ) -> Event:
     """Record a change made against a version edge.
 
     *feedback_id* is the comment the change answers, and ``None`` when it
     answers none — which ADR-0017 D4 says is not an error but a fact.
+
+    *actor_kind* is **who made the change**, as the row's own word. It is the
+    chain's copy of the thing ADR-0017 D4 calls the whole point of the
+    table: a change made by a model and recorded as somebody else's is a
+    forged signature, and the chain has to cover it and not only the row.
+    Pass the row's word; this module checks nothing against it.
 
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
@@ -232,6 +296,7 @@ def emit_edit_action_recorded(
         project_id=project_id,
         version_edge_id=version_edge_id,
         feedback_id=feedback_id,
+        actor_kind=actor_kind,
     )
     return work.emit(EventType.EDIT_ACTION_RECORDED, payload=payload.model_dump(mode="json"))
 
@@ -243,11 +308,15 @@ def emit_response_recorded(
     project_id: str,
     feedback_id: str,
     edit_action_id: str,
+    state: str | None = None,
 ) -> Event:
     """Record a judgement that links a comment to a change.
 
-    The judgement's state and the evidence behind it are the response row's
-    business; the event names the row and the two rows it joins.
+    *state* is **what was judged**, as the row's own word. The event names
+    the row and the two rows it joins, and this says what was concluded —
+    so that a reader replaying the stream sees the judgement and not only
+    that a judgement happened. The evidence behind the state, and the rule
+    that decides it, stay in the row.
 
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
@@ -257,6 +326,7 @@ def emit_response_recorded(
         project_id=project_id,
         feedback_id=feedback_id,
         edit_action_id=edit_action_id,
+        state=state,
     )
     return work.emit(EventType.RESPONSE_RECORDED, payload=payload.model_dump(mode="json"))
 
@@ -268,10 +338,16 @@ def emit_followup_assessed(
     project_id: str,
     feedback_id: str | None = None,
     issue_key: str | None = None,
+    verdict: str | None = None,
 ) -> Event:
     """Record a later judgement about an issue.
 
     The assessment is about a comment, about an issue key, or about both.
+
+    *verdict* is **what was concluded**, as the row's own word — including,
+    when the row says so, *"not established"*. The assessment's evidence, and
+    the refusal that keeps "the change was accepted" out of the verdict, are
+    the row's business.
 
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
@@ -281,6 +357,7 @@ def emit_followup_assessed(
         project_id=project_id,
         feedback_id=feedback_id,
         issue_key=issue_key,
+        verdict=verdict,
     )
     return work.emit(EventType.FOLLOWUP_ASSESSED, payload=payload.model_dump(mode="json"))
 
