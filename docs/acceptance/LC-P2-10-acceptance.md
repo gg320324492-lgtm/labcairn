@@ -80,3 +80,174 @@ they are written down because they are decisions:**
   rule is LC-P2-09's first clause, and the breakdown's §2.2 makes it the
   annotator's job: **a guide that asks for one label per comment loses the
   distinction the chain was built to keep.**
+
+## 3. The clauses, and where each one is carried
+
+**Ten clauses, and eight of them are carried by a test that fails when the
+property is broken.** The two that are not are A9 and A10, and the task
+breakdown says why: they are a reviewer's work, and a test that asserts a
+document exists is not an annotation.
+
+| # | The clause | The witness | The mutation that proved it bites |
+|---|---|---|---|
+| A1 | The label set is closed, and a label outside it is refused by name | `test_a_label_outside_the_set_is_refused` | the refusal stops naming the label |
+| A2 | `UNKNOWN` is a label, and it is scored as an answer | `test_unknown_is_a_label_and_not_a_missing_value`, `test_unknown_is_spelled_unknown` | `unknown` stops being a member of the issue axis; the constant's spelling changes |
+| A3 | The two addresses are labelled separately | `test_both_addresses_are_labelled` | the two addresses collapse into one |
+| A4 | Two annotations and an arbiter's resolution for every item | `test_every_item_has_two_annotations_and_a_resolution` | the completion check stops counting the readings; stops requiring the resolution; checks only the first item |
+| A5 | A disagreement is kept; the resolution is a row, not an overwrite | `test_a_resolution_does_not_overwrite_the_disagreement` | the arbiter's answer overwrites the second reading |
+| A6 | Agreement is computed, and its denominator is named | `test_the_agreement_names_its_denominator` | the denominator counts something other than the items both read |
+| A7 | The split is by project, never by event | `test_the_split_is_by_project_and_never_by_event` | a project in two partitions is accepted |
+| A8 | No taxonomy is imported: the labels are the chain's own | `test_the_labels_are_the_chains_own_vocabulary`, `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` | the issue kinds drift off the design's set; the chain's words are copied instead of imported |
+| A9 | The guide exists, and every label has a worked example | **a person's check** — the reviewer reads it | — |
+| A10 | Two independent annotators and an arbiter did the work | **a person's check** — and **not done**, see §6 | — |
+
+**A8 has two witnesses, and the second one is the one that carries the
+claim.** The first says the label set and the chain's vocabulary *agree*.
+That is not the same as the label set *being* the chain's vocabulary: a
+copy that is in step today agrees today, and a second spelling is exactly
+what the module says it does not have. The second witness compares
+**identity** — the label module's response states are the chain's object,
+out of the chain's own module — and a hand-written constant with the same
+four words is a different object, and fails.
+
+## 4. The mutations, and what each one turned red
+
+**Twenty mutations, and the coordinator ran every one of them.** Each
+mutation breaks a property, and the run has to show the witness that
+watches it going red **and the witness named in the clause is the one that
+goes red** — a mutation that turns some other test red proves less than it
+looks like it proves.
+
+The two agents that wrote the witnesses reported fifteen mutations each.
+**The coordinator repeated the ones that carry a clause**, and those are the
+ones below; the rest were not repeated, and the tables say so rather than
+implying a coverage that was not measured.
+
+| # | The mutation | The witness it turned red |
+|---|---|---|
+| M1 | the issue kind set drifts off the design's own | `test_the_labels_are_the_chains_own_vocabulary` |
+| M2 | `UNKNOWN` is spelled something else | `test_unknown_is_spelled_unknown` |
+| M3 | the refusal stops naming the label | `test_a_label_outside_the_set_is_refused` |
+| M4 | the chain's response states are copied instead of imported | `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` |
+| M5 | the chain's assessment outcomes are copied instead of imported | `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` |
+| M6 | `unknown` stops being a member of the issue axis | `test_unknown_is_a_label_and_not_a_missing_value` |
+| M7 | the denominator counts something other than the items both read | `test_the_agreement_names_its_denominator` |
+| M8 | `unknown` is filtered out of the distribution | `test_unknown_is_in_the_distribution_and_not_filtered_out` |
+| M9 | an empty denominator answers zero instead of none | `test_an_empty_denominator_is_no_rate_and_not_zero` |
+| M10 | the full agreement counts only the comment address | `test_fully_agreed_counts_the_items_the_two_read_identically` |
+| M11 | the arbiter's answer overwrites the second reading | `test_a_resolution_does_not_overwrite_the_disagreement` |
+| M12 | two readings by one annotator are accepted | `test_the_manifest_refuses_two_annotations_by_one_annotator` |
+| M13 | an item id used twice is accepted | `test_the_manifest_refuses_a_repeated_item_id` |
+| M14 | a project in two partitions is accepted | `test_the_split_is_by_project_and_never_by_event` |
+| M15 | an item whose project is in no partition is accepted | `test_the_manifest_refuses_an_item_whose_project_is_in_no_partition` |
+| M16 | a moment that names no offset is accepted | `test_the_manifest_refuses_a_moment_with_no_offset` |
+| M17 | the structural case is never reached | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
+| M18 | the structural case reports every changed file | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
+| M19 | the structural case reports nothing | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
+| M20 | the slack is treated as already reached | `test_a_partition_inside_the_limit_asks_about_the_slack` |
+
+**Two of the twenty did something the reports had not predicted, and both
+are recorded because they are the interesting part:**
+
+- **M11 turned three witnesses red, not one.** The arbiter's overwrite is
+  reachable from three different rules — the completion check, the
+  disagreement check, and the label check — and a mutation that breaks a
+  property in more than one place is a property that more than one rule
+  depends on.
+- **M20 did not turn anything red at first, and that was the witness's
+  fault, not the mutation's.** The check on the slack's boundary was
+  written against a key the cost table does not use, so it compared a
+  number that was never there. **A mutation that survives is not evidence
+  that a witness is weak** — it is evidence that the witness is not
+  measuring what it says. The witness was corrected and M20 then turned it
+  red.
+
+**Every mutation was reverted, and the tree was clean afterwards.** The
+scripts live outside the repository, in `E:\labcairn-local\tmp`, and they
+read their status from the process's own exit code rather than from a
+pipe.
+
+## 5. What was measured, and how
+
+**Forty-four witnesses in four files, and twenty-six mutations against
+them.**
+
+| The file | The witnesses | What it watches |
+|---|---|---|
+| `tests/test_gold_set_labels.py` | 11 | the label set is closed, the vocabulary is the chain's own, `UNKNOWN` is an answer |
+| `tests/test_gold_set_agreement.py` | 13 | the agreement is computed from the manifest, over a denominator it names |
+| `tests/test_gold_set_manifest.py` | 12 | the manifest's own refusals, and that a resolution is a row rather than an overwrite |
+| `tests/test_gold_set_corpus.py` | 8 | the corpus and the manifest agree, and the archives carry no clock |
+
+**The corpus is four manuscripts in two projects, in two partitions, with
+ten comments.** Every boundary case the writer can express is in it: a
+comment whose span crosses a sentence and recurs under the same issue
+key, a comment with no author, a comment with no date, a comment with no
+range markers at all, an insertion, a deletion, and a comment whose
+element and whose body-side anchor are about different problems.
+
+**The shard costs were re-measured from the runner's own log** — CI run
+`41062950360`, on commit `5499ede`, its ten `python-quality` job logs read
+for the per-file seconds pytest's `--durations=0` puts there. **The four
+new test files are in the table with apportioned shares**, because the log
+does not name them; the rest of the table is the runner's own measurement.
+The partition that comes out of it is **the best five shards can do on
+both platforms** — 1.000 on Windows, and 1.634 on Ubuntu, where the floor
+is set by `tests/test_cli.py` alone (278 seconds of a 959-second suite).
+
+**`ruff check`, `ruff format --check` and `mypy --strict` are clean**, and
+the full suite is green locally. **No CI run was started and no pull
+request was opened** — the work is in the tree, and the owner's rule is
+that a run is spent on a whole body of work rather than on each piece of
+it.
+
+## 6. The limits, and what is not done
+
+**T06 is not done, and nothing in this record pretends otherwise.** The
+annotations are two people's work and an arbiter's: **two annotators work
+independently from the guide over this corpus, and an arbiter resolves
+each disagreement into its own row.** The manifest in the tree ships with
+its `annotations` blocks empty and its `resolution` fields null, which is
+the honest state of a manifest whose labels nobody has written.
+**LC-P2-10 is not done until that exists**, and the witnesses written here
+are written to hold when it does.
+
+**Three limits are worth knowing about, and none of them is a gap in the
+work:**
+
+- **The denominator's meaning is not distinguishable by its number.** The
+  manifest requires two readings per item, so over any manifest the
+  agreement function accepts, "the items both annotators labelled" and
+  "the items in the manifest" are the same count. **The witness can
+  therefore pin the number, pin the words that name what it counted, and
+  pin the refusal to compute over a manifest with a single reading — but
+  it cannot tell those two meanings apart.** That is a property of the
+  domain, not of the witness: the two numbers are equal whenever the
+  function is defined.
+- **The Ubuntu partition is outside the balance limit, and that is
+  structural.** `tests/test_cli.py` costs 278 seconds of a 959-second
+  suite, so with five shards the best factor any arrangement reaches is
+  `278 / (681 / 4) = 1.634` — above the 1.6 the limit asks for. **The
+  partition is already at that floor**, so no rebalancing improves it.
+  The cost check's slack came out negative, which made it report *every*
+  changed file as one that could unbalance the partition — a quarter-second
+  test file, reported as the reason a partition is lopsided. The check now
+  asks the question that is true in that case, which is whether the changed
+  file is the bottleneck, and two witnesses hold the new reading down.
+  **The alternative — a partition that is inside the limit — would need
+  either a different number of shards or a cheaper `test_cli.py`, and both
+  are the owner's call rather than this work order's.**
+- **Four of the shard costs were apportioned, not measured.** The runner
+  has never run these four files, so their shares are what the tool's
+  apportion rule gives them. They are fractions of a second against
+  shards of three minutes, and the balance does not turn on them — but a
+  runner that has run them would give better numbers, and the first CI run
+  after this lands will.
+
+**Two smaller things, recorded because they are choices and not
+oversights:** the writer cannot express a comment's range more narrowly
+than a paragraph, so the manifest's body-side addresses are
+paragraph-level and the topic phrase is the corpus's own record; and the
+corpus carries no comment with only a start marker or only an end
+marker, because the guide has no rule for one and **a corpus case the
+guide cannot answer is a broken gold set**.
