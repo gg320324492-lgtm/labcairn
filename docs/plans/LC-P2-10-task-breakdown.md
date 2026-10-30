@@ -162,13 +162,13 @@ says which items are labelled and which are still open.
 | # | The clause | The test |
 |---|---|---|
 | A1 | The label set is closed, and a label outside it is refused by name | `test_a_label_outside_the_set_is_refused` |
-| A2 | `UNKNOWN` is a label, and it is scored as an answer | `test_unknown_is_a_label_and_not_a_missing_value` |
+| A2 | `UNKNOWN` is a label, and it is scored as an answer | `test_unknown_is_a_label_and_not_a_missing_value`, `test_unknown_is_spelled_unknown` |
 | A3 | The two addresses are labelled separately | `test_both_addresses_are_labelled` |
-| A4 | The manifest carries two annotations and an arbiter's resolution for every item | `test_every_item_has_two_annotations_and_a_resolution` |
+| A4 | The manifest carries two annotations and an arbiter's resolution for every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_completion_check_agrees_with_the_manifests_own_state` |
 | A5 | A disagreement is kept, and the resolution is a row rather than an overwrite | `test_a_resolution_does_not_overwrite_the_disagreement` |
 | A6 | Agreement is computed, and its denominator is named | `test_the_agreement_names_its_denominator` |
 | A7 | The split is by `PaperProject`, and one project never appears in two partitions | `test_the_split_is_by_project_and_never_by_event` |
-| A8 | No taxonomy is imported: the labels are LC-P2-09's own | `test_the_labels_are_the_chains_own_vocabulary` |
+| A8 | No taxonomy is imported: the labels are LC-P2-09's own | `test_the_labels_are_the_chains_own_vocabulary`, `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` |
 | A9 | The guide exists, and every label has a worked example | **a person's check** — the reviewer reads it |
 | A10 | Two independent annotators and an arbiter did the work | **a person's check** — the manifest's ids are the evidence |
 

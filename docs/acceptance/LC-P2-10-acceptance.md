@@ -93,7 +93,7 @@ document exists is not an annotation.
 | A1 | The label set is closed, and a label outside it is refused by name | `test_a_label_outside_the_set_is_refused` | the refusal stops naming the label |
 | A2 | `UNKNOWN` is a label, and it is scored as an answer | `test_unknown_is_a_label_and_not_a_missing_value`, `test_unknown_is_spelled_unknown` | `unknown` stops being a member of the issue axis; the constant's spelling changes |
 | A3 | The two addresses are labelled separately | `test_both_addresses_are_labelled` | the two addresses collapse into one |
-| A4 | Two annotations and an arbiter's resolution for every item | `test_every_item_has_two_annotations_and_a_resolution` | the completion check stops counting the readings; stops requiring the resolution; checks only the first item |
+| A4 | Two annotations and an arbiter's resolution for every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_completion_check_agrees_with_the_manifests_own_state` | the completion check stops counting the readings; stops requiring the resolution; checks only the first item |
 | A5 | A disagreement is kept; the resolution is a row, not an overwrite | `test_a_resolution_does_not_overwrite_the_disagreement` | the arbiter's answer overwrites the second reading |
 | A6 | Agreement is computed, and its denominator is named | `test_the_agreement_names_its_denominator` | the denominator counts something other than the items both read |
 | A7 | The split is by project, never by event | `test_the_split_is_by_project_and_never_by_event` | a project in two partitions is accepted |
@@ -112,16 +112,31 @@ four words is a different object, and fails.
 
 ## 4. The mutations, and what each one turned red
 
-**Twenty mutations, and the coordinator ran every one of them.** Each
+**Twenty-nine mutations, and the coordinator ran every one of them.** Each
 mutation breaks a property, and the run has to show the witness that
 watches it going red **and the witness named in the clause is the one that
 goes red** — a mutation that turns some other test red proves less than it
 looks like it proves.
 
-The two agents that wrote the witnesses reported fifteen mutations each.
-**The coordinator repeated the ones that carry a clause**, and those are the
-ones below; the rest were not repeated, and the tables say so rather than
-implying a coverage that was not measured.
+The agents that wrote the witnesses reported mutations of their own — the
+agreement witnesses' agent reported fifteen mutations and fifteen reddens.
+**A report is not a measurement**, so the coordinator repeated the ones
+that carry a clause, against the shared checkout, with the witness named
+checked against the one that actually went red; the rest were not repeated,
+and the tables say so rather than implying a coverage that was not
+measured.
+
+**The table took three passes to become complete, and each pass found a
+different way for it to be short.** The first draft had twenty rows, written
+before the corpus witnesses existed. The second had twenty-six, once the
+corpus's own mutations had been run against them. The third has twenty-nine,
+because **§3's clause table named three mutations that no table carried**:
+the two addresses collapsing into one, the completion check ceasing to
+require a resolution, and the completion check stopping at the first item.
+Those three were in the clause table as *"the mutation that proved it
+bites"*, and none of them had been run here — **the clause table asserted a
+measurement the mutation table did not contain.** A record that says "this
+was proved" without saying how is a record of an intention.
 
 | # | The mutation | The witness it turned red |
 |---|---|---|
@@ -145,9 +160,25 @@ implying a coverage that was not measured.
 | M18 | the structural case reports every changed file | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
 | M19 | the structural case reports nothing | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
 | M20 | the slack is treated as already reached | `test_a_partition_inside_the_limit_asks_about_the_slack` |
+| M21 | the writer stops pinning the archive's timestamps | `test_the_archive_entries_carry_no_clock` |
+| M22 | the completion check stops counting the readings | `test_the_completion_check_agrees_with_the_manifests_own_state` |
+| M23 | the manifest records a hash the bytes do not have | `test_the_corpus_section_records_the_bytes_that_are_written` |
+| M24 | an item names a comment the corpus does not have | `test_every_item_names_a_comment_the_corpus_has` |
+| M25 | an item records a feedback id the chain would not mint | `test_the_feedback_ids_are_the_chains_own` |
+| M26 | one item carries one reading and the rest carry none | `test_the_annotations_are_all_or_nothing` |
+| M27 | the completion check stops requiring the resolution | `test_every_item_has_two_annotations_and_a_resolution` |
+| M28 | the completion check stops at the first item | `test_every_item_has_two_annotations_and_a_resolution` |
+| M29 | the two addresses collapse into one | `test_both_addresses_are_labelled` |
 
-**Two of the twenty did something the reports had not predicted, and both
-are recorded because they are the interesting part:**
+**Every row was re-run on the tree as it stands now**, in seven scripts
+outside the repository, and every one of the twenty-nine was caught **by the
+witness the row names** — not by some other test that happened to go red.
+The scripts live in `E:\labcairn-local\tmp`, they restore the file they
+mutated, and the tree was clean after the last one.
+
+**Four of the twenty-nine did something the reports had not predicted, and
+all four of the notes below are recorded because they are the interesting
+part:**
 
 - **M11 turned three witnesses red, not one.** The arbiter's overwrite is
   reachable from three different rules — the completion check, the
@@ -161,6 +192,24 @@ are recorded because they are the interesting part:**
   that a witness is weak** — it is evidence that the witness is not
   measuring what it says. The witness was corrected and M20 then turned it
   red.
+- **The final re-run found a stale anchor rather than a weak witness.** The
+  script that breaks the slack's boundary matched an indented fragment of a
+  line `ruff format` has since rewritten, so it stopped with *pattern not
+  found* and never reached the code. **A mutation that does not apply is
+  not a mutation that survives**, and a script that reports "the witness
+  does not bite" when the mutation never landed is a script that reports a
+  false finding. The anchor was corrected and the mutation was run again:
+  it turns the witness red.
+- **The clause table and the mutation table were two claims about the same
+  work, and only one of them had been checked.** §3 names, for each clause,
+  the mutation that proved it; §4 lists the mutations that were run. For
+  three clauses the first named something the second did not have, so §3
+  asserted a measurement §4 did not contain. Nothing was false — the agent
+  that wrote the witnesses had run all three — but the record read as
+  though it had. **The two tables had been written against each other
+  rather than against the code**, and a table that says nothing looks, to a
+  reader, like a table that measured everything. The three were run and put
+  in.
 
 **Every mutation was reverted, and the tree was clean afterwards.** The
 scripts live outside the repository, in `E:\labcairn-local\tmp`, and they
@@ -169,7 +218,7 @@ pipe.
 
 ## 5. What was measured, and how
 
-**Forty-four witnesses in four files, and twenty-six mutations against
+**Forty-four witnesses in four files, and twenty-nine mutations against
 them.**
 
 | The file | The witnesses | What it watches |
@@ -196,10 +245,18 @@ both platforms** — 1.000 on Windows, and 1.634 on Ubuntu, where the floor
 is set by `tests/test_cli.py` alone (278 seconds of a 959-second suite).
 
 **`ruff check`, `ruff format --check` and `mypy --strict` are clean**, and
-the full suite is green locally. **No CI run was started and no pull
-request was opened** — the work is in the tree, and the owner's rule is
-that a run is spent on a whole body of work rather than on each piece of
-it.
+**the full suite is green locally — 4165 passed and 5 skipped in 31
+minutes** on the tree as it stands: the skips are a POSIX-only permission
+check, a real-provider smoke that needs the owner's authorisation, one
+Windows-drive check that is meaningless on POSIX, and two short-name checks
+this volume does not have. **No CI run was started and no pull request was
+opened** — the work is in the tree, and the owner's rule is that a run is
+spent on a whole body of work rather than on each piece of it.
+
+**Every number here is anchored to the tree it was measured on.** The shard
+costs were read from the runner's log for `5499ede`; the local suite run and
+the twenty-nine mutations were run on `claude/p2-lc-p2-10-plans` at
+`1e601a8`, the commit before this record was amended.
 
 ## 6. The limits, and what is not done
 

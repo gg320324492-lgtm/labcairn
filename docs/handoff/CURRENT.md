@@ -15,7 +15,8 @@ rather than on each piece of it, and that is the owner's call.
 (**four manuscripts, two projects, two partitions, ten comments**),
 `tests/test_gold_set_labels.py`, `tests/test_gold_set_agreement.py`,
 `tests/test_gold_set_manifest.py` and `tests/test_gold_set_corpus.py` —
-**forty-four witnesses** — and
+**forty-four witnesses** — every one of them re-checked by a mutation that
+had to turn that witness red — and
 [`acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md).
 
 **Three things the round found, and they are worth more than the code.**
