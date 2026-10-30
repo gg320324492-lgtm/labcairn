@@ -1,21 +1,24 @@
 # LC-P2-10 — Process annotation and the gold set — task breakdown
 
 **Work order:** LC-P2-10 (process annotation and the gold set) · **Status:**
-drafted 2026-10-30; **T00–T05 landed on 2026-10-30** on the branch
-`claude/p2-lc-p2-10-plans`, and **T06 is not done** — the annotations are two
-people's work and an arbiter's, and the manifest in the tree ships with its
-`annotations` blocks empty. **Priority:** the adjustment of
-2026-10-30 (P2-AMD-01) keeps it in step 3, between LC-P2-09 and LC-P2-11, and
-it is **the one that cannot be parallelised**: it needs two people and an
-arbiter, and it needs the pilot corpus.
+drafted 2026-10-30; **T00–T06 landed on 2026-10-30** on the branch
+`claude/p2-lc-p2-10-plans`. **T06 was two independent sessions' work and an
+arbiter's, not two people's** — the manifest in the tree carries both
+readings and the arbiter's row, and the acceptance record says what that
+means for the agreement number. **Priority:** the adjustment of 2026-10-30
+(P2-AMD-01) keeps it in step 3, between LC-P2-09 and LC-P2-11, and it is
+**the one that cannot be parallelised**: it needs two independent readings
+and an arbiter, and it needs the pilot corpus.
 
 ## 0. How to read this document
 
-**This is a contract, and half of it is a person's job.** §4 names the
+**This is a contract, and half of it is a reading.** §4 names the
 acceptance clauses and, for each, the thing that carries it. **Four of them
-are code and can be dispatched; three of them are a person reading
+are code and can be dispatched; three of them are somebody reading
 manuscripts**, and a task breakdown that pretended otherwise would be a
-breakdown that ships an empty gold set.
+breakdown that ships an empty gold set. **As of 2026-10-30 the readings
+were made by independent Claude sessions rather than by people** — §T06 says
+what changed and what did not.
 
 **The labels are Phase 2's own.** The upstream study (`docs/research/
 upstream-study/arXivEdits.md`) says why an imported taxonomy does not work:
@@ -148,14 +151,37 @@ arbiter resolution that overwrote an annotation instead of adding one.
 
 **And the two-step shard cost**, as every Phase 2 work order's record does.
 
-### T06 — The annotations themselves (a person's work)
+### T06 — The annotations themselves (a reading)
 
 **Files:** the manifest's `annotations` block, filled in.
 
 **This is not a code change.** Two annotators work independently from T01's
 guide over T02's corpus, and an arbiter resolves each disagreement into its
-own row. **LC-P2-10 is not done until this exists**, and the acceptance record
-says which items are labelled and which are still open.
+own row.
+
+**As of 2026-10-30 this exists, and the annotators were two independent
+Claude sessions rather than two people.** The owner decided that on the day,
+and the manifest's ids say so — `agent-annotator-a`, `agent-annotator-b`,
+`agent-arbiter-1` — because an id that does not say what it is will be read
+as a person. The acceptance record reports the agreement and says what it
+measures: **how far two independent readings of the same material converge,
+not how far two people would agree.** A human reading of the same corpus is
+the comparison the number is meant to be read against, and it has not been
+made.
+
+**And a blind audit was run, because "they were told not to read the answer
+key" is not a measurement.** A fourth session was given the manuscripts, the
+guide and the address package and nothing else, and **it agreed with both
+readings on all twenty issue kinds** — and **it found the leak was still
+open in the guide's §1.0.1**, which is the one section every annotator is
+told to read first. **The renaming had moved the leak rather than closed
+it**, and quoting the retired name in a warning is quoting the answer in
+the worst possible place. **So the retired name is now written down only in
+the acceptance record**, where it is evidence, and **four of the sixty
+labels — the issue kinds on the recurring pair — are not yet independently
+established**, because a reader holding the retired name could have written
+them without reading either manuscript. The acceptance record says what
+closing that needs, and it does not claim it.
 
 ## 4. Acceptance, mapped to where it is carried
 
@@ -169,17 +195,41 @@ says which items are labelled and which are still open.
 | A6 | Agreement is computed, and its denominator is named | `test_the_agreement_names_its_denominator` |
 | A7 | The split is by `PaperProject`, and one project never appears in two partitions | `test_the_split_is_by_project_and_never_by_event` |
 | A8 | No taxonomy is imported: the labels are LC-P2-09's own | `test_the_labels_are_the_chains_own_vocabulary`, `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` |
-| A9 | The guide exists, and every label has a worked example | **a person's check** — the reviewer reads it |
-| A10 | Two independent annotators and an arbiter did the work | **a person's check** — the manifest's ids are the evidence |
+| A9 | The guide exists, and every label has a worked example | **a reviewer's check** — the reviewer reads it |
+| A10 | Two independent readings and an arbiter's row are on every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_manifest_refuses_two_annotations_by_one_annotator`, `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators`, `test_the_manifests_two_readings_are_by_two_different_readers`, `test_a_resolution_does_not_overwrite_the_disagreement` |
 
-**A9 and A10 cannot be witnessed by a test.** They are the reviewer's, and
-the record says so rather than inventing a test that asserts a document
-exists and calls that an annotation.
+**A9 is still the reviewer's.** Nothing in a test can tell whether a guide's
+worked examples are good ones.
+
+**A10 changed, and the change is worth stating precisely.** The clause used
+to be "two independent annotators and an arbiter did the work", and that was
+not a thing a test could carry: independence is a property of **how the work
+was done**, not of a file, so a manifest cannot testify that two readers
+never saw each other's work. **What the witnesses carry now is the part that
+is a property of the file** — every item carries two annotations, the two
+ids differ, the arbiter's answer is a row beside them rather than over them,
+and the arbiter is neither of the two readers. **What they cannot carry is
+the independence itself**, and the acceptance record says so where it
+reports the agreement: it reports what the transcripts show about the
+independence, which is a different kind of evidence from a witness, and it
+says which is which.
+
+**And the arbiter's being a third reader was a rule the manifest did not
+have.** It refused two readings by one annotator — one person reading twice
+is one reading — but it said nothing about the arbiter, so a manifest whose
+arbiter *was* one of its annotators was accepted. **An arbiter who is one
+of the two has read the item twice rather than arbitrated it**, and the
+agreement number over that item would be a statement about one reader. So
+`gold_manifest.py` refuses it by name, and the manifest in the tree is
+checked for it directly: a rule that is never applied to the tree's own
+manifest is a rule that has never been applied to anything.
 
 ## 5. What this work order cannot deliver, and why
 
-- **It cannot label for you.** The gold set's value is that a person read the
-  manuscript; a generated label measures the generator.
+- **It cannot label for you.** The gold set's value is that somebody read the
+  manuscript; a generated label measures the generator. **What this tree
+  holds was read by sessions, not by people**, and the record says so rather
+  than letting the manifest's shape imply otherwise.
 - **It cannot make a real corpus.** Synthetic material is what the phase's
   fixtures can carry; the pilot corpus needs the owner's authorisation.
 - **It cannot report an agreement the annotators did not produce.** A number
@@ -221,17 +271,24 @@ first draft of this table.** The corpus and the manifest drift apart
 quietly: one is regenerated and the other is not, and every witness that
 reads the manifest alone stays green while the gold set starts pointing at
 comments that are no longer there. **The witnesses are written to hold
-either way** — the annotations are nobody's work yet, so they do not
-insist on that emptiness, only that whatever state the manifest is in is
-a state the completion check reads correctly.
+either way** — the annotations were nobody's work when the file was
+written, so they do not insist on that emptiness, only that whatever state
+the manifest is in is a state the completion check reads correctly. **The
+annotations are in now**, and the same witnesses hold.
 
 ## 7. What "done" means
 
-1. T00–T05 are merged, and the suite is green.
-2. **T06 exists**: two annotators, an arbiter, and a manifest whose ids name
-   them.
+1. T00–T06 are merged, and the suite is green.
+2. **T06 exists**: two independent readings, an arbiter, and a manifest whose
+   ids name what made them.
 3. The agreement is reported with its denominator, and `UNKNOWN` is in the
    distribution rather than filtered out.
 4. The partition witness holds: no project in two partitions.
 5. `ruff check`, `ruff format --check` and `mypy --strict` are clean.
 6. The acceptance record names the commit every number was measured at.
+7. **And the record says which of its own numbers are not independent, and
+   what closing that needs.** Four of the sixty labels — the issue kinds on
+   the recurring pair — are not yet independently established, because the
+   retired key's name was in reach when they were written. **A record that
+   reports 60/60 without saying that is a record about a number nobody
+   measured.**

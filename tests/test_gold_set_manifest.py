@@ -678,6 +678,59 @@ def test_the_manifest_refuses_two_annotations_by_one_annotator() -> None:
     assert "item-a" in message, f"the refusal does not name the item it refused: {message!r}."
 
 
+def test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators() -> None:
+    """An arbiter who is one of the two annotators is refused.
+
+    **The arbiter is the third reader.** An arbiter who is one of the two
+    annotators has not arbitrated anything — they have read the item a
+    second time and written their own answer over the top. The agreement
+    number over that item would then be a statement about one reader
+    rather than about two, and the disagreement the arbiter was asked to
+    settle would have been settled by a party to it.
+
+    **This is a rule of the manifest's own**, and not of the annotator's
+    discipline: the manifest is read by three parties, and a manifest
+    that admits this reading would be read differently by each of them.
+    """
+    readings = _readings(annotators=("ann-1", "ann-2"))
+
+    with pytest.raises(ValueError) as refusal:
+        _read_manifest(
+            [
+                _item(
+                    "item-a",
+                    "p-1",
+                    annotations=readings,
+                    resolution=_resolution("ann-1"),
+                )
+            ]
+        )
+
+    message = str(refusal.value)
+    assert "ann-1" in message, (
+        f"the refusal does not name the arbiter who is one of the annotators: {message!r}."
+    )
+    assert "item-a" in message, f"the refusal does not name the item it refused: {message!r}."
+
+    # **And the refusal is about the arbiter, not about the annotator.** A
+    # manifest whose arbiter is a third reader is accepted, so the refusal
+    # above is about the identity and not about resolutions being present.
+    accepted = _read_manifest(
+        [
+            _item(
+                "item-a",
+                "p-1",
+                annotations=readings,
+                resolution=_resolution("ann-3"),
+            )
+        ]
+    )
+    assert accepted.items[0].resolution is not None, (
+        "the manifest refused a resolution whose arbiter is a third reader. The "
+        "rule is about the arbiter's identity and not about resolutions."
+    )
+
+
 def test_the_manifest_refuses_a_repeated_item_id() -> None:
     """An item id used twice is refused, and the id is named.
 

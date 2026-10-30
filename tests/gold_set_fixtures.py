@@ -19,12 +19,15 @@ is a binding rather than a timestamp — a corpus whose bytes move between runs
 would make every hash-based check meaningless.
 :func:`assert_corpus_is_reproducible` is what says the bytes do not move.
 
-**What the corpus is for.** LC-P2-10 T06 is a person's work: two annotators
-read these manuscripts and label each comment, and an arbiter resolves the
-disagreements. **So the manifest's ``annotations`` are empty and every
-``resolution`` is null.** A manifest that carries labels nobody wrote is
-worse than an empty one, and the empty one is a structure
-``labcairn.papers.gold_manifest.validate_manifest`` already reads.
+**What the corpus is for.** LC-P2-10 T06 is a reading: two annotators read
+these manuscripts and label each comment, and an arbiter resolves the
+disagreements. **So this generator writes the skeleton's ``annotations``
+empty and every ``resolution`` null** — the readings are not something a
+generator can supply, and a manifest that carries labels nobody wrote is
+worse than an empty one. The empty one is a structure
+``labcairn.papers.gold_manifest.validate_manifest`` already reads, and
+**the manifest in the tree is that skeleton with the readings written into
+it**, which is what makes it a gold set rather than a set of forms.
 
 **The cases the corpus carries** are named in each fixture's ``purpose`` and
 ``expectations``, and the mapping from a comment to the case it carries is in
@@ -102,7 +105,18 @@ PARTITIONS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
 #: and the comment in version 2 that share it are the corpus's one recurring
 #: issue, and they are in the same project and in different rounds — which is
 #: exactly what the chain's recurrence query is over.
-RECURRING_ISSUE_KEY: Final[str] = "iss-gold-a-significance"
+#:
+#: **And the key is opaque, because a key that names its issue is an answer.**
+#: The chain's own rule is that a key is a person's judgement about *which
+#: problem* a comment is about, so a key is free to be anything — and a key
+#: that names the issue kind tells a reader the answer before they have read
+#: a word of the manuscript. That is exactly how this one leaked: the
+#: annotators read this key, and the key named the answer. **So the retired
+#: name is not written down anywhere**, not even here: a warning that quotes
+#: the thing it warns about is the thing, in one more file a reader might
+#: open. The key says only what it has to — which project, which recurrence —
+#: and the issue kind is something the manuscript has to be read for.
+RECURRING_ISSUE_KEY: Final[str] = "iss-gold-a-r1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -562,9 +576,14 @@ def issue_keys() -> dict[tuple[str, str], str]:
     **A recurrence is a relation, and it is recorded rather than inferred.**
     ADR-0017 D6: the same wording is not the same issue, and the same issue is
     not the same wording, so a person gives the key. This corpus has one
-    recurring issue — the significance claim that three seeds cannot carry, and
-    that ten seeds still cannot carry without a test — and it appears once in
-    each of the two versions of project A.
+    recurring issue — the same claim carried across two rounds, which the
+    first round's reviewer raised and the second round's reviewer raised
+    again — and it appears once in each of the two versions of project A.
+
+    **The key says which recurrence it is, and not what the issue is.** The
+    issue kind is the manuscript's to be read for, and a key that named it
+    would hand a reader the answer before the reading. See
+    :data:`RECURRING_ISSUE_KEY`.
     """
     return {
         (entry.fixture.name, comment_id): key
@@ -665,12 +684,13 @@ def manifest_items(directory: Path | None = None) -> list[dict[str, Any]]:
     """The manifest's items: one per comment in the corpus.
 
     **Every item's ``annotations`` is empty and every ``resolution`` is
-    null.** A label is a person's work (LC-P2-10 T06), and a manifest that
-    carries labels nobody wrote is worse than an empty one. The empty one is
-    a structure ``validate_manifest`` already reads — that is the difference
-    between a manifest and a finished gold set, and
+    null.** A label is a reading (LC-P2-10 T06), and a generator cannot
+    supply one, so what this writes is the skeleton — a structure
+    ``validate_manifest`` already reads. That is the difference between a
+    manifest and a finished gold set, and
     ``labcairn.papers.gold_manifest.require_annotated`` is what says whether
-    the gold set is finished.
+    the gold set is finished. **The manifest in the tree is this skeleton
+    with the readings written into it.**
 
     **Both addresses are read out of the written file**, by the project's own
     reader, so they are the addresses the chain would record for the same

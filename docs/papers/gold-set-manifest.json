@@ -57,8 +57,50 @@
       "paragraph": 0,
       "start": 0,
       "end": 91,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "data_quality",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -79,9 +121,51 @@
       "paragraph": 1,
       "start": 0,
       "end": 130,
-      "annotations": [],
-      "resolution": null,
-      "issue_key": "iss-gold-a-significance"
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": "iss-gold-a-r1"
     },
     {
       "item_id": "it-d06e97d83a003768",
@@ -101,8 +185,50 @@
       "paragraph": 2,
       "start": 0,
       "end": 94,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "method_and_hypothesis",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "method_and_hypothesis",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -123,9 +249,51 @@
       "paragraph": 1,
       "start": 0,
       "end": 176,
-      "annotations": [],
-      "resolution": null,
-      "issue_key": "iss-gold-a-significance"
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": "iss-gold-a-r1"
     },
     {
       "item_id": "it-4496ea2c07ae635a",
@@ -145,8 +313,50 @@
       "paragraph": null,
       "start": null,
       "end": null,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "unknown",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "unknown",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "unknown",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -167,8 +377,50 @@
       "paragraph": 0,
       "start": 0,
       "end": 83,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "controls_and_ablation",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "pending",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "controls_and_ablation",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "pending",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "controls_and_ablation",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "pending",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -189,8 +441,50 @@
       "paragraph": 1,
       "start": 0,
       "end": 117,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "introduction_and_storyline",
+          "response_state": "not_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "introduction_and_storyline",
+          "response_state": "not_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -211,8 +505,50 @@
       "paragraph": 2,
       "start": 0,
       "end": 91,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "data_quality",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -233,8 +569,50 @@
       "paragraph": 3,
       "start": 0,
       "end": 59,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "review_response",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "review_response",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     },
     {
@@ -255,8 +633,50 @@
       "paragraph": 4,
       "start": 0,
       "end": 84,
-      "annotations": [],
-      "resolution": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
       "issue_key": null
     }
   ]

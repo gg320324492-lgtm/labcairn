@@ -32,12 +32,12 @@ the module's *materials* — the fixtures it writes and the ids it derives
 — and never by asking it whether it is satisfied.
 
 **The last two witnesses are written to hold either way.** The annotations
-are nobody's work yet — that is T06, and §6 of the acceptance record says
-so — so the manifest in the tree ships with empty `annotations` blocks.
-These witnesses do not insist on that emptiness: **they insist that
-whatever state the manifest is in, it is a state the completion check
-reads correctly.** When the two annotators and the arbiter have done their
-work, the same witnesses hold.
+were nobody's work when this file was written — that was T06, and §6 of the
+acceptance record said so — so the manifest in the tree shipped with empty
+`annotations` blocks. **These witnesses do not insist on that emptiness:
+they insist that whatever state the manifest is in, it is a state the
+completion check reads correctly.** When the two annotators and the arbiter
+have done their work, the same witnesses hold — and they do now.
 """
 
 from __future__ import annotations
@@ -245,15 +245,69 @@ def test_the_annotations_are_all_or_nothing() -> None:
     )
 
 
+def test_the_manifests_two_readings_are_by_two_different_readers() -> None:
+    """The manifest in the tree has two readers on every item, and a third to arbitrate.
+
+    **Why this is a witness and not a reading.** The manifest module
+    refuses a manifest whose two readings share an annotator, and refuses
+    one whose arbiter is one of its own annotators — **but those are
+    refusals of a shape somebody typed**, and the file in the tree is a
+    different thing: the gold set as it was actually written. **A rule
+    that is not applied to the tree's own manifest is a rule that has
+    never been applied to anything.**
+
+    So this checks the tree's manifest directly, the way the rest of this
+    file checks the tree's manifest directly: two readings, two different
+    annotator ids, and an arbiter whose id is neither of theirs.
+
+    **And it holds either way.** A manifest that has not been annotated
+    carries no readings and no arbiter, and there is nothing here to say
+    about it — so this says nothing about one, rather than insisting that
+    it be empty.
+    """
+    items = _document()["items"]
+    assert items, "the manifest holds no item, so there is nothing to read"
+
+    for item in items:
+        annotations = item["annotations"]
+        if not annotations:
+            continue
+
+        readers = [annotation["annotator_id"] for annotation in annotations]
+        assert len(set(readers)) == len(readers), (
+            f"item {item['item_id']!r} carries two readings by {readers!r}. Two "
+            "readings by one reader are one reading, and the agreement number "
+            "over it is a statement about that reader's consistency."
+        )
+        assert len(readers) == 2, (
+            f"item {item['item_id']!r} carries {len(readers)} reading(s). The "
+            "gold set's shape is two readings and an arbiter's row."
+        )
+
+        resolution = item.get("resolution")
+        assert resolution is not None, (
+            f"item {item['item_id']!r} carries readings and no arbiter's row. A "
+            "gold set is all or nothing: either nobody has read it or three "
+            "people have."
+        )
+        arbiter = resolution["arbiter_id"]
+        assert arbiter not in readers, (
+            f"item {item['item_id']!r} names {arbiter!r} as its arbiter, and that "
+            f"is one of its own readers ({readers!r}). An arbiter who is one of "
+            "the two has read the item twice rather than arbitrated it."
+        )
+
+
 def test_the_completion_check_agrees_with_the_manifests_own_state() -> None:
     """The completion check passes a finished gold set and refuses an unfinished one.
 
-    **Why this is written to hold either way.** The annotations are two
-    people's work and an arbiter's, and nobody has done them yet — so the
-    manifest in the tree ships empty, and the completion check refuses it.
-    **The witness does not insist on that emptiness**: it insists that
-    the check reads whatever state the manifest is in correctly, so it
-    will keep holding when the readings are written.
+    **Why this is written to hold either way.** The annotations were two
+    people's work and an arbiter's, and nobody had done them when this file
+    was written — so the manifest in the tree shipped empty, and the
+    completion check refused it. **The witness does not insist on that
+    emptiness**: it insists that the check reads whatever state the manifest
+    is in correctly, so it will keep holding when the readings are written.
+    **They have been written**, and the check passes.
     """
     manifest = load_manifest(MANIFEST)
     finished = all(

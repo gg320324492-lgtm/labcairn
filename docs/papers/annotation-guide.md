@@ -1,7 +1,8 @@
 # LC-P2-10 — The annotation guide
 
 **Work order:** LC-P2-10 (process annotation and the gold set) · **Subtask:**
-T01 · **Status:** drafted 2026-10-30, **not yet used to label anything**.
+T01 · **Status:** drafted 2026-10-30; **used to label the gold set in this
+tree** on the same day, by the two independent readings §1.0 describes.
 
 **What this is.** The instructions a person follows when they read a
 manuscript and write down what each comment is about. It is the
@@ -23,6 +24,54 @@ label; the first two only tell you what you are reading.
 ---
 
 ## 1. What you are doing
+
+### 1.0 Who labelled with this guide, and what that means
+
+**Two independent sessions labelled the gold set in this tree, and they
+were not people.** Each worked alone from this guide and the corpus, with
+no sight of the other's work, and with the corpus author's own record of
+what he intended kept out of reach of both — the fixtures' `expectations`
+and `anchor_text` fields, and the corpus README's table of which comment
+carries which issue kind, are an answer key, and an annotation that reads
+it measures transcription rather than judgement. A third session, the
+arbiter, wrote one resolution row per item.
+
+**What that changes, and what it does not.** The labels are still a reading
+of a manuscript against a written guide, and the guide is still the thing
+that decides them — **that is what the agreement number measures: how far
+two independent readings of the same material converge.** What it does not
+measure is **how far two people would agree**, because the two readings were
+not two people. A human reading of the same corpus is the comparison the
+number is meant to be read against, and the acceptance record says so where
+it reports the number.
+
+**And the guide is still the guide.** It was written for a person and it was
+read by a machine, and the places where a reading needed a judgement the
+guide did not settle are recorded in the acceptance record — because a
+guide that had to be completed by guesswork is a guide that is not finished.
+
+### 1.0.1 One field of the manifest is not to be read before you label
+
+**The manifest carries an `issue_key`, and a key that names its issue is an
+answer.** Two comments in the corpus share one recurring issue, and the key
+that said so used to name the issue kind outright — which tells a reader the
+answer before anybody has read the manuscript. **It has been renamed**, and
+a key now says only which recurrence it is.
+
+**So the rule for the next reader of this guide: take the addresses from
+the manifest and the issue kinds from the manuscript, and do not let a
+field's *value* stand in for a reading.** Two of the three sessions that
+labelled this corpus had the old key's wording in reach before they
+labelled, and one of them says in its notes that it used it; the acceptance
+record says what that means for the agreement number, and it is why the
+name was changed rather than left and noted.
+
+**And the old name is not written here either, which is the point.** A
+warning that quotes the thing it warns about is not a warning — it is the
+thing, in the one document every reader is told to read first. **A blind
+audit found exactly that**: this section used to quote the retired key by
+name, so the leak survived the renaming in the place it was most likely to
+do harm. **The rule travels; the example does not.**
 
 ### 1.1 The unit is one comment
 
@@ -793,6 +842,16 @@ this by name**: LC-P2-10's acceptance clause A5 names the test
 block — the manifest expects one per item — and their labels will match
 the two readings.
 
+**And the arbiter is the third reader, not one of the two.** An arbiter
+who is one of the annotators has not arbitrated anything: they have read
+the item a second time and written their own answer over the top. **The
+manifest refuses that by name** — `gold_manifest.py` refuses a resolution
+whose `arbiter_id` names one of the item's own annotators — because the
+agreement number over such an item would be a statement about one reader
+rather than about two, and the disagreement the arbiter was asked to settle
+would have been settled by a party to it. **Give your resolution an id of
+your own**, the way the annotators' ids are their own.
+
 ### 8.3 Why the agreement number is worth having
 
 **The number is reported with its denominator, and the denominator is the
@@ -881,7 +940,7 @@ are in UTC.
 
 | Field | What it is |
 |---|---|
-| `arbiter_id` | who arbitrated, as an id |
+| `arbiter_id` | who arbitrated, as an id — **and it must not be either of the two annotators' ids** (§8.2) |
 | `resolved_at` | the moment of the resolution, ISO-8601 **with an offset** |
 | `comment_address` | the arbiter's three labels for the comment element |
 | `body_address` | the arbiter's three labels for the body-side position |

@@ -27,6 +27,12 @@ two annotations rather than on top of them. A resolution that replaced
 both would leave nothing to compute an agreement over, and the number
 would be a statement about the arbiter alone.
 
+**And the arbiter is the third reader.** The arbiter is somebody other
+than the two annotators: an arbiter who is one of the two has not
+arbitrated anything, they have read the item twice, and the agreement
+number over that item would be a statement about one reader. So the
+arbiter's id is refused when it names one of the item's own annotators.
+
 **The split is by ``PaperProject``, never by event.** Two versions of one
 paper are two observations of one thing, and a split by row would put
 version 1 in one partition and version 2 in the other — where a system that
@@ -404,6 +410,14 @@ def _item(mapping: Mapping[str, Any], index: int) -> GoldItem:
         if raw_resolution is None
         else _resolution(_record(raw_resolution, f"{where} resolution"), f"{where} resolution")
     )
+    if resolution is not None and resolution.arbiter_id in readers:
+        raise ValueError(
+            f"{where} names {resolution.arbiter_id!r} as its arbiter, and that "
+            f"is one of its two annotators ({readers}). The arbiter is the "
+            "third reader: an arbiter who is one of the two has not arbitrated "
+            "anything, they have read the item twice, and the agreement number "
+            "over this item would be a statement about that reader alone."
+        )
 
     locator = mapping.get("comment_locator")
     if locator is not None and not isinstance(locator, dict):

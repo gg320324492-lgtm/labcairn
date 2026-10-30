@@ -63,8 +63,15 @@ refuses a project that appears in two partitions, and names it when it does.
 
 **These are the corpus's intentions, not the gold set's labels.** A reader may
 disagree with them — that disagreement is the thing the exercise is for. The
-manifest's `annotations` are empty, and they stay empty until two people have
-filled them in.
+manifest now carries two readings per item and an arbiter's resolution, and
+the acceptance record reports how far those two readings agreed.
+
+**This table is an answer key, and it is out of reach of the annotators.**
+Whoever labels this corpus reads the manuscript, not this file. The
+recurring-issue key in the manifest was renamed for the same reason: **a key
+that names its issue hands a reader the answer**, and two of the three
+sessions that labelled this corpus had the old name's wording in reach
+before they labelled. See the annotation guide's §1.0.1.
 
 | Issue kind | Carried by | At which address |
 |---|---|---|
@@ -102,8 +109,8 @@ Each item carries:
 | `fixture`, `comment_id` | which manuscript and which comment in it |
 | `comment_locator` | **the comment's own address**, in `word/comments.xml` — *what was written* |
 | `paragraph`, `start`, `end` | **the body-side address** — *where it was written about*. All three are `null` on `c402`, because its anchor is not in the file. |
-| `annotations` | the two independent readings. **Empty.** |
-| `resolution` | the arbiter's answer. **Null.** |
+| `annotations` | the two independent readings. **Filled.** |
+| `resolution` | the arbiter's answer. **Filled.** |
 | `issue_key` | the person-given key for "the same problem", where there is one |
 
 **Both addresses are read out of the written file**, by the project's own
@@ -148,26 +155,30 @@ no key is uncategorised, and no key is inferred from the text: ADR-0017 D6
 says a recurrence is a relation somebody records, not something a similarity
 score decides.
 
-## The annotations are not done yet
+## The annotations are in, and they are not a person's work
 
-**Every item's `annotations` is `[]` and every item's `resolution` is `null`,
-and that is deliberate.** A label is a person's judgement, and LC-P2-10 T06 is
-two annotators working independently from the annotation guide, followed by an
-arbiter resolving each disagreement into its own row. **A manifest that
-carries labels nobody wrote is worse than an empty one**, because it looks
-finished.
+**Every item carries two annotations and an arbiter's resolution, and the
+reading was made by Claude sessions rather than by people.** LC-P2-10 T06 was
+two sessions working independently from the annotation guide over this corpus,
+followed by a third that wrote its own reading first and compared it against
+the two afterwards. **The manifest's ids say which is which** — `agent-annotator-a`,
+`agent-annotator-b`, `agent-arbiter-1` — because an id that does not say what
+it is will be read as a person.
 
-The two states are separate checks, and the project keeps them separate:
+**The two states are separate checks, and the project keeps them separate:**
 
 - `labcairn.papers.gold_manifest.validate_manifest` says the manifest is **well
-  formed**. The empty one is.
+  formed**.
 - `labcairn.papers.gold_manifest.require_annotated` says the gold set is
-  **finished**. The empty one is not, and it refuses by name.
+  **finished**.
 
-**LC-P2-10 is not done until the readings exist.** The manifest's ids are the
-evidence of who did them.
+**A manifest that carries labels nobody wrote is worse than an empty one**,
+because it looks finished — which is why the ids say who read it, and why the
+acceptance record says what the agreement number does and does not measure.
+**These labels were written by sessions, and the ids say that**, so a reader
+cannot mistake the manifest's shape for a human's work.
 
-### How to fill one in
+### How one is filled in
 
 One item per comment, and the comment's two addresses are labelled separately.
 Each annotation carries the annotator's id, the moment, and the three axes of
@@ -176,8 +187,8 @@ each address:
 ```json
 "annotations": [
   {
-    "annotator_id": "annotator-a",
-    "annotated_at": "2026-06-01T10:00:00Z",
+    "annotator_id": "agent-annotator-a",
+    "annotated_at": "2026-10-30T23:25:45+08:00",
     "comment_address": {
       "issue_kind": "statistical_conclusion",
       "response_state": "unknown",
@@ -192,12 +203,16 @@ each address:
   { "...": "the second annotator" }
 ],
 "resolution": {
-  "arbiter_id": "annotator-c",
-  "resolved_at": "2026-06-03T10:00:00Z",
+  "arbiter_id": "agent-arbiter-1",
+  "resolved_at": "2026-10-30T23:40:00+08:00",
   "comment_address": { "...": "the arbiter's answer" },
   "body_address": { "...": "the arbiter's answer" }
 }
 ```
+
+**The `agent-` prefix is not decoration.** The ids name sessions, and a
+reader who was not there cannot tell from `annotator-a` whether it was a
+person or a process — so the id says which it was.
 
 The axis names and the labels each axis accepts are in
 [`src/labcairn/papers/labels.py`](../../../src/labcairn/papers/labels.py), and

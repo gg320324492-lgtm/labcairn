@@ -1,11 +1,12 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-30 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
-T00–T05: the label set, the annotation guide, the synthetic corpus and its
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
+T00–T06: the label set, the annotation guide, the synthetic corpus and its
 manifest, the agreement, the manifest's refusals, the acceptance record and
-the shard costs. **`main` is still `76d25ca`** — nothing was pushed and no
-pull request was opened, because a CI run is spent on a whole body of work
-rather than on each piece of it, and that is the owner's call.
+the shard costs, **and the annotations themselves**. **`main` is still
+`76d25ca`** — nothing was pushed and no pull request was opened, because a
+CI run is spent on a whole body of work rather than on each piece of it, and
+that is the owner's call.
 
 **What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
 `src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with
@@ -15,11 +16,11 @@ rather than on each piece of it, and that is the owner's call.
 (**four manuscripts, two projects, two partitions, ten comments**),
 `tests/test_gold_set_labels.py`, `tests/test_gold_set_agreement.py`,
 `tests/test_gold_set_manifest.py` and `tests/test_gold_set_corpus.py` —
-**forty-four witnesses** — every one of them re-checked by a mutation that
+**forty-six witnesses** — every one of them re-checked by a mutation that
 had to turn that witness red — and
 [`acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md).
 
-**Three things the round found, and they are worth more than the code.**
+**Four things the round found, and they are worth more than the code.**
 
 - **The breakdown's premise about the issue kinds was wrong, and wrong
   invisibly.** It read *"the issue kinds are LC-P2-09's"* — and LC-P2-09 has
@@ -46,10 +47,31 @@ had to turn that witness red — and
   and two witnesses hold that reading down. **A partition inside the limit
   needs a different number of shards or a cheaper `test_cli.py`, and both are
   the owner's call.**
+- **A key that names its issue hands the reader the answer, and one did.**
+  The manifest's `issue_key` was a value that says the issue kind before
+  anyone reads the manuscript. **All three annotation sessions read the
+  manifest**, and the transcripts were searched for the moment that wording
+  entered each one: it was in A's and B's context **before either wrote its
+  labels**, and in the arbiter's only afterwards. B's own notes say it used
+  the key. **So four of the sixty labels were made with the answer in
+  reach**, and the record says so rather than reporting 60/60 as if every
+  label had been read blind. The key is now opaque, the guide has a section
+  on which fields not to read before labelling, and **a blind-read audit —
+  a fourth session given only the manuscripts and the guide — is the
+  measurement that turns "the hint did not change the labels" into a
+  number.** It agreed with both readings on **all twenty issue kinds**,
+  **and it found the leak was still open in the guide's §1.0.1** — the one
+  section every annotator reads first. **That text no longer quotes the
+  retired name**, and the retired name is now written down only in the
+  acceptance record, where it is evidence rather than a hint.
 
-**What this round does not do:** **T06 is not done** — the annotations are
-two people's work and an arbiter's, and the manifest in the tree ships with
-its `annotations` blocks empty. The four new test files' shard costs are
+**What this round does not do:** **T06's readings were made by Claude
+sessions, not by people** — the manifest's ids say so (`agent-annotator-a`,
+`agent-annotator-b`, `agent-arbiter-1`), because an id that does not say
+what it is will be read as a person. **Two of the six agreement views are
+degenerate**: the corpus holds no assessment record, so `assessment_outcome`
+is `unknown` on all twenty readings and its two views are 10/10 by default
+rather than by judgement. The four new test files' shard costs are
 **apportioned rather than measured on a runner**, and the first CI run after
 this lands will give better numbers.
 

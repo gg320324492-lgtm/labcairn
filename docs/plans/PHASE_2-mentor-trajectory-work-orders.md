@@ -151,12 +151,20 @@ written 2026-10-30. **Half of it is a person's job**: T00–T05 are dispatchable
 as code and documents, and **T06 is two annotators and an arbiter filling the
 manifest** — the work order is not done until that block exists.
 
-**Status 2026-10-30: T00–T05 landed** on the branch
-`claude/p2-lc-p2-10-plans`, and **T06 has not been done** — the manifest in
-the tree ships with its `annotations` blocks empty, which is the honest state
-of a manifest whose labels nobody has written. The acceptance record is
-[`../acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md),
-and its §6 says what that means and what else the round found.
+**Status 2026-10-31: T00–T06 landed** on the branch
+`claude/p2-lc-p2-10-plans`. **T06 was done by three Claude sessions rather
+than three people** — two reading independently from the guide and a third
+that wrote its own reading before comparing it against the two — and **the
+manifest's ids say so** (`agent-annotator-a`, `agent-annotator-b`,
+`agent-arbiter-1`), because an id that does not say what it is will be read
+as a person. **So the agreement number in the acceptance record measures how
+far two independent readings converge, not how far two people would agree**,
+and a human reading of the same corpus is the comparison it is meant to be
+read against. The acceptance record is
+[`../acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md);
+**its §6 says what the limit of the number is, and what else the round
+found** — including the one channel through which a hint reached two of the
+three readers.
 
 ### LC-P2-11 — The mentor guidance memory
 
