@@ -1,0 +1,151 @@
+{
+  "purpose": "Two readings of the gold set made by sessions that had never seen the manifest's labels, kept so that a reader can check the agreement this work order reports. They are evidence for a reviewer, not material for an annotator: an annotator reads the manuscripts.",
+  "readings": [
+    {
+      "reader_id": "blind-audit-1",
+      "read_at": "2026-10-31T00:46:50+08:00",
+      "scope": "The issue kind of all ten items, on both of each item's addresses. The other two axes were not read: this is the axis the retired key's name spoke to.",
+      "given": [
+        "the four manuscripts",
+        "the annotation guide",
+        "the address package (item ids and addresses only)"
+      ],
+      "withheld": [
+        "the manifest, not even its structure",
+        "the fixture sources",
+        "the corpus README",
+        "every earlier reading"
+      ],
+      "items": [
+        {
+          "item_id": "it-8c51f71155b12e69",
+          "comment_address": {
+            "issue_kind": "data_quality"
+          },
+          "body_address": {
+            "issue_kind": "data_quality"
+          }
+        },
+        {
+          "item_id": "it-39ef6a616bd079a4",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion"
+          }
+        },
+        {
+          "item_id": "it-d06e97d83a003768",
+          "comment_address": {
+            "issue_kind": "method_and_hypothesis"
+          },
+          "body_address": {
+            "issue_kind": "method_and_hypothesis"
+          }
+        },
+        {
+          "item_id": "it-bd899521f968a827",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion"
+          }
+        },
+        {
+          "item_id": "it-4496ea2c07ae635a",
+          "comment_address": {
+            "issue_kind": "language_and_format"
+          },
+          "body_address": {
+            "issue_kind": "unknown"
+          }
+        },
+        {
+          "item_id": "it-966a9ea1ea18e00a",
+          "comment_address": {
+            "issue_kind": "controls_and_ablation"
+          },
+          "body_address": {
+            "issue_kind": "data_quality"
+          }
+        },
+        {
+          "item_id": "it-418e5d664b4b7d0b",
+          "comment_address": {
+            "issue_kind": "introduction_and_storyline"
+          },
+          "body_address": {
+            "issue_kind": "introduction_and_storyline"
+          }
+        },
+        {
+          "item_id": "it-1e0a1a4720e9a692",
+          "comment_address": {
+            "issue_kind": "data_quality"
+          },
+          "body_address": {
+            "issue_kind": "data_quality"
+          }
+        },
+        {
+          "item_id": "it-37b271bc52b985ae",
+          "comment_address": {
+            "issue_kind": "review_response"
+          },
+          "body_address": {
+            "issue_kind": "review_response"
+          }
+        },
+        {
+          "item_id": "it-09a9de494f51644c",
+          "comment_address": {
+            "issue_kind": "language_and_format"
+          },
+          "body_address": {
+            "issue_kind": "language_and_format"
+          }
+        }
+      ]
+    },
+    {
+      "reader_id": "recurrence-reread-1",
+      "read_at": "2026-10-31T00:58:57+08:00",
+      "scope": "The issue kind of the recurring pair, on both of each item's addresses. This pair is the one the retired key's name pointed at, and this reading was made after the guide stopped quoting that name.",
+      "given": [
+        "the two manuscripts",
+        "the annotation guide",
+        "the address package (item ids and addresses only)",
+        "the closed label vocabulary"
+      ],
+      "withheld": [
+        "the manifest, not even its structure",
+        "the fixture sources",
+        "the corpus README",
+        "every earlier reading",
+        "the previous audit's readings"
+      ],
+      "items": [
+        {
+          "item_id": "it-39ef6a616bd079a4",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion"
+          }
+        },
+        {
+          "item_id": "it-bd899521f968a827",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion"
+          }
+        }
+      ]
+    }
+  ]
+}

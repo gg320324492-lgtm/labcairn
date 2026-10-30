@@ -160,11 +160,16 @@ manifest's ids say so** (`agent-annotator-a`, `agent-annotator-b`,
 as a person. **So the agreement number in the acceptance record measures how
 far two independent readings converge, not how far two people would agree**,
 and a human reading of the same corpus is the comparison it is meant to be
-read against. The acceptance record is
+read against. **And two further readings were made by sessions that had
+never seen the labels** — the fourth found that the leak was still open in
+the guide, the fifth closed it — so **the twenty issue-kind labels have a
+measured independent agreement, and those readings are in the tree**
+(`docs/papers/gold-set-blind-readings.json`) with two witnesses over them.
+The acceptance record is
 [`../acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md);
 **its §6 says what the limit of the number is, and what else the round
 found** — including the one channel through which a hint reached two of the
-three readers.
+three readers, and the rule the manifest did not have about its arbiter.
 
 ### LC-P2-11 — The mentor guidance memory
 

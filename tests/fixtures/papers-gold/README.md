@@ -73,6 +73,14 @@ that names its issue hands a reader the answer**, and two of the three
 sessions that labelled this corpus had the old name's wording in reach
 before they labelled. See the annotation guide's §1.0.1.
 
+**And the readings made without the labels are in the tree too**, in
+[`docs/papers/gold-set-blind-readings.json`](../../../docs/papers/gold-set-blind-readings.json).
+**They are not here for an annotator either** — they are the evidence that
+the labels above are the labels an independent reader reaches as well, and
+**a witness checks that they carry no issue key and name none of the
+manifest's readers**, because a record of somebody's blindness that names
+what they were blind to is not a record of blindness.
+
 | Issue kind | Carried by | At which address |
 |---|---|---|
 | `data_quality` | `c301`, `c601`, and `c501`'s body-side address | both addresses, except on `c501`, where it is the body-side address that differs |

@@ -177,11 +177,25 @@ open in the guide's §1.0.1**, which is the one section every annotator is
 told to read first. **The renaming had moved the leak rather than closed
 it**, and quoting the retired name in a warning is quoting the answer in
 the worst possible place. **So the retired name is now written down only in
-the acceptance record**, where it is evidence, and **four of the sixty
-labels — the issue kinds on the recurring pair — are not yet independently
-established**, because a reader holding the retired name could have written
-them without reading either manuscript. The acceptance record says what
-closing that needs, and it does not claim it.
+the acceptance record**, where it is evidence.
+
+**And a fifth reading was run after the guide was fixed, and it closed the
+gap the audit could not.** The fourth session had the retired name in reach
+through that section, so its agreement on the pair could not be counted as
+evidence; a fifth session read the pair with the guide as it now stands,
+**gave both of them `statistical_conclusion` on both addresses — the same
+label the manifest's three readers gave — and had never seen the retired
+name.** Its context was checked rather than taken on trust: a search
+across every session's transcript finds the name in the annotators, the
+arbiter and the fourth reading, **and in none of the fifth's**.
+
+**And both of those readings are in the tree.** They were files outside
+the repository, where nothing could hold them still and no reviewer could
+read them — **a claim about how the work was done would have stayed true
+for ever, whatever the tree did afterwards.** They are
+`docs/papers/gold-set-blind-readings.json`, and two witnesses watch them:
+one that they agree with the manifest's own labels, and one that the
+record carries no `issue_key` and names none of the manifest's readers.
 
 ## 4. Acceptance, mapped to where it is carried
 
@@ -196,7 +210,7 @@ closing that needs, and it does not claim it.
 | A7 | The split is by `PaperProject`, and one project never appears in two partitions | `test_the_split_is_by_project_and_never_by_event` |
 | A8 | No taxonomy is imported: the labels are LC-P2-09's own | `test_the_labels_are_the_chains_own_vocabulary`, `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` |
 | A9 | The guide exists, and every label has a worked example | **a reviewer's check** — the reviewer reads it |
-| A10 | Two independent readings and an arbiter's row are on every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_manifest_refuses_two_annotations_by_one_annotator`, `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators`, `test_the_manifests_two_readings_are_by_two_different_readers`, `test_a_resolution_does_not_overwrite_the_disagreement` |
+| A10 | Two independent readings and an arbiter's row are on every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_manifest_refuses_two_annotations_by_one_annotator`, `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators`, `test_the_manifests_two_readings_are_by_two_different_readers`, `test_a_resolution_does_not_overwrite_the_disagreement`, `test_the_external_readings_agree_with_the_manifest`, `test_the_external_readings_carry_no_key_and_no_reader` |
 
 **A9 is still the reviewer's.** Nothing in a test can tell whether a guide's
 worked examples are good ones.
@@ -286,9 +300,10 @@ annotations are in now**, and the same witnesses hold.
 4. The partition witness holds: no project in two partitions.
 5. `ruff check`, `ruff format --check` and `mypy --strict` are clean.
 6. The acceptance record names the commit every number was measured at.
-7. **And the record says which of its own numbers are not independent, and
-   what closing that needs.** Four of the sixty labels — the issue kinds on
-   the recurring pair — are not yet independently established, because the
-   retired key's name was in reach when they were written. **A record that
-   reports 60/60 without saying that is a record about a number nobody
-   measured.**
+7. **And the record says which of its own numbers are independent, and where
+   the independence is measured.** The twenty issue-kind labels are backed
+   by readings made without them, and those readings are in the tree and
+   watched; the other two axes are backed by the two annotators and the
+   arbiter, and their two views are degenerate in the corpus as it stands.
+   **A record that reports 60/60 without saying which of its labels were
+   read blind is a record about a number nobody measured.**

@@ -16,11 +16,11 @@ that is the owner's call.
 (**four manuscripts, two projects, two partitions, ten comments**),
 `tests/test_gold_set_labels.py`, `tests/test_gold_set_agreement.py`,
 `tests/test_gold_set_manifest.py` and `tests/test_gold_set_corpus.py` —
-**forty-six witnesses** — every one of them re-checked by a mutation that
+**forty-eight witnesses** — every one of them re-checked by a mutation that
 had to turn that witness red — and
 [`acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md).
 
-**Four things the round found, and they are worth more than the code.**
+**Five things the round found, and they are worth more than the code.**
 
 - **The breakdown's premise about the issue kinds was wrong, and wrong
   invisibly.** It read *"the issue kinds are LC-P2-09's"* — and LC-P2-09 has
@@ -64,6 +64,23 @@ had to turn that witness red — and
   section every annotator reads first. **That text no longer quotes the
   retired name**, and the retired name is now written down only in the
   acceptance record, where it is evidence rather than a hint.
+  **The pair was then read again by a session that had never seen that
+  name**, and it gave both items the same label the manifest's three
+  readers gave — **so all twenty issue-kind labels now have a measured
+  independent agreement.** **And those readings are in the tree**
+  (`docs/papers/gold-set-blind-readings.json`) with two witnesses over
+  them: one that every label they carry is the label the manifest's own
+  readers gave, and one that the record carries no `issue_key` and names
+  none of the manifest's readers — **a record of somebody's blindness
+  that names what they were blind to is not a record of blindness.**
+- **The manifest refused two readings by one annotator, and said nothing
+  about the arbiter.** So a manifest whose arbiter *was* one of its own
+  annotators was accepted — **and an arbiter who is one of the two has
+  read the item twice rather than arbitrated it**, and the agreement
+  number over that item would be a statement about one reader. The
+  contract now refuses it by name, and two witnesses watch it: one for
+  the rule and one for the tree's own manifest, so neither can cover for
+  the other.
 
 **What this round does not do:** **T06's readings were made by Claude
 sessions, not by people** — the manifest's ids say so (`agent-annotator-a`,
@@ -71,7 +88,9 @@ sessions, not by people** — the manifest's ids say so (`agent-annotator-a`,
 what it is will be read as a person. **Two of the six agreement views are
 degenerate**: the corpus holds no assessment record, so `assessment_outcome`
 is `unknown` on all twenty readings and its two views are 10/10 by default
-rather than by judgement. The four new test files' shard costs are
+rather than by judgement. **The external readings cover the issue-kind
+axis only**, so the other two axes are backed by the two annotators and
+the arbiter and by nothing else. The four new test files' shard costs are
 **apportioned rather than measured on a runner**, and the first CI run after
 this lands will give better numbers.
 

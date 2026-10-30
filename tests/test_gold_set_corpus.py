@@ -38,6 +38,18 @@ acceptance record said so — so the manifest in the tree shipped with empty
 they insist that whatever state the manifest is in, it is a state the
 completion check reads correctly.** When the two annotators and the arbiter
 have done their work, the same witnesses hold — and they do now.
+
+**And the last two witnesses are about readings that were made *without*
+the labels.** Two sessions read this corpus before they saw the
+manifest's annotations, and their readings are the only thing behind the
+word "independent" in the acceptance record's agreement number. **Their
+readings sat outside the repository**, where nothing could check them and
+no reviewer could read them — so a claim that was true when it was made
+would have stayed true forever, whatever the tree did afterwards. **They
+are in the tree now**, and one witness checks that they agree with the
+labels that are there and the other checks that the record of them carries
+no `issue_key` and names none of the readers: **a record of somebody's
+blindness that names what they were blind to is not a record of blindness.**
 """
 
 from __future__ import annotations
@@ -57,11 +69,18 @@ from labcairn.papers.gold_manifest import (
     require_annotated,
     validate_manifest,
 )
+from labcairn.papers.labels import ISSUE_LABELS
 
 pytestmark = pytest.mark.unit
 
 #: The manifest in the tree.
 MANIFEST: Path = MANIFEST_RELATIVE_PATH
+
+#: The record of the readings made by sessions that had never seen the
+#: manifest's labels. **It sits beside the manifest because the two are read
+#: together**: the readings are only evidence against the manifest, and a
+#: record of them kept outside the repository is a record nobody can check.
+READINGS: Path = MANIFEST.parent / "gold-set-blind-readings.json"
 
 #: The moment a ZIP archive can express that is obviously a constant: the
 #: earliest one the format has.
@@ -80,6 +99,22 @@ def _comments_in_the_corpus() -> set[tuple[str, str]]:
         for fixture in gold_fixtures()
         for comment in fixture.comments
     }
+
+
+def _readings() -> dict[str, Any]:
+    """The external readings record, read as the raw document it is."""
+    return cast(dict[str, Any], json.loads(READINGS.read_text(encoding="utf-8")))
+
+
+def _manifest_readers(item: dict[str, Any], address: str) -> list[tuple[str, str]]:
+    """Every label the manifest's own readers gave an address, and who gave it."""
+    readers: list[tuple[str, str]] = []
+    for annotation in item.get("annotations", []):
+        readers.append((annotation["annotator_id"], annotation[address]["issue_kind"]))
+    resolution = item.get("resolution")
+    if resolution is not None:
+        readers.append((resolution["arbiter_id"], resolution[address]["issue_kind"]))
+    return readers
 
 
 def test_the_manifest_in_the_tree_parses_under_the_contract() -> None:
@@ -324,3 +359,115 @@ def test_the_completion_check_agrees_with_the_manifests_own_state() -> None:
     assert message.count("carries") == len(manifest.items), (
         f"the refusal has to name every item that is short, not the first one: {message!r}"
     )
+
+
+def test_the_external_readings_agree_with_the_manifest() -> None:
+    """The readings made without the labels agree with the labels that are there.
+
+    **Why this is a witness and not a reading.** The acceptance record
+    reports an agreement, and it reports part of it on the strength of two
+    sessions that had never seen the manifest's labels. **That is a
+    statement about how the work was done, and the tree could not check it
+    at all** — the readings themselves sat outside the repository, where no
+    reviewer could read them and nothing could hold them still.
+
+    So the readings are in the tree now, and this checks the thing that
+    makes them evidence: **every label one of those readers gave is the
+    label the manifest's own readers gave.** A reading that disagreed with
+    the manifest would mean the agreement this record reports is smaller
+    than it says — and then the record's number would be the thing that is
+    wrong, not the reading.
+
+    **And the pair that needed two of them is checked twice.** The
+    recurring pair was read by both sessions; the other eight items by the
+    audit alone. **Two readers who had not seen each other's work, reading
+    the same item the same way, is the only thing in this tree that stands
+    behind the word "independent"** — so where two readers covered an
+    item, they are checked to have covered it the same way.
+    """
+    document = _readings()
+    readings = document["readings"]
+    assert readings, "the readings record carries no reading"
+
+    manifest_items = {item["item_id"]: item for item in _document()["items"]}
+    covered: dict[str, dict[str, str]] = {}
+
+    for reading in readings:
+        reader = reading["reader_id"]
+        for entry in reading["items"]:
+            item_id = entry["item_id"]
+            assert item_id in manifest_items, (
+                f"reading {reader!r} names item {item_id!r}, which the manifest does "
+                "not carry. A reading of an item the gold set does not hold is not "
+                "evidence about it."
+            )
+            item = manifest_items[item_id]
+
+            for address in ("comment_address", "body_address"):
+                label = entry[address]["issue_kind"]
+                assert label in ISSUE_LABELS, (
+                    f"reading {reader!r} gives {item_id!r}'s {address} the label "
+                    f"{label!r}, which is not in the closed vocabulary."
+                )
+                for who, their_label in _manifest_readers(item, address):
+                    assert label == their_label, (
+                        f"reading {reader!r} gives {item_id!r}'s {address} the label "
+                        f"{label!r}, and {who!r} gave it {their_label!r}. The record "
+                        "reports the agreement between the manifest's readers, so a "
+                        "reading that disagrees is a smaller number than the one "
+                        "reported."
+                    )
+                seen = covered.setdefault(f"{item_id}:{address}", {})
+                assert reader not in seen, (
+                    f"reading {reader!r} covers {item_id!r}'s {address} twice."
+                )
+                seen[reader] = label
+
+    covered_twice = {key: labels for key, labels in covered.items() if len(labels) == 2}
+    assert covered_twice, (
+        "no item was read by two of the readers that had not seen the labels. The "
+        "word 'independent' has nothing behind it."
+    )
+    for key, labels in covered_twice.items():
+        assert len(set(labels.values())) == 1, (
+            f"{key} was read by {sorted(labels)} and they did not agree: {labels!r}."
+        )
+
+
+def test_the_external_readings_carry_no_key_and_no_reader() -> None:
+    """The readings record carries no issue key and no annotator's id.
+
+    **Why this is a witness and not a reading.** The record of the readings
+    is in the tree, and the tree is where the next reader of this corpus
+    will look. **The manifest already holds the labels** — it has held them
+    since the readings were made — so this file adds no new answer. But it
+    could add a new *route* to one: a key whose value names the issue, or
+    an annotator's id that points at the reading it wrote.
+
+    So this checks the thing that makes the file safe to commit: **it
+    carries no `issue_key`, and it names none of the manifest's readers.**
+    A record of somebody's blindness that names what they were blind to is
+    not a record of blindness.
+    """
+    text = READINGS.read_text(encoding="utf-8")
+    document = _document()
+
+    keys = {item["issue_key"] for item in document["items"] if item.get("issue_key")}
+    for key in keys:
+        assert key not in text, (
+            f"the readings record carries the issue key {key!r}. A key that names "
+            "its issue is an answer, and this file is where the next reader looks."
+        )
+
+    readers: set[str] = set()
+    for item in document["items"]:
+        for annotation in item.get("annotations", []):
+            readers.add(annotation["annotator_id"])
+        resolution = item.get("resolution")
+        if resolution is not None:
+            readers.add(resolution["arbiter_id"])
+    for reader in readers:
+        assert reader not in text, (
+            f"the readings record names {reader!r}, which is one of the manifest's "
+            "readers. A reader who had seen that id had seen a reading."
+        )

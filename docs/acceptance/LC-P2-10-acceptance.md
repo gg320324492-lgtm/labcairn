@@ -95,12 +95,13 @@ property is broken.** The one that is not is A9 — the guide's worked
 examples are a reviewer's work, and a test that asserts a document exists
 is not a read of a manuscript. **A10 used to be a reviewer's work too, and
 stopped being one when the annotations landed**: the manifest's structure
-now carries it, and the five witnesses its row names check that the two
+now carries it, and the seven witnesses its row names check that the two
 readings are by two different annotators, that the arbiter is neither of
-them, and that the arbiter's answer sits beside them rather than over them.
-**What no witness can check is that the two readers never saw each other's
-work** — that is a property of how the work was done, not of the file that
-holds it, and §5 says how it was done.
+them, that the arbiter's answer sits beside them rather than over them,
+and that the readings made **without** the labels are in the tree and
+agree with them. **What no witness can check is that the two readers never
+saw each other's work** — that is a property of how the work was done, not
+of the file that holds it, and §5 says how it was done.
 
 | # | The clause | The witness | The mutation that proved it bites |
 |---|---|---|---|
@@ -113,7 +114,7 @@ holds it, and §5 says how it was done.
 | A7 | The split is by project, never by event | `test_the_split_is_by_project_and_never_by_event` | a project in two partitions is accepted |
 | A8 | No taxonomy is imported: the labels are the chain's own | `test_the_labels_are_the_chains_own_vocabulary`, `test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them` | the issue kinds drift off the design's set; the chain's words are copied instead of imported |
 | A9 | The guide exists, and every label has a worked example | **a person's check** — the reviewer reads it | — |
-| A10 | Two independent annotators and an arbiter did the work | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_manifest_refuses_two_annotations_by_one_annotator`, `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators`, `test_the_manifests_two_readings_are_by_two_different_readers`, `test_a_resolution_does_not_overwrite_the_disagreement` | two readings by one annotator are accepted; the arbiter is one of the annotators; the tree's manifest names one reader twice; the arbiter's answer overwrites the second reading |
+| A10 | Two independent readings and an arbiter's row are on every item | `test_every_item_has_two_annotations_and_a_resolution`, `test_the_manifest_refuses_two_annotations_by_one_annotator`, `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators`, `test_the_manifests_two_readings_are_by_two_different_readers`, `test_a_resolution_does_not_overwrite_the_disagreement`, `test_the_external_readings_agree_with_the_manifest`, `test_the_external_readings_carry_no_key_and_no_reader` | two readings by one annotator are accepted; the arbiter is one of the annotators; the tree's manifest names one reader twice; the arbiter's answer overwrites the second reading; an external reading disagrees with the manifest; the readings record carries the issue key |
 
 **A8 has two witnesses, and the second one is the one that carries the
 claim.** The first says the label set and the chain's vocabulary *agree*.
@@ -124,7 +125,8 @@ what the module says it does not have. The second witness compares
 out of the chain's own module — and a hand-written constant with the same
 four words is a different object, and fails.
 
-**A10 has five witnesses, and they are not five views of one thing.** Two
+**A10 has seven witnesses, and they are not seven views of one thing.**
+Two
 of them watch the **rule** — the manifest refuses two readings by one
 annotator, and refuses an arbiter who is one of them — and two watch the
 **data** — the manifest in the tree has two different readers on every item
@@ -136,9 +138,21 @@ the data can cover for a witness that watches the rule, and the other way
 round.** M30–M32 were each run against both, and each turned only its own
 red.
 
+**And the last two watch the readings that were made without the labels,
+which is the only thing in the tree that stands behind the word
+"independent."** One says every label those readings carry is the label the
+manifest's own readers gave — **a reading that disagreed would mean the
+agreement this record reports is smaller than it says**, and the record's
+number would be the thing that is wrong. The other says the record of
+those readings carries no `issue_key` and names none of the manifest's
+readers, because **a record of somebody's blindness that names what they
+were blind to is not a record of blindness.** **They watch different
+things**, and M33 and M34 were each run against both: each turned only its
+own red.
+
 ## 4. The mutations, and what each one turned red
 
-**Thirty-two mutations, and the coordinator ran every one of them.** Each
+**Thirty-four mutations, and the coordinator ran every one of them.** Each
 mutation breaks a property, and the run has to show the witness that
 watches it going red **and the witness named in the clause is the one that
 goes red** — a mutation that turns some other test red proves less than it
@@ -203,6 +217,8 @@ it.
 | M30 | the manifest stops refusing an arbiter who is one of its own annotators | `test_the_manifest_refuses_an_arbiter_who_is_one_of_the_annotators` |
 | M31 | the tree's manifest names one reader twice | `test_the_manifests_two_readings_are_by_two_different_readers` |
 | M32 | the tree's manifest names an annotator as its arbiter | `test_the_manifests_two_readings_are_by_two_different_readers` |
+| M33 | one external reading disagrees with the manifest's own labels | `test_the_external_readings_agree_with_the_manifest` |
+| M34 | the external readings record carries the manifest's issue key | `test_the_external_readings_carry_no_key_and_no_reader` |
 
 **Every row was re-run on the tree as it stands now**, in seven scripts
 outside the repository, and every one of the twenty-nine was caught **by the
@@ -219,6 +235,26 @@ can cover for each other, and **a mutation caught by the other witness
 proves less than it looks like it proves.** All three turned the witness
 their row names red and left the other one green, which is what says the
 two watch different things.
+
+**And the two after them were run the same way, against the two witnesses
+about the external readings.** M33 changes one label in the readings
+record; M34 writes the manifest's issue key into it. **Each was checked
+against both**, and each turned only its own red — which is what says the
+one watches the agreement and the other watches what the record carries.
+
+**And the script that ran them lied on its first attempt, and the way it
+lied is worth recording.** It gave its subprocess an environment narrow
+enough that pytest failed for want of `SystemDrive` and `COMSPEC`, and it
+read the exit code as the finding: every run came back non-zero, so it
+reported that **both witnesses went red on both mutations — that they
+cover for each other.** They do not. **The two witnesses were run
+separately against the mutated tree, and the one that had nothing to do
+with the mutation stayed green.** **The exit code is the status of the
+command; the assertion is the evidence**, and a script that reads the
+first as the second reports a finding about its own environment. The script
+now requires an `AssertionError` before it calls a witness red, and it
+checks the unmodified tree first — **a mutation table that cannot tell a
+broken environment from a caught mutation is a table of noise.**
 
 **Four of the twenty-nine did something the reports had not predicted, and
 all four of the notes below are recorded because they are the interesting
@@ -262,7 +298,7 @@ pipe.
 
 ## 5. What was measured, and how
 
-**Forty-six witnesses in four files, and thirty-two mutations against
+**Forty-eight witnesses in four files, and thirty-four mutations against
 them.**
 
 | The file | The witnesses | What it watches |
@@ -270,7 +306,7 @@ them.**
 | `tests/test_gold_set_labels.py` | 11 | the label set is closed, the vocabulary is the chain's own, `UNKNOWN` is an answer |
 | `tests/test_gold_set_agreement.py` | 13 | the agreement is computed from the manifest, over a denominator it names |
 | `tests/test_gold_set_manifest.py` | 13 | the manifest's own refusals, and that a resolution is a row rather than an overwrite |
-| `tests/test_gold_set_corpus.py` | 9 | the corpus and the manifest agree, and the archives carry no clock |
+| `tests/test_gold_set_corpus.py` | 11 | the corpus and the manifest agree, the archives carry no clock, and the readings made without the labels are in the tree and agree with them |
 
 **The corpus is four manuscripts in two projects, in two partitions, with
 ten comments.** Every boundary case the writer can express is in it: a
@@ -291,8 +327,27 @@ one that says where it came from.**
 **And a fourth, blind reading was run to measure what that hint did.** It
 was given the manuscripts, the guide and the address package and nothing
 else, and **it agreed with both readings on all twenty issue kinds** — and
-**it found that the leak was still open in the guide**, which §6 says and
-what it means for the four labels it cannot vouch for.
+**it found that the leak was still open in the guide**, which §6 says.
+
+**And a fifth reading was run after the guide was fixed, and it is the one
+that closed the last gap.** It read the recurring pair — the two items the
+retired name pointed at — with the guide as it now stands, and **it gave
+both of them `statistical_conclusion` on both addresses**, the same label
+the manifest's own three readers gave. **Its context was checked rather
+than taken on trust**: a search across every session's transcript finds the
+retired name in the annotators, in the arbiter and in the fourth reading,
+**and in none of the fifth's** — and the fifth's own transcript names no
+annotator and no reader.
+
+**And both of those readings are in the tree now.** They were files under
+`E:\labcairn-local\tmp`, where no reviewer could read them and nothing
+could hold them still: **a claim about how the work was done would have
+stayed true for ever, whatever the tree did afterwards.** They are
+`docs/papers/gold-set-blind-readings.json`, and **two witnesses watch
+them** — one that every label they carry is the label the manifest's own
+readers gave, and one that the record carries no `issue_key` and names
+none of the manifest's readers, because **a record of somebody's blindness
+that names what they were blind to is not a record of blindness.**
 
 **That number is worth less than it looks, and the reasons are measured
 rather than guessed.** The distribution says how much each view had to
@@ -474,16 +529,29 @@ the pair and nothing else. The §1.0.1 text no longer quotes the retired
 name, and the retired name is now written down **only in this record**,
 where it is evidence rather than a hint.
 
-**So the honest position is: sixteen of the twenty issue-kind labels have
-a measured independent agreement, and four do not.** The four are the issue
-kinds on `c302` and `c401` — the pair the retired name pointed at. **The
-blind audit's agreement on those four is not counted as evidence**, because
-the reader that produced it had the name in reach. **Closing that last gap
-needs a re-read of those two items by a session that has never seen the
-retired name**, and the guide's §3.7 worked example is the same shape as
-both of them, so a reader of the guide alone could reach the same label
-from the example rather than from the manuscripts. **That is the next
-measurement, and this record does not claim it.**
+**And the fifth reading closed that last gap, so the honest position is
+now: all twenty issue-kind labels have a measured independent agreement.**
+The four that did not — the issue kinds on `c302` and `c401`, the pair the
+retired name pointed at — were re-read by a session that had never seen
+that name, **and it gave them the same label the manifest's own three
+readers gave.** The fourth reading's agreement on those four is still not
+counted as evidence, because that reader had the name in reach: **the
+guide it read quoted the retired name in the section every annotator is
+told to read first.** Two readings that agree and one that cannot be
+counted are not the same thing, and this record says which is which.
+
+**What the re-read does not change, and what it does.** The guide's §3.7
+worked example is the same shape as both items, so a reader of the guide
+alone could reach the same label from the example rather than from the
+manuscripts — **that is true of the re-read too, and of every reader of
+this guide, and no reading of this corpus is free of it.** What the re-read
+is free of is the name that said the answer outright. **The label was
+never in doubt; the independence was.**
+
+**And nothing was written into the manifest.** The manifest carries the
+two annotators' rows and the arbiter's, because that is what the gold set
+is; the fifth reading is a check on those, and **a check that overwrote
+the thing it checks would be the thing §5's A5 clause forbids.**
 
 **Two smaller things, recorded because they are choices and not
 oversights:** the writer cannot express a comment's range more narrowly
