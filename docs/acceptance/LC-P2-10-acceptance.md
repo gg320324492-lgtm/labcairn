@@ -429,13 +429,25 @@ both platforms** — 1.000 on Windows, and 1.634 on Ubuntu, where the floor
 is set by `tests/test_cli.py` alone (278 seconds of a 959-second suite).
 
 **`ruff check`, `ruff format --check` and `mypy --strict` are clean**, and
-**the full suite is green locally — 4165 passed and 5 skipped in 31
-minutes** on the tree as it stands: the skips are a POSIX-only permission
-check, a real-provider smoke that needs the owner's authorisation, one
-Windows-drive check that is meaningless on POSIX, and two short-name checks
-this volume does not have. **No CI run was started and no pull request was
-opened** — the work is in the tree, and the owner's rule is that a run is
-spent on a whole body of work rather than on each piece of it.
+**the full suite is green locally** — **4166 passed and 5 skipped in 38
+minutes** on the tree at `0f5e29c`, **with one test that failed and was then
+shown to be the machine rather than the property.** It is
+`tests/test_fault_injection_e2e.py::test_a_crash_through_the_cli_leaves_the_task_state_on_disk`,
+and it failed **while opening a database**:
+`sqlite3.OperationalError: disk I/O error` on `PRAGMA journal_mode=WAL`, in
+`src/labcairn/db/session.py`, **before any assertion ran**. **Run on its own
+on the same tree it passed three times out of three**, and the machine was
+busy at the time with another session's work and with a type check running
+beside it. **A failure in the preparation is a fact about the machine and
+not about the property**, and the way to tell the two apart is the isolated
+re-run, not the exit code.
+
+**The skips are the same five as ever**: a POSIX-only permission check, a
+real-provider smoke that needs the owner's authorisation, one Windows-drive
+check that is meaningless on POSIX, and two short-name checks this volume
+does not have. **No CI run was started and no pull request was opened** —
+the work is in the tree, and the owner's rule is that a run is spent on a
+whole body of work rather than on each piece of it.
 
 **Every number here is anchored to the tree it was measured on.** The shard
 costs were read from the runner's log for `5499ede`; the local suite run and
@@ -444,7 +456,12 @@ the twenty-nine mutations were run on `claude/p2-lc-p2-10-plans` at
 mutations (M30–M32) were run separately, on the tree as it stands after the
 manifest's `issue_key` was renamed and the arbiter's rule was added**, and
 that tree is not the one the other twenty-nine were measured on — so this
-record names two trees rather than one.
+record names two trees rather than one. **And the suite run above is a
+third**: it is the tree at `0f5e29c`, which carries the arbiter's rule and
+the renamed key. **The two mutations after it (M33–M34) were run on the tree
+that also carries the external readings**, and the parts of the suite those
+two mutations touch — the gold set's four files and the status consistency
+file, 312 witnesses — were re-run there and are green.
 
 ## 6. The limits, and what is not done
 

@@ -3,10 +3,12 @@
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
 T00–T06: the label set, the annotation guide, the synthetic corpus and its
 manifest, the agreement, the manifest's refusals, the acceptance record and
-the shard costs, **and the annotations themselves**. **`main` is still
-`76d25ca`** — nothing was pushed and no pull request was opened, because a
-CI run is spent on a whole body of work rather than on each piece of it, and
-that is the owner's call.
+the shard costs, **and the annotations themselves**. **`main` is
+`da470bb`** — the merge of PR #132, LC-P2-02 — **and this branch is
+twenty-two commits ahead of it, every one of them LC-P2-10's.**
+**Nothing of this round was pushed and no new pull request was opened**,
+because a CI run is spent on a whole body of work rather than on each piece
+of it, and that is the owner's call. PR #133 carries the work and is green.
 
 **What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
 `src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with

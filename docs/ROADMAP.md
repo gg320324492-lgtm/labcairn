@@ -73,6 +73,19 @@ has never seen.
 works. LC-P2-14 exists to find out, and its acceptance explicitly allows
 the answer to be *"no measurable gain"*.
 
+**Where Line B stands (2026-10-31).** **LC-P2-08** (the version graph),
+**LC-P2-06** (the data governance) and **LC-P2-09** (the feedback chain) are
+merged; **LC-P2-10** (the process annotation and the gold set) is in
+[PR #133](https://github.com/gg320324492-lgtm/labcairn/pull/133), and
+**LC-P2-11** (the guidance memory) is what comes next. **What LC-P2-10
+settled, and what the later tickets read:** a closed vocabulary the chain's
+own words come from, an annotation guide, a synthetic corpus whose every
+item carries **two independent readings and an arbiter's row**, and an
+agreement reported **with its denominator and with the readings that were
+made without the labels kept in the tree**. **And what it did not
+deliver:** the labels were written by sessions rather than by people, and
+the pilot corpus is still the owner's.
+
 ## Phase 1 upstream research
 
 **LC-P1-00** is a new lightweight prerequisite and continuing reference task: establish separate local clones of selected top Agent/scientific-Agent repositories, record precise SHAs and license context, and use ADRs/tests to justify architecture choices. Do not vendor/reference-clone entire repositories inside the public repo. See [`UPSTREAM_REFERENCES.md`](UPSTREAM_REFERENCES.md). P1 now contains **15 work orders (00–14)**, with G0 for reference setup before the original G1–G5 gates.
