@@ -300,6 +300,22 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # is the event append because the last thing it checks is that the four
     # annotation events are in the stream in the order they were written.
     "test_feedback_demo.py": ("integration", "event-append"),
+    # -- LC-P2-10: the annotation gold set --------------------------------
+    # The label set: a closed vocabulary that a label outside it cannot
+    # enter, and the chain's own words for two of its three axes. Its clause
+    # is the typed contracts, because the set is a type and the refusal is
+    # part of the type's contract.
+    "test_gold_set_labels.py": ("unit", "typed-contracts"),
+    # The agreement: a number computed from the manifest over a denominator
+    # it names. Its clause is numeric extraction, because the number is
+    # taken out of the manifest rather than written into it.
+    "test_gold_set_agreement.py": ("unit", "numeric-extraction"),
+    # The manifest's own rules: two independent readings and an arbiter's
+    # resolution for every item, a resolution that does not overwrite the
+    # disagreement, and a split by project. Its clause is insufficient
+    # evidence, because an item with one reading, or with no arbiter, is an
+    # item whose evidence is short.
+    "test_gold_set_manifest.py": ("unit", "insufficient-evidence"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),
