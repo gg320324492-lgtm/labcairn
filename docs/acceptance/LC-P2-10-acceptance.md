@@ -442,6 +442,37 @@ beside it. **A failure in the preparation is a fact about the machine and
 not about the property**, and the way to tell the two apart is the isolated
 re-run, not the exit code.
 
+**A further attempt to carry the whole suite over the final tree failed,
+and the failures are the machine's.** (The attempt before it, the night
+before, on the tree at `9228f25`, had failed the same way — 99 tests and 57
+errors — and was discarded without entering this record as evidence.) The
+run on the tree at `73dbd06` lost **100 tests, 59 errors and 66 extra
+skips in 20 minutes 51 seconds**, and the fingerprint is the one this
+record already knows: **`3221225794`, which is `0xC0000142`, "DLL
+initialisation failed" — Windows refusing to start a new process.** It
+appears **318 times** in the log, and every traceback that was read is it.
+The distribution says the same thing: **the tests that fell are the ones
+that spawn a process** — the CLI fixtures, the launches, the git calls —
+**while the in-process tests are green and the four gold-set files are
+untouched**; and **36 of the extra skips are `git rev-parse` failing, so
+even git could not start.** **Three representative files — twenty-nine of
+the failed tests between them — were re-run on their own, twice, each with
+its own basetemp, and passed 35 and 35.** The machine measurement agrees:
+the nonpaged pool stood at **6.72 GB** (this machine carries a known
+driver leak), with **453 processes**, while a spawn after the run works.
+**The run at `0f5e29c` got through because the pool was still under the
+threshold; two failed attempts later it is not**, and only a restart
+clears this machine's leak.
+
+**So this record says it plainly: the full suite has not been measured as
+one run on the final tree, and the reason is the machine, not the tree.**
+What the final tree carries instead is the chain: the suite green at
+`0f5e29c`; the two witnesses added since measured green on their own,
+mutation-checked (M33–M34), and green inside the broken run itself; and
+**the bytes between `0f5e29c` and `73dbd06` outside `docs/` and `tests/`
+are none** — the product under test did not change; only the records and
+the two witnesses did.
+
 **The skips are the same five as ever**: a POSIX-only permission check, a
 real-provider smoke that needs the owner's authorisation, one Windows-drive
 check that is meaningless on POSIX, and two short-name checks this volume
@@ -461,7 +492,10 @@ third**: it is the tree at `0f5e29c`, which carries the arbiter's rule and
 the renamed key. **The two mutations after it (M33–M34) were run on the tree
 that also carries the external readings**, and the parts of the suite those
 two mutations touch — the gold set's four files and the status consistency
-file, 312 witnesses — were re-run there and are green.
+file, 312 witnesses — were re-run there and are green. **The two isolation
+re-runs that judged the broken suite were run on the tree as it stands
+now, `73dbd06`, with a clean working tree at that commit** — the last
+anchor this record names.
 
 ## 6. The limits, and what is not done
 
