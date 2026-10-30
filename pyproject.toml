@@ -74,6 +74,19 @@ dependencies = [
     # Model/tool interaction layer. Explicitly NOT the task data authority —
     # SQLite is. See docs/ARCHITECTURE.md and ADR-0002.
     "pydantic-ai>=1,<2",
+    # LC-P2-01 T00. The HTTP client the provider path is built on arrived
+    # transitively through pydantic-ai and was declared by nobody; the
+    # decision record is docs/adr/ADR-0019-model-call-dependencies.md. The
+    # locked version (0.28.1) is already inside the range, so the resolve
+    # does not move -- this makes the project's opinion explicit rather
+    # than changing what is installed.
+    "httpx>=0.27,<1",
+    # LC-P2-01 T00. The HTTP client the provider path is built on arrived
+    # transitively through pydantic-ai and was declared by nobody; the
+    # decision record is docs/adr/ADR-0019-model-call-dependencies.md. The
+    # locked version (0.28.1) is already inside the range, so the resolve
+    # does not move -- this makes the project's opinion explicit rather
+    # than changing what is installed.
     # Application-owned task authority (LC-P1-05).
     "sqlalchemy>=2.0,<3",
     # LC-P1-08 spreadsheet ingestion. MIT, verified from the sdist's own

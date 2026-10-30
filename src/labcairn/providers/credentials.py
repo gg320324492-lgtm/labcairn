@@ -33,11 +33,10 @@ The fingerprint is salted with the same domain separator idea as
 :mod:`labcairn.providers.redaction`, so it identifies "the same credential" for
 diagnostics without being a hash an attacker could grind.
 
-.. warning::
-   ``pyproject.toml`` does not list ``httpx`` as a LabCairn dependency; it arrives
-   transitively through ``pydantic-ai``, whose public ``OpenAIProvider.__init__``
-   signature takes an ``httpx.AsyncClient``. That makes it a legitimate import for
-   this work but not a declared one. Flagged for the dependency owner.
+``httpx`` is a declared runtime dependency (LC-P2-01 T00; the decision
+record is ``docs/adr/ADR-0019-model-call-dependencies.md``) -- it is the
+HTTP client the real-protocol providers run on, and pydantic-ai's public
+``OpenAIProvider.__init__`` takes an ``httpx.AsyncClient`` directly.
 """
 
 from __future__ import annotations
