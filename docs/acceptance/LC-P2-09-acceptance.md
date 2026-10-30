@@ -129,7 +129,8 @@ limit, not as a completion.
 | **The merged tree** | the three agent branches (`T00`, `T01`–`T04`, `T05`) merged into `claude/p2-lc-p2-09`; the only code conflict was `application/refusal.py` and `tests/evaluation/manifest.py`, and both were additions on both sides |
 | **The migration number** | two branches claimed `0012`. `T00`'s `0012_version_edge_rejections.py` kept the number; the chain's four tables became `0013_feedback_chain.py`, with `down_revision = "0012"` |
 | **The whole suite** | see §5.1 |
-| **The exit demonstration** | `uv run python examples/feedback_demo.py` — nine steps, every claim in a `check()` that raises, and `test_feedback_demo_runs` runs it |
+| **The exit demonstration** | `uv run python examples/feedback_demo.py` — nine steps, every claim in a `check()` that raises, and `test_the_feedback_demo_runs` runs it |
+| **The demonstration's determinism** | two runs print **identical output**: the moment is fixed, and the synthetic manuscript's archive entries carry one timestamp |
 | **Lint and types** | `ruff check .`, `ruff format --check .`, and `mypy` are clean |
 | **The shard table** | `.github/ci-shards.json` carries the six chain files plus the demonstration's, **apportioned rather than measured** — see §5.2 |
 
