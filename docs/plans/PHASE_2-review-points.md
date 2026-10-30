@@ -219,6 +219,33 @@ already applied and what they reddened.
 
 ---
 
+## LC-P2-01 — The model-call path
+
+**Task breakdown:**
+[`LC-P2-01-task-breakdown.md`](LC-P2-01-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-01-acceptance.md`](../acceptance/LC-P2-01-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §3 lists the mutations that were
+already applied and what they reddened.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **The bridge is at the caller, and `providers/` still imports nothing of the permission layer.** The call site hands the caller's `ApprovalUse` straight through and inherits `transmit_request`'s order as the property it is — the material gate first, then the approval. | `test_providers_does_not_import_the_permission_layer`, `test_the_material_gate_runs_before_the_approval_is_spent` | Move the `send` call ahead of the gates. **Both order witnesses redden at once, which is what shows they watch the same line from its two sides.** |
+| 2 | **A fresh checkout cannot spend money by accident**: `httpx` is declared at a chosen version, and the tree carries no model id, endpoint, price or capability claim. | `test_httpx_is_a_declared_dependency`, `test_no_model_id_endpoint_or_price_is_written_into_the_tree` | Remove the declaration; or write a model id into any `src/` file. **A supplier's identity is the operator's configuration, never the tree's.** |
+| 3 | **The budget's preflight runs before the gate**, so an unmeasurable refusal costs the person nothing. | `test_a_cost_ceiling_fails_closed_when_the_price_is_unknown` | Move the preflight past the approval consumption. **Exactly that witness reddens: the position is the property.** |
+| 4 | **A schema request the probe does not license is refused before a socket exists** — and the two ways not to be licensed name themselves, because their remedies differ. | `test_an_unprobed_provider_is_blocked` | Drop the schema-ability check, or collapse the two refusals into one. **The first asks a provider to try; the second sends a caller to remedy a probe that has not run.** |
+| 5 | **What came back is judged, not accepted** — an empty result is not a result, and an undecodable answer is a refusal naming what was expected. | `test_an_empty_result_is_not_a_result`, `test_an_undecodable_answer_is_refused_with_the_expectation` | Pass the decode failure through as an answer; or drop the empty check and let `{}` fall to the decoder. **Illegal output must never become evidence by accident.** |
+| 6 | **The refusal does not unstate the call**: the wire carried the request, the approval is spent, and the exchange record stays. | the A10 witness's exchange assertions | Move the emit after the decode. **The log and the wire must agree about whether a call happened.** |
+| 7 | **A model's answer enters as a proposal, bound before it can be cited**, and the constructor — not the path — holds the line to `planned`. | `test_a_models_answer_enters_as_a_proposal_and_is_bound` | Grade the status to `EXTRACTED`; or drop the locator binding. **A model's say-so is never a reader's record, and an unpinned claim cannot be checked.** |
+| 8 | **The exchange record is safe to persist by construction** — digests and counts, the credential by its fingerprint, no field a plaintext key could occupy. | `test_the_transcript_and_usage_land_and_no_key_is_written` | Send a key-shaped string as the fingerprint. **Exactly that witness reddens: the shape is the proof, not the docstring.** |
+| 9 | **The path's refusals are in the layer's vocabulary, closed both ways**, and every refusal is looked up rather than hand-written. | `test_the_model_path_refusals_are_in_the_layers_vocabulary`, `test_the_path_raises_through_the_vocabulary` | Add an orphan `MODEL_` member; or construct the layer's error directly in the module. **A name no refusal carries is as dead as a refusal no surface can name.** |
+| 10 | **An unanswered call is unknown and not a success, and one approval pays for one call.** | `test_an_unanswered_request_is_unknown_and_not_a_success`, `test_a_retry_does_not_pay_twice` | Record an exchange on the unanswered path; or let a spent approval be consumed again. **A record shaped like an answer would be a lie about what came back.** |
+| 11 | **The demonstration sends nothing, and its exit code means something** — consented, budgeted, recorded, and refused before a socket exists. | `test_the_model_request_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
 ## How this file grows
 
 **Each work order adds its own section, and the file is edited in the

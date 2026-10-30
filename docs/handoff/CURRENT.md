@@ -1,7 +1,39 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-12,
-the three-role guidance loop, is landed: T00–T05.** `src/labcairn/roles/`
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
+the model-call path, is landed: T00–T07.** `src/labcairn/application/
+model_request.py` is one operation, `request_model`, that turns "a model
+may be asked" into an actual ask: the budget's preflight runs first
+(because a refusal that cannot be measured should not cost the person
+their approval), a schema request the provider's probe does not license
+is refused at the same price — nothing — with never-probed and
+probed-and-failed naming themselves as two refusals, the material gate
+runs next and only a permitted request consumes the approval, and the
+exchange lands in the event log as a `model_exchanged` annotation in the
+provider layer's own wire form — digests and counts, the credential by
+its fingerprint, no field a plaintext key could occupy. What came back
+is judged, not accepted: an empty result is not a result, an undecodable
+answer is a refusal naming what was expected, and the refusal does not
+unstate the call. `record_model_proposal` in `application/evidence.py`
+brings a model's answer into the ledger as a `model_proposal` on
+`planned`, bound to the locator the write was given — the constructor,
+not the path, holds the line to `planned`, and nothing writes the
+creator field around it. `application/model_refusals.py` and the
+`MODEL_REFUSALS` table name the path's four refusals in the layer's
+vocabulary, closed against each other in both directions, with the path
+raising through `model_refused`. `httpx` is a declared dependency at
+`>=0.27,<1` (ADR-0019), and the tree carries no model id, endpoint,
+price or capability claim — a fresh checkout cannot spend money by
+accident. The witnesses are `tests/test_model_request_path.py`
+(fifteen), `tests/test_model_request_demo.py` (two), and
+`examples/model_request_demo.py`, which runs four scenes — consented,
+budgeted, recorded, refused — against a real ingested material and the
+scripted fake, **and nothing sent**. The acceptance record is
+`docs/acceptance/LC-P2-01-acceptance.md`; the eleven review points are
+in `docs/plans/PHASE_2-review-points.md`.
+
+**Before this, LC-P2-12, the three-role guidance loop, landed:**
+`src/labcairn/roles/`
 carries `spec.py` (a role's contract as a **versioned row** — capabilities,
 the five forbidden actions, purposes, budgets, abstain and escalation
 conditions — with `require_allowed`/`refuse_forbidden` enforcing it and
@@ -45,17 +77,17 @@ partition is re-measured on the runner with
 whole-suite run has been made on the final tree since the machine's
 restart; the figures in the acceptance records are local until then.
 
-**Where the branch stands.** `main` is at `da470bb`; this branch is 40
-commits ahead of it (41 with this file's own commit) — LC-P2-10, LC-P2-11
-and LC-P2-12, none pushed and no pull request opened beyond #133, which
-the owner has yet to merge.
+**Where the branch stands.** `main` is at `da470bb`; this branch is 49
+commits ahead of it (50 with this file's own commit) — LC-P2-10, LC-P2-11,
+LC-P2-12 and LC-P2-01, none pushed and no pull request opened beyond
+#133, which the owner has yet to merge.
 
 **Decisions waiting for the owner** (each is a message, not a blocker):
-(a) the push, and the merge of PR #133 — the three work orders ride one
+(a) the push, and the merge of PR #133 — the four work orders ride one
 branch; (b) the shard re-measurement against the next run's logs; (c)
 the whole-suite re-run on the final tree, after the restart; (d) LC-P2-10's
 three pilot decisions (the annotators, the papers, the corpus widening);
-(e) the review of what LC-P2-11 and LC-P2-12 landed.
+(e) the review of what LC-P2-11, LC-P2-12 and LC-P2-01 landed.
 
 **Before this, LC-P2-11 — the mentor guidance memory — landed:**
 `src/labcairn/guidance/`
