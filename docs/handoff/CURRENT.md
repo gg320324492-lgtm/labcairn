@@ -1,7 +1,64 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-11,
-the mentor guidance memory, is landed: T00–T05.** `src/labcairn/guidance/`
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-12,
+the three-role guidance loop, is landed: T00–T05.** `src/labcairn/roles/`
+carries `spec.py` (a role's contract as a **versioned row** — capabilities,
+the five forbidden actions, purposes, budgets, abstain and escalation
+conditions — with `require_allowed`/`refuse_forbidden` enforcing it and
+`RoleOutput` stamping the version on every output),
+`trajectory.py` (role A's candidates: no `comment_locator` field — the
+shape itself refuses — advisor quotes verified verbatim on the chain,
+versions ordered by walking accepted edges, forks and invented rounds
+refused), `guidance.py` (role B's card: evidence required, claims bound
+to the evidence they cite, facts and style separate, a rule cited **with
+its counter-examples**, and the structured abstention that names what was
+missing), `critique.py` (role C: every verdict `inferred`, no store row
+written, and the counter-evidence **retrieved by C itself** through the
+memory), `orchestration.py` (the routing tables as data — four ways in
+for the critique and no fifth, a cost ceiling that fails closed, a retry
+that is the same plan, and the append-only ledger of human decisions),
+`refusals.py`, the `agent_role_specs` row and migration 0016. The
+witnesses are `tests/test_agent_role_specs.py` (eight, including eleven
+raw-`INSERT` schema refusals), `tests/test_role_trajectory.py` (three),
+`tests/test_role_guidance.py` (five), `tests/test_role_critique.py`
+(two), `tests/test_role_orchestration.py` (four),
+`tests/test_guidance_loop_demo.py` (two), and
+`examples/guidance_loop_demo.py`, which runs six scenes against a real
+ingested material and a planted chain — **one priced call through
+`FakeProvider`, and nothing sent**. The acceptance record is
+`docs/acceptance/LC-P2-12-acceptance.md`; the thirteen review points are
+in `docs/plans/PHASE_2-review-points.md`.
+
+**The demonstration caught a mistake in its own planting.** The first
+draft planted the chain by inserting `SourceRow`s for materials that did
+not exist on disk, and scene four's counter-evidence came back empty:
+the memory's retrieval resolves every source's reach at query time, and
+a row whose file is not there refuses the reader. The demonstration now
+ingests real text files through the product's own intake — the same
+lesson the retrieval's witnesses taught, met again from the other side.
+
+**What is not done, on purpose.** Ten new test files (six from this work
+order, four from LC-P2-11) have no runner-measured cost, so
+`test_ci_shard_coverage` is red in its two coverage clauses — the
+partition is re-measured on the runner with
+`python .github/remeasure_shards.py <run-id>`, not guessed. And no
+whole-suite run has been made on the final tree since the machine's
+restart; the figures in the acceptance records are local until then.
+
+**Where the branch stands.** `main` is at `da470bb`; this branch is 40
+commits ahead of it (41 with this file's own commit) — LC-P2-10, LC-P2-11
+and LC-P2-12, none pushed and no pull request opened beyond #133, which
+the owner has yet to merge.
+
+**Decisions waiting for the owner** (each is a message, not a blocker):
+(a) the push, and the merge of PR #133 — the three work orders ride one
+branch; (b) the shard re-measurement against the next run's logs; (c)
+the whole-suite re-run on the final tree, after the restart; (d) LC-P2-10's
+three pilot decisions (the annotators, the papers, the corpus widening);
+(e) the review of what LC-P2-11 and LC-P2-12 landed.
+
+**Before this, LC-P2-11 — the mentor guidance memory — landed:**
+`src/labcairn/guidance/`
 carries `rules.py` (the closed state machine `candidate → confirmed \|
 disputed \| withdrawn`; only a person moves a rule out of candidate, and
 **the confirmer cannot be the proposer** — `model_proposal` included),
