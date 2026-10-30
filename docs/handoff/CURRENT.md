@@ -1,5 +1,57 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-30 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
+T00–T05: the label set, the annotation guide, the synthetic corpus and its
+manifest, the agreement, the manifest's refusals, the acceptance record and
+the shard costs. **`main` is still `76d25ca`** — nothing was pushed and no
+pull request was opened, because a CI run is spent on a whole body of work
+rather than on each piece of it, and that is the owner's call.
+
+**What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
+`src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with
+**two verdicts** — well formed, and finished), `docs/papers/annotation-guide.md`
+(every label with a worked example and a boundary case),
+`docs/papers/gold-set-manifest.json` and `tests/fixtures/papers-gold/`
+(**four manuscripts, two projects, two partitions, ten comments**),
+`tests/test_gold_set_labels.py`, `tests/test_gold_set_agreement.py`,
+`tests/test_gold_set_manifest.py` and `tests/test_gold_set_corpus.py` —
+**forty-four witnesses** — and
+[`acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md).
+
+**Three things the round found, and they are worth more than the code.**
+
+- **The breakdown's premise about the issue kinds was wrong, and wrong
+  invisibly.** It read *"the issue kinds are LC-P2-09's"* — and LC-P2-09 has
+  no issue kinds: it has `issue_key`, a free-text key a person gives, which
+  the chain refuses to infer because the same wording is not the same issue.
+  **A key somebody types is not a vocabulary somebody can choose from.** The
+  real source is in the tree — the upstream study's own quotation of the
+  design's twelve — and the label set is now **tied to that document**: the
+  witness reads the set out of it, so a change to the vocabulary that nobody
+  recorded fails the test rather than passing it.
+- **The agreement's denominator cannot be told from the manifest's item
+  count by its number.** The manifest requires two readings per item, so over
+  any manifest the function accepts, the two counts are equal. The witness
+  pins the number, the words that name what it counted, and the refusal to
+  compute over a manifest with one reading — and the record says plainly
+  that the fourth thing it cannot pin is the fourth.
+- **The Ubuntu shard partition is outside the balance limit, and that is
+  structural.** `tests/test_cli.py` costs 278 seconds of a 959-second suite,
+  so the best factor five shards can reach is `278 / (681 / 4) = 1.634`, and
+  the partition is already at that floor. The cost check's slack came out
+  negative, so it reported **every** changed file as one that could unbalance
+  the partition — a quarter-second test file, named as the reason a partition
+  is lopsided. The check now asks whether the changed file is the bottleneck,
+  and two witnesses hold that reading down. **A partition inside the limit
+  needs a different number of shards or a cheaper `test_cli.py`, and both are
+  the owner's call.**
+
+**What this round does not do:** **T06 is not done** — the annotations are
+two people's work and an arbiter's, and the manifest in the tree ships with
+its `annotations` blocks empty. The four new test files' shard costs are
+**apportioned rather than measured on a runner**, and the first CI run after
+this lands will give better numbers.
+
 **Date:** 2026-10-30 · **`main`:** `76d25ca` — the merge of PR #130, which is
 LC-P2-09 · **Previous `main`:** `503b5fe` (PR #129, LC-P2-06's review and its
 seven findings).

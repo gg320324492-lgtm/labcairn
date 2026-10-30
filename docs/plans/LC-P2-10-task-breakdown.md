@@ -1,7 +1,10 @@
 # LC-P2-10 — Process annotation and the gold set — task breakdown
 
 **Work order:** LC-P2-10 (process annotation and the gold set) · **Status:**
-drafted 2026-10-30, **not yet dispatched**. **Priority:** the adjustment of
+drafted 2026-10-30; **T00–T05 landed on 2026-10-30** on the branch
+`claude/p2-lc-p2-10-plans`, and **T06 is not done** — the annotations are two
+people's work and an arbiter's, and the manifest in the tree ships with its
+`annotations` blocks empty. **Priority:** the adjustment of
 2026-10-30 (P2-AMD-01) keeps it in step 3, between LC-P2-09 and LC-P2-11, and
 it is **the one that cannot be parallelised**: it needs two people and an
 arbiter, and it needs the pilot corpus.
