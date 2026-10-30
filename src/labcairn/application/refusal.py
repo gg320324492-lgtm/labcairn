@@ -325,6 +325,24 @@ class ApplicationRefusal(StrEnum):
     ROLE_VERSION_OUTSIDE_THE_GRAPH = "role_version_outside_the_graph"
     #: The accepted edges leave the order ambiguous.
     ROLE_VERSION_ORDER_AMBIGUOUS = "role_version_order_ambiguous"
+    #: A required field of the card is empty.
+    ROLE_CARD_FIELD_EMPTY = "role_card_field_empty"
+    #: The card's evidence list is empty.
+    ROLE_CARD_WITHOUT_EVIDENCE = "role_card_without_evidence"
+    #: The severity named is outside the vocabulary.
+    ROLE_SEVERITY_UNKNOWN = "role_severity_unknown"
+    #: A claim's kind is outside the vocabulary.
+    ROLE_CLAIM_KIND_UNKNOWN = "role_claim_kind_unknown"
+    #: A claim cites evidence the card does not declare.
+    ROLE_CLAIM_WITHOUT_EVIDENCE = "role_claim_without_evidence"
+    #: An advisor claim's quote is not the advisor's words in the chain.
+    ROLE_ADVICE_NOT_IN_THE_CHAIN = "role_advice_not_in_the_chain"
+    #: The uncertainty named is outside the vocabulary.
+    ROLE_UNCERTAINTY_KIND_UNKNOWN = "role_uncertainty_kind_unknown"
+    #: An abstention that cannot say what it lacks.
+    ROLE_ABSTENTION_WITHOUT_A_MISSING = "role_abstention_without_a_missing"
+    #: The memory holds no rule under the id a card tries to cite.
+    ROLE_RULE_NOT_IN_THE_MEMORY = "role_rule_not_in_the_memory"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -477,6 +495,25 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
     ),
     RoleRefusal.VERSION_ORDER_AMBIGUOUS: (
         ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS
+    ),
+    RoleRefusal.CARD_FIELD_EMPTY: ApplicationRefusal.ROLE_CARD_FIELD_EMPTY,
+    RoleRefusal.CARD_WITHOUT_EVIDENCE: ApplicationRefusal.ROLE_CARD_WITHOUT_EVIDENCE,
+    RoleRefusal.SEVERITY_UNKNOWN: ApplicationRefusal.ROLE_SEVERITY_UNKNOWN,
+    RoleRefusal.CLAIM_KIND_UNKNOWN: ApplicationRefusal.ROLE_CLAIM_KIND_UNKNOWN,
+    RoleRefusal.CLAIM_WITHOUT_EVIDENCE: (
+        ApplicationRefusal.ROLE_CLAIM_WITHOUT_EVIDENCE
+    ),
+    RoleRefusal.ADVICE_NOT_IN_THE_CHAIN: (
+        ApplicationRefusal.ROLE_ADVICE_NOT_IN_THE_CHAIN
+    ),
+    RoleRefusal.UNCERTAINTY_KIND_UNKNOWN: (
+        ApplicationRefusal.ROLE_UNCERTAINTY_KIND_UNKNOWN
+    ),
+    RoleRefusal.ABSTENTION_WITHOUT_A_MISSING: (
+        ApplicationRefusal.ROLE_ABSTENTION_WITHOUT_A_MISSING
+    ),
+    RoleRefusal.RULE_NOT_IN_THE_MEMORY: (
+        ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY
     ),
 }
 

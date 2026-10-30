@@ -75,3 +75,30 @@ class RoleRefusal(StrEnum):
     #: accepted edge separates, or a fork. **A similarity score may
     #: never silently decide an order**, and neither may this module.
     VERSION_ORDER_AMBIGUOUS = "version_order_ambiguous"
+    # -- the card's own reasons (LC-P2-12 T02) ------------------------------ #
+    #: A required field of the card — the target, the reason, the next
+    #: action, the uncertainty's own statement — is empty. A card with
+    #: nothing in it advises nothing.
+    CARD_FIELD_EMPTY = "card_field_empty"
+    #: The card's evidence list is empty. **A card without evidence is
+    #: an opinion wearing a card's clothes.**
+    CARD_WITHOUT_EVIDENCE = "card_without_evidence"
+    #: The severity named is not one the vocabulary closes.
+    SEVERITY_UNKNOWN = "severity_unknown"
+    #: A claim's kind is not one of scientific, advisor, reference. A
+    #: claim of no kind is a sentence the reader cannot weigh.
+    CLAIM_KIND_UNKNOWN = "claim_kind_unknown"
+    #: A claim cites evidence the card does not declare. A claim nothing
+    #: supports is not a claim.
+    CLAIM_WITHOUT_EVIDENCE = "claim_without_evidence"
+    #: An advisor claim's quote is not the advisor's words in the chain,
+    #: or names no key or quote at all. **A voice without a source is
+    #: an invention.**
+    ADVICE_NOT_IN_THE_CHAIN = "advice_not_in_the_chain"
+    #: The uncertainty named is not one the vocabulary closes.
+    UNCERTAINTY_KIND_UNKNOWN = "uncertainty_kind_unknown"
+    #: An abstention that cannot say what it lacks. **A shrug is not a
+    #: result.**
+    ABSTENTION_WITHOUT_A_MISSING = "abstention_without_a_missing"
+    #: The memory holds no rule under the id a card tries to cite.
+    RULE_NOT_IN_THE_MEMORY = "rule_not_in_the_memory"
