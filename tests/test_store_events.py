@@ -411,7 +411,7 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     ``models.py`` builds these constraints from :class:`EventType` at import
     time, so a new event type reaches the database automatically. This asserts
     the generated SQL really does contain every member and no non-member — the
-    link between "the contract has 25 types" and "the table accepts 25 types",
+    link between "the contract has 29 types" and "the table accepts 29 types",
     which is the property a reader of the migration alone could not verify.
     """
     session = env.session
@@ -422,8 +422,8 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     for value in members:
         assert f"'{value}'" in ddl, f"{value} is missing from the events constraints"
     assert "'task_vaporised'" not in ddl
-    # 25 members, each named in more than one constraint.
-    assert len(members) == 25
+    # 29 members, each named in more than one constraint.
+    assert len(members) == 29
 
 
 def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
@@ -441,7 +441,7 @@ def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
 
 @pytest.mark.parametrize("event_type", list(EventType), ids=lambda t: t.value)
 def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type: EventType) -> None:
-    """Each of the 25 types can be inserted with the context the ADR assigns it.
+    """Each of the 29 types can be inserted with the context the ADR assigns it.
 
     The drift guard between ADR-0003 C1 and the CHECK constraints: a type added
     to the frozen enum but forgotten in a constraint fails here, per type,

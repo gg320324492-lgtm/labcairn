@@ -97,7 +97,7 @@ _RUN_SCOPED_TYPES: Final[frozenset[str]] = frozenset(
     t.value for t in EventType if event_requires_run(t)
 )
 
-#: Event types that must *not* name a Run: the Task-level pair plus the three
+#: Event types that must *not* name a Run: the Task-level pair plus the
 #: annotations about material rather than attempts.
 _TASK_LEVEL_TYPES: Final[frozenset[str]] = frozenset(
     t.value for t in EventType if not event_requires_run(t)

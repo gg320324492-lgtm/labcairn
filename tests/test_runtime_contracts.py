@@ -30,6 +30,7 @@ from labcairn.core.schema import (
 )
 from labcairn.runtime.event import (
     ANNOTATION_EVENTS,
+    EVENT_PAYLOAD_SCHEMAS,
     RUN_SCOPED_PREFIXES,
     TASK_LEVEL_EVENTS,
     Event,
@@ -612,6 +613,25 @@ def test_event_stream_page_resumes_from_the_last_seq(ids: dict[str, Any]) -> Non
     assert empty.caught_up is True
 
 
+def _payload_for(event_type: EventType) -> dict[str, object]:
+    """The payload an event of *event_type* has to carry.
+
+    A type with no registered schema carries nothing, and a type with one
+    carries something that satisfies it. The four chain events
+    (ADR-0017 D8) are the second kind: they name the row they are about,
+    and the event model refuses an empty payload for them — so an
+    annotation cannot be built here without saying what it is about.
+    """
+    schema = EVENT_PAYLOAD_SCHEMAS.get(event_type)
+    if schema is None:
+        return {}
+    payload: dict[str, object] = {}
+    for name, field in schema.model_fields.items():
+        if field.is_required():
+            payload[name] = "x" if field.annotation is str else 0
+    return payload
+
+
 @pytest.mark.parametrize("event_type", sorted(ANNOTATION_EVENTS))
 def test_annotations_do_not_need_a_run(ids: dict[str, Any], event_type: EventType) -> None:
     """ADR-0003 requires a Run only for five families.
@@ -621,7 +641,12 @@ def test_annotations_do_not_need_a_run(ids: dict[str, Any], event_type: EventTyp
     Task-level", which wrongly demanded a Run of every annotation.
     """
     assert event_requires_run(event_type) is False
-    event = Event(seq=1, task_id=ids["task"], type=event_type)
+    event = Event(
+        seq=1,
+        task_id=ids["task"],
+        type=event_type,
+        payload=_payload_for(event_type),
+    )
     assert event.run_id is None
 
 
