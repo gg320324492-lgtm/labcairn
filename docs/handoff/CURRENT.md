@@ -5,10 +5,20 @@ T00–T06: the label set, the annotation guide, the synthetic corpus and its
 manifest, the agreement, the manifest's refusals, the acceptance record and
 the shard costs, **and the annotations themselves**. **`main` is
 `da470bb`** — the merge of PR #132, LC-P2-02 — **and this branch is
-twenty-two commits ahead of it, every one of them LC-P2-10's.**
+twenty-three commits ahead of it, every one of them LC-P2-10's.**
 **Nothing of this round was pushed and no new pull request was opened**,
 because a CI run is spent on a whole body of work rather than on each piece
 of it, and that is the owner's call. PR #133 carries the work and is green.
+
+**The full suite has not been measured as one run on the final tree, and
+the reason is the machine, not the tree.** Two overnight attempts ended in
+the same fingerprint — `0xC0000142`, Windows refusing to start a new
+process, while this machine's nonpaged pool stands at 6.72 GB with 453
+processes (a known driver leak; only a restart clears it). The judgement,
+its five pieces of evidence and the chain that stands instead are in
+`docs/acceptance/LC-P2-10-acceptance.md` §5; after a restart, one command
+re-measures it: the project's temp rules, then `pytest` with a basetemp
+outside the repository.
 
 **What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
 `src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with
