@@ -47,8 +47,10 @@ the DOCX check says the other eight are.
 **Direct DDL, for the reason 0007 records.** A frozen revision must not
 import today's ``labcairn.db.models``, or editing that class would
 silently rewrite what this revision meant to create.
-``tests/test_evidence_schema.py``'s parity test is what holds the two
-together.
+``tests/test_store_migrations.py``'s parity test is what holds the two
+together, and the rows this revision must refuse are witnessed again by
+writing them -- a text comparison cannot catch a migration and a model
+wrong together.
 
 **SQLite cannot ALTER a CHECK constraint**, so both tables are rebuilt in
 batch mode -- copy, drop, recreate, copy back. That is Alembic's

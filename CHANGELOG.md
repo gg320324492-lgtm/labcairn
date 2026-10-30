@@ -20,6 +20,42 @@ The links are the records.
 
 **Added**
 
+- **The consent machinery — the grant table, the two gates, and the
+  refusals.** `access_grants` and `derived_copies` (migration
+  `0011_access_grants.py`), the permission check that answers whether a use
+  is permitted, the two independent gates a transmit request has to pass
+  (the operation approval, and the grant that names the destination), the
+  withdrawal and the propagation that reaches the copies derived from it, and
+  the intake guards that refuse an archive **before it is opened**. **The
+  absence of a row is the refusal**, and a refusal names the missing
+  permission and what would satisfy it. The fourteen acceptance clauses each
+  have a named witness, and an **independent review against the merged
+  tree** found four properties that were true of the code and unwatched — a
+  read grant answering a training use, the refusals that never reached a
+  surface, an order that was not wired, and a demonstration that printed a
+  claim it did not carry — **each of which now has a witness that fails when
+  the property breaks**.
+  [LC-P2-06 acceptance](docs/acceptance/LC-P2-06-acceptance.md) ·
+  [the independent review](docs/acceptance/LC-P2-06-review.md).
+
+- **The paper project and the version graph.** `paper_versions` and
+  `version_edges` (migration `0010_paper_version_graph.py`), the contracts
+  that hold them, the alignment that **proposes** an edge without deciding
+  it, the human path that settles one, and the two checks that are about not
+  lying about an archive. **A version graph and not a version list**: the
+  process branches, so the parent lives in the edge table and the version
+  table has no parent column. A confidence score is not a decision, and an
+  unresolved relationship is a value rather than an absence.
+  [LC-P2-08 acceptance](docs/acceptance/LC-P2-08-acceptance.md).
+
+- **The OOXML-native reader.** `w:ins`, `w:del`, `w:commentRangeStart/End`
+  and the rest, read out of the package itself rather than out of a
+  converted document: `src/labcairn/material/ooxml.py`, with `DocxLocator`,
+  `SourceKind.DOCX` and migration `0009`. **Revision recall 30/30, deletion
+  recovery 8/8 and comment recall 14/14 on the synthetic corpus**, with four
+  mutations applied to prove the witnesses fail for their properties.
+  [LC-P2-07 fidelity baseline](docs/acceptance/LC-P2-07-fidelity-baseline.md).
+
 - **The first Phase 2 work-order list, as a draft.**
   [`docs/plans/PHASE_2-work-orders-draft.md`](docs/plans/PHASE_2-work-orders-draft.md):
   six tickets with prerequisites, cost and acceptance clauses, in the order they

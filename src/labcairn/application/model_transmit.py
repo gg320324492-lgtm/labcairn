@@ -43,12 +43,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from labcairn.application.approvals import ApprovalUse, consume_approval
+from labcairn.application.context import ApplicationContext
+from labcairn.application.refusal import ApplicationRefusedError, consent_refusal_name
+from labcairn.core.ids import ApprovalId
 from labcairn.security.permissions import ConsentDecision, Grant, may_use
 
 __all__ = [
     "TransmitCheck",
     "check_transmit",
     "transmit_refusal_for",
+    "transmit_request",
 ]
 
 
@@ -130,3 +135,58 @@ def transmit_refusal_for(check: TransmitCheck) -> str | None:
     so that a refusal reason is not re-spelled at every call site.
     """
     return check.reason
+
+
+def transmit_request(
+    context: ApplicationContext,
+    approval_id: ApprovalId,
+    grants: list[Grant],
+    *,
+    use: ApprovalUse,
+    subject_ref: str,
+    destination: str,
+    material_ref: str | None = None,
+    purpose: str = "transmit",
+    at: datetime,
+) -> TransmitCheck:
+    """The path a transmit request takes, and **the order it takes them in**.
+
+    **The gate first, and the approval only if the gate permits.** This is
+    the path ADR-0015 D3 describes and that this module's own docstring
+    promised: the transmit check runs *before* the approval is consumed, so
+    a request refused for want of a grant **leaves the approval unspent**,
+    and a person can fix the grant and try again without asking for a new
+    approval every time the grant was missing. Asking is not spending.
+
+    **And the refusal is the layer's own refusal.** A request the gate
+    refuses raises :class:`~labcairn.application.refusal.ApplicationRefusedError`
+    with the reason looked up in the layer's vocabulary — **not a string
+    invented here** — so that the CLI and the API render the same reason
+    the consent machinery produced, and so that a reason with no name in
+    the layer is a crash rather than an invented label.
+
+    **The capability is the caller's.** This path spends an approval the
+    caller already holds; *which* capability a model request runs under is
+    the model path's business, and this function does not decide it. What
+    it holds fixed is the **order**, which is the property.
+
+    **What breaks it:** a path that consumes the approval before it asks
+    the gate, so that a refusal costs the person their approval; or a path
+    that catches the refusal and spends it anyway.
+    """
+    check = check_transmit(
+        grants,
+        subject_ref=subject_ref,
+        destination=destination,
+        material_ref=material_ref,
+        purpose=purpose,
+        at=at,
+    )
+    if not check.permitted:
+        reason = check.decision.reason
+        # Indexed, not defaulted: a reason with no row in the layer's table
+        # is a bug in that table, and it must arrive as one.
+        assert reason is not None  # a refused check always carries a reason
+        raise ApplicationRefusedError(consent_refusal_name(reason), check.detail)
+    consume_approval(context, approval_id, use, now=at)
+    return check

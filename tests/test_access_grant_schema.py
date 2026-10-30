@@ -48,6 +48,37 @@ pytestmark = pytest.mark.integration
 
 NOW = datetime(2026, 3, 2, 9, 15, tzinfo=UTC)
 
+#: **The columns a grant is made of** — ADR-0015 D1's twelve, plus the
+#: destination D3 requires (*"a grant naming provider A does not authorise
+#: provider B"*).
+#:
+#: **The list is the shape, and the shape is the property.** A name list of
+#: forbidden columns catches the five spellings a reader would guess and
+#: nothing else: a table that grew a ``consent_state`` or a
+#: ``permitted_flag`` would pass it, and a flag column is precisely what
+#: D2 says must not exist. **So the assertion is against the whole set**,
+#: and a column that is not on it is a column nobody designed.
+GRANT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "grant_id",
+        "subject_ref",
+        "purpose",
+        "permission",
+        "scope",
+        "destination",
+        "granted_by",
+        "granted_at",
+        "expires_at",
+        "state",
+        "withdrawn_at",
+        "withdrawn_by",
+        "withdrawal_reason",
+    }
+)
+
+#: The three states a grant may be in, and no others.
+GRANT_STATES: tuple[str, ...] = ("active", "withdrawn", "expired")
+
 
 @pytest.fixture(scope="module")
 def migrated_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -282,10 +313,17 @@ def test_the_table_holds_only_grants_and_therefore_has_no_way_to_say_denied(
     schema test cannot assert an absence directly**, so this test asserts
     the shape that produces it:
 
-    - every column of the table is either part of the grant's identity or
-      part of its state;
+    - **every column of the table is a column the design names** — ADR-0015
+      D1's twelve, plus the destination D3 requires — and nothing else;
     - **there is no column that holds a yes or a no** — no ``permitted``,
       no ``allowed``, no ``denied``.
+
+    **The shape, and not a list of names.** A list of forbidden spellings
+    catches the five a reader would guess and nothing more: a column named
+    ``consent_state`` or ``permitted_flag`` would pass it, and a flag
+    column is precisely what D2 says must not exist. **So the assertion is
+    against the whole set of columns**, and a column that is not on it is
+    a column nobody designed.
 
     A column that could hold ``False`` could also be flipped to ``True`` by
     an update nobody audited, and the whole design is that the answer is a
@@ -294,13 +332,39 @@ def test_the_table_holds_only_grants_and_therefore_has_no_way_to_say_denied(
     with store.session as session:
         columns = {row[1] for row in session.execute(text("PRAGMA table_info(access_grants)"))}
 
-    forbidden = {"permitted", "allowed", "denied", "granted", "is_permitted"}
-    assert not (columns & forbidden), (
-        f"the grant table has a column that can hold a yes or a no: "
-        f"{sorted(columns & forbidden)}. The permission is denied by the "
-        f"*absence* of a row, and a flag column would let a permission be "
-        f"turned on by an update nobody audited."
+    extra = sorted(columns - GRANT_COLUMNS)
+    missing = sorted(GRANT_COLUMNS - columns)
+    assert columns == GRANT_COLUMNS, (
+        f"the grant table's columns are not the ones the design names. "
+        f"extra: {extra}; missing: {missing}. A column that can hold a yes "
+        f"or a no -- a ``permitted`` or a ``consent_state``, say -- would let "
+        f"a permission be turned on by an update nobody audited, and the "
+        f"permission is denied by the *absence* of a row."
     )
+
+
+def test_the_state_column_cannot_hold_a_denial(store: TaskStore) -> None:
+    """**The one column that could have said "no", and does not.**
+
+    ``state`` is the column a table would reach for when it wanted to say
+    "this was refused" — and a fourth state called ``denied`` would be
+    exactly the row shape D2 says must not exist. **So the vocabulary is
+    closed at three**, and this test says so by writing the rows: each of
+    the three storable, and the one that would mean "denied" refused.
+
+    **What breaks it:** widening ``access_grants_state_vocabulary``. A
+    reader of the row would see a permission that was denied — a fact
+    somebody could have written — rather than the absence of a grant.
+    """
+    for state in GRANT_STATES:
+        values: dict[str, object] = {}
+        if state == "withdrawn":
+            values = {"withdrawn_by": "Dr. Chen", "withdrawn_at": NOW.isoformat()}
+        _grant(store, f"g-{state}", state=state, **values)
+
+    with pytest.raises(IntegrityError) as refused:
+        _grant(store, "g-denied", state="denied")
+    assert "access_grants_state_vocabulary" in str(refused.value)
 
 
 def test_a_derived_copy_records_the_grant_it_came_from(store: TaskStore) -> None:

@@ -21,6 +21,7 @@ test run.
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -43,6 +44,12 @@ STEPS: tuple[str, ...] = (
     "4. A withdrawal, and the copy it reaches",
     "5. A material with no grant at all",
 )
+
+#: The number of guards the demonstration carries as it stands. **A guard
+#: that has been removed leaves the exit code at zero**, so the count is
+#: what makes the removal visible, and this is the floor it must not fall
+#: below.
+GUARD_FLOOR: int = 16
 
 
 @pytest.fixture(scope="module")
@@ -110,3 +117,62 @@ def test_the_demonstration_leaves_nothing_behind(repo_root: Path) -> None:
         if path.is_file() and not path.name.startswith(".")
     ]
     assert not stray, f"the demonstration left files in the repository: {stray}"
+
+
+def _count_guards(source: str) -> int:
+    """The number of guard calls in the demonstration's source.
+
+    **Counted by parsing, not by counting characters.** A substring count
+    would move when the demonstration's *prose* moved — the module
+    docstring names ``check()`` — and a witness that goes red because a
+    sentence was reworded is a witness that cries wolf. **So the number
+    is of the calls themselves**: every ``check(...)`` the demonstration
+    makes.
+    """
+    tree = ast.parse(source)
+    return sum(
+        1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "check"
+    )
+
+
+def test_the_demonstrations_guards_are_guards(
+    demonstration: subprocess.CompletedProcess[str],
+) -> None:
+    """The demonstration carries the guards it says it carries.
+
+    **Why this test exists, and what it can and cannot do.** A guard that
+    has been **removed** leaves the exit code at zero: the demonstration
+    still runs, still prints its steps, still prints the reason and the
+    remedy, and still exits successfully. **A missing assertion is
+    invisible to an exit code.** So this test reads the demonstration's
+    source and counts its guards, and the count is asserted against a
+    number.
+
+    **What it cannot do, stated plainly.** It catches the removal of any
+    guard, because the floor is the count as the demonstration stands.
+    But **a count with a floor is not an identity**: it cannot say *which*
+    guard went missing, and a guard that was replaced by a vacuous one
+    leaves the count unchanged.
+
+    **The mutation that this work order's own record uses is therefore the
+    effective one: a guard whose *condition* is inverted.** That makes
+    the demonstration fail, and the exit code carries it. A mutation that
+    only deletes an assertion is not a mutation of the property — it is the
+    removal of the thing that watches the property, and no exit-code test
+    can see it. This is stated here so that the next reviewer does not
+    report a surviving mutation that was never a mutation.
+    """
+    guards = _count_guards(DEMO.read_text(encoding="utf-8"))
+    assert guards >= GUARD_FLOOR, (
+        f"the demonstration carries only {guards} guards. A guard that was "
+        f"removed leaves the exit code at zero, so the count is what makes "
+        f"the removal visible -- and the number here is the floor it must "
+        f"not fall below."
+    )
+
+    # And the demonstration reports that every one of them held.
+    assert "All checks held." in demonstration.stdout

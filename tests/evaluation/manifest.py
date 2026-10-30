@@ -236,6 +236,7 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # demonstration that runs all of it.
     "test_access_grant_schema.py": ("integration", "migrations"),
     "test_consent_demo.py": ("integration", "approvals"),
+    "test_consent_refusal_vocabulary.py": ("unit", "typed-contracts"),
     "test_consent_two_gates.py": ("integration", "approvals"),
     "test_consent_withdrawal.py": ("integration", "approvals"),
     "test_dataset_consent.py": ("unit", "permission-resolution"),

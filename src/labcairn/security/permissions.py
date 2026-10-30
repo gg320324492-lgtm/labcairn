@@ -27,6 +27,14 @@ and the two are told apart because the question "was this permitted once
 and then taken back?" has a different answer from "was this ever
 permitted?" — and only the first is a question about a person.
 
+**And an expiry is a clock fact, not a state.** Nothing in the product
+ever writes ``expired`` on an access grant: **a grant whose window has
+closed is still ``active`` in the row**, and the only thing that says it
+has run out is the clock. So every question of the form *"is this grant
+still holding?"* is asked **of the grant, at a moment** — never by reading
+a column — and the grant is asked through
+:meth:`Grant.is_in_force`, which tests **both ends** of the window.
+
 **What this module does not do.** It does not spend an approval, call a
 model, or decide who may be granted what. **The policy of granting is a
 person's**; this is the mechanism that enforces it.
@@ -122,16 +130,6 @@ class Grant:
     withdrawn_at: datetime | None
     withdrawn_by: str | None
     withdrawal_reason: str | None
-
-    @property
-    def is_active(self) -> bool:
-        """Whether the grant is in force.
-
-        **State alone is not enough.** A grant that has run out is still
-        ``active`` by state until the clock says otherwise, and the
-        clock is the check's business, not the row's.
-        """
-        return self.state == "active"
 
     def is_in_force(self, at: datetime) -> bool:
         """Whether the grant is in force **at a moment**.
@@ -538,7 +536,7 @@ def withdraw_grant(
     )
 
 
-def is_copy_stale(copy: DerivedCopy, grants: list[Grant]) -> bool:
+def is_copy_stale(copy: DerivedCopy, grants: list[Grant], *, at: datetime) -> bool:
     """Whether a derived copy has outlived the grant that produced it.
 
     **This is the question the design asks**: *"撤回同意后历史
@@ -550,6 +548,21 @@ def is_copy_stale(copy: DerivedCopy, grants: list[Grant]) -> bool:
     no findable grant has no provenance to check, and treating "I cannot
     find the grant" as "the grant is fine" would be the wrong direction of
     error: it would keep a copy alive on the strength of a missing row.
+
+    **And a grant whose window has closed is not a live grant either.**
+    The question is asked **of the grant, at a moment**: ``at`` says when,
+    and the grant is asked whether it is in force *then*. **The state
+    column is not the answer**, because **nothing in the product ever
+    writes ``expired``** — an expiry is a clock fact, and a grant whose
+    ``expires_at`` has passed is still ``active`` by state. So the check
+    asks the grant itself, through :meth:`Grant.is_in_force`, which tests
+    **both ends** of the window and refuses a withdrawn grant.
+
+    **Which means the copy check and the permission check ask the same
+    question of the same grant at the same moment.** A grant that refuses
+    a use refuses the copy made under it, and a grant that permits a use
+    keeps its copy alive — **one rule, asked once**, rather than two rules
+    that can disagree.
     """
     grant = next(
         (candidate for candidate in grants if candidate.grant_id == copy.grant_id),
@@ -557,14 +570,25 @@ def is_copy_stale(copy: DerivedCopy, grants: list[Grant]) -> bool:
     )
     if grant is None:
         return True
-    return grant.state in ("withdrawn", "expired")
+    return not grant.is_in_force(at)
 
 
-def stale_copies(copies: list[DerivedCopy], grants: list[Grant]) -> tuple[DerivedCopy, ...]:
+def stale_copies(
+    copies: list[DerivedCopy],
+    grants: list[Grant],
+    *,
+    at: datetime,
+) -> tuple[DerivedCopy, ...]:
     """Every copy that has outlived its grant.
 
     **The list is what a withdrawal has to act on**, and it is a list
     rather than a promise because a promise about derived copies is exactly
     the kind of claim that cannot be checked later.
+
+    **And the list is asked at a moment.** ``at`` is the same clock the
+    permission check is asked at, so the copies that have to be acted on
+    are the ones whose grant no longer holds *then* — **including the
+    ones whose grant has merely run out**, which is the half of the
+    propagation that a state column cannot see.
     """
-    return tuple(copy for copy in copies if is_copy_stale(copy, grants))
+    return tuple(copy for copy in copies if is_copy_stale(copy, grants, at=at))
