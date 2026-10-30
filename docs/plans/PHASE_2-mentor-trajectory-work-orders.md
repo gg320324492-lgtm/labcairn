@@ -146,6 +146,11 @@ measurement established:
 | **Acceptance** | A published label guide; a gold set with two independent annotators and an arbiter; inter-annotator agreement reported with its denominator; `UNKNOWN` is a label and not a failure; **the split is by `PaperProject`, never by event** — every version of a paper is in the same partition. |
 | **Must not** | Import a taxonomy from a paper and call it Phase 2's. The arXivEdits study says why: its classes describe *what kind of text edit* was made, which is a different axis from *what problem the advisor pointed at*. |
 
+**Task breakdown:** [`LC-P2-10-task-breakdown.md`](LC-P2-10-task-breakdown.md),
+written 2026-10-30. **Half of it is a person's job**: T00–T05 are dispatchable
+as code and documents, and **T06 is two annotators and an arbiter filling the
+manifest** — the work order is not done until that block exists.
+
 ### LC-P2-11 — The mentor guidance memory
 
 | | |
