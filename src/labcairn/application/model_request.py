@@ -39,11 +39,20 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from labcairn.application.approvals import ApprovalUse
 from labcairn.application.context import ApplicationContext
 from labcairn.application.model_transmit import TransmitCheck, transmit_request
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
+from labcairn.core.schema import LabCairnModel
 from labcairn.providers.budget import RunBudget, preflight_check
+from labcairn.providers.capabilities import (
+    Capability,
+    CapabilityOutcome,
+    ProviderCapabilities,
+)
 from labcairn.providers.ledger import LedgerSnapshot
 from labcairn.runtime.model_exchange import emit_model_exchanged
 from labcairn.security.permissions import Grant
@@ -57,6 +66,11 @@ class ModelInvocation:
     as a digest, what came back as usage — and they are the *only*
     thing this path persists about the call's contents. A plaintext key
     has no field to live in, and the payload's shape is the proof.
+
+    ``structured`` is what came back in a schema's shape, when the call
+    was asked for one — the document the provider returned, before this
+    path has judged it. It is **not** the answer: until it decodes, it
+    is nothing the system will state.
     """
 
     answer: str
@@ -65,6 +79,7 @@ class ModelInvocation:
     exchanges: tuple[Mapping[str, object], ...]
     credential_fingerprint: str
     cost_micros: int | None = None
+    structured: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +99,87 @@ class ModelAnswer:
     exchange_event_id: str
 
 
+#: The two channels a schema's output can arrive through. Either one
+#: licensed is enough; neither licensed is a refusal.
+_STRUCTURED_CHANNELS: tuple[Capability, ...] = (
+    Capability.STRUCTURED_OUTPUT_NATIVE,
+    Capability.STRUCTURED_OUTPUT_PROMPTED,
+)
+
+
+def _require_schema_ability(capabilities: ProviderCapabilities | None) -> None:
+    """Refuse a schema request the provider's probe does not license.
+
+    **Before the gate and before the wire.** A provider that cannot
+    produce a schema's output is blocked from that request, rather than
+    being asked to try — so the check runs where its refusal costs the
+    person nothing: no approval is consumed and no request is sent.
+
+    The two reasons are distinguished because their remedies differ. A
+    channel whose outcome is ``UNVERIFIED`` was never asked — the remedy
+    is a probe, which is cheap and changes the decision for free — so it
+    is ``MODEL_SCHEMA_UNPROBED``. A channel the probe asked and saw fail
+    is ``MODEL_SCHEMA_UNSUPPORTED``, and the remedy is a different
+    provider or a different output shape. This is the providers layer's
+    own reading of ``UNVERIFIED`` — treated as not licensed — kept, with
+    the *naming* of the difference this layer's vocabulary is for.
+    """
+    if capabilities is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+            "no capability probe has run for this provider; a schema request"
+            " is refused rather than sent on the chance the schema comes back",
+        )
+    outcomes = {
+        capability: capabilities.outcome_for(capability) for capability in _STRUCTURED_CHANNELS
+    }
+    if any(outcome.usable for outcome in outcomes.values()):
+        return
+    why = "; ".join(
+        f"{capability.value}: {capabilities.unsupported_reason.get(capability, outcome.value)}"
+        for capability, outcome in outcomes.items()
+    )
+    if any(outcome is CapabilityOutcome.UNVERIFIED for outcome in outcomes.values()):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+            f"no probe has licensed a structured-output channel for this provider ({why})",
+        )
+    raise ApplicationRefusedError(
+        ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
+        f"the probe licensed neither structured-output channel ({why})",
+    )
+
+
+def _decode(
+    invocation: ModelInvocation, output_schema: type[LabCairnModel]
+) -> Mapping[str, object]:
+    """Judge what came back against the schema it was asked for.
+
+    An empty result is not a result, and an output that cannot be
+    decoded is a refusal **naming what was expected** — never silently
+    turned into an answer. The call's own record has already landed; a
+    refusal here unstates nothing about the wire.
+    """
+    structured = invocation.structured
+    if structured is None or not structured:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_ANSWER_EMPTY,
+            "the call came back with nothing in the schema's shape;"
+            " an empty result is not a result",
+        )
+    try:
+        output_schema.model_validate(dict(structured))
+    except ValidationError as error:
+        failure = error.errors()[0]
+        location = ".".join(str(part) for part in failure.get("loc", ())) or "the document"
+        raise ApplicationRefusedError(
+            ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+            f"expected a {output_schema.__name__} and the answer is not one:"
+            f" {location} — {failure['msg']}",
+        ) from error
+    return structured
+
+
 def request_model(
     context: ApplicationContext,
     approval_id: ApprovalId,
@@ -98,17 +194,29 @@ def request_model(
     send: Callable[[], ModelInvocation],
     budget: RunBudget | None = None,
     ledger: LedgerSnapshot | None = None,
+    capabilities: ProviderCapabilities | None = None,
+    output_schema: type[LabCairnModel] | None = None,
 ) -> ModelAnswer:
     """Ask the model, under the two gates, in their order, and record the call.
 
     The budget's preflight runs first, because a ceiling that cannot be
     measured fails closed and neither failure should cost the person
-    their approval; the material gate runs next, and only a permitted
-    request consumes the approval; the caller's ``send`` — the provider
-    invocation — is the only thing that reaches the wire, reached at all
-    only after both gates have permitted; and the exchange record lands
-    in the event log in the same unit of work, so the fact and its
-    record cannot come apart.
+    their approval; **a schema request the provider's probe does not
+    license is refused next, at the same price — nothing**; the material
+    gate runs next, and only a permitted request consumes the approval;
+    the caller's ``send`` — the provider invocation — is the only thing
+    that reaches the wire, reached at all only after every gate has
+    permitted; and the exchange record lands in the event log in the
+    same unit of work, so the fact and its record cannot come apart.
+
+    **What came back is judged, not accepted.** When an
+    ``output_schema`` was asked for, the answer is validated against it:
+    an empty result is not a result, and an output that cannot be
+    decoded is a refusal whose message names what was expected. The
+    refusal does not unstate the call — the wire carried the request,
+    the approval is spent, and the exchange record stays — but nothing
+    undecodable becomes an answer, and illegal output is never silently
+    turned into evidence.
 
     A call that was sent and did not answer raises the provider's own
     error and **records nothing as success**: no exchange event is
@@ -118,13 +226,16 @@ def request_model(
 
     :raises ApplicationRefusedError: the grant does not cover the
         material, the destination or the purpose (and the approval stays
-        unspent), or the approval cannot be consumed.
+        unspent), the approval cannot be consumed, or the answer does
+        not satisfy the schema it was asked for.
     :raises BudgetEnforcementUnavailableError: a set ceiling cannot be
         measured against this call — an unpriced model under a cost
         ceiling, a provider that reports no usage under a token one.
     """
     if budget is not None:
         preflight_check(budget, ledger if ledger is not None else LedgerSnapshot())
+    if output_schema is not None:
+        _require_schema_ability(capabilities)
     check = transmit_request(
         context,
         approval_id,
@@ -147,6 +258,8 @@ def request_model(
             credential_fingerprint=invocation.credential_fingerprint,
             cost_micros=invocation.cost_micros,
         )
+    if output_schema is not None:
+        _decode(invocation, output_schema)
     return ModelAnswer(
         answer=invocation.answer,
         check=check,

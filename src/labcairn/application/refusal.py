@@ -363,6 +363,33 @@ class ApplicationRefusal(StrEnum):
     ROLE_DECISION_WITHOUT_A_PERSON = "role_decision_without_a_person"
     #: The decision carries no reason.
     ROLE_DECISION_WITHOUT_A_REASON = "role_decision_without_a_reason"
+    # -- the reasons the model-call path says no (LC-P2-01) ----------------- #
+    #
+    # **Why these are the path's own.** The same argument the run path's and
+    # the guidance memory's vocabularies make: a surface branches on a
+    # *reason*, and "the provider was never probed" and "the probe ran and
+    # said no" and "the answer came back unreadable" have different remedies
+    # for different people -- probe first, choose another provider, and look
+    # at what actually arrived. LC-P2-01 T06 closes this vocabulary against
+    # the path's own, in both directions.
+    #: No capability probe has run for the provider a schema request was
+    #: addressed to. **The request is refused rather than sent on the
+    #: chance the schema comes back** -- ADR-0002 treats an unprobed
+    #: capability exactly like an unsupported one, and so does this path.
+    MODEL_SCHEMA_UNPROBED = "model_schema_unprobed"
+    #: The probe ran and licensed no structured output -- neither the
+    #: protocol's own channel nor the prompt-described fallback. **A provider
+    #: that cannot produce a schema's output is blocked from that request**,
+    #: rather than being asked to try.
+    MODEL_SCHEMA_UNSUPPORTED = "model_schema_unsupported"
+    #: The call came back with nothing in the schema's shape. **An empty
+    #: result is not a result** -- a refusal here, not an answer to hand on.
+    MODEL_ANSWER_EMPTY = "model_answer_empty"
+    #: The answer is not decodable into the schema it was asked for. The
+    #: refusal's message names what was expected, and **illegal output is
+    #: never silently turned into evidence** -- ADR-0016 keeps a model's
+    #: say-so out of the record until it is verifiable.
+    MODEL_ANSWER_UNDECODABLE = "model_answer_undecodable"
 
 
 class ApplicationRefusedError(RuntimeError):

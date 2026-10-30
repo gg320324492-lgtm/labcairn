@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 import tomllib
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -34,11 +35,18 @@ from labcairn.application.approvals import (
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import read_events
 from labcairn.application.model_request import ModelInvocation, request_model
-from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.usage import Unknown, UnknownReason
+from labcairn.core.schema import LabCairnModel
 from labcairn.db.repository import list_approvals
 from labcairn.providers.budget import RunBudget
+from labcairn.providers.capabilities import (
+    ALL_CAPABILITIES,
+    Capability,
+    CapabilityOutcome,
+    ProviderCapabilities,
+)
 from labcairn.providers.errors import BudgetEnforcementUnavailableError, ProviderTimeoutError
 from labcairn.providers.ledger import LedgerSnapshot
 from labcairn.runtime.event import EventType
@@ -200,7 +208,10 @@ def context(env: StoreEnv, tmp_path: Path) -> ApplicationContext:
     )
 
 
-def _invocation(answer: str = "the model's answer") -> ModelInvocation:
+def _invocation(
+    answer: str = "the model's answer",
+    structured: dict[str, object] | None = None,
+) -> ModelInvocation:
     """One call's record, in the provider layer's wire form.
 
     The exchange is what an :class:`~labcairn.providers.adapter.ExchangeRecord`
@@ -227,6 +238,7 @@ def _invocation(answer: str = "the model's answer") -> ModelInvocation:
         ),
         credential_fingerprint="fp-" + "c" * 16,
         cost_micros=1200,
+        structured=structured,
     )
 
 
@@ -478,3 +490,228 @@ def test_a_retry_does_not_pay_twice(context: ApplicationContext) -> None:
     page = read_events(context)
     exchanges = [event for event in page.events if event.type is EventType.MODEL_EXCHANGED]
     assert len(exchanges) == 1, "the second call never happened, and was never recorded"
+
+
+# --------------------------------------------------------------------------- #
+# the output, decoded or refused (LC-P2-01 T04)
+# --------------------------------------------------------------------------- #
+
+
+class _Card(LabCairnModel):
+    """The schema a test asks for: a title and a verdict, both required."""
+
+    title: str
+    verdict: str
+
+
+def _probed(*capable: Capability) -> ProviderCapabilities:
+    """A probe record that licenses exactly the capabilities named."""
+    outcomes = {
+        capability: (
+            CapabilityOutcome.OK if capability in capable else CapabilityOutcome.UNSUPPORTED
+        )
+        for capability in ALL_CAPABILITIES
+    }
+    return ProviderCapabilities.from_outcomes(
+        endpoint_fingerprint="fp-" + "p" * 16,
+        model="scripted",
+        protocol="openai-chat",
+        outcomes=outcomes,
+        unsupported_reason=dict.fromkeys(
+            ALL_CAPABILITIES, "the probe asked and it did not do the thing"
+        ),
+    )
+
+
+def _schema_request(
+    context: ApplicationContext,
+    approval_id: ApprovalId,
+    send: Callable[[], ModelInvocation] | None = None,
+    **extra: Any,
+) -> None:
+    """One schema-carrying call, with whatever capabilities the test supplies."""
+    request_model(
+        context,
+        approval_id,
+        _grants(),
+        use=_model_use(),
+        subject_ref="proj-1",
+        destination=DESTINATION,
+        material_ref=MATERIAL_REF,
+        at=MOMENT,
+        send=send if send is not None else (lambda: _invocation()),
+        output_schema=_Card,
+        **extra,
+    )
+
+
+def test_an_unprobed_provider_is_blocked(context: ApplicationContext) -> None:
+    """A schema request a probe does not license is refused before anything runs.
+
+    A provider that cannot produce a schema's output is blocked from
+    that request, rather than being asked to try — so the refusal lands
+    at the gate: no approval spent, no wire touched. And the two ways
+    not to be licensed name themselves: never probed is one reason, and
+    probed-and-failed is another, because the remedies differ.
+    """
+    approval_id = _granted(context)
+    reached: list[str] = []
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _schema_request(context, approval_id, send=lambda: _spy(reached))
+    assert raised.value.reason is ApplicationRefusal.MODEL_SCHEMA_UNPROBED, (
+        "no probe record at all is the unprobed refusal"
+    )
+    assert reached == [], "an unprobed schema request reached the wire"
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _schema_request(
+            context,
+            approval_id,
+            send=lambda: _spy(reached),
+            capabilities=ProviderCapabilities.unverified(
+                endpoint_fingerprint="fp-" + "p" * 16,
+                model="scripted",
+                protocol="openai-chat",
+            ),
+        )
+    assert raised.value.reason is ApplicationRefusal.MODEL_SCHEMA_UNPROBED, (
+        "a record of never having asked is still the unprobed refusal"
+    )
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _schema_request(
+            context,
+            approval_id,
+            send=lambda: _spy(reached),
+            capabilities=_probed(Capability.TOOL_CALLS),
+        )
+    assert raised.value.reason is ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED, (
+        "a probe that asked and saw both channels fail is the unsupported refusal"
+    )
+    assert "structured_output_native" in raised.value.detail
+    assert "structured_output_prompted" in raised.value.detail
+    assert reached == [], "a provider that cannot follow a schema was never asked to try"
+
+    rows = list_approvals(context.store.session, context.task_id)
+    assert all(row.state != "consumed" for row in rows), (
+        "every schema refusal left the approval unspent"
+    )
+
+
+def test_a_licensed_schema_request_runs_and_decodes(context: ApplicationContext) -> None:
+    """A probe that licenses a channel lets the request through, and it decodes.
+
+    The block is about capability, not about schemas: a provider whose
+    probe says it can do the thing does the thing, and the decoded
+    request is an ordinary recorded call.
+    """
+    approval_id = _granted(context)
+    answer = request_model(
+        context,
+        approval_id,
+        _grants(),
+        use=_model_use(),
+        subject_ref="proj-1",
+        destination=DESTINATION,
+        material_ref=MATERIAL_REF,
+        at=MOMENT,
+        send=lambda: _invocation(structured={"title": "the title", "verdict": "the verdict"}),
+        capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+        output_schema=_Card,
+    )
+    assert answer.answer == "the model's answer"
+    rows = list_approvals(context.store.session, context.task_id)
+    assert any(row.state == "consumed" for row in rows)
+
+
+def test_an_undecodable_answer_is_refused_with_the_expectation(
+    context: ApplicationContext,
+) -> None:
+    """An answer that does not satisfy the schema is a refusal naming it.
+
+    The refusal names what was expected, and it does not unstate the
+    call: the wire carried the request, the approval is spent, and the
+    exchange record stays — what is refused is the *answer*, not the
+    fact that a call happened.
+    """
+    approval_id = _granted(context)
+    answer_refused = False
+
+    def undecodable() -> ModelInvocation:
+        nonlocal answer_refused
+        answer_refused = True
+        return _invocation(structured={"title": "the title"})
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        request_model(
+            context,
+            approval_id,
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=undecodable,
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+            output_schema=_Card,
+        )
+    assert answer_refused, "the call was made"
+    assert raised.value.reason is ApplicationRefusal.MODEL_ANSWER_UNDECODABLE
+    assert "_Card" in raised.value.detail, "the refusal names what was expected"
+    assert "verdict" in raised.value.detail, "and where the answer fell short"
+
+    rows = list_approvals(context.store.session, context.task_id)
+    assert any(row.state == "consumed" for row in rows), (
+        "the wire carried the request, so the approval is spent"
+    )
+    page = read_events(context)
+    exchanges = [event for event in page.events if event.type is EventType.MODEL_EXCHANGED]
+    assert len(exchanges) == 1, "the call's record stays: a refusal unstates nothing"
+
+
+def test_an_empty_result_is_not_a_result(context: ApplicationContext) -> None:
+    """A call that came back with nothing in the schema's shape refused.
+
+    ``None`` and ``{}`` are both nothing: an empty result is not a
+    result, and handing it on as an answer would be a lie with a
+    schema's clothes on.
+    """
+    approval_id = _granted(context)
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        request_model(
+            context,
+            approval_id,
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=lambda: _invocation(structured=None),
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+            output_schema=_Card,
+        )
+    assert raised.value.reason is ApplicationRefusal.MODEL_ANSWER_EMPTY, (
+        "nothing came back, and nothing is not an answer"
+    )
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        request_model(
+            context,
+            _granted(context),
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=lambda: _invocation(structured={}),
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+            output_schema=_Card,
+        )
+    assert raised.value.reason is ApplicationRefusal.MODEL_ANSWER_EMPTY, (
+        "an empty document is the same nothing"
+    )
