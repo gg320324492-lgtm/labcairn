@@ -12,6 +12,7 @@ is declared, and the tree carries no model.
 
 from __future__ import annotations
 
+import inspect
 import json
 import re
 import tomllib
@@ -34,6 +35,7 @@ from labcairn.application import (
     list_sources,
     record_model_proposal,
 )
+from labcairn.application import model_request as model_request_module
 from labcairn.application.approvals import (
     ApprovalRequest,
     ApprovalUse,
@@ -41,8 +43,13 @@ from labcairn.application.approvals import (
     request_approval,
 )
 from labcairn.application.events import read_events
+from labcairn.application.model_refusals import ModelRefusal
 from labcairn.application.model_request import ModelInvocation, request_model
-from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.refusal import (
+    ApplicationRefusal,
+    ApplicationRefusedError,
+    model_refusal_name,
+)
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.usage import Unknown, UnknownReason
 from labcairn.core.schema import LabCairnModel
@@ -831,3 +838,56 @@ def test_a_models_answer_enters_as_a_proposal_and_is_bound(
         "the anchor is at the address the write was given"
     )
     assert anchor.bound_source_sha256, "the anchor is bound to the source's bytes"
+
+
+# --------------------------------------------------------------------------- #
+# the refusal vocabulary, closed against the layer's (LC-P2-01 T06)
+# --------------------------------------------------------------------------- #
+
+
+def test_the_model_path_refusals_are_in_the_layers_vocabulary() -> None:
+    """Every refusal the path raises has a layer name, and every name is reached.
+
+    Both directions, because each catches a different drift. A refusal
+    with no row is a reason a surface cannot render — the layer would
+    invent a label for somebody else's refusal at the moment somebody
+    needed to read it. A row nothing raises is the other shape: a name
+    no refusal can ever carry, which is exactly the shape the intake's
+    missing ``NO_GRANT`` had taken.
+    """
+    named: set[ApplicationRefusal] = set()
+    for reason in ModelRefusal:
+        layer_name = model_refusal_name(reason)
+        assert layer_name.name.startswith("MODEL_"), (
+            f"{layer_name.value} does not say which machinery refused"
+        )
+        assert layer_name.value == f"model_{reason.value}", (
+            f"the layer's name for {reason.value!r} does not line up with it"
+        )
+        named.add(layer_name)
+
+    for member in ApplicationRefusal:
+        if member.name.startswith("MODEL_"):
+            assert member in named, (
+                f"{member.value} is a name the layer holds that no refusal of"
+                " this path can ever carry"
+            )
+
+
+def test_the_path_raises_through_the_vocabulary() -> None:
+    """The path's refusals are spelled one way: looked up, never hand-written.
+
+    A raise that constructs the layer's error around the table would
+    carry a reason the closure above cannot see coming — the vocabulary
+    would grow a member the path never reaches, or the path would raise
+    one the table does not name. So the module's own text is a witness
+    too: every refusal it makes names a ``ModelRefusal`` and is looked
+    up, and none of them builds the layer's error directly.
+    """
+    source = inspect.getsource(model_request_module)
+    direct = re.findall(r"raise ApplicationRefusedError\(", source)
+    assert not direct, (
+        f"the path constructs the layer's error directly {len(direct)} time(s);"
+        " refusals are looked up through model_refused, so the closure above"
+        " sees every reason this path can make"
+    )

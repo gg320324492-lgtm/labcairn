@@ -34,6 +34,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum
 
+from labcairn.application.model_refusals import ModelRefusal
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.material.intake import IntakeRefusal
 from labcairn.papers.chain import ChainRefusal
@@ -495,18 +496,12 @@ GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
     GuidanceRefusal.RULE_FIELD_EMPTY: ApplicationRefusal.GUIDANCE_RULE_FIELD_EMPTY,
     GuidanceRefusal.RULE_WITHOUT_SOURCE: ApplicationRefusal.GUIDANCE_RULE_WITHOUT_SOURCE,
     GuidanceRefusal.RULE_NOT_FOUND: ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND,
-    GuidanceRefusal.CONFIRMER_IS_PROPOSER: (
-        ApplicationRefusal.GUIDANCE_CONFIRMER_IS_PROPOSER
-    ),
-    GuidanceRefusal.TRANSITION_NOT_POSSIBLE: (
-        ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE
-    ),
+    GuidanceRefusal.CONFIRMER_IS_PROPOSER: (ApplicationRefusal.GUIDANCE_CONFIRMER_IS_PROPOSER),
+    GuidanceRefusal.TRANSITION_NOT_POSSIBLE: (ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE),
     GuidanceRefusal.RESOLUTION_WITHOUT_REASON: (
         ApplicationRefusal.GUIDANCE_RESOLUTION_WITHOUT_REASON
     ),
-    GuidanceRefusal.COUNTEREXAMPLE_EMPTY: (
-        ApplicationRefusal.GUIDANCE_COUNTEREXAMPLE_EMPTY
-    ),
+    GuidanceRefusal.COUNTEREXAMPLE_EMPTY: (ApplicationRefusal.GUIDANCE_COUNTEREXAMPLE_EMPTY),
 }
 
 ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
@@ -516,74 +511,46 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
         ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_UNKNOWN
     ),
     RoleRefusal.SPEC_PURPOSE_EMPTY: ApplicationRefusal.ROLE_SPEC_PURPOSE_EMPTY,
-    RoleRefusal.SPEC_CAPABILITY_NOT_LISTED: (
-        ApplicationRefusal.ROLE_SPEC_CAPABILITY_NOT_LISTED
-    ),
+    RoleRefusal.SPEC_CAPABILITY_NOT_LISTED: (ApplicationRefusal.ROLE_SPEC_CAPABILITY_NOT_LISTED),
     RoleRefusal.SPEC_FORBIDDEN_ACTION_REQUESTED: (
         ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_REQUESTED
     ),
     RoleRefusal.SPEC_NOT_FOUND: ApplicationRefusal.ROLE_SPEC_NOT_FOUND,
     RoleRefusal.SPEC_ALREADY_DEFINED: ApplicationRefusal.ROLE_SPEC_ALREADY_DEFINED,
-    RoleRefusal.COMMENT_NOT_IN_THE_CHAIN: (
-        ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN
-    ),
+    RoleRefusal.COMMENT_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN),
     RoleRefusal.QUOTE_NOT_IN_THE_CHAIN: ApplicationRefusal.ROLE_QUOTE_NOT_IN_THE_CHAIN,
-    RoleRefusal.ALIGNMENT_STATE_UNKNOWN: (
-        ApplicationRefusal.ROLE_ALIGNMENT_STATE_UNKNOWN
-    ),
+    RoleRefusal.ALIGNMENT_STATE_UNKNOWN: (ApplicationRefusal.ROLE_ALIGNMENT_STATE_UNKNOWN),
     RoleRefusal.CANDIDATE_ISSUE_TYPE_UNKNOWN: (
         ApplicationRefusal.ROLE_CANDIDATE_ISSUE_TYPE_UNKNOWN
     ),
     RoleRefusal.EDIT_DOES_NOT_ANSWER_THE_COMMENT: (
         ApplicationRefusal.ROLE_EDIT_DOES_NOT_ANSWER_THE_COMMENT
     ),
-    RoleRefusal.VERSION_OUTSIDE_THE_GRAPH: (
-        ApplicationRefusal.ROLE_VERSION_OUTSIDE_THE_GRAPH
-    ),
-    RoleRefusal.VERSION_ORDER_AMBIGUOUS: (
-        ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS
-    ),
+    RoleRefusal.VERSION_OUTSIDE_THE_GRAPH: (ApplicationRefusal.ROLE_VERSION_OUTSIDE_THE_GRAPH),
+    RoleRefusal.VERSION_ORDER_AMBIGUOUS: (ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS),
     RoleRefusal.CARD_FIELD_EMPTY: ApplicationRefusal.ROLE_CARD_FIELD_EMPTY,
     RoleRefusal.CARD_WITHOUT_EVIDENCE: ApplicationRefusal.ROLE_CARD_WITHOUT_EVIDENCE,
     RoleRefusal.SEVERITY_UNKNOWN: ApplicationRefusal.ROLE_SEVERITY_UNKNOWN,
     RoleRefusal.CLAIM_KIND_UNKNOWN: ApplicationRefusal.ROLE_CLAIM_KIND_UNKNOWN,
-    RoleRefusal.CLAIM_WITHOUT_EVIDENCE: (
-        ApplicationRefusal.ROLE_CLAIM_WITHOUT_EVIDENCE
-    ),
-    RoleRefusal.ADVICE_NOT_IN_THE_CHAIN: (
-        ApplicationRefusal.ROLE_ADVICE_NOT_IN_THE_CHAIN
-    ),
-    RoleRefusal.UNCERTAINTY_KIND_UNKNOWN: (
-        ApplicationRefusal.ROLE_UNCERTAINTY_KIND_UNKNOWN
-    ),
+    RoleRefusal.CLAIM_WITHOUT_EVIDENCE: (ApplicationRefusal.ROLE_CLAIM_WITHOUT_EVIDENCE),
+    RoleRefusal.ADVICE_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_ADVICE_NOT_IN_THE_CHAIN),
+    RoleRefusal.UNCERTAINTY_KIND_UNKNOWN: (ApplicationRefusal.ROLE_UNCERTAINTY_KIND_UNKNOWN),
     RoleRefusal.ABSTENTION_WITHOUT_A_MISSING: (
         ApplicationRefusal.ROLE_ABSTENTION_WITHOUT_A_MISSING
     ),
-    RoleRefusal.RULE_NOT_IN_THE_MEMORY: (
-        ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY
-    ),
+    RoleRefusal.RULE_NOT_IN_THE_MEMORY: (ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY),
     RoleRefusal.VERDICT_UNKNOWN: ApplicationRefusal.ROLE_VERDICT_UNKNOWN,
     RoleRefusal.UNVERIFIABLE_EVIDENCE_ACCEPTED: (
         ApplicationRefusal.ROLE_UNVERIFIABLE_EVIDENCE_ACCEPTED
     ),
-    RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN: (
-        ApplicationRefusal.ROLE_EVIDENCE_NOT_IN_THE_CHAIN
-    ),
-    RoleRefusal.HANDOVER_WITHOUT_A_REASON: (
-        ApplicationRefusal.ROLE_HANDOVER_WITHOUT_A_REASON
-    ),
-    RoleRefusal.SPEC_COST_UNMEASURED: (
-        ApplicationRefusal.ROLE_SPEC_COST_UNMEASURED
-    ),
+    RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_EVIDENCE_NOT_IN_THE_CHAIN),
+    RoleRefusal.HANDOVER_WITHOUT_A_REASON: (ApplicationRefusal.ROLE_HANDOVER_WITHOUT_A_REASON),
+    RoleRefusal.SPEC_COST_UNMEASURED: (ApplicationRefusal.ROLE_SPEC_COST_UNMEASURED),
     RoleRefusal.REQUEST_KIND_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_KIND_UNKNOWN,
     RoleRefusal.REQUEST_RISK_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_RISK_UNKNOWN,
     RoleRefusal.DECISION_UNKNOWN: ApplicationRefusal.ROLE_DECISION_UNKNOWN,
-    RoleRefusal.DECISION_WITHOUT_A_PERSON: (
-        ApplicationRefusal.ROLE_DECISION_WITHOUT_A_PERSON
-    ),
-    RoleRefusal.DECISION_WITHOUT_A_REASON: (
-        ApplicationRefusal.ROLE_DECISION_WITHOUT_A_REASON
-    ),
+    RoleRefusal.DECISION_WITHOUT_A_PERSON: (ApplicationRefusal.ROLE_DECISION_WITHOUT_A_PERSON),
+    RoleRefusal.DECISION_WITHOUT_A_REASON: (ApplicationRefusal.ROLE_DECISION_WITHOUT_A_REASON),
 }
 
 
@@ -674,20 +641,60 @@ def guidance_refused(reason: GuidanceRefusal, detail: str) -> ApplicationRefused
     return ApplicationRefusedError(GUIDANCE_REFUSALS[reason], detail)
 
 
+#: Every refusal the model-call path can make, and the layer's name for it.
+#:
+#: **The same closure, over the path's own vocabulary.** The path knows
+#: things the layer would otherwise have to guess — that a provider was
+#: never probed rather than probed-and-failed, that an answer was empty
+#: rather than unreadable — and a reason the layer cannot name is a reason
+#: a surface cannot render. The two schema refusals stay distinct because
+#: their remedies differ, and flattening them at this boundary would throw
+#: that difference away.
+MODEL_REFUSALS: Mapping[ModelRefusal, ApplicationRefusal] = {
+    ModelRefusal.SCHEMA_UNPROBED: ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+    ModelRefusal.SCHEMA_UNSUPPORTED: ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
+    ModelRefusal.ANSWER_EMPTY: ApplicationRefusal.MODEL_ANSWER_EMPTY,
+    ModelRefusal.ANSWER_UNDECODABLE: ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+}
+
+
+def model_refusal_name(reason: ModelRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the model-call path.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return MODEL_REFUSALS[reason]
+
+
+def model_refused(reason: ModelRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of a model-call operation, named in the layer's vocabulary.
+
+    **One spelling, so a surface catches one thing** — the same argument
+    :func:`chain_refused` records, and the same lookup rather than a
+    default.
+    """
+    return ApplicationRefusedError(MODEL_REFUSALS[reason], detail)
+
+
 __all__ = [
     "CHAIN_REFUSALS",
     "CONSENT_REFUSALS",
     "GUIDANCE_REFUSALS",
     "INTAKE_REFUSALS",
+    "MODEL_REFUSALS",
     "PAPER_REFUSALS",
     "ROLE_REFUSALS",
     "ApplicationRefusal",
     "ApplicationRefusedError",
+    "ModelRefusal",
     "chain_refusal_name",
     "chain_refused",
     "consent_refusal_name",
     "guidance_refused",
     "intake_refusal_name",
+    "model_refusal_name",
+    "model_refused",
     "paper_refusal_name",
     "role_refused",
 ]

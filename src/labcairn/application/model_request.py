@@ -43,8 +43,9 @@ from pydantic import ValidationError
 
 from labcairn.application.approvals import ApprovalUse
 from labcairn.application.context import ApplicationContext
+from labcairn.application.model_refusals import ModelRefusal
 from labcairn.application.model_transmit import TransmitCheck, transmit_request
-from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
+from labcairn.application.refusal import model_refused
 from labcairn.core.ids import ApprovalId
 from labcairn.core.schema import LabCairnModel
 from labcairn.providers.budget import RunBudget, preflight_check
@@ -125,8 +126,8 @@ def _require_schema_ability(capabilities: ProviderCapabilities | None) -> None:
     the *naming* of the difference this layer's vocabulary is for.
     """
     if capabilities is None:
-        raise ApplicationRefusedError(
-            ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+        raise model_refused(
+            ModelRefusal.SCHEMA_UNPROBED,
             "no capability probe has run for this provider; a schema request"
             " is refused rather than sent on the chance the schema comes back",
         )
@@ -140,12 +141,12 @@ def _require_schema_ability(capabilities: ProviderCapabilities | None) -> None:
         for capability, outcome in outcomes.items()
     )
     if any(outcome is CapabilityOutcome.UNVERIFIED for outcome in outcomes.values()):
-        raise ApplicationRefusedError(
-            ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+        raise model_refused(
+            ModelRefusal.SCHEMA_UNPROBED,
             f"no probe has licensed a structured-output channel for this provider ({why})",
         )
-    raise ApplicationRefusedError(
-        ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
+    raise model_refused(
+        ModelRefusal.SCHEMA_UNSUPPORTED,
         f"the probe licensed neither structured-output channel ({why})",
     )
 
@@ -162,8 +163,8 @@ def _decode(
     """
     structured = invocation.structured
     if structured is None or not structured:
-        raise ApplicationRefusedError(
-            ApplicationRefusal.MODEL_ANSWER_EMPTY,
+        raise model_refused(
+            ModelRefusal.ANSWER_EMPTY,
             "the call came back with nothing in the schema's shape;"
             " an empty result is not a result",
         )
@@ -172,8 +173,8 @@ def _decode(
     except ValidationError as error:
         failure = error.errors()[0]
         location = ".".join(str(part) for part in failure.get("loc", ())) or "the document"
-        raise ApplicationRefusedError(
-            ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+        raise model_refused(
+            ModelRefusal.ANSWER_UNDECODABLE,
             f"expected a {output_schema.__name__} and the answer is not one:"
             f" {location} — {failure['msg']}",
         ) from error
