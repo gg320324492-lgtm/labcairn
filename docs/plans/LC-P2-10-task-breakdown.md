@@ -187,9 +187,9 @@ exists and calls that an annotation.
 
 | Subtask | Files it owns (new unless stated) |
 |---|---|
-| T00 | `src/labcairn/papers/labels.py`, `tests/test_gold_set_labels.py` |
+| T00 | `src/labcairn/papers/labels.py`, `src/labcairn/papers/gold_manifest.py`, `tests/test_gold_set_labels.py` |
 | T01 | `docs/papers/annotation-guide.md` |
-| T02 | `docs/papers/gold-set-manifest.json`, `tests/fixtures/papers-gold/` |
+| T02 | `docs/papers/gold-set-manifest.json`, `tests/fixtures/papers-gold/`, `tests/gold_set_fixtures.py` |
 | T03 | `tests/test_gold_set_agreement.py` |
 | T04 | `tests/test_gold_set_manifest.py` |
 | T05 | `docs/acceptance/LC-P2-10-acceptance.md`, `.github/ci-shards.json`, `tests/evaluation/manifest.py` |
@@ -198,6 +198,20 @@ exists and calls that an annotation.
 **`src/labcairn/papers/labels.py` is shared with LC-P2-11 and LC-P2-12**,
 and it is written once: a second spelling of "what a label is" would be a
 second vocabulary for the same rows.
+
+**`src/labcairn/papers/gold_manifest.py` is the manifest's one contract, and
+it is written once for the same reason.** T03 computes the agreement over
+it, T04 watches its rules, and LC-P2-11 reads it to derive its guidance
+rules — **three readers, one set of checks**. A rule typed into each reader
+would be a rule the three spellings disagree about, so the checks live in
+the module and every reader gets them by calling the same function.
+
+**And its two verdicts are two different questions.** `validate_manifest`
+says the manifest is well formed — a label outside the closed set, a
+project in two partitions, two readings by one annotator — while
+`require_annotated` says the *gold set* is finished. **Conflating them
+would mean the manifest T02 dispatches, whose readings nobody has written
+yet, could not be read at all.**
 
 ## 7. What "done" means
 
