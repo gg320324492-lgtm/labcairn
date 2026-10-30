@@ -351,6 +351,18 @@ class ApplicationRefusal(StrEnum):
     ROLE_EVIDENCE_NOT_IN_THE_CHAIN = "role_evidence_not_in_the_chain"
     #: A refusing verdict carries no reason for the hand-over.
     ROLE_HANDOVER_WITHOUT_A_REASON = "role_handover_without_a_reason"
+    #: The role's cost ceiling is not priced, and the call fails closed.
+    ROLE_SPEC_COST_UNMEASURED = "role_spec_cost_unmeasured"
+    #: The request's kind is not one the routing table knows.
+    ROLE_REQUEST_KIND_UNKNOWN = "role_request_kind_unknown"
+    #: The request's risk is outside the vocabulary.
+    ROLE_REQUEST_RISK_UNKNOWN = "role_request_risk_unknown"
+    #: The decision is neither accepted nor rejected.
+    ROLE_DECISION_UNKNOWN = "role_decision_unknown"
+    #: The decision names nobody who made it.
+    ROLE_DECISION_WITHOUT_A_PERSON = "role_decision_without_a_person"
+    #: The decision carries no reason.
+    ROLE_DECISION_WITHOUT_A_REASON = "role_decision_without_a_reason"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -532,6 +544,18 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
     ),
     RoleRefusal.HANDOVER_WITHOUT_A_REASON: (
         ApplicationRefusal.ROLE_HANDOVER_WITHOUT_A_REASON
+    ),
+    RoleRefusal.SPEC_COST_UNMEASURED: (
+        ApplicationRefusal.ROLE_SPEC_COST_UNMEASURED
+    ),
+    RoleRefusal.REQUEST_KIND_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_KIND_UNKNOWN,
+    RoleRefusal.REQUEST_RISK_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_RISK_UNKNOWN,
+    RoleRefusal.DECISION_UNKNOWN: ApplicationRefusal.ROLE_DECISION_UNKNOWN,
+    RoleRefusal.DECISION_WITHOUT_A_PERSON: (
+        ApplicationRefusal.ROLE_DECISION_WITHOUT_A_PERSON
+    ),
+    RoleRefusal.DECISION_WITHOUT_A_REASON: (
+        ApplicationRefusal.ROLE_DECISION_WITHOUT_A_REASON
     ),
 }
 

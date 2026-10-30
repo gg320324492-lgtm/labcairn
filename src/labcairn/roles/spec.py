@@ -140,6 +140,25 @@ class AgentRoleSpec:
                 f" {capability.value!r} is not one of them",
             )
 
+    def require_allowed_by_name(self, capability: str) -> None:
+        """Refuse a capability named as a string, the way an operation names it.
+
+        A name the security layer never registered is refused with its own
+        reason before the contract's list is consulted, so a misspelling
+        arrives as *unknown* rather than as *not listed*.
+
+        :raises ApplicationRefusedError: the name is not a registered
+            capability, or the contract does not list it.
+        """
+        try:
+            registered = CapabilityId(capability)
+        except ValueError:
+            raise role_refused(
+                RoleRefusal.SPEC_CAPABILITY_UNKNOWN,
+                f"{capability!r} is not a capability the security layer has registered",
+            ) from None
+        self.require_allowed(registered)
+
     def forbids(self, action: ForbiddenAction) -> bool:
         """Whether the contract forbids the action."""
         return action in self.forbidden_actions

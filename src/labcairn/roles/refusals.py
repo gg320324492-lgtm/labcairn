@@ -115,3 +115,20 @@ class RoleRefusal(StrEnum):
     #: A verdict that refuses the card carries no reason for the
     #: hand-over. A hand-over nobody can act on is not a hand-over.
     HANDOVER_WITHOUT_A_REASON = "handover_without_a_reason"
+    # -- the arrangement's own reasons (LC-P2-12 T04) ----------------------- #
+    #: The role's cost ceiling is not priced. **A budget whose price is
+    #: unknown fails closed** — the call is refused, not sent and hoped
+    #: about.
+    SPEC_COST_UNMEASURED = "spec_cost_unmeasured"
+    #: The request's kind is not one the routing table knows. A request
+    #: the table does not know is not routed by a default.
+    REQUEST_KIND_UNKNOWN = "request_kind_unknown"
+    #: The request's risk is not one the vocabulary closes.
+    REQUEST_RISK_UNKNOWN = "request_risk_unknown"
+    #: The decision is neither accepted nor rejected.
+    DECISION_UNKNOWN = "decision_unknown"
+    #: The decision names nobody who made it.
+    DECISION_WITHOUT_A_PERSON = "decision_without_a_person"
+    #: The decision carries no reason. A shrug with a signature is not
+    #: an auditable decision.
+    DECISION_WITHOUT_A_REASON = "decision_without_a_reason"
