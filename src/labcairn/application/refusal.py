@@ -34,6 +34,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum
 
+from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.material.intake import IntakeRefusal
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.versions import PaperRefusal
@@ -261,6 +262,30 @@ class ApplicationRefusal(StrEnum):
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
     CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED = "chain_issue_key_may_not_be_inferred"
+    # -- the reasons the guidance memory says no ---------------------------- #
+    #
+    # **Why these are the memory's own, and not one ``rule_refused``.** The
+    # same argument the run path's vocabulary makes: a surface branches on a
+    # *reason*, and "the problem is outside the vocabulary" and "the proposer
+    # cannot confirm their own rule" are different remedies for different
+    # people — one is a wording fix, the other is a person the record needs.
+    #: The rule's problem is not one of the closed vocabulary's labels.
+    GUIDANCE_PROBLEM_OUTSIDE_VOCABULARY = "guidance_problem_outside_vocabulary"
+    #: A required field of the rule is missing or empty.
+    GUIDANCE_RULE_FIELD_EMPTY = "guidance_rule_field_empty"
+    #: The rule names no chain material, and a rule without a source is not
+    #: a rule.
+    GUIDANCE_RULE_WITHOUT_SOURCE = "guidance_rule_without_source"
+    #: No rule carries that id, at any version.
+    GUIDANCE_RULE_NOT_FOUND = "guidance_rule_not_found"
+    #: The proposer cannot be the one who confirms the rule.
+    GUIDANCE_CONFIRMER_IS_PROPOSER = "guidance_confirmer_is_proposer"
+    #: The state transition asked for is not one the machine has.
+    GUIDANCE_TRANSITION_NOT_POSSIBLE = "guidance_transition_not_possible"
+    #: A dispute or a retraction without a reason is a shrug.
+    GUIDANCE_RESOLUTION_WITHOUT_REASON = "guidance_resolution_without_reason"
+    #: A counterexample with no case in it challenges nothing.
+    GUIDANCE_COUNTEREXAMPLE_EMPTY = "guidance_counterexample_empty"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -359,6 +384,27 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ),
 }
 
+GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
+    GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY: (
+        ApplicationRefusal.GUIDANCE_PROBLEM_OUTSIDE_VOCABULARY
+    ),
+    GuidanceRefusal.RULE_FIELD_EMPTY: ApplicationRefusal.GUIDANCE_RULE_FIELD_EMPTY,
+    GuidanceRefusal.RULE_WITHOUT_SOURCE: ApplicationRefusal.GUIDANCE_RULE_WITHOUT_SOURCE,
+    GuidanceRefusal.RULE_NOT_FOUND: ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND,
+    GuidanceRefusal.CONFIRMER_IS_PROPOSER: (
+        ApplicationRefusal.GUIDANCE_CONFIRMER_IS_PROPOSER
+    ),
+    GuidanceRefusal.TRANSITION_NOT_POSSIBLE: (
+        ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE
+    ),
+    GuidanceRefusal.RESOLUTION_WITHOUT_REASON: (
+        ApplicationRefusal.GUIDANCE_RESOLUTION_WITHOUT_REASON
+    ),
+    GuidanceRefusal.COUNTEREXAMPLE_EMPTY: (
+        ApplicationRefusal.GUIDANCE_COUNTEREXAMPLE_EMPTY
+    ),
+}
+
 
 def consent_refusal_name(reason: ConsentRefusal) -> ApplicationRefusal:
     """The layer's name for a refusal of the consent machinery.
@@ -426,9 +472,20 @@ def chain_refused(reason: ChainRefusal, detail: str) -> ApplicationRefusedError:
     return ApplicationRefusedError(chain_refusal_name(reason), detail)
 
 
+def guidance_refused(reason: GuidanceRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of a rule-memory operation, named in the layer's vocabulary.
+
+    **One spelling, so a surface catches one thing** — the same argument
+    :func:`chain_refused` records, and the same lookup rather than a
+    default.
+    """
+    return ApplicationRefusedError(GUIDANCE_REFUSALS[reason], detail)
+
+
 __all__ = [
     "CHAIN_REFUSALS",
     "CONSENT_REFUSALS",
+    "GUIDANCE_REFUSALS",
     "INTAKE_REFUSALS",
     "PAPER_REFUSALS",
     "ApplicationRefusal",
@@ -436,6 +493,7 @@ __all__ = [
     "chain_refusal_name",
     "chain_refused",
     "consent_refusal_name",
+    "guidance_refused",
     "intake_refusal_name",
     "paper_refusal_name",
 ]
