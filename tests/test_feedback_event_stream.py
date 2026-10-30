@@ -91,8 +91,16 @@ ISSUE_KEY: Final = "issue-key-1"
 #: The three judgements, as the rows' own words. The chain carries the
 #: substance and not only the bookkeeping: a reader replaying the stream has
 #: to see who made the change, what was judged, and what was concluded.
-ACTOR_KIND: Final = "student"
-STATE: Final = "addressed"
+#:
+#: **Distinctive words, on purpose.** An emitter that wrote its own word
+#: instead of the caller's would go unnoticed if the test's word were the one
+#: an implementation would hardcode — and that mutation survived once, when
+#: this was ``addressed`` and the emitter wrote ``addressed``. So: the
+#: actor is a *model* (ADR-0017 D4's hazard), the state is a *partial* one
+#: (the state a reader most needs to tell from a full answer), and the
+#: verdict is the one ADR-0017 D7 names.
+ACTOR_KIND: Final = "model"
+STATE: Final = "partially_addressed"
 VERDICT: Final = "not established"
 
 #: The four events of ADR-0017 D8, in the order the chain records them.
@@ -139,7 +147,7 @@ def chain_payload(event_type: EventType) -> dict[str, object]:
         ).model_dump(mode="json")
     if event_type is EventType.RESPONSE_RECORDED:
         return ResponseRecordedPayload(
-            response_id=RESPONSE,
+            response_link_id=RESPONSE,
             project_id=PROJECT,
             feedback_id=FEEDBACK,
             edit_action_id=EDIT,
@@ -158,7 +166,7 @@ def chain_payload(event_type: EventType) -> dict[str, object]:
 ROW_ID_FIELD: Final[dict[EventType, str]] = {
     EventType.FEEDBACK_RECORDED: "feedback_id",
     EventType.EDIT_ACTION_RECORDED: "edit_action_id",
-    EventType.RESPONSE_RECORDED: "response_id",
+    EventType.RESPONSE_RECORDED: "response_link_id",
     EventType.FOLLOWUP_ASSESSED: "assessment_id",
 }
 
@@ -186,6 +194,37 @@ JUDGEMENTS: Final[dict[EventType, str | None]] = {
     EventType.FOLLOWUP_ASSESSED: VERDICT,
 }
 
+#: One complete payload per schema, as plain dictionaries. They are plain on
+#: purpose: a schema that could no longer carry a judgement would otherwise
+#: stop this file from loading, and the witness that says so would be a
+#: collection error rather than a construction failure inside the test.
+COMPLETE_PAYLOADS: Final[dict[type[LabCairnModel], dict[str, object]]] = {
+    EditActionRecordedPayload: {
+        "schema_version": 1,
+        "edit_action_id": EDIT,
+        "project_id": PROJECT,
+        "version_edge_id": EDGE,
+        "feedback_id": FEEDBACK,
+        "actor_kind": ACTOR_KIND,
+    },
+    ResponseRecordedPayload: {
+        "schema_version": 1,
+        "response_link_id": RESPONSE,
+        "project_id": PROJECT,
+        "feedback_id": FEEDBACK,
+        "edit_action_id": EDIT,
+        "state": STATE,
+    },
+    FollowupAssessedPayload: {
+        "schema_version": 1,
+        "assessment_id": ASSESSMENT,
+        "project_id": PROJECT,
+        "feedback_id": FEEDBACK,
+        "issue_key": ISSUE_KEY,
+        "verdict": VERDICT,
+    },
+}
+
 
 def emit_one(work: UnitOfWork, event_type: EventType) -> None:
     """Write the one chain event of *event_type*, through its emitter."""
@@ -208,7 +247,7 @@ def emit_one(work: UnitOfWork, event_type: EventType) -> None:
     elif event_type is EventType.RESPONSE_RECORDED:
         emit_response_recorded(
             work,
-            response_id=RESPONSE,
+            response_link_id=RESPONSE,
             project_id=PROJECT,
             feedback_id=FEEDBACK,
             edit_action_id=EDIT,
@@ -371,6 +410,79 @@ def test_the_judgement_an_event_is_about_survives_the_write_and_the_read(
     assert stored[0].payload.get(field) == JUDGEMENTS[event_type], (
         f"the {field} did not survive the write and the read: {dict(stored[0].payload)}"
     )
+
+
+@pytest.mark.parametrize(
+    ("schema", "field"),
+    [
+        (EditActionRecordedPayload, "actor_kind"),
+        (ResponseRecordedPayload, "state"),
+        (FollowupAssessedPayload, "verdict"),
+    ],
+)
+def test_a_payload_that_omits_its_judgement_is_not_constructible(
+    schema: type[LabCairnModel], field: str
+) -> None:
+    """A call site that forgot is a construction failure, not a null.
+
+    **The fix is the schema and not discipline.** Every object that carries
+    one of these events necessarily has that judgement — an edit has an
+    actor (ADR-0017 D4: no default actor, because a default is exactly how
+    a model's change becomes the advisor's), a response that is recorded has
+    a judgement, and an assessment that says *"not established"* has a
+    verdict, which is a verdict and not an absence. So the payload cannot be
+    built without the word, and a caller who forgot finds out at the
+    construction rather than writing a ``null`` into the chain.
+    """
+    complete = COMPLETE_PAYLOADS[schema]
+    without = {key: value for key, value in complete.items() if key != field}
+
+    with pytest.raises(ValidationError):
+        schema.model_validate(without)
+    # And the complete one is accepted, so the refusal above is about the
+    # missing judgement and not about the payload being wrong.
+    assert schema.model_validate(complete).model_dump(mode="json") == complete
+
+
+def test_a_response_with_no_judgement_made_is_not_an_event() -> None:
+    """A response whose state is ``pending`` is not an event.
+
+    **The rule:** a ``response_recorded`` event is emitted **only when a
+    judgement was made**, and a response whose state is ``pending`` is
+    **not** an event.
+
+    Why: ``pending`` is the state a response row holds when nobody has
+    judged anything yet, and a comment nobody has answered has no response
+    row at all — "no row" is how "unanswered" is represented. An event that
+    carried ``pending`` would say that a response was recorded when the
+    truth is that nothing was judged.
+    """
+    with pytest.raises(ValidationError, match="only when a judgement was made"):
+        ResponseRecordedPayload(
+            response_link_id=RESPONSE,
+            project_id=PROJECT,
+            feedback_id=FEEDBACK,
+            edit_action_id=EDIT,
+            state="pending",
+        )
+
+
+def test_the_pending_rule_cannot_be_escaped_by_spelling_the_word_differently() -> None:
+    """The layer knows one word, and it knows it however it is spelled.
+
+    The response vocabulary is the row's and the layer checks it against
+    nothing — except the one word that would make the event a lie, and a
+    differently spelled ``Pending`` is not a state the row's vocabulary has.
+    """
+    for spelling in ("Pending", "PENDING", " pending "):
+        with pytest.raises(ValidationError, match="only when a judgement was made"):
+            ResponseRecordedPayload(
+                response_link_id=RESPONSE,
+                project_id=PROJECT,
+                feedback_id=FEEDBACK,
+                edit_action_id=EDIT,
+                state=spelling,
+            )
 
 
 # --------------------------------------------------------------------------

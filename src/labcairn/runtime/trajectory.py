@@ -40,13 +40,29 @@ a second query, and it puts the claim inside the report's hash chain rather
 than outside it — which is the difference between a chain that proves the
 bookkeeping and one that proves the judgement.
 
-**The vocabulary is the row's, and this module checks nothing against it.**
-A payload that refused a word the table does not have would couple the
-runtime layer to a table that does not exist yet, and the layer must not
-import the store's layer. So the words are carried verbatim, and a reader
-who wants the row's own value reads the row; the two are the same string
-unless something changed one of them, which is exactly what a reader
-comparing them would want to see.
+**The vocabulary is the row's, and this module checks nothing against it**
+— with one exception, and the exception is the point. A payload that refused
+a word the table does not have would couple the runtime layer to a table
+that does not exist yet, and the layer must not import the store's layer. So
+the words are carried verbatim, and a reader who wants the row's own value
+reads the row; the two are the same string unless something changed one of
+them, which is exactly what a reader comparing them would want to see.
+
+**The exception is ``pending``**, and it is refused because it would make
+the event a lie: a ``response_recorded`` event is emitted **only when a
+judgement was made**, and a response whose state is ``pending`` is **not**
+an event. A comment nobody has answered has no response row at all — "no
+row" is how "unanswered" is represented — so an event carrying ``pending``
+would say that a response was recorded when the truth is that nothing was
+judged. See
+:meth:`ResponseRecordedPayload._a_pending_response_is_not_a_judgement`.
+
+**The three judgements are required, and there is no default for any of
+them.** An edit has an actor (ADR-0017 D4: no default actor — a default is
+exactly how a model's change becomes the advisor's); a response that is
+recorded has a judgement; and an assessment that says *"not established"* has
+a verdict, which is a verdict and not an absence. So a call site that
+forgets is a construction failure and not a ``null`` in the chain.
 
 **Why the models are not in** :mod:`~labcairn.runtime.event`. That file is
 the vocabulary; these are the trajectory's. The registration still reaches
@@ -65,7 +81,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from labcairn.core.schema import LabCairnModel
 from labcairn.runtime.event import Event, EventType, register_payload_schema
@@ -151,7 +167,12 @@ class EditActionRecordedPayload(LabCairnModel):
     #: own value reads the row; the two are the same string unless something
     #: changed one of them, which is exactly what a reader comparing them
     #: would want to see.
-    actor_kind: str | None = Field(default=None, min_length=1)
+    #:
+    #: **Required, and there is no default actor.** ADR-0017 D4: a row names
+    #: who made the change, and *there is no default* — a default is exactly
+    #: how a model's change becomes the advisor's. A payload that let the
+    #: word be omitted would put the same hole in the chain.
+    actor_kind: str = Field(min_length=1)
 
 
 class ResponseRecordedPayload(LabCairnModel):
@@ -169,19 +190,29 @@ class ResponseRecordedPayload(LabCairnModel):
     decision stay in the row, and this module checks the word against
     nothing, because a closed vocabulary that lives in a table this layer
     must not know would be a second vocabulary to keep in step.
+
+    **And a response whose state is ``pending`` is not an event.** A
+    ``response_recorded`` event is emitted **only when a judgement was
+    made**. ``pending`` is the state a row holds when nobody has judged
+    anything yet, and a comment nobody has answered has **no response row
+    at all** — "no row" is how "unanswered" is represented. So a response
+    event whose state is ``pending`` would say the opposite of what it
+    means, and this model refuses it. See
+    :meth:`_a_pending_response_is_not_a_judgement`.
     """
 
     #: The row this event is about.
-    response_id: str = Field(min_length=1)
+    response_link_id: str = Field(min_length=1)
     #: The project the chain belongs to.
     project_id: str = Field(min_length=1)
     #: The comment the response is about.
     feedback_id: str = Field(min_length=1)
     #: The change the response judges.
     edit_action_id: str = Field(min_length=1)
-    #: **The judgement, as the row's own word** — ``pending``,
-    #: ``addressed``, ``partially_addressed`` or ``not_addressed``, whatever
-    #: the row says.
+    #: **The judgement, as the row's own word** — ``addressed``,
+    #: ``partially_addressed`` or ``not_addressed``, whatever the row says.
+    #: **Not** ``pending``: see the class docstring and
+    #: :meth:`_a_pending_response_is_not_a_judgement`.
     #:
     #: Carried so that a reader replaying the stream sees what was judged
     #: without a second query: "a response was recorded" says that something
@@ -192,7 +223,41 @@ class ResponseRecordedPayload(LabCairnModel):
     #: who wants the row's own value reads the row; the two are the same
     #: string unless something changed one of them, which is exactly what a
     #: reader comparing them would want to see.
-    state: str | None = Field(default=None, min_length=1)
+    #:
+    #: **Required**, because a response event is for a judgement that was
+    #: made, and a judgement with no word is not a judgement.
+    state: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _a_pending_response_is_not_a_judgement(self) -> ResponseRecordedPayload:
+        """A response whose state is ``pending`` is not an event.
+
+        **The rule:** a ``response_recorded`` event is emitted **only when a
+        judgement was made**, and a response whose state is ``pending`` is
+        **not** an event.
+
+        Why: ``pending`` is the state a response row holds when nobody has
+        judged anything yet, and a comment nobody has answered has no
+        response row at all — "no row" is how "unanswered" is represented.
+        An event that carried ``pending`` would say that a response was
+        recorded when the truth is that nothing was judged.
+
+        **This is the one word of the response vocabulary the runtime layer
+        knows**, and it knows it because it is the one that would make the
+        event a lie. Every other word is the row's own and is carried
+        verbatim, unchecked. The comparison is case-insensitive, so a
+        differently spelled ``Pending`` is refused too: it is not a state the
+        row's vocabulary has, and the layer does not know which other words
+        are states.
+        """
+        if self.state.strip().casefold() == "pending":
+            raise ValueError(
+                "a response_recorded event is emitted only when a judgement was "
+                "made, and a state of 'pending' means nobody has judged "
+                "anything yet: a comment nobody has answered has no response "
+                "row at all, and 'no row' is how 'unanswered' is represented"
+            )
+        return self
 
 
 class FollowupAssessedPayload(LabCairnModel):
@@ -231,7 +296,11 @@ class FollowupAssessedPayload(LabCairnModel):
     #: one of them, which is exactly what a reader comparing them would want
     #: to see. The word alone is not the assessment's authority — that is the
     #: evidence, which lives in the row and not here.
-    verdict: str | None = Field(default=None, min_length=1)
+    #:
+    #: **Required**, because *"not established"* is a verdict and not an
+    #: absence: an assessment that concluded nothing has no verdict to carry,
+    #: and one that says it concluded nothing has to say so in words.
+    verdict: str = Field(min_length=1)
 
 
 register_payload_schema(EventType.FEEDBACK_RECORDED, FeedbackRecordedPayload)
@@ -274,8 +343,8 @@ def emit_edit_action_recorded(
     edit_action_id: str,
     project_id: str,
     version_edge_id: str,
+    actor_kind: str,
     feedback_id: str | None = None,
-    actor_kind: str | None = None,
 ) -> Event:
     """Record a change made against a version edge.
 
@@ -287,6 +356,10 @@ def emit_edit_action_recorded(
     table: a change made by a model and recorded as somebody else's is a
     forged signature, and the chain has to cover it and not only the row.
     Pass the row's word; this module checks nothing against it.
+
+    **Required, and there is no default actor.** A change has an actor, and
+    ADR-0017 D4 refuses to give it one: a default is exactly how a model's
+    change becomes the advisor's.
 
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
@@ -304,11 +377,11 @@ def emit_edit_action_recorded(
 def emit_response_recorded(
     work: EventWriter,
     *,
-    response_id: str,
+    response_link_id: str,
     project_id: str,
     feedback_id: str,
     edit_action_id: str,
-    state: str | None = None,
+    state: str,
 ) -> Event:
     """Record a judgement that links a comment to a change.
 
@@ -318,11 +391,19 @@ def emit_response_recorded(
     that a judgement happened. The evidence behind the state, and the rule
     that decides it, stay in the row.
 
+    **Required, and ``pending`` is not one of the answers.** A
+    ``response_recorded`` event is emitted **only when a judgement was
+    made**. A response whose state is ``pending`` means nobody has judged
+    anything yet, and a comment nobody has answered has no response row at
+    all — "no row" is how "unanswered" is represented. Passing ``pending``
+    here is refused at construction; see
+    :meth:`ResponseRecordedPayload._a_pending_response_is_not_a_judgement`.
+
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
     """
     payload = ResponseRecordedPayload(
-        response_id=response_id,
+        response_link_id=response_link_id,
         project_id=project_id,
         feedback_id=feedback_id,
         edit_action_id=edit_action_id,
@@ -336,9 +417,9 @@ def emit_followup_assessed(
     *,
     assessment_id: str,
     project_id: str,
+    verdict: str,
     feedback_id: str | None = None,
     issue_key: str | None = None,
-    verdict: str | None = None,
 ) -> Event:
     """Record a later judgement about an issue.
 
@@ -348,6 +429,10 @@ def emit_followup_assessed(
     when the row says so, *"not established"*. The assessment's evidence, and
     the refusal that keeps "the change was accepted" out of the verdict, are
     the row's business.
+
+    **Required, because *"not established"* is a verdict and not an
+    absence.** An assessment that concluded nothing has no verdict to carry,
+    and one that says it concluded nothing has to say so in words.
 
     The provisional ``seq``, the transaction and the row are as
     :func:`emit_feedback_recorded` describes them.
