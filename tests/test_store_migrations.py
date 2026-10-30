@@ -99,6 +99,12 @@ EXPECTED_TABLES = frozenset(
         "paper_projects",
         "paper_versions",
         "version_edges",
+        # LC-P2-09 T00. The record of a refusal. The other two outcomes
+        # leave their own mark on the graph -- an acceptance is the edge
+        # with an acceptor, a correction is a second edge -- and a rejection
+        # left nothing, so a proposal that was looked at and turned down was
+        # indistinguishable from a proposal nobody had looked at.
+        "version_edge_rejections",
         # LC-P2-06. The consent machinery. `access_grants` holds only
         # grants -- there is no row shape that means "denied", because
         # ADR-0015 D2 says the permission is denied by *absence*. And
@@ -106,6 +112,19 @@ EXPECTED_TABLES = frozenset(
         # withdrawal can reach the copies that depended on it.
         "access_grants",
         "derived_copies",
+        # LC-P2-09. The feedback chain: a comment found in a manuscript, the
+        # change made in answer to it, the judgement that the change
+        # answered the comment, and a later assessment of the issue. Four
+        # tables because a comment, an edit, a response and an assessment
+        # have different owners and different failure modes -- and one
+        # comment may be answered by three edits, so a single wide table
+        # would have to answer "how many comments does this edit answer?"
+        # with a list, and a list is a place where a link can be lost
+        # without anything failing.
+        "feedback_events",
+        "edit_actions",
+        "response_links",
+        "followup_assessments",
     }
 )
 

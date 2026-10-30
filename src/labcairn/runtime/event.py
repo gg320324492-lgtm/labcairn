@@ -75,6 +75,15 @@ class EventType(StrEnum):
     SOURCE_CHANGED = "source_changed"
     OUTBOUND_CONSENT_REQUESTED = "outbound_consent_requested"
 
+    # LC-P2-09, ADR-0017 D8: the four events of the feedback chain — a
+    # comment, an edit, a judgement and an assessment. They are annotations
+    # and not attempts: a comment found in a manuscript did not happen inside
+    # a Run, so these carry no transition and no ``run_id``.
+    FEEDBACK_RECORDED = "feedback_recorded"
+    EDIT_ACTION_RECORDED = "edit_action_recorded"
+    RESPONSE_RECORDED = "response_recorded"
+    FOLLOWUP_ASSESSED = "followup_assessed"
+
 
 #: Event types that carry neither run_id nor the operation context.
 TASK_LEVEL_EVENTS: frozenset[EventType] = frozenset(
@@ -96,7 +105,18 @@ RUN_SCOPED_PREFIXES: tuple[str, ...] = (
 #: Events that are neither Task-level nor Run-scoped: annotations about the
 #: Task's material and products, which may be observed outside any attempt.
 ANNOTATION_EVENTS: frozenset[EventType] = frozenset(
-    {EventType.ARTIFACT_RECORDED, EventType.SOURCE_CHANGED, EventType.OUTBOUND_CONSENT_REQUESTED}
+    {
+        EventType.ARTIFACT_RECORDED,
+        EventType.SOURCE_CHANGED,
+        EventType.OUTBOUND_CONSENT_REQUESTED,
+        # ADR-0017 D8: the feedback chain's four events. A comment, an edit,
+        # a response and an assessment are observations about the manuscript,
+        # not attempts to do something to it.
+        EventType.FEEDBACK_RECORDED,
+        EventType.EDIT_ACTION_RECORDED,
+        EventType.RESPONSE_RECORDED,
+        EventType.FOLLOWUP_ASSESSED,
+    }
 )
 
 #: Events that describe a change and therefore must carry from/to state.
@@ -162,6 +182,16 @@ def register_payload_schema(event_type: EventType, schema: type[LabCairnModel]) 
     process — a defect no write-path test can see. The payload models for the
     vocabulary live here for that reason; a schema may be registered elsewhere
     only if this module (or something it already imports) imports that module.
+
+    **And the package counts as something this module imports.** ADR-0017 D8's
+    four chain events put their payload models in
+    :mod:`labcairn.runtime.trajectory`, because that file is the trajectory's
+    and this one is the vocabulary's. Importing a module of a package imports
+    the package first, so :mod:`labcairn.runtime`'s own ``__init__`` pulls the
+    trajectory in — and every process that reads an event, this one included,
+    has the four schemas registered before it validates anything. The
+    alternative would be a schema that exists only where the writer was
+    imported, which is the defect this paragraph exists to prevent.
     """
     if event_type in EVENT_PAYLOAD_SCHEMAS:
         raise ValueError(f"{event_type.value} already has a registered payload schema")

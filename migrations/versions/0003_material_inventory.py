@@ -150,7 +150,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("source_id", name="uq_sources_source_id"),
         sa.CheckConstraint("size_bytes >= 0", name="source_size_non_negative"),
         sa.CheckConstraint(
-            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
+            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'docx', 'other')",
             name="source_kind_vocabulary",
         ),
         sa.CheckConstraint(

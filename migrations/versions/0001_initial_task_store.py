@@ -33,6 +33,20 @@ depends_on: str | Sequence[str] | None = None
 # the single ~600-character lines autogenerate emits. The SQL is identical; the
 # wrapping exists so that the constraint encoding ADR-0003's closed event
 # vocabulary and its per-type run_id rule can be read and reviewed at all.
+#
+# **And the vocabulary moved here when LC-P2-09 added four types to it.**
+# ADR-0017 D8's ``feedback_recorded``, ``edit_action_recorded``,
+# ``response_recorded`` and ``followup_assessed`` are annotations, so they
+# belong in the "no run", "no transition" and "no operation" lists and in the
+# closed list itself. The models generate the same four bodies from
+# ``labcairn.runtime.event.EventType`` at import time, and
+# ``tests/test_store_migrations.py``'s parity test holds the two renderings
+# together -- so a type that reached the models and not this revision would be
+# a type the database refuses, which is exactly what happened before this was
+# amended. Revision 0001 was amended rather than superseded because the
+# product never migrates an existing workspace (``labcairn init`` creates the
+# database at head and refuses to overwrite one), so there is no deployed
+# schema this changes underneath.
 
 _RUN_ID_MATCHES_EVENT_TYPE = (
     "((type IN ('approval_consumed', 'approval_denied', "
@@ -45,7 +59,9 @@ _RUN_ID_MATCHES_EVENT_TYPE = (
     "'run_paused', 'run_resumed', 'run_started', "
     "'stage_blocked', 'stage_completed', "
     "'stage_entered')) AND run_id IS NOT NULL) OR ((type IN ('artifact_recorded', "
-    "'outbound_consent_requested', 'source_changed', "
+    "'edit_action_recorded', 'feedback_recorded', "
+    "'followup_assessed', 'outbound_consent_requested', "
+    "'response_recorded', 'source_changed', "
     "'task_created', 'task_revised')) AND run_id IS NULL)"
 )
 
@@ -60,8 +76,10 @@ _TRANSITION_MATCHES_EVENT_TYPE = (
     "'run_started', 'stage_blocked', 'stage_completed', "
     "'stage_entered')) AND from_state IS NOT NULL AND to_state IS NOT NULL) OR ((type"
     " IN ('artifact_recorded', "
-    "'checkpoint_created', 'outbound_consent_requested', "
-    "'source_changed', 'task_created', "
+    "'checkpoint_created', 'edit_action_recorded', "
+    "'feedback_recorded', 'followup_assessed', "
+    "'outbound_consent_requested', "
+    "'response_recorded', 'source_changed', 'task_created', "
     "'task_revised')) AND from_state IS NULL AND to_state IS NULL)"
 )
 
@@ -74,7 +92,9 @@ _OPERATION_CONTEXT_MATCHES_EVENT_TYPE = (
     "'approval_denied', 'approval_expired', "
     "'approval_granted', 'approval_requested', "
     "'artifact_recorded', 'checkpoint_created', "
-    "'outbound_consent_requested', 'run_finished', "
+    "'edit_action_recorded', 'feedback_recorded', "
+    "'followup_assessed', 'outbound_consent_requested', "
+    "'response_recorded', 'run_finished', "
     "'run_paused', 'run_resumed', 'run_started', "
     "'source_changed', 'stage_blocked', "
     "'stage_completed', 'stage_entered', "
@@ -85,13 +105,15 @@ _TYPE_IS_CLOSED_VOCABULARY = (
     "type IN ('approval_consumed', 'approval_denied', "
     "'approval_expired', 'approval_granted', "
     "'approval_requested', 'artifact_recorded', "
-    "'checkpoint_created', 'operation_attempted', "
+    "'checkpoint_created', 'edit_action_recorded', "
+    "'feedback_recorded', 'followup_assessed', "
+    "'operation_attempted', "
     "'operation_awaiting_approval', 'operation_confirmed', "
     "'operation_failed', 'operation_intent', "
     "'operation_reconciled', 'operation_uncertain', "
-    "'outbound_consent_requested', 'run_finished', "
-    "'run_paused', 'run_resumed', 'run_started', "
-    "'source_changed', 'stage_blocked', "
+    "'outbound_consent_requested', 'response_recorded', "
+    "'run_finished', 'run_paused', 'run_resumed', "
+    "'run_started', 'source_changed', 'stage_blocked', "
     "'stage_completed', 'stage_entered', "
     "'task_created', 'task_revised')"
 )

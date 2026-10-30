@@ -256,6 +256,41 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_version_confirmation.py": ("unit", "dataset-locators"),
     "test_version_contracts.py": ("unit", "typed-contracts"),
     "test_version_duplicates.py": ("unit", "dataset-locators"),
+    # LC-P2-09. The version graph's *writer*: the store that keeps the
+    # projects, versions and edges the contracts describe. The class is
+    # integration because the property is exercised against a real database
+    # rather than against the models alone, and the clause is the typed
+    # contracts because the property is that a stored row round-trips through
+    # the frozen models — that a row the contract refuses is neither written
+    # nor readable as a valid one. The sibling files above check *where a
+    # version sits* in the graph; this one checks that what is stored is the
+    # model and not the row.
+    "test_version_store.py": ("integration", "typed-contracts"),
+    # LC-P2-09. The feedback chain. ``test_feedback_events.py`` carries the
+    # row's two addresses and the anchored text -- the locator clause, and
+    # the place the DOCX reader's own change is witnessed.
+    # ``test_edit_actions.py`` carries the actor kind's closed vocabulary:
+    # who made a change is a typed contract, and a model's change is not
+    # the advisor's. ``test_response_links.py`` carries the state machine:
+    # four states, and the rules about reaching them.
+    # ``test_followup_assessments.py`` carries the evidence an assessment
+    # needs of its own, and the recurrence an issue key makes visible.
+    "test_feedback_events.py": ("integration", "dataset-locators"),
+    "test_edit_actions.py": ("integration", "typed-contracts"),
+    "test_response_links.py": ("integration", "state-transitions"),
+    "test_followup_assessments.py": ("integration", "insufficient-evidence"),
+    # LC-P2-09. The feedback chain's four events: they are annotations, they
+    # carry a registered payload schema naming the row they are about, and
+    # the chain is replayable from the stream alone. The clause is the event
+    # append clause: the witnesses write through the unit of work and read
+    # back through the store's event reader.
+    "test_feedback_event_stream.py": ("integration", "event-append"),
+    # LC-P2-09's exit demonstration: the chain run end to end, and the
+    # witness that its exit code still carries its claims. It is integration
+    # because it writes a real database and a real workspace, and its clause
+    # is the event append because the last thing it checks is that the four
+    # annotation events are in the stream in the order they were written.
+    "test_feedback_demo.py": ("integration", "event-append"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

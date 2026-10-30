@@ -326,10 +326,26 @@ _ALLOWED_STORE_READERS = frozenset(
         # import of ``LOCAL_USER_ID`` is the actor of a surface operation.
         "labcairn.application.evidence",
         "labcairn.application.material_ingestion",
+        # The version graph's writer. It answers through the store's own
+        # readers and writes through the store's own writers, exactly as the
+        # operations beside it do; LC-P2-09 T00 added it.
+        "labcairn.application.papers",
         "labcairn.application.records",
         "labcairn.application.sources",
         "labcairn.application.stages",
         "labcairn.application.tasks",
+        # The mentor-trajectory line's layer. ``labcairn.papers`` is the
+        # application layer for the paper domain -- its own docstring says
+        # so -- and the feedback chain's operations live there: they are the
+        # chain's *operations*, not surfaces, and **every one of them
+        # evaluates the policy before it touches the store**, which is the
+        # property this guard exists to protect. They are recorded here
+        # because a module that reaches the store must be named.
+        "labcairn.papers.assessments",
+        "labcairn.papers.chain",
+        "labcairn.papers.edits",
+        "labcairn.papers.feedback",
+        "labcairn.papers.responses",
         # Predate the layer.
         "labcairn.analysis.service",
         "labcairn.recovery.approvals",
