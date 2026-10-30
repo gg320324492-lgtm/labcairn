@@ -18,7 +18,9 @@ processes (a known driver leak; only a restart clears it). The judgement,
 its five pieces of evidence and the chain that stands instead are in
 `docs/acceptance/LC-P2-10-acceptance.md` §5; after a restart, one command
 re-measures it: the project's temp rules, then `pytest` with a basetemp
-outside the repository.
+outside the repository. **The owner chose this on 2026-10-31: after a
+restart, the suite is re-measured on the final tree and its figures go
+into §5, replacing the chain that stands there now.**
 
 **What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
 `src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with
