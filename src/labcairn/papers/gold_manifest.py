@@ -249,6 +249,26 @@ def _require(mapping: Mapping[str, Any], key: str, where: str) -> Any:
     return mapping[key]
 
 
+def _record(value: Any, where: str) -> Mapping[str, Any]:
+    """The nested record at *value*, or a refusal that names it.
+
+    **A nested field is a record, not a word.** A manifest whose
+    ``comment_address`` is the number 5 is a manifest this reader cannot
+    read, and it has to say so **rather than fall over** — a reader that
+    raises a ``TypeError`` deep inside a lookup tells the annotator
+    nothing, and a reader that guesses tells them something false.
+
+    :raises ValueError: when the value is not a mapping of fields.
+    """
+    if not isinstance(value, Mapping):
+        raise ValueError(
+            f"{where} is {value!r}, and a record is a mapping of its fields. "
+            "The manifest says what is in it, and a field that is not a "
+            "record cannot be read."
+        )
+    return value
+
+
 def _text(mapping: Mapping[str, Any], key: str, where: str) -> str:
     """A non-empty text value at *key*.
 
@@ -315,10 +335,12 @@ def _annotation(mapping: Mapping[str, Any], where: str) -> Annotation:
         annotator_id=_text(mapping, "annotator_id", where),
         annotated_at=_moment(mapping, "annotated_at", where),
         comment_address=_address_labels(
-            _require(mapping, "comment_address", where), f"{where} comment_address"
+            _record(_require(mapping, "comment_address", where), f"{where} comment_address"),
+            f"{where} comment_address",
         ),
         body_address=_address_labels(
-            _require(mapping, "body_address", where), f"{where} body_address"
+            _record(_require(mapping, "body_address", where), f"{where} body_address"),
+            f"{where} body_address",
         ),
     )
 
@@ -329,10 +351,12 @@ def _resolution(mapping: Mapping[str, Any], where: str) -> Resolution:
         arbiter_id=_text(mapping, "arbiter_id", where),
         resolved_at=_moment(mapping, "resolved_at", where),
         comment_address=_address_labels(
-            _require(mapping, "comment_address", where), f"{where} comment_address"
+            _record(_require(mapping, "comment_address", where), f"{where} comment_address"),
+            f"{where} comment_address",
         ),
         body_address=_address_labels(
-            _require(mapping, "body_address", where), f"{where} body_address"
+            _record(_require(mapping, "body_address", where), f"{where} body_address"),
+            f"{where} body_address",
         ),
     )
 
@@ -351,7 +375,9 @@ def _item(mapping: Mapping[str, Any], index: int) -> GoldItem:
             "read."
         )
     annotations = tuple(
-        _annotation(entry, f"{where} annotation {position}")
+        _annotation(
+            _record(entry, f"{where} annotation {position}"), f"{where} annotation {position}"
+        )
         for position, entry in enumerate(raw_annotations)
     )
     readers = [annotation.annotator_id for annotation in annotations]
@@ -364,7 +390,9 @@ def _item(mapping: Mapping[str, Any], index: int) -> GoldItem:
 
     raw_resolution = mapping.get("resolution")
     resolution = (
-        None if raw_resolution is None else _resolution(raw_resolution, f"{where} resolution")
+        None
+        if raw_resolution is None
+        else _resolution(_record(raw_resolution, f"{where} resolution"), f"{where} resolution")
     )
 
     locator = mapping.get("comment_locator")
@@ -505,7 +533,10 @@ def validate_manifest(data: Mapping[str, Any]) -> GoldManifest:
 
     return GoldManifest(
         version=version,
-        corpus={name: dict(entry) for name, entry in raw_corpus.items()},
+        corpus={
+            name: dict(_record(entry, f"corpus entry {name!r}"))
+            for name, entry in raw_corpus.items()
+        },
         partitions=partitions,
         items=tuple(items),
     )

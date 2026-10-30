@@ -174,7 +174,7 @@ def labels_for(axis: str) -> frozenset[str]:
         return LABELS_BY_AXIS[axis]
     except KeyError:
         raise ValueError(
-            f"{axis!r} is not an annotation axis. The axes are: "
+            f"{axis} is not an annotation axis. The axes are: "
             f"{', '.join(sorted(LABELS_BY_AXIS))}. An axis is what a label is "
             "an answer to, and an answer to nothing is not an annotation."
         ) from None
@@ -202,7 +202,7 @@ def check_label(axis: str, label: str) -> str:
     if label in accepted:
         return label
     raise ValueError(
-        f"{label!r} is not a label on the {axis!r} axis. The labels are: "
+        f"{label!r} is not a label on the {axis} axis. The labels are: "
         f"{', '.join(sorted(accepted))}. The set is closed on purpose: a "
         "label outside it would be a second vocabulary for the same rows, "
         "and a gold set scored against two vocabularies measures nothing."
