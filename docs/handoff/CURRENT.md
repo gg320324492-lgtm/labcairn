@@ -1,15 +1,17 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-30 · **`main`:** `503b5fe` — the merge of PR #129 (LC-P2-06's
-independent review and its seven findings) · **This work is on**
-`claude/p2-lc-p2-09`, branched from that merge.
+**Date:** 2026-10-30 · **`main`:** `76d25ca` — the merge of PR #130, which is
+LC-P2-09 · **Previous `main`:** `503b5fe` (PR #129, LC-P2-06's review and its
+seven findings).
 
-**LC-P2-09 is implemented and measured, and not independently reviewed.**
+**LC-P2-09 is merged and measured, and not independently reviewed.**
 The feedback chain's four tables (`0013_feedback_chain.py`), the version
 graph's missing writer (`0012_version_edge_rejections.py`), the reader
 carrying the text a comment covers, and the four annotation events are in
-the branch; the acceptance record is
-[`acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md).
+`main`; the acceptance record is
+[`acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md),
+and the review points are in
+[`plans/PHASE_2-review-points.md`](../plans/PHASE_2-review-points.md).
 
 **Two things about this round are worth knowing before reading it.**
 
@@ -20,10 +22,10 @@ the branch; the acceptance record is
 - **Two branches claimed migration `0012`.** The version graph's rejection
   table kept the number; the chain's four tables became `0013`.
 
-**What this round does not do:** the mutation pass covers six of seventeen
-clauses; the review is not independent; the shard costs are apportioned
-rather than measured; and the chain is not rendered (ADR-0017's first
-re-evaluation trigger). Those are stated in the acceptance record, §6.
+**What this round does not do:** the mutation pass covers six of eighteen
+review-point properties; the review is not independent; the chain is not
+rendered (ADR-0017's first re-evaluation trigger); and the product still has
+no writer for grants. Those are stated in the acceptance record, §6.
 
 **Date:** 2026-10-29 · **Previous `main`:** `6db48ef` — the merge of PR #124, and
 the last of the Phase 1 closeout merges. **What landed since `ff9afc5`:** PR #119
