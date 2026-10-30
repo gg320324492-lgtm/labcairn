@@ -313,6 +313,21 @@ file, not what a file asserts.
 - **A copy that was already used cannot be recalled.** The propagation makes
   the *next* use impossible, and the record says so rather than implying
   more.
+- **Nothing in `src/` reads the grant tables yet.** The check is
+  *checkable* — the tests and the demonstration hold it — but no product
+  path fetches an `access_grants` row into a `Grant`, and nothing calls
+  `stale_copies` outside this work order's own tests and its demonstration.
+  **The expiry defect was unreachable in two independent ways**: the wrong
+  reading of the clock, and the absence of a path that would have reached
+  it.
+- **`Grant.is_in_force` treats any state outside `{"withdrawn",
+  "expired"}` as in force.** `'revoked'`, `'suspended'` and `''` all come
+  back true. **The schema closes the vocabulary**, so those are not
+  reachable through the store, and asking for `state != "active"` instead
+  would close it. **Left as it is, deliberately**: the change is one line,
+  but a line with no witness behind it is a line nobody will notice being
+  wrong, and the witnesses this work order has are worth more than the
+  tightening. It is a separate piece of work, with its own mutation.
 
 ## 7. The next thing
 
