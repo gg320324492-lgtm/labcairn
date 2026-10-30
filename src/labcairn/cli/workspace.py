@@ -39,8 +39,13 @@ from typing import Any
 from labcairn.application import ApplicationContext
 from labcairn.application.models import Result
 from labcairn.core.ids import TaskId
-from labcairn.db import TaskStore, create_db_engine, create_session_factory, session_scope
-from labcairn.security.approval import ApprovalLedger
+from labcairn.db import (
+    StoredApprovalLedger,
+    TaskStore,
+    create_db_engine,
+    create_session_factory,
+    session_scope,
+)
 from labcairn.security.capabilities import Effect
 from labcairn.security.paths import PathRefusedError, check_spelling
 from labcairn.security.policy import Permission, PermissionPolicy, Rule, default_policy
@@ -633,7 +638,7 @@ def application_context(
                 workspace=workspace,
                 store=TaskStore(session),
                 policy=load_policy(location),
-                ledger=ApprovalLedger(),
+                ledger=StoredApprovalLedger(session),
             )
     finally:
         engine.dispose()

@@ -1,7 +1,8 @@
 # LC-P2-02 — Restart-durable consent: the approval that survives a restart — task breakdown
 
-**Work order:** LC-P2-02 (restart-durable consent) · **Status:** drafted
-2026-10-30, **not yet dispatched**. **Priority:** the adjustment of
+**Work order:** LC-P2-02 (restart-durable consent) · **Status:** implemented
+2026-10-30 (T00–T05); the acceptance record is
+[`LC-P2-02-acceptance`](../acceptance/LC-P2-02-acceptance.md). **Priority:** the adjustment of
 2026-10-30 (P2-AMD-01) puts this **first among the Phase 2 work orders**,
 because it is the operation half of the gate LC-P2-01's model path has to
 pass.

@@ -442,6 +442,13 @@ class ApprovalRow(Base):
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
     granted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     consumed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: What the policy said at the moment of the grant. **Null until granted.**
+    #: LC-P2-02 T00: the spend reads it here rather than taking it as an
+    #: argument, so a caller cannot present a digest nobody recorded.
+    grant_policy_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: The sources the consent was bound to, and the hash each had then.
+    #: **Empty is a fact** — the grant covered no source file.
+    bound_sources: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False, default=list)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     __table_args__ = (

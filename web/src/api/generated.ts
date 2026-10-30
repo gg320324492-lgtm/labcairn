@@ -33,6 +33,8 @@ export type Approval = {
   expires_at: string
   granted_at?: string | null
   consumed_at?: string | null
+  grant_policy_digest?: string | null
+  bound_sources?: BoundSource[]
 }
 
 export type ApprovalBody = {
@@ -97,6 +99,12 @@ export type ArtifactStaleness = 'current' | 'stale'
 export type ArtifactView = {
   receipt: ArtifactReceipt
   resource_key: string
+}
+
+export type BoundSource = {
+  schema_version?: number
+  resource_key: string
+  expected_hash: string
 }
 
 export type CapabilityId =

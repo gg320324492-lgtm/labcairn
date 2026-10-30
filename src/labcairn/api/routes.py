@@ -88,6 +88,7 @@ from labcairn.application import (
     run_stage,
 )
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
+from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.core.ids import ApprovalId
@@ -129,7 +130,8 @@ def _context(request: Request) -> Iterator[ApplicationContext]:
     returns — so a streamed body holds its session for as long as it streams.
     """
     base = cast(ApplicationContext, request.app.state.context)
-    context = replace(base, store=base.store.fork())
+    forked = base.store.fork()
+    context = replace(base, store=forked, ledger=approval_ledger_for(forked))
     try:
         yield context
     finally:

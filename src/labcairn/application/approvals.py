@@ -234,7 +234,14 @@ def grant_approval(
         )
     granted = _granted(approval, moment)
     operation = _operation_row(context, approval)
-    context.ledger.issue(ApprovalGrant(approval=granted, policy_digest=context.policy.digest()))
+    # **The policy's answer is written down now, because the spend must not be
+    # the one that says what the policy was.** LC-P2-02 §2.2: the row keeps
+    # what the policy said at the grant, and the spend compares it with what
+    # the policy says at the moment of use. A grant that recorded no digest
+    # would leave the spend comparing nothing with nothing.
+    digest = context.policy.digest()
+    granted = granted.model_copy(update={"grant_policy_digest": digest})
+    context.ledger.issue(ApprovalGrant(approval=granted, policy_digest=digest))
     recorded = records.move_approval(
         context,
         granted,

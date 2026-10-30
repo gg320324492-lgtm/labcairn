@@ -30,6 +30,7 @@ from labcairn.db.models import (
     TaskRow,
 )
 from labcairn.db.repository import (
+    StoredApprovalLedger,
     StoreError,
     TaskStore,
     UnitOfWork,
@@ -56,6 +57,7 @@ __all__ = [
     "RunRow",
     "StageRow",
     "StoreError",
+    "StoredApprovalLedger",
     "TaskRow",
     "TaskStore",
     "UnitOfWork",

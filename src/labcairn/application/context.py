@@ -45,11 +45,25 @@ from dataclasses import dataclass
 
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import TaskId
-from labcairn.db.repository import TaskStore, UnknownTaskError
-from labcairn.security.approval import ApprovalLedger
+from labcairn.db.repository import StoredApprovalLedger, TaskStore, UnknownTaskError
+from labcairn.security.approval import ApprovalAccounting
 from labcairn.security.paths import CanonicalPath
 from labcairn.security.policy import PermissionPolicy
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace, WorkspaceError
+
+
+def approval_ledger_for(store: TaskStore) -> StoredApprovalLedger:
+    """The DB-backed ledger a surface hands the layer.
+
+    **Why this is a function and not a class the surfaces construct.** The
+    API package may not reach the store directly — the layer is the only way
+    in, and a test holds that — so the surface asks the layer for the thing
+    that reads the row rather than importing the reader itself. The grant a
+    person gave survives the restart because it is in the row, and the ledger
+    is the reader of it.
+    """
+    return StoredApprovalLedger(store.session)
+
 
 #: The root the task's own area is addressed in. The workspace root, because
 #: the output root *is* the task's area and cannot name itself.
@@ -71,7 +85,7 @@ class ApplicationContext:
     workspace: Workspace
     store: TaskStore
     policy: PermissionPolicy
-    ledger: ApprovalLedger
+    ledger: ApprovalAccounting
 
     @property
     def task_id(self) -> TaskId:
