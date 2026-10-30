@@ -1,5 +1,58 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-11,
+the mentor guidance memory, is landed: T00–T05.** `src/labcairn/guidance/`
+carries `rules.py` (the closed state machine `candidate → confirmed \|
+disputed \| withdrawn`; only a person moves a rule out of candidate, and
+**the confirmer cannot be the proposer** — `model_proposal` included),
+`distil.py` (the model's candidate, whose scope is assembled from the
+cases' anchored text and whose example is the advisor's own words — it has
+**no scope parameter to invent one through**), `retrieval.py` (every
+source resolved against the chain **at the moment of the query** — found
+in the chain, reachable through the consent layer, answered by a
+judgement — and `invalidated_rules()` reporting, not silently dropping,
+every rule a dead source takes down), `refusals.py`, the `GuidanceRule*`
+rows and migration 0015. The witnesses are `tests/test_guidance_rules.py`
+(twelve), `tests/test_guidance_retrieval.py` (fifteen),
+`tests/test_guidance_distillation.py` (three),
+`tests/test_guidance_memory_demo.py` (two), the migration suite's
+raw-`INSERT` refusals, and `examples/guidance_memory_demo.py`, which runs
+six scenes against a real chain. The acceptance record is
+`docs/acceptance/LC-P2-11-acceptance.md`.
+
+**The demonstration caught a mistake in the retrieval.** The first draft
+required every served rule's sources to carry an answered judgement, and
+the distillation's witnesses exposed it: a proposal's cases have usually
+not been judged at all, so the requirement hid from the reviewer the very
+thing they were to judge. The conditions split — a candidate stands on
+sources found and in reach; a confirmed or disputed rule also requires the
+judgement — and the split is written into `search_rules`'s docstring and
+the acceptance record's §1.
+
+**What is not done, on purpose.** Four new test files have no
+runner-measured cost, so `test_ci_shard_coverage` is red **on purpose**
+until `python .github/remeasure_shards.py <run-id>` runs against the next
+run's logs. And no one-shot whole-suite run was made on the final tree:
+the machine is still un-restarted, so the standing decision holds and the
+evidence is local-incremental, anchored at `826cc49` plus the acceptance
+record's own commit.
+
+**`main` is `da470bb`** (PR #132, LC-P2-02) and **this branch is
+thirty-four commits ahead of it** — twenty-eight of LC-P2-10 and six of
+LC-P2-11 (`310ad46` through `9e9f845`, plus this record's own commit).
+**Nothing of the round was pushed and no new pull request was opened**;
+PR #133 carries LC-P2-10 and stays as it is, and the LC-P2-11 work rides
+the same branch on the owner's call.
+
+**The decisions waiting for the owner** (none was taken, and none of the
+work below them blocks): the push of the round; the shard re-measurement
+for the four new test files; when PR #133 merges; the re-measurement of
+the suite after the machine's restart; LC-P2-10's three pilot decisions —
+the annotators, the manuscripts, the widened corpus; and the review of
+what LC-P2-11 landed.
+
+---
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
 T00–T06: the label set, the annotation guide, the synthetic corpus and its
 manifest, the agreement, the manifest's refusals, the acceptance record and
