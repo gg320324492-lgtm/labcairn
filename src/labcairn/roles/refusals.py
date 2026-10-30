@@ -50,3 +50,28 @@ class RoleRefusal(StrEnum):
     #: A spec at that role id and version is already defined. A new
     #: contract is a new version, not an overwrite of the old one.
     SPEC_ALREADY_DEFINED = "spec_already_defined"
+    # -- the trajectory's own reasons (LC-P2-12 T01) ------------------------ #
+    #: The chain holds no comment under the issue key a candidate points
+    #: at. A judgement about a comment that is not there is invented.
+    COMMENT_NOT_IN_THE_CHAIN = "comment_not_in_the_chain"
+    #: The candidate quotes the advisor, and the words are not the
+    #: comment's words. **A role may not put words in the advisor's
+    #: mouth** — the quote must be a verbatim substring of the chain.
+    QUOTE_NOT_IN_THE_CHAIN = "quote_not_in_the_chain"
+    #: The alignment named is not one of the four the vocabulary closes.
+    ALIGNMENT_STATE_UNKNOWN = "alignment_state_unknown"
+    #: The candidate's issue type is not one of the closed vocabulary's
+    #: labels — the same thirteen the memory and the gold set use.
+    CANDIDATE_ISSUE_TYPE_UNKNOWN = "candidate_issue_type_unknown"
+    #: The edit named does not answer the comment named, or is not in
+    #: the store. An alignment to an edit that answers nothing is an
+    #: alignment to nothing.
+    EDIT_DOES_NOT_ANSWER_THE_COMMENT = "edit_does_not_answer_the_comment"
+    #: A version the trajectory was asked to order is not in the
+    #: project's graph. **A missing round is not a present one** — it is
+    #: named, not papered over.
+    VERSION_OUTSIDE_THE_GRAPH = "version_outside_the_graph"
+    #: The accepted edges leave the order ambiguous — two versions no
+    #: accepted edge separates, or a fork. **A similarity score may
+    #: never silently decide an order**, and neither may this module.
+    VERSION_ORDER_AMBIGUOUS = "version_order_ambiguous"

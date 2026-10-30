@@ -311,6 +311,20 @@ class ApplicationRefusal(StrEnum):
     ROLE_SPEC_NOT_FOUND = "role_spec_not_found"
     #: A spec at that role id and version is already defined.
     ROLE_SPEC_ALREADY_DEFINED = "role_spec_already_defined"
+    #: The chain holds no comment under the issue key named.
+    ROLE_COMMENT_NOT_IN_THE_CHAIN = "role_comment_not_in_the_chain"
+    #: The candidate quotes words the advisor did not write.
+    ROLE_QUOTE_NOT_IN_THE_CHAIN = "role_quote_not_in_the_chain"
+    #: The alignment named is outside the four the vocabulary closes.
+    ROLE_ALIGNMENT_STATE_UNKNOWN = "role_alignment_state_unknown"
+    #: The candidate's issue type is outside the closed vocabulary.
+    ROLE_CANDIDATE_ISSUE_TYPE_UNKNOWN = "role_candidate_issue_type_unknown"
+    #: The edit named does not answer the comment named.
+    ROLE_EDIT_DOES_NOT_ANSWER_THE_COMMENT = "role_edit_does_not_answer_the_comment"
+    #: A version the trajectory was asked to order is not in the graph.
+    ROLE_VERSION_OUTSIDE_THE_GRAPH = "role_version_outside_the_graph"
+    #: The accepted edges leave the order ambiguous.
+    ROLE_VERSION_ORDER_AMBIGUOUS = "role_version_order_ambiguous"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -445,6 +459,25 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
     ),
     RoleRefusal.SPEC_NOT_FOUND: ApplicationRefusal.ROLE_SPEC_NOT_FOUND,
     RoleRefusal.SPEC_ALREADY_DEFINED: ApplicationRefusal.ROLE_SPEC_ALREADY_DEFINED,
+    RoleRefusal.COMMENT_NOT_IN_THE_CHAIN: (
+        ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN
+    ),
+    RoleRefusal.QUOTE_NOT_IN_THE_CHAIN: ApplicationRefusal.ROLE_QUOTE_NOT_IN_THE_CHAIN,
+    RoleRefusal.ALIGNMENT_STATE_UNKNOWN: (
+        ApplicationRefusal.ROLE_ALIGNMENT_STATE_UNKNOWN
+    ),
+    RoleRefusal.CANDIDATE_ISSUE_TYPE_UNKNOWN: (
+        ApplicationRefusal.ROLE_CANDIDATE_ISSUE_TYPE_UNKNOWN
+    ),
+    RoleRefusal.EDIT_DOES_NOT_ANSWER_THE_COMMENT: (
+        ApplicationRefusal.ROLE_EDIT_DOES_NOT_ANSWER_THE_COMMENT
+    ),
+    RoleRefusal.VERSION_OUTSIDE_THE_GRAPH: (
+        ApplicationRefusal.ROLE_VERSION_OUTSIDE_THE_GRAPH
+    ),
+    RoleRefusal.VERSION_ORDER_AMBIGUOUS: (
+        ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS
+    ),
 }
 
 
