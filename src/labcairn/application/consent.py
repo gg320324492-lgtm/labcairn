@@ -33,7 +33,7 @@ caller that passes its own ``path`` has it overwritten rather than honoured.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -140,6 +140,75 @@ def evaluate(
     return Authorisation(arguments=parsed, resource=resource, decision=decision)
 
 
+def evaluate_all(
+    context: ApplicationContext,
+    *,
+    capability: CapabilityId,
+    arguments: Mapping[str, Any],
+    resources: Sequence[CanonicalPath],
+) -> tuple[Authorisation, ...]:
+    """The capability evaluated on **every one** of *resources*.
+
+    **And all of them, not the first that passes.** An operation that
+    reads a whole project reads every manuscript in it, and a policy that
+    denies one of them denies the reading. A listing that quietly omitted
+    the denied material would be a listing nobody can trust, and a chain
+    that showed one round of a manuscript and not another would be a chain
+    that says the rest of the story was answered.
+
+    **The first denial is raised as it stands**, so the caller learns
+    which resource was refused rather than that "something" was.
+
+    :raises ApplicationRefusedError: the arguments are not usable, or the
+        policy denied one of the resources.
+    """
+    return tuple(
+        evaluate(
+            context,
+            capability=capability,
+            arguments=arguments,
+            resource=resource,
+        )
+        for resource in resources
+    )
+
+
+def evaluate_each(
+    context: ApplicationContext,
+    *,
+    capability: CapabilityId,
+    arguments: Mapping[str, Any],
+    resources: Sequence[CanonicalPath],
+) -> tuple[CanonicalPath, ...]:
+    """The resources the policy permits, **and only those**.
+
+    **Denied resources are dropped, not refused.** ADR-0003 C5 asks a bulk
+    listing to filter denied entries out of its results rather than
+    refusing the call, because refusing the whole listing discloses that
+    something is there and denies work the operator wanted allowed.
+
+    **And a failure that is not a denial is still raised.** A path that
+    cannot be admitted, or arguments that do not make sense, are faults
+    rather than permissions — and dropping them would hide a broken call
+    behind a short list.
+    """
+    permitted: list[CanonicalPath] = []
+    for resource in resources:
+        try:
+            evaluate(
+                context,
+                capability=capability,
+                arguments=arguments,
+                resource=resource,
+            )
+        except ApplicationRefusedError as error:
+            if error.reason is ApplicationRefusal.PERMISSION_DENIED:
+                continue
+            raise
+        permitted.append(resource)
+    return tuple(permitted)
+
+
 def consume(
     context: ApplicationContext,
     *,
@@ -186,4 +255,4 @@ def consume(
         ) from error
 
 
-__all__ = ["Authorisation", "consume", "evaluate"]
+__all__ = ["Authorisation", "consume", "evaluate", "evaluate_all", "evaluate_each"]

@@ -16,7 +16,17 @@ that is hard to undo later.
 the contracts and the refusals. The **alignment** — deciding which version
 came from which, and refusing to decide when the evidence does not point
 one way — is :mod:`labcairn.papers.alignment`, and the **feedback chain**
-is LC-P2-09's.
+— a comment found in a manuscript, the change made in answer to it, the
+judgement that the change answered the comment, and a later assessment of
+the issue — is :mod:`labcairn.papers.feedback`,
+:mod:`labcairn.papers.edits`, :mod:`labcairn.papers.responses` and
+:mod:`labcairn.papers.assessments`.
+
+**The chain's modules are not exported here on purpose.** They reach the
+store, and the package's own import would then be a module that reaches
+the store from outside the layer. The layer's guard
+(``tests/test_application_layer.py``) names every module that does, and a
+caller must be able to find each of them by its own name.
 """
 
 from labcairn.papers.versions import (

@@ -106,6 +106,19 @@ EXPECTED_TABLES = frozenset(
         # withdrawal can reach the copies that depended on it.
         "access_grants",
         "derived_copies",
+        # LC-P2-09. The feedback chain: a comment found in a manuscript, the
+        # change made in answer to it, the judgement that the change
+        # answered the comment, and a later assessment of the issue. Four
+        # tables because a comment, an edit, a response and an assessment
+        # have different owners and different failure modes -- and one
+        # comment may be answered by three edits, so a single wide table
+        # would have to answer "how many comments does this edit answer?"
+        # with a list, and a list is a place where a link can be lost
+        # without anything failing.
+        "feedback_events",
+        "edit_actions",
+        "response_links",
+        "followup_assessments",
     }
 )
 

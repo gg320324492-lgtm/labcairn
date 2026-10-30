@@ -188,7 +188,21 @@ class CommentAnchor:
     #: The anchored range in the paragraph's rejected (baseline) text.
     start: int | None
     end: int | None
-    #: The text the comment covers, in the baseline. Empty when unknown.
+    #: The text the comment covers, in the baseline.
+    #:
+    #: **Carried, and not inferred from elsewhere.** This is the text the
+    #: offsets above name: ``baseline_paragraphs[paragraph][start:end]``, cut
+    #: from the same baseline the offsets are into, so the two agree by
+    #: construction and a reader can check that they do. It is the first link
+    #: of LC-P2-09's feedback chain, and an empty one is a chain that cannot
+    #: be traversed.
+    #:
+    #: **Empty in three cases, and each is a fact rather than a failure.**
+    #: The anchor is unknown (there is no range to name text); the range
+    #: starts in one paragraph and ends in another (the two offsets are into
+    #: two different texts, and no single slice is the text the comment
+    #: covers); and the range covers nothing — a comment anchored on an empty
+    #: paragraph, whose text is the empty string.
     text: str
 
 
@@ -391,70 +405,68 @@ def _revision_kind(tag: str) -> str | None:
     return None
 
 
-def _walk_paragraph(
+def _scan_paragraph(
     paragraph: ElementTree.Element,
-) -> list[tuple[ElementTree.Element, str, int, int, bool]]:
-    """The revisions in a paragraph, with their baseline coordinates.
+) -> tuple[
+    list[tuple[ElementTree.Element, str, int, int, bool]],
+    list[tuple[str, str, str, int]],
+]:
+    """The revisions and the comment markers of a paragraph, with their places.
 
-    The returned tuples are ``(element, kind, baseline_start, baseline_end,
-    nested)``. The baseline coordinates are the revision's place in the
-    paragraph's **rejected** text: a deletion covers the text it removed,
-    and an insertion is a point, because an insertion contributes nothing
-    to the baseline.
+    The first list holds ``(element, kind, baseline_start, baseline_end,
+    nested)``; the second holds ``(kind, comment_id, element_path,
+    baseline_offset)`` for the three marker kinds.
+
+    **One walk, so the two cannot drift apart.** A revision's place and a
+    comment marker's place are the same coordinate system, and a reader
+    that computed them separately would let a revision claim it removed a
+    passage that a comment says it never covered.
+
+    **And the offset advances by exactly what the element contributes to
+    the rejected view** — the same rule :func:`_text_in` applies:
+
+    - a deletion contributes the text it removed;
+    - an insertion contributes nothing, because an insertion is not in the
+      original;
+    - the text inside a revision is counted **once**, by the revision. The
+      walk inside it looks for a revision nested within and adds nothing.
+
+    Counting a revision's text twice would put every revision after the
+    first at the wrong place in the baseline, and every comment marker
+    after it at the wrong place too. **A coordinate that names the wrong
+    place is a coordinate nobody can check** — and a comment's anchored
+    text, cut at the wrong offsets, is text nobody wrote.
+
+    **A revision nested inside another has no separate place.** Its text
+    is the enclosing revision's own text, so it is reported at the
+    enclosing revision's place.
     """
-    found: list[tuple[ElementTree.Element, str, int, int, bool]] = []
-
-    def walk(element: ElementTree.Element, offset: int, depth: int) -> int:
-        """Walk ``element``'s children, returning the new baseline offset."""
-        for child in element:
-            kind = _revision_kind(child.tag)
-            if kind is not None:
-                start = offset
-                if kind in _REJECTED_KINDS:
-                    offset += len(_text_in(child, "rejected"))
-                found.append((child, kind, start, offset, depth > 0))
-                # The revision's own children are walked so that a revision
-                # nested inside it is found too.
-                offset = walk(child, offset, depth + 1)
-                continue
-            if child.tag == _TAG["deleted_text"]:
-                offset += len(child.text or "")
-                continue
-            if child.tag == _TAG["text"]:
-                offset += len(child.text or "")
-                continue
-            offset = walk(child, offset, depth)
-        return offset
-
-    walk(paragraph, 0, 0)
-    return found
-
-
-def _comment_markers(
-    paragraph: ElementTree.Element,
-) -> list[tuple[str, str, str, int]]:
-    """The comment markers in a paragraph, in document order.
-
-    The tuples are ``(kind, comment_id, element_path, baseline_offset)``,
-    where ``kind`` is ``"start"``, ``"end"`` or ``"reference"``. The offset
-    is the marker's place in the paragraph's rejected text, so a start and
-    an end can be told apart from the text between them.
-    """
+    revisions: list[tuple[ElementTree.Element, str, int, int, bool]] = []
     markers: list[tuple[str, str, str, int]] = []
 
-    def walk(element: ElementTree.Element, offset: int, depth: int) -> int:
+    def walk(
+        element: ElementTree.Element,
+        offset: int,
+        depth: int,
+        enclosing: tuple[int, int] | None,
+    ) -> int:
+        """Walk ``element``'s children, returning the new baseline offset.
+
+        ``enclosing`` is the baseline place of the revision this element
+        sits inside, or ``None`` at the top level.
+        """
         for child in element:
             kind = _revision_kind(child.tag)
             if kind is not None:
-                if kind in _REJECTED_KINDS:
-                    offset += len(_text_in(child, "rejected"))
-                offset = walk(child, offset, depth + 1)
-                continue
-            if child.tag == _TAG["deleted_text"]:
-                offset += len(child.text or "")
-                continue
-            if child.tag == _TAG["text"]:
-                offset += len(child.text or "")
+                if enclosing is None:
+                    width = len(_text_in(child, "rejected")) if kind in _REJECTED_KINDS else 0
+                    start = offset
+                    offset += width
+                    revisions.append((child, kind, start, offset, depth > 0))
+                    walk(child, offset, depth + 1, (start, offset))
+                else:
+                    revisions.append((child, kind, enclosing[0], enclosing[1], depth > 0))
+                    walk(child, offset, depth + 1, enclosing)
                 continue
             if child.tag == _TAG["comment_start"]:
                 markers.append(
@@ -476,11 +488,24 @@ def _comment_markers(
                     )
                 )
                 continue
-            offset = walk(child, offset, depth)
+            if enclosing is not None:
+                # The text inside a revision is already counted by it.
+                walk(child, offset, depth, enclosing)
+                continue
+            if child.tag in (_TAG["text"], _TAG["deleted_text"]):
+                offset += len(child.text or "")
+                continue
+            if child.tag == _TAG["tab"]:
+                offset += 1
+                continue
+            if child.tag in (_TAG["break"], _TAG["carriage_return"]):
+                offset += 1
+                continue
+            offset = walk(child, offset, depth, None)
         return offset
 
-    walk(paragraph, 0, 0)
-    return markers
+    walk(paragraph, 0, 0, None)
+    return revisions, markers
 
 
 def _comment_body(comment: ElementTree.Element) -> str:
@@ -551,6 +576,7 @@ def read_document(data: bytes) -> RevisionDocument:
     comments: list[CommentEvent] = []
     accepted_paragraphs: list[str] = []
     baseline_paragraphs: list[str] = []
+    markers_by_comment: dict[str, list[tuple[str, int, int, str]]] = {}
 
     paragraphs = list(document_root.iter(_TAG["paragraph"]))
     for index, paragraph in enumerate(paragraphs):
@@ -559,7 +585,11 @@ def read_document(data: bytes) -> RevisionDocument:
         accepted_paragraphs.append(accepted)
         baseline_paragraphs.append(baseline)
 
-        for element, kind, start, end, nested in _walk_paragraph(paragraph):
+        found_revisions, found_markers = _scan_paragraph(paragraph)
+        for kind, comment_id, path, offset in found_markers:
+            markers_by_comment.setdefault(comment_id, []).append((kind, index, offset, path))
+
+        for element, kind, start, end, nested in found_revisions:
             view: DocxView = "accepted" if kind in _ACCEPTED_KINDS else "rejected"
             text = _text_in(element, view)
             element_path = _element_path(element, document_root)
@@ -585,8 +615,9 @@ def read_document(data: bytes) -> RevisionDocument:
                 )
             )
 
-    markers_by_comment = _collect_markers(paragraphs, document_root)
-    comments, comment_problems = _collect_comments(comments_root, markers_by_comment, document_root)
+    comments, comment_problems = _collect_comments(
+        comments_root, markers_by_comment, document_root, baseline_paragraphs
+    )
     problems.extend(comment_problems)
 
     if any(revision.nested for revision in revisions):
@@ -651,28 +682,11 @@ class _BytesReader:
         return True
 
 
-def _collect_markers(
-    paragraphs: list[ElementTree.Element], root: ElementTree.Element
-) -> dict[str, list[tuple[str, int, int, str]]]:
-    """The comment markers, grouped by comment id.
-
-    Each entry is ``(kind, paragraph, offset, element_path)``. They are
-    collected for every paragraph rather than per-paragraph, because a
-    comment's range may begin in one paragraph and end in another — Word
-    permits it, and a reader that assumed otherwise would report a
-    well-formed comment as unpaired.
-    """
-    grouped: dict[str, list[tuple[str, int, int, str]]] = {}
-    for index, paragraph in enumerate(paragraphs):
-        for kind, comment_id, path, offset in _comment_markers(paragraph):
-            grouped.setdefault(comment_id, []).append((kind, index, offset, path))
-    return grouped
-
-
 def _collect_comments(
     comments_root: ElementTree.Element | None,
     markers: dict[str, list[tuple[str, int, int, str]]],
     document_root: ElementTree.Element,
+    baseline_paragraphs: list[str],
 ) -> tuple[list[CommentEvent], list[ExtractionProblem]]:
     """The comments, with their anchors or the reason there is none."""
     problems: list[ExtractionProblem] = []
@@ -703,7 +717,9 @@ def _collect_comments(
             char_start=0,
             char_end=len(text),
         )
-        anchor, anchor_problems = _anchor_for(comment_id, markers, document_root, text)
+        anchor, anchor_problems = _anchor_for(
+            comment_id, markers, document_root, text, baseline_paragraphs
+        )
         problems.extend(anchor_problems)
         events.append(
             CommentEvent(
@@ -737,11 +753,39 @@ def _collect_comments(
     return events, problems
 
 
+def _anchored_text(
+    baseline_paragraphs: list[str],
+    paragraph: int | None,
+    start: int | None,
+    end: int | None,
+) -> str:
+    """The baseline text a comment's range covers.
+
+    **Cut from the same baseline the offsets are into**, so the offset and
+    the text agree by construction and a reader can check that they do.
+
+    **Empty when there is no single paragraph the offsets name.** A range
+    that starts in one paragraph and ends in another has two offsets into
+    two different texts, and no slice is the text the comment covers — the
+    reader reports that case separately, and this returns nothing rather
+    than a plausible-looking fragment of the first paragraph.
+    """
+    if paragraph is None or start is None or end is None:
+        return ""
+    if paragraph < 0 or paragraph >= len(baseline_paragraphs):
+        return ""
+    baseline = baseline_paragraphs[paragraph]
+    if start < 0 or end < start or end > len(baseline):
+        return ""
+    return baseline[start:end]
+
+
 def _anchor_for(
     comment_id: str,
     markers: dict[str, list[tuple[str, int, int, str]]],
     document_root: ElementTree.Element,
     comment_text: str,
+    baseline_paragraphs: list[str],
 ) -> tuple[CommentAnchor, list[ExtractionProblem]]:
     """A comment's anchor, or the reason it does not have one."""
     problems: list[ExtractionProblem] = []
@@ -822,7 +866,8 @@ def _anchor_for(
 
     start_entry = starts[0]
     end_entry = ends[0]
-    if start_entry[1] != end_entry[1]:
+    same_paragraph = start_entry[1] == end_entry[1]
+    if not same_paragraph:
         problems.append(
             ExtractionProblem(
                 code="docx_comment_range_spans_paragraphs",
@@ -841,7 +886,17 @@ def _anchor_for(
             paragraph=start_entry[1],
             start=start_entry[2],
             end=end_entry[2],
-            text="",
+            # **The text is cut only when one paragraph holds both ends.**
+            # A range that spans paragraphs has two offsets into two
+            # different texts, and no single slice is the text the comment
+            # covers — so the anchored text is empty there, and the reason
+            # above says why.
+            text=_anchored_text(
+                baseline_paragraphs,
+                start_entry[1],
+                start_entry[2],
+                end_entry[2] if same_paragraph else None,
+            ),
         ),
         problems,
     )

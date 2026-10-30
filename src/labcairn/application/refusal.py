@@ -35,6 +35,7 @@ from collections.abc import Mapping
 from enum import StrEnum
 
 from labcairn.material.intake import IntakeRefusal
+from labcairn.papers.chain import ChainRefusal
 from labcairn.security.permissions import ConsentRefusal
 
 
@@ -188,6 +189,51 @@ class ApplicationRefusal(StrEnum):
     #: The bytes are not an archive this reader can open. It is inventoried
     #: and hashed, and nothing is taken from it.
     INTAKE_NOT_AN_ARCHIVE = "intake_not_an_archive"
+    # -- LC-P2-09: the feedback chain ------------------------------------- #
+    #: The store holds no paper project with that id. A chain about a
+    #: manuscript nobody holds is a chain about nothing.
+    CHAIN_PROJECT_NOT_FOUND = "chain_project_not_found"
+    #: The store holds no manuscript version with that id.
+    CHAIN_VERSION_NOT_FOUND = "chain_version_not_found"
+    #: The store holds no feedback event with that id.
+    CHAIN_FEEDBACK_NOT_FOUND = "chain_feedback_not_found"
+    #: The store holds no edit action with that id.
+    CHAIN_EDIT_NOT_FOUND = "chain_edit_not_found"
+    #: The version names material the ledger does not hold.
+    CHAIN_SOURCE_NOT_FOUND = "chain_source_not_found"
+    #: The material is there and could not be read. **Unreadable is not the
+    #: same as empty**, and a comment in a file nobody can open is not a
+    #: comment the chain can claim to have found.
+    CHAIN_MATERIAL_UNREADABLE = "chain_material_unreadable"
+    #: The file's bytes are not the bytes the version was made from. The
+    #: version names a manuscript, and a manuscript that has changed under
+    #: the name is not the one the coordinates would name.
+    CHAIN_MATERIAL_DRIFTED = "chain_material_drifted"
+    #: The anchored text no longer hashes to what was recorded. The
+    #: manuscript's bytes changed under the anchor, so it is **stale** --
+    #: reported as stale rather than silently re-pointed.
+    CHAIN_ANCHOR_STALE = "chain_anchor_stale"
+    #: A model may not write a comment. **The row that holds a locator is
+    #: the row the reader wrote**, and a model may not cause the system to
+    #: claim the advisor said something -- ADR-0016's third promotion path.
+    CHAIN_MODEL_MAY_NOT_WRITE_A_COMMENT = "chain_model_may_not_write_a_comment"
+    #: A response state other than ``pending`` was asked for with no
+    #: evidence behind it. **A status anybody can set is not a status.**
+    CHAIN_RESPONSE_NEEDS_EVIDENCE = "chain_response_needs_evidence"
+    #: A model may put a link forward, but it may not decide one. Only a
+    #: rule or a person settles whether a change answered a comment.
+    CHAIN_RESPONSE_MAY_NOT_BE_DECIDED_BY_A_MODEL = "chain_response_may_not_be_decided_by_a_model"
+    #: An assessment was asked for with no evidence of its own.
+    CHAIN_ASSESSMENT_NEEDS_EVIDENCE = "chain_assessment_needs_evidence"
+    #: The assessment rests on something that is not evidence of the
+    #: advice's correctness. **"The change was accepted" is one of those
+    #: things** -- acceptance is a fact about the process, and the
+    #: correctness of the advice is a claim about the science.
+    CHAIN_ASSESSMENT_BASIS_REFUSED = "chain_assessment_basis_refused"
+    #: An issue key was asked to be derived rather than given. The same
+    #: wording is not the same issue, and a recurrence is recorded rather
+    #: than inferred.
+    CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED = "chain_issue_key_may_not_be_inferred"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -251,6 +297,41 @@ INTAKE_REFUSALS: Mapping[IntakeRefusal, ApplicationRefusal] = {
     IntakeRefusal.NOT_AN_ARCHIVE: ApplicationRefusal.INTAKE_NOT_AN_ARCHIVE,
 }
 
+#: Every refusal the feedback chain can make, and the layer's name for it.
+#:
+#: **The same closure, over the chain's own vocabulary.** The chain knows
+#: things the layer does not — that an anchor is stale, that a model may
+#: not write a comment, that an assessment rests on something that is not
+#: evidence — and a reason the layer cannot name is a reason a surface
+#: cannot render.
+#:
+#: The chain's vocabulary lives in :mod:`labcairn.papers.chain`, **below**
+#: this module, because the chain's operations raise this module's refusal
+#: and this table imports the vocabulary: putting the vocabulary in the
+#: chain's operation module would make the import run in a circle.
+CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
+    ChainRefusal.PROJECT_NOT_FOUND: ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND,
+    ChainRefusal.VERSION_NOT_FOUND: ApplicationRefusal.CHAIN_VERSION_NOT_FOUND,
+    ChainRefusal.FEEDBACK_NOT_FOUND: ApplicationRefusal.CHAIN_FEEDBACK_NOT_FOUND,
+    ChainRefusal.EDIT_NOT_FOUND: ApplicationRefusal.CHAIN_EDIT_NOT_FOUND,
+    ChainRefusal.SOURCE_NOT_FOUND: ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
+    ChainRefusal.MATERIAL_UNREADABLE: ApplicationRefusal.CHAIN_MATERIAL_UNREADABLE,
+    ChainRefusal.MATERIAL_DRIFTED: ApplicationRefusal.CHAIN_MATERIAL_DRIFTED,
+    ChainRefusal.ANCHOR_STALE: ApplicationRefusal.CHAIN_ANCHOR_STALE,
+    ChainRefusal.MODEL_MAY_NOT_WRITE_A_COMMENT: (
+        ApplicationRefusal.CHAIN_MODEL_MAY_NOT_WRITE_A_COMMENT
+    ),
+    ChainRefusal.RESPONSE_NEEDS_EVIDENCE: ApplicationRefusal.CHAIN_RESPONSE_NEEDS_EVIDENCE,
+    ChainRefusal.RESPONSE_MAY_NOT_BE_DECIDED_BY_A_MODEL: (
+        ApplicationRefusal.CHAIN_RESPONSE_MAY_NOT_BE_DECIDED_BY_A_MODEL
+    ),
+    ChainRefusal.ASSESSMENT_NEEDS_EVIDENCE: ApplicationRefusal.CHAIN_ASSESSMENT_NEEDS_EVIDENCE,
+    ChainRefusal.ASSESSMENT_BASIS_REFUSED: ApplicationRefusal.CHAIN_ASSESSMENT_BASIS_REFUSED,
+    ChainRefusal.ISSUE_KEY_MAY_NOT_BE_INFERRED: (
+        ApplicationRefusal.CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED
+    ),
+}
+
 
 def consent_refusal_name(reason: ConsentRefusal) -> ApplicationRefusal:
     """The layer's name for a refusal of the consent machinery.
@@ -271,11 +352,34 @@ def intake_refusal_name(reason: IntakeRefusal) -> ApplicationRefusal:
     return INTAKE_REFUSALS[reason]
 
 
+def chain_refusal_name(reason: ChainRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the feedback chain.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return CHAIN_REFUSALS[reason]
+
+
+def chain_refused(reason: ChainRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of a chain operation, named in the layer's vocabulary.
+
+    **One spelling, so a surface catches one thing.** A chain operation
+    that raised its own exception type would give a surface two exception
+    types to catch for the same problem, and a surface that has to catch
+    four to draw one error eventually misses one.
+    """
+    return ApplicationRefusedError(chain_refusal_name(reason), detail)
+
+
 __all__ = [
+    "CHAIN_REFUSALS",
     "CONSENT_REFUSALS",
     "INTAKE_REFUSALS",
     "ApplicationRefusal",
     "ApplicationRefusedError",
+    "chain_refusal_name",
+    "chain_refused",
     "consent_refusal_name",
     "intake_refusal_name",
 ]

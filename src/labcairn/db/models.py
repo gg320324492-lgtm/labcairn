@@ -1,10 +1,11 @@
-"""The fifteen tables that make SQLite the task authority.
+"""The twenty-four tables that make SQLite the task authority.
 
-Fifteen is not a claim to be trusted: ``tests/test_evidence_schema.py``'s parity
+Twenty-four is not a claim to be trusted: ``tests/test_evidence_schema.py``'s parity
 test walks ``Base.metadata`` and the migrated schema independently, and that is
 what catches a table added to one and not the other. It is written here so a
 reader knows the scope of the file, and it has been wrong before -- it still said
-"eight" after LC-P1-08 and T01 added six tables -- because nothing recomputed it.
+"eight" after LC-P1-08 and T01 added six tables, and "fifteen" after LC-P2-08
+and LC-P2-06 added five more -- because nothing recomputed it.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -712,7 +713,7 @@ class SourceRow(Base):
         # newer writer or a bug, and a raw INSERT bypassing the ORM is refused
         # too; the same standard applies here.
         CheckConstraint(
-            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'other')",
+            "kind IN ('pdf', 'markdown', 'text', 'csv', 'xlsx', 'docx', 'other')",
             name="source_kind_vocabulary",
         ),
         CheckConstraint(
@@ -1749,5 +1750,440 @@ class DerivedCopyRow(Base):
             "kind IN ('index_entry', 'embedding', 'queued_run', 'cached_transcript', "
             "'distilled_rule')",
             name="derived_copies_kind_vocabulary",
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# LC-P2-09: the feedback chain
+# --------------------------------------------------------------------------- #
+
+
+class FeedbackEventRow(Base):
+    """A comment found in a manuscript, with **both** of its addresses.
+
+    **A comment is an observation, not a claim.** It records that a person
+    wrote these words at this place — which is a fact about the file's
+    history, made by somebody, and not a statement about the manuscript
+    that the evidence ledger could check.
+
+    **Two addresses, because they answer two questions.** ``comment_locator``
+    names the comment element in ``word/comments.xml`` — *what was written* —
+    and the anchor names the place in the body — *where it was written
+    about*. A row that kept only one would answer only one of them, and
+    ADR-0017 D1 refuses a row that does.
+
+    **And the anchor's offsets are into the baseline's text**, which is the
+    manuscript as it read *before* the revisions. That is why the row
+    carries the anchored text and its hash: the hash is what makes drift
+    detectable, and a stale anchor is reported as stale rather than
+    silently re-pointed.
+
+    **A missing author or a missing date is unknown, never a guess.** The
+    unknown is ``None`` plus a named reason — not an empty string and not
+    the file's mtime. The reader already refuses to guess, and this row
+    inherits that refusal rather than re-deciding it.
+
+    **And a candidate is not a comment.** A row read out of the file is
+    ``observed`` and carries the locator the reader read. A row nobody
+    read is ``inferred`` and carries **no** locator and **no** words: a
+    row carrying a locator nobody read *is* the advisor being claimed to
+    have said something, and the constraint below refuses one.
+    """
+
+    __tablename__ = "feedback_events"
+
+    #: Caller-minted, so a comment may be cited from an earlier run and
+    #: identity cannot depend on insertion order.
+    feedback_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The manuscript the comment was written in.
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: **The version the comment was written against.** A comment that names
+    #: no manuscript state cannot be said to have been answered by any
+    #: change, because there is no "before" to have been answered against
+    #: — ADR-0017 D1 refuses a feedback row without a version.
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The comment's own address: a ``DocxLocator`` into
+    #: ``word/comments.xml``, as JSON. **``None`` only on an inferred row**,
+    #: which read no comment of its own.
+    comment_locator: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Where in the body the comment sits, and which text the offsets are
+    #: into. ``None`` when the reader could not place it — and then the
+    #: reason is named, because a comment the reader could not place is a
+    #: comment a person still wrote.
+    anchor_paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    anchor_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    anchor_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: ``resolved`` or ``unknown``.
+    anchor_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Why the anchor is unknown, or ``None`` when it resolved.
+    anchor_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The text the anchor covers, in the baseline. **The same text the
+    #: offsets are into**, so the offset and the text agree by construction.
+    anchor_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of that text, so a later read can tell whether the same
+    #: address still holds the same text.
+    anchor_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The advisor's words.
+    comment_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of those words.
+    comment_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The comment's author, or ``None`` when the file records none.
+    author: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Why the author is unknown.
+    author_unknown_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The comment's date, or ``None`` when the file records none.
+    commented_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: Why the date is unknown.
+    date_unknown_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ``observed``, ``inferred`` or ``human_verified`` — ADR-0014 D2's
+    #: three levels, unchanged.
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: A **person-given** key for "the same problem". ``None`` means the
+    #: comment is uncategorised, and it is never inferred from the text:
+    #: the same wording is not the same issue.
+    issue_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_feedback_events_version", "version_id"),
+        Index("ix_feedback_events_project", "project_id"),
+        Index("ix_feedback_events_issue_key", "issue_key"),
+        CheckConstraint(
+            "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0 "
+            "AND length(comment_text_sha256) > 0 AND length(anchor_text_sha256) > 0",
+            name="feedback_events_ids_present",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'inferred', 'human_verified')",
+            name="feedback_events_grade_vocabulary",
+        ),
+        CheckConstraint(
+            "anchor_status IN ('resolved', 'unknown')",
+            name="feedback_events_anchor_status_vocabulary",
+        ),
+        # **A resolved anchor names a place; an unknown one names a reason.**
+        # An anchor with no reason and no place is a fact about nothing.
+        CheckConstraint(
+            "(anchor_status = 'resolved' AND anchor_paragraph IS NOT NULL "
+            "AND anchor_start IS NOT NULL AND anchor_end IS NOT NULL "
+            "AND anchor_reason IS NULL) OR "
+            "(anchor_status = 'unknown' AND anchor_reason IS NOT NULL "
+            "AND length(anchor_reason) > 0 AND anchor_start IS NULL AND anchor_end IS NULL)",
+            name="feedback_events_anchor_is_resolved_or_named",
+        ),
+        # **The locator belongs to a read.** A row nobody read carries no
+        # address, and a row that was read carries the address it read. A
+        # model may not cause the system to claim the advisor said
+        # something, and this is where that is refused.
+        CheckConstraint(
+            "(grade = 'inferred' AND comment_locator IS NULL) OR "
+            "(grade <> 'inferred' AND comment_locator IS NOT NULL)",
+            name="feedback_events_the_locator_belongs_to_a_read",
+        ),
+        # **And an inferred row carries no words either.** It read none, so
+        # it quotes none.
+        CheckConstraint(
+            "grade <> 'inferred' OR comment_text = ''",
+            name="feedback_events_an_inferred_row_carries_no_words",
+        ),
+        # **An issue key is a key or it is nothing.** An empty key is not a
+        # key, and a key is never guessed at from the text.
+        CheckConstraint(
+            "issue_key IS NULL OR length(issue_key) > 0",
+            name="feedback_events_issue_key_is_present",
+        ),
+    )
+
+
+class EditActionRow(Base):
+    """A change made in answer to a comment, and **who made it**.
+
+    **The ``actor_kind`` is the whole point of the table.** ADR-0016 names
+    *model → accepted change* as the third of its three promotion paths: a
+    model rewrites the manuscript, the change is recorded, and it is
+    attributed to the advisor. The schema would be satisfied, the report
+    would cite an address, and **nothing would say the sentence was
+    invented.** A row that says ``advisor`` for a model's edit is a forged
+    signature, and the column is what makes it impossible to write one by
+    accident.
+
+    **And there is no default actor**, because a default is how a model's
+    change becomes the advisor's.
+
+    **A change that answers nothing is not an error.** A student may edit
+    for reasons the advisor never wrote down, so ``feedback_id`` is
+    nullable and says so rather than forcing every edit into a feedback it
+    does not answer.
+    """
+
+    __tablename__ = "edit_actions"
+
+    #: Caller-minted, so an edit may be cited from an earlier run.
+    edit_action_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The comment it answers, or ``None`` when it answers none.
+    feedback_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    #: The edge it is — the parent/child pair it moved.
+    version_edge_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("version_edges.edge_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: **Who made it**: ``student``, ``advisor``, ``model`` or ``human``.
+    actor_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: A named id, where there is one.
+    actor_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: ``observed``, ``inferred`` or ``human_verified``.
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_edit_actions_feedback", "feedback_id"),
+        Index("ix_edit_actions_edge", "version_edge_id"),
+        CheckConstraint(
+            "length(edit_action_id) > 0 AND length(version_edge_id) > 0",
+            name="edit_actions_ids_present",
+        ),
+        CheckConstraint(
+            "actor_kind IN ('student', 'advisor', 'model', 'human')",
+            name="edit_actions_actor_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'inferred', 'human_verified')",
+            name="edit_actions_grade_vocabulary",
+        ),
+        # **A model is not a person and may not wear a person's id.** The
+        # absence of an id on a model's row is not an error -- that is what
+        # a model's change looks like -- and the two are told apart here
+        # rather than by the application layer's discretion.
+        CheckConstraint(
+            "(actor_kind = 'model' AND actor_id IS NULL) OR (actor_kind <> 'model')",
+            name="edit_actions_a_model_names_no_person",
+        ),
+    )
+
+
+class ResponseLinkRow(Base):
+    """The judgement that a change answered a comment, **and its evidence**.
+
+    **The state is not a free choice.** ``pending`` is the default and the
+    only state a row may hold without an explicit judgement; the other
+    three require a decider and the evidence behind them, and **a
+    judgement with no evidence behind it is refused by the schema** —
+    because a status anybody can set is not a status.
+
+    **And the four states are not the same claim.** ``not_addressed`` says
+    the change did not help, ``partially_addressed`` says it helped with
+    part, and only ``addressed`` says the comment was answered. The first
+    two are records of something that happened: the student did something,
+    and the record says it did not answer.
+
+    **The acceptance of a change is not an answer.** A link is
+    ``addressed`` only when a rule or a person says so, and the thing that
+    said so is on the row. A model may put a link forward — that is a
+    *candidate*, at grade ``inferred`` — but it may not decide one.
+    """
+
+    __tablename__ = "response_links"
+
+    #: Caller-minted, so a link may be cited from an earlier run.
+    response_link_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The comment the link is about.
+    feedback_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The change the link is about.
+    edit_action_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("edit_actions.edit_action_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``pending``, ``addressed``, ``partially_addressed`` or
+    #: ``not_addressed``.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Whose judgement this is: ``observed``, ``human_verified`` or
+    #: ``inferred``. A model's candidate is ``inferred``.
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who decided it: ``rule``, ``user`` or ``model``. ``None`` while the
+    #: link is pending and nobody has judged it.
+    decided_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: When the judgement was made.
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: **What decided it** — the evidence rows, the check log, or the
+    #: person. Empty only while the link is pending.
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_response_links_feedback", "feedback_id"),
+        Index("ix_response_links_edit", "edit_action_id"),
+        CheckConstraint(
+            "length(response_link_id) > 0 AND length(feedback_id) > 0 "
+            "AND length(edit_action_id) > 0",
+            name="response_links_ids_present",
+        ),
+        CheckConstraint(
+            "state IN ('pending', 'addressed', 'partially_addressed', 'not_addressed')",
+            name="response_links_state_vocabulary",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'human_verified', 'inferred')",
+            name="response_links_grade_vocabulary",
+        ),
+        CheckConstraint(
+            "decided_by IS NULL OR decided_by IN ('rule', 'user', 'model')",
+            name="response_links_decided_by_vocabulary",
+        ),
+        # **A pending link carries no decision.** It has no moment and no
+        # evidence, because nothing has been decided yet.
+        CheckConstraint(
+            "state <> 'pending' OR (decided_at IS NULL AND json_array_length(evidence_refs) = 0)",
+            name="response_links_a_pending_link_carries_no_decision",
+        ),
+        # **And a decided link names its decider and its evidence.** A
+        # judgement with no evidence behind it is a status anybody can
+        # set, and the schema refuses it rather than the application
+        # layer's discretion.
+        #:
+        # **The decider is compared with ``IS NOT NULL`` as well**, because
+        # SQLite treats a constraint expression that is ``NULL`` as
+        # satisfied. A row with no decider would make ``decided_by IN
+        # (...)`` null, the conjunction null, and the whole constraint
+        # vacuously true -- which is exactly the row this refuses.
+        CheckConstraint(
+            "state = 'pending' OR "
+            "(decided_by IS NOT NULL AND decided_by IN ('rule', 'user') "
+            "AND decided_at IS NOT NULL AND json_array_length(evidence_refs) > 0)",
+            name="response_links_a_judgement_needs_a_decider_and_its_evidence",
+        ),
+        # **A model's link is a candidate and never a decision.** The
+        # grade says the judgement is the system's inference, and the
+        # decider says who put it forward. A rule or a person decides;
+        # a model proposes.
+        #:
+        # **``COALESCE`` rather than a plain comparison**, for the same
+        # reason: a row with no decider must not satisfy this by being
+        # null.
+        CheckConstraint(
+            "(COALESCE(decided_by, 'none') <> 'model' AND grade <> 'inferred') OR "
+            "(COALESCE(decided_by, 'none') = 'model' AND grade = 'inferred')",
+            name="response_links_an_inferred_link_is_a_models_candidate",
+        ),
+    )
+
+
+class FollowupAssessmentRow(Base):
+    """A later judgement about an issue, **with its own evidence**.
+
+    **And the design's hard line lives here.** *"The advisor's advice must
+    not be recorded as correct because the student's change was accepted."*
+    Acceptance is a fact about the process; the correctness of the advice
+    is a claim about the science. So an assessment carries its own
+    evidence, and it must be able to say **"not established"**.
+
+    **``basis`` is where the refusal lives.** The vocabulary names what an
+    assessment may rest on — and it has **no member meaning "the change
+    was accepted"**, so a row that says so is refused by the schema rather
+    than by a convention nobody keeps.
+
+    **It names a feedback or an issue key, and the issue key is scoped by
+    the project.** A key means "the same problem" only inside one
+    manuscript's history, and two projects may each hold a key called
+    ``"stats"`` without them being the same problem.
+    """
+
+    __tablename__ = "followup_assessments"
+
+    #: Caller-minted, so an assessment may be cited from an earlier run.
+    assessment_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The project the issue belongs to. **Required**, because an issue key
+    #: means nothing outside the project that gave it.
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The comment the assessment is about, or ``None`` when it is about a
+    #: whole issue.
+    feedback_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    #: The issue the assessment is about, or ``None`` when it is about one
+    #: comment.
+    issue_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: What was concluded, in words.
+    assessment: Mapped[str] = mapped_column(Text, nullable=False)
+    #: ``established``, ``not_established`` or ``conflicted``.
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: **What the assessment rests on.** The vocabulary is closed, and it
+    #: has no member meaning "the change was accepted".
+    basis: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who made the assessment: ``advisor``, ``student``, ``model``,
+    #: ``human`` or ``rule``.
+    assessor_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: ``observed``, ``inferred`` or ``human_verified``.
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: **Its own evidence.** The evidence rows, the check log, or the
+    #: person — never the acceptance of a change, which is a fact about
+    #: the process and not about the science.
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_followup_assessments_project", "project_id"),
+        Index("ix_followup_assessments_feedback", "feedback_id"),
+        Index("ix_followup_assessments_issue_key", "issue_key"),
+        CheckConstraint(
+            "length(assessment_id) > 0 AND length(project_id) > 0 AND length(assessment) > 0",
+            name="followup_assessments_ids_present",
+        ),
+        CheckConstraint(
+            "outcome IN ('established', 'not_established', 'conflicted')",
+            name="followup_assessments_outcome_vocabulary",
+        ),
+        # **The vocabulary of what an assessment may rest on.** There is no
+        # member here for the acceptance of a change: the change being
+        # accepted says the process went on, not that the advice was
+        # right, and a row that rests on it is refused here.
+        CheckConstraint(
+            "basis IN ('advisor_evidence', 'revised_manuscript', "
+            "'independent_check', 'human_attestation')",
+            name="followup_assessments_basis_vocabulary",
+        ),
+        CheckConstraint(
+            "assessor_kind IN ('advisor', 'student', 'model', 'human', 'rule')",
+            name="followup_assessments_assessor_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'inferred', 'human_verified')",
+            name="followup_assessments_grade_vocabulary",
+        ),
+        # **It names a feedback or an issue.** An assessment about nothing
+        # is not an assessment.
+        CheckConstraint(
+            "feedback_id IS NOT NULL OR (issue_key IS NOT NULL AND length(issue_key) > 0)",
+            name="followup_assessments_it_names_an_issue",
+        ),
+        # **And it carries its own evidence.** An assessment with no
+        # evidence behind it is a conclusion anybody can reach.
+        CheckConstraint(
+            "json_array_length(evidence_refs) > 0",
+            name="followup_assessments_an_assessment_carries_its_evidence",
         ),
     )
