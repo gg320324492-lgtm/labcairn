@@ -853,7 +853,7 @@ offsets — you read them, because §2 is about what each of them means.
 | Field | What it is |
 |---|---|
 | `annotator_id` | who you are, as an id — **not** your name, and not a label |
-| `annotated_at` | the moment you finished, ISO-8601 |
+| `annotated_at` | the moment you finished, ISO-8601 **with an offset** — `2026-03-01T09:00:00+00:00`, or `2026-03-01T09:00:00Z` for UTC |
 | `comment_address` | the labels for the comment element |
 | `body_address` | the labels for the body-side position |
 
@@ -871,12 +871,18 @@ filled it in.** All six are required, and a label outside the set is
 refused by name — the refusal tells you which word was wrong rather than
 saying only "invalid".
 
+**The moment carries an offset, and that is not pedantry.** Two annotators
+in two places write the same clock time and mean two different moments, and
+a moment with no offset cannot be compared with the other reader's — so the
+manifest refuses one, by name. Write the offset you are in, or `Z` if you
+are in UTC.
+
 ### 9.3 The resolution — the block the arbiter writes
 
 | Field | What it is |
 |---|---|
 | `arbiter_id` | who arbitrated, as an id |
-| `resolved_at` | the moment of the resolution, ISO-8601 |
+| `resolved_at` | the moment of the resolution, ISO-8601 **with an offset** |
 | `comment_address` | the arbiter's three labels for the comment element |
 | `body_address` | the arbiter's three labels for the body-side position |
 
