@@ -252,6 +252,15 @@ def search_rules(
     as a record (ADR-0016 D8), and role C reviewing a candidate passes
     ``include_candidates`` for that, and only that.
 
+    **A candidate is shown to its reviewer on the cases that exist; a
+    confirmed rule stands only on the sources that were answered.** A
+    proposal's cases have usually not been judged at all — nobody has
+    answered the comment yet — so requiring a judgement to show the
+    proposal would hide from the reviewer the very thing they are to
+    judge. The state conditions split: a candidate's sources must be
+    found and in the reader's reach, a confirmed or disputed rule's
+    must also carry a judgement that says the change answered.
+
     **The ordering never consults time.** Confirmed before everything
     else, and within a state by the rule's own id — a stable order that
     cannot make the newest rule win a disagreement by being newest,
@@ -283,7 +292,14 @@ def search_rules(
     needle = query.strip() if query else ""
     hits: list[RuleHit] = []
     for row in _resolvable_rows(session, issue_type=issue_type, needle=needle, states=states):
-        standing = _standing(_living_sources(context, session, _source_keys(session, row)))
+        sources = _living_sources(context, session, _source_keys(session, row))
+        standing = tuple(
+            source
+            for source in sources
+            if source.found
+            and source.reachable
+            and (source.addressed or row.state == "candidate")
+        )
         if not standing:
             continue
         hits.append(RuleHit(rule=_row_to_rule(session, row), sources=standing))
