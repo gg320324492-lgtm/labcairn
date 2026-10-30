@@ -133,6 +133,13 @@ the full-suite measurement, and the line above is the local one.
 - **The bound sources are always empty in this round**, because no caller binds
   a source to an approval yet. The column and the read exist; the write path
   that fills it is the caller's, and no caller in the tree fills it.
+- **The outside-in walk still uses the in-memory ledger**, and deliberately.
+  `scripts/outsider_path.py` drives `run_analysis` directly and mints a grant
+  the store never saw, so the store-backed ledger refuses it by design. The
+  walk is not a surface; the product's surfaces — the CLI, the local API and
+  `create_task` — are the three that hand the layer `StoredApprovalLedger`,
+  and **the durable path is measured in `test_approval_crash_matrix.py`**,
+  not in the walk.
 - **Rows granted before `0014` keep a null digest**, and the spend refuses them
   rather than inventing one — a record whose policy answer nobody wrote down is
   not one the store can say still holds.
