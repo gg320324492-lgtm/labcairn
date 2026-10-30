@@ -43,12 +43,50 @@ __all__ = [
     "ConfirmationOutcome",
     "EdgeSource",
     "PaperProject",
+    "PaperRefusal",
     "PaperVersion",
     "StageCandidate",
     "VersionEdge",
+    "VersionEdgeRejection",
     "VersionStatus",
     "confirm_edge",
 ]
+
+
+class PaperRefusal(StrEnum):
+    """Why the version graph refused to write or to read.
+
+    **A closed set, and each member names a different fault.** The layer above
+    maps every one of these to a reason of its own, so a surface can branch on
+    *which* refusal happened rather than reading a message; and the mapping is
+    checked closed in both directions, so a reason nobody can raise cannot
+    reach a surface as an unmapped name.
+
+    - ``PROJECT_NOT_FOUND`` — the store holds no project with that id.
+    - ``VERSION_NOT_FOUND`` — the store holds no version with that id.
+    - ``EDGE_NOT_FOUND`` — the store holds no edge with that id.
+    - ``CONTRACT_REFUSED`` — **the frozen contract refused the row.** This is
+      the one that carries the model's own rules: the self-parent, and the
+      three facts that stay apart. The store does not restate them; it asks
+      the model and reports the answer.
+    - ``CROSS_PROJECT`` — the edge's parent or child is not inside the edge's
+      project. **The check a CHECK constraint cannot make**, because it is a
+      fact about three rows.
+    - ``ALREADY_RECORDED`` — the id is taken. An id is minted once, and a
+      second write with it is refused rather than becoming a second row.
+
+    **The material's own absence is not here.** A version that names a file
+    the ledger does not hold is the ledger's refusal, and the layer already
+    has a name for it; a second name for one fact is a second thing for a
+    reader to learn.
+    """
+
+    PROJECT_NOT_FOUND = "project_not_found"
+    VERSION_NOT_FOUND = "version_not_found"
+    EDGE_NOT_FOUND = "edge_not_found"
+    CONTRACT_REFUSED = "contract_refused"
+    CROSS_PROJECT = "cross_project"
+    ALREADY_RECORDED = "already_recorded"
 
 
 class StageCandidate(StrEnum):
@@ -281,6 +319,41 @@ class VersionEdge(_Frozen):
         edge starts in.
         """
         return self.accepted_by is None
+
+
+class VersionEdgeRejection(_Frozen):
+    """The record of a refusal: a person looked at a proposed edge and said no.
+
+    **A refusal is not an absence of a row.** LC-P2-06's rule is that *the
+    absence of a row is the refusal*, and it holds because the refusal names
+    what was missing; here the row **is** the fact, and what it records is
+    that somebody looked.
+
+    **Why the refusal needs a row of its own.** The other two outcomes leave
+    their own mark on the graph: an acceptance is the edge with an acceptor,
+    and a correction is a second edge with the proposal pointing at it. A
+    rejection leaves nothing — there is no relationship to record — and a
+    proposal that was looked at and turned down is otherwise indistinguishable
+    from a proposal nobody has looked at. The archive would propose it again,
+    having learned nothing from the refusal.
+
+    **So this is a row, and it says who, when, why, and about which edge.**
+    The edge it names is the *proposal* that was refused, and the proposal
+    stays readable: the refusal is a fact about the review, not a deletion of
+    the thing that was reviewed.
+    """
+
+    rejection_id: NonEmptyText
+    #: The proposal that was refused. It stays in the graph.
+    edge_id: NonEmptyText
+    project_id: NonEmptyText
+    #: Who decided. A refusal with nobody behind it is not a refusal anybody
+    #: made.
+    decided_by: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    #: When they decided.
+    decided_at: datetime
+    #: Why, in their words. Empty is allowed; the refusal is what matters.
+    reason: str = ""
 
 
 #: The evidence a version relationship can be proposed on, in the order it

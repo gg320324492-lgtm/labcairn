@@ -326,6 +326,10 @@ _ALLOWED_STORE_READERS = frozenset(
         # import of ``LOCAL_USER_ID`` is the actor of a surface operation.
         "labcairn.application.evidence",
         "labcairn.application.material_ingestion",
+        # The version graph's writer. It answers through the store's own
+        # readers and writes through the store's own writers, exactly as the
+        # operations beside it do; LC-P2-09 T00 added it.
+        "labcairn.application.papers",
         "labcairn.application.records",
         "labcairn.application.sources",
         "labcairn.application.stages",

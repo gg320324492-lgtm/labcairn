@@ -256,6 +256,16 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_version_confirmation.py": ("unit", "dataset-locators"),
     "test_version_contracts.py": ("unit", "typed-contracts"),
     "test_version_duplicates.py": ("unit", "dataset-locators"),
+    # LC-P2-09. The version graph's *writer*: the store that keeps the
+    # projects, versions and edges the contracts describe. The class is
+    # integration because the property is exercised against a real database
+    # rather than against the models alone, and the clause is the typed
+    # contracts because the property is that a stored row round-trips through
+    # the frozen models — that a row the contract refuses is neither written
+    # nor readable as a valid one. The sibling files above check *where a
+    # version sits* in the graph; this one checks that what is stored is the
+    # model and not the row.
+    "test_version_store.py": ("integration", "typed-contracts"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

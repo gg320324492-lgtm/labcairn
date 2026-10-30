@@ -35,6 +35,7 @@ from collections.abc import Mapping
 from enum import StrEnum
 
 from labcairn.material.intake import IntakeRefusal
+from labcairn.papers.versions import PaperRefusal
 from labcairn.security.permissions import ConsentRefusal
 
 
@@ -188,6 +189,32 @@ class ApplicationRefusal(StrEnum):
     #: The bytes are not an archive this reader can open. It is inventoried
     #: and hashed, and nothing is taken from it.
     INTAKE_NOT_AN_ARCHIVE = "intake_not_an_archive"
+    # -- LC-P2-09: the version graph -------------------------------------- #
+    #
+    #: **The paper project's own refusals, and they are named apart from the
+    #: ledger's.** A version that names a file the ledger does not hold is the
+    #: ledger's refusal and says so; a version the *graph* does not hold is
+    #: the graph's, and the two are different questions — one is about a file,
+    #: the other about a node.
+    #: The store holds no paper project with that id.
+    PAPER_PROJECT_NOT_FOUND = "paper_project_not_found"
+    #: The store holds no version with that id.
+    PAPER_VERSION_NOT_FOUND = "paper_version_not_found"
+    #: The store holds no edge with that id.
+    PAPER_EDGE_NOT_FOUND = "paper_edge_not_found"
+    #: **The frozen contract refused the row.** The three facts that stay
+    #: apart, the forbidden self-parent and the confirmation's own rules are
+    #: the contracts' rules, and the store asks them rather than restating
+    #: them. The message names which rule refused, because a reason nobody
+    #: can act on is the same as no reason.
+    PAPER_CONTRACT_REFUSED = "paper_contract_refused"
+    #: The edge's parent or child belongs to another manuscript. **A claim
+    #: about a lineage that does not exist**, and a CHECK constraint cannot
+    #: see it, because it is a fact about three rows.
+    PAPER_CROSS_PROJECT = "paper_cross_project"
+    #: The id is already recorded. An id is minted once, and a second write
+    #: with it would be a second row wearing one name.
+    PAPER_ALREADY_RECORDED = "paper_already_recorded"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -271,11 +298,40 @@ def intake_refusal_name(reason: IntakeRefusal) -> ApplicationRefusal:
     return INTAKE_REFUSALS[reason]
 
 
+#: Every refusal the version graph can make, and the layer's name for it.
+#:
+#: **The same closure, over the version graph's own vocabulary.** The store
+#: refuses a row for six reasons, and each of them says something a surface
+#: has to be able to render: *no such project*, *no such version*, *no such
+#: edge*, *the contract refused it*, *it crosses a project*, *the id is
+#: taken*. They are different situations with different remedies, and a reason
+#: the layer cannot name is a reason a surface cannot render.
+PAPER_REFUSALS: Mapping[PaperRefusal, ApplicationRefusal] = {
+    PaperRefusal.PROJECT_NOT_FOUND: ApplicationRefusal.PAPER_PROJECT_NOT_FOUND,
+    PaperRefusal.VERSION_NOT_FOUND: ApplicationRefusal.PAPER_VERSION_NOT_FOUND,
+    PaperRefusal.EDGE_NOT_FOUND: ApplicationRefusal.PAPER_EDGE_NOT_FOUND,
+    PaperRefusal.CONTRACT_REFUSED: ApplicationRefusal.PAPER_CONTRACT_REFUSED,
+    PaperRefusal.CROSS_PROJECT: ApplicationRefusal.PAPER_CROSS_PROJECT,
+    PaperRefusal.ALREADY_RECORDED: ApplicationRefusal.PAPER_ALREADY_RECORDED,
+}
+
+
+def paper_refusal_name(reason: PaperRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the version graph.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return PAPER_REFUSALS[reason]
+
+
 __all__ = [
     "CONSENT_REFUSALS",
     "INTAKE_REFUSALS",
+    "PAPER_REFUSALS",
     "ApplicationRefusal",
     "ApplicationRefusedError",
     "consent_refusal_name",
     "intake_refusal_name",
+    "paper_refusal_name",
 ]

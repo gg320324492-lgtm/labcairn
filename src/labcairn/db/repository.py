@@ -42,6 +42,7 @@ from functools import partial
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import Engine, Select, func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import NoResultFound
@@ -50,17 +51,30 @@ from sqlalchemy.orm import Session, sessionmaker
 from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, StageId, TaskId
 from labcairn.db.models import (
     LOCAL_USER_ID,
+    AccessGrantRow,
     ApprovalRow,
     ArtifactRow,
     CheckpointRow,
     EventRow,
     OperationRow,
+    PaperProjectRow,
+    PaperVersionRow,
     RunRow,
     SourceRow,
     StageRow,
     TaskRow,
+    VersionEdgeRejectionRow,
+    VersionEdgeRow,
 )
 from labcairn.db.session import create_session_factory
+from labcairn.papers.versions import (
+    PaperProject,
+    PaperRefusal,
+    PaperVersion,
+    VersionEdge,
+    VersionEdgeRejection,
+    check_edge_within_project,
+)
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -77,6 +91,7 @@ from labcairn.runtime.operation import (
     Operation,
     OperationState,
 )
+from labcairn.security.permissions import Grant
 from labcairn.sources.source import Source, SourceIdentifier, SourceKind, SourceReadability
 
 #: A clock returning an aware UTC datetime. Injected so tests can freeze time
@@ -942,6 +957,609 @@ def load_source(session: Session, source_id: str) -> Source | None:
 
 
 # --------------------------------------------------------------------------- #
+# the version graph
+# --------------------------------------------------------------------------- #
+#
+# LC-P2-09 T00. The paper project, its versions and the edges between them.
+#
+# **These three tables are not task-scoped, and that is why they are not in a
+# unit of work.** A project owns *material*, and the material outlives the work
+# that read it — the same reason the ledger's ``sources`` table carries no
+# ``task_id``. So there is no event sequence to allocate here and no
+# ``TaskRow`` to hang the write off: a version graph is a fact about a
+# manuscript, not a step in a task.
+#
+# **The store writes what the contracts accept.** The three facts that stay
+# apart, the forbidden self-parent and the cross-project rule are the frozen
+# models' rules, and this module asks them rather than restating them. What
+# this module adds is the two facts a CHECK constraint cannot see: which file
+# a version came from, and whether the edge's two versions are inside the
+# edge's project.
+#
+# **An id is minted once.** A second write with an id that is already recorded
+# is refused by name rather than becoming a second row wearing one name, and
+# the correction path does not go through this door: a correction writes a
+# *new* edge and then points the old one at it.
+
+
+class VersionStoreError(StoreError):
+    """The version graph refused a write or a read, and says which fault.
+
+    **It carries a reason, not only a message.** The reason is one of
+    :class:`~labcairn.papers.versions.PaperRefusal`'s members, and the layer
+    above maps it into its own vocabulary by lookup — so a reason the mapping
+    does not hold arrives as a failure rather than wearing somebody else's
+    label.
+    """
+
+    def __init__(self, reason: PaperRefusal, detail: str) -> None:
+        super().__init__(f"{reason.value}: {detail}")
+        self.reason = reason
+        self.detail = detail
+
+
+def put_paper_project(session: Session, project: PaperProject, *, created_at: datetime) -> None:
+    """Write the row for one paper project.
+
+    **A second write with the same id is refused.** The id is minted once, and
+    a project that overwrote another would leave an archive that says two
+    things about one manuscript. The refusal names the id that is taken.
+
+    :raises VersionStoreError: the id is already recorded.
+    """
+    if _recorded(session, PaperProjectRow.project_id, project.project_id):
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the store already holds a project with the id {project.project_id!r}. "
+            "An id is minted once: a second write with it would be a second "
+            "project wearing one name, and a reader could not tell which of "
+            "the two the archive is talking about.",
+        )
+    session.add(
+        PaperProjectRow(
+            project_id=project.project_id,
+            workspace_id=project.workspace_id,
+            subject_pseudonym=project.subject_pseudonym,
+            consent_ref=project.consent_ref,
+            created_at=created_at,
+        )
+    )
+
+
+def put_paper_version(
+    session: Session,
+    version: PaperVersion,
+    *,
+    source_id: str,
+    created_at: datetime,
+) -> None:
+    """Write the row for one version of a manuscript.
+
+    **The file is named separately from the version.** The contract carries the
+    bytes by their hash, and the row carries the file by its id — the two are
+    the same fact seen from opposite sides, and the row's foreign key is what
+    makes "a version with no file is not a version" true in the schema.
+
+    **And the hash is written down.** The file's bytes move when it is
+    re-ingested, and a version whose identity moved with them would not be a
+    version of the bytes it was recorded from. So the hash goes into the row
+    and the reader reads it from there.
+
+    :raises VersionStoreError: the id is already recorded.
+    """
+    if _recorded(session, PaperVersionRow.version_id, version.version_id):
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the store already holds a version with the id {version.version_id!r}. "
+            "An id is minted once, and a second write with it would be a second "
+            "version of one draft rather than a revision of it.",
+        )
+    session.add(
+        PaperVersionRow(
+            version_id=version.version_id,
+            project_id=version.project_id,
+            source_id=source_id,
+            source_content_sha256=version.source_content_sha256,
+            version_label_raw=version.version_label_raw,
+            stage_candidate=version.stage_candidate.value,
+            status=version.status.value,
+            created_at=created_at,
+        )
+    )
+
+
+def put_version_edge(session: Session, edge: VersionEdge, *, created_at: datetime) -> None:
+    """Write the row for one edge between two versions.
+
+    **The cross-project rule is asked before the row is written, not after.**
+    It is a fact about three rows — the edge's project and the projects of the
+    two versions it names — and a CHECK constraint sees one row at a time. The
+    check itself is the frozen model's, asked here rather than restated.
+
+    :raises VersionStoreError: the id is already recorded, one of the versions
+        does not exist, the edge crosses a project boundary, or it names a
+        replacement the store does not hold.
+    """
+    if _recorded(session, VersionEdgeRow.edge_id, edge.edge_id):
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the store already holds an edge with the id {edge.edge_id!r}. An id "
+            "is minted once: a second write with it would be a second claim "
+            "about the same two versions wearing one name.",
+        )
+    _require_within_project(session, edge)
+    if edge.superseded_by is not None:
+        # **A pointer to an edge that is not there is a reference to
+        # nothing.** The correction path writes the replacement first and
+        # then points the proposal at it, so a pointer the store holds always
+        # names an edge it also holds.
+        _require_edge_exists(session, edge.superseded_by, describing=edge.edge_id)
+    session.add(
+        VersionEdgeRow(
+            edge_id=edge.edge_id,
+            project_id=edge.project_id,
+            parent_version_id=edge.parent_version_id,
+            child_version_id=edge.child_version_id,
+            source=edge.source.value,
+            confidence=edge.confidence,
+            evidence_spans=list(edge.evidence_spans),
+            accepted_by=edge.accepted_by,
+            accepted_at=edge.accepted_at,
+            edge_version=edge.edge_version,
+            superseded_by=edge.superseded_by,
+            created_at=created_at,
+        )
+    )
+
+
+def accept_version_edge(session: Session, edge: VersionEdge) -> None:
+    """Record a person's acceptance on an edge that is already stored.
+
+    **The row is updated, and only the three columns an acceptance changes.**
+    The edge keeps its id, its parent, its child, its confidence and its
+    evidence: an acceptance settles the relationship and says who settled it,
+    and **how strong the evidence was is still a fact about the evidence**.
+
+    :raises VersionStoreError: there is no such edge, the acceptance is already
+        recorded, or what was handed over is not an acceptance at all.
+    """
+    if edge.accepted_by is None or edge.accepted_at is None:
+        raise VersionStoreError(
+            PaperRefusal.CONTRACT_REFUSED,
+            f"the edge {edge.edge_id!r} carries no acceptor, so it is a proposal "
+            "rather than an acceptance. Recording it as accepted would settle a "
+            "relationship nobody settled.",
+        )
+    row = session.execute(
+        select(VersionEdgeRow).where(VersionEdgeRow.edge_id == edge.edge_id)
+    ).scalar_one_or_none()
+    if row is None:
+        raise VersionStoreError(
+            PaperRefusal.EDGE_NOT_FOUND,
+            f"the store holds no edge with the id {edge.edge_id!r}, so there is nothing to accept.",
+        )
+    if row.accepted_by is not None:
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the edge {edge.edge_id!r} was already accepted by {row.accepted_by!r}. "
+            "A settled relationship is decided again, not re-read, and the second "
+            "acceptance would say that two people decided what one decided.",
+        )
+    row.source = edge.source.value
+    row.accepted_by = edge.accepted_by
+    row.accepted_at = edge.accepted_at
+
+
+def supersede_version_edge(session: Session, edge_id: str, superseded_by: str) -> None:
+    """Point a stored edge at the edge that replaced it.
+
+    **One column, and nothing else.** The proposal the system made is
+    evidence about what the system got wrong, and overwriting it would destroy
+    the record of the error — so the correction is a second edge, and this
+    writes the pointer and leaves every other column as it was.
+
+    :raises VersionStoreError: there is no such edge, or it already names a
+        different replacement.
+    """
+    row = session.execute(
+        select(VersionEdgeRow).where(VersionEdgeRow.edge_id == edge_id)
+    ).scalar_one_or_none()
+    if row is None:
+        raise VersionStoreError(
+            PaperRefusal.EDGE_NOT_FOUND,
+            f"the store holds no edge with the id {edge_id!r}, so there is nothing to supersede.",
+        )
+    if row.superseded_by is not None and row.superseded_by != superseded_by:
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the edge {edge_id!r} already names {row.superseded_by!r} as the edge "
+            f"that replaced it, and it cannot also name {superseded_by!r}. A "
+            "correction that replaced a correction would say two things about "
+            "which edge is current.",
+        )
+    row.superseded_by = superseded_by
+
+
+def put_version_edge_rejection(
+    session: Session,
+    rejection: VersionEdgeRejection,
+    *,
+    created_at: datetime,
+) -> None:
+    """Write the record of a refusal.
+
+    **The edge it names must be there.** A refusal of a proposal nobody
+    holds is a refusal of nothing, and the row would be a fact about a review
+    of something that does not exist.
+
+    :raises VersionStoreError: the id is already recorded, or the edge it
+        names is not held.
+    """
+    if _recorded(session, VersionEdgeRejectionRow.rejection_id, rejection.rejection_id):
+        raise VersionStoreError(
+            PaperRefusal.ALREADY_RECORDED,
+            f"the store already holds a rejection with the id {rejection.rejection_id!r}. "
+            "An id is minted once, and a second write with it would be a second "
+            "refusal wearing one name.",
+        )
+    _require_edge_exists(session, rejection.edge_id, describing=rejection.rejection_id)
+    session.add(
+        VersionEdgeRejectionRow(
+            rejection_id=rejection.rejection_id,
+            edge_id=rejection.edge_id,
+            project_id=rejection.project_id,
+            decided_by=rejection.decided_by,
+            decided_at=rejection.decided_at,
+            reason=rejection.reason,
+            created_at=created_at,
+        )
+    )
+
+
+def load_paper_project(session: Session, project_id: str) -> PaperProject | None:
+    """One project by its id, or ``None`` when the store holds none.
+
+    The row is rebuilt through the frozen contract, so a row this build
+    cannot read is refused rather than carried through as a string.
+
+    :raises VersionStoreError: the row does not make a project.
+    """
+    row = session.execute(
+        select(PaperProjectRow).where(PaperProjectRow.project_id == project_id)
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return _validated(
+        PaperProject,
+        {
+            "project_id": row.project_id,
+            "workspace_id": row.workspace_id,
+            "subject_pseudonym": row.subject_pseudonym,
+            "consent_ref": row.consent_ref,
+        },
+    )
+
+
+def load_paper_version(session: Session, version_id: str) -> PaperVersion | None:
+    """One version by its id, or ``None`` when the store holds none.
+
+    **The bytes come from the row, not from the file.** The hash was written
+    when the version was recorded, so a re-ingest of the file moves what the
+    ledger holds and leaves the version alone: **the version is the set of
+    bytes it was recorded from, for ever.**
+    """
+    row = session.execute(
+        select(PaperVersionRow).where(PaperVersionRow.version_id == version_id)
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    if row.source_content_sha256 is None:
+        raise VersionStoreError(
+            PaperRefusal.CONTRACT_REFUSED,
+            f"the version {version_id!r} carries no content hash. A version is a "
+            "set of bytes, and a row that says which bytes it is not is not a "
+            "version anybody may read.",
+        )
+    return _validated(
+        PaperVersion,
+        {
+            "version_id": row.version_id,
+            "project_id": row.project_id,
+            "source_content_sha256": row.source_content_sha256,
+            "version_label_raw": row.version_label_raw,
+            "stage_candidate": row.stage_candidate,
+            "status": row.status,
+        },
+    )
+
+
+def load_version_edge(session: Session, edge_id: str) -> VersionEdge | None:
+    """One edge by its id, or ``None`` when the store holds none.
+
+    **Rebuilt through the frozen contract**, so a row that breaks the three
+    facts that stay apart is refused rather than handed back as a valid edge.
+    A row like that cannot be written through this module; it can only have
+    been put there by something that went around it, and reading it as a
+    valid edge would say that the archive holds a decision nobody made.
+
+    :raises VersionStoreError: the row does not make an edge.
+    """
+    row = session.execute(
+        select(VersionEdgeRow).where(VersionEdgeRow.edge_id == edge_id)
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return _validated(
+        VersionEdge,
+        {
+            "edge_id": row.edge_id,
+            "project_id": row.project_id,
+            "parent_version_id": row.parent_version_id,
+            "child_version_id": row.child_version_id,
+            "source": row.source,
+            "confidence": row.confidence,
+            "evidence_spans": tuple(row.evidence_spans),
+            "accepted_by": row.accepted_by,
+            "accepted_at": row.accepted_at,
+            "edge_version": row.edge_version,
+            "superseded_by": row.superseded_by,
+        },
+    )
+
+
+def load_version_edge_rejection(session: Session, rejection_id: str) -> VersionEdgeRejection | None:
+    """One refusal by its id, or ``None`` when the store holds none.
+
+    **Rebuilt through the frozen contract**, so a row the contract refuses is
+    refused here rather than handed back as a valid record.
+    """
+    row = session.execute(
+        select(VersionEdgeRejectionRow).where(VersionEdgeRejectionRow.rejection_id == rejection_id)
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return _validated(
+        VersionEdgeRejection,
+        {
+            "rejection_id": row.rejection_id,
+            "edge_id": row.edge_id,
+            "project_id": row.project_id,
+            "decided_by": row.decided_by,
+            "decided_at": row.decided_at,
+            "reason": row.reason,
+        },
+    )
+
+
+def list_version_edge_rejections(
+    session: Session, edge_id: str
+) -> tuple[VersionEdgeRejection, ...]:
+    """The refusals of one edge, oldest first.
+
+    Ordered by ``(decided_at, rejection_id)``. The moment of the decision is
+    the edge's own notion of sequence for a refusal, and the id breaks the
+    tie — so two reads of the same state report the same order.
+    """
+    rows = session.execute(
+        select(VersionEdgeRejectionRow)
+        .where(VersionEdgeRejectionRow.edge_id == edge_id)
+        .order_by(
+            VersionEdgeRejectionRow.decided_at.asc(), VersionEdgeRejectionRow.rejection_id.asc()
+        )
+    ).scalars()
+    return tuple(
+        _validated(
+            VersionEdgeRejection,
+            {
+                "rejection_id": row.rejection_id,
+                "edge_id": row.edge_id,
+                "project_id": row.project_id,
+                "decided_by": row.decided_by,
+                "decided_at": row.decided_at,
+                "reason": row.reason,
+            },
+        )
+        for row in rows
+    )
+
+
+def list_access_grants(session: Session) -> tuple[Grant, ...]:
+    """Every grant the store holds.
+
+    **The store is the authority on what was permitted**, so the consent
+    machinery's check is asked over the rows that are here rather than over a
+    list a caller gathered: a caller that gathered fewer grants than the
+    store holds would be asking the question about a smaller world.
+
+    Ordered by ``(granted_at, grant_id)`` — a total order, so the grant a
+    decision names is the same one every time.
+    """
+    rows = session.execute(
+        select(AccessGrantRow).order_by(
+            AccessGrantRow.granted_at.asc(), AccessGrantRow.grant_id.asc()
+        )
+    ).scalars()
+    return tuple(
+        Grant(
+            grant_id=row.grant_id,
+            subject_ref=row.subject_ref,
+            permission=row.permission,
+            purpose=row.purpose,
+            scope=row.scope,
+            destination=row.destination,
+            granted_by=row.granted_by,
+            granted_at=row.granted_at,
+            expires_at=row.expires_at,
+            state=row.state,
+            withdrawn_at=row.withdrawn_at,
+            withdrawn_by=row.withdrawn_by,
+            withdrawal_reason=row.withdrawal_reason,
+        )
+        for row in rows
+    )
+
+
+def list_paper_versions(session: Session, project_id: str) -> tuple[PaperVersion, ...]:
+    """A project's versions, oldest first.
+
+    Ordered by ``(created_at, version_id)``. ``created_at`` is the project's
+    own notion of sequence for a version, and the id breaks the tie — so two
+    reads of the same state report the same order.
+
+    :raises VersionStoreError: a row does not make a version, or it carries no
+        content hash.
+    """
+    rows = session.execute(
+        select(PaperVersionRow)
+        .where(PaperVersionRow.project_id == project_id)
+        .order_by(PaperVersionRow.created_at.asc(), PaperVersionRow.version_id.asc())
+    ).scalars()
+    versions: list[PaperVersion] = []
+    for row in rows:
+        if row.source_content_sha256 is None:
+            raise VersionStoreError(
+                PaperRefusal.CONTRACT_REFUSED,
+                f"the version {row.version_id!r} carries no content hash. A version "
+                "is a set of bytes, and a row that says which bytes it is not is "
+                "not a version anybody may read.",
+            )
+        versions.append(
+            _validated(
+                PaperVersion,
+                {
+                    "version_id": row.version_id,
+                    "project_id": row.project_id,
+                    "source_content_sha256": row.source_content_sha256,
+                    "version_label_raw": row.version_label_raw,
+                    "stage_candidate": row.stage_candidate,
+                    "status": row.status,
+                },
+            )
+        )
+    return tuple(versions)
+
+
+def list_version_edges(session: Session, project_id: str) -> tuple[VersionEdge, ...]:
+    """A project's edges, oldest first.
+
+    Ordered by ``(created_at, edge_id)``, for the reason
+    :func:`list_paper_versions` gives.
+
+    :raises VersionStoreError: a row does not make an edge.
+    """
+    rows = session.execute(
+        select(VersionEdgeRow)
+        .where(VersionEdgeRow.project_id == project_id)
+        .order_by(VersionEdgeRow.created_at.asc(), VersionEdgeRow.edge_id.asc())
+    ).scalars()
+    return tuple(
+        _validated(
+            VersionEdge,
+            {
+                "edge_id": row.edge_id,
+                "project_id": row.project_id,
+                "parent_version_id": row.parent_version_id,
+                "child_version_id": row.child_version_id,
+                "source": row.source,
+                "confidence": row.confidence,
+                "evidence_spans": tuple(row.evidence_spans),
+                "accepted_by": row.accepted_by,
+                "accepted_at": row.accepted_at,
+                "edge_version": row.edge_version,
+                "superseded_by": row.superseded_by,
+            },
+        )
+        for row in rows
+    )
+
+
+def load_version_source_id(session: Session, version_id: str) -> str | None:
+    """Which file a version came from, by its id.
+
+    **The file, not the bytes.** The contract carries the bytes by their hash;
+    what the permission boundary needs is the path, and the path is the
+    source's. So the store answers this question and the layer above resolves
+    the rest.
+    """
+    return session.execute(
+        select(PaperVersionRow.source_id).where(PaperVersionRow.version_id == version_id)
+    ).scalar_one_or_none()
+
+
+def _require_within_project(session: Session, edge: VersionEdge) -> None:
+    """Ask the model whether the edge's two versions are inside its project.
+
+    **The model's check, asked rather than restated.** The two versions are
+    looked up by their own ids and handed over, so the check can tell the two
+    faults apart: a version nobody holds, and a version that belongs to
+    another manuscript.
+    """
+    versions: dict[str, PaperVersion] = {}
+    for version_id in (edge.parent_version_id, edge.child_version_id):
+        version = load_paper_version(session, version_id)
+        if version is None:
+            raise VersionStoreError(
+                PaperRefusal.VERSION_NOT_FOUND,
+                f"the edge {edge.edge_id!r} names the version {version_id!r}, and "
+                "the store holds no such row. An edge may not point at a version "
+                "nobody holds.",
+            )
+        versions[version_id] = version
+    try:
+        check_edge_within_project(edge, versions)
+    except ValueError as error:
+        raise VersionStoreError(PaperRefusal.CROSS_PROJECT, str(error)) from error
+
+
+def _require_edge_exists(session: Session, edge_id: str, *, describing: str) -> None:
+    """Refuse a reference at an edge the store does not hold.
+
+    **A reference to nothing is a reference to nothing.** The correction
+    path writes the replacement edge first and then points the proposal at
+    it, and a refusal names the proposal it is about — so a reference the
+    store holds always names an edge the store also holds.
+    """
+    if not _recorded(session, VersionEdgeRow.edge_id, edge_id):
+        raise VersionStoreError(
+            PaperRefusal.EDGE_NOT_FOUND,
+            f"{describing!r} names the edge {edge_id!r}, and the store holds no such "
+            "row. A reference to an edge that is not there is a reference to nothing.",
+        )
+
+
+def _recorded(session: Session, column: Any, value: str) -> bool:
+    """Whether a row with this natural key is already there.
+
+    A column select rather than ``session.get``: the primary key of these
+    tables is the natural key itself, but the pattern is the one the rest of
+    this module uses, and it answers from the database rather than from a
+    session's identity map.
+    """
+    return session.execute(select(column).where(column == value)).scalar_one_or_none() is not None
+
+
+#: The model a row is rebuilt into.
+
+
+def _validated[ModelT: BaseModel](model: type[ModelT], payload: Mapping[str, object]) -> ModelT:
+    """Rebuild a row into its frozen contract, or refuse the row.
+
+    **The contract is the check, and this is where it is asked.** A row that
+    the contract refuses — an edge with an acceptor and no moment, a stage
+    outside its vocabulary — is refused here rather than handed back as a
+    valid record, because a row the archive cannot read is a row nobody may
+    claim to have read.
+    """
+    try:
+        return model.model_validate(payload)
+    except ValidationError as error:
+        raise VersionStoreError(
+            PaperRefusal.CONTRACT_REFUSED,
+            f"the stored row does not make a {model.__name__}: {error}",
+        ) from error
+
+
+# --------------------------------------------------------------------------- #
 # row -> contract
 # --------------------------------------------------------------------------- #
 
@@ -1027,18 +1645,34 @@ __all__ = [
     "TaskStore",
     "UnitOfWork",
     "UnknownTaskError",
+    "VersionStoreError",
+    "accept_version_edge",
     "count_events",
     "events_after",
     "last_seq",
+    "list_access_grants",
     "list_approvals",
     "list_artifacts",
     "list_operations",
+    "list_paper_versions",
     "list_runs",
     "list_sources",
     "list_stages",
     "list_tasks",
+    "list_version_edge_rejections",
+    "list_version_edges",
+    "load_paper_project",
+    "load_paper_version",
     "load_source",
     "load_task",
+    "load_version_edge",
+    "load_version_edge_rejection",
+    "load_version_source_id",
+    "put_paper_project",
+    "put_paper_version",
+    "put_version_edge",
+    "put_version_edge_rejection",
     "select_events",
+    "supersede_version_edge",
     "utc_now",
 ]
