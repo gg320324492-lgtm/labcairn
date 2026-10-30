@@ -140,6 +140,56 @@ where a claim could be true of the code and false of the product.**
 
 ---
 
+## LC-P2-09 — The feedback chain
+
+**The acceptance record:**
+[`docs/acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md)
+**The task breakdown:**
+[`docs/plans/LC-P2-09-task-breakdown.md`](LC-P2-09-task-breakdown.md)
+**The design:**
+[`docs/adr/ADR-0017-feedback-chain.md`](../adr/ADR-0017-feedback-chain.md)
+
+### The properties, and what to break
+
+| # | The property | The witness | The mutation to apply |
+|---|---|---|---|
+| 1 | **A comment is an observation with two addresses** — what was written, and where it was written about. | `test_a_feedback_row_carries_both_addresses` | Keep only one address. |
+| 2 | **The anchor's text and the offsets agree**, in the version the row names. | `test_the_anchored_text_agrees_with_the_offsets_in_the_version_named` | Return `""` for the text, or cut it from a different baseline. |
+| 3 | **Unknown is a value**: no author, no date, an unpaired range. | `test_a_missing_author_or_date_is_unknown_and_never_guessed` | Fall back to the file's mtime, or to an empty string. **An empty string is the tempting one** — it is a value, and it is not the unknown. |
+| 4 | **A feedback row names the version it was written against**, and one that names none is refused. | `test_a_feedback_row_names_its_version_and_one_that_names_none_is_refused` | Make the version default to the project's first one. |
+| 5 | **A comment that cannot be anchored is still a comment.** | `test_an_unanchorable_comment_is_still_a_comment` | Drop the unanchorable comment. |
+| 6 | **An edit names who made it**, and a model's change is not the advisor's. | `test_an_edit_names_who_made_it` | Give `actor_kind` a default. **ADR-0017 D4 exists because that default is how a model's change becomes the advisor's.** |
+| 7 | **A response is a judgement with evidence**, not a status. | `test_a_response_state_needs_a_decision_and_its_evidence` | Let a non-`pending` state be written with no decider, no moment or no evidence. |
+| 8 | **A comment with no response is listed as unaddressed**, not omitted. | `test_an_unanswered_comment_is_listed_as_unaddressed` | Skip the comment with no response. **An empty answer looks like "nothing outstanding".** |
+| 9 | **A change that does not answer the comment is recorded as `not_addressed` and exists.** | `test_a_change_that_does_not_answer_is_recorded_as_not_addressed` | Drop the row. |
+| 10 | **A partly-answering change is `partially_addressed`, not `addressed`.** | `test_a_partial_answer_is_not_an_answer` | Promote the partial answer. |
+| 11 | **No `issue_key` is inferred from the text.** | `test_no_issue_key_is_inferred_from_the_text` | Derive a key from the wording. **The same wording is not the same issue.** |
+| 12 | **Two comments with the same key in different versions are one recurring issue.** | `test_the_same_issue_recurring_is_visible_as_one_issue` | Group by version, so the recurrence disappears. |
+| 13 | **An assessment carries its own evidence**, and acceptance is not evidence of correctness. | `test_an_assessment_cannot_derive_correctness_from_acceptance` | Add `change_accepted` to the allowed bases. **Acceptance is a fact about the process, and correctness is a claim about the science.** |
+| 14 | **The four chain events are annotations** with a registered payload schema, and **the operations emit them.** | `test_the_chain_events_are_annotations_with_registered_payloads`, `test_the_feedback_demo_runs` | Make an event carry a `run_id` or a `transition`; and remove the emit from one `record_*` operation. **The second is the one this work order found unheld.** |
+| 15 | **A version and an edge can be stored**, and a stored edge round-trips through the models' checks. | `test_a_stored_edge_round_trips_through_the_models_own_checks` | Read the row's fields back without asking the contract. |
+| 16 | **A `pending` response is not an event.** | `test_a_response_with_no_judgement_made_is_not_an_event` | Let the payload accept `pending`. "No row" is how "unanswered" is represented, and an event that says otherwise says the opposite of what it means. |
+| 17 | **A model's candidate carries no `comment_locator`.** | `test_a_candidate_does_not_claim_the_advisors_words` | Let a candidate carry the locator — that is ADR-0016's third promotion path. |
+| 18 | **The demonstration runs, and a test runs it.** | `test_the_feedback_demo_runs` | Invert one of the demonstration's checks. |
+
+**Six of these were applied and watched** (the acceptance record's §4);
+**the rest are this reviewer's pass.** A mutation that was never applied
+reports as a surviving mutation, so check the diff before believing a green
+result — the project's own lesson, and the one this file exists to keep.
+
+### What this work order does not claim
+
+- **It does not say whether the advisor was right.** It says what was
+  answered, by what evidence, and what a later assessment concluded.
+- **It does not render the chain.** The tables hold it; whether a report
+  shows it is the owner's decision.
+- **It does not identify people.** It records kinds of actor and plain
+  ids; ADR-0015 D6's conditions are open.
+- **It does not let a model originate guidance or decide a response.**
+  That is LC-P2-12's and ADR-0016's.
+
+---
+
 ## How this file grows
 
 **Each work order adds its own section, and the file is edited in the
@@ -147,9 +197,7 @@ same commit as the work order it describes.** A review points file that
 is written after the merge is a file written by memory, and memory is
 what this project has been bitten by before.
 
-Two sections are still to come. **LC-P2-07**, the DOCX revision and
-comment fidelity — its fidelity baseline already carries its own numbers
-and its own mutations, and the properties it names are the ones a
-reviewer should break. And **LC-P2-09**, the feedback chain, which is
-where this line's `derived_copies` will point when a distilled rule is
-made from a case.
+One section is still to come: **LC-P2-07**, the DOCX revision and comment
+fidelity — its fidelity baseline already carries its own numbers and its
+own mutations, and the properties it names are the ones a reviewer should
+break.
