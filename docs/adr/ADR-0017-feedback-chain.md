@@ -342,14 +342,28 @@ id says *which row*; the chain the report renders is a chain of
 made by a model", "this assessment found it not established". So the
 payload carries the row's own word for the judgement — the response's
 `state`, the edit's `actor_kind`, the assessment's verdict — **as plain
-optional strings, so that the table keeps its vocabulary and the runtime
-layer does not import it.**
+strings, so that the table keeps its vocabulary and the runtime layer does
+not import it.**
 
 **Why the copy matters.** The event stream is the one thing the report's
 hash chain covers. With ids alone the chain proves *"these rows existed at
 these times"* and **not what they said** — so the forgery ADR-0016's third
 promotion path describes would be caught by the row and not by the chain.
 The copy makes the chain carry the substance.
+
+**And the three words are required, not optional.** Every object that
+carries one of these events **has** that judgement: an edit has an actor
+(ADR-0017 D4 gives it **no default**, and a default is exactly how a
+model's change becomes the advisor's), a response has a state, and an
+assessment has a verdict. **So "the call site has nothing to put here" is
+not a real case**, and a required field turns a forgotten word into a
+failure at construction instead of a `null` in the chain.
+
+**And a response that is still `pending` is not an event.** A comment
+nobody has answered yet has **no response row** — *"no row" is how
+"unanswered" is represented* — so the event is for a judgement **that was
+made**, and the `pending` state never reaches the stream. **An event
+records a decision, not the absence of one.**
 
 **And the chain's order is defined within one Task.** The event stream's
 `seq` is **per-Task**, and `occurred_at` is *"informational only. Never
