@@ -56,8 +56,8 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
 
-from labcairn.papers.assessments import ASSESSMENT_OUTCOMES as _CHAIN_ASSESSMENT_OUTCOMES
-from labcairn.papers.responses import RESPONSE_STATES as _CHAIN_RESPONSE_STATES
+from labcairn.papers.assessments import ASSESSMENT_OUTCOMES as CHAIN_ASSESSMENT_OUTCOMES
+from labcairn.papers.responses import RESPONSE_STATES as CHAIN_RESPONSE_STATES
 
 
 class IssueKind(StrEnum):
@@ -134,11 +134,15 @@ ISSUE_LABELS: Final[frozenset[str]] = ISSUE_KINDS | {UNKNOWN}
 #: The labels the response-state axis accepts.
 #:
 #: **The chain's states, imported.** See the module docstring: a second
-#: spelling would be a second vocabulary for the same rows.
-RESPONSE_LABELS: Final[frozenset[str]] = frozenset(_CHAIN_RESPONSE_STATES) | {UNKNOWN}
+#: spelling would be a second vocabulary for the same rows. The imported
+#: set is public under its own name — :data:`CHAIN_RESPONSE_STATES` — so
+#: that a reader can check **identity** against the chain's module rather
+#: than equality, and see that the words here are the chain's object and
+#: not a copy of it.
+RESPONSE_LABELS: Final[frozenset[str]] = frozenset(CHAIN_RESPONSE_STATES) | {UNKNOWN}
 
 #: The labels the assessment-outcome axis accepts.
-ASSESSMENT_LABELS: Final[frozenset[str]] = frozenset(_CHAIN_ASSESSMENT_OUTCOMES) | {UNKNOWN}
+ASSESSMENT_LABELS: Final[frozenset[str]] = frozenset(CHAIN_ASSESSMENT_OUTCOMES) | {UNKNOWN}
 
 #: Every axis and the labels it accepts.
 LABELS_BY_AXIS: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
@@ -222,6 +226,8 @@ def describe_axis(axis: str) -> str:
 __all__ = [
     "ASSESSMENT_LABELS",
     "AXIS_QUESTIONS",
+    "CHAIN_ASSESSMENT_OUTCOMES",
+    "CHAIN_RESPONSE_STATES",
     "ISSUE_KINDS",
     "ISSUE_LABELS",
     "LABELS_BY_AXIS",

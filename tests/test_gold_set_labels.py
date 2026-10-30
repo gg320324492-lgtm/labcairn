@@ -30,6 +30,9 @@ from pathlib import Path
 
 import pytest
 
+import labcairn.papers.assessments as assessments_module
+import labcairn.papers.labels as labels_module
+import labcairn.papers.responses as responses_module
 from labcairn.papers.assessments import ASSESSMENT_OUTCOMES
 from labcairn.papers.labels import (
     ASSESSMENT_LABELS,
@@ -231,6 +234,42 @@ def test_the_labels_are_the_chains_own_vocabulary() -> None:
             "that the design names and the tree does not is a change nobody "
             "recorded."
         )
+
+
+def test_the_label_module_holds_the_chains_words_and_not_a_copy_of_them() -> None:
+    """A8's source half: the words are the chain's object, not a copy of it.
+
+    **Why the equality in the witness above is not enough.** It says the
+    two sets *agree*. It cannot say the label set **is** the chain's set
+    rather than a copy of it, because a copy that is in step today agrees
+    today — and the module's whole claim is that there is no second
+    spelling to fall out of step.
+
+    **Identity is the evidence, and only identity.** A copy is a different
+    object however equal it is, so the check is that the label module's
+    set *is* the chain's set — the same object, out of the chain's own
+    module — and that an axis's labels are that object plus ``UNKNOWN``.
+    """
+    assert labels_module.CHAIN_RESPONSE_STATES is responses_module.RESPONSE_STATES, (
+        "the label module's response states are not the chain's own object. A "
+        "copy that agrees today can fall out of step tomorrow, and a second "
+        "spelling of the chain's words is exactly what this module says it "
+        "does not have."
+    )
+    assert labels_module.CHAIN_ASSESSMENT_OUTCOMES is assessments_module.ASSESSMENT_OUTCOMES, (
+        "the label module's assessment outcomes are not the chain's own "
+        "object, for the same reason the response states have to be the "
+        "chain's."
+    )
+    assert labels_module.CHAIN_RESPONSE_STATES | {UNKNOWN} == labels_module.RESPONSE_LABELS, (
+        "the response labels are not the chain's states plus UNKNOWN, so the "
+        "axis has drifted from the vocabulary it is supposed to be the label "
+        "set of."
+    )
+    assert labels_module.CHAIN_ASSESSMENT_OUTCOMES | {UNKNOWN} == labels_module.ASSESSMENT_LABELS, (
+        "the assessment labels are not the chain's outcomes plus UNKNOWN, for "
+        "the same reason the response labels have to be."
+    )
 
 
 def test_every_axis_is_closed_and_its_labels_are_a_finite_set() -> None:
