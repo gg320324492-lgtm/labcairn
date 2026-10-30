@@ -25,21 +25,31 @@ import pytest
 from test_store_support import StoreEnv
 from test_store_support import env as _shared_env
 
-from labcairn.application import create_task
+from labcairn.application import (
+    ApplicationContext,
+    ClaimRequest,
+    create_task,
+    ingest_material,
+    list_source_addresses,
+    list_sources,
+    record_model_proposal,
+)
 from labcairn.application.approvals import (
     ApprovalRequest,
     ApprovalUse,
     grant_approval,
     request_approval,
 )
-from labcairn.application.context import ApplicationContext
 from labcairn.application.events import read_events
 from labcairn.application.model_request import ModelInvocation, request_model
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.usage import Unknown, UnknownReason
 from labcairn.core.schema import LabCairnModel
-from labcairn.db.repository import list_approvals
+from labcairn.db.repository import list_approvals, load_task
+from labcairn.evidence.index import load_anchor
+from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
+from labcairn.material.addressing import render_locator_key
 from labcairn.providers.budget import RunBudget
 from labcairn.providers.capabilities import (
     ALL_CAPABILITIES,
@@ -715,3 +725,109 @@ def test_an_empty_result_is_not_a_result(context: ApplicationContext) -> None:
     assert raised.value.reason is ApplicationRefusal.MODEL_ANSWER_EMPTY, (
         "an empty document is the same nothing"
     )
+
+
+# --------------------------------------------------------------------------- #
+# a model's answer enters as a proposal (LC-P2-01 T05)
+# --------------------------------------------------------------------------- #
+
+#: The material the proposal is pinned to, and the sentence in it.
+_NOTES_TEXT = "The yield across the five runs was 4.253 percent.\n"
+PROPOSAL_TEXT = "The yield across the five runs was 4.253 percent."
+
+
+@pytest.fixture()
+def proposal_context(env: StoreEnv, tmp_path: Path) -> ApplicationContext:
+    """A task that holds one readable material, under a policy that allows.
+
+    The proposal write asks the same questions of the material that
+    ``record_claim`` asks, so the fixture is the evidence suite's own
+    shape: material on disk, a task bound to it, the text ingested.
+    """
+    workspace_root = tmp_path / "workspace"
+    materials = workspace_root / "materials"
+    materials.mkdir(parents=True)
+    (materials / "notes.md").write_text(_NOTES_TEXT, encoding="utf-8")
+    created = create_task(
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        workspace_root=workspace_root,
+        title="A model's proposal",
+        goal=TaskGoal(
+            objective="Bind a model's answer to the material it speaks for.",
+            success_criterion="A proposal the ledger holds, at an address that resolves.",
+        ),
+        source_dirs=(materials,),
+    )
+    context = ApplicationContext(
+        workspace=created.workspace,
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        ledger=ApprovalLedger(),
+    )
+    ingest_material(context, now=MOMENT)
+    return context
+
+
+def _held_source_id(context: ApplicationContext, suffix: str) -> str:
+    """The id of the material whose path ends with *suffix*, as the task holds it."""
+    held = {
+        str(bound) for bound in load_task(context.store.session, context.task_id).bound_source_ids
+    }
+    for view in list_sources(context):
+        if view.source.relative_path.endswith(suffix) and view.source.source_id in held:
+            return view.source.source_id
+    raise AssertionError(f"the task holds no material ending in {suffix!r}: {sorted(held)}")
+
+
+def _the_address(context: ApplicationContext, source_id: str) -> str:
+    """The one address whose text is the sentence the proposal quotes."""
+    for address in list_source_addresses(context, source_id):
+        if "4.253" in address.text:
+            return address.locator_key
+    raise AssertionError("the sentence's address was not in the ledger")
+
+
+def test_a_models_answer_enters_as_a_proposal_and_is_bound(
+    proposal_context: ApplicationContext,
+) -> None:
+    """A model's answer is a ``model_proposal`` on ``planned``, bound to a locator.
+
+    ADR-0016's line, held at the write: the record enters as a proposal
+    — it reaches ``planned`` and no further without a verification
+    entry — and it is already pinned to the material it claims to speak
+    for, because the locator is an argument of the write, not
+    something parsed out of the answer afterwards. And the constructor
+    holds the line a proposal cannot cross: ``user_attested`` requires
+    a ``USER`` creator and ``verified_by_rule`` requires a check log,
+    and nothing on this path writes the creator field around them.
+    """
+    context = proposal_context
+    source_id = _held_source_id(context, "notes.md")
+    locator_key = _the_address(context, source_id)
+
+    recorded = record_model_proposal(
+        context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            kind=EvidenceKind.CLAIM,
+            text=PROPOSAL_TEXT,
+        ),
+        now=MOMENT,
+    )
+    record = recorded.record
+    assert record.created_by is EvidenceCreator.MODEL_PROPOSAL, (
+        "the record says a model proposed it"
+    )
+    assert record.status is VerificationStatus.PLANNED, (
+        "a proposal reaches planned and no further without a verification entry"
+    )
+    assert record.anchor_ids, "the proposal is bound to a locator"
+
+    anchor = load_anchor(context.store.session.connection(), record.anchor_ids[0])
+    assert anchor is not None, "the anchor the record names exists"
+    assert render_locator_key(anchor.locator) == locator_key, (
+        "the anchor is at the address the write was given"
+    )
+    assert anchor.bound_source_sha256, "the anchor is bound to the source's bytes"

@@ -229,6 +229,67 @@ def record_claim(
         or unreadable; the address does not resolve; the arguments do not
         make a record; or the task already holds a record for this span.
     """
+    return _record_against_material(
+        context,
+        request,
+        now=now,
+        creator=EvidenceCreator.USER,
+        status=VerificationStatus.EXTRACTED,
+    )
+
+
+def record_model_proposal(
+    context: ApplicationContext,
+    request: ClaimRequest,
+    *,
+    now: datetime | None = None,
+) -> ClaimRecorded:
+    """Record a model's answer as a proposal, bound to the locator it names.
+
+    ADR-0016's rule: what a model says is a ``model_proposal`` -- it
+    reaches ``planned`` and no further without a verification entry --
+    and any claim the model makes is **bound to a locator** before it
+    can reach a report. So the locator is an argument of the write, not
+    something parsed out of the answer afterwards: the anchor lands with
+    the record, and the record enters the ledger already pinned to the
+    material it claims to speak for.
+
+    The constructor, not this path, holds the line the proposal cannot
+    cross: the record is built through ``EvidenceRecord``'s validators,
+    which refuse ``user_attested`` without a ``USER`` creator and
+    ``verified_by_rule`` without a check log. Nothing here writes the
+    creator field around them, because the creator field is exactly
+    what the validators are watching.
+
+    The flow below the two entry points is one flow: the material must
+    be held, readable and addressable, and the anchor and the record
+    commit together, exactly as ``record_claim``'s do. What differs is
+    what the record says about its own author.
+    """
+    return _record_against_material(
+        context,
+        request,
+        now=now,
+        creator=EvidenceCreator.MODEL_PROPOSAL,
+        status=VerificationStatus.PLANNED,
+    )
+
+
+def _record_against_material(
+    context: ApplicationContext,
+    request: ClaimRequest,
+    *,
+    now: datetime | None,
+    creator: EvidenceCreator,
+    status: VerificationStatus,
+) -> ClaimRecorded:
+    """The one flow both writes run: check, anchor, locate, judge, commit.
+
+    The two entry points differ in the record's ``creator`` and
+    ``status`` -- the reader wrote this, located and read out; or a
+    model proposed this, located and waiting to be checked -- and in
+    nothing else.
+    """
     moment = now if now is not None else datetime.now(UTC)
 
     with store_refusals():
@@ -316,6 +377,8 @@ def record_claim(
         span_sha256=span_sha256,
         source=source,
         moment=moment,
+        creator=creator,
+        status=status,
     )
 
     session = context.store.session
@@ -374,6 +437,8 @@ def _the_record(
     span_sha256: str,
     source: Source,
     moment: datetime,
+    creator: EvidenceCreator,
+    status: VerificationStatus,
 ) -> EvidenceRecord:
     """The record model for this write, or a refusal naming what is unusable.
 
@@ -395,8 +460,8 @@ def _the_record(
                 "anchor_ids": (anchor.anchor_id,),
                 "extracted_span": span,
                 "extracted_span_sha256": span_sha256,
-                "status": VerificationStatus.EXTRACTED,
-                "created_by": EvidenceCreator.USER,
+                "status": status,
+                "created_by": creator,
                 "created_by_id": LOCAL_USER_ID,
                 "source_content_hash": source.content_sha256,
                 "created_at": moment,

@@ -53,6 +53,7 @@ Operation                  Capability
 ``inspect_source``         ``source.inventory``
 ``list_source_addresses``  ``source.inventory``
 ``record_claim``           ``source.inventory``
+``record_model_proposal``  ``source.inventory``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
@@ -104,6 +105,7 @@ from labcairn.application.evidence import (
     SourceAddress,
     list_source_addresses,
     record_claim,
+    record_model_proposal,
 )
 from labcairn.application.material_ingestion import (
     IngestedFile,
@@ -234,6 +236,7 @@ __all__ = [
     "record_claim",
     "record_confirmation",
     "record_edge",
+    "record_model_proposal",
     "record_project",
     "record_version",
     "render_report",
