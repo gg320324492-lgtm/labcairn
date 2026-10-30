@@ -190,6 +190,35 @@ result — the project's own lesson, and the one this file exists to keep.
 
 ---
 
+## LC-P2-12 — The three-role guidance loop
+
+**Task breakdown:**
+[`LC-P2-12-task-breakdown.md`](LC-P2-12-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-12-acceptance.md`](../acceptance/LC-P2-12-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §4 lists the mutations that were
+already applied and what they reddened.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **A role's contract is a versioned row, and the version is stamped on every output.** | `test_a_role_spec_is_versioned_and_the_version_is_on_the_output` | Return an output whose `role_version` is not the contract's. **An output that does not say which contract governed it cannot be replayed against that contract.** |
+| 2 | **A role may exercise only what its contract lists, and the refusal is machine-readable.** | `test_a_call_outside_the_role_spec_is_refused` | Turn the refusal into a message. **A caller that can only read prose cannot branch on it.** |
+| 3 | **The five forbidden actions are closed, and a role holds no direct path out** — no socket, no requests, no database connection. | `test_a_role_holds_no_direct_path_out`, `test_an_unknown_capability_or_action_is_refused_by_name` | Add a sixth action as a string in a spec; or import `httpx` inside a roles module. **The first is refused by vocabulary, the second by the watched import surface.** |
+| 4 | **Role A proposes judgements, never facts** — the candidate type has no `comment_locator` field, and the advisor's words must sit verbatim on the chain. | `test_role_a_proposes_judgements_and_never_facts` | Add the field; or accept a paraphrase. **The shape itself is the refusal; a paraphrase would be A putting words in the advisor's mouth.** |
+| 5 | **The version order is walked over accepted edges, never spelled by name** — a version outside the graph is refused, a fork is refused. | `test_role_a_does_not_order_versions_by_name_or_invent_a_round` | Sort by `version_label_raw`. **`manuscript-2.txt` before `manuscript-10.txt` is the dictionary's order, not the paper's.** |
+| 6 | **An abstention is a result, and it names what was missing.** | `test_insufficient_material_produces_a_named_abstention` | Allow an empty `missing`. **An abstention that names nothing is a shrug wearing a record's clothes.** |
+| 7 | **A rule is cited with its counter-examples, and they cannot be trimmed.** | `test_a_card_cites_a_rule_with_its_counterexamples` | Return the citation without the cases against the rule. **A rule without its failure cases is an advertisement.** |
+| 8 | **A verdict is `inferred` and writes no store row** — two models agreeing promotes nothing. | `test_a_verdict_does_not_promote_a_proposal` | Let the review persist; or let `grade` be raised to `human_verified`. **The store row count is counted, not asserted, so the first shows immediately.** |
+| 9 | **The critique's counter-evidence is its own retrieval**, not a field B filled in. | `test_role_c_reads_the_sources_and_its_own_counterevidence` | Pre-fill `counter_evidence` from the card. **Then C reads B's homework and the independence is a word.** |
+| 10 | **The routing is data** — the tables are parameters, the kind vocabulary is closed, every role runs for a recorded reason. | `test_the_roles_that_run_are_the_ones_the_request_needed` | Route an unknown kind by a default. **A default is a branch wearing data's clothes; there is no swarm.** |
+| 11 | **An unmeasurable cost refuses, and a retry is the same plan.** | `test_an_unmeasurable_cost_refuses_and_a_retry_does_not_pay_twice` | Let an unpriced spec send; or make `retry` build a second plan. **A budget whose price is unknown fails closed; a retry that pays twice pays for a guess.** |
+| 12 | **A person's decision is audited** — appended, attributed, never overwritten. | `test_a_human_decision_on_a_card_is_audited` | Add an `update` to the ledger. **A decision a person made stays made; a change of mind is a second record.** |
+| 13 | **The demonstration sends nothing, and its exit code means something.** | `test_the_guidance_loop_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
 ## How this file grows
 
 **Each work order adds its own section, and the file is edited in the
