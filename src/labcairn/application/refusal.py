@@ -38,6 +38,7 @@ from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.material.intake import IntakeRefusal
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.versions import PaperRefusal
+from labcairn.roles.refusals import RoleRefusal
 from labcairn.security.permissions import ConsentRefusal
 
 
@@ -286,6 +287,30 @@ class ApplicationRefusal(StrEnum):
     GUIDANCE_RESOLUTION_WITHOUT_REASON = "guidance_resolution_without_reason"
     #: A counterexample with no case in it challenges nothing.
     GUIDANCE_COUNTEREXAMPLE_EMPTY = "guidance_counterexample_empty"
+    # -- the reasons the role contract says no ------------------------------ #
+    #
+    # **Why these are the contract's own.** The boundary exists to refuse a
+    # call a contract does not allow, and a refusal a surface cannot branch
+    # on is a refusal a caller can only read. "The capability is not listed"
+    # and "the action is forbidden" have different remedies — one is a
+    # contract amendment, the other is the operation stopping — so they are
+    # different reasons, and the machine reads them without a message.
+    #: A required field of the spec is missing or empty.
+    ROLE_SPEC_FIELD_EMPTY = "role_spec_field_empty"
+    #: The spec names a capability the security layer has not registered.
+    ROLE_SPEC_CAPABILITY_UNKNOWN = "role_spec_capability_unknown"
+    #: The spec names a forbidden action outside the closed five.
+    ROLE_SPEC_FORBIDDEN_ACTION_UNKNOWN = "role_spec_forbidden_action_unknown"
+    #: The spec declares no purpose for which it may read material.
+    ROLE_SPEC_PURPOSE_EMPTY = "role_spec_purpose_empty"
+    #: The operation asked to exercise a capability the spec does not list.
+    ROLE_SPEC_CAPABILITY_NOT_LISTED = "role_spec_capability_not_listed"
+    #: The operation asked to perform an action the spec forbids.
+    ROLE_SPEC_FORBIDDEN_ACTION_REQUESTED = "role_spec_forbidden_action_requested"
+    #: No spec carries that role id, at any version.
+    ROLE_SPEC_NOT_FOUND = "role_spec_not_found"
+    #: A spec at that role id and version is already defined.
+    ROLE_SPEC_ALREADY_DEFINED = "role_spec_already_defined"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -405,6 +430,34 @@ GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
     ),
 }
 
+ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
+    RoleRefusal.SPEC_FIELD_EMPTY: ApplicationRefusal.ROLE_SPEC_FIELD_EMPTY,
+    RoleRefusal.SPEC_CAPABILITY_UNKNOWN: ApplicationRefusal.ROLE_SPEC_CAPABILITY_UNKNOWN,
+    RoleRefusal.SPEC_FORBIDDEN_ACTION_UNKNOWN: (
+        ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_UNKNOWN
+    ),
+    RoleRefusal.SPEC_PURPOSE_EMPTY: ApplicationRefusal.ROLE_SPEC_PURPOSE_EMPTY,
+    RoleRefusal.SPEC_CAPABILITY_NOT_LISTED: (
+        ApplicationRefusal.ROLE_SPEC_CAPABILITY_NOT_LISTED
+    ),
+    RoleRefusal.SPEC_FORBIDDEN_ACTION_REQUESTED: (
+        ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_REQUESTED
+    ),
+    RoleRefusal.SPEC_NOT_FOUND: ApplicationRefusal.ROLE_SPEC_NOT_FOUND,
+    RoleRefusal.SPEC_ALREADY_DEFINED: ApplicationRefusal.ROLE_SPEC_ALREADY_DEFINED,
+}
+
+
+def role_refused(reason: RoleRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of the role machinery, carrying its own reason.
+
+    :class:`labcairn.roles.refusals.RoleRefusal` enumerates the reasons the
+    contract says no, and this table gives each one the application layer's
+    name. The mapping is looked up, not defaulted, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return ApplicationRefusedError(ROLE_REFUSALS[reason], detail)
+
 
 def consent_refusal_name(reason: ConsentRefusal) -> ApplicationRefusal:
     """The layer's name for a refusal of the consent machinery.
@@ -488,6 +541,7 @@ __all__ = [
     "GUIDANCE_REFUSALS",
     "INTAKE_REFUSALS",
     "PAPER_REFUSALS",
+    "ROLE_REFUSALS",
     "ApplicationRefusal",
     "ApplicationRefusedError",
     "chain_refusal_name",
@@ -496,4 +550,5 @@ __all__ = [
     "guidance_refused",
     "intake_refusal_name",
     "paper_refusal_name",
+    "role_refused",
 ]

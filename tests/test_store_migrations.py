@@ -128,6 +128,7 @@ EXPECTED_TABLES = frozenset(
         "guidance_rules",
         "guidance_rule_sources",
         "guidance_rule_counterexamples",
+        "agent_role_specs",
     }
 )
 

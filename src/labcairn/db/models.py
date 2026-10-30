@@ -2489,3 +2489,134 @@ class GuidanceRuleCounterexampleRow(Base):
             name="guidance_rule_counterexamples_a_counterexample_carries_its_case",
         ),
     )
+
+
+class AgentRoleSpecRow(Base):
+    """A role's contract, as the store holds it: versioned, typed, enforced.
+
+    **A role is not a prompt.** The prompt is one field of this row, and
+    the least load-bearing one (ADR-0018 D1): what binds a role is the
+    objective, the typed input and output schemas it answers to, the
+    capabilities it may exercise, the actions it may not take, the
+    purposes it may read material for, the budgets and the routing it
+    works under, and the conditions under which it abstains and under
+    which it hands the work to a person.
+
+    **The list columns hold JSON arrays**, because a contract's clauses
+    are lists and a second table per list would be four tables to read
+    one contract. The database can say ``json_valid`` and
+    ``json_array_length``; **what it cannot say across a JSON column it
+    leaves to the API** — that every capability named is one the security
+    layer has registered, and that every forbidden action is one of the
+    five the architecture closes. The API refuses those by name, and
+    this schema does not pretend to check them.
+
+    **A new contract is a new row.** The primary key is the pair of the
+    role's id and the contract's version; editing a role's terms defines
+    the next version, and the old row keeps the terms it had. An output
+    carries the pair it was produced under, so a reader can always open
+    the contract that governed it.
+    """
+
+    __tablename__ = "agent_role_specs"
+
+    #: Caller-minted, so a role may be named before the row that defines
+    #: it is written, and identity cannot depend on insertion order.
+    role_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    #: The contract's version, with the role, as a composite primary key.
+    role_version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: What the role is for, in one sentence a reader can check the
+    #: role's outputs against.
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The typed input model the role answers to — a name in the code,
+    #: not a description of one.
+    input_schema: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The typed output model the role produces — a name in the code,
+    #: not a description of one.
+    output_schema: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The capabilities the role may exercise, as a JSON array of
+    #: capability ids. **The registered vocabulary is the security
+    #: layer's, and the API checks membership; the schema checks only
+    #: that this is a non-empty JSON array.**
+    allowed_capabilities: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The actions the role may not take, as a JSON array of the five
+    #: closed forbidden actions.
+    forbidden_actions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The purposes the role may read material for, as a JSON array.
+    allowed_data_purposes: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The provider-routing policy the role works under — a reference,
+    #: not a model id and not an endpoint (ADR-0018 C14).
+    provider_routing_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The cost ceiling, when one is priced. **A null here is not
+    #: unbounded** — the API reads it as *no real call is priced for
+    #: this role yet*, which a FakeProvider run does not need.
+    cost_budget: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: The token ceiling, which a role always has.
+    token_budget: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The wall-clock ceiling of one invocation.
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: How a failed invocation is retried — a policy's name.
+    retry_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What happens when the retries are spent — a policy's name.
+    fallback_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The conditions under which the role abstains, as a JSON array of
+    #: named conditions. **An empty array is a role that never says
+    #: "I do not know"**, and the schema refuses it.
+    abstain_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The conditions under which the role hands the work to a person,
+    #: as a JSON array of named conditions.
+    escalation_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The prompt template's version. **The prompt is a field of the
+    #: contract, and the least load-bearing one** — but it is on the
+    #: contract, so a replay can name the words the role was given.
+    prompt_template_version: Mapped[str] = mapped_column(Text, nullable=False)
+    #: A reference to a model configuration in the configuration store.
+    #: **Never a model id, never an endpoint** — the tree carries no
+    #: supplier's name (ADR-0018 C14), and a swap of supplier is a
+    #: change of the referenced configuration, not of the contract.
+    model_config_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the contract was defined.
+    defined_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        # **A contract binds from version one.** A version zero would be
+        # a contract that was never in force.
+        CheckConstraint(
+            "role_version >= 1",
+            name="agent_role_specs_a_contract_binds_from_version_one",
+        ),
+        # **A contract with nothing in it binds nobody.** Every text
+        # field a reader needs is required, and SQLite's length()
+        # counts the spaces a shrug is made of, so each check trims.
+        CheckConstraint(
+            "length(trim(objective)) > 0 AND length(trim(input_schema)) > 0"
+            " AND length(trim(output_schema)) > 0"
+            " AND length(trim(provider_routing_policy)) > 0"
+            " AND length(trim(retry_policy)) > 0 AND length(trim(fallback_policy)) > 0"
+            " AND length(trim(prompt_template_version)) > 0"
+            " AND length(trim(model_config_ref)) > 0",
+            name="agent_role_specs_a_contract_carries_its_terms",
+        ),
+        # **Every list column is a well-formed JSON array, and the lists
+        # that cannot be empty are not.** The vocabulary of each list is
+        # the API's to check; the schema's claim is only that these are
+        # arrays a reader can iterate.
+        CheckConstraint(
+            "json_valid(allowed_capabilities) AND json_valid(forbidden_actions)"
+            " AND json_valid(allowed_data_purposes) AND json_valid(abstain_conditions)"
+            " AND json_valid(escalation_conditions)",
+            name="agent_role_specs_list_columns_hold_json_arrays",
+        ),
+        CheckConstraint(
+            "json_array_length(allowed_capabilities) > 0"
+            " AND json_array_length(allowed_data_purposes) > 0"
+            " AND json_array_length(abstain_conditions) > 0",
+            name="agent_role_specs_a_role_may_work_read_for_a_purpose_and_abstain",
+        ),
+        # **A role always has a ceiling.** A token budget or a timeout
+        # of zero or less is a ceiling that holds nothing.
+        CheckConstraint(
+            "token_budget > 0 AND timeout_seconds > 0",
+            name="agent_role_specs_a_role_works_under_a_ceiling",
+        ),
+    )
