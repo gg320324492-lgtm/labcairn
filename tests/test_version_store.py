@@ -378,7 +378,9 @@ def test_a_version_keeps_its_bytes_when_the_file_is_re_ingested(
     assert read.source_content_sha256 == hashlib.sha256(b"the first draft").hexdigest()
 
 
-def test_a_stored_edge_round_trips_through_the_models_own_checks(env: StoreEnv, workspace_root: Path) -> None:
+def test_a_stored_edge_round_trips_through_the_models_own_checks(
+    env: StoreEnv, workspace_root: Path
+) -> None:
     """The edge comes back as the contract — and as a proposal.
 
     **A proposal with no acceptor is storable**, because it is the normal
