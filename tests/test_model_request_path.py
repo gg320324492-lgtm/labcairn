@@ -16,6 +16,7 @@ import json
 import re
 import tomllib
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,11 @@ from labcairn.application.events import read_events
 from labcairn.application.model_request import ModelInvocation, request_model
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
+from labcairn.core.providers.usage import Unknown, UnknownReason
 from labcairn.db.repository import list_approvals
+from labcairn.providers.budget import RunBudget
+from labcairn.providers.errors import BudgetEnforcementUnavailableError, ProviderTimeoutError
+from labcairn.providers.ledger import LedgerSnapshot
 from labcairn.runtime.event import EventType
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
@@ -352,3 +357,124 @@ def test_the_transcript_and_usage_land_and_no_key_is_written(
     assert "sk-" not in rendered, "no plaintext key-shaped string is in the record"
     assert "the model's answer" not in rendered, "the answer is not the record"
     assert answer.exchange_event_id == str(exchanges[0].event_id)
+
+
+# --------------------------------------------------------------------------- #
+# the budget, the unknown answer, and the retry (LC-P2-01 T03)
+# --------------------------------------------------------------------------- #
+
+
+def _unpriced_budget() -> RunBudget:
+    """A cost ceiling, for a model whose price nobody has measured."""
+    return RunBudget(max_cost_usd=Decimal("5.00"))
+
+
+def test_a_cost_ceiling_fails_closed_when_the_price_is_unknown(
+    context: ApplicationContext,
+) -> None:
+    """A ceiling that cannot be measured halts the call — before anything is spent.
+
+    The layer's own witness (``test_cost_ceiling_fails_closed_when_price_unknown``)
+    establishes the guard; this one establishes that the **path** runs it
+    before the gate and before the approval, so an unpriced model cannot
+    spend a person's approval to reach a refusal.
+    """
+    approval_id = _granted(context)
+    reached: list[str] = []
+
+    with pytest.raises(BudgetEnforcementUnavailableError):
+        request_model(
+            context,
+            approval_id,
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=lambda: _spy(reached),
+            budget=_unpriced_budget(),
+            ledger=LedgerSnapshot(cost_micros=Unknown(reason=UnknownReason.UNPRICED)),
+        )
+    assert reached == [], "an unmeasurable cost never reached the wire"
+    rows = list_approvals(context.store.session, context.task_id)
+    assert all(row.state != "consumed" for row in rows), "the approval stayed unspent"
+
+
+def test_an_unanswered_request_is_unknown_and_not_a_success(
+    context: ApplicationContext,
+) -> None:
+    """A call that was sent and did not answer records no success.
+
+    The approval stays spent — the wire may have carried the request —
+    and no exchange event is written, because a record shaped like an
+    answer would be a lie about what came back. The doubt is a person's
+    to reconcile; the path's job is to leave it visible.
+    """
+    approval_id = _granted(context)
+
+    def unanswered() -> ModelInvocation:
+        raise ProviderTimeoutError(120.0)
+
+    with pytest.raises(ProviderTimeoutError):
+        request_model(
+            context,
+            approval_id,
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=unanswered,
+        )
+    page = read_events(context)
+    assert not [event for event in page.events if event.type is EventType.MODEL_EXCHANGED], (
+        "an unanswered call recorded no exchange"
+    )
+    rows = list_approvals(context.store.session, context.task_id)
+    assert any(row.state == "consumed" for row in rows), (
+        "the approval was spent, because the wire may have carried it"
+    )
+
+
+def test_a_retry_does_not_pay_twice(context: ApplicationContext) -> None:
+    """One approval, one call: a retry of a spent approval is refused.
+
+    The provider layer's own witness
+    (``test_the_ledger_totals_across_calls_and_the_counters_diverge_on_a_retry``)
+    separates a transport retry from a second charge inside one call; this
+    one holds the same line across calls — the approval that paid for the
+    first call cannot pay for the second, whatever its outcome was.
+    """
+    approval_id = _granted(context)
+    first = request_model(
+        context,
+        approval_id,
+        _grants(),
+        use=_model_use(),
+        subject_ref="proj-1",
+        destination=DESTINATION,
+        material_ref=MATERIAL_REF,
+        at=MOMENT,
+        send=lambda: _invocation("the first answer"),
+    )
+    assert first.answer == "the first answer"
+
+    with pytest.raises(ApplicationRefusedError):
+        request_model(
+            context,
+            approval_id,
+            _grants(),
+            use=_model_use(),
+            subject_ref="proj-1",
+            destination=DESTINATION,
+            material_ref=MATERIAL_REF,
+            at=MOMENT,
+            send=lambda: _invocation("the second answer"),
+        )
+    rows = list_approvals(context.store.session, context.task_id)
+    assert sum(1 for row in rows if row.state == "consumed") == 1, "one approval, one consumption"
+    page = read_events(context)
+    exchanges = [event for event in page.events if event.type is EventType.MODEL_EXCHANGED]
+    assert len(exchanges) == 1, "the second call never happened, and was never recorded"

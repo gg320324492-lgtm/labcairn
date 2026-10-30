@@ -43,6 +43,8 @@ from labcairn.application.approvals import ApprovalUse
 from labcairn.application.context import ApplicationContext
 from labcairn.application.model_transmit import TransmitCheck, transmit_request
 from labcairn.core.ids import ApprovalId
+from labcairn.providers.budget import RunBudget, preflight_check
+from labcairn.providers.ledger import LedgerSnapshot
 from labcairn.runtime.model_exchange import emit_model_exchanged
 from labcairn.security.permissions import Grant
 
@@ -94,20 +96,35 @@ def request_model(
     purpose: str = "transmit",
     at: datetime,
     send: Callable[[], ModelInvocation],
+    budget: RunBudget | None = None,
+    ledger: LedgerSnapshot | None = None,
 ) -> ModelAnswer:
     """Ask the model, under the two gates, in their order, and record the call.
 
-    The material gate runs first; only a permitted request consumes the
-    approval; the caller's ``send`` — the provider invocation — is the
-    only thing that reaches the wire, reached at all only after both
-    gates have permitted; and the exchange record lands in the event
-    log in the same unit of work, so the fact and its record cannot
-    come apart.
+    The budget's preflight runs first, because a ceiling that cannot be
+    measured fails closed and neither failure should cost the person
+    their approval; the material gate runs next, and only a permitted
+    request consumes the approval; the caller's ``send`` — the provider
+    invocation — is the only thing that reaches the wire, reached at all
+    only after both gates have permitted; and the exchange record lands
+    in the event log in the same unit of work, so the fact and its
+    record cannot come apart.
+
+    A call that was sent and did not answer raises the provider's own
+    error and **records nothing as success**: no exchange event is
+    written, the approval stays spent — the wire may have carried the
+    request — and the doubt is a person's to reconcile, not the path's
+    to paper over.
 
     :raises ApplicationRefusedError: the grant does not cover the
         material, the destination or the purpose (and the approval stays
         unspent), or the approval cannot be consumed.
+    :raises BudgetEnforcementUnavailableError: a set ceiling cannot be
+        measured against this call — an unpriced model under a cost
+        ceiling, a provider that reports no usage under a token one.
     """
+    if budget is not None:
+        preflight_check(budget, ledger if ledger is not None else LedgerSnapshot())
     check = transmit_request(
         context,
         approval_id,
