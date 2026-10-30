@@ -416,7 +416,13 @@ def write_fixture(fixture: Fixture, directory: Path) -> Path:
     differ in their bytes — and a fixture whose bytes move between runs
     makes every hash-based check meaningless, exactly as ADR-0009 records
     for extracted text. Every entry therefore carries a fixed timestamp,
-    and the entries are written in a fixed order.
+    and the entries are written in a fixed order. **The maker's system is
+    pinned as well**: ``zipfile`` writes ``create_system = 0`` on Windows
+    and ``3`` elsewhere unless it is told otherwise, so the default makes
+    the same archive hash differently on each platform — which the gold
+    manifest's ``sha256`` binding caught on its first runner run, after
+    the local machine had hidden it for as long as only Windows wrote the
+    corpus.
     """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{fixture.name}.docx"
@@ -434,6 +440,7 @@ def write_fixture(fixture: Fixture, directory: Path) -> Path:
         for name, content in parts:
             info = zipfile.ZipInfo(name, date_time=_FIXED_TIMESTAMP)
             info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
             info.external_attr = 0o600 << 16
             archive.writestr(info, content)
     return path

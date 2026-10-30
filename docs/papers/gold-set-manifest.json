@@ -5,28 +5,28 @@
       "project_id": "proj-gold-a",
       "version_id": "ver-gold-a1",
       "partition": "train",
-      "sha256": "a5b924ee6a12d2c82d29e822ca70d854f083998c8496cc843da73fb9575fad5b",
+      "sha256": "190fa4c185ce72b53ded71a61c73c5a7f49181dfd28a408ba425eab9073a1027",
       "generator": "tests/gold_set_fixtures.py:gold_fixtures"
     },
     "gold-a-v2": {
       "project_id": "proj-gold-a",
       "version_id": "ver-gold-a2",
       "partition": "train",
-      "sha256": "3dc22f6fbbf5839173c2c23419f174241c9cfc9f56a78b1a678ff9373eec1cdb",
+      "sha256": "1fe995c2313286c6210fb10e5dc806e0d571ff795b708abc41377591544a467d",
       "generator": "tests/gold_set_fixtures.py:gold_fixtures"
     },
     "gold-b-v1": {
       "project_id": "proj-gold-b",
       "version_id": "ver-gold-b1",
       "partition": "test",
-      "sha256": "464ab639c33d015493ce93a52ab9c1eb7d0753a98b2fb87ef62f15cb20b84ce9",
+      "sha256": "f29b4bb0a1fc14fefd74de2595fd3e51bc4cbc05159b2b8026c4748d3f525e45",
       "generator": "tests/gold_set_fixtures.py:gold_fixtures"
     },
     "gold-b-v2": {
       "project_id": "proj-gold-b",
       "version_id": "ver-gold-b2",
       "partition": "test",
-      "sha256": "67e9c552c9e98307bf237e9bac661a824a23d19b7d3b4f97fd1dace991d41089",
+      "sha256": "ce3639012f1226e1b9fb21e9c7f97df2905eb7e11199dc8ce61cc2e5ad57f11d",
       "generator": "tests/gold_set_fixtures.py:gold_fixtures"
     }
   },

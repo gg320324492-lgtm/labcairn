@@ -473,6 +473,27 @@ mutation-checked (M33–M34), and green inside the broken run itself; and
 are none** — the product under test did not change; only the records and
 the two witnesses did.
 
+**The first runner run over this work caught a defect the local machine
+could not see, and the record is glad of it.** `python-quality
+(ubuntu-latest, shard 1)` failed on
+`test_the_corpus_section_records_the_bytes_that_are_written`: the manifest
+recorded `a5b924ee…` for `gold-a-v1` and the bytes on the runner hashed to
+`190fa4c1…`. **The root cause is one field of the ZIP**: `write_fixture`
+pins each entry's timestamp and its permissions but never pinned
+`create_system`, whose default `zipfile` takes from the platform — `0` on
+Windows, `3` elsewhere — so **the same corpus hashed differently wherever
+it was made**. Forcing `create_system = 3` locally reproduces the runner's
+hash bit for bit, which is what makes the diagnosis a measurement and not
+a story. **The defect is older than this work order** — `write_fixture`
+never pinned the field in its life — and every other consumer is safe
+because they compare a corpus with itself on one machine; **the gold
+manifest's hash is the first binding that crosses platforms, so it was
+the first to fall.** The corpus tests were added to the branch after
+`5499ede`, the tree of the previous runner run, so this run was the
+binding's first. **The fix pins `create_system = 3`** and the manifest's
+four hashes are recomputed over the pinned bytes — on the machine that
+recorded them, and now on every machine that regenerates them.
+
 **The skips are the same five as ever**: a POSIX-only permission check, a
 real-provider smoke that needs the owner's authorisation, one Windows-drive
 check that is meaningless on POSIX, and two short-name checks this volume
