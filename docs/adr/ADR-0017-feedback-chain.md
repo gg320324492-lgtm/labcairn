@@ -167,6 +167,25 @@ moved away from it.
 names no manuscript state cannot be said to have been answered by any
 change, because there is no "before" to have been answered *against*.
 
+**And a candidate is not a comment.** A row read out of the file is
+`observed` and has a `comment_locator`, because the reader read it. **A
+model may not write that row** — and the reason is not politeness: a row
+carrying a locator nobody read **is** the advisor being claimed to have
+said something. **The three objects have different standing:**
+
+| | What it is | Who may create it | Grade |
+|---|---|---|---|
+| `feedback_events` | **a fact about a file** — a comment that is there | **only the reader** | `observed` |
+| `edit_actions` | **a fact about the manuscript's history** — a change that is there | **only the reader and the version graph** | `observed` |
+| `response_links` | **a judgement** — "this change answered that comment" | a rule, a person, **or a model** | `observed` / `human_verified` / **`inferred`** |
+
+**So what a model proposes is a judgement and never a fact.** A model's
+candidate is a `response_link` at grade `inferred`: it carries **no
+`comment_locator`**, because it read no comment of its own — it *points at*
+one. ADR-0018's role A works this way, and the mechanism is structural
+rather than a promise: **the row that holds a locator is the row the reader
+wrote.**
+
 ### D2 — The anchored text is carried, and it is hashed
 
 **The reader does not carry it today** — `CommentAnchor.text` is `""` on
@@ -222,6 +241,7 @@ to an `edit_action_id` and carries the judgement:
 | | |
 |---|---|
 | `state` | `pending | addressed | partially_addressed | not_addressed` |
+| `grade` | `observed | human_verified | inferred` — **whose judgement this is**, and a model's candidate is `inferred` |
 | `decided_by` | `rule | user | model` |
 | `decided_at` | when the judgement was made |
 | `evidence_refs` | **what decided it** — the evidence rows, the check log, or the person |
@@ -396,6 +416,7 @@ and not an afterthought.
 | C13 | The four chain events are annotations: they carry no transition and no `run_id`, and the event model refuses them if they do | to be written at LC-P2-09 |
 | C14 | The four chain events carry a registered payload schema naming the row they are about, and the anti-bag rule refuses an unregistered payload | to be written at LC-P2-09 |
 | C15 | A version and an edge can be **stored**, and a stored edge round-trips through the model's own checks | to be written at LC-P2-09 |
+| C16 | A model's candidate carries **no** `comment_locator`, and a row that claims the advisor's words without having read them is refused | to be written at LC-P2-09 |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that fails because of an unrelated encoding or lint

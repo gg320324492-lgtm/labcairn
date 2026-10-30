@@ -312,6 +312,7 @@ as what it is.
 | A14 | The four chain events are annotations and carry a registered payload schema | `test_the_chain_events_are_annotations_with_registered_payloads` |
 | A15 | A version and an edge can be stored, and a stored edge round-trips through the models' checks | `test_a_stored_edge_round_trips_through_the_models_own_checks` |
 | A16 | The demo is run by a test | `test_the_feedback_demo_runs` |
+| A17 | A model's candidate carries **no** `comment_locator`, and a row that claims the advisor's words without having read them is refused | `test_a_candidate_does_not_claim_the_advisors_words` |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that goes red because of an unrelated encoding or lint
@@ -371,7 +372,7 @@ the sequence at the time this work order is dispatched.
 
 1. A version and an edge can be **stored**, and a stored edge round-trips
    through the models' own checks.
-2. The sixteen acceptance clauses above have a named test each, **and the
+2. The seventeen acceptance clauses above have a named test each, **and the
    tests are named as the table names them**.
 3. The demonstration runs, and **a test runs it**.
 4. The whole suite is green, and `ruff check`, `ruff format --check` and
