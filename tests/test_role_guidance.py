@@ -412,6 +412,61 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
     assert card.claims[0].advisor_quote in guidance.event.comment_text
 
 
+def test_facts_and_style_are_recorded_separately(guidance: Guidance) -> None:
+    """A scientific fact and a stylistic note are different kinds of sentence.
+
+    **The separation is the type's, not a convention.** A fact is a
+    ``CardClaim`` with a warrant; a style note is a bare sentence in
+    ``style_notes``. And a style note cannot ride in as a claim — the
+    claim kinds are closed, and "style" is not one of them.
+    """
+    card = build_card(
+        guidance.context,
+        spec=guidance.spec,
+        target_locator="docx:word/document.xml#para=12",
+        issue_type="method_and_hypothesis",
+        severity="moderate",
+        reason="the comparison's baseline is nowhere in the paragraph.",
+        evidence_refs=("chain:" + guidance.key,),
+        suggested_next_action="name the baseline.",
+        uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+        claims=(
+            CardClaim(
+                text="The paragraph estimates the parameter from a single observation.",
+                kind="scientific",
+                evidence_ref="chain:" + guidance.key,
+            ),
+        ),
+        style_notes=("the paragraph is long; the claim could lead it.",),
+    )
+    assert all(isinstance(claim, CardClaim) for claim in card.claims)
+    assert {claim.kind for claim in card.claims} <= {"scientific", "reference", "advisor"}
+    assert card.style_notes == ("the paragraph is long; the claim could lead it.",)
+    assert all(isinstance(note, str) for note in card.style_notes)
+    refused = _refusal(
+        _capture(
+            lambda: build_card(
+                guidance.context,
+                spec=guidance.spec,
+                target_locator="docx:word/document.xml#para=12",
+                issue_type="method_and_hypothesis",
+                severity="moderate",
+                reason="a style note smuggled in as a claim.",
+                evidence_refs=("chain:" + guidance.key,),
+                suggested_next_action="name the baseline.",
+                uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+                claims=(
+                    CardClaim(
+                        text="the paragraph is long; the claim could lead it.",
+                        kind="style",
+                    ),
+                ),
+            )
+        )
+    )
+    assert refused is RoleRefusal.CLAIM_KIND_UNKNOWN
+
+
 def _capture(call: object) -> ApplicationRefusedError:
     """The refusal a call that must raise carries."""
     assert callable(call)

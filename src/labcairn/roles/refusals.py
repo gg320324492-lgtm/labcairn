@@ -102,3 +102,16 @@ class RoleRefusal(StrEnum):
     ABSTENTION_WITHOUT_A_MISSING = "abstention_without_a_missing"
     #: The memory holds no rule under the id a card tries to cite.
     RULE_NOT_IN_THE_MEMORY = "rule_not_in_the_memory"
+    # -- the critique's own reasons (LC-P2-12 T03) -------------------------- #
+    #: The verdict named is not one of the four the vocabulary closes.
+    VERDICT_UNKNOWN = "verdict_unknown"
+    #: The evidence a card names is in no form the review can check, and
+    #: the verdict offered would claim it was checked. **The honest
+    #: answer is cannot_assess, not a verdict that pretends.**
+    UNVERIFIABLE_EVIDENCE_ACCEPTED = "unverifiable_evidence_accepted"
+    #: A chain reference names a key the chain does not hold. **The
+    #: review does not take the card's word about its own evidence.**
+    EVIDENCE_NOT_IN_THE_CHAIN = "evidence_not_in_the_chain"
+    #: A verdict that refuses the card carries no reason for the
+    #: hand-over. A hand-over nobody can act on is not a hand-over.
+    HANDOVER_WITHOUT_A_REASON = "handover_without_a_reason"
