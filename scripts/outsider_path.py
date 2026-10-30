@@ -1088,7 +1088,12 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
     from labcairn.recovery.resume import STALE_REASON, MaterialResolver, ResumeCoordinator
     from labcairn.reports.receipt import ArtifactStaleness
     from labcairn.runtime.operation import ApprovalState
-    from labcairn.security.approval import ApprovalGrant, SourceBinding, make_approval
+    from labcairn.security.approval import (
+        ApprovalGrant,
+        ApprovalLedger,
+        SourceBinding,
+        make_approval,
+    )
     from labcairn.security.capabilities import CapabilityId
     from labcairn.security.policy import Permission, Rule
     from labcairn.sources.source import Source
@@ -1479,7 +1484,14 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         granted = approval.model_copy(
             update={"state": ApprovalState.GRANTED, "granted_at": created_at}
         )
-        layer.ledger.issue(
+        # **The walk's own ledger, in memory.** The product's surfaces spend
+        # from the store (LC-P2-02), and this walk is not a surface: it drives
+        # `run_analysis` directly and mints a grant the store never saw, which
+        # the store-backed ledger would refuse by design. The walk exercises
+        # the analysis path, and the durable-consent path is measured where it
+        # lives — `test_approval_crash_matrix.py`.
+        walk_ledger = ApprovalLedger()
+        walk_ledger.issue(
             ApprovalGrant(
                 approval=granted,
                 policy_digest=policy.digest(),
@@ -1497,7 +1509,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             store=store,
             workspace=workspace_binding,
             policy=policy,
-            ledger=layer.ledger,
+            ledger=walk_ledger,
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),
@@ -1829,7 +1841,8 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
         granted = approval.model_copy(
             update={"state": ApprovalState.GRANTED, "granted_at": RECORDS_MOMENT}
         )
-        layer.ledger.issue(
+        second_ledger = ApprovalLedger()
+        second_ledger.issue(
             ApprovalGrant(
                 approval=granted,
                 policy_digest=policy.digest(),
@@ -1847,7 +1860,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
             store=store,
             workspace=workspace_binding,
             policy=policy,
-            ledger=layer.ledger,
+            ledger=second_ledger,
             renderer=MatplotlibFigureRenderer(
                 recipe=recipe, recipe_ref=recipe_ref, workspace_root=workspace
             ),

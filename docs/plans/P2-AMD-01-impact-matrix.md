@@ -169,7 +169,9 @@ each one blocks:
 1. **Which suppliers and which data categories are permitted.** It blocks
    LC-P2-01's provider configuration and any real (non-`FakeProvider`) smoke.
 2. **The per-task budget and the total budget.** It blocks LC-P2-01's
-   budget policy and LC-P2-02's consumption semantics.
+   budget policy and LC-P2-02's consumption semantics. **Ruled 2026-10-30:
+   zero until a number is given** — a real call is refused, and the offline
+   path runs the scripted provider.
 3. **The authorisation for the pilot's first batch of material.** It blocks
    any real transmit and the pilot's corpus.
 4. **The scope of a multi-person deployment.** It blocks ADR-0015 D6's
@@ -182,11 +184,13 @@ each one blocks:
    recommendation is **no** — a candidate points at a comment, it does not
    claim to be one (§2.2). **If the answer is yes, ADR-0017 §D1 changes and
    the prohibition in the adjustment's role A becomes unenforceable.**
+   **Ruled 2026-10-30: no** — the answer the recommendation gave.
 6. **Does LC-P2-09's T00 (the version graph's writer) stay inside LC-P2-09,
    or become LC-P2-08's own ticket?** The recommendation is **inside
    LC-P2-09** — the owner has already ruled that way for this round — but
    the alternative is defensible, and it changes which acceptance record
-   carries the clause.
+   carries the clause. **Ruled and landed: inside LC-P2-09**, and PR #130
+   carries it.
 
 ## 6. What this matrix does not do
 

@@ -96,7 +96,7 @@ from labcairn.db.models import SourceRow, SourceTextRow
 from labcairn.db.repository import TaskStore
 from labcairn.reports.receipt import ArtifactReceipt
 from labcairn.security.approval import (
-    ApprovalLedger,
+    ApprovalAccounting,
     AuthorizationRefusedError,
     NoSuchApprovalError,
     content_hash,
@@ -455,7 +455,7 @@ def run_analysis(
     store: TaskStore,
     workspace: Workspace,
     policy: PermissionPolicy,
-    ledger: ApprovalLedger,
+    ledger: ApprovalAccounting,
     renderer: FigureRenderer,
     limits: RunLimits | None = None,
     now: datetime | None = None,
@@ -865,7 +865,7 @@ def _check_policy(policy: PermissionPolicy, workspace: Workspace, canonical: Can
 
 def _consume_approval(
     *,
-    ledger: ApprovalLedger,
+    ledger: ApprovalAccounting,
     policy: PermissionPolicy,
     workspace: Workspace,
     request: AnalysisRequest,

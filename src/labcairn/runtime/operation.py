@@ -156,6 +156,20 @@ def _reject_undigestible_args(args: dict[str, object]) -> None:
         raise TypeError(f"args are not JSON-serialisable: {exc}") from exc
 
 
+class BoundSource(LabCairnModel):
+    """One source file an approval was bound to, with the hash it had.
+
+    **Carried on the approval row, not passed to the spend.** ADR-0003 C4
+    says the approval covers the material as it was at the grant; a caller
+    that could hand the binding over at the moment of use could hand over
+    any binding at all. LC-P2-02 T00 puts the two facts on the row so the
+    store reads them rather than trusting an argument.
+    """
+
+    resource_key: str = Field(min_length=1, max_length=2000)
+    expected_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class Approval(LabCairnModel):
     """A human decision, recorded as a row rather than a transient UI flag.
 
@@ -173,6 +187,15 @@ class Approval(LabCairnModel):
     expires_at: datetime
     granted_at: datetime | None = None
     consumed_at: datetime | None = None
+    #: What the policy said at the moment of the grant. **None until granted.**
+    #: The spend compares this with the digest recomputed at the moment of
+    #: use, so a policy that changed between the two does not satisfy the old
+    #: approval (ADR-0003 C4; LC-P2-02 §2.2).
+    grant_policy_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    #: Which material the consent was bound to, and the hash each had then.
+    #: Empty is a fact — the grant covered no source file — rather than an
+    #: absence to be filled in later.
+    bound_sources: tuple[BoundSource, ...] = ()
 
     @model_validator(mode="after")
     def _timestamps_are_internally_consistent(self) -> Approval:

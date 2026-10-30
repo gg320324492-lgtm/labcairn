@@ -35,14 +35,20 @@ from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.core.ids import SourceId
-from labcairn.db.repository import TaskStore, last_seq, list_approvals, list_artifacts, load_task
+from labcairn.db.repository import (
+    StoredApprovalLedger,
+    TaskStore,
+    last_seq,
+    list_approvals,
+    list_artifacts,
+    load_task,
+)
 from labcairn.db.repository import list_runs as store_list_runs
 from labcairn.db.repository import list_stages as store_list_stages
 from labcairn.db.repository import list_tasks as store_list_tasks
 from labcairn.reports.receipt import ArtifactReceipt
 from labcairn.runtime.lifecycle import Run, Stage, Task, TaskGoal
 from labcairn.runtime.operation import Approval
-from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.policy import PermissionPolicy
 from labcairn.workspace.roots import Workspace, WorkspaceError
@@ -127,7 +133,7 @@ def create_task(
         workspace=workspace,
         store=store,
         policy=policy,
-        ledger=_unused_ledger(),
+        ledger=_unused_ledger(store),
     )
     area = context.task_area()
     consent.evaluate(
@@ -192,7 +198,7 @@ def list_tasks(context: ApplicationContext) -> tuple[Task, ...]:
         return store_list_tasks(context.store.session)
 
 
-def _unused_ledger() -> ApprovalLedger:
+def _unused_ledger(store: TaskStore) -> StoredApprovalLedger:
     """A ledger for an operation that cannot have an approval.
 
     Creating a task has nothing to be approved against — see the module
@@ -200,8 +206,13 @@ def _unused_ledger() -> ApprovalLedger:
     It is still part of the context because the context's shape is the same for
     every operation, and a context that changes shape is a context every
     caller has to know the type of.
+
+    **It is the store's ledger, not an in-memory one**, so every context the
+    product builds has the same shape: a context carrying an in-memory ledger
+    would be a second kind of context, and the surfaces could not tell which
+    one they were handed.
     """
-    return ApprovalLedger()
+    return StoredApprovalLedger(store.session)
 
 
 __all__ = [

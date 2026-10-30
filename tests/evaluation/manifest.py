@@ -186,6 +186,15 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_api.py": ("integration", "api-auth"),
     "test_api_concurrency.py": ("integration", "event-append"),
     "test_application_approvals.py": ("integration", "approvals"),
+    # LC-P2-02. The two facts the approval row now carries, and the spend
+    # that reads them there rather than trusting an argument. Integration,
+    # because the property is a row and a conditional UPDATE; the clause is
+    # the approval clause, which is the same one the file above carries.
+    "test_approval_binding.py": ("integration", "approvals"),
+    # LC-P2-02's crash matrix: a child interpreter grants (and spends) and
+    # dies, and the parent reads the row. Integration because the witness is
+    # two processes and one database file.
+    "test_approval_crash_matrix.py": ("integration", "approvals"),
     "test_application_evidence.py": ("integration", "dataset-locators"),
     "test_application_ingestion.py": ("integration", "dataset-locators"),
     "test_application_layer.py": ("integration", "approvals"),

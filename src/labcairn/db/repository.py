@@ -39,6 +39,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
@@ -87,10 +88,21 @@ from labcairn.runtime.lifecycle import Run, RunStatus, Stage, StageStatus, Task,
 from labcairn.runtime.operation import (
     Approval,
     ApprovalState,
+    BoundSource,
     Checkpoint,
     Operation,
     OperationState,
+    compute_args_digest,
 )
+from labcairn.security.approval import (
+    ApprovalGrant,
+    AuthorizationRefusedError,
+    NoSuchApprovalError,
+    SourceBinding,
+    assert_capability_registered,
+    sources_intact,
+)
+from labcairn.security.paths import CanonicalPath
 from labcairn.security.permissions import Grant
 from labcairn.sources.source import Source, SourceIdentifier, SourceKind, SourceReadability
 
@@ -610,6 +622,14 @@ def _upsert_approval(session: Session, approval: Approval) -> ApprovalRow:
             "expires_at": approval.expires_at,
             "granted_at": approval.granted_at,
             "consumed_at": approval.consumed_at,
+            "grant_policy_digest": approval.grant_policy_digest,
+            "bound_sources": [
+                {
+                    "resource_key": source.resource_key,
+                    "expected_hash": source.expected_hash,
+                }
+                for source in approval.bound_sources
+            ],
             "schema_version": approval.schema_version,
         },
     )
@@ -917,6 +937,10 @@ def list_approvals(session: Session, task_id: TaskId) -> tuple[Approval, ...]:
             expires_at=row.expires_at,
             granted_at=row.granted_at,
             consumed_at=row.consumed_at,
+            grant_policy_digest=row.grant_policy_digest,
+            bound_sources=tuple(
+                BoundSource.model_validate(item) for item in (row.bound_sources or [])
+            ),
         )
         for row in rows
     )
@@ -1639,9 +1663,170 @@ def _source_from_row(row: SourceRow) -> Source:
     )
 
 
+class StoredApprovalLedger:
+    """ADR-0003 C4's single-use accounting, kept in the row.
+
+    **Why this exists.** :class:`~labcairn.security.approval.ApprovalLedger`
+    is in memory, and its own docstring says it was the mechanism *for one
+    process*. A surface that builds a fresh one per command therefore forgets
+    every grant on restart, and the spend fails closed with
+    ``APPROVAL_MISSING`` — safe, and not what a consent is for: a person told
+    "approved" should not have to ask again because the process restarted.
+
+    **The row owns the state and the event stream owns the history**
+    (LC-P2-02 §2.3). This ledger reads the grant out of the row, so the two
+    facts ADR-0003 C4 needs — the policy's answer at the grant and the
+    sources it was bound to — are compared rather than trusted.
+
+    **And the spend is one conditional UPDATE.** Two processes racing one
+    approval produce exactly one match; the second finds no row in the
+    ``GRANTED`` state, and that is the double spend refused **from the row**
+    rather than from a dict that a restart emptied.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def issue(self, grant: ApprovalGrant) -> ApprovalGrant:
+        """Assert the state the row must already hold.
+
+        **The row is written by the operation that granted it**, so issuing
+        here stores no second copy: a cache that can be read when the row
+        says otherwise is a second source of truth, which is exactly what
+        this work order's acceptance refuses.
+        """
+        if grant.approval.state is not ApprovalState.GRANTED:
+            msg = f"cannot issue an approval in state {grant.approval.state.value}"
+            raise ValueError(msg)
+        return grant
+
+    def peek(self, approval_id: ApprovalId) -> ApprovalGrant | None:
+        """The grant as the row holds it, or ``None``."""
+        row = self._row(approval_id)
+        if row is None:
+            return None
+        return _grant_from_row(row)
+
+    def consume(
+        self,
+        approval_id: ApprovalId,
+        *,
+        now: datetime,
+        task_id: TaskId,
+        capability: str,
+        resource: CanonicalPath,
+        args: Mapping[str, object],
+        depends_on: tuple[str, ...],
+        current_policy_digest: str,
+        resolve_source: Callable[[str], Path],
+    ) -> ApprovalGrant:
+        """Validate the approval for one use and spend it, from the row.
+
+        Every condition is the model's own
+        (:meth:`~labcairn.runtime.operation.Approval.refusal_reason`); what
+        this method supplies is the three facts a row cannot compute — the
+        digest recomputed **as the arguments are right now**, the re-hashed
+        sources, and the policy digest compared with **the one recorded at
+        the grant**.
+
+        **A row granted before this revision has no recorded digest.** It is
+        refused rather than given an invented one: an approval whose policy
+        answer nobody wrote down is not one the store can say still holds.
+
+        :raises NoSuchApprovalError: the id is unknown, or it is already spent.
+        :raises AuthorizationRefusedError: named with ADR-0003 C4's own reason.
+        """
+        assert_capability_registered(capability)
+        row = self._row(approval_id)
+        if row is None or row.state == ApprovalState.CONSUMED.value:
+            raise NoSuchApprovalError(str(approval_id))
+        grant = _grant_from_row(row)
+
+        policy_unchanged = (
+            row.grant_policy_digest is not None and row.grant_policy_digest == current_policy_digest
+        )
+        intact, changed = sources_intact(grant.sources, resolve=resolve_source)
+        recomputed = compute_args_digest(
+            task_id=task_id,
+            capability=capability,
+            resource_key=resource.resolved_key,
+            args=dict(args),
+            depends_on=depends_on,
+        )
+        refusal = grant.approval.refusal_reason(
+            now=now,
+            task_id=task_id,
+            capability=capability,
+            resource_key=resource.resolved_key,
+            recomputed_digest=recomputed,
+            depends_on_intact=intact,
+            policy_unchanged=policy_unchanged,
+        )
+        if refusal is not None:
+            detail = f"changed sources: {list(changed)}" if changed else ""
+            raise AuthorizationRefusedError(refusal, detail=detail)
+
+        # **The row is the lock.** One conditional UPDATE, and the count of
+        # rows it matched is the answer: one means this caller spent the
+        # approval, anything else means somebody else did first.
+        result = self._session.execute(
+            update(ApprovalRow)
+            .where(ApprovalRow.approval_id == str(approval_id))
+            .where(ApprovalRow.state == ApprovalState.GRANTED.value)
+            .values(state=ApprovalState.CONSUMED.value, consumed_at=now)
+        )
+        if cast(CursorResult[Any], result).rowcount != 1:
+            self._session.rollback()
+            raise NoSuchApprovalError(str(approval_id))
+        self._session.commit()
+        consumed = grant.approval.model_copy(
+            update={"state": ApprovalState.CONSUMED, "consumed_at": now}
+        )
+        return ApprovalGrant(
+            approval=consumed,
+            policy_digest=grant.policy_digest,
+            sources=grant.sources,
+        )
+
+    def _row(self, approval_id: ApprovalId) -> ApprovalRow | None:
+        return self._session.execute(
+            select(ApprovalRow).where(ApprovalRow.approval_id == str(approval_id))
+        ).scalar_one_or_none()
+
+
+def _grant_from_row(row: ApprovalRow) -> ApprovalGrant:
+    """The row as the grant ADR-0003 C4 describes."""
+    approval = Approval(
+        approval_id=ApprovalId(UUID(row.approval_id)),
+        task_id=TaskId(UUID(row.task_id)),
+        operation_id=OperationId(UUID(row.operation_id)),
+        capability=row.capability,
+        resource_key=row.resource_key,
+        args_digest=row.args_digest,
+        state=ApprovalState(row.state),
+        expires_at=row.expires_at,
+        granted_at=row.granted_at,
+        consumed_at=row.consumed_at,
+        grant_policy_digest=row.grant_policy_digest,
+        bound_sources=tuple(BoundSource.model_validate(item) for item in (row.bound_sources or [])),
+    )
+    bindings = tuple(
+        SourceBinding(resource_key=item.resource_key, expected_hash=item.expected_hash)
+        for item in approval.bound_sources
+    )
+    # **An unrecorded digest is the empty string, and it matches nothing.**
+    # That is what makes a pre-revision row a refusal rather than a pass.
+    return ApprovalGrant(
+        approval=approval,
+        policy_digest=row.grant_policy_digest or "",
+        sources=bindings,
+    )
+
+
 __all__ = [
     "Clock",
     "StoreError",
+    "StoredApprovalLedger",
     "TaskStore",
     "UnitOfWork",
     "UnknownTaskError",

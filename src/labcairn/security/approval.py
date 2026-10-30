@@ -53,7 +53,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from labcairn.core.ids import ApprovalId, OperationId, TaskId
 from labcairn.runtime.operation import (
@@ -220,6 +220,36 @@ def assert_capability_registered(capability: str) -> None:
                 "an id the registry does not hold."
             ),
         )
+
+
+class ApprovalAccounting(Protocol):
+    """What a context's ledger has to be: issue, peek, and spend.
+
+    **A protocol rather than the concrete class**, because LC-P2-02 moved the
+    accounting into the row: the in-memory :class:`ApprovalLedger` and the
+    store's ``StoredApprovalLedger`` are two implementations of one rule, and
+    the context carries whichever one the surface built. A context typed to
+    the concrete class would have made the store's ledger a different kind of
+    context, which is the one thing the surfaces cannot tell apart.
+    """
+
+    def issue(self, grant: ApprovalGrant) -> ApprovalGrant: ...
+
+    def peek(self, approval_id: ApprovalId) -> ApprovalGrant | None: ...
+
+    def consume(
+        self,
+        approval_id: ApprovalId,
+        *,
+        now: datetime,
+        task_id: TaskId,
+        capability: str,
+        resource: CanonicalPath,
+        args: Mapping[str, object],
+        depends_on: tuple[str, ...],
+        current_policy_digest: str,
+        resolve_source: Callable[[str], Path],
+    ) -> ApprovalGrant: ...
 
 
 class ApprovalLedger:
