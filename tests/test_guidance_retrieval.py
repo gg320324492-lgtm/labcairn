@@ -38,7 +38,15 @@ from test_store_support import env as _shared_env
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
-from labcairn.db.models import EditActionRow, ResponseLinkRow
+from labcairn.db.models import (
+    EditActionRow,
+    FeedbackEventRow,
+    GuidanceRuleRow,
+    PaperVersionRow,
+    ResponseLinkRow,
+    VersionEdgeRow,
+)
+from labcairn.guidance.distil import distil_candidate
 from labcairn.guidance.retrieval import RuleHit, invalidated_rules, search_rules
 from labcairn.guidance.rules import (
     GuidanceRule,
@@ -67,6 +75,8 @@ BASELINE = (
     "When the claim rests on a comparison, the advisor asks for the baseline"
     " to be named in the same paragraph."
 )
+CAPTION = "When a figure carries the claim, the advisor asks for the numbers in the caption."
+
 EFFECT = (
     "When the claim rests on an effect size, the advisor asks for the"
     " interval to be shown beside it."
@@ -190,7 +200,7 @@ def memory(env: StoreEnv, tmp_path: Path) -> Memory:
     return Memory(context=chain.context, chain=chain, events=tuple(keyed))
 
 
-def test_a_rule_is_served_only_while_its_source_stands(memory: Memory) -> None:
+def test_a_withdrawn_source_invalidates_its_rule_and_says_so(memory: Memory) -> None:
     """T02: the chain's judgement, read at query time, decides the serving.
 
     **And a re-judgement brings the rule back** — the memory was never
@@ -257,7 +267,7 @@ def test_a_source_that_names_no_material_does_not_stand(memory: Memory) -> None:
     assert gone[0].reasons[0].found is False
 
 
-def test_a_rule_whose_source_the_reader_cannot_reach_is_not_served(memory: Memory) -> None:
+def test_a_rule_outside_the_readers_consent_is_not_retrieved(memory: Memory) -> None:
     """T02: the permission layer decides which sources stand, per reader.
 
     **The same memory answers differently to two readers**, because the
@@ -302,7 +312,9 @@ def test_a_rule_with_one_dead_source_is_not_invalidated(memory: Memory) -> None:
     assert invalidated_rules(memory.context) == ()
 
 
-def test_two_rules_that_disagree_are_both_served(memory: Memory) -> None:
+def test_two_conflicting_rules_are_both_returned_and_neither_wins_by_recency(
+    memory: Memory,
+) -> None:
     """T03: the retrieval does not resolve conflicts, and never by recency.
 
     **Two confirmed rules over the same problem both come back**, and the
@@ -318,6 +330,7 @@ def test_two_rules_that_disagree_are_both_served(memory: Memory) -> None:
     assert {hit.rule.statement for hit in served} == {BASELINE, EFFECT}
     assert len(served) == 2
     assert [hit.rule.rule_id for hit in served] == sorted(hit.rule.rule_id for hit in served)
+    assert all(hit.sources for hit in served), "each rule comes back with its sources"
 
 
 def test_a_candidate_is_not_served_unless_asked(memory: Memory) -> None:
@@ -409,7 +422,7 @@ def test_the_query_filters_and_the_vocabulary_gates_it(memory: Memory) -> None:
     assert raised.value.reason.value == "guidance_problem_outside_vocabulary"
 
 
-def test_the_counterexample_travels_with_the_hit(memory: Memory) -> None:
+def test_a_counterexample_comes_back_with_the_rule(memory: Memory) -> None:
     """T03: the case against the rule is inside the hit, not beside it.
 
     **The caller cannot drop the cases** — they are fields of the rule
@@ -454,3 +467,114 @@ def test_the_ceiling_cuts_after_the_ordering(memory: Memory) -> None:
     assert len(served) == 2
     whole = search_rules(memory.context)
     assert served == whole[:2]
+
+
+def test_every_rule_reaches_a_real_comment_and_a_real_difference(memory: Memory) -> None:
+    """A1: a served rule's sources resolve to words somebody wrote, and a change.
+
+    **The trace is walked to the end, not to the first table**: the key
+    finds the comment (with its words), the comment finds the edit made
+    in answer, and the edit finds the version pair it moved — which is a
+    *difference*, two versions, not one row pointing at itself.
+    """
+    _confirm(memory.context, sources=(KEY_ONE, KEY_TWO))
+    session = memory.context.store.session
+    for hit in search_rules(memory.context):
+        for source in hit.sources:
+            events = session.query(FeedbackEventRow).filter_by(issue_key=source.issue_key).all()
+            assert events, f"the chain holds no comment under {source.issue_key!r}"
+            for event in events:
+                assert event.comment_text.strip(), "the comment has no words in it"
+                edits = session.query(EditActionRow).filter_by(feedback_id=event.feedback_id).all()
+                assert edits, "no change was made in answer to the comment"
+                for edit in edits:
+                    edge = session.get(VersionEdgeRow, edit.version_edge_id)
+                    assert edge is not None, "the edit names no version pair"
+                    parent = session.get(PaperVersionRow, edge.parent_version_id)
+                    child = session.get(PaperVersionRow, edge.child_version_id)
+                    assert parent is not None and child is not None, (
+                        "the edge names versions the store does not hold"
+                    )
+                    assert parent.version_id != child.version_id, "the pair is no difference at all"
+
+
+def test_the_retrieval_returns_the_rule_with_its_source_and_its_conditions(
+    memory: Memory,
+) -> None:
+    """A10: the hit carries the anchor and the conditions, never a bare sentence.
+
+    **An empty condition would make the statement bare** — a rule whose
+    scope or example is missing cannot be checked against a paper it is
+    applied to, so the retrieval's answer carries all of them, filled.
+    """
+    _confirm(memory.context)
+    hit = search_rules(memory.context)[0]
+    assert hit.sources and hit.sources[0].issue_key == KEY_ONE
+    assert hit.rule.rule_id
+    for condition in (hit.rule.statement, hit.rule.context, hit.rule.scope, hit.rule.example):
+        assert condition.strip(), "an empty condition is a bare sentence with a title"
+    assert hit.rule.counterexamples == ()
+
+
+def test_the_memory_reads_through_the_consent_layer(
+    memory: Memory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A11: every read asks the permission layer, and nothing bypasses it.
+
+    **The spy is the witness of "every"**: the memory's two read paths —
+    the search and the invalidation report — both go through
+    ``evaluate_each``, the same function a bulk listing goes through.
+    The mutation that discards the policy's answer reddens
+    ``test_a_rule_outside_the_readers_consent_is_not_retrieved``, which
+    is what keeps this spy from watching an unused call.
+    """
+    from labcairn.guidance import retrieval as retrieval_module
+
+    _confirm(memory.context)
+    asked: list[str] = []
+    real = retrieval_module.consent.evaluate_each
+
+    def spy(context: object, **kwargs: object):
+        asked.append(kwargs["capability"].value)
+        return real(context, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(retrieval_module.consent, "evaluate_each", spy)
+    assert search_rules(memory.context), "the served rules exercise the read path"
+    assert asked, "the memory answered without asking the permission layer"
+    assert asked.count(CapabilityId.SOURCE_READ.value) == len(asked)
+
+    asked.clear()
+    _rejudge(memory, "resp-r1", "not_addressed")
+    assert invalidated_rules(memory.context)
+    assert asked, "the invalidation report read the material without asking either"
+
+
+def test_a_new_comment_changes_the_retrieval_without_anything_trained(
+    memory: Memory,
+) -> None:
+    """A12: the case library grows, the retrieval finds it, nothing is trained.
+
+    **There is no trainer to assert the absence of** — this product has
+    no weights, so the mechanical witness is where the change lives: in
+    the memory's rows, one distilled and confirmed, and nowhere else.
+    The retrieval's answer changes because a row was added, and the
+    difference between the two queries is exactly that row.
+    """
+    _confirm(memory.context, statement=BASELINE)
+    before = search_rules(memory.context)
+    assert [hit.rule.statement for hit in before] == [BASELINE]
+
+    distilled = distil_candidate(
+        memory.context,
+        issue_type="figures",
+        statement=CAPTION,
+        rule_context="A figure that carries the claim.",
+        issue_keys=(KEY_TWO,),
+        now=LATER,
+    )
+    confirm_rule(memory.context, rule_id=distilled.rule_id, confirmed_by="the-advisor", now=LATER)
+
+    served = search_rules(memory.context)
+    assert {hit.rule.statement for hit in served} == {BASELINE, CAPTION}
+    rows = memory.context.store.session.query(GuidanceRuleRow).count()
+    assert rows == 2, "the change the retrieval found is the row the memory gained"

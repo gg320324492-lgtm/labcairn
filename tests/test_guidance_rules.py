@@ -5,31 +5,31 @@ sources and its counterexamples, and the lifecycle API that proposes,
 confirms, disputes, withdraws and supersedes.
 
 ======================================================  =========================
-A1   a rule is a row                                     every field the work
+     a rule is a row                                     every field the work
                                                           order lists, plus its
                                                           sources and its cases
-A2   the problem is from the vocabulary                  a label outside the
+     the problem is from the vocabulary                  a label outside the
                                                           thirteen is refused
-A3   a rule without a source is not a rule               the API refuses it, and
+     a rule without a source is not a rule               the API refuses it, and
                                                           the schema would too
-A4   the work order's "must not" row                     an empty field is
+     the work order's "must not" row                     an empty field is
                                                           refused by API and by
                                                           schema
-A5   the state machine is closed                         an illegal state is
+     the state machine is closed                         an illegal state is
                                                           refused by the database
-A6   a confirmed rule names its confirmer                the database refuses a
+     a confirmed rule names its confirmer                the database refuses a
                                                           confirmation without a
                                                           name
-A7   **the confirmer is a second reader**                the proposer confirming
+     **the confirmer is a second reader**                the proposer confirming
                                                           their own rule is
                                                           refused, and a second
                                                           reader's confirmation
                                                           lands
-A8   a dispute and a retraction carry their reason       a shrug is refused
-A9   a new statement is a new row                        the old version keeps
+     a dispute and a retraction carry their reason       a shrug is refused
+     a new statement is a new row                        the old version keeps
                                                           its state; the new one
                                                           is a candidate again
-A10  a counterexample travels with the rule              served in the same read,
+      a counterexample travels with the rule              served in the same read,
                                                           or refused when empty
 ======================================================  =========================
 
@@ -138,38 +138,57 @@ def _refusal(call: object) -> GuidanceRefusal:
     return GuidanceRefusal(call.reason.value.removeprefix("guidance_"))
 
 
-def test_a_rule_is_a_row_that_carries_every_field(memory: ApplicationContext) -> None:
-    """A1: a rule is a row carrying every field, its sources and its cases.
+def test_a_rule_carries_a_problem_a_context_a_scope_a_counterexample_and_a_version(
+    memory: ApplicationContext,
+) -> None:
+    """The work order's own row: every field the memory holds, filled.
 
     **The cases are an empty tuple, not a null.** A rule proposed before
     anybody challenged it has no counterexamples, and the read still
     carries the collection — an empty tuple says the memory holds none,
-    not that it did not look.
+    not that it did not look. **And a recorded case travels from the
+    next read on**: the row is the unit the cases bind to.
     """
     rule = _propose(memory, sources=("iss-gold-a-r1", "iss-gold-a-r2"))
     read_back = read_rule(memory, rule_id=rule.rule_id)
     assert read_back.state == "candidate"
     assert read_back.version == 1
-    assert read_back.issue_type == "method_and_hypothesis"
+    for field in (
+        read_back.issue_type,
+        read_back.statement,
+        read_back.context,
+        read_back.scope,
+        read_back.example,
+    ):
+        assert field.strip(), "a rule with an empty field is the work order's must-not row"
     assert read_back.proposed_by == "distil-run-7"
     assert read_back.confirmed_by is None
     assert read_back.confirmed_at is None
     assert read_back.resolution_reason is None
     assert read_back.sources == ("iss-gold-a-r1", "iss-gold-a-r2")
     assert read_back.counterexamples == ()
+    challenged = record_counterexample(
+        memory,
+        rule_id=rule.rule_id,
+        statement="The ablation paragraph of 2026-03-09 named its baseline.",
+        recorded_by="reader-2",
+        now=LATER,
+    )
+    assert len(challenged.counterexamples) == 1
+    assert read_rule(memory, rule_id=rule.rule_id).version == 1
 
 
 def test_a_problem_outside_the_vocabulary_is_refused(
     memory: ApplicationContext,
 ) -> None:
-    """A2: a label outside the thirteen is refused, at the boundary with a name."""
+    """a label outside the thirteen is refused, at the boundary with a name."""
     with pytest.raises(ApplicationRefusedError) as raised:
         _propose(memory, issue_type="advisor_preference")
     assert _refusal(raised.value) is GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY, raised.value
 
 
 def test_a_rule_without_a_source_is_refused(memory: ApplicationContext) -> None:
-    """A3: a rule that names no chain material is not stored.
+    """a rule that names no chain material is not stored.
 
     **The database cannot count a rule's sources** — a cross-table CHECK
     is not SQLite's to give — so this is the API's refusal, and the
@@ -182,7 +201,7 @@ def test_a_rule_without_a_source_is_refused(memory: ApplicationContext) -> None:
 
 
 def test_an_empty_field_is_refused(memory: ApplicationContext) -> None:
-    """A4: the work order's "must not" row — a rule with nothing in it."""
+    """the work order's "must not" row — a rule with nothing in it."""
     with pytest.raises(ApplicationRefusedError) as raised:
         _propose(memory, statement="   ")
     assert _refusal(raised.value) is GuidanceRefusal.RULE_FIELD_EMPTY, raised.value
@@ -208,7 +227,7 @@ def _raw_insert(session: Session, **overrides: object) -> None:
 
 
 def test_the_schema_refuses_what_the_api_refuses(env: StoreEnv) -> None:
-    """A4-A6 at the schema: the rows the database itself must refuse.
+    """At the schema: the rows the database itself must refuse.
 
     **Each refusal is witnessed by the database refusing, not by reading
     the constraint** — the lesson of revision 0007 is that a constraint
@@ -244,7 +263,7 @@ def test_the_schema_refuses_what_the_api_refuses(env: StoreEnv) -> None:
 def test_the_proposer_cannot_confirm_their_own_rule(
     memory: ApplicationContext,
 ) -> None:
-    """A7: the second-reader rule, as the owner wrote it on 2026-10-31.
+    """the second-reader rule, as the owner wrote it on 2026-10-31.
 
     **One person reading twice is one person reading once with extra
     steps.** The rule was written for the gold set's readings; a rule's
@@ -258,7 +277,7 @@ def test_the_proposer_cannot_confirm_their_own_rule(
 
 
 def test_a_second_reader_confirms_the_rule(memory: ApplicationContext) -> None:
-    """A7, the other way: a different person's confirmation lands."""
+    """The other way round: a different person's confirmation lands."""
     rule = _propose(memory, proposed_by="distil-run-7")
     confirmed = confirm_rule(memory, rule_id=rule.rule_id, confirmed_by="the-advisor", now=LATER)
     assert confirmed.state == "confirmed"
@@ -278,7 +297,7 @@ def test_confirming_twice_is_refused(memory: ApplicationContext) -> None:
 def test_a_dispute_and_a_retraction_carry_their_reason(
     memory: ApplicationContext,
 ) -> None:
-    """A8: a shrug is refused, in both of the resolution's forms."""
+    """a shrug is refused, in both of the resolution's forms."""
     disputed = _propose(memory)
     with pytest.raises(ApplicationRefusedError) as raised:
         dispute_rule(
@@ -316,7 +335,7 @@ def test_a_dispute_and_a_retraction_carry_their_reason(
 
 
 def test_a_new_statement_is_a_new_row(memory: ApplicationContext) -> None:
-    """A9: the memory does not edit its past.
+    """the memory does not edit its past.
 
     **The old version keeps the state it had, and the new version is a
     candidate that needs a second reader like any other** — a rewording
@@ -350,7 +369,7 @@ def test_a_new_statement_is_a_new_row(memory: ApplicationContext) -> None:
 
 
 def test_a_counterexample_travels_with_the_rule(memory: ApplicationContext) -> None:
-    """A10: the case against the rule comes back in the same read.
+    """the case against the rule comes back in the same read.
 
     **And an empty case challenges nothing** — the refusal is named, not
     silent.
