@@ -43,6 +43,7 @@ from labcairn.papers.chain import (
     project_row,
     project_version_rows,
 )
+from labcairn.runtime.trajectory import emit_followup_assessed
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath
 
@@ -259,7 +260,17 @@ def record_assessment(
         created_at=now,
     )
     session.add(row)
-    session.commit()
+    # **The row and the event land together**: an assessment the stream
+    # cannot show is a conclusion the report's hash chain does not cover.
+    with context.store.unit(context.task_id) as work:
+        emit_followup_assessed(
+            work,
+            assessment_id=assessment_id,
+            project_id=project_id,
+            verdict=outcome,
+            feedback_id=feedback_id,
+            issue_key=issue_key,
+        )
     return _assessment_from_row(row)
 
 

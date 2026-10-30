@@ -455,7 +455,7 @@ and not an afterthought.
 | C12 | An assessment carries its own evidence, and one that says the advisor was right **because the change was accepted** is refused | `test_an_assessment_cannot_derive_correctness_from_acceptance` (`test_followup_assessments.py`) |
 | C13 | The four chain events are annotations: they carry no transition and no `run_id`, and the event model refuses them if they do | `test_the_chain_events_are_annotations_with_registered_payloads` (`test_feedback_event_stream.py`) |
 | C14 | The four chain events carry a registered payload schema naming the row they are about, and the anti-bag rule refuses an unregistered payload | `test_the_chain_events_are_annotations_with_registered_payloads` and `test_the_anti_bag_rule_refuses_a_payload_for_a_type_with_no_schema` (`test_feedback_event_stream.py`) |
-| C15 | A version and an edge can be **stored**, and a stored edge round-trips through the model's own checks | `test_a_version_is_stored_and_read_back_as_the_model` and `test_an_edge_is_stored_and_read_back_as_the_model` (`test_version_store.py`) |
+| C15 | A version and an edge can be **stored**, and a stored edge round-trips through the model's own checks | `test_a_version_is_stored_and_read_back_as_the_model` and `test_a_stored_edge_round_trips_through_the_models_own_checks` (`test_version_store.py`) |
 | C16 | A model's candidate carries **no** `comment_locator`, and a row that claims the advisor's words without having read them is refused | `test_a_candidate_does_not_claim_the_advisors_words` (`test_feedback_events.py`) |
 
 **Every one of these needs a witness, and the witness must fail for the

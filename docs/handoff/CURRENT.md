@@ -1,6 +1,31 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-10-29 · **Current `main`:** `6db48ef` — the merge of PR #124, and
+**Date:** 2026-10-30 · **`main`:** `503b5fe` — the merge of PR #129 (LC-P2-06's
+independent review and its seven findings) · **This work is on**
+`claude/p2-lc-p2-09`, branched from that merge.
+
+**LC-P2-09 is implemented and measured, and not independently reviewed.**
+The feedback chain's four tables (`0013_feedback_chain.py`), the version
+graph's missing writer (`0012_version_edge_rejections.py`), the reader
+carrying the text a comment covers, and the four annotation events are in
+the branch; the acceptance record is
+[`acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md).
+
+**Two things about this round are worth knowing before reading it.**
+
+- **The chain's events existed and nothing emitted them** — `T05` landed the
+  payload models and the four `emit_*` functions, and no operation called
+  one. The four `record_*` operations now write the row and the event in
+  one unit of work, and `examples/feedback_demo.py` reads the stream back.
+- **Two branches claimed migration `0012`.** The version graph's rejection
+  table kept the number; the chain's four tables became `0013`.
+
+**What this round does not do:** the mutation pass covers six of seventeen
+clauses; the review is not independent; the shard costs are apportioned
+rather than measured; and the chain is not rendered (ADR-0017's first
+re-evaluation trigger). Those are stated in the acceptance record, §6.
+
+**Date:** 2026-10-29 · **Previous `main`:** `6db48ef` — the merge of PR #124, and
 the last of the Phase 1 closeout merges. **What landed since `ff9afc5`:** PR #119
 (a claim recorded by the product's own operation, the reconciled event readable by
 a process that never imported the writer, and **the paid probe made runnable** —

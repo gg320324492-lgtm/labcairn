@@ -34,6 +34,7 @@ from labcairn.papers.chain import (
     feedback_row,
     material_relative_path,
 )
+from labcairn.runtime.trajectory import emit_edit_action_recorded
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath
 
@@ -184,7 +185,17 @@ def record_edit(
         created_at=now,
     )
     session.add(row)
-    session.commit()
+    # **The row and the event land together**: an edit the stream cannot
+    # show is a change the report's hash chain does not cover.
+    with context.store.unit(context.task_id) as work:
+        emit_edit_action_recorded(
+            work,
+            edit_action_id=edit_action_id,
+            project_id=edge.project_id,
+            version_edge_id=version_edge_id,
+            actor_kind=actor_kind,
+            feedback_id=feedback_id,
+        )
     return _action_from_row(row)
 
 

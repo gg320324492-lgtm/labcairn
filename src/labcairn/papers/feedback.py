@@ -49,6 +49,7 @@ from labcairn.papers.chain import (
     project_version_rows,
     version_row,
 )
+from labcairn.runtime.trajectory import emit_feedback_recorded
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath
 from labcairn.sources.locators import DocxLocator
@@ -302,6 +303,7 @@ def record_feedback(
     document = read_document(data)
 
     recorded: list[FeedbackEvent] = []
+    new_rows: list[FeedbackEventRow] = []
     for event in document.comments:
         anchor = event.anchor
         row_id = _feedback_id(version_id, event.comment_id)
@@ -344,8 +346,22 @@ def record_feedback(
             created_at=now,
         )
         session.add(row)
+        new_rows.append(row)
         recorded.append(event_from_row(row))
-    session.commit()
+    if new_rows:
+        # **The row and the event land together.** The chain is replayable
+        # from the stream, and a row written without its event would be a
+        # link the stream cannot show. The unit is one transaction: if the
+        # event cannot be written, the rows are rolled back rather than
+        # left as records nobody can replay.
+        with context.store.unit(context.task_id) as work:
+            for row in new_rows:
+                emit_feedback_recorded(
+                    work,
+                    feedback_id=row.feedback_id,
+                    project_id=row.project_id,
+                    version_id=row.version_id,
+                )
     return tuple(recorded)
 
 

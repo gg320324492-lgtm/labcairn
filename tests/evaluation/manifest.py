@@ -285,6 +285,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # append clause: the witnesses write through the unit of work and read
     # back through the store's event reader.
     "test_feedback_event_stream.py": ("integration", "event-append"),
+    # LC-P2-09's exit demonstration: the chain run end to end, and the
+    # witness that its exit code still carries its claims. It is integration
+    # because it writes a real database and a real workspace, and its clause
+    # is the event append because the last thing it checks is that the four
+    # annotation events are in the stream in the order they were written.
+    "test_feedback_demo.py": ("integration", "event-append"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),

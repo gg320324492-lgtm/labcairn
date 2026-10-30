@@ -1,8 +1,9 @@
 # LC-P2-09 — The feedback chain: from a comment to what decided it — task breakdown
 
 **Work order:** LC-P2-09 (feedback, response and follow-up) · **ADR:**
-[`ADR-0017`](../adr/ADR-0017-feedback-chain.md) · **Status:** drafted
-2026-10-30, **not yet dispatched**.
+[`ADR-0017`](../adr/ADR-0017-feedback-chain.md) · **Status:** implemented
+2026-10-30 (T00–T07); the acceptance record is
+[`LC-P2-09-acceptance`](../acceptance/LC-P2-09-acceptance.md).
 
 ## 0. How to read this document
 

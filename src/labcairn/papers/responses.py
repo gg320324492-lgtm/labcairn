@@ -50,6 +50,7 @@ from labcairn.papers.chain import (
     project_version_rows,
 )
 from labcairn.papers.feedback import FeedbackEvent, event_from_row
+from labcairn.runtime.trajectory import emit_response_recorded
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath
 
@@ -260,7 +261,22 @@ def record_response(
         created_at=now,
     )
     session.add(row)
-    session.commit()
+    if state == "pending":
+        # **A pending response is not an event.** "No response row" is how
+        # "unanswered" is represented, and an event saying a judgement was
+        # made would say the opposite of what a pending row means. So the
+        # row commits and the stream is left alone.
+        session.commit()
+    else:
+        with context.store.unit(context.task_id) as work:
+            emit_response_recorded(
+                work,
+                response_link_id=response_link_id,
+                project_id=feedback.project_id,
+                feedback_id=feedback_id,
+                edit_action_id=edit_action_id,
+                state=state,
+            )
     return _link_from_row(row)
 
 
