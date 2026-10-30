@@ -1,7 +1,7 @@
 # ADR-0017: The feedback chain — a comment, the change it prompted, and what decided it
 
-**Status:** Proposed
-**Work order:** LC-P2-09 (proposed; not yet dispatched).
+**Status:** Accepted — implemented by LC-P2-09 (T00–T07), 2026-10-30.
+**Work order:** LC-P2-09.
 **Date:** 2026-10-30
 
 ## Context and concrete problem
@@ -441,22 +441,22 @@ and not an afterthought.
 
 | # | Contract | Witness |
 |---|---|---|
-| C1 | A comment becomes a feedback row carrying **both** addresses: its own locator in the comments part and its body-side anchor | to be written at LC-P2-09 |
-| C2 | The feedback row carries the text its anchor names and that text's hash, and the offsets and the text agree **in the version the feedback names** | to be written at LC-P2-09 |
-| C3 | A comment with no author has an unknown author, and one with no date has an unknown date — never a guessed one | to be written at LC-P2-09 |
-| C4 | A feedback row names the manuscript version it was written against, and a row that names none is refused | to be written at LC-P2-09 |
-| C5 | An edit row names who made it, and a row whose actor is `model` is not the row the advisor's change made | to be written at LC-P2-09 |
-| C6 | A response's state cannot be reached without a decision and the evidence behind it | to be written at LC-P2-09 |
-| C7 | A comment with no response is **listed as unaddressed**, and is not absent from the listing | to be written at LC-P2-09 |
-| C8 | A change that does not address the comment is recorded as `not_addressed` and **exists** | to be written at LC-P2-09 |
-| C9 | A partly-addressing change is `partially_addressed` and not `addressed` | to be written at LC-P2-09 |
-| C10 | A comment with no `issue_key` is uncategorised, and no key is inferred from the text | to be written at LC-P2-09 |
-| C11 | Two comments with the same `issue_key` in different versions are visible as one recurring issue | to be written at LC-P2-09 |
-| C12 | An assessment carries its own evidence, and one that says the advisor was right **because the change was accepted** is refused | to be written at LC-P2-09 |
-| C13 | The four chain events are annotations: they carry no transition and no `run_id`, and the event model refuses them if they do | to be written at LC-P2-09 |
-| C14 | The four chain events carry a registered payload schema naming the row they are about, and the anti-bag rule refuses an unregistered payload | to be written at LC-P2-09 |
-| C15 | A version and an edge can be **stored**, and a stored edge round-trips through the model's own checks | to be written at LC-P2-09 |
-| C16 | A model's candidate carries **no** `comment_locator`, and a row that claims the advisor's words without having read them is refused | to be written at LC-P2-09 |
+| C1 | A comment becomes a feedback row carrying **both** addresses: its own locator in the comments part and its body-side anchor | `test_a_feedback_row_carries_both_addresses` (`test_feedback_events.py`) |
+| C2 | The feedback row carries the text its anchor names and that text's hash, and the offsets and the text agree **in the version the feedback names** | `test_the_anchored_text_agrees_with_the_offsets_in_the_version_named` and `test_the_reader_carries_the_text_a_comments_anchor_covers` (`test_feedback_events.py`) |
+| C3 | A comment with no author has an unknown author, and one with no date has an unknown date — never a guessed one | `test_a_missing_author_or_date_is_unknown_and_never_guessed` (`test_feedback_events.py`) |
+| C4 | A feedback row names the manuscript version it was written against, and a row that names none is refused | `test_a_feedback_row_names_its_version_and_one_that_names_none_is_refused` (`test_feedback_events.py`) |
+| C5 | An edit row names who made it, and a row whose actor is `model` is not the row the advisor's change made | `test_an_edit_names_who_made_it` and `test_a_model_may_not_carry_a_persons_id` (`test_edit_actions.py`) |
+| C6 | A response's state cannot be reached without a decision and the evidence behind it | `test_a_response_state_needs_a_decision_and_its_evidence` (`test_response_links.py`) |
+| C7 | A comment with no response is **listed as unaddressed**, and is not absent from the listing | `test_an_unanswered_comment_is_listed_as_unaddressed` (`test_response_links.py`) |
+| C8 | A change that does not address the comment is recorded as `not_addressed` and **exists** | `test_a_change_that_does_not_answer_is_recorded_as_not_addressed` (`test_response_links.py`) |
+| C9 | A partly-addressing change is `partially_addressed` and not `addressed` | `test_a_partial_answer_is_not_an_answer` (`test_response_links.py`) |
+| C10 | A comment with no `issue_key` is uncategorised, and no key is inferred from the text | `test_no_issue_key_is_inferred_from_the_text` and `test_a_key_is_never_inferred_by_the_operation` (`test_followup_assessments.py`) |
+| C11 | Two comments with the same `issue_key` in different versions are visible as one recurring issue | `test_the_same_issue_recurring_is_visible_as_one_issue` (`test_followup_assessments.py`) |
+| C12 | An assessment carries its own evidence, and one that says the advisor was right **because the change was accepted** is refused | `test_an_assessment_cannot_derive_correctness_from_acceptance` (`test_followup_assessments.py`) |
+| C13 | The four chain events are annotations: they carry no transition and no `run_id`, and the event model refuses them if they do | `test_the_chain_events_are_annotations_with_registered_payloads` (`test_feedback_event_stream.py`) |
+| C14 | The four chain events carry a registered payload schema naming the row they are about, and the anti-bag rule refuses an unregistered payload | `test_the_chain_events_are_annotations_with_registered_payloads` and `test_the_anti_bag_rule_refuses_a_payload_for_a_type_with_no_schema` (`test_feedback_event_stream.py`) |
+| C15 | A version and an edge can be **stored**, and a stored edge round-trips through the model's own checks | `test_a_version_is_stored_and_read_back_as_the_model` and `test_an_edge_is_stored_and_read_back_as_the_model` (`test_version_store.py`) |
+| C16 | A model's candidate carries **no** `comment_locator`, and a row that claims the advisor's words without having read them is refused | `test_a_candidate_does_not_claim_the_advisors_words` (`test_feedback_events.py`) |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** A test that fails because of an unrelated encoding or lint
