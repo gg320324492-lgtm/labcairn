@@ -12,6 +12,7 @@ is declared, and the tree carries no model.
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from datetime import UTC, datetime
@@ -30,10 +31,12 @@ from labcairn.application.approvals import (
     request_approval,
 )
 from labcairn.application.context import ApplicationContext
-from labcairn.application.model_request import request_model
+from labcairn.application.events import read_events
+from labcairn.application.model_request import ModelInvocation, request_model
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.db.repository import list_approvals
+from labcairn.runtime.event import EventType
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
@@ -192,10 +195,40 @@ def context(env: StoreEnv, tmp_path: Path) -> ApplicationContext:
     )
 
 
-def _spy(reached: list[str]) -> str:
-    """The invocation the refused request must never reach."""
+def _invocation(answer: str = "the model's answer") -> ModelInvocation:
+    """One call's record, in the provider layer's wire form.
+
+    The exchange is what an :class:`~labcairn.providers.adapter.ExchangeRecord`
+    persists — a prompt digest, an outbound disclosure, usage — and nothing
+    else, because that is the shape the path records by construction.
+    """
+    return ModelInvocation(
+        answer=answer,
+        provider="fake",
+        model="scripted",
+        exchanges=(
+            {
+                "provider": "fake",
+                "model": "scripted",
+                "transcript_step": "the-card",
+                "prompt_digest": "a" * 64,
+                "tool_names": [],
+                "outbound": {"destination": DESTINATION, "digest": "b" * 64},
+                "provider_attempts": 1,
+                "observed_at": MOMENT.isoformat(),
+                "usage_input": {"kind": "known", "tokens": 120},
+                "usage_output": {"kind": "known", "tokens": 40},
+            },
+        ),
+        credential_fingerprint="fp-" + "c" * 16,
+        cost_micros=1200,
+    )
+
+
+def _spy(reached: list[str]) -> ModelInvocation:
+    """The invocation a refused request must never reach."""
     reached.append("the wire was reached")
-    return "an answer"
+    return _invocation("an answer")
 
 
 def _asked(context: ApplicationContext) -> ApprovalId:
@@ -274,9 +307,48 @@ def test_the_material_gate_runs_before_the_approval_is_spent(
         destination=DESTINATION,
         material_ref=MATERIAL_REF,
         at=MOMENT,
-        send=lambda: "the model's answer",
+        send=lambda: _invocation(),
     )
     assert answer.answer == "the model's answer"
     assert answer.destination == DESTINATION
+    assert answer.provider == "fake" and answer.model == "scripted"
     rows = list_approvals(context.store.session, context.task_id)
     assert any(row.state == "consumed" for row in rows)
+
+
+def test_the_transcript_and_usage_land_and_no_key_is_written(
+    context: ApplicationContext,
+) -> None:
+    """The exchange is recorded in the provider layer's own wire form.
+
+    The event log carries the digest of what was sent and the usage of
+    what came back, beside the fact of the call — and no plaintext key
+    is written, because the record's shape has no field for one.
+    """
+    approval_id = _granted(context)
+    answer = request_model(
+        context,
+        approval_id,
+        _grants(),
+        use=_model_use(),
+        subject_ref="proj-1",
+        destination=DESTINATION,
+        material_ref=MATERIAL_REF,
+        at=MOMENT,
+        send=lambda: _invocation(),
+    )
+    page = read_events(context)
+    exchanges = [event for event in page.events if event.type is EventType.MODEL_EXCHANGED]
+    assert len(exchanges) == 1, "one call, one exchange record"
+    payload = json.loads(json.dumps(exchanges[0].payload))
+    assert payload["destination"] == DESTINATION
+    assert payload["model"] == "scripted"
+    assert payload["credential_fingerprint"] == "fp-" + "c" * 16
+    exchange = payload["exchanges"][0]
+    assert exchange["prompt_digest"] == "a" * 64, "what was sent is a digest"
+    assert exchange["usage_input"] == {"kind": "known", "tokens": 120}
+    assert payload["cost_micros"] == 1200
+    rendered = json.dumps(payload)
+    assert "sk-" not in rendered, "no plaintext key-shaped string is in the record"
+    assert "the model's answer" not in rendered, "the answer is not the record"
+    assert answer.exchange_event_id == str(exchanges[0].event_id)

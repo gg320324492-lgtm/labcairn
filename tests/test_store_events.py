@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import get_origin
 
 import pytest
 from sqlalchemy import inspect, select, text
@@ -422,8 +423,8 @@ def test_the_vocabulary_constraint_lists_exactly_the_frozen_enum(env: StoreEnv) 
     for value in members:
         assert f"'{value}'" in ddl, f"{value} is missing from the events constraints"
     assert "'task_vaporised'" not in ddl
-    # 29 members, each named in more than one constraint.
-    assert len(members) == 29
+    # 30 members, each named in more than one constraint.
+    assert len(members) == 30
 
 
 def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
@@ -435,7 +436,16 @@ def _minimal_payload(schema: type[LabCairnModel]) -> dict[str, object]:
     payload: dict[str, object] = {}
     for name, field in schema.model_fields.items():
         if field.is_required():
-            payload[name] = "x" if field.annotation is str else 0
+            origin = get_origin(field.annotation)
+            if origin is list:
+                # One item: a list a schema bounds below (``min_length=1``)
+                # is satisfied by a single element, and an untyped mapping
+                # element is satisfied by an empty one.
+                payload[name] = [{}]
+            elif field.annotation is str:
+                payload[name] = "x"
+            else:
+                payload[name] = 0
     return payload
 
 

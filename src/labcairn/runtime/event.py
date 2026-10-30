@@ -84,6 +84,11 @@ class EventType(StrEnum):
     RESPONSE_RECORDED = "response_recorded"
     FOLLOWUP_ASSESSED = "followup_assessed"
 
+    # LC-P2-01, ADR-0016 C8: one model call, recorded. An exchange is an
+    # annotation and not an attempt — it says what was asked, what came
+    # back, and under which consent, and it carries no transition.
+    MODEL_EXCHANGED = "model_exchanged"
+
 
 #: Event types that carry neither run_id nor the operation context.
 TASK_LEVEL_EVENTS: frozenset[EventType] = frozenset(
@@ -113,6 +118,9 @@ ANNOTATION_EVENTS: frozenset[EventType] = frozenset(
         # a response and an assessment are observations about the manuscript,
         # not attempts to do something to it.
         EventType.FEEDBACK_RECORDED,
+        # LC-P2-01: the model-call path's exchange record. A call that
+        # happened is a fact about the task, whatever the attempt around it.
+        EventType.MODEL_EXCHANGED,
         EventType.EDIT_ACTION_RECORDED,
         EventType.RESPONSE_RECORDED,
         EventType.FOLLOWUP_ASSESSED,
