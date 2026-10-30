@@ -99,6 +99,12 @@ EXPECTED_TABLES = frozenset(
         "paper_projects",
         "paper_versions",
         "version_edges",
+        # LC-P2-09 T00. The record of a refusal. The other two outcomes
+        # leave their own mark on the graph -- an acceptance is the edge
+        # with an acceptor, a correction is a second edge -- and a rejection
+        # left nothing, so a proposal that was looked at and turned down was
+        # indistinguishable from a proposal nobody had looked at.
+        "version_edge_rejections",
         # LC-P2-06. The consent machinery. `access_grants` holds only
         # grants -- there is no row shape that means "denied", because
         # ADR-0015 D2 says the permission is denied by *absence*. And

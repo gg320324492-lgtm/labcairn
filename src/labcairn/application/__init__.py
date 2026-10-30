@@ -61,6 +61,15 @@ Operation                  Capability
 ``consume_approval``       the approved one
 ``render_report``          ``report.render``
 ``run_figure``             ``analysis.run``
+``record_project``         ``fs.write``
+``record_version``         ``source.inventory``
+``record_edge``            ``source.inventory``
+``record_confirmation``    ``source.inventory``
+``read_project``           ``fs.read``
+``read_version``           ``source.inventory``
+``read_edge``              ``source.inventory``
+``list_versions``          ``source.inventory``
+``list_edges``             ``source.inventory``
 =========================  ===========================================
 """
 
@@ -103,6 +112,26 @@ from labcairn.application.material_ingestion import (
     ingest_material,
 )
 from labcairn.application.models import Result
+from labcairn.application.papers import (
+    ConfirmationRecorded,
+    ConfirmationRequest,
+    EdgeRequest,
+    EdgeStored,
+    ProjectRequest,
+    ProjectStored,
+    VersionRequest,
+    VersionStored,
+    list_edges,
+    list_rejections,
+    list_versions,
+    read_edge,
+    read_project,
+    read_version,
+    record_confirmation,
+    record_edge,
+    record_project,
+    record_version,
+)
 from labcairn.application.recovery import (
     describe_abandoned,
     reconcile_abandoned,
@@ -152,6 +181,10 @@ __all__ = [
     "ArtifactView",
     "ClaimRecorded",
     "ClaimRequest",
+    "ConfirmationRecorded",
+    "ConfirmationRequest",
+    "EdgeRequest",
+    "EdgeStored",
     "EventPage",
     "FigureRequest",
     "FigureRun",
@@ -159,6 +192,8 @@ __all__ = [
     "IngestedFile",
     "MaterialIngested",
     "PlanStage",
+    "ProjectRequest",
+    "ProjectStored",
     "ReportRendered",
     "ReportRequest",
     "Result",
@@ -172,6 +207,8 @@ __all__ = [
     "TaskPlan",
     "TaskState",
     "TaskStep",
+    "VersionRequest",
+    "VersionStored",
     "consume_approval",
     "create_task",
     "describe_abandoned",
@@ -179,16 +216,26 @@ __all__ = [
     "ingest_material",
     "inspect_source",
     "list_artifacts",
+    "list_edges",
+    "list_rejections",
     "list_source_addresses",
     "list_sources",
     "list_tasks",
+    "list_versions",
     "read_artifact",
+    "read_edge",
     "read_events",
     "read_plan",
+    "read_project",
     "read_steps",
     "read_task_state",
+    "read_version",
     "reconcile_abandoned",
     "record_claim",
+    "record_confirmation",
+    "record_edge",
+    "record_project",
+    "record_version",
     "render_report",
     "request_approval",
     "resolve_abandoned",

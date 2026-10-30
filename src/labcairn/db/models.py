@@ -1453,6 +1453,20 @@ class PaperVersionRow(Base):
     source_id: Mapped[str] = mapped_column(
         Text, ForeignKey("sources.source_id", ondelete="CASCADE"), nullable=False
     )
+    #: **The bytes as they were when the version was recorded.**
+    #:
+    #: The row above names the *file*, and the file's bytes move: re-ingesting
+    #: it after an edit changes what the ledger holds under that id. A version
+    #: that took its identity from the file would move with it — and two files
+    #: with the same bytes are one version, which a moving identity cannot
+    #: hold. So the hash is recorded here, once, when the version is written,
+    #: and the version is that set of bytes for ever.
+    #:
+    #: Nullable because a column added by a later revision cannot be NOT NULL
+    #: without a default that would be a lie (see revision 0012), and because
+    #: the reader refuses a row that carries no hash rather than reading it as
+    #: a version of unknown bytes.
+    source_content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: The label the author's file name gave, kept verbatim. **Not
     #: evidence of order** — see the class docstring.
     version_label_raw: Mapped[str] = mapped_column(String(2000), nullable=False)
@@ -1538,7 +1552,14 @@ class VersionEdgeRow(Base):
     #: How strong the evidence is. **A number, not a decision.**
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     #: What supports the edge, as text. A reader must be able to see why.
-    evidence_spans: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    #:
+    #: **A list of strings, not of objects.** The contract carries
+    #: ``evidence_spans: tuple[str, ...]``, and the column is JSON, so the
+    #: annotation is the only thing that says what a row holds. It said
+    #: ``list[dict[str, Any]]`` before the version graph had a writer, and
+    #: that was a description of nothing: the contract's spans are text, and
+    #: a reader of this table would have been told to expect records.
+    evidence_spans: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     #: **Who** accepted it. ``None`` while the edge is a proposal.
     accepted_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     accepted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
@@ -1587,6 +1608,58 @@ class VersionEdgeRow(Base):
             "(accepted_by IS NOT NULL AND length(accepted_by) > 0 "
             "AND accepted_at IS NOT NULL)",
             name="version_edges_acceptance_names_an_acceptor",
+        ),
+    )
+
+
+class VersionEdgeRejectionRow(Base):
+    """The record of a refusal: a person looked at a proposed edge and said no.
+
+    **A refusal is not the absence of a row.** The other two outcomes leave
+    their own mark on the graph — an acceptance is the edge with an acceptor,
+    a correction is a second edge with the proposal pointing at it — and a
+    rejection leaves nothing, because there is no relationship to record. A
+    proposal that was looked at and turned down would otherwise be
+    indistinguishable from a proposal nobody has looked at, and the archive
+    would propose it again having learned nothing from the refusal.
+
+    **So the refusal is a row of its own**, and it says who decided, when,
+    why, and about which proposal. The proposal it names stays in the graph:
+    the refusal is a fact about the review, not a deletion of the thing that
+    was reviewed.
+
+    **The edge is not deleted with the refusal.** The foreign key cascades
+    only if the *edge* is deleted, and nothing deletes edges — a correction
+    writes a second one — so the record of a refusal outlives the review it
+    is about rather than vanishing with it.
+    """
+
+    __tablename__ = "version_edge_rejections"
+
+    #: Caller-minted, not a row number: a refusal is cited from a later run.
+    rejection_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The proposal that was refused. It stays in the graph.
+    edge_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("version_edges.edge_id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("paper_projects.project_id", ondelete="CASCADE"), nullable=False
+    )
+    #: Who decided. A refusal with nobody behind it is not a refusal anybody
+    #: made.
+    decided_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: When they decided.
+    decided_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: Why, in their words. Empty is allowed; the refusal is what matters.
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_version_edge_rejections_edge", "edge_id"),
+        CheckConstraint(
+            "length(rejection_id) > 0 AND length(edge_id) > 0 "
+            "AND length(project_id) > 0 AND length(decided_by) > 0",
+            name="version_edge_rejections_ids_present",
         ),
     )
 
