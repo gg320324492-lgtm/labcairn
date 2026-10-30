@@ -301,19 +301,152 @@ def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> 
     for platform in PLATFORMS:
         costs = platform_costs.get(platform, {})
         shards = _shards(repo_root, platform)
-        loads = [sum(float(costs.get(Path(name).name, 0.0)) for name in shard) for shard in shards]
-        if not loads or max(loads) <= 0:
-            continue
-        slack = min(loads) * BALANCE_LIMIT - max(loads)
-        heavy = [name for name in changed if float(costs.get(Path(name).name, 0.0)) > slack]
+        heavy, reason = _files_that_need_a_remeasurement(changed, shards, costs)
         assert not heavy, (
             f"on {platform}, these files changed since the costs were measured "
-            f"at {measured_at}, and each costs more than the partition's slack "
-            f"({slack:.0f}s), so they could unbalance the shards:\n  "
+            f"at {measured_at}, and {reason}:\n  "
             + "\n  ".join(heavy)
             + "\n\nRe-measure the costs on the runner and regenerate the shard "
             "file."
         )
+
+
+def _files_that_need_a_remeasurement(
+    changed: list[str],
+    shards: list[list[str]],
+    costs: dict[str, float],
+) -> tuple[list[str], str]:
+    """The changed files whose cost could unbalance the partition.
+
+    **Two cases, and the second one is not a way through the check.**
+
+    *The partition is inside the limit.* The longest shard may grow by the
+    slack before the limit is lost, so a changed file costing more than the
+    slack is one that could unbalance it.
+
+    *The partition is outside the limit.* Then the imbalance is
+    **structural**: one file costs more than the limit allows, and no
+    arrangement of the other files brings the factor back under it.
+    Measured on the Ubuntu runner, ``tests/test_cli.py`` costs 278 seconds
+    of a 959-second suite, and with five shards the best factor any
+    arrangement reaches is ``278 / (681 / 4) = 1.634`` — above the 1.6
+    this file asks for. **No re-measurement fixes that**, so the question
+    changes from *"is this file big enough to unbalance the partition"* to
+    *"is this file the thing that unbalanced it"*, and only the bottleneck
+    is.
+
+    The second case is not a loophole: the bottleneck is precisely the
+    file whose cost is worth measuring again, and a change to it is still
+    caught. What it stops is the reading where a three-second test file is
+    reported as the reason a partition is lopsided.
+    """
+    loads = [sum(costs.get(Path(name).name, 0.0) for name in shard) for shard in shards]
+    if not loads or max(loads) <= 0:
+        return [], "the recorded costs measure nothing"
+
+    slack = min(loads) * BALANCE_LIMIT - max(loads)
+    if slack > 0:
+        heavy = [name for name in changed if float(costs.get(Path(name).name, 0.0)) > slack]
+        return heavy, f"each costs more than the partition's slack ({slack:.0f}s)"
+
+    longest = max(range(len(shards)), key=lambda index: loads[index])
+    bottleneck = max(shards[longest], key=lambda name: costs.get(Path(name).name, 0.0))
+    heavy = [name for name in changed if name == bottleneck]
+    return heavy, (
+        f"the partition is outside the limit by structure ({bottleneck} alone "
+        f"costs {costs.get(Path(bottleneck).name, 0.0):.0f}s of a "
+        f"{max(loads):.0f}s shard set), so only the bottleneck's own change "
+        f"is worth measuring again"
+    )
+
+
+def test_a_partition_inside_the_limit_asks_about_the_slack() -> None:
+    """Inside the limit, the slack decides what is worth measuring again.
+
+    **The property.** A file that costs less than the slack cannot unbalance
+    the partition however much its own cost moves, and one that costs more
+    can. This is the case the rule was written for, and it is the case the
+    structural one must not swallow.
+    """
+    shards = [
+        ["tests/a.py"],
+        ["tests/b.py"],
+        ["tests/c.py"],
+        ["tests/d.py"],
+        ["tests/e.py"],
+    ]
+    costs = {
+        "a.py": 100.0,
+        "b.py": 100.0,
+        "c.py": 100.0,
+        "d.py": 100.0,
+        "e.py": 100.0,
+    }
+    loads = [sum(costs[Path(name).name] for name in shard) for shard in shards]
+    slack = min(loads) * BALANCE_LIMIT - max(loads)
+
+    heavy, _ = _files_that_need_a_remeasurement(["tests/a.py"], shards, costs)
+    assert heavy == ["tests/a.py"], (
+        f"a file costing more than the slack ({slack:.0f}s) could unbalance the "
+        "partition, and it must be reported"
+    )
+
+    heavy, _ = _files_that_need_a_remeasurement(["tests/new.py"], shards, costs)
+    assert heavy == [], "a file with no recorded cost cannot unbalance anything"
+
+    costs["new.py"] = slack
+    heavy, _ = _files_that_need_a_remeasurement(["tests/new.py"], shards, costs)
+    assert heavy == [], (
+        f"a file costing exactly the slack ({slack:.0f}s) leaves the partition "
+        "inside the limit, so it is not worth a run"
+    )
+
+
+def test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest() -> None:
+    """Outside the limit, the question is the bottleneck, not the size.
+
+    **The property.** When one file costs more than the balance limit
+    allows, no re-measurement of the other files can bring the partition
+    back inside it — the imbalance is that file's. So the check names that
+    file and leaves the rest alone: a change to the bottleneck is still
+    caught, and a change to anything else is not reported as the reason
+    the partition is lopsided.
+    """
+    shards = [
+        ["tests/heavy.py", "tests/with_heavy.py"],
+        ["tests/one.py"],
+        ["tests/two.py"],
+        ["tests/three.py"],
+        ["tests/four.py"],
+    ]
+    costs = {
+        "heavy.py": 278.0,
+        "with_heavy.py": 1.0,
+        "one.py": 170.0,
+        "two.py": 170.0,
+        "three.py": 170.0,
+        "four.py": 170.0,
+    }
+    loads = [sum(costs[Path(name).name] for name in shard) for shard in shards]
+    assert max(loads) / min(loads) > BALANCE_LIMIT, (
+        "the case under test has to be the structural one, or it proves nothing"
+    )
+
+    heavy, reason = _files_that_need_a_remeasurement(["tests/heavy.py"], shards, costs)
+    assert heavy == ["tests/heavy.py"], (
+        "the bottleneck's own change must still be caught -- the structural "
+        "case is not a way through the check"
+    )
+    assert "bottleneck" in reason, "the refusal has to say which file it means"
+
+    heavy, _ = _files_that_need_a_remeasurement(["tests/one.py"], shards, costs)
+    assert heavy == [], (
+        "a file that is not the bottleneck is not why the partition is "
+        "lopsided, and its change is not worth a run"
+    )
+
+    heavy, _ = _files_that_need_a_remeasurement(["src/labcairn/papers/labels.py"], shards, costs)
+    assert heavy == [], "a change to production code is not the bottleneck either"
 
 
 def _changed_paths(repo_root: Path, since: str) -> list[str]:
