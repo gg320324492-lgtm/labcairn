@@ -286,7 +286,8 @@ def _text(mapping: Mapping[str, Any], key: str, where: str) -> str:
 def _moment(mapping: Mapping[str, Any], key: str, where: str) -> datetime:
     """An ISO-8601 moment at *key*.
 
-    :raises ValueError: when the value is absent or is not a moment.
+    :raises ValueError: when the value is absent, is not a moment, or names
+        no offset from UTC.
     """
     raw = _require(mapping, key, where)
     if not isinstance(raw, str):
@@ -295,12 +296,21 @@ def _moment(mapping: Mapping[str, Any], key: str, where: str) -> datetime:
             "ISO-8601 string, and a moment nobody can place in time is not one."
         )
     try:
-        return datetime.fromisoformat(raw)
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         raise ValueError(
             f"{where} has no usable {key!r}: {raw!r}. The moment is written as an "
             "ISO-8601 string, and this one does not parse as one."
         ) from None
+    if parsed.tzinfo is None:
+        raise ValueError(
+            f"{where} has no usable {key!r}: {raw!r}. The moment names no offset "
+            "from UTC, and a moment with no offset cannot be compared with the "
+            "other reader's moment: two annotators in two places write the "
+            "same clock time and mean different moments. The string carries an "
+            "offset -- '2026-03-01T09:00:00+00:00', or a 'Z' for UTC."
+        )
+    return parsed
 
 
 def _address_labels(mapping: Mapping[str, Any], where: str) -> AddressLabels:
