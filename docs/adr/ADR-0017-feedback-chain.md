@@ -20,7 +20,7 @@ Four facts in the tree shape what is possible, and two of them are gaps.
 
 **First: the advisor's comments are already read.** LC-P2-07's OOXML reader
 finds `w:commentRangeStart`/`w:commentRangeEnd` and returns a
-`CommentEvent` (`material/ooxml.py:196`) carrying Word's own `comment_id`,
+`CommentEvent` (`material/ooxml.py:210`) carrying Word's own `comment_id`,
 the author, the date, the body, the anchored text's hash, and **two**
 addresses: `locator` — a `DocxLocator` into `word/comments.xml`, naming
 the comment element itself — and `anchor`, a body-side coordinate of
@@ -54,15 +54,19 @@ that a comment had been answered. The reader produces comments; the version
 graph produces edges; the ledger produces records. **The chain between
 them is a diagram in a design document and nothing else.**
 
-**And the first link of the chain is empty.** `CommentAnchor.text` is
-**always `""`** — every return path in the reader passes `text=""`
-(`ooxml.py:766-773`, `789-796`, `812-819`, `838-845`), including the
-resolved one. The anchor's coordinates are usable; **the text it names is
+**And the first link of the chain was empty at the time of writing.**
+`CommentAnchor.text` was **always `""`** — every return path in the reader
+passed `text=""` (`ooxml.py:773-780` and `809-819` in the tree this was
+written against), including the
+resolved one. **T00 of LC-P2-09 carries it now**: `_anchored_text` cuts the
+range from the same baseline the offsets are into, and the three cases that
+still return `""` are each a fact rather than a failure. The anchor's
+coordinates are usable; **the text it names is
 not carried.** And the anchor's offsets are into the **rejected
 (baseline)** text of the paragraph, while the version graph's edges point
 at later versions — so the coordinate a comment names and the version a
 change produced are in **two different coordinate systems**, and nothing
-records the correspondence.
+records the correspondence except the `version_id` a feedback row names.
 
 ## The concrete problem this creates
 
@@ -205,7 +209,7 @@ check that they do.
 A comment with no author has an unknown author; one with no date has an
 unknown date. **Unknown is `None` plus a named reason**, not an empty
 string and not the file's mtime. The reader already refuses to guess
-(`ooxml.py:366-378`), and the row inherits that refusal rather than
+(`ooxml.py:380-393`), and the row inherits that refusal rather than
 re-deciding it.
 
 ### D4 — An edit is an observation about a version edge, and it names who made it
@@ -319,7 +323,7 @@ followup_assessed
 ```
 
 They are **annotations**, so they carry **no transition** and **no
-`run_id`** — the event model refuses both (`runtime/event.py:238-274`),
+`run_id`** — the event model refuses both (`runtime/event.py:244-290`),
 and a feedback is not an attempt. Each carries a **registered payload
 schema** naming the row it is about, because the anti-bag rule refuses a
 payload for an unregistered type, and a chain whose events name nothing
