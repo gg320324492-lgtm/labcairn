@@ -397,6 +397,19 @@ corrected one.
   an unsigned extraction — and the project's own precedent is that an
   extraction which does not name who produced it cannot be imported as an
   observation.
+- **The threat model had no entry for the chain at all.**
+  `docs/THREAT-MODEL.md` is organised as §1 what is written, §2 what is
+  read, §3 the network, §4 credentials, §5 concurrency, §6 what this
+  product does **not** claim, §7 where each claim is witnessed, §8 the
+  residual risks — and **`chain`, `feedback`, `edit_action`,
+  `response_link` and `tracked` did not occur in it at all.** §6 opens with
+  *"this is the larger half of the document; a threat model that only says
+  what it protects is a brochure"*, and the chain is the part of this tree
+  that carries the most somebody else's language: a reviewer's comments, a
+  reviewer's rewrites, and the product's judgements about them. **The gap
+  is closed by §6.13 and §6.14 of that document**, and the closure is
+  watched by a witness that reads the document's own shape, so it cannot
+  silently reopen.
 - **Anything that turns a reviewer's rewrites into a rule.** **ADR-0016 D9
   calls the agreement between a system and an advisor's wording a *risk
   metric* rather than a quality metric**, and 897 silent rewrites are
@@ -424,6 +437,31 @@ corrected one.
   criteria agree are **two independent rules that agree**, and whether they
   are one rule or two is a person's judgement about scope rather than a
   competition between the two.
+
+### 6.8 The suite on this tree
+
+**Measured locally** on the tree at `f62d91b`, on Windows 11 (AMD64),
+Python 3.12.10, with `TEMP`, `TMP`, `TMPDIR` and `MPLCONFIGDIR` on
+`E:\labcairn-local\tmp` and a `--basetemp` outside the repository:
+
+```
+4350 passed, 5 skipped, 7 failed, 8 errors, in 33 minutes 58 seconds
+```
+
+**The five skips are the project's own accepted kinds** — a POSIX-only
+permission-bit case, the real-provider smoke that needs the owner's
+credential, and three Windows-path cases — and none of them is new.
+
+**And the failures are two things, and only one of them is this work's.**
+
+| What | How many | Why |
+|---|---|---|
+| `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on` | 1 | **This work's, and it is the one §6.6 names.** The message names one file: `tests/test_application_layer.py`, at 34.59 s against a partition slack of 16.2 s. **The fix is the project's own** — `python .github/remeasure_shards.py <run-id>` — and the shard file was not touched here. |
+| `tests/test_outsider_path.py` (6) and `tests/test_no_reference_leakage.py` (8) | 14 | **The machine, not the tree.** Every one of them is the same failure: `uv` could not fetch `hatchling` from PyPI — *"tls handshake eof"* — so `uv sync` and `uv build` failed. **None of them touches the chain, the models or the migrations**, and the same failure appears in the walk's own transcript (*"[FAIL] the README's `uv sync` succeeded"*). |
+
+**So the whole suite is green apart from the shard cost this work's own
+guard forced, and apart from a machine with no route to PyPI.** The number
+is a local one and it is anchored to the commit it was measured at.
 
 ## 7. What this work order has not had
 
@@ -464,7 +502,6 @@ corrected one.
   against.
 
 ## 8. The next thing
-
 **LC-P2-06, the data governance.** Its grant table names the paper project
 this work order created, so the two fit together — and the reader's events
 have nowhere to live until the response tables do.

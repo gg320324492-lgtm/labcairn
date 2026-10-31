@@ -59,6 +59,7 @@ from typing import Final
 import pytest
 from fastapi.routing import APIRoute
 from pydantic import TypeAdapter, ValidationError
+from sqlalchemy import CheckConstraint
 
 from labcairn.analysis.chart.recipe import ChartRecipe
 from labcairn.analysis.manifest import FileRef
@@ -664,6 +665,72 @@ def test_the_write_enumeration_in_the_threat_model_matches_the_tree() -> None:
             f"the scan has stopped matching, or the enumeration names a file "
             f"that does not write."
         )
+
+
+def test_the_threat_model_says_what_the_chain_holds() -> None:
+    """C17 — the chain holds other people's words, and the document says so.
+
+    **A threat model that never mentions the chain does not describe the
+    part of this tree that most obviously carries somebody else's
+    language.** The chain's rows are a reviewer's comments, a reviewer's
+    rewrites, and the product's own judgements about them — all of it text
+    somebody else wrote, arriving from a file the product did not write.
+    **This document had no entry for any of it**, and the gap was not
+    visible to anybody reading it.
+
+    **And the product does not take on their correctness just because it
+    recorded them.** That is not a promise the document makes; it is a
+    property of the schema, and the witness reads it out of the schema: a
+    response that is not ``pending`` cannot be reached without a decider
+    and its evidence, and the vocabulary of what an assessment may rest on
+    has **no member meaning "the change was accepted"**.
+
+    **What breaks it:** a sentence removed from the document, a state
+    reachable without evidence, or a basis meaning the acceptance of a
+    change.
+    """
+    from labcairn.db.base import Base
+
+    text = _threat_model_text()
+    for table in ("feedback_events", "edit_actions", "response_links", "followup_assessments"):
+        assert table in text, (
+            f"the threat model does not mention {table}, and the chain is the part "
+            "of this tree that carries the most somebody else's language"
+        )
+
+    tables = Base.metadata.tables
+
+    # **The judgement cannot be reached without its evidence.**
+    link_checks = {
+        str(constraint.name): constraint.sqltext.text
+        for constraint in tables["response_links"].constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    judgement = next(
+        text
+        for name, text in link_checks.items()
+        if name.endswith("response_links_a_judgement_needs_a_decider_and_its_evidence")
+    )
+    assert "decided_by IS NOT NULL" in judgement
+    assert "json_array_length(evidence_refs) > 0" in judgement
+
+    # **And the assessment may not rest on the acceptance of a change.**
+    assessment_checks = {
+        str(constraint.name): constraint.sqltext.text
+        for constraint in tables["followup_assessments"].constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    basis = next(
+        text
+        for name, text in assessment_checks.items()
+        if name.endswith("followup_assessments_basis_vocabulary")
+    )
+    assert "basis IN (" in basis
+    assert "accept" not in basis.lower(), (
+        "the vocabulary of what an assessment may rest on has a member that means "
+        "the change was accepted, and the product would then be recording the "
+        "advisor's correctness as a consequence of the student's change being kept"
+    )
 
 
 def test_the_revision_events_cannot_carry_a_reason() -> None:
@@ -1276,6 +1343,7 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         "C14": ("event_stream", "selects_a_workspace", "ledger_checks"),
         "C15": ("write_enumeration",),
         "C16": ("revision_event", "reason"),
+        "C17": ("chain_holds",),
     }
     names = " ".join(defined)
     for claim_id, words in keywords.items():

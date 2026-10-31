@@ -820,6 +820,37 @@ which would let a change carry a reason it never had. The witnesses are
 `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made`
 and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason`.
 
+### 6.14 The chain records other people's words, and the product does not take on their correctness
+
+**The chain is the part of this tree that most obviously carries somebody
+else's language.** `feedback_events` holds a reviewer's comments — the
+words they wrote beside the text, with their anchor, their author and their
+date. `revision_events` holds the reviewer's rewrites — what changed,
+where, and who changed it. `edit_actions` holds the chain's judgement
+that a change was made in answer to a comment, and **who** made it.
+`response_links` and `followup_assessments` hold the judgements about those
+changes.
+
+**All of it is text somebody else wrote, arriving from a file the product
+did not write**, and the product is the thing a reader will look to for
+judgement. **Recording it is not adopting it.** A comment is an
+observation about a file; a revision is an observation about a file; and a
+judgement about either is **somebody's** judgement, with its decider and
+its evidence on the row.
+
+**That is a property of the schema and not a promise this document
+makes.** A response that is not `pending` cannot be reached without a
+decider and a non-empty evidence list
+(`src/labcairn/db/models.py:2357`), and the vocabulary of what an
+assessment may rest on **has no member meaning "the change was accepted"**
+(`src/labcairn/db/models.py:2453`) — because acceptance is a fact about the
+process and not about the science, and a product that recorded the
+advisor's correctness as a consequence of the student's change being kept
+would be claiming something it cannot know.
+
+**What breaks it:** a state reachable without evidence, a basis meaning
+acceptance, or a sentence removed from this section.
+
 ---
 
 ## §7 — Where each claim is witnessed
@@ -847,6 +878,7 @@ drifts from the tree goes red.
 | C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; no product operation runs the ledger's checks |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
 | C16 | A revision event records what changed, where and who — and **the schema cannot say why** | `test_threat_model.py` — `test_the_revision_events_cannot_carry_a_reason`; and `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made` |
+| C17 | The chain holds other people's words — comments, rewrites and judgements about them — and **the product does not take on their correctness** | `test_threat_model.py` — `test_the_threat_model_says_what_the_chain_holds` |
 
 **And the claims about the document itself are watched too.** The witness
 checks that **every citation this document names resolves** to a file that
