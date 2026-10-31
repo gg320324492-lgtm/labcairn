@@ -699,6 +699,12 @@ def test_the_provider_layer_names_no_endpoint_but_its_two_protocol_defaults(
     product reads. So the sweep reads **code literals only** — a docstring
     that names an endpoint is documentation of the wire, and documentation of
     the wire is vocabulary rather than a route.
+
+    **And the sweep covers the layers that open a socket.** A hard-coded
+    endpoint elsewhere under ``src/`` is outside it, so this is the
+    boundary of the claim and not the whole of it: those two directories
+    are where the product's own transport lives, and a route written
+    somewhere else is a route this witness would not see.
     """
     named: set[str] = set()
     for path in _provider_layer_paths(repo_root):
