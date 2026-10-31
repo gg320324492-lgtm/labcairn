@@ -2100,15 +2100,18 @@ def test_the_trajectory_route_carries_the_chain_s_own_facts(
 
 
 def test_the_trajectory_route_asks_for_no_key_and_serves_nothing(
-    chain_client: TestClient,
+    chain: ChainEnv, chain_client: TestClient
 ) -> None:
     """A key the chain holds nothing under is an empty answer, not a refusal.
 
-    **The route does not invent a reading.** An empty trajectory says the
-    chain holds no comment under the keys asked for — and it says that
-    rather than answering with something else, which is the whole point
-    of a read that refuses to guess.
+    **The route does not invent a reading.** The chain holds a comment
+    here, under a key nobody asked for — and the answer says the chain
+    holds nothing under the keys asked for, rather than answering with the
+    comment it happens to hold. A panel that drew a comment the reader
+    did not ask for would be a second spelling of the chain, and a reader
+    would believe it.
     """
+    _the_advisor_s_comment(chain, issue_key="iss-nobody-asked-for")
     body = chain_client.get("/trajectory").json()
     assert body == {"comments": [], "edits": [], "responses": []}
 
