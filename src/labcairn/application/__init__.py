@@ -129,6 +129,7 @@ Operation  The permission that governs it
 ``write_role_spec``                   the contract's own allowed capabilities
 ``request_role_run``                  the contract's own allowed capabilities
 ``run_role_run``                      the contract's own allowed capabilities
+``the_role_run_question``             the contract's own allowed capabilities
 ====================================  ========================================
 """
 
@@ -233,13 +234,16 @@ from labcairn.application.roles import RoleSpecDraft, read_role_spec, write_role
 from labcairn.application.roles_run import (
     CritiqueJudgement,
     GuidanceJudgement,
+    MaterialAddress,
     ModelCallPlan,
+    RoleRunQuestion,
     RoleRunRequest,
     RoleRunResult,
     RoleRunTicket,
     TrajectoryJudgement,
     request_role_run,
     run_role_run,
+    the_role_run_question,
 )
 from labcairn.application.sources import SourceView, inspect_source, list_sources
 from labcairn.application.stages import (
@@ -291,6 +295,7 @@ __all__ = [
     "GuidanceJudgement",
     "IngestFailure",
     "IngestedFile",
+    "MaterialAddress",
     "MaterialIngested",
     "ModelCallPlan",
     "PlanStage",
@@ -300,6 +305,7 @@ __all__ = [
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "RoleRunQuestion",
     "RoleRunRequest",
     "RoleRunResult",
     "RoleRunTicket",
@@ -364,6 +370,7 @@ __all__ = [
     "run_figure",
     "run_role_run",
     "run_stage",
+    "the_role_run_question",
     "write_guidance_counterexample",
     "write_guidance_rule_confirmation",
     "write_guidance_rule_resolution",

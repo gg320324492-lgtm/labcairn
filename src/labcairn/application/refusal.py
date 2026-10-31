@@ -387,6 +387,38 @@ class ApplicationRefusal(StrEnum):
     ROLE_DECISION_WITHOUT_A_PERSON = "role_decision_without_a_person"
     #: The decision carries no reason.
     ROLE_DECISION_WITHOUT_A_REASON = "role_decision_without_a_reason"
+    # -- the loop's own reasons (LC-P2-16 T05) ----------------------------- #
+    #
+    # **Why these are the loop's own, and not one ``arguments_invalid``.**
+    # A surface branches on a *reason*, and the reasons here have different
+    # remedies: a request that names no role needs a role, a request that
+    # names a role the loop does not know needs a vocabulary, and a request
+    # that names the same role twice needs one name instead of two. **One
+    # reason for all of them would leave a client unable to tell them
+    # apart** -- and the words in the message are not machine-readable.
+    #: The request names no role at all, and there is nothing to run.
+    ROLE_RUN_NO_ROLE_NAMED = "role_run_no_role_named"
+    #: The request names a role the loop does not know. **A role the loop
+    #: does not know is refused by name**, not routed by a default.
+    ROLE_RUN_UNKNOWN_ROLE = "role_run_unknown_role"
+    #: The request names the same role more than once, and a role that runs
+    #: twice is not the role the caller asked for.
+    ROLE_RUN_ROLE_NAMED_TWICE = "role_run_role_named_twice"
+    #: The request asks for the critique without the guidance that makes a
+    #: card to review, and a review of nothing is not a review.
+    ROLE_RUN_CRITIQUE_WITHOUT_GUIDANCE = "role_run_critique_without_guidance"
+    #: The run needs a judgement and there is no provider invocation to ask
+    #: the model with, so there is nothing to ask it.
+    ROLE_RUN_NO_PROVIDER_INVOCATION = "role_run_no_provider_invocation"
+    #: A role the request named received no judgement -- the answer did not
+    #: carry one, or the run had none to give it. **A role the caller asked
+    #: for is not run without one.**
+    ROLE_RUN_NO_JUDGEMENT = "role_run_no_judgement"
+    #: The caller's declaration of the material is not the material the
+    #: chain holds. **The grant the transmit gate checks names a material,
+    #: and the approval binds a set of excerpts** -- so a declaration the
+    #: loop cannot check is a declaration the loop cannot trust.
+    ROLE_RUN_MATERIAL_MISMATCH = "role_run_material_mismatch"
     # -- the reasons the model-call path says no (LC-P2-01) ----------------- #
     #
     # **Why these are the path's own.** The same argument the run path's and

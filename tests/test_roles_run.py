@@ -2,7 +2,8 @@
 
 **What is under test.** LC-P2-16 T05: ``application.roles_run`` — the
 operation that routes a request to the roles it names, the two-step action
-that asks before it spends, and the refusals the roles raise through it.
+that asks before it spends, the question that is a function of the request,
+and the refusals the roles raise through it.
 
 ====================================================  =========================
      the loop runs the roles it names                  a role the caller did
@@ -15,6 +16,12 @@ that asks before it spends, and the refusals the roles raise through it.
                                                           run spends once, and
                                                           a refusal at the gate
                                                           spends nothing
+     the question is a function of the request         the same request
+                                                          rebuilds the same
+                                                          question, and a
+                                                          question that changed
+                                                          is refused at the
+                                                          spend
      the refusals are the roles' own                   an alignment outside the
                                                           vocabulary, a claim
                                                           without evidence and a
@@ -54,6 +61,7 @@ from labcairn.application.roles_run import (
     TrajectoryJudgement,
     request_role_run,
     run_role_run,
+    the_role_run_question,
 )
 from labcairn.db.models import EditActionRow
 from labcairn.db.repository import list_approvals
@@ -91,7 +99,13 @@ COUNTEREXAMPLE = "The parameter was defined in the previous draft, and the advis
 
 DESTINATION = "api.model-provider.example"
 OTHER_DESTINATION = "api.other-provider.example"
-MATERIAL_REF = "proj-1/manuscript.docx"
+
+#: The workspace-relative path of the comment's material, as the chain holds it.
+MATERIAL_PATH = "materials/manuscript.docx"
+#: The key of that material inside the source root it landed in.
+MATERIAL_KEY = "manuscript.docx"
+#: The root it landed in.
+MATERIAL_ROOT = "source:0"
 
 OBJECTIVES: dict[str, str] = {
     "trajectory": "Align the advisor's comments with the edits actually made.",
@@ -208,29 +222,42 @@ def _spec(
     )
 
 
-def _plan() -> ModelCallPlan:
-    """What the model call needs from the caller."""
-    return ModelCallPlan(
-        provider="fake",
-        model="scripted",
-        root_id="source:0",
-        resource_key="manuscript.docx",
-        purpose="guidance_review",
-        destination=DESTINATION,
-        subject_ref="proj-1",
-        material_ref=MATERIAL_REF,
-    )
+def _plan(**overrides: object) -> ModelCallPlan:
+    """What the model call needs from the caller, declaring the chain's material.
+
+    **The declaration is the chain's own address.** The loop checks it
+    against what it reads, so a declaration that is not the chain's material
+    is refused by name rather than used.
+    """
+    plan: dict[str, object] = {
+        "provider": "fake",
+        "model": "scripted",
+        "root_id": MATERIAL_ROOT,
+        "resource_key": MATERIAL_KEY,
+        "material_ref": MATERIAL_PATH,
+        "purpose": "guidance_review",
+        "destination": DESTINATION,
+        "subject_ref": "proj-1",
+    }
+    plan.update(overrides)
+    return ModelCallPlan(**plan)  # type: ignore[arg-type]
 
 
 def _grants(destination: str = DESTINATION) -> list[Grant]:
-    """The material-purpose grants the request is judged against."""
+    """The material-purpose grants the request is judged against.
+
+    **The scope reaches the material the loop computes** — the workspace
+    path of the comment's manuscript — and the material the transmit gate is
+    asked about is that same path, so the grant covers the material that
+    leaves.
+    """
     return [
         Grant(
             grant_id="g-model-1",
             subject_ref="proj-1",
             permission="external_transmit",
             purpose="transmit",
-            scope="proj-1/**",
+            scope="materials/**",
             destination=destination,
             granted_by="Dr. Chen",
             granted_at=MOMENT,
@@ -598,6 +625,80 @@ def test_a_refusal_at_the_transmit_gate_leaves_the_approval_unspent(loop: Loop) 
 
 
 # --------------------------------------------------------------------------- #
+# the question is a function of the request
+# --------------------------------------------------------------------------- #
+
+
+def test_the_same_request_rebuilds_the_same_question(loop: Loop) -> None:
+    """The question is rebuilt from the request, so it is a function of it.
+
+    **Nothing in it is minted.** The rebuild writes nothing, asks for
+    nothing and mints nothing, so the same request against the same chain
+    gives the same question — which is what lets the workbench's two steps
+    be two requests with no table between them.
+    """
+    request = _request(loop, roles=("trajectory", "guidance"), rule_id=loop.rule_id)
+    first = the_role_run_question(loop.context, request, plan=_plan())
+    second = the_role_run_question(loop.context, request, plan=_plan())
+    assert first == second, "the same request did not rebuild the same question"
+    assert first.prompt == second.prompt
+    assert first.excerpts == second.excerpts
+    assert first.material == second.material
+
+    ticket = request_role_run(
+        loop.context,
+        request,
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.question == first, "the question written down is the question rebuilt"
+
+
+def test_a_question_that_changed_after_the_asking_is_refused(loop: Loop) -> None:
+    """The approval binds the question, so a changed question spends nothing.
+
+    **The prompt was changed** between the asking and the running, and the
+    approval covers the question as it was asked. So the spend is refused —
+    and it is refused *at the approval*, before the wire, and the approval
+    stays unspent.
+    """
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("trajectory",)),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.approval_id is not None
+    grant_approval(loop.context, ticket.approval_id, now=MOMENT)
+    changed = replace(
+        ticket,
+        question=replace(ticket.question, prompt=ticket.prompt + "\nAnd ask for something else."),
+    )
+    reached: list[str] = []
+
+    def _spy(prompt: str) -> ModelInvocation:
+        reached.append("the wire was reached")
+        return _invocation({"trajectory": _trajectory_answer()})
+
+    refused = _capture(
+        lambda: run_role_run(
+            loop.context,
+            changed,
+            grants=_grants(),
+            at=MOMENT,
+            send=_spy,
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+        )
+    )
+    assert refused.reason is ApplicationRefusal.APPROVAL_REFUSED
+    assert reached == [], "a changed question reached the wire"
+    rows = list_approvals(loop.context.store.session, loop.context.task_id)
+    assert all(row.state != "consumed" for row in rows), "the approval stayed unspent"
+
+
+# --------------------------------------------------------------------------- #
 # the refusals are the roles' own
 # --------------------------------------------------------------------------- #
 
@@ -700,12 +801,12 @@ def test_the_models_answer_is_judged_by_the_same_roles(loop: Loop) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# the loop's own refusals
+# the loop's own refusals, one name each
 # --------------------------------------------------------------------------- #
 
 
-def test_a_request_that_cannot_be_run_is_refused_by_name(loop: Loop) -> None:
-    """Each way a request cannot be run is named, and none of them is routed by a default."""
+def test_a_request_that_names_no_role_is_refused(loop: Loop) -> None:
+    """A request that asks for nothing has nothing to run."""
     refused = _capture(
         lambda: request_role_run(
             loop.context,
@@ -715,9 +816,13 @@ def test_a_request_that_cannot_be_run_is_refused_by_name(loop: Loop) -> None:
             now=MOMENT,
         )
     )
-    assert refused.reason is ApplicationRefusal.ARGUMENTS_INVALID
-    assert "names no role" in refused.detail
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_NO_ROLE_NAMED
 
+
+def test_a_request_that_names_a_role_the_loop_does_not_know_is_refused(
+    loop: Loop,
+) -> None:
+    """A role the loop does not know is refused by name, not routed by a default."""
     refused = _capture(
         lambda: request_role_run(
             loop.context,
@@ -727,9 +832,12 @@ def test_a_request_that_cannot_be_run_is_refused_by_name(loop: Loop) -> None:
             now=MOMENT,
         )
     )
-    assert refused.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_UNKNOWN_ROLE
     assert "oracle" in refused.detail
 
+
+def test_a_request_that_names_the_same_role_twice_is_refused(loop: Loop) -> None:
+    """A role that runs twice is not the role the caller asked for."""
     refused = _capture(
         lambda: request_role_run(
             loop.context,
@@ -739,9 +847,13 @@ def test_a_request_that_cannot_be_run_is_refused_by_name(loop: Loop) -> None:
             now=MOMENT,
         )
     )
-    assert refused.reason is ApplicationRefusal.ARGUMENTS_INVALID
-    assert "more than once" in refused.detail
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_ROLE_NAMED_TWICE
 
+
+def test_a_request_that_asks_for_the_critique_without_the_guidance_is_refused(
+    loop: Loop,
+) -> None:
+    """A review of nothing is not a review."""
     refused = _capture(
         lambda: request_role_run(
             loop.context,
@@ -751,8 +863,51 @@ def test_a_request_that_cannot_be_run_is_refused_by_name(loop: Loop) -> None:
             now=MOMENT,
         )
     )
-    assert refused.reason is ApplicationRefusal.ARGUMENTS_INVALID
-    assert "without the guidance" in refused.detail
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_CRITIQUE_WITHOUT_GUIDANCE
+
+
+def test_a_run_with_no_provider_invocation_is_refused(loop: Loop) -> None:
+    """A run that needs a judgement and has nothing to ask the model with is refused."""
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("trajectory",)),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.approval_id is not None
+    refused = _capture(lambda: run_role_run(loop.context, ticket, grants=_grants(), at=MOMENT))
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_NO_PROVIDER_INVOCATION
+
+
+def test_an_answer_with_no_judgement_for_a_named_role_is_refused(loop: Loop) -> None:
+    """A role the request named is not run without a judgement.
+
+    **The answer fitted the shape it was asked for** — the part was there
+    and empty — so the refusal is the loop's own, and it names the role.
+    """
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("trajectory",)),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.approval_id is not None
+    grant_approval(loop.context, ticket.approval_id, now=MOMENT)
+
+    refused = _capture(
+        lambda: run_role_run(
+            loop.context,
+            ticket,
+            grants=_grants(),
+            at=MOMENT,
+            send=lambda prompt: _invocation({"trajectory": None}),
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+        )
+    )
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_NO_JUDGEMENT
+    assert "trajectory" in refused.detail
 
 
 def test_a_role_the_store_holds_no_contract_for_is_refused(loop: Loop) -> None:
@@ -923,24 +1078,43 @@ def test_the_model_cannot_volunteer_a_role_nobody_asked_for(loop: Loop) -> None:
     assert "guidance" in refused.detail, "the refusal names the part that was not asked for"
 
 
-def test_a_run_that_needs_a_judgement_and_has_no_invocation_is_refused(loop: Loop) -> None:
-    """A run with nothing to ask the model with is refused by name."""
-    ticket = request_role_run(
-        loop.context,
-        _request(loop, roles=("trajectory",)),
-        plan=_plan(),
-        expires_at=EXPIRES,
-        now=MOMENT,
+# --------------------------------------------------------------------------- #
+# the material the grant covers is the material that leaves
+# --------------------------------------------------------------------------- #
+
+
+def test_a_declared_material_that_is_not_the_chain_s_is_refused(loop: Loop) -> None:
+    """The caller's declaration is checked against what the loop read.
+
+    **The grant the transmit gate checks names a material, and the
+    approval binds a set of excerpts** — so a declaration that is not the
+    chain's material is refused by name, and the refusal says which part
+    differs. It is not silently replaced: a caller that was told it had
+    its material must not be handed somebody else's.
+    """
+    refused = _capture(
+        lambda: request_role_run(
+            loop.context,
+            _request(loop, roles=("trajectory",)),
+            plan=_plan(material_ref="materials/other.docx"),
+            expires_at=EXPIRES,
+            now=MOMENT,
+        )
     )
-    assert ticket.approval_id is not None
-    refused = _capture(lambda: run_role_run(loop.context, ticket, grants=_grants(), at=MOMENT))
-    assert refused.reason is ApplicationRefusal.ARGUMENTS_INVALID
-    assert "no provider invocation was given" in refused.detail
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_MATERIAL_MISMATCH
+    assert "material ref" in refused.detail, "the refusal says which part differs"
 
-
-# --------------------------------------------------------------------------- #
-# the outputs carry the contract they were made under
-# --------------------------------------------------------------------------- #
+    refused = _capture(
+        lambda: request_role_run(
+            loop.context,
+            _request(loop, roles=("trajectory",)),
+            plan=_plan(resource_key="other.docx"),
+            expires_at=EXPIRES,
+            now=MOMENT,
+        )
+    )
+    assert refused.reason is ApplicationRefusal.ROLE_RUN_MATERIAL_MISMATCH
+    assert "resource key" in refused.detail
 
 
 def test_the_outputs_carry_the_contract_they_were_made_under(loop: Loop) -> None:
@@ -974,3 +1148,26 @@ def test_the_outputs_carry_the_contract_they_were_made_under(loop: Loop) -> None
     assert result.card.rule_refs, "the card cites the rule the request named"
     assert result.card.rule_refs[0].rule_id == loop.rule_id
     assert result.card.rule_refs[0].counterexamples, "and the cases against it travel with it"
+
+
+def test_the_approval_binds_the_excerpts_that_are_sent(loop: Loop) -> None:
+    """What the approval covers is what leaves.
+
+    **The excerpts the approval binds are the excerpts the loop read** —
+    the advisor's words and the rule — and the resource they are addressed
+    through is the material the chain holds. So the grant the transmit
+    gate checks, the approval the ledger spends, and the text that goes out
+    are one material and not three declarations.
+    """
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("trajectory", "guidance"), rule_id=loop.rule_id),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.use.resource_key == MATERIAL_KEY
+    assert ticket.use.root_id == MATERIAL_ROOT
+    assert tuple(ticket.use.arguments["excerpts"]) == ticket.excerpts
+    assert ticket.use.capability.value == "model.request"
+    assert ticket.question.material.workspace_path == MATERIAL_PATH

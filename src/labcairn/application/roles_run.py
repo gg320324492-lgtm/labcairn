@@ -37,6 +37,15 @@ or leave the ones it does not have to the model, and the model's answer is
 judged by the same roles. **There is one route to a judgement and one set
 of refusals on it.**
 
+**The question is a function of the request.** :func:`the_role_run_question`
+is a pure read: it writes nothing, asks for nothing and mints nothing, so
+the same request against the same chain and the same memory gives the same
+question, byte for byte. **A ticket is therefore something that can be
+rebuilt rather than something that has to be kept** -- which is what lets
+the workbench's two steps be two HTTP requests with no table between them.
+The one thing a ticket carries that a rebuild cannot mint is the approval
+id, and **that is already a row in the store**.
+
 **What this module does not do.** It writes no manuscript, no artefact and
 no ledger record; it grants no approval (a person's act); and it never
 calls a provider itself. The roles' own prohibitions are the architecture's,
@@ -54,8 +63,10 @@ reason.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 
@@ -184,16 +195,23 @@ class ModelCallPlan:
     **The excerpts are not here.** They are the material the loop reads out
     of the chain and the memory, and the loop builds them, so the thing the
     approval binds is the thing the call actually sends.
+
+    **And the material's address is a declaration, not a fact.** The loop
+    knows where the comment's material is -- it read it -- and it **checks
+    this declaration against what it read**, refusing by name when the two
+    are not the same material. A declaration the loop cannot check is a
+    declaration the loop cannot trust, and the grant the transmit gate
+    checks would then cover one material while another leaves.
     """
 
     provider: str
     model: str
     root_id: str
     resource_key: str
+    material_ref: str
     purpose: str
     destination: str
     subject_ref: str
-    material_ref: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -202,14 +220,29 @@ class ModelCallPlan:
 
 
 @dataclass(frozen=True)
-class RoleRunTicket:
-    """The question, written down.
+class MaterialAddress:
+    """Where the material the run sends actually is.
 
-    **This is the first step's whole output.** It names the roles that will
-    run, the contracts they run under, the material, the prompt, and the
-    consent the run will need -- and **nothing has been spent**: the
-    approval it carries is *pending*, no exchange was recorded, and no role
-    ran.
+    **The loop computes this; the caller declares it.** The two are
+    compared, and a difference is refused by name.
+    """
+
+    #: The workspace-relative path of the comment's material.
+    workspace_path: str
+    #: The root the path landed in.
+    root_id: str
+    #: The key of the material inside that root.
+    resource_key: str
+
+
+@dataclass(frozen=True)
+class RoleRunQuestion:
+    """The question the request asks: what will be sent, and what it is made of.
+
+    **Nothing in it is minted.** Every field is read from the store or
+    derived from the request, so the same request against the same chain
+    and the same memory gives the same question -- which is what makes a
+    ticket rebuildable rather than something that has to be kept.
     """
 
     request: RoleRunRequest
@@ -217,10 +250,68 @@ class RoleRunTicket:
     prompt: str
     excerpts: tuple[str, ...]
     plan: ModelCallPlan
-    use: ApprovalUse
-    approval_id: ApprovalId | None
+    material: MaterialAddress
     rule_citation: RuleCitation | None
+
+
+@dataclass(frozen=True)
+class RoleRunTicket:
+    """The question, written down, and the consent the run will spend.
+
+    **This is the first step's whole output.** It names the roles that will
+    run, the contracts they run under, the material, the prompt, and the
+    consent the run will need -- and **nothing has been spent**: the
+    approval it carries is *pending*, no exchange was recorded, and no role
+    ran.
+
+    **And it is a function of the request, apart from the approval id.**
+    The question is rebuilt by :func:`the_role_run_question`; the approval
+    id is minted by the store, and it is already a row there.
+    """
+
+    question: RoleRunQuestion
+    approval_id: ApprovalId | None
     asked_at: datetime
+
+    @property
+    def request(self) -> RoleRunRequest:
+        """The request the question answers."""
+        return self.question.request
+
+    @property
+    def contracts(self) -> tuple[AgentRoleSpec, ...]:
+        """The contracts the roles run under."""
+        return self.question.contracts
+
+    @property
+    def prompt(self) -> str:
+        """The question, as it will be asked."""
+        return self.question.prompt
+
+    @property
+    def excerpts(self) -> tuple[str, ...]:
+        """The material that leaves the machine."""
+        return self.question.excerpts
+
+    @property
+    def plan(self) -> ModelCallPlan:
+        """Who to ask, and where the material is."""
+        return self.question.plan
+
+    @property
+    def rule_citation(self) -> RuleCitation | None:
+        """The rule the card cites, with the cases against it."""
+        return self.question.rule_citation
+
+    @property
+    def use(self) -> ApprovalUse:
+        """What the approval is spent on, derived from the question as it now stands.
+
+        **Derived, not carried.** A caller that changed the question changed
+        this, and the digest it carries is over the question as it now
+        stands -- which is what makes the change visible to the approval.
+        """
+        return _the_use(self.question)
 
 
 @dataclass(frozen=True)
@@ -294,25 +385,27 @@ class CritiqueJudgementModel(LabCairnModel):
     handover_reason: str | None = None
 
 
+class _JudgementDocument(Protocol):
+    """The document the model was asked for, read one part at a time.
+
+    **The parts are the roles the caller named and did not supply**, so a
+    document read through this shape has a part for each of them and for
+    nothing else. A part that is absent is the loop's own refusal, not a
+    decoding failure: the answer fitted the shape it was asked for, and it
+    did not carry what the run needed.
+    """
+
+    trajectory: TrajectoryJudgementModel | None
+    guidance: GuidanceJudgementModel | None
+    critique: CritiqueJudgementModel | None
+
+
 #: The document each role's judgement takes, by the role's id.
 _JUDGEMENT_MODELS: Final[dict[str, type[LabCairnModel]]] = {
     "trajectory": TrajectoryJudgementModel,
     "guidance": GuidanceJudgementModel,
     "critique": CritiqueJudgementModel,
 }
-
-
-class _JudgementDocument(Protocol):
-    """The document the model was asked for, read one part at a time.
-
-    **The parts are the roles the caller named and did not supply**, so a
-    document read through this shape has a part for each of them and for
-    nothing else.
-    """
-
-    trajectory: TrajectoryJudgementModel
-    guidance: GuidanceJudgementModel
-    critique: CritiqueJudgementModel
 
 
 def _schema_for(roles: tuple[str, ...]) -> type[LabCairnModel]:
@@ -323,7 +416,7 @@ def _schema_for(roles: tuple[str, ...]) -> type[LabCairnModel]:
     the schema forbids extra keys -- so the model cannot volunteer a card
     for a role nobody asked for, and the loop cannot run one.
     """
-    fields: dict[str, Any] = {role: (_JUDGEMENT_MODELS[role], ...) for role in roles}
+    fields: dict[str, Any] = {role: (_JUDGEMENT_MODELS[role] | None, None) for role in roles}
     return cast(
         "type[LabCairnModel]",
         create_model("RoleJudgements", __base__=LabCairnModel, **fields),
@@ -333,6 +426,51 @@ def _schema_for(roles: tuple[str, ...]) -> type[LabCairnModel]:
 # --------------------------------------------------------------------------- #
 # the two steps
 # --------------------------------------------------------------------------- #
+
+
+def the_role_run_question(
+    context: ApplicationContext,
+    request: RoleRunRequest,
+    *,
+    plan: ModelCallPlan,
+) -> RoleRunQuestion:
+    """The question the request asks, rebuilt from the request and the store.
+
+    **A pure read.** It writes nothing, asks for nothing and mints nothing,
+    so the same request against the same chain and the same memory gives the
+    same question -- and that is what lets the workbench's two steps be two
+    requests with no table between them.
+
+    :raises ApplicationRefusedError: the request names no role, a role the
+        loop does not know, the same role twice, or the critique without the
+        guidance that makes a card to review; a named role has no contract,
+        or its contract does not list the capability the run exercises; the
+        memory holds no rule under the id the request names; the chain holds
+        no comment under the issue key, or a version named is outside the
+        project's graph; or the caller's declaration of the material is not
+        the material the chain holds.
+    """
+    roles = _the_roles(request.roles)
+    contracts = tuple(_the_contract(context, role_id=role_id) for role_id in roles)
+    missing = _missing_judgements(request, roles)
+    if missing:
+        for contract in contracts:
+            contract.require_allowed(CapabilityId.MODEL_REQUEST)
+
+    chain = _the_chain(context, request)
+    material = _the_material(context, request, chain)
+    _check_the_declaration(plan, material)
+    rule_citation = _the_rule(context, request)
+    prompt = _the_prompt(request, contracts, chain, rule_citation)
+    return RoleRunQuestion(
+        request=request,
+        contracts=contracts,
+        prompt=prompt,
+        excerpts=_the_excerpts(chain, rule_citation),
+        plan=plan,
+        material=material,
+        rule_citation=rule_citation,
+    )
 
 
 def request_role_run(
@@ -345,61 +483,31 @@ def request_role_run(
 ) -> RoleRunTicket:
     """Write the question down, and spend nothing.
 
-    The request names the roles; this operation reads their contracts, reads
-    the material they will work on, builds the prompt, and -- **only if some
-    judgement is missing** -- asks the consent layer for the approval the run
-    will spend. The approval it asks for is **pending**: nothing is granted
-    and nothing is consumed, because a grant is a person's act and a spend
-    is the run's.
+    The request names the roles; this operation rebuilds the question, and
+    -- **only if some judgement is missing** -- asks the consent layer for
+    the approval the run will spend. The approval it asks for is
+    **pending**: nothing is granted and nothing is consumed, because a grant
+    is a person's act and a spend is the run's.
 
-    :raises ApplicationRefusedError: the request names no role, a role the
-        loop does not know, the same role twice, or the critique without the
-        guidance that makes a card to review; a named role has no contract,
-        or its contract does not list the capability the run exercises; the
-        memory holds no rule under the id the request names; or the policy
-        denied the request the approval is for.
+    :raises ApplicationRefusedError: everything
+        :func:`the_role_run_question` refuses, and the policy's refusal of
+        the request the approval is for.
     """
     moment = now if now is not None else datetime.now(UTC)
+    question = the_role_run_question(context, request, plan=plan)
     roles = _the_roles(request.roles)
-    contracts = tuple(_the_contract(context, role_id=role_id) for role_id in roles)
-
     missing = _missing_judgements(request, roles)
-    if missing:
-        for contract in contracts:
-            contract.require_allowed(CapabilityId.MODEL_REQUEST)
-
-    material = _the_material(context, request)
-    prompt = _the_prompt(request, contracts, material)
-    excerpts = material.excerpts
-    use = ApprovalUse(
-        capability=CapabilityId.MODEL_REQUEST,
-        arguments=ModelRequestArgs(
-            provider=plan.provider,
-            model=plan.model,
-            path=plan.resource_key,
-            excerpts=excerpts,
-            purpose=plan.purpose,
-        ).model_dump(),
-        root_id=plan.root_id,
-        resource_key=plan.resource_key,
-    )
     approval_id: ApprovalId | None = None
     if missing:
         asked = request_approval(
             context,
-            ApprovalRequest(use=use, expires_at=expires_at),
+            ApprovalRequest(use=_the_use(question), expires_at=expires_at),
             now=moment,
         )
         approval_id = asked.approval.approval_id
     return RoleRunTicket(
-        request=request,
-        contracts=contracts,
-        prompt=prompt,
-        excerpts=excerpts,
-        plan=plan,
-        use=use,
+        question=question,
         approval_id=approval_id,
-        rule_citation=material.rule_citation,
         asked_at=moment,
     )
 
@@ -429,13 +537,24 @@ def run_role_run(
     the card does not declare, a quote the chain does not hold. **A role the
     caller did not name is not run at all** -- not asked about, not paid for.
 
+    **And the approval binds the question, not only the material.** The
+    question's own digest goes into the approval's dependency list, so a
+    ticket that changed between the asking and the running -- a different
+    prompt, a different set of roles -- produces a different digest, and
+    the spend is refused because the approval does not cover this question.
+
     :raises ApplicationRefusedError: the run needs a model judgement and no
         provider invocation was given; the consent refused the call; the
-        answer did not satisfy the schema it was asked for; or a role
-        refused its own judgement.
+        answer did not carry a judgement for a role the request named; or a
+        role refused its own judgement.
     """
-    request = ticket.request
-    roles = _the_roles(request.roles)
+    question = ticket.question
+    request = question.request
+    # **The contracts are the authority for what runs.** They are the part of
+    # the question the approval's digest covers, so a ticket that changed
+    # between the asking and the running cannot make a role run that was not
+    # approved -- the spend is refused before it.
+    roles = tuple(contract.role_id for contract in question.contracts)
     missing = _missing_judgements(request, roles)
 
     answer: str | None = None
@@ -448,7 +567,7 @@ def run_role_run(
     if missing:
         if send is None:
             raise ApplicationRefusedError(
-                ApplicationRefusal.ARGUMENTS_INVALID,
+                ApplicationRefusal.ROLE_RUN_NO_PROVIDER_INVOCATION,
                 f"the run needs a judgement for {sorted(missing)} and no provider"
                 " invocation was given, so there is nothing to ask the model with",
             )
@@ -470,10 +589,10 @@ def run_role_run(
             context,
             ticket.approval_id,
             list(grants),
-            use=ticket.use,
-            subject_ref=ticket.plan.subject_ref,
-            destination=ticket.plan.destination,
-            material_ref=ticket.plan.material_ref,
+            use=_the_use(question),
+            subject_ref=question.plan.subject_ref,
+            destination=question.plan.destination,
+            material_ref=question.plan.material_ref,
             purpose=TRANSMIT_PURPOSE,
             at=at,
             send=_send,
@@ -487,7 +606,7 @@ def run_role_run(
         document = captured[0].structured if captured else None
         judgements = _the_judgements(document, missing, judgements)
 
-    result = _run_the_roles(context, ticket, roles, judgements)
+    result = _run_the_roles(context, question, roles, judgements)
     return RoleRunResult(
         roles=result.roles,
         candidate=result.candidate,
@@ -512,13 +631,13 @@ def _the_roles(named: tuple[str, ...]) -> tuple[str, ...]:
     """
     if not named:
         raise ApplicationRefusedError(
-            ApplicationRefusal.ARGUMENTS_INVALID,
+            ApplicationRefusal.ROLE_RUN_NO_ROLE_NAMED,
             "the request names no role, and a request that asks for nothing has nothing to run",
         )
     unknown = sorted(set(named) - ROLE_IDS)
     if unknown:
         raise ApplicationRefusedError(
-            ApplicationRefusal.ARGUMENTS_INVALID,
+            ApplicationRefusal.ROLE_RUN_UNKNOWN_ROLE,
             f"the request names {unknown!r}, and the loop runs only"
             f" {sorted(ROLE_IDS)}; a role the loop does not know is not routed"
             " by a default",
@@ -526,13 +645,13 @@ def _the_roles(named: tuple[str, ...]) -> tuple[str, ...]:
     repeated = sorted({role for role in named if named.count(role) > 1})
     if repeated:
         raise ApplicationRefusedError(
-            ApplicationRefusal.ARGUMENTS_INVALID,
+            ApplicationRefusal.ROLE_RUN_ROLE_NAMED_TWICE,
             f"the request names {repeated!r} more than once, and a role that runs"
             " twice is not the role the caller asked for",
         )
     if "critique" in named and "guidance" not in named:
         raise ApplicationRefusedError(
-            ApplicationRefusal.ARGUMENTS_INVALID,
+            ApplicationRefusal.ROLE_RUN_CRITIQUE_WITHOUT_GUIDANCE,
             "the request asks for the critique without the guidance that makes a"
             " card to review, and a review of nothing is not a review",
         )
@@ -566,45 +685,27 @@ def _missing_judgements(request: RoleRunRequest, roles: tuple[str, ...]) -> tupl
 
 
 @dataclass(frozen=True)
-class _Material:
-    """What the run reads: the chain's own words, and the rule the card cites."""
+class _ChainFacts:
+    """What the chain holds for the request: the comment's words and the rounds."""
 
-    issue_key: str
     comment_texts: tuple[str, ...]
     version_ids: tuple[str, ...]
     edit_ids: tuple[str, ...]
-    rule_statement: str | None
-    rule_counterexamples: tuple[str, ...]
-    rule_citation: RuleCitation | None
-
-    @property
-    def excerpts(self) -> tuple[str, ...]:
-        """The material that leaves the machine, and nothing else.
-
-        **The loop's own instructions are not excerpts** -- they are the
-        repository's text, not the reader's material -- and neither is the
-        model's own earlier words. The approval binds this set.
-        """
-        parts = list(self.comment_texts)
-        if self.rule_statement is not None:
-            parts.append(self.rule_statement)
-        parts.extend(self.rule_counterexamples)
-        return tuple(parts)
+    comment_version_id: str
 
 
-def _the_material(context: ApplicationContext, request: RoleRunRequest) -> _Material:
-    """The chain's comments and the memory's rule, read through the layer.
+def _the_chain(context: ApplicationContext, request: RoleRunRequest) -> _ChainFacts:
+    """The chain's facts for the request, read through the layer.
 
     **The chain is read through the role that reads it**, so the material
     the loop sends is the same material the roles will work on, and the
     refusals the read raises are the roles' own.
 
-    :raises ApplicationRefusedError: the memory holds no rule under the id
-        the request names; the chain holds no comment under the issue key;
-        or a version named is outside the project's graph, or the accepted
-        edges leave the order ambiguous.
+    :raises ApplicationRefusedError: the chain holds no comment under the
+        issue key, or a version named is outside the project's graph, or the
+        accepted edges leave the order ambiguous.
     """
-    from labcairn.roles.guidance import cite_rule
+    from labcairn.application import chain as chain_layer
     from labcairn.roles.trajectory import TrajectoryInput, read_trajectory
 
     chain = read_trajectory(
@@ -615,29 +716,116 @@ def _the_material(context: ApplicationContext, request: RoleRunRequest) -> _Mate
             issue_keys=(request.issue_key,),
         ),
     )
-    texts = tuple(comment.comment_text for comment in chain.comments)
-    statement: str | None = None
-    counterexamples: tuple[str, ...] = ()
-    citation: RuleCitation | None = None
-    if request.rule_id is not None:
-        citation = cite_rule(context, rule_id=request.rule_id)
-        statement = citation.statement
-        counterexamples = citation.counterexamples
-    return _Material(
-        issue_key=request.issue_key,
-        comment_texts=texts,
+    held = chain_layer.read_comments(context, issue_keys=(request.issue_key,))
+    if not held:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN,
+            f"the chain holds no comment under the key {request.issue_key!r}",
+        )
+    return _ChainFacts(
+        comment_texts=tuple(comment.comment_text for comment in chain.comments),
         version_ids=chain.ordered_version_ids,
         edit_ids=tuple(edit.edit_action_id for edit in chain.edits),
-        rule_statement=statement,
-        rule_counterexamples=counterexamples,
-        rule_citation=citation,
+        comment_version_id=held[0].version_id,
     )
+
+
+def _the_material(
+    context: ApplicationContext, request: RoleRunRequest, chain: _ChainFacts
+) -> MaterialAddress:
+    """Where the comment's material is, computed from the chain.
+
+    **The loop does not take the caller's word for it.** The comment names
+    a version, the version names a source, and the source names a path --
+    and that path is what the run would send. So the address is a fact the
+    loop can prove, and the caller's declaration is checked against it.
+
+    :raises ApplicationRefusedError: the version names material the ledger
+        does not hold.
+    """
+    from labcairn.application import chain as chain_layer
+
+    paths = chain_layer.read_material_paths(context, version_ids=(chain.comment_version_id,))
+    workspace_path = paths.get(chain.comment_version_id)
+    if workspace_path is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.CHAIN_SOURCE_NOT_FOUND,
+            f"the version {chain.comment_version_id!r} names material the ledger"
+            " does not hold, so the run has no address for the material it would send",
+        )
+    canonical = context.resource_for(workspace_path)
+    return MaterialAddress(
+        workspace_path=workspace_path,
+        root_id=canonical.root_id,
+        resource_key=canonical.declared_key,
+    )
+
+
+def _check_the_declaration(plan: ModelCallPlan, material: MaterialAddress) -> None:
+    """The caller's declaration and the chain's material must be one material.
+
+    **The grant the transmit gate checks names a material, and the approval
+    binds a set of excerpts.** If the two were not the same material, the
+    grant would cover one thing and another would leave. So the loop reads
+    the material itself and compares: a declaration that does not match is
+    **refused by name**, and the refusal says which part differs. **It is
+    not silently replaced** -- a caller that was told it had its material
+    must not be handed somebody else's.
+
+    :raises ApplicationRefusedError: the declaration names a different
+        material than the chain holds.
+    """
+    declared = {
+        "root id": plan.root_id,
+        "resource key": plan.resource_key,
+        "material ref": plan.material_ref,
+    }
+    computed = {
+        "root id": material.root_id,
+        "resource key": material.resource_key,
+        "material ref": material.workspace_path,
+    }
+    differing = sorted(name for name, value in declared.items() if value != computed[name])
+    if differing:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ROLE_RUN_MATERIAL_MISMATCH,
+            f"the request declares the material as {declared!r}, and the chain holds"
+            f" it as {computed!r}; {', '.join(differing)} differ",
+        )
+
+
+def _the_rule(context: ApplicationContext, request: RoleRunRequest) -> RuleCitation | None:
+    """The rule the card cites, with the cases against it.
+
+    :raises ApplicationRefusedError: the memory holds no rule under the id
+        the request names.
+    """
+    if request.rule_id is None:
+        return None
+    from labcairn.roles.guidance import cite_rule
+
+    return cite_rule(context, rule_id=request.rule_id)
+
+
+def _the_excerpts(chain: _ChainFacts, rule: RuleCitation | None) -> tuple[str, ...]:
+    """The material that leaves the machine, and nothing else.
+
+    **The loop's own instructions are not excerpts** -- they are the
+    repository's text, not the reader's material -- and neither is the
+    model's own earlier words. The approval binds this set.
+    """
+    parts = list(chain.comment_texts)
+    if rule is not None:
+        parts.append(rule.statement)
+        parts.extend(rule.counterexamples)
+    return tuple(parts)
 
 
 def _the_prompt(
     request: RoleRunRequest,
     contracts: Sequence[AgentRoleSpec],
-    material: _Material,
+    chain: _ChainFacts,
+    rule: RuleCitation | None,
 ) -> str:
     """The question, as it will be asked.
 
@@ -655,21 +843,19 @@ def _the_prompt(
     for contract in contracts:
         lines.append(f"- {contract.role_id}, version {contract.role_version}: {contract.objective}")
     lines.extend(["", "The material:", f"issue key: {request.issue_key}"])
-    if material.version_ids:
-        lines.append(
-            f"the versions, in the accepted edges' order: {', '.join(material.version_ids)}"
-        )
-    if material.comment_texts:
+    if chain.version_ids:
+        lines.append(f"the versions, in the accepted edges' order: {', '.join(chain.version_ids)}")
+    if chain.comment_texts:
         lines.append("the advisor's comment, in their own words:")
-        lines.extend(f"  {text}" for text in material.comment_texts)
-    if material.edit_ids:
-        lines.append(f"the changes that answered it: {', '.join(material.edit_ids)}")
-    if material.rule_statement is not None:
+        lines.extend(f"  {text}" for text in chain.comment_texts)
+    if chain.edit_ids:
+        lines.append(f"the changes that answered it: {', '.join(chain.edit_ids)}")
+    if rule is not None:
         lines.append("the rule the card cites:")
-        lines.append(f"  {material.rule_statement}")
-        if material.rule_counterexamples:
+        lines.append(f"  {rule.statement}")
+        if rule.counterexamples:
             lines.append("the cases against that rule:")
-            lines.extend(f"  - {item}" for item in material.rule_counterexamples)
+            lines.extend(f"  - {item}" for item in rule.counterexamples)
     lines.extend(["", "Answer with one part per role, and only those parts:"])
     for contract in contracts:
         lines.append(f"- {contract.role_id}: {_the_part(contract.role_id)}")
@@ -689,6 +875,60 @@ def _the_part(role_id: str) -> str:
             " what_is_uncertain, claims, style_notes."
         )
     return "verdict, repair_advice, handover_reason."
+
+
+# --------------------------------------------------------------------------- #
+# what the approval binds
+# --------------------------------------------------------------------------- #
+
+
+def _question_digest(question: RoleRunQuestion) -> str:
+    """A digest of everything the run depends on: the roles, the prompt, the material.
+
+    **It goes into the approval's dependency list**, so the approval binds
+    the *question* and not only the material. A ticket that changed between
+    the asking and the running -- a different prompt, a different set of
+    roles, a different material -- produces a different digest, and the
+    spend is refused because the approval does not cover this question.
+    """
+    payload = {
+        "request": asdict(question.request),
+        "roles": [contract.role_id for contract in question.contracts],
+        "prompt": question.prompt,
+        "excerpts": list(question.excerpts),
+        "material": {
+            "workspace_path": question.material.workspace_path,
+            "root_id": question.material.root_id,
+            "resource_key": question.material.resource_key,
+        },
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _the_use(question: RoleRunQuestion) -> ApprovalUse:
+    """What the approval is spent on: the model's request, and the question's digest.
+
+    **The use is derived from the question, not carried beside it.** A
+    caller that changed the question changed this, and the digest it
+    carries is over the question as it now stands -- which is what makes
+    the change visible to the approval.
+    """
+    plan = question.plan
+    material = question.material
+    return ApprovalUse(
+        capability=CapabilityId.MODEL_REQUEST,
+        arguments=ModelRequestArgs(
+            provider=plan.provider,
+            model=plan.model,
+            path=material.resource_key,
+            excerpts=question.excerpts,
+            purpose=plan.purpose,
+        ).model_dump(),
+        root_id=material.root_id,
+        resource_key=material.resource_key,
+        depends_on=(_question_digest(question),),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -712,6 +952,9 @@ def _the_judgements(document: object, missing: tuple[str, ...], known: _Judgemen
     that did not fit the schema it was asked for -- so what arrives here is
     already the shape the roles take, and it is turned into the same
     objects the caller would have supplied.
+
+    :raises ApplicationRefusedError: the answer carried no judgement for a
+        role the request named.
     """
     from labcairn.roles.guidance import CardClaim
 
@@ -727,6 +970,12 @@ def _the_judgements(document: object, missing: tuple[str, ...], known: _Judgemen
     critique = known.critique
     if "trajectory" in missing:
         trajectory_part = parsed.trajectory
+        if trajectory_part is None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ROLE_RUN_NO_JUDGEMENT,
+                "the answer carried no judgement for the role 'trajectory', and a role"
+                " the request named is not run without one",
+            )
         trajectory = TrajectoryJudgement(
             issue_type=trajectory_part.issue_type,
             alignment=trajectory_part.alignment,
@@ -736,6 +985,12 @@ def _the_judgements(document: object, missing: tuple[str, ...], known: _Judgemen
         )
     if "guidance" in missing:
         guidance_part = parsed.guidance
+        if guidance_part is None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ROLE_RUN_NO_JUDGEMENT,
+                "the answer carried no judgement for the role 'guidance', and a role"
+                " the request named is not run without one",
+            )
         guidance = GuidanceJudgement(
             issue_type=guidance_part.issue_type,
             severity=guidance_part.severity,
@@ -757,6 +1012,12 @@ def _the_judgements(document: object, missing: tuple[str, ...], known: _Judgemen
         )
     if "critique" in missing:
         critique_part = parsed.critique
+        if critique_part is None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ROLE_RUN_NO_JUDGEMENT,
+                "the answer carried no judgement for the role 'critique', and a role"
+                " the request named is not run without one",
+            )
         critique = CritiqueJudgement(
             verdict=critique_part.verdict,
             repair_advice=critique_part.repair_advice,
@@ -768,18 +1029,11 @@ def _the_judgements(document: object, missing: tuple[str, ...], known: _Judgemen
 def _the_judgement[T](judgement: T | None, role_id: str) -> T:
     """The judgement a named role works from.
 
-    **A named role always has one.** A role the caller named and did not
-    supply a judgement for is one the model was asked for, and the model
-    path refuses an answer that does not carry it -- so a role without a
-    judgement here is a wiring fault, and it is named rather than skipped.
-    Skipping it would be the one thing this module must never do: **a role
-    the caller asked for that silently did not run.**
-
     :raises ApplicationRefusedError: no judgement reached the role.
     """
     if judgement is None:
         raise ApplicationRefusedError(
-            ApplicationRefusal.ARGUMENTS_INVALID,
+            ApplicationRefusal.ROLE_RUN_NO_JUDGEMENT,
             f"the request named {role_id!r} and no judgement reached it",
         )
     return judgement
@@ -787,7 +1041,7 @@ def _the_judgement[T](judgement: T | None, role_id: str) -> T:
 
 def _run_the_roles(
     context: ApplicationContext,
-    ticket: RoleRunTicket,
+    question: RoleRunQuestion,
     roles: tuple[str, ...],
     judgements: _Judgements,
 ) -> RoleRunResult:
@@ -796,8 +1050,8 @@ def _run_the_roles(
     from labcairn.roles.guidance import Uncertainty, build_card
     from labcairn.roles.trajectory import propose_candidate
 
-    request = ticket.request
-    contracts = {contract.role_id: contract for contract in ticket.contracts}
+    request = question.request
+    contracts = {contract.role_id: contract for contract in question.contracts}
     candidate = None
     card = None
     verdict = None
@@ -836,13 +1090,13 @@ def _run_the_roles(
                 ),
                 claims=guidance_judgement.claims,
                 style_notes=guidance_judgement.style_notes,
-                rule_refs=(ticket.rule_citation,) if ticket.rule_citation is not None else (),
+                rule_refs=((question.rule_citation,) if question.rule_citation is not None else ()),
             )
         else:
             critique_judgement = _the_judgement(judgements.critique, role_id)
             if card is None:
                 raise ApplicationRefusedError(
-                    ApplicationRefusal.ARGUMENTS_INVALID,
+                    ApplicationRefusal.ROLE_RUN_CRITIQUE_WITHOUT_GUIDANCE,
                     "the critique ran without a card to review, and a review of"
                     " nothing is not a review",
                 )
@@ -865,12 +1119,15 @@ def _run_the_roles(
 __all__ = [
     "ROLE_IDS",
     "ROLE_ORDER",
+    "TRANSMIT_PURPOSE",
     "ClaimModel",
     "CritiqueJudgement",
     "CritiqueJudgementModel",
     "GuidanceJudgement",
     "GuidanceJudgementModel",
+    "MaterialAddress",
     "ModelCallPlan",
+    "RoleRunQuestion",
     "RoleRunRequest",
     "RoleRunResult",
     "RoleRunTicket",
@@ -878,4 +1135,5 @@ __all__ = [
     "TrajectoryJudgementModel",
     "request_role_run",
     "run_role_run",
+    "the_role_run_question",
 ]
