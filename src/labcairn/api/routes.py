@@ -34,6 +34,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterator
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -45,6 +46,7 @@ from labcairn.api.contracts import (
     ApprovalUseBody,
     ClaimBody,
     CommentResponses,
+    GuidanceRuleVerdictBody,
     Health,
     ReportBody,
     SessionInfo,
@@ -104,6 +106,7 @@ from labcairn.application.stages import StageRequest, StageWork
 from labcairn.core.ids import ApprovalId
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
+from labcairn.guidance.rules import confirm_rule, dispute_rule
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
 from labcairn.runtime.lifecycle import Task
 
@@ -761,6 +764,94 @@ def get_guidance_rule(
     that, and not an empty rule that looks like a rule.
     """
     return read_guidance_rule(context, rule_id=rule_id)
+
+
+@router.post("/guidance/rules/{rule_id}/confirm", response_model=GuidanceRule, tags=["mentor"])
+def post_guidance_rule_confirmation(
+    rule_id: str,
+    body: GuidanceRuleVerdictBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> GuidanceRule:
+    """A person confirms or disputes a rule, and the rule says so afterwards.
+
+    **The second-reader rule is the memory's, and this route asks it rather
+    than restating it.** Whoever proposed a rule cannot be the one who
+    confirms it — one person reading twice is one person reading once with
+    extra steps — so a proposer who tries is refused by name, with the
+    memory's own reason, and the refusal says who was missing.
+
+    **The answer is the rule itself.** The layer's own
+    :class:`~labcairn.guidance.models.GuidanceRule`, carrying the state the
+    person's word moved it to and the person who moved it — so a workbench
+    that draws the answer draws the rule, and not a second spelling of it.
+
+    **And a dispute carries its reason.** A dispute without a reason is a
+    shrug, and the memory refuses one by name rather than storing it. **A
+    reason belongs to a dispute**, too: a confirmed rule carries none — the
+    schema says so — so a reason given with a confirmation is refused
+    rather than quietly dropped.
+
+    **Nothing is written when the door is refused.** The write happens
+    inside the store's own unit of work, so a refusal rolls the transaction
+    back and the rule keeps the state it had.
+    """
+    if not body.user_id.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            "a confirmation nobody signs is not a confirmation. Name the person whose word it is.",
+        )
+    if body.verdict == "confirmed" and body.reason.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            "a reason belongs to a dispute, and a confirmed rule carries none: the "
+            "memory holds no reason on a rule that stands. Dispute the rule with "
+            "the reason instead.",
+        )
+    return _settle_the_rule(context, rule_id=rule_id, body=body)
+
+
+def _settle_the_rule(
+    context: ApplicationContext,
+    *,
+    rule_id: str,
+    body: GuidanceRuleVerdictBody,
+) -> GuidanceRule:
+    """The rule, settled by the person's verdict, in one transaction.
+
+    **The transaction is opened here, and not by the handler, because the
+    request's session is closed without a commit.** Every write this service
+    makes commits inside a unit of work, and the rule memory's own write
+    flushes rather than commits — so a rule confirmed through this route
+    would be gone the moment the request ended. The unit is the store's own
+    boundary: it commits on a clean exit and rolls back on a refusal, so a
+    door that says no writes nothing.
+
+    **And the verdict chooses the operation; the operations are the memory's.**
+    ``confirmed`` asks the memory to confirm the rule and ``disputed`` asks
+    it to dispute the rule — and the second-reader rule, the reason a
+    dispute must carry and the closed state machine are all the memory's,
+    so a rule the service would have allowed is refused here too.
+
+    **The moment is the wall clock's, the way the ledger's own door takes
+    it.** A person's act happens now, and the route says so the same way
+    the console does.
+    """
+    moment = datetime.now(UTC)
+    with context.store.unit(context.task_id):
+        if body.verdict == "confirmed":
+            return confirm_rule(
+                context,
+                rule_id=rule_id,
+                confirmed_by=body.user_id,
+                now=moment,
+            )
+        return dispute_rule(
+            context,
+            rule_id=rule_id,
+            reason=body.reason,
+            disputed_by=body.user_id,
+            now=moment,
+        )
 
 
 __all__ = ["router"]

@@ -225,5 +225,14 @@ the record is corrected.
 every test still passes:
 
 ```
-python C:\Users\pc\labcairn-g4\recover\witness_ledger.py <before> <after>
+python scripts/witness_ledger.py <before> <after>
 ```
+
+**The tool is in the repository, and it has a witness of its own.** The
+path this section used to name pointed outside the checkout, so a clone
+had no ledger to run; the tool now reads the two revisions with git and
+defaults to the repository it lives in. **A tool that finds witnesses by
+matching their names in the source is a tool that can stop finding them**,
+and then it reports *"LOST -- none"* over a tree that lost one — which is
+the green report nobody questions. `tests/test_scaffolding.py` runs it
+against a tree that really did lose a witness.

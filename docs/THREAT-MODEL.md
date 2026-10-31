@@ -134,7 +134,7 @@ Writes outside that path, in the whole of `src/`:
 | **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:284-304` | The user's own configuration, written by `labcairn init`. |
 | **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:83`, `src/labcairn/db/migrations.py:87` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. |
-| **The workspace directories** | `src/labcairn/cli/commands.py:359-363`, `src/labcairn/workspace/roots.py:104` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:379-383`, `src/labcairn/workspace/roots.py:104` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
 **This section is an enumeration, and it is checked.** Every write in
@@ -405,7 +405,7 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 | Path | Destination | Evidence |
 |---|---|---|
 | Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:107` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:154`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:1475` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2294` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,

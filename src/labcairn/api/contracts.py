@@ -49,7 +49,7 @@ says; this model is only the schema the OpenAPI document can describe.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -179,6 +179,31 @@ class ClaimBody(Result):
     tolerance: float | None = None
 
 
+class GuidanceRuleVerdictBody(Result):
+    """A person's verdict on a rule, as the API accepts it.
+
+    **The verdict is closed, and the contract says which words are in it.** A
+    rule is confirmed or disputed — a person either stands behind it or says
+    why it does not hold — and *"the person had a look"* is not a verdict a
+    rule can carry. **The vocabulary is in the type rather than in the
+    handler**, so the workbench's own types carry it as well: a view that
+    drew a button for a verdict the service does not accept would be
+    offering a door that is not there.
+
+    **The reason is the dispute's, and the memory refuses it if it is not
+    one.** A dispute without a reason is a shrug, so the body carries what
+    the person said and the rule memory decides whether it is a reason — the
+    refusal for a shrug is the memory's, and it is named.
+
+    **And the person is named**, because a confirmation nobody signs is not
+    a confirmation.
+    """
+
+    verdict: Literal["confirmed", "disputed"]
+    user_id: str = Field(min_length=1)
+    reason: str = ""
+
+
 class SessionInfo(Result):
     """The session the caller is in, and the token that proves it.
 
@@ -247,6 +272,7 @@ __all__ = [
     "ApprovalUseBody",
     "ClaimBody",
     "CommentResponses",
+    "GuidanceRuleVerdictBody",
     "Health",
     "RefusalBody",
     "ReportBody",

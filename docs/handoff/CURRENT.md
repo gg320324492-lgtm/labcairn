@@ -165,21 +165,30 @@ behaviour, and the gap is an old one rather than a regression** — it is
 named here, and it is LC-P2-09's to close, because a project's grant is
 what says who may read its material at all.
 
-**One claim this file makes in several places has no witness, and the gap
-is on the tree's side rather than the product's.** *"The tree carries no
-model id, endpoint, price or capability claim — a fresh checkout cannot
-spend money by accident"* is written here and in the LC-P2-01 record, and
-the product's half of it is watched: the fake provider opens no socket,
-needs no key and needs no environment, a provider with no probe record is
-refused before a request is made, and `httpx` is read out of
-`pyproject.toml` rather than out of the installed environment. **The tree's
-half is not**: nothing reads the checkout and says that no supplier's
-endpoint, model id or price is written in it, that the settings schema has
-nowhere to put a price or a capability claim, or that no price table
-exists. **A claim stated in several places and watched in none of them is a
-claim nothing keeps.** The witness for it turned up in a worktree whose
-own work had already landed; it is kept outside the repository, and it is
-the next piece of work.
+**A claim this file makes in several places was not accurate as written,
+and the tree's half of it had no witness.** *"The tree carries no model
+id, endpoint, price or capability claim — a fresh checkout cannot spend
+money by accident"* was written here and in the LC-P2-01 record, and
+**the second half of that sentence was true while the first was not**:
+the tree does hold two public endpoints — `api.openai.com` and
+`api.anthropic.com`, ADR-0019 §D2's *protocol defaults* — and model ids
+in prose and in usage examples. **What the tree does not hold is a
+route**: no configuration file, no price, no capability claim, and no
+*authorised* supplier's model id or endpoint. The line between the two is
+**whether the product reads it as configuration** — a docstring's string
+is prose, a settings file's string is a route.
+
+**And the tree's half had no witness at all**, while the product's half
+did: the fake provider opens no socket, needs no key and needs no
+environment; a provider with no probe record is refused before a request
+is made; `httpx` is read out of `pyproject.toml` rather than out of the
+installed environment. Six witnesses now read the checkout: that the
+tree ships no configuration whatever, that the settings format's key set
+is closed and carries no price or capability claim, that no module under
+`src/` calls the ledger's price recorder, that the provider layer names
+no endpoint beyond those two defaults, that a model can only enter the
+product from the operator, and that the tracked `.env.example` carries
+no value. **The claim is now narrower and true, and it is watched.**
 
 **LC-P2-16's first subtask is landed: the contract carries the three
 outlets.** The workbench cannot draw what the API does not carry, so the
@@ -215,9 +224,32 @@ route from a refusal into a 200, and a task-area check put on the mentor
 route turned it from a 200 into a 403 — **so the two witnesses that say
 what the routes do and do not ask are the ones that go red when the
 answer changes.** And the shard costs are measured again from the
-runner's own log: **Ubuntu's balance factor was 1.603 and is now 1.224**,
+runner's own log: **Ubuntu's balance factor was 1.603, was 1.224 after the
+first measurement, and is 1.535 now** — the rule door's eleven console
+witnesses made `tests/test_cli.py` the heavier file it already was — while
 Windows stays at 1.000, and the witness that had been red for the whole
 branch is green.
+
+**And Ubuntu's slack is now sixteen seconds.** That is the margin the
+partition has left before a changed file could unbalance it, and
+`tests/test_cli.py` costs 382 seconds of a 1,378-second suite: **the next
+piece of work that touches that file owes another runner measurement.**
+**A partition with sixteen seconds of slack needs a different number of
+shards or a cheaper `test_cli.py`, and both are the owner's call** — the
+same call the branch made in October, now with a smaller number on it.
+
+**And one kind of citation in the threat model has no witness.** The write
+enumeration reads the tree and asks the document whether it describes
+every write, so a write's citation cannot drift far without something
+noticing. **A citation that names something other than a write is not
+watched that way**: the local socket probe's citation pointed at a figure
+command's docstring for months, and the only witness that read it checked
+that the line was inside the file. **A document that cites a place is
+making a claim about that place**, and the claim wants a witness of its
+own — the identifier the sentence names has to appear at the line the
+citation names. That witness does not exist yet; it is the next piece of
+work, and it is the kind of gap this branch keeps finding: a check that
+runs, reporting a green answer, about something narrower than the claim.
 
 **The new route found a hole in the pinned clock, and the hole was in the
 test's own metaclass.** `/guidance/rules` serves the guidance memory's
@@ -252,6 +284,45 @@ in pydantic's module and the pinning never reaches it — and
 modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
+
+**The rules' confirmation door is on the console and on the wire.** A
+person confirms or disputes a rule — `labcairn guidance rule-confirm
+<rule_id> --verdict confirmed|disputed --user <who> [--reason <why>]`, and
+`POST /guidance/rules/{rule_id}/confirm` — and **the second-reader rule
+stays where the memory keeps it**: neither surface restates it, and a
+mutation that made the console or the route bypass
+`guidance.rules.confirm_rule` turned that surface's own witness red while
+the other stayed green. The verdict vocabulary is in the request body's
+**type**, so the regenerated TypeScript carries it and the workbench does
+not hard-code it.
+
+**And the door found a transaction hole in the layer.** The memory's writes
+are flushed and left for the caller's unit of work to commit — **unlike the
+papers layer's, which commits itself**, so the two styles coexist and a
+caller that guesses wrong loses its write. The route was the first caller
+to arrive without a unit, and **the rule it had just confirmed was back to
+`candidate` the moment the request ended**: inside the request the answer
+said `confirmed`, and the next request read `candidate`. The route holds
+the unit now, and the two witnesses that watch the door read the rule back
+**through another request**, because each request forks its own session.
+The layer says so in its own docstring now, and which style a layer uses is
+still not uniform — a thing to settle, and not this round's to settle.
+
+**And the two surfaces refuse the same bad verdict in different shapes.**
+The route's body check answers 422 in the schema's own vocabulary, the
+route's own two refusals answer `arguments_invalid` at 403, and the
+console answers `invalid_arguments`. **So one door has three refusal
+shapes on it**, and a workbench has to know that before it draws the
+panel. Whether they become one shape is the owner's call.
+
+**The ORM writes a row in mapper order, not in dependency order.** The
+chain's `EditActionRow` sorts before `FeedbackEventRow` — by the mapper
+class names, not by the foreign keys — so a batch write that inserts both
+has the edit's foreign key checked before the comment it points at
+exists, and the batch is refused. **The product's own write path does not
+hit it**, because it writes the rows one at a time; a test that writes
+rows in one batch does. It is named here because the failure it produces
+reads like a product defect and is not one.
 
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
@@ -358,8 +429,9 @@ creator field around it. `application/model_refusals.py` and the
 `MODEL_REFUSALS` table name the path's four refusals in the layer's
 vocabulary, closed against each other in both directions, with the path
 raising through `model_refused`. `httpx` is a declared dependency at
-`>=0.27,<1` (ADR-0019), and the tree carries no model id, endpoint,
-price or capability claim — a fresh checkout cannot spend money by
+`>=0.27,<1` (ADR-0019), and the tree carries no **route** to a supplier —
+no configuration file, no price, no capability claim, and no authorised
+supplier's model id or endpoint — so a fresh checkout cannot spend money by
 accident. The witnesses are `tests/test_model_request_path.py`
 (fifteen), `tests/test_model_request_demo.py` (two), and
 `examples/model_request_demo.py`, which runs four scenes — consented,
