@@ -242,9 +242,16 @@ And **pydantic v2 refuses any subclass of `datetime`** unless that class
 implements `__get_pydantic_core_schema__` — so **replacing the clock with
 a `datetime` subclass is a legitimate state of the product**, and a model
 that carries a timestamp has to be able to live in it. That is why the fix
-is in the metaclass and not in the model: **the fix has to hold for every
-model, not for the one that happened to break** — `/records` carries
-`AwareDatetime` and would have failed the same way, one route later.
+is in the metaclass and not in the model. **The scope of the fix is the
+narrower one, and the route's author measured it rather than assumed it:**
+the model that broke is the guidance memory's own dataclass, whose
+`datetime` is a bare annotation the pinning replaces. A pydantic model that
+names `AwareDatetime` never had the problem — that alias's `datetime` lives
+in pydantic's module and the pinning never reaches it — and
+`EvidenceRecord` is written that way. **So the dividing line is the one the
+modules already draw: a domain model does not import pydantic**, and a
+model that cannot name pydantic's types has to be able to live in a world
+where `datetime` is a subclass.
 
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
