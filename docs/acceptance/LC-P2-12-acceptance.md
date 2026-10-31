@@ -123,3 +123,23 @@ The incremental evidence above is local until a runner says otherwise.
 - **The guidance is not good; it is consents, budgets, records and
   refusals.** Whether it helps a student is LC-P2-14's question, and
   nothing here answers it.
+
+## The weakest point an independent review found
+
+An independent read-only review re-applied every mutation in this
+record's §4 and found all thirteen claims **hold**. Its weakest point
+is the thinnest load-bearing surface here: **`DecisionLedger` is an
+in-memory Python list.**
+
+The "append-only audit trail" is a list in a dataclass: the dataclass
+is not frozen, `_records` is a single-underscore attribute any holder
+can rewrite, and the only structural guard on immutability is a
+negative check that the object has no `update` and no `delete` — a
+property asserted about an API surface rather than enforced by a type.
+The overwrite mutation was caught, but only because the witness
+inspects the trail's contents; a caller that mutates the list
+directly reddens nothing.
+
+**The remedy:** move the ledger into the store, the way LC-P2-01's
+"the grant survives the process" did for approvals, and stamp the
+version inside a single construction path.

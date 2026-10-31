@@ -132,3 +132,30 @@ it does not make a real cloud call; it does not make an unknown answer
 into an answer; it does not let a model's say-so into a report. The
 proposal's status is `planned`, and the checks that would grade it are
 the evidence ledger's own, not this path's.
+
+## 6. The weakest point an independent review found
+
+An independent read-only review re-applied eleven mutations on this
+work order's tree and found every claim here **holds**. Its weakest
+point is the one this record should name: **the exchange record's
+safety is held by this path's discipline and its callers' honesty, not
+by the payload's type.**
+
+`ModelExchangePayload.exchanges` is `list[dict[str, object]]` — free
+shaped — and `request_model` forwards whatever `send()` returns
+verbatim into the event log. Nothing on the write path re-validates
+that each entry is the provider layer's `ExchangeRecord` wire form, and
+`credential_fingerprint: str = Field(min_length=1)` accepts a
+key-shaped string without complaint. The mutation that sent a key-shaped
+string as the fingerprint rode exactly that hole; only the assertion on
+the exact scripted value caught it.
+
+**Why it is not yet a defect.** The only `send` implementations are the
+repository's own, and they are right. But LC-P2-12's three roles all
+funnel through this path, and a role that composed an `ModelInvocation`
+by hand — or an adapter bug that put text into an exchange dict —
+would have that text persisted with every test green.
+
+**The remedy:** type the exchanges as the provider layer's record type,
+or check each dict against it at the emit, so that "no text, no key"
+moves from a docstring and a witness to the schema itself.

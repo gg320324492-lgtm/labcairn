@@ -121,3 +121,24 @@ incremental evidence above is local until a runner says otherwise.
 - **The rules are not good; they are sourced, scoped and checkable.**
   Whether retrieval-augmented rules help a student is LC-P2-14's question,
   and nothing here answers it.
+
+## The weakest point an independent review found
+
+An independent read-only review re-applied the mutations in this
+record's §4 — and two more, the closed state machine's schema check
+and the distillation's scope — and found all thirteen claims
+**hold**. Its weakest point is **A5's second half**: *the ordering
+never consults a version or a timestamp.*
+
+The witness seeds two conflicting rules **at the same instant and the
+same version**, so **any** recency key added to the ordering would be
+a no-op on that data. The test cannot tell "the ordering consulted
+recency and found a tie" from "the ordering never looks". The property
+is held today by a code fact — the key tuple contains exactly `state`
+and `rule_id` — and not by behaviour. **That is the same shape as the
+gap LC-P2-10's review found, met from the other side**: an expired
+thing judged by its state rather than by its clock.
+
+**The remedy:** a seed where the two rules differ in version or in
+timestamp, still asserting the id order. One line of fixture closes
+it.
