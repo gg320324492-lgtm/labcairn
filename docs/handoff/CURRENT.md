@@ -86,6 +86,21 @@ record, and the rule's is kept and marked*. The record is
 `docs/acceptance/pilot-confirmation-door.md`, with six application-layer
 witnesses, two CLI witnesses and seven mutations.
 
+**The door's first version was caught by the threat model, and the
+branch had a latent defect the CI's shard order hid.** C14 says *"no
+product operation runs the ledger's checks"*; the door's first version
+wrote the person's verdict onto the proposal's log, which meant calling
+the ledger's verification write from a product module. **The store's own
+design was the answer** — *a person writes their own record, and the
+rule's is kept and marked* — so the door takes it and the threat model
+and its witness are untouched. And the full suite on one machine found
+that **the exchange event's payload schema was registered only where the
+writer was imported**, so a process that only read events had no schema
+for it and a stored exchange's payload was accepted unchecked — the
+defect `runtime/event.py` names and the CI's separate shards never
+exposed. The registration now sits in the runtime package's own import,
+and the witness asks about it in a fresh interpreter.
+
 **And the pilot's own proposal has been settled.** The owner confirmed
 it on 2026-10-31 through the new command: the model's answer keeps its
 identity (`model_proposal`, `planned`) and gains a C4 entry naming the
