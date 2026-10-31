@@ -2386,6 +2386,36 @@ def test_the_mentor_line_s_routes_ask_no_permission_of_the_task_s_area(
     assert guidance.status_code == 200, guidance.text
 
 
+def test_the_service_carries_the_mentor_line_s_routes(
+    context: ApplicationContext,
+) -> None:
+    """The routes the work order asked for are on the running service.
+
+    **Building the app is the step that builds a schema for every response
+    model the service carries**, so this asserts two things at once: that
+    the service starts, and that these routes are on it. A route that is
+    defined but not mounted is a route that is not there, and a reader
+    asking "does the service carry these?" deserves an answer that is not
+    inferred from another test's outcome.
+
+    **And the contract carries them too**, because the workbench's types
+    are generated from the contract's document — a route the contract does
+    not name is a route the front end cannot have a type for.
+    """
+    app = create_app(context, event_source=_StoreEventSource())
+    served = set(app.openapi()["paths"])
+    contracted = set(contract_app().openapi()["paths"])
+    for path in (
+        "/trajectory",
+        "/trajectory/graph",
+        "/guidance/rules",
+        "/guidance/rules/{rule_id}",
+        "/records",
+    ):
+        assert path in served, f"{path} is not on the service"
+        assert path in contracted, f"{path} is not in the contract"
+
+
 def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
     """The three outlets' shapes are in the contract, and the front end gets them.
 
