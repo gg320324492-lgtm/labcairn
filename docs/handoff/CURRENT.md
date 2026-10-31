@@ -234,6 +234,18 @@ changed**, and the witness that caught it was the one that runs the
 demonstration at two hours eighteen apart — which is exactly what it is
 for.
 
+**Two things the route's author measured, and both are worth keeping.**
+**FastAPI 0.151's `app.routes` holds `_IncludedRouter` objects, which have
+no `.path`** — so *"the route is on the service"* cannot be asserted with
+`route.path`, and the service's own OpenAPI path table is where it is.
+And **pydantic v2 refuses any subclass of `datetime`** unless that class
+implements `__get_pydantic_core_schema__` — so **replacing the clock with
+a `datetime` subclass is a legitimate state of the product**, and a model
+that carries a timestamp has to be able to live in it. That is why the fix
+is in the metaclass and not in the model: **the fix has to hold for every
+model, not for the one that happened to break** — `/records` carries
+`AwareDatetime` and would have failed the same way, one route later.
+
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
 anchored to, and the paragraph it sits in** — 507 characters, named in the
