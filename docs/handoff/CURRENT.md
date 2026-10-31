@@ -181,6 +181,44 @@ claim nothing keeps.** The witness for it turned up in a worktree whose
 own work had already landed; it is kept outside the repository, and it is
 the next piece of work.
 
+**LC-P2-16's first subtask is landed: the contract carries the three
+outlets.** The workbench cannot draw what the API does not carry, so the
+routes come first — `/trajectory` (the advisor's comments, the edits that
+answer them, and the state of each judgement, **tied to the comment it is
+about**, because a reader that had to guess which state belonged to which
+comment would be guessing), `/trajectory/graph` (the project's versions
+and **only its accepted edges** — an edge nobody accepted is a proposal,
+and a proposal may not decide an order), `/guidance/rules` and
+`/guidance/rules/{rule_id}` (each rule with its state, its scope, its
+source bindings and **its counterexamples**), and `/records` (the task's
+own evidence records, each carrying whose words it is — a model's proposal
+and a person's attestation side by side, which is the whole point of the
+proposals panel). Every handler calls one application-layer operation and
+returns the layer's own objects, so no shape is spelled a second time.
+
+**Reading the records needed a way in that the layer owns, and it was
+authorized rather than taken.** The evidence ledger had write operations
+and no read: the only way to read a task's records was the store's own
+`load_task_records`, which `application/reports.py` uses internally, and a
+route that reached past the layer would be a route the capability model
+does not reach. So `list_task_records` was added to
+`application/evidence.py` — asking the policy about **the task's own
+area**, the same resource and the same question `read_task_state` asks,
+because a record belongs to the task and names no path of its own. **The
+mentor line's own rows are not asked that**: they name no path either,
+and the permission that governs them is the material's, asked where the
+material is named (ADR-0003 C5).
+
+**Two of the eleven mutations were re-applied here, and both were
+caught.** The capability check taken off `list_task_records` turned the
+route from a refusal into a 200, and a task-area check put on the mentor
+route turned it from a 200 into a 403 — **so the two witnesses that say
+what the routes do and do not ask are the ones that go red when the
+answer changes.** And the shard costs are measured again from the
+runner's own log: **Ubuntu's balance factor was 1.603 and is now 1.224**,
+Windows stays at 1.000, and the witness that had been red for the whole
+branch is green.
+
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
 anchored to, and the paragraph it sits in** — 507 characters, named in the
