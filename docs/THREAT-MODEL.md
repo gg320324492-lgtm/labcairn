@@ -786,6 +786,38 @@ Stated here because they are real and because the code flags them itself:
   claim are `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
   and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
 
+### 6.13 A reviewer's change is observed; **why it was changed is not established**
+
+**The tree now holds a table of the reviewer's own prose.** ADR-0014's
+`revision_events` (`src/labcairn/db/models.py:1682`, written by the migration
+`migrations/versions/0017_revision_events.py`) stores one row per tracked
+change a Word document records: the text that changed, the address it
+changed at, the author and the date. **On the corpus that motivated it,
+that is 897 rows of one reviewer's rewriting of a manuscript, and not one
+sentence of explanation anywhere in the material.**
+
+**So the product says what it can say and stops.** The table holds *what*
+changed, *where*, and *who* changed it. **It holds no reason, and it has
+no link to the table where a person's words live** — the pairing of a
+comment with a change is somebody's judgement, it carries its own decider
+and its own evidence, and the revision events assert none of it. A
+manuscript holding hundreds of changes and no comment is a shape the chain
+reports (`src/labcairn/application/chain.py:315`) and does not explain away.
+
+**Why this is a limit and not a feature.** ADR-0016 D9 calls the agreement
+between a system and an advisor's wording a *risk metric* rather than a
+quality metric, and a manuscript full of silent rewrites is exactly the
+material that would be mistaken for the advisor's rules. **The schema is
+what stops it**: there is no column for a reason, and the rule store's only
+binding to chain material is by `issue_key`, which a revision event does
+not carry — so *"distil a rule from the reviewer's rewrites"* is not
+expressible in the data model at all.
+
+**What breaks it:** a column or a foreign key added to `revision_events`,
+which would let a change carry a reason it never had. The witnesses are
+`tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made`
+and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason`.
+
 ---
 
 ## §7 — Where each claim is witnessed
@@ -812,6 +844,7 @@ drifts from the tree goes red.
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
 | C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; no product operation runs the ledger's checks |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
+| C16 | A revision event records what changed, where and who — and **the schema cannot say why** | `test_threat_model.py` — `test_the_revision_events_cannot_carry_a_reason`; and `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made` |
 
 **And the claims about the document itself are watched too.** The witness
 checks that **every citation this document names resolves** to a file that

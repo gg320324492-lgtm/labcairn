@@ -84,6 +84,20 @@ def _source_id(context: ApplicationContext, suffix: str) -> str:
     raise AssertionError(f"the task holds no material ending in {suffix!r}")
 
 
+def _source_sha256(context: ApplicationContext, suffix: str) -> str:
+    """The hash of the ingested material whose path ends with *suffix*.
+
+    **A version names the bytes it was recorded with**, and the version
+    rows below now carry that hash. It is what lets the revision-event
+    path refuse a manuscript whose bytes changed under the name, which is
+    the check ADR-0014 D6 asks for.
+    """
+    for view in list_sources(context):
+        if view.source.relative_path.endswith(suffix):
+            return str(view.source.content_sha256)
+    raise AssertionError(f"the task holds no material ending in {suffix!r}")
+
+
 def _without_author_or_date(manuscript: Path, comment_ids: tuple[str, ...]) -> Path:
     """The manuscript with *comment_ids* carrying no author and no date.
 
@@ -203,6 +217,7 @@ def build_chain(
             version_id="ver-1",
             project_id="proj-1",
             source_id=source_id,
+            source_content_sha256=_source_sha256(context, "manuscript.docx"),
             version_label_raw="manuscript.docx",
             stage_candidate="advisor_reviewed",
             status="resolved",
@@ -214,6 +229,7 @@ def build_chain(
             version_id="ver-2",
             project_id="proj-1",
             source_id=second_source_id,
+            source_content_sha256=_source_sha256(context, "manuscript-2.docx"),
             version_label_raw="manuscript-2.docx",
             stage_candidate="draft",
             status="resolved",

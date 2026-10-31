@@ -666,6 +666,43 @@ def test_the_write_enumeration_in_the_threat_model_matches_the_tree() -> None:
         )
 
 
+def test_the_revision_events_cannot_carry_a_reason() -> None:
+    """C16 — a change is observed; **why it was changed is not established**.
+
+    **The schema is the guarantee, and the guarantee is structural.** The
+    revision events are the only table in the tree that holds a large
+    quantity of another person's own prose — a reviewer's rewriting of a
+    manuscript, with no explanation beside it. So the table has no column
+    for a reason, and no foreign key to the table where a person's words
+    live: the pairing of a comment with a change is somebody's judgement,
+    it carries its own decider and its own evidence, and the revision
+    events assert none of it.
+
+    **What breaks it:** a column or a foreign key added to the table,
+    which would let a change carry a reason it never had — and would let
+    ADR-0016 D9's risk metric (a system's agreement with an advisor's
+    wording) be quietly promoted into a rule.
+    """
+    from labcairn.db.models import RevisionEventRow
+
+    columns = set(RevisionEventRow.__table__.columns.keys())
+    assert "feedback_id" not in columns, (
+        "a revision event may not name the comment it answers: the "
+        "correspondence is a judgement, and a judgement carries its own "
+        "decider and its own evidence"
+    )
+    assert "reason" not in columns, "a change has no reason of its own"
+    assert "why" not in columns
+    assert "motive" not in columns
+
+    targets = {
+        foreign_key.target_fullname for foreign_key in RevisionEventRow.__table__.foreign_keys
+    }
+    assert not any("feedback_events" in target for target in targets), (
+        f"the revision events are joined to the comments by the schema: {targets}"
+    )
+
+
 def test_the_mpl_config_directory_is_pinned_and_not_ambient() -> None:
     """C7 — matplotlib's configuration and font cache live in a declared place.
 
@@ -1238,6 +1275,7 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         "C13": ("out_of_the_machine", "remote_url"),
         "C14": ("event_stream", "selects_a_workspace", "ledger_checks"),
         "C15": ("write_enumeration",),
+        "C16": ("revision_event", "reason"),
     }
     names = " ".join(defined)
     for claim_id, words in keywords.items():

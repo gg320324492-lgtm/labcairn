@@ -126,15 +126,32 @@ where a claim could be true of the code and false of the product.**
 | 11 | **A version with no established parent is `unresolved`, and it is listed.** | `test_a_version_with_no_established_parent_is_unresolved_and_listed` | Make the unresolved version disappear, or make it look established. |
 | 12 | **A rejection writes no edge and keeps the proposal.** | `test_a_rejection_writes_no_edge_and_keeps_the_proposal` | Discard the proposal a rejection was about. |
 | 13 | **The demonstration runs, and a test runs it.** | `test_the_paper_version_demo_runs` | Invert one of the demonstration's checks. |
+| 14 | **A change's words and its address travel together, and the file agrees with the row.** | `test_a_revision_event_carries_the_text_and_the_place_of_the_change` | Store the address and drop the text, or store the text and re-point the address. |
+| 15 | **A deletion keeps its text and is addressed in the rejected view.** | `test_a_deletion_keeps_its_text_and_is_addressed_in_the_rejected_view` | Address every event in the accepted view. **The deleted text is not in the accepted view at all**, so a reader that works in one view cannot cite a deletion. |
+| 16 | **A missing author or date is unknown, and the absence is named.** | `test_a_revision_with_no_author_or_date_is_unknown_and_never_guessed` | Guess the author from the file's name or its mtime, or write an empty string and call it unknown. |
+| 17 | **Recording the same version twice is the same rows.** | `test_recording_the_same_version_twice_is_the_same_rows` | Mint the id from the insertion order. |
+| 18 | **A row whose text no longer matches the file is refused as stale, not re-pointed.** | `test_a_revision_whose_text_no_longer_matches_is_refused_as_stale` | Overwrite the row with the newly read text. **A silent re-point is the failure the whole table exists to prevent.** |
+| 19 | **A manuscript whose bytes changed under its name is refused.** | `test_a_manuscript_whose_bytes_changed_under_its_name_is_refused` | Parse the file without comparing its bytes with the version's. |
+| 20 | **A denial of the material writes nothing.** | `test_a_revision_event_is_not_recorded_when_the_policy_denies_the_material` | Record the events first and ask afterwards. |
+| 20a | **A listing drops the events of denied material rather than refusing.** | `test_a_listing_drops_the_events_of_denied_material` | Return the events anyway, or refuse the whole listing. |
+| 21 | **The schema cannot express why a change was made.** | `test_the_schema_cannot_express_why_a_change_was_made`, `test_threat_model.py::test_the_revision_events_cannot_carry_a_reason` | Add a column for the reason, or a foreign key to the comments. **This is the property that keeps a reviewer's silence from becoming a rule.** |
+| 22 | **Each of the schema's rules refuses the row that breaks it.** | `test_the_schema_refuses_a_revision_event_that_breaks_its_rule` (twelve cases) | Remove a constraint from the table **and** from the migration. **Removing it from one only is caught by the parity test instead, which is a different witness.** |
 
 ### What this work order does not claim
 
 - **A similarity score is not a fact about the document's history.** It is
   evidence about a proposal, and the proposal is not the decision.
-- **The version graph is presently fed by hand.** LC-P2-07's reader
+- ~~**The version graph is presently fed by hand.** LC-P2-07's reader
   produces the revision events these tables hold, and nothing writes them
-  into the store yet.
-- **No real material.** Everything measured here is synthetic; a real
+  into the store yet.~~ — **closed 2026-11-01.** The seam is wired: the
+  events are stored, read back and measured over 897 real tracked changes.
+- **The revision events are not on the event stream**, so they cannot be
+  replayed from it. ADR-0017 D8 puts the chain's four objects there, and
+  this is a fifth object waiting for a fifth event.
+- **The fidelity measurement over the real material is local**, not a
+  runner's; the record names the machine and the date.
+- **No real material in the tests.** Everything the tests measure is
+  synthetic; the real corpus was measured by a script, and a real
   manuscript brings run fragmentation inside a revision that a synthetic
   corpus does not.
 

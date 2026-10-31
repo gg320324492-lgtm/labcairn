@@ -51,7 +51,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from docx_fixtures import Revision
+from feedback_chain_fixtures import MOMENT as CHAIN_MOMENT
+from feedback_chain_fixtures import ChainEnv, build_chain
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 from test_store_support import StoreEnv
 
 from conftest import migrated_database_from
@@ -61,6 +66,7 @@ from labcairn.application import (
     ApplicationRefusedError,
     create_task,
 )
+from labcairn.application import chain as chain_layer
 from labcairn.application.papers import (
     ConfirmationRequest,
     EdgeRequest,
@@ -79,7 +85,14 @@ from labcairn.application.papers import (
 )
 from labcairn.application.refusal import PAPER_REFUSALS, paper_refusal_name
 from labcairn.db.materials import put_source
+from labcairn.db.models import RevisionEventRow
 from labcairn.db.session import create_db_engine, create_session_factory
+from labcairn.material.ooxml import read_document
+from labcairn.papers.revisions import (
+    RevisionRecord,
+    list_revision_events,
+    record_revision_events,
+)
 from labcairn.papers.versions import (
     ConfirmationOutcome,
     EdgeSource,
@@ -1173,3 +1186,491 @@ def test_the_lookup_is_a_lookup_and_not_a_default() -> None:
         is ApplicationRefusal.PAPER_CONTRACT_REFUSED
     )
     assert paper_refusal_name(PaperRefusal.CROSS_PROJECT) is ApplicationRefusal.PAPER_CROSS_PROJECT
+
+
+# --------------------------------------------------------------------------- #
+# ADR-0014's revision events: the seam between the reader and the store
+# --------------------------------------------------------------------------- #
+
+#: The paragraph the marked-up manuscript is built on. **The deletion and
+#: the insertion are far apart in it**, so the two addresses cannot be
+#: confused with one another.
+_MARKED_PARAGRAPH = "The method estimates the parameter roughly."
+
+
+@pytest.fixture
+def marked_up(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A marked-up manuscript: two tracked changes and not one comment.
+
+    **This is the shape of a reviewer's hand with no explanation in it**,
+    which is the shape of the corpus that motivated this table: a
+    manuscript whose changes are all in the text and whose margins are
+    empty.
+    """
+    return build_chain(
+        env.store(),
+        workspace_root,
+        paragraphs=(_MARKED_PARAGRAPH,),
+        revisions=(
+            Revision(
+                kind="ins",
+                text="carefully",
+                author="Prof. Lin",
+                date="2026-03-02T09:30:00Z",
+                element_id="101",
+                paragraph=0,
+                after_text="estimates",
+            ),
+            Revision(
+                kind="del",
+                text="roughly",
+                author="Prof. Lin",
+                date="2026-03-02T09:31:00Z",
+                element_id="102",
+                paragraph=0,
+                anchor_text="roughly",
+            ),
+        ),
+    )
+
+
+@pytest.fixture
+def anonymous(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A marked-up manuscript whose one change names neither author nor date.
+
+    **The attributes are removed rather than emptied.** Word permits a
+    ``w:ins`` with no ``w:author`` and no ``w:date``, and the reader treats
+    a missing one and an empty one as different cases.
+    """
+    return build_chain(
+        env.store(),
+        workspace_root,
+        paragraphs=(_MARKED_PARAGRAPH,),
+        revisions=(
+            Revision(
+                kind="ins",
+                text="carefully",
+                author=None,
+                date=None,
+                element_id="201",
+                paragraph=0,
+                after_text="estimates",
+            ),
+        ),
+    )
+
+
+def _recorded(context: ApplicationContext, env: ChainEnv) -> tuple[RevisionRecord, ...]:
+    """The revision events of the first version, recorded."""
+    return record_revision_events(
+        context,
+        project_id=env.project_id,
+        version_id=env.version_id,
+        now=CHAIN_MOMENT,
+    )
+
+
+def _raw_insert(session: Session, **overrides: object) -> None:
+    """Write a revision event row directly, so the schema is what is under test."""
+    values: dict[str, object] = {
+        "revision_event_id": "rv-raw",
+        "version_id": "ver-1",
+        "kind": "ins",
+        "text": "carefully",
+        "text_sha256": "a" * 64,
+        "part": "word/document.xml",
+        "element_path": "/document[1]/body[1]/p[1]/ins[1]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 8,
+        "paragraph": 0,
+        "baseline_start": 0,
+        "baseline_end": 0,
+        "author": "Prof. Lin",
+        "author_unknown_reason": None,
+        "occurred_at": "2026-03-02T09:30:00+00:00",
+        "date_unknown_reason": None,
+        "element_id": "101",
+        "nested": 0,
+        "parser_version": "parser-1",
+        "grade": "observed",
+        "created_at": "2026-04-01T09:00:00+00:00",
+    }
+    values.update(overrides)
+    columns = ", ".join(values)
+    placeholders = ", ".join(f":{key}" for key in values)
+    session.execute(
+        text(f"INSERT INTO revision_events ({columns}) VALUES ({placeholders})"),
+        values,
+    )
+    session.commit()
+
+
+def test_a_revision_event_carries_the_text_and_the_place_of_the_change(
+    marked_up: ChainEnv,
+) -> None:
+    """What the reviewer changed, and where — the two together.
+
+    **The words and the address travel together, and they agree.** A row
+    that carried a text without an address would be a sentence nobody could
+    check, and a row that carried an address without the words would be a
+    place nobody could read. So the test does not only ask the row what it
+    says: it re-reads the manuscript and asks the *file* what is at the
+    address the row names.
+
+    **What breaks it:** a writer that stores the address and drops the
+    text, or stores the text and re-points the address.
+    """
+    recorded = _recorded(marked_up.context, marked_up)
+
+    assert len(recorded) == 2, "the manuscript holds two tracked changes"
+    inserted = next(record for record in recorded if record.kind == "ins")
+    deleted = next(record for record in recorded if record.kind == "del")
+
+    assert inserted.text == "carefully"
+    assert inserted.part == "word/document.xml"
+    assert inserted.element_path is not None
+    assert inserted.element_path.endswith("/ins[1]")
+    assert inserted.view == "accepted"
+    assert inserted.paragraph == 0
+    assert inserted.author == "Prof. Lin"
+    assert inserted.occurred_at is not None
+    assert inserted.grade == "observed"
+
+    assert deleted.text == "roughly"
+    assert deleted.view == "rejected"
+    assert deleted.author == "Prof. Lin"
+
+    # **An insertion is a point in the baseline** — it contributes nothing
+    # to the text as it read before — and **a deletion covers a range**.
+    assert inserted.baseline_start == inserted.baseline_end
+    assert deleted.baseline_start is not None
+    assert deleted.baseline_end is not None
+    assert deleted.baseline_end > deleted.baseline_start
+
+    # **And the file agrees with the row.** The text at the address the
+    # row names is the text the row carries.
+    document = read_document(marked_up.manuscript.read_bytes())
+    at_the_address = {event.locator.element_path: event.text for event in document.revisions}
+    for record in recorded:
+        assert record.element_path is not None
+        assert at_the_address[record.element_path] == record.text
+
+
+def test_a_deletion_keeps_its_text_and_is_addressed_in_the_rejected_view(
+    marked_up: ChainEnv,
+) -> None:
+    """The deleted text is not in the accepted view, and that is why the
+    view is part of the address.
+
+    **ADR-0014's thesis in one property.** The text an advisor deleted
+    lives in ``w:delText`` and a reader that reads ``w:t`` sees an empty
+    run — so the text never reaches the document model at all. And it is
+    not in the accepted text either, because accepting a revision throws
+    the deleted text away. **So a deletion has no characters in the
+    accepted view, and a reader that works in one view cannot cite a
+    deletion at all.**
+
+    **What breaks it:** a writer that addresses the deletion in the
+    accepted view, or one that stores the accepted text as the deletion's
+    text.
+    """
+    recorded = _recorded(marked_up.context, marked_up)
+    deleted = next(record for record in recorded if record.kind == "del")
+
+    assert deleted.text == "roughly"
+    assert deleted.view == "rejected"
+
+    document = read_document(marked_up.manuscript.read_bytes())
+    assert "roughly" in document.rejected_text
+    assert "roughly" not in document.accepted_text
+
+
+def test_a_revision_with_no_author_or_date_is_unknown_and_never_guessed(
+    anonymous: ChainEnv,
+) -> None:
+    """A missing author is unknown, and the absence is named.
+
+    **ADR-0014 D3.** Word permits a ``w:ins`` with no ``w:author`` and no
+    ``w:date``, and the design's rule is that the missing value is
+    ``UNKNOWN`` and **never a guess**: not from the document's properties,
+    not from the file name, not from the style of the change. So the
+    record carries no author at all, and carries a reason for carrying no
+    author — because "unknown" that nobody can name is an absence.
+
+    **What breaks it:** a writer that fills the author in from the file's
+    name or its mtime, or that writes an empty string and calls it
+    unknown.
+    """
+    recorded = _recorded(anonymous.context, anonymous)
+
+    assert len(recorded) == 1
+    record = recorded[0]
+    assert record.author is None, "an author nobody wrote down is not guessed at"
+    assert record.author_unknown_reason is not None
+    assert record.author_unknown_reason.strip() != ""
+    assert record.occurred_at is None, "a date nobody wrote down is not guessed at"
+    assert record.date_unknown_reason is not None
+    assert record.date_unknown_reason.strip() != ""
+
+
+@pytest.mark.parametrize(
+    ("overrides", "what"),
+    [
+        ({"kind": "robot"}, "a kind outside the vocabulary"),
+        ({"grade": "probably"}, "a grade outside the vocabulary"),
+        ({"view": "middle"}, "a view outside the vocabulary"),
+        ({"revision_event_id": ""}, "an id that is not an id"),
+        ({"text_sha256": "abc"}, "a hash that is not a hash"),
+        (
+            # **The address is present and the words are not**, so the
+            # only rule this row breaks is the one about the address.
+            {"grade": "inferred", "text": ""},
+            "an inferred row carrying an address",
+        ),
+        (
+            # **The words are present and the address is not**, so the
+            # only rule this row breaks is the one about the words.
+            {
+                "grade": "inferred",
+                "text": "carefully",
+                "part": None,
+                "element_path": None,
+                "view": None,
+            },
+            "an inferred row carrying words",
+        ),
+        ({"char_end": None}, "a range with one end"),
+        ({"baseline_start": 9, "baseline_end": 2}, "a baseline range that runs backwards"),
+        (
+            {"author": None, "author_unknown_reason": None},
+            "an author that is missing with no reason",
+        ),
+        (
+            {"occurred_at": None, "date_unknown_reason": None},
+            "a date that is missing with no reason",
+        ),
+        ({"paragraph": -1}, "a paragraph that is not a place"),
+    ],
+)
+def test_the_schema_refuses_a_revision_event_that_breaks_its_rule(
+    marked_up: ChainEnv, overrides: dict[str, object], what: str
+) -> None:
+    """Each of the schema's rules refuses, and each refusal has its own case.
+
+    **The rules are written down where the rows are, and the database
+    refuses them.** This test writes the row that breaks one rule, with a
+    raw ``INSERT`` that bypasses the ORM, and watches the database refuse
+    it — because a text comparison cannot catch a migration and a model
+    wrong together.
+
+    **What breaks it:** a constraint removed from the table, or a rule
+    that the ORM enforces but the schema does not.
+    """
+    session = marked_up.context.store.session
+
+    with pytest.raises(IntegrityError):
+        _raw_insert(session, **{"revision_event_id": "rv-broken", **overrides})
+    session.rollback()
+
+    assert _count(marked_up.context, "revision_events") == 0, what
+
+
+def test_recording_the_same_version_twice_is_the_same_rows(marked_up: ChainEnv) -> None:
+    """The ids are derived, so a second reading finds the rows that are there.
+
+    **Identity cannot depend on insertion order.** An event is cited from a
+    later run and from a decision record, so its id must be a function of
+    what it is and not of when it was written. The id is the version and
+    the element's path.
+
+    **What breaks it:** an id that counts rows, or one that includes the
+    moment it was written.
+    """
+    first = _recorded(marked_up.context, marked_up)
+    second = _recorded(marked_up.context, marked_up)
+
+    assert [record.revision_event_id for record in first] == [
+        record.revision_event_id for record in second
+    ]
+    assert _count(marked_up.context, "revision_events") == 2
+
+
+def test_a_revision_whose_text_no_longer_matches_is_refused_as_stale(
+    marked_up: ChainEnv,
+) -> None:
+    """A row whose text no longer matches the file is stale, and it is
+    refused rather than re-pointed.
+
+    **ADR-0014's mitigation for a brittle anchor.** The anchor is the path
+    **plus** the text hash, and a hash mismatch reports the anchor as
+    stale rather than wrong. Re-pointing it would make the record say
+    something the file does not say — and a silent re-point is the failure
+    this whole table exists to prevent.
+
+    **What breaks it:** a writer that overwrites the row with the newly
+    read text.
+    """
+    recorded = _recorded(marked_up.context, marked_up)
+    session = marked_up.context.store.session
+    row = session.get(RevisionEventRow, recorded[0].revision_event_id)
+    assert row is not None
+    row.text_sha256 = "0" * 64
+    session.commit()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _recorded(marked_up.context, marked_up)
+    assert caught.value.reason is ApplicationRefusal.CHAIN_ANCHOR_STALE
+
+
+def test_a_manuscript_whose_bytes_changed_under_its_name_is_refused(
+    marked_up: ChainEnv,
+) -> None:
+    """The bytes are checked before anything is written.
+
+    **The version names the file *and* the bytes it was recorded with.**
+    A manuscript whose bytes changed under the name is not the one the
+    coordinates would name, so nothing is recorded against it — not a
+    wrong event, and not a silent re-point.
+
+    **What breaks it:** a writer that parses the file without comparing
+    its bytes with the version's.
+    """
+    marked_up.manuscript.write_bytes(b"these are not the bytes the version was made from")
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _recorded(marked_up.context, marked_up)
+    assert caught.value.reason is ApplicationRefusal.CHAIN_MATERIAL_DRIFTED
+    assert _count(marked_up.context, "revision_events") == 0
+
+
+def test_a_revision_event_is_not_recorded_when_the_policy_denies_the_material(
+    marked_up: ChainEnv,
+) -> None:
+    """The policy is asked about the material, and a denial writes nothing.
+
+    **What breaks it:** a writer that records the events first and asks
+    afterwards. A deny-everything policy would still have written the
+    rows.
+    """
+    deny = PermissionPolicy.from_rules([Rule(effect=Permission.DENY, pattern="**")])
+    denied = ApplicationContext(
+        workspace=marked_up.context.workspace,
+        store=marked_up.context.store,
+        policy=deny,
+        ledger=marked_up.context.ledger,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _recorded(denied, marked_up)
+    assert caught.value.reason is ApplicationRefusal.PERMISSION_DENIED
+    assert _count(marked_up.context, "revision_events") == 0
+
+
+def test_a_revision_event_about_a_version_nobody_holds_is_refused(
+    marked_up: ChainEnv,
+) -> None:
+    """A change in a document nobody holds is a change about nothing.
+
+    **What breaks it:** a writer that records the events against a version
+    the store does not hold, which would make the rows name a document
+    that cannot be opened.
+    """
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_revision_events(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id="ver-nobody-holds",
+            now=CHAIN_MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_VERSION_NOT_FOUND
+    assert _count(marked_up.context, "revision_events") == 0
+
+
+def test_a_listing_drops_the_events_of_denied_material(marked_up: ChainEnv) -> None:
+    """Denied material is dropped, not refused.
+
+    **ADR-0003 C5's rule for a bulk listing.** A listing that refused
+    would disclose that something is there and deny work the operator
+    wanted allowed; a listing that returned the events anyway would show
+    the reviewer's prose to somebody the policy says may not have it.
+
+    **What breaks it:** a listing that refuses, or one that does not ask.
+    """
+    _recorded(marked_up.context, marked_up)
+
+    assert len(list_revision_events(marked_up.context)) == 2
+
+    deny = PermissionPolicy.from_rules([Rule(effect=Permission.DENY, pattern="**")])
+    denied = ApplicationContext(
+        workspace=marked_up.context.workspace,
+        store=marked_up.context.store,
+        policy=deny,
+        ledger=marked_up.context.ledger,
+    )
+    assert list_revision_events(denied) == ()
+
+
+def test_the_application_layer_reads_the_revision_events_and_the_activity(
+    marked_up: ChainEnv,
+) -> None:
+    """The mentor line reads the changes, and the shape of the manuscript.
+
+    **The counts are the two the product needs.** A marked-up manuscript
+    holds changes in its text and comments in its margins, and **how many
+    of each is a fact a reader can see for itself** — 303 changes in 14
+    paragraphs and no comment is a shape, and it is a shape the chain can
+    report without explaining it away.
+
+    **What breaks it:** a reader that answers with the rows and not with
+    the counts, or that counts the two together.
+    """
+    _recorded(marked_up.context, marked_up)
+
+    events = chain_layer.read_revision_events(marked_up.context, version_ids=[marked_up.version_id])
+    assert {event.kind for event in events} == {"ins", "del"}
+    assert {event.text for event in events} == {"carefully", "roughly"}
+
+    activity = chain_layer.read_revision_activity(
+        marked_up.context, version_ids=[marked_up.version_id]
+    )
+    assert len(activity) == 1
+    assert activity[0].revision_count == 2
+    assert activity[0].paragraphs_touched == 1
+    assert activity[0].most_events_in_a_paragraph == 2
+    assert activity[0].comment_count == 0
+
+
+def test_the_schema_cannot_express_why_a_change_was_made() -> None:
+    """A change is observed; **why it was changed is not established**.
+
+    **This is ADR-0016 D9 as a structure rather than as a warning.** The
+    corpus that motivated this table is a reviewer's rewriting of a
+    manuscript with hundreds of changes and not one sentence of
+    explanation, and distilling a rule from it would be learning "this
+    person's style is like this" — which the design calls a *risk metric*
+    rather than a quality metric.
+
+    **So the table cannot express the reason at all.** There is no column
+    for one, and there is no link to the table where a person's words
+    live: the pairing of a comment with a change is somebody's judgement,
+    it carries its own decider and its own evidence, and this table
+    asserts none. **What breaks it:** a column or a foreign key added
+    here, which would let a change carry a reason it never had.
+    """
+    columns = set(RevisionEventRow.__table__.columns.keys())
+    assert "feedback_id" not in columns, "a change may not name the comment it answers"
+    assert "comment_id" not in columns
+    assert "reason" not in columns, "a change has no reason of its own"
+    assert "why" not in columns
+    assert "motive" not in columns
+    assert "explanation" not in columns
+
+    targets = {
+        foreign_key.target_fullname for foreign_key in RevisionEventRow.__table__.foreign_keys
+    }
+    assert not any("feedback_events" in target for target in targets), (
+        "the revision events may not be joined to the comments by the schema: "
+        "the correspondence is a judgement, and a judgement carries its own "
+        "decider and its own evidence"
+    )

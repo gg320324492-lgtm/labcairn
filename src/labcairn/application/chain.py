@@ -2,15 +2,26 @@
 
 **What this module is.** The mentor line reads the chain's rows — the
 comments the advisor wrote, the changes that were made, the judgements on
-them, the versions and the accepted edges between them — and it used to
-read them by importing ``labcairn.db.models`` and writing its own
-``select(...)`` statements. **That is the arrangement the application layer
-exists to prevent**: a reader that reaches the store directly is a reader
-the capability model does not reach, and a guard applied to an operation
+them, the versions and the accepted edges between them, and the tracked
+changes a marked-up manuscript records — and it used to read them by
+importing ``labcairn.db.models`` and writing its own ``select(...)``
+statements. **That is the arrangement the application layer exists to
+prevent**: a reader that reaches the store directly is a reader the
+capability model does not reach, and a guard applied to an operation
 would apply to some of the callers and not the others.
 
 So the chain's reads live here, and the modules that reason over them call
 these operations instead of the store.
+
+**And the revision events are read here too, because they are read beside
+the comments.** ADR-0014's ``revision_events`` table holds what a
+marked-up manuscript's file records — hundreds of changes, each with its
+own text and its own address — and the chain's ``feedback_events`` holds
+what a person wrote in the margins. **The two are read separately and are
+not joined**: the pairing of a comment with a change is a judgement, it
+carries its own evidence, and the chain asserts none that nobody made.
+A manuscript that holds hundreds of changes and no comment at all is a
+shape the chain can report and does not explain away.
 
 **What these operations return.** Rows are not returned; the chain's own
 facts are. A caller wants *a comment* — the advisor's words, the anchored
@@ -40,6 +51,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 
@@ -49,6 +61,7 @@ from labcairn.db.models import (
     FeedbackEventRow,
     PaperVersionRow,
     ResponseLinkRow,
+    RevisionEventRow,
     VersionEdgeRow,
 )
 from labcairn.db.repository import load_source
@@ -87,6 +100,67 @@ class ChainEdit:
     actor_kind: str
     #: ``observed``, ``inferred`` or ``human_verified``.
     grade: str
+
+
+@dataclass(frozen=True)
+class ChainRevision:
+    """One tracked change, as the chain holds it.
+
+    **The change's own words and its own address travel together.** A
+    reader asking what a reviewer changed needs the text *and* the place,
+    and the place is what makes the text checkable: the view is part of
+    the address, so a deletion is addressed in the rejected view and the
+    same element in the two views is two addresses.
+    """
+
+    revision_event_id: str
+    #: The manuscript version whose document the change was read from.
+    version_id: str
+    #: ``ins``, ``del``, ``moveFrom`` or ``moveTo``.
+    kind: str
+    #: The inserted or the deleted text. **Empty is a real value.**
+    text: str
+    #: The package part the change is in.
+    part: str | None
+    #: The path of the element inside that part.
+    element_path: str | None
+    #: ``accepted`` or ``rejected``.
+    view: str | None
+    #: The paragraph the change sits in.
+    paragraph: int | None
+    #: Who made it, or ``None`` when the file records no author.
+    author: str | None
+    #: When it was made, or ``None`` when the file records no date.
+    occurred_at: datetime | None
+    #: ``observed``, ``inferred`` or ``human_verified``.
+    grade: str
+
+
+@dataclass(frozen=True)
+class ChainRevisionActivity:
+    """What a marked-up manuscript holds, and what explains it.
+
+    **The two counts are separate, and the separation is the point.** A
+    manuscript may hold hundreds of tracked changes and no comment at all,
+    and that is a fact about the file rather than a failure. The counts
+    are reported side by side so a reader can see the shape for itself.
+
+    **And nothing here says why anything was changed.** The counts are
+    what the chain holds; the reason a reviewer gave for a change is in
+    the comment that accompanies it, and a manuscript with no comments has
+    no such reason to report.
+    """
+
+    #: The manuscript version.
+    version_id: str
+    #: How many tracked changes the chain holds for it.
+    revision_count: int
+    #: How many paragraphs those changes fall in.
+    paragraphs_touched: int
+    #: The largest number of changes in one paragraph.
+    most_events_in_a_paragraph: int
+    #: How many comments the chain holds for the same version.
+    comment_count: int
 
 
 @dataclass(frozen=True)
@@ -199,6 +273,101 @@ def read_response_states(
     return tuple(str(state) for state in rows)
 
 
+def read_revision_events(
+    context: ApplicationContext, *, version_ids: Sequence[str]
+) -> tuple[ChainRevision, ...]:
+    """The tracked changes the chain holds for the versions named.
+
+    **A change is reported with the words that changed and the address
+    they changed at.** The two travel together because a text without a
+    place cannot be checked: the view is part of the address, so a
+    deletion is addressed in the rejected view and the same element in the
+    two views is two addresses.
+
+    **A version nobody holds changes for is simply not among them.** The
+    events are read by the version they were read from, and a version with
+    no events is a version whose document holds none.
+    """
+    ids = tuple(version_id for version_id in version_ids if version_id)
+    if not ids:
+        return ()
+    rows = context.store.session.scalars(
+        select(RevisionEventRow).where(RevisionEventRow.version_id.in_(ids))
+    ).all()
+    return tuple(
+        ChainRevision(
+            revision_event_id=row.revision_event_id,
+            version_id=row.version_id,
+            kind=row.kind,
+            text=row.text,
+            part=row.part,
+            element_path=row.element_path,
+            view=row.view,
+            paragraph=row.paragraph,
+            author=row.author,
+            occurred_at=row.occurred_at,
+            grade=row.grade,
+        )
+        for row in rows
+    )
+
+
+def read_revision_activity(
+    context: ApplicationContext, *, version_ids: Sequence[str]
+) -> tuple[ChainRevisionActivity, ...]:
+    """What each version holds, and how much of it is explained.
+
+    **The two counts are read from two tables and are not joined.** A
+    revision event says what changed; a comment says what a person wrote.
+    The chain records both and asserts **no correspondence between them**
+    — the pairing of a comment with a change is a judgement, it carries
+    its own evidence, and nobody has made one here.
+
+    **So the honest reading of a marked-up manuscript is two numbers
+    side by side**, and the shape a reader sees for itself.
+    """
+    ids = tuple(version_id for version_id in version_ids if version_id)
+    if not ids:
+        return ()
+    session = context.store.session
+    events = session.execute(
+        select(
+            RevisionEventRow.version_id,
+            RevisionEventRow.paragraph,
+        ).where(RevisionEventRow.version_id.in_(ids))
+    ).all()
+    comments = session.execute(
+        select(FeedbackEventRow.version_id, FeedbackEventRow.feedback_id).where(
+            FeedbackEventRow.version_id.in_(ids)
+        )
+    ).all()
+
+    per_version: dict[str, list[int | None]] = {version_id: [] for version_id in ids}
+    for version_id, paragraph in events:
+        per_version.setdefault(version_id, []).append(paragraph)
+    comment_counts: dict[str, int] = {}
+    for version_id, _ in comments:
+        comment_counts[version_id] = comment_counts.get(version_id, 0) + 1
+
+    activities: list[ChainRevisionActivity] = []
+    for version_id in ids:
+        events_here = per_version.get(version_id, [])
+        paragraphs = [paragraph for paragraph in events_here if paragraph is not None]
+        counts: dict[int, int] = {}
+        for paragraph in paragraphs:
+            counts[paragraph] = counts.get(paragraph, 0) + 1
+        activities.append(
+            ChainRevisionActivity(
+                version_id=version_id,
+                revision_count=len(events_here),
+                paragraphs_touched=len(counts),
+                most_events_in_a_paragraph=max(counts.values()) if counts else 0,
+                comment_count=comment_counts.get(version_id, 0),
+            )
+        )
+    return tuple(activities)
+
+
 def read_material_paths(
     context: ApplicationContext, *, version_ids: Sequence[str]
 ) -> Mapping[str, str]:
@@ -268,10 +437,14 @@ __all__ = [
     "ChainComment",
     "ChainEdge",
     "ChainEdit",
+    "ChainRevision",
+    "ChainRevisionActivity",
     "ProjectGraph",
     "read_comments",
     "read_edits",
     "read_material_paths",
     "read_project_graph",
     "read_response_states",
+    "read_revision_activity",
+    "read_revision_events",
 ]
