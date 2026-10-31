@@ -2354,6 +2354,35 @@ def test_the_records_route_is_refused_when_the_policy_denies_the_task_s_area(
     assert response.json()["reason"] == ApplicationRefusal.PERMISSION_DENIED.value
 
 
+def test_the_mentor_line_s_routes_ask_no_permission_of_the_task_s_area(
+    chain: ChainEnv,
+) -> None:
+    """The chain's rows name no path, so the routes ask no permission of the task's area.
+
+    **A guard here would be a guard on the wrong question.** The chain's
+    rows belong to a paper project and name no path of their own, so the
+    permission that governs what a reader may be shown is the permission on
+    the material, and it is asked where the material is named (ADR-0003
+    C5). **A task-area check here would refuse a reader who may read the
+    material**, and the retrieval's own witness already pins that the
+    memory is read for exactly such a reader.
+
+    **The rule memory's rows are the same case.** They name no path
+    either, so the route that serves them is refused by nothing but the
+    layer's own refusals — and a rule that is not there is refused by
+    name, as its own witness says.
+    """
+    _the_advisor_s_comment(chain, issue_key="iss-1")
+    denied = replace(chain.context, policy=_deny_all())
+    app = create_app(denied, event_source=_StoreEventSource())
+    with TestClient(app) as refused:
+        trajectory = refused.get("/trajectory", params={"issue_key": "iss-1"})
+        guidance = refused.get("/guidance/rules")
+    assert trajectory.status_code == 200, trajectory.text
+    assert [comment["issue_key"] for comment in trajectory.json()["comments"]] == ["iss-1"]
+    assert guidance.status_code == 200, guidance.text
+
+
 def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
     """The three outlets' shapes are in the contract, and the front end gets them.
 
