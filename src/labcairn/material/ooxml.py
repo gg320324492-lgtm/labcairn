@@ -172,11 +172,12 @@ class RevisionEvent:
 class CommentAnchor:
     """Where a comment is anchored, or why it is not.
 
-    The three failure modes are named rather than lumped: a range that
-    starts and never ends, a range that ends and never started, and a
-    comment with no range at all. They are different defects and a reader
-    that reports them as one loses the distinction between a document that
-    is damaged and a document that is merely unusual.
+    The four failure modes are named rather than lumped: a range that
+    starts and never ends, a range that ends and never started, a
+    comment with no range at all, and a range that starts in one
+    paragraph and ends in another. They are different defects and a
+    reader that reports them as one loses the distinction between a
+    document that is damaged and a document that is merely unusual.
     """
 
     #: ``"resolved"`` or ``"unknown"``.
@@ -198,11 +199,14 @@ class CommentAnchor:
     #: be traversed.
     #:
     #: **Empty in three cases, and each is a fact rather than a failure.**
-    #: The anchor is unknown (there is no range to name text); the range
-    #: starts in one paragraph and ends in another (the two offsets are into
-    #: two different texts, and no single slice is the text the comment
-    #: covers); and the range covers nothing — a comment anchored on an empty
-    #: paragraph, whose text is the empty string.
+    #: The anchor is unknown (there is no range to name text, and the
+    #: reason says which defect it was); the range starts in one paragraph
+    #: and ends in another (the two markers carry an offset each, and the
+    #: offsets are into two different texts, so no single slice is the text
+    #: the comment covers — and the anchor is reported as unknown rather
+    #: than as a range that cannot exist); and the range covers nothing — a
+    #: comment anchored on an empty paragraph, whose text is the empty
+    #: string.
     text: str
 
 
@@ -766,9 +770,9 @@ def _anchored_text(
 
     **Empty when there is no single paragraph the offsets name.** A range
     that starts in one paragraph and ends in another has two offsets into
-    two different texts, and no slice is the text the comment covers — the
-    reader reports that case separately, and this returns nothing rather
-    than a plausible-looking fragment of the first paragraph.
+    two different texts, and no slice is the text the comment covers. The
+    reader reports that case as an unknown anchor with its reason named,
+    and does not call this with the borrowed end offset at all.
     """
     if paragraph is None or start is None or end is None:
         return ""
@@ -787,7 +791,26 @@ def _anchor_for(
     comment_text: str,
     baseline_paragraphs: list[str],
 ) -> tuple[CommentAnchor, list[ExtractionProblem]]:
-    """A comment's anchor, or the reason it does not have one."""
+    """A comment's anchor, or the reason it does not have one.
+
+    **Four ways a comment can fail to have a nameable anchor, and each is
+    named.** A range that carries no markers, a range that ends without
+    starting, a range that starts without ending, and a range whose two
+    markers sit in different paragraphs. They are four different defects,
+    and a reader that reports them as one has thrown away the difference
+    between a damaged document and an unusual one.
+
+    **An address that names no text is not a text.** The fourth case is the
+    one that looks resolvable and is not: Word writes a comment covering
+    several paragraphs with its start marker in the first and its end marker
+    in the last, and **each marker carries an offset within its own
+    paragraph**. The two offsets are therefore offsets into two different
+    texts, and the pair names no range that exists. Reporting the start
+    offset with the end offset borrowed from the other paragraph would
+    store an address that resolves to text nobody wrote — so the anchor is
+    reported as unknown, with the reason named, and the paragraph the range
+    starts in is kept.
+    """
     problems: list[ExtractionProblem] = []
     entries = markers.get(comment_id, [])
     starts = [e for e in entries if e[0] == "start"]
@@ -866,8 +889,12 @@ def _anchor_for(
 
     start_entry = starts[0]
     end_entry = ends[0]
-    same_paragraph = start_entry[1] == end_entry[1]
-    if not same_paragraph:
+    if start_entry[1] != end_entry[1]:
+        # **The range spans two paragraphs.** The end offset belongs to the
+        # paragraph the range ends in, so pairing it with the start
+        # paragraph's offset names a range that cannot exist. The anchor is
+        # reported as unknown, and the paragraph the range *starts* in is
+        # kept, because that much is a fact about the file.
         problems.append(
             ExtractionProblem(
                 code="docx_comment_range_spans_paragraphs",
@@ -879,6 +906,18 @@ def _anchor_for(
                 location=f"comment {comment_id}",
             )
         )
+        return (
+            CommentAnchor(
+                status="unknown",
+                reason="the comment's range spans two paragraphs",
+                paragraph=start_entry[1],
+                start=None,
+                end=None,
+                text="",
+            ),
+            problems,
+        )
+
     return (
         CommentAnchor(
             status="resolved",
@@ -889,13 +928,13 @@ def _anchor_for(
             # **The text is cut only when one paragraph holds both ends.**
             # A range that spans paragraphs has two offsets into two
             # different texts, and no single slice is the text the comment
-            # covers — so the anchored text is empty there, and the reason
-            # above says why.
+            # covers — so such a range is not a resolved anchor at all, and
+            # it is reported above with its reason.
             text=_anchored_text(
                 baseline_paragraphs,
                 start_entry[1],
                 start_entry[2],
-                end_entry[2] if same_paragraph else None,
+                end_entry[2],
             ),
         ),
         problems,

@@ -1,11 +1,11 @@
 """The synthetic DOCX corpus: one fixture per case the parser must handle.
 
-Twenty-eight fixtures, each isolating one behaviour of a revision-aware
+Twenty-nine fixtures, each isolating one behaviour of a revision-aware
 reader. The corpus is organised by what the fixture is *for*, and each
 fixture's ``purpose`` says so in one line, because a corpus whose cases are
 named only by filename teaches nothing.
 
-**The cases come from three places**, and the third is the one that matters:
+**The cases come from four places**, and the third is the one that matters:
 
 1. The design's §7 negative list — insertion, deletion, comment spanning
    runs, several authors, an orphan comment marker, moves, table changes,
@@ -17,6 +17,11 @@ named only by filename teaches nothing.
    the whole comment set with it.
 3. What a real Word corpus will contain and this one cannot — recorded in
    `KNOWN_GAPS` at the bottom, so the gap is a list and not a surprise.
+4. What the **owner's real material** turned out to hold — a comment whose
+   range spans two paragraphs, which Word writes routinely and which this
+   corpus did not have. `29-comment-spanning-two-paragraphs` is that case,
+   and it is here because a real document found it, not because it was
+   thought of in advance.
 
 **How a fixture is anchored.** A revision names the text it affects by
 *what that text means*, not by a character offset:
@@ -842,6 +847,38 @@ FIXTURES: list[Fixture] = [
         expectations=(
             "The comment is returned.",
             "Its anchor resolves to an empty range on paragraph 0.",
+        ),
+    ),
+    # -- 8. the case the real material found, and this corpus did not ------- #
+    Fixture(
+        name="29-comment-spanning-two-paragraphs",
+        paragraphs=(
+            "The method estimates the parameter from a single observation.",
+            "The estimate is reported with its confidence interval, and the "
+            "interval is computed over ten random seeds.",
+        ),
+        comments=(
+            Comment(
+                comment_id="215",
+                author="Prof. Lin",
+                date="2026-03-02T09:30:00Z",
+                text="This remark covers both paragraphs.",
+                paragraph=0,
+                anchor="cross_paragraph",
+                end_paragraph=1,
+            ),
+        ),
+        purpose=(
+            "A comment whose range spans two paragraphs: Word writes the start "
+            "marker in one paragraph and the end marker in the next, and each "
+            "marker carries an offset within its own paragraph."
+        ),
+        expectations=(
+            "The comment is STILL returned, with its body, author and date.",
+            "Its anchor_status is UNKNOWN, and the reason names the range that "
+            "spans two paragraphs.",
+            "It is NOT reported as a resolved range: the end offset belongs to the "
+            "other paragraph, and an address that names no text is not a text.",
         ),
     ),
 ]
