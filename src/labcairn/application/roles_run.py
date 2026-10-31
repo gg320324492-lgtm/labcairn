@@ -595,8 +595,14 @@ class _Material:
 def _the_material(context: ApplicationContext, request: RoleRunRequest) -> _Material:
     """The chain's comments and the memory's rule, read through the layer.
 
+    **The chain is read through the role that reads it**, so the material
+    the loop sends is the same material the roles will work on, and the
+    refusals the read raises are the roles' own.
+
     :raises ApplicationRefusedError: the memory holds no rule under the id
-        the request names.
+        the request names; the chain holds no comment under the issue key;
+        or a version named is outside the project's graph, or the accepted
+        edges leave the order ambiguous.
     """
     from labcairn.roles.guidance import cite_rule
     from labcairn.roles.trajectory import TrajectoryInput, read_trajectory

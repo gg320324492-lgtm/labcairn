@@ -32,7 +32,7 @@ test of its own, and the test names the reason it expects.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -809,6 +809,76 @@ def test_a_rule_the_memory_does_not_hold_is_refused(loop: Loop) -> None:
         )
     )
     assert refused.reason is ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY
+
+
+def test_a_comment_the_chain_does_not_hold_is_refused(loop: Loop) -> None:
+    """A judgement about a comment that is not there is refused by name.
+
+    **The workbench asks about a comment the reader picked**, and a key the
+    chain holds nothing under is a mistake the loop names rather than a
+    card about nothing.
+    """
+    request = _request(loop, roles=("trajectory",))
+    refused = _role_reason(
+        lambda: request_role_run(
+            loop.context,
+            replace(request, issue_key="iss-nowhere"),
+            plan=_plan(),
+            expires_at=EXPIRES,
+            now=MOMENT,
+        )
+    )
+    assert refused is RoleRefusal.COMMENT_NOT_IN_THE_CHAIN
+
+
+def test_a_version_outside_the_graph_is_refused(loop: Loop) -> None:
+    """A round the project does not hold is refused by name.
+
+    **A missing round is not a present one**, and the order the run reads
+    the chain in is the accepted edges' order -- so a version nobody
+    recorded is refused rather than invented.
+    """
+    request = _request(loop, roles=("trajectory",))
+    refused = _role_reason(
+        lambda: request_role_run(
+            loop.context,
+            replace(request, version_ids=(*request.version_ids, "ver-99")),
+            plan=_plan(),
+            expires_at=EXPIRES,
+            now=MOMENT,
+        )
+    )
+    assert refused is RoleRefusal.VERSION_OUTSIDE_THE_GRAPH
+
+
+def test_an_empty_answer_is_not_an_answer(loop: Loop) -> None:
+    """A call that came back with nothing in the schema's shape is refused.
+
+    **The refusal is the model path's**, and the loop does not turn it into
+    an empty result: a loop that ran the roles on no judgement would be
+    running them on nothing.
+    """
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("trajectory",)),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    assert ticket.approval_id is not None
+    grant_approval(loop.context, ticket.approval_id, now=MOMENT)
+
+    refused = _capture(
+        lambda: run_role_run(
+            loop.context,
+            ticket,
+            grants=_grants(),
+            at=MOMENT,
+            send=lambda prompt: _invocation({}),
+            capabilities=_probed(Capability.STRUCTURED_OUTPUT_NATIVE),
+        )
+    )
+    assert refused.reason is ApplicationRefusal.MODEL_ANSWER_EMPTY
 
 
 def test_the_model_cannot_volunteer_a_role_nobody_asked_for(loop: Loop) -> None:
