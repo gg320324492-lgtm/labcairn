@@ -4,14 +4,19 @@
 alignment) · **Subtasks:** T00–T05.
 **Task breakdown:** [`docs/plans/LC-P2-08-task-breakdown.md`](../plans/LC-P2-08-task-breakdown.md)
 **Status of the work order:** **implemented and measured**, and **not
-independently reviewed** — see §6.
+independently reviewed** — see §7.
 **Measured:** 2026-10-29 on the tree at `4aff29b`, on Windows 11 (AMD64),
-Python 3.12.13.
+Python 3.12.13. **§6 was added 2026-11-01**: the revision events, their
+writer, their reads, their witnesses and their measurement over real
+material — see §6.5 for the machine and the date, and §6.6 for the two
+limits that record carries.
 
 **What this is.** The first implementation of the mentor-trajectory line:
 the tables a manuscript's versions live in, the contracts that hold them, the
 alignment that proposes which version came from which, the human path that
-settles it, and the two checks that are about not lying about an archive.
+settles it, the two checks that are about not lying about an archive, and —
+since 2026-11-01 — **the table ADR-0014 declared and nothing ever wrote**:
+one row per tracked change a manuscript's file records.
 
 **What this is not.** It is not the guidance agent, and it is not the
 experience store. The reader that produces the events these tables will
@@ -164,22 +169,335 @@ schema twelve times."**
 
 `measured_at` is `4aff29b`, and both platforms balance at 1.000.
 
-## 6. What this work order has not had
+## 6. The seam closed: ADR-0014's revision events (2026-11-01)
+
+**What the debt was**, in the work order's own words: *"LC-P2-07's reader
+produces the revision events these tables are meant to hold, and nobody has
+written them into the store yet: the reader exists, the store exists, and
+the seam between them is not wired — so the version graph is presently fed
+by hand."*
+
+**What is in the tree now.** The table `revision_events` (migration
+`0017_revision_events.py`), the writer
+`src/labcairn/papers/revisions.py::record_revision_events`, and the reads
+`src/labcairn/application/chain.py::read_revision_events` and
+`::read_revision_activity`.
+
+### 6.1 Why it is a table of its own, and not the chain's `edit_actions`
+
+**ADR-0014 D8 declared four tables** — `PaperVersion`, `VersionEdge`,
+`DocumentSpan` and `RevisionEvent` — **and only the first two were ever
+written.** The reader has produced the third since LC-P2-07 and nothing in
+`src/` stored it, so a marked-up manuscript was a file the archive could
+cite and could not describe.
+
+**And the chain's tables are the wrong place for it.** They are a
+*judgement* layer: a comment, a change made in answer to it, the judgement
+that it answered, a later assessment. `edit_actions` is content-free **by
+design** — it names an edge and an actor, and the content belongs to the
+document model, which is ADR-0014's. Putting a revision's text into
+`edit_actions` would have put a document-level observation into a
+judgement table, and it would have needed a SQLite table rebuild (revision
+0002's lesson: batch mode stamped the revision as applied and changed
+nothing).
+
+**And the chain's `feedback_events` could not have held it either.** Its
+locator is into `word/comments.xml` *by definition* and its docstring says
+*"The advisor's words."* **On the corpus that motivated this table, no
+file carries a comments part at all** — so the chain's comment table writes
+zero rows on that material, and putting revisions there would have been a
+green tree saying something false.
+
+### 6.2 The table, and the clause each column answers
+
+| Column | Null | The clause it answers |
+|---|---|---|
+| `revision_event_id` | no, PK | caller-minted, and **derived** from the version and the element's path, so recording the same file twice is the same rows |
+| `version_id` | no, FK `paper_versions` | which manuscript version's document the event was read from. The version carries the file **and** the bytes, so the event repeats neither |
+| `kind` | no | `ins` / `del` / `moveFrom` / `moveTo` — the reader's four, and a closed vocabulary |
+| `text` | no | the inserted or the deleted text. **Empty is a real value**: Word records an empty tracked insertion, and 71 of the 897 events in the corpus below carry empty text |
+| `text_sha256` | no | **D5** — the hash of that text at the moment it was recorded; a mismatch is a stale anchor |
+| `part` | yes | **D5** — the package part the element is in |
+| `element_path` | yes | **D5** — the path of the `w:ins` / `w:del` element |
+| `view` | yes | **D4a** — `accepted` or `rejected`; the view is part of the address, so a deletion is addressed in the rejected view |
+| `char_start`, `char_end` | yes, paired | **D5** — the range inside the addressed element's text in that view |
+| `paragraph` | yes | the paragraph the event sits in |
+| `baseline_start`, `baseline_end` | yes, paired | the range in the paragraph's **rejected** text — the coordinate system that makes a deletion addressable at all |
+| `author` | yes | **D3** — the revision's author, or `None` when the file records none. An *empty* author is not a missing one, and the two are kept apart |
+| `author_unknown_reason` | yes | **D3** — why the author is unknown, and present exactly when the author is not |
+| `occurred_at` | yes | **D3** — the revision's timestamp, or `None` |
+| `date_unknown_reason` | yes | **D3** — why the timestamp is unknown |
+| `element_id` | yes | Word's `w:id`; it pairs a move's source with its destination |
+| `nested` | no | a revision inside another revision is reported separately, so the flattening is **detectable** |
+| `parser_version` | no | **D5** — derived from the reader's own source, so changing the reader changes the version without anybody remembering to bump a constant |
+| `grade` | no | **D2** — `observed` / `inferred` / `human_verified` |
+| `created_at` | no | when the event was recorded |
+
+**And the grade governs the address.** An `inferred` row read no file, so
+it quotes nobody and points at nothing: the schema refuses an `inferred`
+row that carries words, and refuses a read row that carries no address.
+That is the rule `feedback_events` already holds for the comment's
+locator, stated here for the same reason — *a row carrying an address
+nobody read is the file being claimed to have said something.*
+
+### 6.3 The operations, and what they refuse
+
+| Operation | What it does | What it refuses |
+|---|---|---|
+| `record_revision_events(context, project_id=, version_id=, now=)` | reads the version's material, asks the policy about it, checks the bytes against the version's own hash, parses the document, and writes one row per tracked change | the project or the version is not there; the version belongs to another project; the material is missing, unreadable or drifted; the policy denied it; an anchor is stale |
+| `list_revision_events(context, version_ids=)` | the events the store holds, **denied material dropped rather than refused** (ADR-0003 C5) | — |
+| `read_revision_events(context, version_ids=)` | the changes, with their words and their addresses | — |
+| `read_revision_activity(context, version_ids=)` | per version: the number of changes, the number of paragraphs they fall in, the largest number in one paragraph, and the number of comments the chain holds for the same version | — |
+
+**The bytes are checked before anything is written.** The version names the
+file *and* the bytes it was recorded with, and the file on disk is compared
+against those bytes before it is parsed. A manuscript that has changed
+under the name is not the one the coordinates would name, so **nothing** is
+recorded against it — not a wrong event, and not a silent re-point.
+
+**And the ids are derived.** An event is cited from a later run and from a
+decision record, so its identity cannot depend on insertion order; the id
+is a function of the version and the element's path.
+
+### 6.4 The witnesses, and the mutations that broke them
+
+**Thirteen witnesses** — twelve functions and one with twelve parameterised
+cases, so twenty-four cases — all in `tests/test_version_store.py`, the
+file that is about *storing* the paper project's rows, plus one more in
+`tests/test_threat_model.py`. **Not a new file:** a new `tests/test_*.py`
+has no measured shard cost, and `tests/test_ci_shard_coverage.py` fails on
+a file with no cost until a runner measures it.
+
+| The property | The witness |
+|---|---|
+| the change's words and its address travel together, and the file agrees with the row | `test_a_revision_event_carries_the_text_and_the_place_of_the_change` |
+| a deletion keeps its text, and is addressed in the rejected view | `test_a_deletion_keeps_its_text_and_is_addressed_in_the_rejected_view` |
+| a missing author or date is unknown, and the absence is named | `test_a_revision_with_no_author_or_date_is_unknown_and_never_guessed` |
+| each of the schema's eleven rules refuses the row that breaks it | `test_the_schema_refuses_a_revision_event_that_breaks_its_rule` (twelve cases) |
+| recording the same version twice is the same rows | `test_recording_the_same_version_twice_is_the_same_rows` |
+| a row whose text no longer matches the file is refused as stale, not re-pointed | `test_a_revision_whose_text_no_longer_matches_is_refused_as_stale` |
+| a manuscript whose bytes changed under its name is refused | `test_a_manuscript_whose_bytes_changed_under_its_name_is_refused` |
+| a denial of the material writes nothing | `test_a_revision_event_is_not_recorded_when_the_policy_denies_the_material` |
+| a version nobody holds is refused | `test_a_revision_event_about_a_version_nobody_holds_is_refused` |
+| a listing drops the events of denied material rather than refusing | `test_a_listing_drops_the_events_of_denied_material` |
+| the mentor line reads the changes and the shape of the manuscript | `test_the_application_layer_reads_the_revision_events_and_the_activity` |
+| **a comment and a change in one manuscript are two facts, and the chain asserts no correspondence** | `test_a_comment_and_a_change_in_one_manuscript_are_two_facts` |
+| **the schema cannot express why a change was made** | `test_the_schema_cannot_express_why_a_change_was_made`, and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason` |
+
+**Twenty-four mutations were applied, and none survived.** Each broke one
+property — a constraint removed from the table *and* from the migration, a
+text dropped, a view dropped, an author guessed, an id that depends on
+insertion order, a stale anchor re-pointed instead of refused, the byte
+check skipped, the policy not asked, the refusal for the wrong reason, a
+count that counts nothing, a listing that does not drop denied material, a
+count that cannot see the comments, and a column added for the reason a
+change was made. **Every one of them was caught by the witness that claims
+that property, and each by its own.**
+
+**And one of the twenty-three was not applied at first**, because a
+reformat had moved the line the mutation named. **A mutation that was never
+applied is reported as a surviving mutation by anyone who does not check**,
+so the pass reports the two that did not apply as *not applied* and runs
+them again — and the record says so rather than quietly reporting a
+twenty-one.
+
+### 6.5 What was measured over the real material
+
+**The reader was measured against the package's own XML**, so it was
+measured against something it did not produce. **Measured locally** on
+Windows 11 (AMD64), `DESKTOP-BJJHSDF`, Python 3.12.10, at
+2026-10-31T18:12:05Z (2026-11-01 local). **This is a local measurement
+and not a runner's**, and the record says so.
+
+| | |
+|---|---|
+| **revision recall on real files** | **897 / 897** — every tracked-change element in the five review copies, counted from `word/document.xml` |
+| **deletion recovery** | **3 907 / 3 907** characters — the `w:delText` of the deletions and the text of the one `w:moveFrom` |
+| **insertion recovery** | **7 048 / 7 048** characters |
+| **comments** | **0** — and **no file in the corpus carries a `word/comments.xml` part at all** |
+| **files carrying revisions** | 5 of 15; the six drafts, the clean English manuscript and the three reply letters carry none |
+
+**And the property the old baseline cannot see.** LC-P2-07's baseline is a
+recall measure on synthetic fixtures, and it cannot tell "300 events in 14
+paragraphs" from "300 events in 300 paragraphs". **On real files the
+distribution is the finding**:
+
+| The review copy | Changes | Paragraphs with a change | Paragraphs in the document | Busiest paragraph | Median per changed paragraph |
+|---|---|---|---|---|---|
+| the first (203 changes) | 203 | 43 | 113 (38.1 %) | 34 (16.7 % of the copy) | 2 |
+| the second (225 changes) | 225 | 25 | 106 (23.6 %) | 53 (23.6 %) | 3 |
+| the third (303 changes) | 303 | **14** | 113 (**12.4 %**) | 77 (25.4 %) | 13 |
+| the fourth (52 changes) | 52 | 6 | 90 (6.7 %) | 31 (**59.6 %**) | 3 |
+| the fifth (114 changes) | 114 | 11 | 111 (9.9 %) | 39 (34.2 %) | 6 |
+
+**The corpus's file names are not in this repository.** The material is the
+owner's unpublished paper, and **no part of it enters the tree** — not the
+bytes, not an excerpt, and not the names of the files. **The copies are
+named here by how many changes they carry**, which anchors every number
+above and identifies nothing.
+
+**And the reviewer's clock, which is now the chain's.** **All 897 events
+carry a timestamp** — not one is undated — and they fall on **six distinct
+days**, in batches of 203, 225, 48, 255, 52 and 114 changes. **The third
+copy was worked over two days** (48 changes on one, 255 on the next), which
+is the kind of thing a count of files cannot show and a count of days can.
+**The dates themselves stay with the material**; what is here is the shape
+of the clock and not the clock.
+
+**Three real cases the synthetic corpus does not reach**, all three of them
+in the material rather than in a fixture: **71 events carry empty text**
+(a tracked insertion of nothing is a thing Word writes), **one document
+holds a revision inside another revision** (`docx_nested_revision`), and
+**one `w:moveFrom` carries its text in `w:t` rather than in `w:delText`**.
+
+**And the measurement caught the measurement.** The first version of the
+counter read only `w:delText` and under-counted the corpus by 83
+characters; the reader's number was the right one and the counter's was
+wrong. **A record is not evidence, and where they differ the measurement
+wins** — so the counter was corrected and the number above is the
+corrected one.
+
+### 6.6 The three limits, stated here rather than only in a report
+
+1. **The revision events are not on the event stream, and so they cannot be
+   replayed from it.** ADR-0017 D8 puts the chain's four objects on the
+   append-only stream, and this is a **fifth** object without a fifth
+   event. Adding one means an enum member, a payload model, an emit
+   function and the chain events' witness table — in `runtime/`, which this
+   work did not touch. **The claim is not made and the gap is not hidden.**
+2. **The fidelity measurement is local.** It is a measurement of the reader
+   against real files, run on one machine, and the record names the machine
+   and the date. **No shard cost comes from it**, and nothing in it is
+   presented as a runner's number.
+3. **The shard costs are stale, and one file is the reason.** The
+   witnesses went into `tests/test_version_store.py` rather than into a
+   new file, because a new file has no measured cost. But the application
+   layer's seam guard — *a module that reaches the store must be named* —
+   is in `tests/test_application_layer.py`, and this work had to name
+   `labcairn.papers.revisions` in it. **That file costs 34.59 s on the
+   Ubuntu runner against a partition slack of 16.2 s**, so
+   `tests/test_ci_shard_coverage.py` will report it as needing a
+   re-measurement, and the fix is the project's own:
+   `python .github/remeasure_shards.py <run-id>`. **The shard file was not
+   touched here**, and the re-measurement needs a runner, which is the
+   owner's call.
+
+### 6.7 What was deliberately **not** built, and why
+
+- **`document_spans`, ADR-0014's other unbuilt table.** D5's flat form is
+  the floor the ADR's chosen alternative already meets, and a span table
+  earns its place when two things must **share** one address. Nothing
+  does yet — and the thing that will is the author's reply letter, which
+  points at a *passage* in the manuscript rather than at a change, and
+  which belongs to the peer-review loop's own work order. **It is the next
+  piece, not this one.**
+- **The reply letter's exchanges.** They are not a chain link:
+  `response_links` requires an `edit_action_id`, and the passage an answer
+  is about is not a change. They are also, in the material as extracted,
+  an unsigned extraction — and the project's own precedent is that an
+  extraction which does not name who produced it cannot be imported as an
+  observation.
+- **The threat model had no entry for the chain at all.**
+  `docs/THREAT-MODEL.md` is organised as §1 what is written, §2 what is
+  read, §3 the network, §4 credentials, §5 concurrency, §6 what this
+  product does **not** claim, §7 where each claim is witnessed, §8 the
+  residual risks — and **`chain`, `feedback`, `edit_action`,
+  `response_link` and `tracked` did not occur in it at all.** §6 opens with
+  *"this is the larger half of the document; a threat model that only says
+  what it protects is a brochure"*, and the chain is the part of this tree
+  that carries the most somebody else's language: a reviewer's comments, a
+  reviewer's rewrites, and the product's judgements about them. **The gap
+  is closed by §6.13 and §6.14 of that document**, and the closure is
+  watched by a witness that reads the document's own shape, so it cannot
+  silently reopen.
+- **Anything that turns a reviewer's rewrites into a rule.** **ADR-0016 D9
+  calls the agreement between a system and an advisor's wording a *risk
+  metric* rather than a quality metric**, and 897 silent rewrites are
+  exactly the material that would be mistaken for the advisor's rules.
+  **The schema is what stops it:** `revision_events` has no column for a
+  reason and no foreign key to `feedback_events`, the rule store's only
+  binding to chain material is by `issue_key`, which a revision event does
+  not carry, and **the distillation's cases are the chain's comments** — so
+  **a rule cannot be distilled from a reviewer's rewrites at all**. **A
+  person may still write a rule by hand**, and that is a person's
+  judgement: it lands as a candidate, and only a second reader moves it on.
+  §6.13 of the threat model says this and its witness watches it.
+- **The group's own writing template.** It is a *rule* object, it has no
+  `issue_key`, and it cannot be a rule's source under the current schema
+  (`guidance_rule_sources.issue_key` is NOT NULL). What it needs is a
+  **"rule → the check that can decide it"** binding, which does not exist
+  in the tree, and its pre-submission checklist is a catalogue of decidable
+  checks rather than a rule or a counterexample. **That is LC-P2-11's
+  decision and not this work order's**, and it is handed over as such.
+  **And how the two traditions would coexist is part of that decision:
+  they are two sources of rules bound to two different things** — the
+  advisor's to chain material under an `issue_key`, the group's to a
+  document — **and the rule store serves both without ranking one above
+  the other.** The places where the group's norms and the advisor's
+  criteria agree are **two independent rules that agree**, and whether they
+  are one rule or two is a person's judgement about scope rather than a
+  competition between the two.
+
+### 6.8 The suite on this tree
+
+**Measured locally** on the tree at `f62d91b`, on Windows 11 (AMD64),
+Python 3.12.10, with `TEMP`, `TMP`, `TMPDIR` and `MPLCONFIGDIR` on
+`E:\labcairn-local\tmp` and a `--basetemp` outside the repository:
+
+```
+4350 passed, 5 skipped, 7 failed, 8 errors, in 33 minutes 58 seconds
+```
+
+**The five skips are the project's own accepted kinds** — a POSIX-only
+permission-bit case, the real-provider smoke that needs the owner's
+credential, and three Windows-path cases — and none of them is new.
+
+**And the failures are two things, and only one of them is this work's.**
+
+| What | How many | Why |
+|---|---|---|
+| `tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on` | 1 | **This work's, and it is the one §6.6 names.** The message names one file: `tests/test_application_layer.py`, at 34.59 s against a partition slack of 16.2 s. **The fix is the project's own** — `python .github/remeasure_shards.py <run-id>` — and the shard file was not touched here. |
+| `tests/test_outsider_path.py` (6) and `tests/test_no_reference_leakage.py` (8) | 14 | **The machine, not the tree.** Every one of them is the same failure: `uv` could not fetch `hatchling` from PyPI — *"tls handshake eof"* — so `uv sync` and `uv build` failed. **None of them touches the chain, the models or the migrations**, and the same failure appears in the walk's own transcript (*"[FAIL] the README's `uv sync` succeeded"*). |
+
+**So the whole suite is green apart from the shard cost this work's own
+guard forced, and apart from a machine with no route to PyPI.** The number
+is a local one and it is anchored to the commit it was measured at.
+
+**And the tree moved on by one commit after the measurement.** The commit
+that followed added §6.14 to the threat model and its witness, so
+`tests/test_threat_model.py` is one test longer than it was when the
+number was taken; **that file and every other file the commit touched were
+re-run and are green** (507 passed, and the same eight network errors).
+**The file's recorded cost is 2.57 s against a partition slack of 16.2 s**,
+so the shard costs are not affected by it either.
+
+## 7. What this work order has not had
 
 - **No independent review.** The project's rule is that a work order is
   accepted on an **independent review at a named commit**, and per the
   owner's decision of 2026-10-29 the reviewer is the owner — they wrote
   none of this code. **That review has not happened yet**, and this
   document does not claim it has.
-- **No real material.** Everything here is synthetic. A real manuscript
-  brings run fragmentation inside a revision, revision ids Word renumbers on
+- **No real material in the tests.** Everything the tests measure is
+  synthetic. **The reader has now been measured over real material** — 897
+  real tracked changes, §6.5 — and what the real files brought that the
+  synthetic corpus does not is written down there: **71 events with empty
+  text, a revision inside a revision, and a move whose text is in `w:t`
+  rather than in `w:delText`.** What real material has **not** yet brought
+  is run fragmentation inside a revision, revision ids Word renumbers on
   save, comments in headers and footnotes, and adviser prose with hedging
-  and politeness in it. **The reader has never seen one**, and the
-  pilot corpus is where it will.
-- **No persistence of the events.** The tables hold projects, versions and
+  and politeness in it — **the corpus measured in §6.5 carries no comments
+  at all**, so the reader's handling of a comment in a real file is still
+  the synthetic corpus's word.
+- ~~**No persistence of the events.** The tables hold projects, versions and
   the edges between them. **LC-P2-07's revision events are read and then
   go nowhere**, because the tables they would live in — `EditAction`,
-  `FeedbackEvent`, `ResponseLink` — are LC-P2-09's.
+  `FeedbackEvent`, `ResponseLink` — are LC-P2-09's.~~ — **closed
+  2026-11-01 by §6.** The events were not going into LC-P2-09's tables at
+  all: ADR-0014 D8 declares a table of their own, and they now have one —
+  `revision_events`, with its writer, its reads and its witnesses. **What
+  is still missing is the fifth event type**: the revision events are not
+  on the append-only stream, so they cannot be replayed from it (§6.6).
 - **No clustering into projects.** Which material belongs to which paper is
   the harder question, and it is a question about *identity* rather than
   about *history*. A version's parent is decidable by evidence; a version's
@@ -191,8 +509,7 @@ schema twelve times."**
   index, and the index needs LC-P2-05's widened corpus to be measured
   against.
 
-## 7. The next thing
-
+## 8. The next thing
 **LC-P2-06, the data governance.** Its grant table names the paper project
 this work order created, so the two fit together — and the reader's events
 have nowhere to live until the response tables do.
@@ -201,3 +518,9 @@ have nowhere to live until the response tables do.
 order's four new test files. The rule is that the cost must come from a
 **runner**, and the two-step process for that is recorded in the Phase 2
 evidence pack — the first run apportions, the second measures.
+
+**And one more, from §6:** the revision events are **not on the event
+stream**, so they cannot be replayed from it. ADR-0017 D8 puts the chain's
+four objects there; this is a fifth object waiting for a fifth event, and
+the event type is a change to `runtime/` that this work order did not
+make.
