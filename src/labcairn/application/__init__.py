@@ -66,6 +66,7 @@ Operation                  Capability
 ``record_model_proposal``  ``source.inventory``
 ``attest_claim``          ``source.inventory``
 ``confirm_proposal``       ``source.inventory``
+``list_task_records``       ``fs.read``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
@@ -164,6 +165,7 @@ from labcairn.application.evidence import (
     attest_claim,
     confirm_proposal,
     list_source_addresses,
+    list_task_records,
     record_claim,
     record_model_proposal,
 )
@@ -301,6 +303,7 @@ __all__ = [
     "list_rejections",
     "list_source_addresses",
     "list_sources",
+    "list_task_records",
     "list_tasks",
     "list_versions",
     "read_artifact",

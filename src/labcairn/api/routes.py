@@ -44,10 +44,12 @@ from labcairn.api.contracts import (
     ApprovalBody,
     ApprovalUseBody,
     ClaimBody,
+    CommentResponses,
     Health,
     ReportBody,
     SessionInfo,
     StageBody,
+    Trajectory,
 )
 from labcairn.api.events import EventSource, sse_frame
 from labcairn.api.guards import OriginPolicy
@@ -62,6 +64,7 @@ from labcairn.application import (
     ClaimRequest,
     FigureRequest,
     FigureRun,
+    ProjectGraph,
     ReportRendered,
     ReportRequest,
     SourceAddress,
@@ -76,9 +79,16 @@ from labcairn.application import (
     list_artifacts,
     list_source_addresses,
     list_sources,
+    list_task_records,
     list_tasks,
     read_artifact,
+    read_comments,
+    read_edits,
+    read_guidance_rule,
+    read_guidance_rules,
     read_plan,
+    read_project_graph,
+    read_response_states,
     read_steps,
     read_task_state,
     record_claim,
@@ -92,6 +102,8 @@ from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageRequest, StageWork
 from labcairn.core.ids import ApprovalId
+from labcairn.evidence.record import EvidenceRecord
+from labcairn.guidance.models import GuidanceRule
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest
 from labcairn.runtime.lifecycle import Task
 
@@ -301,6 +313,27 @@ def post_claim(
             tolerance=body.tolerance,
         ),
     )
+
+
+@router.get("/records", response_model=list[EvidenceRecord], tags=["evidence"])
+def get_records(context: Annotated[ApplicationContext, Depends(_context)]) -> list[EvidenceRecord]:
+    """Every record the ledger holds for this task, and whose words each one is.
+
+    **The record says who wrote it.** ``created_by`` says whether a person
+    or a model wrote it and ``created_by_id`` says which, and the
+    verification log says who stood behind it — so a workbench can lay a
+    model's proposal beside a person's attestation and keep the two apart,
+    which is the whole point of the proposals panel and the reason a merged
+    view that blurred them would be a lie.
+
+    **And the read is guarded as a read of the task's own rows.** The
+    records belong to the task, so the layer asks the policy about the
+    task's own area, exactly as it does for the task's state. A record
+    names no path of its own and the material it was taken from is not
+    named by the record either, so the task's own area is what stands
+    between a reader and another task's records.
+    """
+    return list(list_task_records(context))
 
 
 # --------------------------------------------------------------------------- #
@@ -639,6 +672,95 @@ def get_event_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# --------------------------------------------------------------------------- #
+# the mentor line
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/trajectory", response_model=Trajectory, tags=["mentor"])
+def get_trajectory(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    issue_key: Annotated[list[str], Query(default_factory=list)],
+) -> Trajectory:
+    """The advisor's comments, the edits that answer them, and the responses.
+
+    **The chain's own facts, read through the layer.** The comments are
+    ``application.chain``'s, the edits are its, and the states of the
+    judgements are its too — so the route spells none of them a second
+    time, and a workbench that draws this panel draws the chain.
+
+    **A state is attached to the comment it is about.** The layer answers
+    with the states themselves, so the route asks once per comment: a
+    reader that had to guess which state belonged to which comment would
+    be guessing.
+
+    **And no capability is asked of the task's area.** The chain's rows
+    belong to a paper project and name no path of their own, so the
+    permission that governs what a reader may be shown is the permission on
+    the material, and it is asked where the material is named (ADR-0003 C5).
+    """
+    comments = read_comments(context, issue_keys=tuple(issue_key))
+    edits = read_edits(context, feedback_ids=tuple(comment.feedback_id for comment in comments))
+    responses = tuple(
+        CommentResponses(
+            feedback_id=comment.feedback_id,
+            states=read_response_states(context, feedback_ids=(comment.feedback_id,)),
+        )
+        for comment in comments
+    )
+    return Trajectory(comments=tuple(comments), edits=edits, responses=responses)
+
+
+@router.get("/trajectory/graph", response_model=ProjectGraph, tags=["mentor"])
+def get_trajectory_graph(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[list[str], Query(default_factory=list)],
+) -> ProjectGraph:
+    """The project's versions, and the accepted edges between them.
+
+    **Only accepted edges are here.** An edge nobody accepted is a
+    proposal, and a proposal may not decide an order — so the graph a
+    reader draws is the one the chain's accepted edges describe. And a
+    version the project does not hold is **absent** rather than present: a
+    missing round is not a round.
+
+    **The versions are a set, not an order.** The layer answers with the
+    versions the project holds among the ones named, and the order is the
+    edges' business — a reader that wants the order walks the accepted
+    edges, which is the only thing that may decide one.
+    """
+    return read_project_graph(context, project_id=project_id, version_ids=tuple(version_id))
+
+
+@router.get("/guidance/rules", response_model=list[GuidanceRule], tags=["mentor"])
+def get_guidance_rules(
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> list[GuidanceRule]:
+    """Every rule the memory holds, each at its highest version.
+
+    **The cases come with the rule.** A counterexample is part of the
+    answer and not a footnote beside it, and the layer's read returns both
+    in one go — so a workbench that shows a rule shows what it does not
+    hold too, and it cannot show the rule without them.
+    """
+    return list(read_guidance_rules(context))
+
+
+@router.get("/guidance/rules/{rule_id}", response_model=GuidanceRule, tags=["mentor"])
+def get_guidance_rule(
+    rule_id: str, context: Annotated[ApplicationContext, Depends(_context)]
+) -> GuidanceRule:
+    """One rule, with its scope, its source bindings and its counterexamples.
+
+    **A rule that is not there is refused, by name.** The layer refuses it
+    and the service renders that refusal the way it renders every other
+    one — so a caller that asked for a rule which does not exist learns
+    that, and not an empty rule that looks like a rule.
+    """
+    return read_guidance_rule(context, rule_id=rule_id)
 
 
 __all__ = ["router"]
