@@ -18,6 +18,11 @@ written against — and the example is the advisor's own words, with the
 case's key beside them. A case that is not in the chain under the key
 the caller names is refused: **a rule whose scope the cases do not
 support is refused**, and so is a rule with no cases at all.
+
+**The rows are reached through the application layer.** The chain's
+comments come from :mod:`labcairn.application.chain` and the rule is
+written through :mod:`labcairn.application.guidance`, so the distillation
+reads no table of its own.
 """
 
 from __future__ import annotations
@@ -26,20 +31,13 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Final
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
+from labcairn.application import chain as chain_layer
+from labcairn.application import guidance as guidance_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import guidance_refused
-from labcairn.db.models import FeedbackEventRow
+from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
-from labcairn.guidance.rules import (
-    GuidanceRule,
-    _insert_candidate,
-    _row_to_rule,
-    _rule_id,
-    _validated_fields,
-)
+from labcairn.guidance.rules import _rule_id, _validated_fields
 from labcairn.papers.labels import ISSUE_LABELS
 
 #: The proposer every distilled rule carries. **It is not a parameter**:
@@ -49,8 +47,8 @@ MODEL_PROPOSER: Final[str] = "model_proposal"
 
 
 def _cases_of(
-    session: Session, issue_keys: Sequence[str]
-) -> tuple[tuple[str, FeedbackEventRow], ...]:
+    context: ApplicationContext, issue_keys: Sequence[str]
+) -> tuple[tuple[str, chain_layer.ChainComment], ...]:
     """The chain's events under the keys, each with its key, or the refusal.
 
     :raises ApplicationRefusedError: no key was given, or a key the chain
@@ -64,18 +62,19 @@ def _cases_of(
             "a distilled rule with no case behind it has nothing to scope it;"
             " name the chain material it was learned from",
         )
-    cases: list[tuple[str, FeedbackEventRow]] = []
+    by_key: dict[str, list[chain_layer.ChainComment]] = {}
+    for comment in chain_layer.read_comments(context, issue_keys=keys):
+        by_key.setdefault(comment.issue_key, []).append(comment)
+    cases: list[tuple[str, chain_layer.ChainComment]] = []
     for key in keys:
-        rows = tuple(
-            session.scalars(select(FeedbackEventRow).where(FeedbackEventRow.issue_key == key))
-        )
-        if not rows:
+        found = by_key.get(key, [])
+        if not found:
             raise guidance_refused(
                 GuidanceRefusal.RULE_WITHOUT_SOURCE,
                 f"the chain holds no material under the key {key!r}, and a scope"
                 " the cases do not support is a scope the cases did not give",
             )
-        cases.extend((key, row) for row in rows)
+        cases.extend((key, comment) for comment in found)
     return tuple(cases)
 
 
@@ -100,14 +99,13 @@ def distil_candidate(
         vocabulary; the statement or its context is empty; no cases were
         named, or a named key the chain holds nothing under.
     """
-    session = context.store.session
     if issue_type not in ISSUE_LABELS:
         raise guidance_refused(
             GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY,
             f"{issue_type!r} is not one of the closed vocabulary's labels",
         )
-    cases = _cases_of(session, issue_keys)
-    anchors = sorted({event.anchor_text for _, event in cases})
+    cases = _cases_of(context, issue_keys)
+    anchors = sorted({comment.anchor_text for _, comment in cases})
     scope = "Cases whose anchored text reads: " + "; ".join(f'"{anchor}"' for anchor in anchors)
     first_key, first = min(cases, key=lambda case: (case[0], case[1].comment_text))
     example = f"The advisor's comment ({first_key}): {first.comment_text}"
@@ -120,18 +118,18 @@ def distil_candidate(
         proposed_by=MODEL_PROPOSER,
         sources=tuple(key for key, _ in cases),
     )
-    rule_id = _rule_id(issue_type, statement, proposer, now)
-    row = _insert_candidate(
-        session,
-        rule_id=rule_id,
-        version=1,
-        issue_type=issue_type,
-        statement=statement,
-        rule_context=rule_context,
-        scope=scope,
-        example=example,
-        proposed_by=proposer,
-        sources=keys,
-        now=now,
+    return guidance_layer.write_guidance_rule_version(
+        context,
+        guidance_layer.RuleDraft(
+            rule_id=_rule_id(issue_type, statement, proposer, now),
+            version=1,
+            issue_type=issue_type,
+            statement=statement,
+            rule_context=rule_context,
+            scope=scope,
+            example=example,
+            proposed_by=proposer,
+            sources=keys,
+            proposed_at=now,
+        ),
     )
-    return _row_to_rule(session, row)

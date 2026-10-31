@@ -33,6 +33,10 @@ was missing — and never an empty return, and never a crash.
 citation is built by :func:`cite_rule` from the memory's own read, so
 the cases against a rule travel with the advice and cannot be dropped
 by a caller who found them inconvenient.
+
+**The chain's rows are reached through the application layer.** The
+comments a card's advisor claims are quoted from come from
+:mod:`labcairn.application.chain`, so the card reads no table of its own.
 """
 
 from __future__ import annotations
@@ -40,16 +44,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
+from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError, role_refused
-from labcairn.db.models import FeedbackEventRow
 from labcairn.guidance.rules import read_rule
 from labcairn.papers.labels import ISSUE_LABELS
+from labcairn.roles.models import AgentRoleSpec, RoleOutput
 from labcairn.roles.refusals import RoleRefusal
-from labcairn.roles.spec import AgentRoleSpec, RoleOutput
 
 #: How bad the problem is. Closed: a fourth degree arrives by a
 #: decision, not by a call.
@@ -154,7 +155,7 @@ def cite_rule(context: ApplicationContext, *, rule_id: str) -> RuleCitation:
 
 
 def _checked_claims(
-    session: Session, *, claims: tuple[CardClaim, ...], evidence_refs: tuple[str, ...]
+    context: ApplicationContext, *, claims: tuple[CardClaim, ...], evidence_refs: tuple[str, ...]
 ) -> tuple[CardClaim, ...]:
     """The card's claims, each against its own rule.
 
@@ -178,11 +179,7 @@ def _checked_claims(
                     "an advisor claim names the chain key and quotes the"
                     " comment; a voice without a source is an invention",
                 )
-            held = tuple(
-                session.scalars(
-                    select(FeedbackEventRow).where(FeedbackEventRow.issue_key == claim.issue_key)
-                )
-            )
+            held = chain_layer.read_comments(context, issue_keys=(claim.issue_key,))
             if not held or not any(claim.advisor_quote in row.comment_text for row in held):
                 raise role_refused(
                     RoleRefusal.ADVICE_NOT_IN_THE_CHAIN,
@@ -223,7 +220,6 @@ def build_card(
         the card does not declare; or an advisor claim quotes words
         the chain does not hold.
     """
-    session = context.store.session
     for what, value in (
         ("target locator", target_locator),
         ("reason", reason),
@@ -255,7 +251,7 @@ def build_card(
             RoleRefusal.UNCERTAINTY_KIND_UNKNOWN,
             f"{uncertainty.kind!r} is not one of {sorted(UNCERTAINTY_KINDS)}",
         )
-    checked = _checked_claims(session, claims=claims, evidence_refs=evidence_refs)
+    checked = _checked_claims(context, claims=claims, evidence_refs=evidence_refs)
     return GuidanceCard(
         role_id=spec.role_id,
         role_version=spec.role_version,

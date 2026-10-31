@@ -60,15 +60,21 @@ actually demonstrate. **All three were failing the CI that had already
 run**: the first run stopped at `mypy --strict` with its pytest step
 skipped, so nobody had seen the other two.
 
-**What is still red, and what it needs.** One witness in the CI is still
-red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
-_it` says that six domain modules — `labcairn.guidance.{rules,retrieval,
-distil}` and `labcairn.roles.{spec,guidance,critique}` — read the store
-directly, outside the application layer, and **nothing in the product
-calls them yet**. The remedy is application-layer operations that own
-those reads, which is LC-P2-11's and LC-P2-12's scope and **the next
-piece of work**, not a repair to bolt on. The shard-cost witness waits on
-the runner measurement this push buys.
+**What is still red, and what it needs.** One witness in the CI was still
+red and it was not a repair: `test_no_module_outside_the_layer_reaches_past
+_it` said that **seven** domain modules — `labcairn.guidance.{rules,retrieval,
+distil}` and `labcairn.roles.{spec,guidance,critique,trajectory}` — read the
+store directly, outside the application layer, and **nothing in the product
+calls them yet**. **That witness is green.** The application layer owns those
+reads and writes now — `src/labcairn/application/guidance.py` for the memory's
+rules, `src/labcairn/application/roles.py` for the role contracts,
+`src/labcairn/application/chain.py` for the chain's own facts — and the seven
+modules call the layer instead of the store. **The rules about words and people
+did not move**: the closed vocabulary, the second reader and the reason a
+dispute must carry are still where they were, and the *transitions* are the
+layer's, because a row may not hold a state the memory forbids. The fourteen
+new operations are witnessed one each in `tests/test_application_layer.py`. The
+shard-cost witness waits on the runner measurement this push buys.
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 live probe ran, and it found four defects in the provider layer.** The

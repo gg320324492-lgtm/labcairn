@@ -21,6 +21,11 @@ evidence reference of the form ``chain:<key>`` is checked against the
 chain; a reference in no form C can check makes a ``supported`` verdict
 a lie, and the module refuses it — C's honest answer to evidence it
 cannot reach is ``cannot_assess``, with the reason a person needs.
+
+**The chain's rows are reached through the application layer.** The
+comments a verdict checks its evidence against come from
+:mod:`labcairn.application.chain`, so the review reads no table of its
+own.
 """
 
 from __future__ import annotations
@@ -28,15 +33,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from sqlalchemy import select
-
+from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import role_refused
-from labcairn.db.models import FeedbackEventRow
 from labcairn.guidance.retrieval import search_rules
 from labcairn.roles.guidance import GuidanceCard, RuleCitation
+from labcairn.roles.models import AgentRoleSpec, RoleOutput
 from labcairn.roles.refusals import RoleRefusal
-from labcairn.roles.spec import AgentRoleSpec, RoleOutput
 
 #: What an independent review can conclude. Closed: a fifth verdict
 #: arrives by a decision, not by a call.
@@ -100,7 +103,6 @@ def review_card(
         a verdict that claims the card stands; or a verdict that
         refuses the card carries no reason for the hand-over.
     """
-    session = context.store.session
     if verdict not in VERDICTS:
         raise role_refused(
             RoleRefusal.VERDICT_UNKNOWN,
@@ -122,10 +124,8 @@ def review_card(
                     " was",
                 )
             continue
-        held = session.scalars(
-            select(FeedbackEventRow.feedback_id).where(FeedbackEventRow.issue_key == key)
-        ).first()
-        if held is None:
+        held = chain_layer.read_comments(context, issue_keys=(key,))
+        if not held:
             raise role_refused(
                 RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN,
                 f"the evidence {evidence_ref!r} names a key the chain does"

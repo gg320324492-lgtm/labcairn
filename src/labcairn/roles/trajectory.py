@@ -27,6 +27,10 @@ similarity score may never silently decide an order either — so
 version the graph does not hold (a missing round is not a present one),
 and refuses an order the accepted edges leave ambiguous rather than
 picking one.
+
+**The chain's rows are reached through the application layer.** The
+comments, the changes and the accepted edges come from
+:mod:`labcairn.application.chain`, so the role reads no table of its own.
 """
 
 from __future__ import annotations
@@ -34,15 +38,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
+from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import role_refused
-from labcairn.db.models import EditActionRow, FeedbackEventRow, PaperVersionRow, VersionEdgeRow
 from labcairn.papers.labels import ISSUE_LABELS
+from labcairn.roles.models import AgentRoleSpec, RoleOutput
 from labcairn.roles.refusals import RoleRefusal
-from labcairn.roles.spec import AgentRoleSpec, RoleOutput
 
 #: How far a change went toward answering its comment. Closed: a fifth
 #: state arrives by a decision, not by a call.
@@ -132,36 +133,17 @@ def order_versions(
     :raises ApplicationRefusedError: a version is not in the project's
         graph, or the accepted edges leave the order ambiguous.
     """
-    session: Session = context.store.session
     wanted = set(version_ids)
-    held = set(
-        session.scalars(
-            select(PaperVersionRow.version_id).where(
-                PaperVersionRow.version_id.in_(wanted),
-                PaperVersionRow.project_id == project_id,
-            )
-        )
-    )
-    missing = sorted(wanted - held)
+    graph = chain_layer.read_project_graph(context, project_id=project_id, version_ids=version_ids)
+    missing = sorted(wanted - graph.version_ids)
     if missing:
         raise role_refused(
             RoleRefusal.VERSION_OUTSIDE_THE_GRAPH,
             f"the project's graph holds no version under {missing!r}; a missing"
             " round is not a present one",
         )
-    edges = tuple(
-        edge
-        for edge in session.scalars(
-            select(VersionEdgeRow).where(
-                VersionEdgeRow.project_id == project_id,
-                VersionEdgeRow.accepted_by.is_not(None),
-                VersionEdgeRow.superseded_by.is_(None),
-            )
-        )
-        if edge.parent_version_id in wanted and edge.child_version_id in wanted
-    )
     children: dict[str, set[str]] = {version_id: set() for version_id in wanted}
-    for edge in edges:
+    for edge in graph.edges:
         children[edge.parent_version_id].add(edge.child_version_id)
     ordered: list[str] = []
     ready = sorted(vid for vid in wanted if not any(vid in kids for kids in children.values()))
@@ -203,24 +185,24 @@ def read_trajectory(
         its accepted order is ambiguous; a named issue key holds no
         comment in the chain.
     """
-    session: Session = context.store.session
     ordered = order_versions(
         context,
         project_id=trajectory_input.project_id,
         version_ids=trajectory_input.version_ids,
     )
+    by_key: dict[str, list[chain_layer.ChainComment]] = {}
+    for comment in chain_layer.read_comments(context, issue_keys=trajectory_input.issue_keys):
+        by_key.setdefault(comment.issue_key, []).append(comment)
     comments: list[TrajectoryComment] = []
     for key in trajectory_input.issue_keys:
-        rows = tuple(
-            session.scalars(select(FeedbackEventRow).where(FeedbackEventRow.issue_key == key))
-        )
-        if not rows:
+        found = by_key.get(key, [])
+        if not found:
             raise role_refused(
                 RoleRefusal.COMMENT_NOT_IN_THE_CHAIN,
                 f"the chain holds no comment under the key {key!r}, and a"
                 " judgement about a comment that is not there is invented",
             )
-        for row in rows:
+        for row in found:
             comments.append(
                 TrajectoryComment(
                     issue_key=row.issue_key or "",
@@ -228,24 +210,16 @@ def read_trajectory(
                     anchor_text=row.anchor_text,
                 )
             )
-    feedback_ids = tuple(
-        session.scalars(
-            select(FeedbackEventRow.feedback_id).where(
-                FeedbackEventRow.issue_key.in_(trajectory_input.issue_keys)
-            )
-        )
-    )
+    feedback_ids = tuple(comment.feedback_id for rows in by_key.values() for comment in rows)
     edits = tuple(
         TrajectoryEdit(
-            edit_action_id=row.edit_action_id,
-            feedback_id=row.feedback_id,
-            version_edge_id=row.version_edge_id,
-            actor_kind=row.actor_kind,
-            grade=row.grade,
+            edit_action_id=edit.edit_action_id,
+            feedback_id=edit.feedback_id,
+            version_edge_id=edit.version_edge_id,
+            actor_kind=edit.actor_kind,
+            grade=edit.grade,
         )
-        for row in session.scalars(
-            select(EditActionRow).where(EditActionRow.feedback_id.in_(feedback_ids))
-        )
+        for edit in chain_layer.read_edits(context, feedback_ids=feedback_ids)
     )
     return TrajectoryMaterial(
         project_id=trajectory_input.project_id,
@@ -280,16 +254,13 @@ def propose_candidate(
         the issue type is outside its vocabulary; or the edit named
         does not answer this comment.
     """
-    session: Session = context.store.session
-    rows = tuple(
-        session.scalars(select(FeedbackEventRow).where(FeedbackEventRow.issue_key == issue_key))
-    )
-    if not rows:
+    comments = chain_layer.read_comments(context, issue_keys=(issue_key,))
+    if not comments:
         raise role_refused(
             RoleRefusal.COMMENT_NOT_IN_THE_CHAIN,
             f"the chain holds no comment under the key {issue_key!r}",
         )
-    if not any(advisor_quote in row.comment_text for row in rows):
+    if not any(advisor_quote in comment.comment_text for comment in comments):
         raise role_refused(
             RoleRefusal.QUOTE_NOT_IN_THE_CHAIN,
             "the quote is not the advisor's words in the chain, and a role may"
@@ -306,9 +277,9 @@ def propose_candidate(
             f"{issue_type!r} is not one of the closed vocabulary's labels",
         )
     if edit_action_id is not None:
-        edit = session.get(EditActionRow, edit_action_id)
-        feedback_ids = {row.feedback_id for row in rows}
-        if edit is None or edit.feedback_id not in feedback_ids:
+        feedback_ids = {comment.feedback_id for comment in comments}
+        answers = chain_layer.read_edits(context, feedback_ids=tuple(feedback_ids))
+        if not any(edit.edit_action_id == edit_action_id for edit in answers):
             raise role_refused(
                 RoleRefusal.EDIT_DOES_NOT_ANSWER_THE_COMMENT,
                 f"the edit {edit_action_id!r} does not answer the comment"

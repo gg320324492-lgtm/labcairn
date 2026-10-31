@@ -14,140 +14,38 @@ against it, or to ``withdrawn`` by a retraction that carries its reason.
 **And a new statement is a new row**: :func:`supersede_rule` inserts the
 next version as a fresh candidate, and the old version keeps the state
 it had, because a memory that rewrites its past is not a memory.
+
+**The rows are reached through the application layer.** Every read and
+every write of ``guidance_rules``, ``guidance_rule_sources`` and
+``guidance_rule_counterexamples`` goes through
+:mod:`labcairn.application.guidance`, so the memory is reached in one
+place and a guard applied there reaches every caller — the retrieval, the
+distillation and this lifecycle alike. **The rules about words and people
+stay here**: the closed vocabulary of problems, the fields that may not be
+empty, the source a rule must name, the second reader who may not be the
+proposer, and the reason a dispute or a retraction must carry. The layer
+holds the transitions and the rows; this module holds what may be said.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
+from labcairn.application import guidance as guidance_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import guidance_refused
-from labcairn.db.models import (
-    GuidanceRuleCounterexampleRow,
-    GuidanceRuleRow,
-    GuidanceRuleSourceRow,
-)
+from labcairn.guidance.models import GuidanceRule, RuleCounterexample
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.papers.labels import ISSUE_LABELS
-
-
-@dataclass(frozen=True)
-class RuleCounterexample:
-    """The case where a rule does not hold, as the memory serves it."""
-
-    statement: str
-    #: The chain material the counterexample came from, when it has one.
-    issue_key: str | None
-    recorded_by: str
-    recorded_at: datetime
-
-
-@dataclass(frozen=True)
-class GuidanceRule:
-    """A mentor's rule as the memory holds it, with its sources and its cases.
-
-    **The counterexamples travel with the rule, not beside it.** The
-    work order's acceptance says a counterexample stops the rule being
-    served unconditionally, and the mechanism starts here: a caller that
-    has a rule has its cases against it, because they came back in the
-    same read.
-    """
-
-    rule_id: str
-    version: int
-    issue_type: str
-    statement: str
-    context: str
-    scope: str
-    example: str
-    state: str
-    proposed_by: str
-    proposed_at: datetime
-    confirmed_by: str | None
-    confirmed_at: datetime | None
-    resolution_reason: str | None
-    #: The chain material the rule was learned from, by the chain's own
-    #: key. **At least one: a rule without a source is not a rule.**
-    sources: tuple[str, ...]
-    #: The cases against the rule. **Possibly empty, never optional** —
-    #: an empty tuple says the memory holds none, not that it did not look.
-    counterexamples: tuple[RuleCounterexample, ...]
 
 
 def _rule_id(issue_type: str, statement: str, proposed_by: str, now: datetime) -> str:
     """Caller-visible identity, derived from what the rule says and who said it."""
     material = f"{issue_type}|{statement}|{proposed_by}|{now.isoformat()}"
     return f"rule-{hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]}"
-
-
-def _latest(session: Session, rule_id: str) -> GuidanceRuleRow:
-    """The highest version of the rule, or the refusal that says it is not there."""
-    row = session.scalar(
-        select(GuidanceRuleRow)
-        .where(GuidanceRuleRow.rule_id == rule_id)
-        .order_by(GuidanceRuleRow.version.desc())
-        .limit(1)
-    )
-    if row is None:
-        raise guidance_refused(
-            GuidanceRefusal.RULE_NOT_FOUND,
-            f"no rule carries the id {rule_id!r}",
-        )
-    return row
-
-
-def _row_to_rule(session: Session, row: GuidanceRuleRow) -> GuidanceRule:
-    """One row, its sources and its cases, as the memory serves them."""
-    source_keys = tuple(
-        session.scalars(
-            select(GuidanceRuleSourceRow.issue_key)
-            .where(
-                GuidanceRuleSourceRow.rule_id == row.rule_id,
-                GuidanceRuleSourceRow.version == row.version,
-            )
-            .order_by(GuidanceRuleSourceRow.issue_key)
-        )
-    )
-    cases = tuple(
-        RuleCounterexample(
-            statement=case.statement,
-            issue_key=case.issue_key,
-            recorded_by=case.recorded_by,
-            recorded_at=case.recorded_at,
-        )
-        for case in session.scalars(
-            select(GuidanceRuleCounterexampleRow)
-            .where(
-                GuidanceRuleCounterexampleRow.rule_id == row.rule_id,
-                GuidanceRuleCounterexampleRow.version == row.version,
-            )
-            .order_by(GuidanceRuleCounterexampleRow.id)
-        )
-    )
-    return GuidanceRule(
-        rule_id=row.rule_id,
-        version=row.version,
-        issue_type=row.issue_type,
-        statement=row.statement,
-        context=row.context,
-        scope=row.scope,
-        example=row.example,
-        state=row.state,
-        proposed_by=row.proposed_by,
-        proposed_at=row.proposed_at,
-        confirmed_by=row.confirmed_by,
-        confirmed_at=row.confirmed_at,
-        resolution_reason=row.resolution_reason,
-        sources=source_keys,
-        counterexamples=cases,
-    )
 
 
 def _validated_fields(
@@ -201,41 +99,6 @@ def _validated_fields(
     )
 
 
-def _insert_candidate(
-    session: Session,
-    *,
-    rule_id: str,
-    version: int,
-    issue_type: str,
-    statement: str,
-    rule_context: str,
-    scope: str,
-    example: str,
-    proposed_by: str,
-    sources: Sequence[str],
-    now: datetime,
-) -> GuidanceRuleRow:
-    """One candidate row and its source bindings, written and flushed."""
-    row = GuidanceRuleRow(
-        rule_id=rule_id,
-        version=version,
-        issue_type=issue_type,
-        statement=statement,
-        context=rule_context,
-        scope=scope,
-        example=example,
-        state="candidate",
-        proposed_by=proposed_by,
-        proposed_at=now,
-    )
-    session.add(row)
-    session.add_all(
-        GuidanceRuleSourceRow(rule_id=rule_id, version=version, issue_key=key) for key in sources
-    )
-    session.flush()
-    return row
-
-
 def propose_rule(
     context: ApplicationContext,
     *,
@@ -259,7 +122,6 @@ def propose_rule(
         vocabulary; a required field is empty; the rule names no chain
         material.
     """
-    session = context.store.session
     issue_type, statement, rule_context, scope, example, proposed_by, sources = _validated_fields(
         issue_type=issue_type,
         statement=statement,
@@ -269,21 +131,21 @@ def propose_rule(
         proposed_by=proposed_by,
         sources=sources,
     )
-    rule_id = _rule_id(issue_type, statement, proposed_by, now)
-    row = _insert_candidate(
-        session,
-        rule_id=rule_id,
-        version=1,
-        issue_type=issue_type,
-        statement=statement,
-        rule_context=rule_context,
-        scope=scope,
-        example=example,
-        proposed_by=proposed_by,
-        sources=sources,
-        now=now,
+    return guidance_layer.write_guidance_rule_version(
+        context,
+        guidance_layer.RuleDraft(
+            rule_id=_rule_id(issue_type, statement, proposed_by, now),
+            version=1,
+            issue_type=issue_type,
+            statement=statement,
+            rule_context=rule_context,
+            scope=scope,
+            example=example,
+            proposed_by=proposed_by,
+            sources=sources,
+            proposed_at=now,
+        ),
     )
-    return _row_to_rule(session, row)
 
 
 def confirm_rule(
@@ -302,27 +164,27 @@ def confirm_rule(
     arbiter: one person reading twice is one person reading once with
     extra steps.
 
+    **And the closed state machine is the layer's.** Whether a rule may
+    be confirmed is a fact about the row, so the transition that moves a
+    rule out of ``candidate`` is the layer's to refuse and this function
+    asks it rather than restating it.
+
     :raises ApplicationRefusedError: the rule is not there; the confirmer
         is the proposer; the rule is not a candidate.
     """
-    session = context.store.session
-    row = _latest(session, rule_id)
-    if confirmed_by == row.proposed_by:
+    rule = guidance_layer.read_guidance_rule(context, rule_id=rule_id)
+    if confirmed_by == rule.proposed_by:
         raise guidance_refused(
             GuidanceRefusal.CONFIRMER_IS_PROPOSER,
-            f"the rule was proposed by {row.proposed_by!r}, and its proposer"
+            f"the rule was proposed by {rule.proposed_by!r}, and its proposer"
             " cannot be the one who confirms it",
         )
-    if row.state != "candidate":
-        raise guidance_refused(
-            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
-            f"a rule in state {row.state!r} cannot be confirmed; only a candidate can",
-        )
-    row.state = "confirmed"
-    row.confirmed_by = confirmed_by
-    row.confirmed_at = now
-    session.flush()
-    return _row_to_rule(session, row)
+    return guidance_layer.write_guidance_rule_confirmation(
+        context,
+        rule_id=rule_id,
+        confirmed_by=confirmed_by,
+        confirmed_at=now,
+    )
 
 
 def dispute_rule(
@@ -344,24 +206,19 @@ def dispute_rule(
     :raises ApplicationRefusedError: the rule is not there; the reason is
         empty; the rule is already withdrawn.
     """
-    session = context.store.session
-    row = _latest(session, rule_id)
+    guidance_layer.read_guidance_rule(context, rule_id=rule_id)
     if not reason.strip():
         raise guidance_refused(
             GuidanceRefusal.RESOLUTION_WITHOUT_REASON,
             "a dispute without a reason is a shrug, and the memory does not record shrugs",
         )
-    if row.state == "withdrawn":
-        raise guidance_refused(
-            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
-            "a withdrawn rule cannot be disputed; propose a new version instead",
-        )
-    row.state = "disputed"
-    row.resolution_reason = reason
-    row.confirmed_at = row.confirmed_at if row.confirmed_at is not None else now
-    row.confirmed_by = row.confirmed_by or disputed_by
-    session.flush()
-    return _row_to_rule(session, row)
+    return guidance_layer.write_guidance_rule_resolution(
+        context,
+        rule_id=rule_id,
+        reason=reason,
+        disputed_by=disputed_by,
+        now=now,
+    )
 
 
 def withdraw_rule(
@@ -380,22 +237,17 @@ def withdraw_rule(
     :raises ApplicationRefusedError: the rule is not there; the reason is
         empty; the rule is already withdrawn.
     """
-    session = context.store.session
-    row = _latest(session, rule_id)
+    guidance_layer.read_guidance_rule(context, rule_id=rule_id)
     if not reason.strip():
         raise guidance_refused(
             GuidanceRefusal.RESOLUTION_WITHOUT_REASON,
             "a retraction without a reason is a shrug, and the memory does not record shrugs",
         )
-    if row.state == "withdrawn":
-        raise guidance_refused(
-            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
-            f"the rule is already withdrawn, for {row.resolution_reason!r}",
-        )
-    row.state = "withdrawn"
-    row.resolution_reason = reason
-    session.flush()
-    return _row_to_rule(session, row)
+    return guidance_layer.write_guidance_rule_withdrawal(
+        context,
+        rule_id=rule_id,
+        reason=reason,
+    )
 
 
 def supersede_rule(
@@ -422,8 +274,7 @@ def supersede_rule(
     :raises ApplicationRefusedError: whatever :func:`propose_rule`
         refuses, or the rule is not there.
     """
-    session = context.store.session
-    old = _latest(session, rule_id)
+    old = guidance_layer.read_guidance_rule(context, rule_id=rule_id)
     issue_type, statement, rule_context, scope, example, proposed_by, sources = _validated_fields(
         issue_type=issue_type,
         statement=statement,
@@ -433,20 +284,21 @@ def supersede_rule(
         proposed_by=proposed_by,
         sources=sources,
     )
-    row = _insert_candidate(
-        session,
-        rule_id=rule_id,
-        version=old.version + 1,
-        issue_type=issue_type,
-        statement=statement,
-        rule_context=rule_context,
-        scope=scope,
-        example=example,
-        proposed_by=proposed_by,
-        sources=sources,
-        now=now,
+    return guidance_layer.write_guidance_rule_version(
+        context,
+        guidance_layer.RuleDraft(
+            rule_id=rule_id,
+            version=old.version + 1,
+            issue_type=issue_type,
+            statement=statement,
+            rule_context=rule_context,
+            scope=scope,
+            example=example,
+            proposed_by=proposed_by,
+            sources=sources,
+            proposed_at=now,
+        ),
     )
-    return _row_to_rule(session, row)
 
 
 def record_counterexample(
@@ -468,8 +320,7 @@ def record_counterexample(
     :raises ApplicationRefusedError: the rule is not there; the case is
         empty.
     """
-    session = context.store.session
-    row = _latest(session, rule_id)
+    guidance_layer.read_guidance_rule(context, rule_id=rule_id)
     if not statement.strip() or not recorded_by.strip():
         raise guidance_refused(
             GuidanceRefusal.COUNTEREXAMPLE_EMPTY,
@@ -477,18 +328,14 @@ def record_counterexample(
         )
     if issue_key is not None and not issue_key.strip():
         issue_key = None
-    session.add(
-        GuidanceRuleCounterexampleRow(
-            rule_id=row.rule_id,
-            version=row.version,
-            statement=statement,
-            issue_key=issue_key,
-            recorded_by=recorded_by,
-            recorded_at=now,
-        )
+    return guidance_layer.write_guidance_counterexample(
+        context,
+        rule_id=rule_id,
+        statement=statement,
+        recorded_by=recorded_by,
+        recorded_at=now,
+        issue_key=issue_key,
     )
-    session.flush()
-    return _row_to_rule(session, row)
 
 
 def read_rule(context: ApplicationContext, *, rule_id: str) -> GuidanceRule:
@@ -496,8 +343,7 @@ def read_rule(context: ApplicationContext, *, rule_id: str) -> GuidanceRule:
 
     :raises ApplicationRefusedError: the rule is not there.
     """
-    session = context.store.session
-    return _row_to_rule(session, _latest(session, rule_id))
+    return guidance_layer.read_guidance_rule(context, rule_id=rule_id)
 
 
 #: The module's own surface, for ``from labcairn.guidance import rules``.

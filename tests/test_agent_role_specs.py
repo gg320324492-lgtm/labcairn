@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 from test_store_support import StoreEnv
 from test_store_support import env as _shared_env
 
+import labcairn.roles.models as models_module
 import labcairn.roles.spec as spec_module
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
@@ -193,17 +194,28 @@ def test_a_role_holds_no_direct_path_out(context: ApplicationContext, tmp_path: 
     # contract whose boundary is already behind it, so the import list
     # is read as text and checked against the closed set of names that
     # would give one.
-    source = Path(spec_module.__file__).read_text(encoding="utf-8")
-    imported: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Import):
-            imported.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.add(node.module)
-    for forbidden_module in ("socket", "http", "httpx", "requests", "urllib", "ftplib"):
-        assert not any(
-            name == forbidden_module or name.startswith(f"{forbidden_module}.") for name in imported
-        ), f"the contract module imports {forbidden_module!r}, a path out"
+    #
+    # **And both modules that hold the contract are read.** The contract
+    # itself is data in ``labcairn.roles.models`` -- the type and the
+    # enforcement that goes with it -- and ``labcairn.roles.spec`` is the
+    # lifecycle that defines it. A check that watched only one of them
+    # would leave the other's import list unwatched, and the claim is
+    # about the contract rather than about one file.
+    for holder in (spec_module, models_module):
+        holder_path = holder.__file__
+        assert holder_path is not None, f"the module {holder.__name__} has no file"
+        source = Path(holder_path).read_text(encoding="utf-8")
+        imported: set[str] = set()
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+        for forbidden_module in ("socket", "http", "httpx", "requests", "urllib", "ftplib"):
+            assert not any(
+                name == forbidden_module or name.startswith(f"{forbidden_module}.")
+                for name in imported
+            ), f"the contract module {holder.__name__} imports {forbidden_module!r}, a path out"
 
 
 def test_a_second_definition_of_one_version_is_refused(context: ApplicationContext) -> None:

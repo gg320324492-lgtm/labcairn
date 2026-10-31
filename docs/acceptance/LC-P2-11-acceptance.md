@@ -25,7 +25,7 @@ not make a rule true; it records what the advisor did and where it applies.
 
 | # | The decision | Held by | Witnessed by |
 |---|---|---|---|
-| 1 | **The state machine is closed**: `candidate → confirmed \| disputed \| withdrawn`, and only a person moves a rule out of `candidate` (ADR-0016 D8) | `src/labcairn/guidance/rules.py`, the `guidance_rules` CHECKs | `tests/test_guidance_rules.py`, the schema refusals by raw `INSERT` |
+| 1 | **The state machine is closed**: `candidate → confirmed \| disputed \| withdrawn`, and only a person moves a rule out of `candidate` (ADR-0016 D8) | `src/labcairn/application/guidance.py`'s transitions, `src/labcairn/guidance/rules.py`, the `guidance_rules` CHECKs | `tests/test_guidance_rules.py`, the schema refusals by raw `INSERT` |
 | 2 | **The confirmer is a second reader** — the owner's rule of 2026-10-31, carried into the memory: whoever proposed a rule cannot confirm it, and `model_proposal` is refused as a confirmer like any other proposer | `confirm_rule`'s refusal | `test_the_proposer_cannot_confirm_their_own_rule`, and `test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it` for the model's name |
 | 3 | **A source stands or falls at query time, by its state and not by a clock**: the chain's presence under the key, the reader's reach through the permission layer (denied materials dropped, ADR-0003 C5), and a judgement that says the change answered | `src/labcairn/guidance/retrieval.py` | `test_a_withdrawn_source_invalidates_its_rule_and_says_so`, `test_a_rule_outside_the_readers_consent_is_not_retrieved`, `test_the_memory_reads_through_the_consent_layer` |
 | 4 | **The invalidation is not silent**: a rule the memory stops serving is reported, each dead source saying which of the three ways it died | `invalidated_rules` | the same withdrawal witness, whose second half reads the report |
@@ -33,6 +33,17 @@ not make a rule true; it records what the advisor did and where it applies.
 | 6 | **The distillation may not invent a scope**: it has no scope parameter — the scope is assembled from the cases' anchored text, the example is the advisor's own words beside the case's key, and a named key the chain holds nothing under is refused | `src/labcairn/guidance/distil.py` | `test_a_rule_with_an_unsupported_scope_is_refused` |
 | 7 | **A candidate's review conditions differ from a card's citation conditions**: a candidate is shown to its reviewer on cases that exist and are in reach; a confirmed rule stands only on sources a judgement has answered | `search_rules`'s per-state source conditions | `test_a_candidate_is_not_served_unless_asked`, `test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it` |
 | 8 | **The problem comes from the closed vocabulary**, LC-P2-10's thirteen labels, imported rather than retyped — at propose, at distil, and at the query boundary | `ISSUE_LABELS` checks | `test_a_problem_outside_the_vocabulary_is_refused`, `test_the_query_filters_and_the_vocabulary_gates_it` |
+
+**And where the rows are reached.** The memory's three tables are read and
+written through the application layer — `src/labcairn/application/guidance.py`
+for the rules, `src/labcairn/application/chain.py` for the chain's facts — so
+the mentor line is reached in one place and a guard applied there reaches every
+caller. **The rules about words and people stay in
+`src/labcairn/guidance/rules.py`** — the closed vocabulary, the fields that may
+not be empty, the source a rule must name, the second reader, the reason a
+dispute must carry. **The transitions are the layer's**, because a row may not
+hold a state the memory forbids, and a layer operation that could write one
+would be a hole in the layer.
 
 **A finding the state conditions produced.** The first draft required every
 served rule's sources to carry an *answered* judgement, and the
