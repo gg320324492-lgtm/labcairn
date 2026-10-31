@@ -219,6 +219,21 @@ runner's own log: **Ubuntu's balance factor was 1.603 and is now 1.224**,
 Windows stays at 1.000, and the witness that had been red for the whole
 branch is green.
 
+**The new route found a hole in the pinned clock, and the hole was in the
+test's own metaclass.** `/guidance/rules` serves the guidance memory's
+rules, and a rule carries the moment it was proposed and the moment it was
+confirmed — so FastAPI builds a schema for a `datetime` when the service
+starts. The demonstration that pins every clock in the product's process
+replaces the `datetime` every module names with `Pinned`, a `datetime`
+subclass whose metaclass knew how to answer `isinstance` and nothing
+else — so the schema could not be built, **the service could not start,
+and the demonstration that was supposed to watch it failed instead.** The
+fix is in the metaclass: the pinned clock answers with the real
+`datetime`'s schema, because it *is* a datetime. **Nothing in the product
+changed**, and the witness that caught it was the one that runs the
+demonstration at two hours eighteen apart — which is exactly what it is
+for.
+
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
 anchored to, and the paragraph it sits in** — 507 characters, named in the
