@@ -34,8 +34,9 @@ The way out
 Not by replacing the framework (ADR-0005 keeps Pydantic AI as the interaction
 layer) but by reading the raw response body on the way past, before the
 extraction step that loses the distinction. That is all this module is: an httpx
-transport wrapper that keeps the ``usage`` sub-object of the last response
-verbatim, and a two-method protocol the adapter consumes.
+transport wrapper that keeps the ``usage`` sub-object of the last response —
+renamed into the parser's vocabulary — and a two-method protocol the adapter
+consumes.
 
 Design points that matter
 -------------------------
@@ -76,6 +77,37 @@ from typing import Any, Protocol, runtime_checkable
 
 from labcairn.core.providers.protocol import UsageReport
 from labcairn.core.providers.usage import UnknownReason
+
+#: The token-counter names a real OpenAI-compatible body reports, and the
+#: LabCairn names they become. LC-P1-01's parser reads ``input_tokens`` /
+#: ``output_tokens`` — the ledger's vocabulary — while an OpenAI-compatible
+#: endpoint reports ``prompt_tokens`` / ``completion_tokens``. The first real
+#: smoke (2026-10-31, MiniMax) answered with a complete usage block and was
+#: still recorded ``usage_reporting: unsupported``, because the verbatim block
+#: went to the parser un-renamed and every counter came back
+#: ``Unknown(PROVIDER_OMITTED)``. Renaming at the capture point keeps the
+#: parser single-vocabulary and the capture the only place that speaks wire.
+_WIRE_TOKEN_NAMES: Mapping[str, str] = {
+    "prompt_tokens": "input_tokens",
+    "completion_tokens": "output_tokens",
+}
+
+
+def _labcairn_usage_keys(block: Mapping[str, object]) -> Mapping[str, object]:
+    """One ``usage`` block, in the parser's vocabulary.
+
+    Identity for a block that already speaks LabCairn's names (the fake
+    provider's transcripts, an Anthropic body, a hand-fed test block); a
+    rename for a block that speaks OpenAI's. A block carrying neither is
+    passed through untouched — the parser reads only the two LabCairn names,
+    so such a block still reports ``Unknown(PROVIDER_OMITTED)`` rather than
+    anything invented.
+    """
+    if "input_tokens" in block or "output_tokens" in block:
+        return block
+    return {
+        target: block[source] for source, target in _WIRE_TOKEN_NAMES.items() if source in block
+    }
 
 
 @runtime_checkable
@@ -134,7 +166,7 @@ class RecordingUsageCapture:
 
     def observe(self, body: Mapping[str, object]) -> None:
         raw = body.get("usage")
-        self._block = raw if isinstance(raw, Mapping) else None
+        self._block = _labcairn_usage_keys(raw) if isinstance(raw, Mapping) else None
         self._observed = True
 
     @property
@@ -146,7 +178,11 @@ class RecordingUsageCapture:
 
 
 class HttpxUsageSniffer:
-    """Keeps the last response's ``usage`` block. Real provider path.
+    """Keeps the last response's ``usage`` block, in the parser's vocabulary.
+
+    Real provider path. A block that speaks OpenAI's wire names
+    (``prompt_tokens``/``completion_tokens``) is renamed at the capture point —
+    see :func:`_labcairn_usage_keys` for why.
 
     Used as an ``httpx.AsyncBaseTransport`` wrapper:
 
@@ -218,7 +254,7 @@ class HttpxUsageSniffer:
         """
         self._observed = True
         raw = body.get("usage")
-        self._block = raw if isinstance(raw, Mapping) else None
+        self._block = _labcairn_usage_keys(raw) if isinstance(raw, Mapping) else None
 
     async def _observe_response(self, response: Any) -> None:
         """Read the body if the transport has not, then keep its ``usage`` key.

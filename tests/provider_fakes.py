@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -53,18 +53,22 @@ from labcairn.providers.usage_capture import RecordingUsageCapture
 def build_upstream_response(
     *,
     text: str = "",
-    tool_calls: Sequence[tuple[str, dict[str, Any]]] = (),
+    tool_calls: Sequence[tuple[str, dict[str, Any] | str]] = (),
     timestamp: datetime,
 ) -> ModelResponse:
     """A pydantic-ai ``ModelResponse``, always with zero usage.
 
-    See the module docstring for why the usage is zero on purpose.
+    See the module docstring for why the usage is zero on purpose. A tool
+    call's ``args`` may be scripted as a JSON **string**, which is the wire
+    form pydantic-ai keeps and the form the probe's decoder must handle —
+    the first real smoke (2026-10-31, MiniMax) answered exactly that way.
     """
     parts: list[Any] = []
     if text:
         parts.append(TextPart(content=text))
     for index, (name, args) in enumerate(tool_calls):
-        parts.append(ToolCallPart(tool_name=name, args=dict(args), tool_call_id=f"call-{index}"))
+        scripted = dict(args) if isinstance(args, Mapping) else args
+        parts.append(ToolCallPart(tool_name=name, args=scripted, tool_call_id=f"call-{index}"))
     return ModelResponse(
         parts=parts,
         usage=RequestUsage(),
@@ -84,7 +88,7 @@ class Reply:
 
     name: str
     text: str = ""
-    tool_calls: tuple[tuple[str, dict[str, Any]], ...] = ()
+    tool_calls: tuple[tuple[str, dict[str, Any] | str], ...] = ()
     #: The whole decoded response body, so a test can vary fields other than
     #: ``usage``. Absent entirely when ``None``.
     usage_body: dict[str, object] | None = None
