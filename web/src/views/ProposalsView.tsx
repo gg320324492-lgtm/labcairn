@@ -25,6 +25,15 @@
  * ledger holds that is neither a proposal nor a person's word beside one is
  * drawn as a record of its own, under its own heading, rather than folded
  * into a pair it does not belong to.
+ *
+ * **The panel offers no act, and that is a gap.** The ledger's door that
+ * settles a proposal — the one a person answers a model's question with — is
+ * a console command, and **the contract carries no route for it**: the
+ * service serves `GET /records` and nothing that changes a record's
+ * standing. So this panel draws the settlement and the person who made it,
+ * and asks for nothing. The route that would open the door from the
+ * workbench does not exist yet, and writing that here is better than letting
+ * a reader wonder whether the panel forgot it.
  */
 
 import type { JSX } from 'react'
