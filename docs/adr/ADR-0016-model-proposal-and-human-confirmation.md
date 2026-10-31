@@ -222,6 +222,14 @@ a person's own record ──(at the same address)──> user_attested, attribut
         └── supersedes ──> the proposal, which is kept and marked
 ```
 
+**The settlement is logged on the person's own record, not on the
+proposal's.** The store's design says so — *"a person writes their own
+record, and the rule's is kept and marked"* — the old row is *marked* and
+the new one carries the attestation. Writing the verdict on the proposal's
+log would be a second spelling of the settlement, and it would put a
+product module behind the ledger's verification write, which the threat
+model's C14 forbids for anything but the checks themselves.
+
 `model_proposal` never becomes `user`, and never becomes `user_attested`.
 **And a model proposal never becomes citable**, because the states a report
 may cite are `verified_by_rule` and `user_attested` and it is neither. What

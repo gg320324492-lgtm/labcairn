@@ -17,7 +17,7 @@ import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, get_args, get_origin
 
 import pytest
 from pydantic import ValidationError
@@ -613,6 +613,31 @@ def test_event_stream_page_resumes_from_the_last_seq(ids: dict[str, Any]) -> Non
     assert empty.caught_up is True
 
 
+def _a_value_for(annotation: object) -> object:
+    """A value that satisfies *annotation*.
+
+    **Every kind of field, not only the scalar ones.** A builder that put
+    ``0`` into a list field would build a payload the event model refuses,
+    and the refusal would look like a defect in the event rather than in the
+    builder — which is how the exchange event's schema, a list with a
+    minimum length, hid the registration defect until the schema reached
+    every reader.
+    """
+    if annotation is str:
+        return "x"
+    if annotation is bool:
+        return False
+    if annotation is int:
+        return 0
+    origin = get_origin(annotation)
+    if origin is list:
+        (item,) = get_args(annotation) or (object,)
+        return [_a_value_for(item)]
+    if origin is dict:
+        return {}
+    return None
+
+
 def _payload_for(event_type: EventType) -> dict[str, object]:
     """The payload an event of *event_type* has to carry.
 
@@ -628,7 +653,7 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
     payload: dict[str, object] = {}
     for name, field in schema.model_fields.items():
         if field.is_required():
-            payload[name] = "x" if field.annotation is str else 0
+            payload[name] = _a_value_for(field.annotation)
     return payload
 
 

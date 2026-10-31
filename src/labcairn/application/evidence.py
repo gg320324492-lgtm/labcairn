@@ -80,10 +80,8 @@ from labcairn.db.models import LOCAL_USER_ID
 from labcairn.db.repository import load_source, load_task
 from labcairn.evidence.cite_support import LocationResolution
 from labcairn.evidence.index import LabCairnIndex, load_anchor, locator_from_key
-from labcairn.evidence.record import EvidenceRecord, VerificationRecord
+from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import (
-    CheckKind,
-    CheckOutcome,
     EvidenceCreator,
     EvidenceKind,
     VerificationStatus,
@@ -91,7 +89,6 @@ from labcairn.evidence.states import (
 from labcairn.evidence.store import (
     LedgerError,
     append_record,
-    append_verification,
     attest,
     load_record,
     record_for_span,
@@ -417,17 +414,21 @@ def confirm_proposal(
     their own record, and the rule's is kept and marked."* So this
     operation does three things, and one transaction:
 
-    1. **the proposal's log gains a C4 entry** naming the person, their
-       verdict and their note. The log is where "who stood behind this" is
-       kept; the proposal's status and its creator are untouched, because a
-       model's say-so never becomes a person's.
-    2. **the person's own record** is written at the same address, carrying
+    1. **the person's own record** is written at the same address, carrying
        their words as its span — a confirmation is a claim in its own right,
        and ``uq_evidence_task_span`` holds that the same words are one
        claim.
-    3. **the proposal is superseded** by it. The old row is kept, not
-       deleted: its log and its history are the evidence of what was
-       claimed and when.
+    2. **the proposal is superseded** by it. The old row is kept, not
+       deleted: its history is the evidence of what was claimed and when.
+    3. **the settlement is attested on the person's own record**, and the
+       attestation's entry carries their id, their verdict and their note.
+       **Not on the proposal's log** — the store's own design is that the
+       old row is *marked* and the new one carries the attestation, and a
+       product module writing the ledger's verification row is what the
+       threat model's C14 forbids.
+
+    **The proposal's status and its creator are untouched throughout**,
+    because a model's say-so never becomes a person's.
 
     The person's record is then attested, so **the thing a report may cite
     is a person's word and not a model's** — which is the whole point of
@@ -529,23 +530,21 @@ def confirm_proposal(
         # The replacement is inserted by ``supersede_record`` itself — the
         # store's exit writes the new row and marks the old one, and doing
         # it here as well would write the same record twice.
-        append_verification(
-            connection,
-            proposal_id,
-            VerificationRecord(
-                check=CheckKind.C4,
-                checker_id=user_id,
-                outcome=CheckOutcome.NOT_CHECKED,
-                detail=f"{verdict} by {user_id!r}: {note}",
-                checked_at=moment,
-            ),
-        )
+        #
+        # **And the settlement is logged on the person's own record, not on
+        # the proposal's.** The store's design says so: *"a person writes
+        # their own record, and the rule's is kept and marked"* — the old
+        # row is marked, and the attestation is the new row's own history.
+        # Writing the verdict on the proposal's log would be a second
+        # spelling of the settlement, and it would put a product module
+        # behind the ledger's verification write — which the threat model's
+        # C14 forbids for anything but the checks themselves.
         superseded = supersede_record(connection, proposal_id, record)
         attested = attest(
             connection,
             record.evidence_id,
             user_id=user_id,
-            note=note,
+            note=f"{verdict}. {note}",
             checked_at=moment,
         )
         session.commit()

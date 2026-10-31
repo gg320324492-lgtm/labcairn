@@ -10,6 +10,7 @@ What this package is
 
 The commands — ``init``, ``doctor``, ``serve``,
 ``task create/run/status/resume/figure/report/reconcile/claim``,
+``task claim-attest/proposal-confirm``,
 ``task approval-request/approval-grant``,
 ``sources inspect/ingest/addresses``, ``artifacts list`` — and the plumbing
 they share:

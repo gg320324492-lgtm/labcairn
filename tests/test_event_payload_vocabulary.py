@@ -165,6 +165,84 @@ def test_the_registry_holds_the_schema_without_the_writer_being_imported() -> No
     assert decoded["schema"] == "ReconciliationPayload"
 
 
+#: The exchange event's schema, asked of the vocabulary in isolation.
+#:
+#: **The model path is not loaded here** — it is the writer, and the reader
+#: must have the schema without it.
+_MODEL_REGISTRY = """
+import json, sys
+from labcairn.runtime.event import EVENT_PAYLOAD_SCHEMAS, EventType
+print(json.dumps({
+    "model_path_loaded": sorted(
+        name for name in sys.modules
+        if name == "labcairn.application.model_request"
+        or name.startswith("labcairn.application.model_request.")
+    ),
+    "schema": EVENT_PAYLOAD_SCHEMAS[EventType.MODEL_EXCHANGED].__name__,
+}))
+"""
+
+
+def test_the_model_exchanges_schema_is_in_the_readers_reach() -> None:
+    """The exchange event's payload is checked where the event is read back.
+
+    **The schema was registered only where the writer was imported** — the
+    model path's own module — so a process that only *read* events had no
+    schema for the exchange event, and a stored exchange's payload was
+    accepted unchecked. The writer's tests were green and the reader was
+    blind, which is the shape this file exists to catch.
+
+    **The fix is in the runtime package's own import**, beside the
+    trajectory's: the payload models are registered where every reader
+    reaches them, not where the writer happens to be.
+    """
+    decoded = _run_in_fresh_interpreter(_MODEL_REGISTRY)
+
+    assert decoded["model_path_loaded"] == [], repr(decoded["model_path_loaded"])
+    assert decoded["schema"] == "ModelExchangePayload"
+
+
+def test_an_exchange_payload_that_does_not_fit_the_schema_is_refused() -> None:
+    """The exchange event's payload is checked, not merely carried.
+
+    Before the schema reached the reader, *any* payload fitted — and an
+    exchange event with nothing in it was the well-typed one. The list of
+    exchanges is a list, so the empty one is refused here as it is
+    everywhere else the schema applies.
+    """
+    from labcairn.runtime.model_exchange import ModelExchangePayload
+
+    valid = ModelExchangePayload(
+        provider="minimax",
+        model="a-model",
+        destination="https://example.invalid/v1",
+        exchanges=[{"provider_attempts": 1}],
+        credential_fingerprint="f" * 64,
+    )
+    # **An annotation carries no run.** The exchange event is one — the
+    # model path's call is observed outside any attempt — so the document
+    # has no run, stage or operation on it.
+    document: dict[str, object] = {
+        "event_id": str(new_id()),
+        "seq": 1,
+        "task_id": str(TaskId(new_id())),
+        "type": "model_exchanged",
+        "payload": valid.model_dump(mode="json"),
+    }
+
+    Event.model_validate(document)
+
+    for payload in (
+        {},
+        {**valid.model_dump(mode="json"), "exchanges": []},
+        {**valid.model_dump(mode="json"), "credential_fingerprint": ""},
+    ):
+        broken = dict(document)
+        broken["payload"] = payload
+        with pytest.raises(ValidationError):
+            Event.model_validate(broken)
+
+
 def _document(payload: Mapping[str, object]) -> dict[str, object]:
     """One valid reconciled event with *payload* substituted in."""
     return {

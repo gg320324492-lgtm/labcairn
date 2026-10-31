@@ -2946,3 +2946,29 @@ def test_task_proposal_confirm_settles_a_models_proposal_through_the_console(
     assert body["confirmation"]["status"] == "user_attested"
     assert body["confirmation"]["created_by"] == "user"
     assert body["proposal"]["superseded_by"] == body["confirmation"]["evidence_id"]
+
+
+def test_task_claim_attest_refuses_an_id_that_is_not_an_evidence_id(
+    workspace: Path, task_id: str
+) -> None:
+    """The command's own refusal, before it reaches the layer.
+
+    **An id that is not an evidence id is refused by the command**, with the
+    same sentence the command's own argument check writes — and the layer
+    never sees it, so nothing is written.
+    """
+    refused = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim-attest",
+        "not-an-id",
+        "--user",
+        "the-advisor",
+        "--note",
+        "I read it.",
+    )
+
+    assert refused.returncode != 0, refused.stdout
+    assert "is not an evidence id" in refused.stderr
+    assert "evidence ids are UUIDv7" in refused.stderr

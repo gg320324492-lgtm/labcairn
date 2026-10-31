@@ -753,10 +753,12 @@ def test_a_person_settles_a_models_proposal_and_the_proposal_is_kept(
         now=_MOMENT,
     )
 
-    entries = [entry for entry in settled.proposal.verification_log if entry.check is CheckKind.C4]
-    assert entries, "the proposal's log names who stood behind it"
+    entries = [
+        entry for entry in settled.confirmation.verification_log if entry.check is CheckKind.C4
+    ]
+    assert entries, "the attestation is logged, on the person's own record"
     assert entries[-1].checker_id == "the-advisor"
-    assert "confirmed" in entries[-1].detail
+    assert "confirmed" in entries[-1].detail, "the entry says what verdict the person returned"
 
     assert settled.confirmation.created_by is EvidenceCreator.USER
     assert settled.confirmation.created_by_id == "the-advisor"
