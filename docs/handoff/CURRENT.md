@@ -165,6 +165,22 @@ behaviour, and the gap is an old one rather than a regression** — it is
 named here, and it is LC-P2-09's to close, because a project's grant is
 what says who may read its material at all.
 
+**One claim this file makes in several places has no witness, and the gap
+is on the tree's side rather than the product's.** *"The tree carries no
+model id, endpoint, price or capability claim — a fresh checkout cannot
+spend money by accident"* is written here and in the LC-P2-01 record, and
+the product's half of it is watched: the fake provider opens no socket,
+needs no key and needs no environment, a provider with no probe record is
+refused before a request is made, and `httpx` is read out of
+`pyproject.toml` rather than out of the installed environment. **The tree's
+half is not**: nothing reads the checkout and says that no supplier's
+endpoint, model id or price is written in it, that the settings schema has
+nowhere to put a price or a capability claim, or that no price table
+exists. **A claim stated in several places and watched in none of them is a
+claim nothing keeps.** The witness for it turned up in a worktree whose
+own work had already landed; it is kept outside the repository, and it is
+the next piece of work.
+
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
 anchored to, and the paragraph it sits in** — 507 characters, named in the
