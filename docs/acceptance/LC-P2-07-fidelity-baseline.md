@@ -242,26 +242,28 @@ matters for the parser's requirements:
 | `13-orphan-comment-end-only` | 1 range, 1 element — the counts **match** | the comment is **lost, and the library raises** |
 | `14-comment-without-anchor` | 0 ranges, 1 element — the counts **differ** | the comment is **lost entirely** |
 
-So the trigger is the **count mismatch**, not the malformed marker itself.
-A comment whose marker is unpaired but whose count is balanced survives; a
-comment with no marker at all does not. **Either way the anchor is lost**,
-and the loss is silent in the output — the caller receives a comment with
-an empty reference and no indication that the anchor was there.
+**The correction found on 2026-11-01.** The first version of this record
+said that `13-orphan-comment-end-only` "**is** extracted, with an empty
+anchor". **It is not.** The counts do match — one range, one element — so
+the count check does not fire, and the library then looks the range up
+**by the comment's id** and does not find it: the range is keyed by an end
+marker with no start behind it, so the lookup raises `KeyError: '206'`
+while the document is being read (`depth_collector.py:214`). The
+measurement counts an arm that raises as an arm that could not read the
+file, and the fixture is in the lost column above. **The first record's
+correction table and its "six fixtures" table contradicted each other on
+this row, and the measurement settles it: the comment is lost.**
 
-**The second correction, found on 2026-11-01.** The first version of this
-record said that `13-orphan-comment-end-only` "**is** extracted, with an
-empty anchor". **It is not.** The counts do match — one range, one element
-— so the count check does not fire, and the library then looks the range up
-**by the comment's id** and does not find it: the range is keyed by an
-end marker with no start behind it, so the lookup raises
-`KeyError: '206'` while the document is being read
-(`depth_collector.py:214`). The measurement counts an arm that raises as an
-arm that could not read the file, and the fixture is in the lost column
-above. **The first record's table and its "six fixtures" table contradicted
-each other on this row, and the measurement settles it: the comment is
-lost.**
+So the trigger is **not only** the count mismatch. A range that starts and
+never ends survives, because the counts balance and the id is found; a
+range that ends and never started does not, because the id lookup fails
+before an anchor is ever computed; and a comment with no marker at all
+takes the whole set with it, because the counts differ. **Either way the
+anchor is lost**: the caller either receives a comment with an empty
+reference and no indication that the anchor was there, or receives nothing
+at all, because the library raised.
 
-**The third thing the measurement says, and it is the new fixture's.**
+**The new fixture's measurement of docx2python.**
 `29-comment-spanning-two-paragraphs` is **recovered** by docx2python — one
 range, one element, the counts match — and the anchor it reports is **the
 two paragraphs joined together**:
