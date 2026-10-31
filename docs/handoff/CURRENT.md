@@ -74,6 +74,14 @@ record, and the rule's is kept and marked*. The record is
 `docs/acceptance/pilot-confirmation-door.md`, with six application-layer
 witnesses, two CLI witnesses and seven mutations.
 
+**And the pilot's own proposal has been settled.** The owner confirmed
+it on 2026-10-31 through the new command: the model's answer keeps its
+identity (`model_proposal`, `planned`) and gains a C4 entry naming the
+person and the verdict; the person's own record stands at the same address
+as `user_attested`, and the proposal is superseded by it and **kept**. What
+a report cites is the person's word, and the model's answer is beside it,
+marked, and attributable to the model that said it.
+
 **What is still red, and what it needs.** One witness in the CI is still
 red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
 _it` says that six domain modules — `labcairn.guidance.{rules,retrieval,

@@ -102,11 +102,13 @@ paper's business out of it.
    a person confirms or disputes it. **A model's say-so never becomes a
    rule by being retrieved often** — that is LC-P2-11's line, and the
    pilot is where it is tested on real text. **The proposal is in the
-   ledger, and the person can now settle it**: the confirmation door
-   (`docs/acceptance/pilot-confirmation-door.md`) lets a person attest their
-   own claim or settle a model's proposal — and what a report cites
-   afterwards is the person's own record, with the model's answer kept and
-   marked beside it.
+   ledger, and the person has now settled it**: the confirmation door
+   (`docs/acceptance/pilot-confirmation-door.md`) let the owner confirm it
+   on 2026-10-31 — the model's answer keeps its identity and gains a C4
+   entry naming the person and the verdict, the person's own record stands
+   at the same address as `user_attested`, and the proposal is superseded
+   by it and kept. **What a report cites is the person's record; the
+   model's answer is beside it, marked, and attributable to the model.**
 5. **The measurement.** What the pilot produces: the agreement number, the
    count of proposals a person confirmed, and the cases where the model's
    card and the advisor's comment disagreed. **The cases where the model
