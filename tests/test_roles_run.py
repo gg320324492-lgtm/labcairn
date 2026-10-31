@@ -818,6 +818,11 @@ def test_the_model_cannot_volunteer_a_role_nobody_asked_for(loop: Loop) -> None:
     for each role the caller named and no others, and the schema forbids
     extra keys — so a model that volunteers a card for a role nobody asked
     for has produced an answer the loop cannot read.
+
+    **And the answer carries every part there is.** The refusal is
+    therefore the *extra* keys and nothing else: an answer that left a
+    part out would be refused for a missing one, and the two are different
+    faults with different remedies.
     """
     ticket = request_role_run(
         loop.context,
@@ -831,6 +836,7 @@ def test_the_model_cannot_volunteer_a_role_nobody_asked_for(loop: Loop) -> None:
     answer = {
         "trajectory": _trajectory_answer(),
         "guidance": _guidance_answer(),
+        "critique": _critique_answer(),
     }
 
     refused = _capture(
@@ -844,6 +850,7 @@ def test_the_model_cannot_volunteer_a_role_nobody_asked_for(loop: Loop) -> None:
         )
     )
     assert refused.reason is ApplicationRefusal.MODEL_ANSWER_UNDECODABLE
+    assert "guidance" in refused.detail, "the refusal names the part that was not asked for"
 
 
 def test_a_run_that_needs_a_judgement_and_has_no_invocation_is_refused(loop: Loop) -> None:
