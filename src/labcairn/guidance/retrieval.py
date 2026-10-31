@@ -296,9 +296,7 @@ def search_rules(
         standing = tuple(
             source
             for source in sources
-            if source.found
-            and source.reachable
-            and (source.addressed or row.state == "candidate")
+            if source.found and source.reachable and (source.addressed or row.state == "candidate")
         )
         if not standing:
             continue

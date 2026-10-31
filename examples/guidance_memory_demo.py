@@ -477,8 +477,7 @@ def _walk_the_memory(root: Path, session: Session) -> int:
         "a candidate reaches no card",
     )
     check(
-        [hit.rule.state for hit in reviewer_view]
-        == ["confirmed", "confirmed", "candidate"],
+        [hit.rule.state for hit in reviewer_view] == ["confirmed", "confirmed", "candidate"],
         "the reviewer sees the candidates, behind the confirmed rules",
     )
     check(
