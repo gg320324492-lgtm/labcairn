@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import type { JSX } from 'react'
+
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -54,9 +57,29 @@ async function signAs(who: string): Promise<void> {
   fireEvent.change(field, { target: { value: who } })
 }
 
+/**
+ * The panel, and the workbench's cycle it reads with.
+ *
+ * **The harness is the workbench's half of the contract**: a verdict asks
+ * the workbench to read again, and the workbench's cycle turns with that
+ * read. So a verdict the panel settles is on the screen because the cycle
+ * turned, and not because the panel patched its own answer.
+ */
+function Harness(): JSX.Element {
+  const [cycle, setCycle] = useState(0)
+  return (
+    <GuidanceView
+      cycle={cycle}
+      onChanged={() => {
+        setCycle((count) => count + 1)
+      }}
+    />
+  )
+}
+
 describe('the rules it draws', () => {
   it('draws each rule with its state, its scope, its proposer and its confirmer', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
 
     const block = await ruleBlock('Name the method before its result.')
     expect(drawn(block)).toEqual([
@@ -74,7 +97,7 @@ describe('the rules it draws', () => {
   })
 
   it('draws the rule that stands with the person who settled it', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
 
     const block = await ruleBlock('Give the unit with the number.')
     expect(drawn(block)).toContain('confirmed')
@@ -83,7 +106,7 @@ describe('the rules it draws', () => {
   })
 
   it('draws the counterexamples inside the rule that cites them', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
 
     // The cases travel with the rule: a reader of the rule's own block sees
     // the case against it, and a reader of another rule's block does not.
@@ -116,7 +139,7 @@ describe('the rules it draws', () => {
 
 describe('the door it offers', () => {
   it('sends the verdict the caller chose, with the person who signed it', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
 
@@ -131,7 +154,7 @@ describe('the door it offers', () => {
   })
 
   it('sends the reason with a dispute, and only with a dispute', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
     const reason = screen.getByLabelText('The reason, for a dispute')
@@ -151,7 +174,7 @@ describe('the door it offers', () => {
   })
 
   it('reads the rules again after a verdict, because the list is the answer', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
     const readsBefore = fake.requestsTo('/guidance/rules').length
@@ -167,9 +190,43 @@ describe('the door it offers', () => {
   })
 })
 
+describe('the workbench cycle', () => {
+  it('reads again when the workbench reads again', async () => {
+    // A rule settled elsewhere must be on the screen when the page
+    // refreshes, and not only after a reload.
+    const view = render(<GuidanceView cycle={0} onChanged={() => {}} />)
+    await screen.findByText('Name the method before its result.')
+    const readsBefore = fake.requestsTo('/guidance/rules').length
+
+    view.rerender(<GuidanceView cycle={1} onChanged={() => {}} />)
+
+    await waitFor(() => {
+      expect(fake.requestsTo('/guidance/rules').length).toBeGreaterThan(readsBefore)
+    })
+  })
+
+  it('asks the workbench to read again after a verdict, and reads with it', async () => {
+    // The panel does not patch its own answer: a verdict asks the workbench
+    // to read again, and the cycle turns with that read.
+    const view = render(<Harness />)
+    const block = await ruleBlock('Name the method before its result.')
+    await signAs('carol')
+    const readsBefore = fake.requestsTo('/guidance/rules').length
+
+    fireEvent.click(within(block).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => {
+      expect(fake.requestsTo('/guidance/rules').length).toBeGreaterThan(readsBefore)
+    })
+    const settled = await ruleBlock('Name the method before its result.')
+    expect(drawn(settled)).toContain('confirmed')
+    view.unmount()
+  })
+})
+
 describe('the three refusals, kept apart', () => {
   it('refuses an empty name itself, and sends nothing', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
 
     fireEvent.click(within(block).getByRole('button', { name: 'Confirm' }))
@@ -182,7 +239,7 @@ describe('the three refusals, kept apart', () => {
   })
 
   it('refuses a dispute with no reason itself, and sends nothing', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
 
@@ -194,7 +251,7 @@ describe('the three refusals, kept apart', () => {
   })
 
   it('shows the service refusal with the reason and the message the service wrote', async () => {
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     // The proposer cannot be the second reader: the memory refuses that by
     // name, and the panel shows the refusal as it is.
@@ -211,7 +268,7 @@ describe('the three refusals, kept apart', () => {
 
   it('shows the route own refusal in the layer vocabulary', async () => {
     fake.refuseWithArguments = true
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
 
@@ -224,7 +281,7 @@ describe('the three refusals, kept apart', () => {
 
   it('shows the schema answer in the schema vocabulary, and not as a refusal', async () => {
     fake.refuseWithSchema = true
-    render(<GuidanceView />)
+    render(<Harness />)
     const block = await ruleBlock('Name the method before its result.')
     await signAs('carol')
 

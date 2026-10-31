@@ -8,15 +8,9 @@
  * accepted is a proposal, and a proposal may not decide an order, so the
  * graph this panel draws is the one the accepted edges describe.
  *
- * **The versions are a set, and this panel does not pretend otherwise.** The
- * layer answers with a `frozenset`, so the array the contract serialises has
- * **no stable order**: the same graph asked twice may arrive in two orders.
- * The panel therefore draws the versions as the set it is — sorted, and
- * numbered by nothing — and puts the only order the contract carries, the
- * edges', beside it. A panel that numbered the versions would be drawing a
- * chronology the contract does not carry, and a reader would believe it.
+ * **Three gaps, written down rather than discovered.**
  *
- * **The panel cannot list what there is to look at.** No route serves the
+ * ***The panel cannot list what there is to look at.*** No route serves the
  * chain's issue keys, and no route carries a project id, so the issue and
  * the project are the caller's to name — and **a panel that cannot list
  * what there is to look at has no way in**. The missing outlet is written
@@ -24,11 +18,25 @@
  * the chain's issues is what the workbench would need to open this panel,
  * and whether it is wanted is the owner's call, not this panel's.
  *
- * **What the panel does not draw.** The chain's rows carry no time, so the
- * panel shows no time and no order of the comments beyond the order the
- * service answered in. A version is an id and nothing else, so the panel
- * shows the id and no words of the paper. The route serves only accepted
- * edges, so there is no proposed edge to draw and none is invented.
+ * ***The chain's rows carry no time and no sequence.*** So the comments'
+ * order cannot be read from the contract at all: the panel draws the order
+ * the service answered in, and the only order that exists is the accepted
+ * edges'. **The corpus's own revisions are dated** — the handoff record
+ * (`docs/handoff/CURRENT.md`) names the dates — so the order of the *edits*
+ * could be read from them; but the contract carries a version's id and
+ * nothing else, so this panel draws no order for the edits either.
+ *
+ * ***The versions are a set, and this panel does not pretend otherwise.*** The
+ * layer answers with a `frozenset`, so the array the contract serialises has
+ * **no stable order**: the same graph asked twice may arrive in two orders.
+ * The panel therefore draws the versions as the set it is — sorted, and
+ * numbered by nothing — and puts the only order the contract carries, the
+ * edges', beside it. A panel that numbered the versions would be drawing a
+ * chronology the contract does not carry, and a reader would believe it.
+ *
+ * **What the panel does not draw.** A version is an id and nothing else, so
+ * the panel shows the id and no words of the paper. The route serves only
+ * accepted edges, so there is no proposed edge to draw and none is invented.
  */
 
 import { useId, useState } from 'react'
@@ -60,6 +68,17 @@ interface Question {
   readonly issue: string
   /** The paper project, as the caller named it. */
   readonly project: string
+}
+
+interface TrajectoryViewProps {
+  /**
+   * The workbench's cycle.
+   *
+   * **The panel reads again when the workbench reads again**, so a comment
+   * the advisor wrote after the panel last looked is on the screen when the
+   * page refreshes rather than only after a reload.
+   */
+  readonly cycle: number
 }
 
 /**
@@ -121,7 +140,7 @@ function EditRow({ edit }: { readonly edit: ChainEdit }): JSX.Element {
   )
 }
 
-export function TrajectoryView(): JSX.Element {
+export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
   const [issueKey, setIssueKey] = useState('')
   const [projectId, setProjectId] = useState('')
   const [question, setQuestion] = useState<Question | null>(null)
@@ -130,27 +149,29 @@ export function TrajectoryView(): JSX.Element {
 
   const trajectory = usePanelRead<Trajectory>(
     question === null || question.issue === '' ? null : trajectoryPath(question.issue),
+    cycle,
   )
-  const versions = versionIdsOf(trajectory.read.kind === 'answered' ? trajectory.read.data : null)
+  const versions = versionIdsOf(trajectory.kind === 'answered' ? trajectory.data : null)
   const graph = usePanelRead<ProjectGraph>(
     question === null || question.project === '' || versions.length === 0
       ? null
       : trajectoryGraphPath(question.project, versions),
+    cycle,
   )
 
   const trajectoryAnswer: TrajectoryAnswer | null =
-    trajectory.read.kind === 'idle'
+    trajectory.kind === 'idle'
       ? { asked: false }
-      : trajectory.read.kind === 'answered'
-        ? { asked: true, trajectory: trajectory.read.data }
+      : trajectory.kind === 'answered'
+        ? { asked: true, trajectory: trajectory.data }
         : null
   const trajectoryPanel: ApiRead<TrajectoryAnswer> =
-    trajectory.read.kind === 'failed'
-      ? { data: null, error: trajectory.read.error }
+    trajectory.kind === 'failed'
+      ? { data: null, error: trajectory.error }
       : { data: trajectoryAnswer, error: null }
 
   const graphAnswer: GraphAnswer | null =
-    graph.read.kind === 'idle'
+    graph.kind === 'idle'
       ? {
           asked: false,
           why:
@@ -160,12 +181,12 @@ export function TrajectoryView(): JSX.Element {
                 ? 'No project is named, so no versions are drawn.'
                 : 'The comments name no version, so the project was not asked about.',
         }
-      : graph.read.kind === 'answered'
-        ? { asked: true, graph: graph.read.data, versions }
+      : graph.kind === 'answered'
+        ? { asked: true, graph: graph.data, versions }
         : null
   const graphPanel: ApiRead<GraphAnswer> =
-    graph.read.kind === 'failed'
-      ? { data: null, error: graph.read.error }
+    graph.kind === 'failed'
+      ? { data: null, error: graph.error }
       : { data: graphAnswer, error: null }
 
   const ask = (): void => {
@@ -181,6 +202,11 @@ export function TrajectoryView(): JSX.Element {
               The advisor&rsquo;s comments, the edits that answered them, and the states of the
               responses. The service has no outlet that lists the chain&rsquo;s issue keys, so this
               panel cannot list what there is to look at: name an issue below.
+            </p>
+            <p className="panel__note">
+              The chain&rsquo;s rows carry no time and no sequence, so this panel shows none: the
+              comments come in the order the service answered, and the only order in the contract is
+              the accepted edges&rsquo;.
             </p>
             <div className="figure-form">
               <label htmlFor={field('issueKey')}>

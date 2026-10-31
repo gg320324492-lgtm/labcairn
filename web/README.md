@@ -39,6 +39,14 @@ names (the service has no outlet that lists the chain's issue keys), the
 proposals panel draws the records the ledger holds, and each of them says on
 the screen what it is.
 
+**And the panels that read for themselves read with the workbench.** The
+mentor's panels hold their own answers, because their questions carry
+parameters the batched read does not — an issue key, a project, a rule to
+settle. They take the workbench's **cycle**, a number that turns when the
+workbench is asked to read again and when its answer changes, so a record
+written elsewhere appears when the page refreshes rather than the panel
+holding a memory of the service the service has already moved past.
+
 ## The API it talks to
 
 The service is FastAPI, bound to `127.0.0.1`, and it is the only thing this

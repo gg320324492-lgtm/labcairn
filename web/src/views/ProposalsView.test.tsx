@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { forgetSessionToken } from '../api/session'
@@ -42,7 +42,7 @@ function drawn(node: HTMLElement): string[] {
 
 describe('the model and the person', () => {
   it('draws them beside each other, each labelled with whose words it is', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const model = await screen.findByText('the model\u2019s answer')
     const person = await screen.findByText('the person\u2019s verdict')
@@ -56,7 +56,7 @@ describe('the model and the person', () => {
   })
 
   it('says which one a report may cite', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const model = await screen.findByText('the model\u2019s answer')
     const person = await screen.findByText('the person\u2019s verdict')
@@ -69,7 +69,7 @@ describe('the model and the person', () => {
   })
 
   it('pairs the proposal with the record that superseded it, and no other', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const model = await screen.findByText('the model\u2019s answer')
     const person = await screen.findByText('the person\u2019s verdict')
@@ -82,13 +82,13 @@ describe('the model and the person', () => {
     fake.state.records = fake.state.records.map((record) =>
       record.evidence_id === 'rec-model' ? { ...record, superseded_by: null } : record,
     )
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     expect(await screen.findByText(/No record supersedes this proposal/)).toBeInTheDocument()
   })
 
   it('draws a record that is not a proposal under its own heading', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     expect(await screen.findByText('Records that are not proposals')).toBeInTheDocument()
     // The rule's own record is neither a proposal nor a person's word
@@ -97,9 +97,25 @@ describe('the model and the person', () => {
   })
 })
 
+describe('the workbench cycle', () => {
+  it('reads again when the workbench reads again', async () => {
+    // A proposal the roles wrote after the panel last looked must be on the
+    // screen when the page refreshes, and not only after a reload.
+    const view = render(<ProposalsView cycle={0} />)
+    await screen.findByText('the model’s answer')
+    const readsBefore = fake.requestsTo('/records').length
+
+    view.rerender(<ProposalsView cycle={1} />)
+
+    await waitFor(() => {
+      expect(fake.requestsTo('/records').length).toBeGreaterThan(readsBefore)
+    })
+  })
+})
+
 describe('what it draws of each record', () => {
   it('draws the fields the contract carries, and no others', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const model = await screen.findByText('the model\u2019s answer')
     expect(drawn(model.closest('li') as HTMLElement)).toEqual([
@@ -119,7 +135,7 @@ describe('what it draws of each record', () => {
   })
 
   it('draws the person own record with the settlement on it', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const person = await screen.findByText('the person\u2019s verdict')
     expect(drawn(person.closest('li') as HTMLElement)).toEqual([
@@ -138,7 +154,7 @@ describe('what it draws of each record', () => {
   })
 
   it('draws the verification log the ledger recorded', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     const entry = await screen.findByText('c4')
     expect(drawn(entry.closest('li') as HTMLElement)).toEqual([
@@ -150,7 +166,7 @@ describe('what it draws of each record', () => {
   })
 
   it('draws no record the ledger did not hold', async () => {
-    render(<ProposalsView />)
+    render(<ProposalsView cycle={0} />)
 
     await screen.findByText('the model\u2019s answer')
     const panel = (await screen.findByRole('heading', { name: 'Proposals' })).closest('section')

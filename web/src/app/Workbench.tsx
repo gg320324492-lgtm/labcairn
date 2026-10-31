@@ -23,6 +23,13 @@
  * workbench shows the artefacts and their preview. It does not decide whether
  * a figure may be drawn either: the Figure panel asks, the Approval panel
  * answers, and the service's refusal is what the screen shows.
+ *
+ * **And the panels that read for themselves read with it.** The mentor's
+ * panels hold their own answers, because their questions carry parameters
+ * this batch does not. They take the **cycle** — a number that turns when
+ * the workbench is asked to read again and when its answer changes — so a
+ * record written elsewhere appears when the page refreshes, rather than the
+ * panel holding a memory of the service the service has already moved past.
  */
 
 import type { JSX } from 'react'
@@ -58,7 +65,7 @@ interface ActionState {
 const IDLE: ActionState = { granting: false, rendering: false, refusal: null }
 
 export function Workbench(): JSX.Element {
-  const { reads, readAgain } = useWorkbench(api)
+  const { reads, readAgain, readCycle } = useWorkbench(api)
   const [action, setAction] = useState<ActionState>(IDLE)
 
   const onGrant = useCallback(
@@ -143,9 +150,9 @@ export function Workbench(): JSX.Element {
       <EvidenceView plan={reads.plan} steps={reads.steps} />
       <ArtefactsView artifacts={reads.artifacts} />
       <RevisionsView artifacts={reads.artifacts} />
-      <TrajectoryView />
-      <GuidanceView />
-      <ProposalsView />
+      <TrajectoryView cycle={readCycle} />
+      <GuidanceView cycle={readCycle} onChanged={readAgain} />
+      <ProposalsView cycle={readCycle} />
 
       <footer className="workbench__footer">
         <p>
