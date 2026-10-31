@@ -424,6 +424,31 @@ writes a scope broad over the workspace. **Closing it is one more check**
 -- the declared subject against the chain's project id or pseudonym --
 and it was left out because it changes what an operator may declare.
 
+**And one of the measurements that came out of the material is a
+warning about the measurements themselves.** A tracked change with **no text
+in it** is not a change: Word's `w:ins` element can carry nothing at all,
+which is what a cursor-level edit leaves behind, and it asserts nothing
+about anyone's judgement. **And a change whose text is a single space is
+not the same thing** -- that is an edit that wrote a space, and the
+reviewer whose own review of the authors' revision was *"leave a space
+before the reference number"* is making exactly that edit. The counts
+therefore differ by what they count: **one advisor's 58 revisions carry
+text in 32 of them, another advisor's 349 carry it in 56, and the rest are
+spaces or empty marks.** So **"how many revisions" does not describe an
+advisor** -- the same hand is a cursor on one paper and a sentence on
+another -- **and a count that includes the empty marks is a number about
+the file, not about the person.**
+
+**And the two hands differ by an order of magnitude in the grain of a
+single edit**: the median edit that carries text is two characters in one
+advisor's marked-up copy and ten in another's, and on one paper that
+advisor reaches for numbers a quarter of the time while on another he
+reaches for prose and Latin abbreviations. **The standard follows the
+manuscript as well as the advisor**, which is the strongest argument yet
+for the group's template being a *general* version rather than the whole
+of it: **a rule distilled from one paper has to say which paper it came
+from**, and that is what the rule store's source binding is for.
+
 **And the loop asks the model once for the whole run, which has a
 consequence worth naming.** One answer carries all three roles'
 judgements, so **role C reviews a card it has not seen** -- the document
