@@ -140,15 +140,38 @@ and multi-platform distribution are Phase 3's row, and the owner ruled on
 
 ## 5. The decisions waiting for the owner
 
-1. **The corpus's breadth.** One paper (nine versions) or three to five.
-   The reuse matrix records the corpus as three papers and the
-   locator-validity metric as not measured, so LC-P2-11's retrieval has
-   nothing to be measured against until the corpus is widened.
-2. **Whether the real request carries the paper's text.** The first one
-   did not. The pilot's business request must, and that is the owner's
-   decision to make per request — the grant's scope says which text may
-   go, and the approval's digest says which excerpt.
-3. **Whether the pilot's next operation is the store-boundary repair.**
-   The six domain modules that reach past the application layer are the
-   pilot's next piece of work, and the pilot's own operation would be the
-   first surface to read the store through them.
+**Ruled on 2026-10-31, and the ruled ones are the ones below.** What is
+still open is in §5.1.
+
+1. **The readers, and who confirms the rules.** The readers are **three
+   independent sessions** — two blind readings and a third, the arbiter —
+   which is the arrangement the annotation guide already used for the gold
+   set, and the guide says plainly what that number is and is not. **The
+   rules distilled from the advisor's cases are confirmed by the owner**:
+   the rules' `confirmed_by` names the same person as the settlement in
+   the ledger (`local-user`, the workspace's own id for the person on this
+   machine — **and that id is permanent**, because a record's author is
+   not rewritten). A rule distilled from the advisor's words and confirmed
+   by the owner is a criterion the owner stands behind, not the advisor's
+   signature.
+2. **Where the readings and the number live.** In the material library,
+   outside this repository: the corpus is unpublished work and the
+   repository is public. The repository carries the method, the product's
+   findings, and the agreement number's absence.
+3. **The corpus's breadth.** One paper (nine versions) or three to five.
+   **Ruled 2026-10-31: one paper** — the reuse matrix records the corpus
+   as three papers and the locator-validity metric as not measured, so
+   LC-P2-11's retrieval has nothing to be measured against until the
+   corpus is widened. That widening is the next round, not this one.
+4. **Whether the real request carries the paper's text.** The first one
+   did not, and the second carried 507 characters under an approval that
+   binds them. **Per request, the owner's decision** — the grant's scope
+   says which text may go, and the approval's digest says which excerpt.
+
+### 5.1 What is still open
+
+- **The pilot's next business request**, on one of the advisor's
+  *criticisms* rather than a pasted reference — which is a different kind
+  of comment and a different kind of label.
+- **Whether the workbench's "ask for a judgement" action is in the pilot's
+  scope or the product's**, and what ceiling it carries.
