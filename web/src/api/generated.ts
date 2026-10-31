@@ -305,6 +305,12 @@ export type GuidanceRule = {
   counterexamples: RuleCounterexample[]
 }
 
+export type GuidanceRuleVerdictBody = {
+  verdict: 'confirmed' | 'disputed'
+  user_id: string
+  reason?: string
+}
+
 export type HTTPValidationError = {
   detail?: ValidationError[]
 }

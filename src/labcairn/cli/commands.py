@@ -53,8 +53,9 @@ import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Annotated, Any, Final, NoReturn, cast
 from urllib.parse import urlsplit
 
 import typer
@@ -78,6 +79,7 @@ if TYPE_CHECKING:
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
+    from labcairn.guidance.models import GuidanceRule
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
@@ -98,6 +100,19 @@ EXIT_USAGE = 2
 #: The product's own format — :func:`labcairn.providers.credentials.
 #: load_providers_config` reads it — so the CLI does not invent a second one.
 PROVIDERS_FILE_NAME = "providers.json"
+
+#: The verdicts a person may return about a guidance rule.
+#:
+#: **The vocabulary is closed**, for the reason the ledger's own proposal door
+#: closes its own: *"the person had a look" is not a verdict a record can
+#: carry.* A rule is confirmed or disputed — a person either stands behind it
+#: or says why it does not hold — and those are the two words.
+#:
+#: **The API's own body carries the same two**, in a type rather than in a
+#: handler, so the workbench's types say what the service accepts. The two
+#: surfaces are watched against each other, because a door whose two faces
+#: disagree about what a person may say is a door with two vocabularies.
+RULE_VERDICTS: Final[tuple[str, ...]] = ("confirmed", "disputed")
 
 #: The option every command shares, declared once.
 WorkspaceOption = Annotated[
@@ -151,10 +166,15 @@ app = typer.Typer(
 task_app = typer.Typer(help="Create, run, inspect and resume a task.", no_args_is_help=True)
 sources_app = typer.Typer(help="Inspect the material a task is bound to.", no_args_is_help=True)
 artifacts_app = typer.Typer(help="List what a task has produced.", no_args_is_help=True)
+guidance_app = typer.Typer(
+    help="Settle the guidance rules — confirm one, or dispute it.",
+    no_args_is_help=True,
+)
 
 app.add_typer(task_app, name="task")
 app.add_typer(sources_app, name="sources")
 app.add_typer(artifacts_app, name="artifacts")
+app.add_typer(guidance_app, name="guidance")
 
 
 @app.callback()
@@ -1893,6 +1913,143 @@ def artifacts_list(
         emit_models(models, ArtifactView)
     else:
         _console().print(render.render_artifacts(models))
+
+
+# --------------------------------------------------------------------------- #
+# guidance
+# --------------------------------------------------------------------------- #
+
+
+@guidance_app.command("rule-confirm")
+def guidance_rule_confirm(
+    ctx: typer.Context,
+    rule_id: Annotated[str, typer.Argument(help="The rule being settled.")],
+    verdict: Annotated[
+        str,
+        typer.Option(
+            "--verdict",
+            help="What the person returns: 'confirmed' or 'disputed'. The vocabulary "
+            "is closed, because 'the person had a look' is not a verdict a rule can "
+            "carry.",
+        ),
+    ],
+    user_id: Annotated[
+        str,
+        typer.Option(
+            "--user",
+            help="The person whose word it is. A confirmation nobody signs is not a "
+            "confirmation, so the name is the command's argument.",
+        ),
+    ],
+    reason: Annotated[
+        str,
+        typer.Option(
+            "--reason",
+            help="Why the rule is disputed. A dispute without a reason is a shrug, "
+            "and the memory refuses one by name — and a reason given with a "
+            "confirmation is refused too, because a confirmed rule carries none.",
+        ),
+    ] = "",
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """A person confirms or disputes a rule.
+
+    **The rule is a candidate until a person says otherwise, and the person
+    must be a second reader.** Whoever proposed a rule cannot be the one who
+    confirms it — one person reading twice is one person reading once with
+    extra steps — so the proposer who tries is refused by name, with the
+    memory's own reason and the proposer's name in it. **The rule about
+    people is the memory's, and this command asks it rather than restating
+    it.**
+
+    **The two verdicts are the two ways through the door.** ``confirmed``
+    moves the rule to ``confirmed`` and names the reader; ``disputed`` moves
+    it to ``disputed`` and carries the reason the person gave, because a
+    dispute without a reason is a shrug and the memory refuses one by name.
+    **A reason belongs to a dispute** — a confirmed rule carries none, so a
+    reason given with a confirmation is refused rather than dropped.
+    **A rule that is not there, and a rule that cannot move again, are
+    refused by name too.**
+
+    **The rule memory is the workspace's, and the context the command runs
+    against is the workspace's current task** — the same context every
+    command that reaches the store runs against, and the same refusal when
+    the workspace has no task to run against.
+
+    The answer is the rule itself: its state, its scope, its sources, its
+    cases and the person who moved it.
+    """
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.guidance.rules import confirm_rule, dispute_rule
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if verdict not in RULE_VERDICTS:
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{verdict!r} is not a verdict a person can return about a rule. "
+                f"The verdicts are {', '.join(RULE_VERDICTS)}.",
+                as_json=as_json,
+            )
+        if not user_id.strip():
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "a confirmation nobody signs is not a confirmation. Name the person "
+                "whose word it is.",
+                as_json=as_json,
+            )
+        if verdict == "confirmed" and reason.strip():
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                "a reason belongs to a dispute, and a confirmed rule carries none: "
+                "the memory holds no reason on a rule that stands. Dispute the rule "
+                "with the reason instead.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            moment = datetime.now(UTC)
+            if verdict == "confirmed":
+                rule = confirm_rule(
+                    context,
+                    rule_id=rule_id,
+                    confirmed_by=user_id,
+                    now=moment,
+                )
+            else:
+                rule = dispute_rule(
+                    context,
+                    rule_id=rule_id,
+                    reason=reason,
+                    disputed_by=user_id,
+                    now=moment,
+                )
+    if as_json:
+        _emit_rule(rule)
+    else:
+        _console().print(
+            f"[bold]{rule.state}[/bold] by {rule.confirmed_by} — {rule.rule_id}\n{rule.statement}"
+        )
+
+
+def _emit_rule(rule: GuidanceRule) -> None:
+    """One rule, in the machine-readable form.
+
+    **The layer's own object, in pydantic's own bytes.** The rule is a
+    dataclass rather than a result model, so the adapter that knows how to
+    serialise it is built here — and the bytes are the ones the API serves
+    for the same rule, because both are pydantic's rendering of the same
+    model and neither is a rendering of the other.
+    """
+    from pydantic import TypeAdapter
+
+    from labcairn.guidance.models import GuidanceRule
+
+    typer.echo(TypeAdapter(GuidanceRule).dump_json(rule).decode("utf-8"))
 
 
 # --------------------------------------------------------------------------- #

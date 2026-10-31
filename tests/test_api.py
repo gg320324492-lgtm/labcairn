@@ -77,6 +77,7 @@ from labcairn.application import (
     ingest_material,
     list_source_addresses,
     list_sources,
+    read_guidance_rule,
     read_task_state,
     record_claim,
     record_model_proposal,
@@ -93,6 +94,7 @@ from labcairn.db.models import (
     VersionEdgeRow,
 )
 from labcairn.db.repository import events_after
+from labcairn.guidance.models import GuidanceRule
 from labcairn.papers.feedback import record_feedback, set_issue_key
 from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest, EventType
@@ -1113,14 +1115,15 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
 
 
 def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
-    """What this service can be *asked to do* is seven routes and no more.
+    """What this service can be *asked to do* is eight routes and no more.
 
         Every other route reads. That is the whole of the "the stream carries
         events and never commands" claim at the level of the contract: a browser
-        that has the token can ask for consent, ask for a stage to run, and ask for
-        the report to be rendered — and can do nothing else at all. A route that
-        changed something else — a route that could delete an artefact, say — would
-        be a permission the CLI does not have either.
+        that has the token can ask for consent, ask for a stage to run, ask for
+        the report to be rendered, and settle a guidance rule — and can do nothing
+        else at all. A route that changed something else — a route that could
+        delete an artefact, say — would be a permission the CLI does not have
+        either.
 
         **The analysis run is on this list for the same reason the report is: LC-P1-12
     asks the local service to reach the layer's operations, and a figure the user
@@ -1139,6 +1142,13 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
     reportable.** Recording a claim is what gives a report something to carry
     (§2.2), and a service that could render a report but not record what it is
     made of would be a surface that can only show work another surface did.
+
+    **The guidance door is here because a rule that no person can settle is a
+    rule that stays a candidate for ever.** The work order's own sentence is
+    *"without a door, no rule can ever become confirmed, and the roles have
+    nothing citable to work from"*, and the door is this route — the same
+    operation the CLI runs, with the second-reader rule enforced by the memory
+    and not by the route.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1155,6 +1165,7 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /report",
         "POST /analysis",
         "POST /claims",
+        "POST /guidance/rules/{rule_id}/confirm",
     }
 
 
@@ -2410,6 +2421,7 @@ def test_the_service_carries_the_mentor_line_s_routes(
         "/trajectory/graph",
         "/guidance/rules",
         "/guidance/rules/{rule_id}",
+        "/guidance/rules/{rule_id}/confirm",
         "/records",
     ):
         assert path in served, f"{path} is not on the service"
@@ -2428,6 +2440,8 @@ def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
         # The rule memory's own rule, and the case against it.
         "GuidanceRule",
         "RuleCounterexample",
+        # The door a person settles a rule through, and the verdict it takes.
+        "GuidanceRuleVerdictBody",
         # The ledger's own record, and the entry in its log.
         "EvidenceRecord",
         "VerificationRecord",
@@ -2436,3 +2450,359 @@ def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
         "CommentResponses",
     ):
         assert name in schemas, f"{name} is not in the contract"
+
+
+# --------------------------------------------------------------------------- #
+# the guidance door
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def candidate_rule(context: ApplicationContext) -> GuidanceRule:
+    """A candidate rule in the memory, proposed by a distillation run.
+
+    **Written through the layer, and not through the service**, because the
+    service's half of the door is the settling and not the proposing: a rule
+    is a candidate until a person says otherwise, and the rule under test is
+    a candidate.
+
+    **It carries a case against it**, because a rule the door serves without
+    its cases would be a rule served as though it were the whole truth — and
+    a witness that only ever saw a rule with nothing against it would not
+    notice.
+
+    **The write is committed here**, so the request that follows reads a row
+    the store holds rather than a row the test's own session is holding —
+    and so the session's transaction is closed before the service asks for
+    the write lock.
+    """
+    rule = write_guidance_rule_version(
+        context,
+        RuleDraft(
+            rule_id="rule-1",
+            version=1,
+            issue_type="figures",
+            statement="A figure's caption states what the axes are.",
+            rule_context="A figure a reader cannot read without the caption.",
+            scope="Every figure in the group's papers.",
+            example="The figure of 2026-03-11.",
+            proposed_by="distil-run-7",
+            sources=("iss-gold-a-r1",),
+            proposed_at=_MOMENT,
+        ),
+    )
+    write_guidance_counterexample(
+        context,
+        rule_id=rule.rule_id,
+        statement="The figure of 2026-03-20 carried its unit in the axis label.",
+        recorded_by="reader-2",
+        recorded_at=_MOMENT,
+        issue_key="iss-gold-a-r2",
+    )
+    context.store.session.commit()
+    return rule
+
+
+def _verdict(
+    client: TestClient,
+    token: str,
+    rule_id: str,
+    body: dict[str, Any],
+) -> Any:
+    """The door, asked over the wire the way a client asks it."""
+    return client.post(
+        f"/guidance/rules/{rule_id}/confirm",
+        json=body,
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+
+
+def test_the_guidance_door_confirms_a_rule_and_the_rule_says_so(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """The door's first door: a second reader's confirmation lands.
+
+    **The answer is the rule itself** — its state, its scope, its sources,
+    its cases and the reader's name — so a workbench that draws the answer
+    draws the rule and not a second spelling of it. **And the rule the
+    service serves afterwards says the same thing**, because the write is
+    the write and not a copy of one.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "confirmed", "user_id": "the-advisor"},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["rule_id"] == "rule-1"
+    assert body["state"] == "confirmed"
+    assert body["confirmed_by"] == "the-advisor"
+    assert body["proposed_by"] == "distil-run-7"
+    assert body["sources"] == ["iss-gold-a-r1"]
+
+    served = client.get(f"/guidance/rules/{candidate_rule.rule_id}")
+    assert served.status_code == 200, served.text
+    assert served.json() == body
+
+
+def test_the_guidance_door_serves_the_layers_own_rule(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """The route's body is the memory's rule, in the layer's bytes.
+
+    **The comparison is with the model's own rendering**, not with a
+    hand-written dictionary: a route that spelled the rule a second time
+    would carry the same fields and would not carry these bytes.
+    """
+    from pydantic import TypeAdapter
+
+    from labcairn.guidance.models import GuidanceRule
+
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "confirmed", "user_id": "the-advisor"},
+    )
+    assert response.status_code == 200, response.text
+
+    stored = read_guidance_rule(context, rule_id=candidate_rule.rule_id)
+    context.store.session.commit()
+    assert response.content.decode("utf-8") == TypeAdapter(GuidanceRule).dump_json(stored).decode(
+        "utf-8"
+    )
+
+
+def test_the_guidance_door_refuses_the_proposer(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """The second-reader rule, at the route: one person reading twice is one reading.
+
+    **This is the acceptance clause, at the service's door.** Whoever
+    proposed a rule cannot be the one who confirms it, and the refusal says
+    who was missing — so the caller learns that the rule needs *another*
+    reader.
+
+    **And nothing is written.** A refusal that moved the rule would be a
+    refusal that did the thing it refused.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "confirmed", "user_id": "distil-run-7"},
+    )
+
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["reason"] == ApplicationRefusal.GUIDANCE_CONFIRMER_IS_PROPOSER.value
+    assert "distil-run-7" in body["message"]
+
+    served = client.get(f"/guidance/rules/{candidate_rule.rule_id}")
+    assert served.status_code == 200, served.text
+    assert served.json()["state"] == "candidate"
+    assert served.json()["confirmed_by"] is None
+
+
+def test_the_guidance_door_refuses_a_verdict_outside_the_vocabulary(
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """The contract's own closed vocabulary, refused by the contract.
+
+    **The verdict is a type in the request body, so the service refuses a
+    word it does not accept and names the two it does** — and the front
+    end's generated types say the same, because they are generated from the
+    same document.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "maybe", "user_id": "the-advisor"},
+    )
+
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"][0]
+    assert detail["loc"] == ["body", "verdict"]
+    assert "confirmed" in detail["msg"]
+    assert "disputed" in detail["msg"]
+
+
+def test_the_guidance_door_refuses_a_person_nobody_names(
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """A confirmation nobody signs is not a confirmation.
+
+    **The route refuses it before the memory is asked**, because the
+    memory's own write would fail the schema's check on the row — and a
+    constraint error out of the middle of a transaction is a crash.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "confirmed", "user_id": "   "},
+    )
+
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["reason"] == ApplicationRefusal.ARGUMENTS_INVALID.value
+    assert "nobody signs" in body["message"]
+
+
+def test_the_guidance_door_refuses_a_reason_it_cannot_keep(
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """A reason belongs to a dispute, and a confirmation cannot keep one.
+
+    **The route refuses it rather than dropping it**, because the memory
+    holds no reason on a rule that stands — so a reason given with a
+    confirmation would be accepted and then lost, and a client that
+    believed it was recorded would be wrong.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {
+            "verdict": "confirmed",
+            "user_id": "the-advisor",
+            "reason": "I read it against the table.",
+        },
+    )
+
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["reason"] == ApplicationRefusal.ARGUMENTS_INVALID.value
+    assert "a reason belongs to a dispute" in body["message"]
+
+
+def test_the_guidance_door_refuses_a_rule_that_is_not_there(
+    client: TestClient,
+    token: str,
+) -> None:
+    """A rule nobody proposed is refused by name, not answered with an empty one.
+
+    **The memory's own reason**, rendered the way the service renders every
+    other refusal, so a caller that asked for a rule which does not exist
+    learns that and not a rule that looks like a rule.
+    """
+    response = _verdict(
+        client,
+        token,
+        "rule-nobody-proposed",
+        {"verdict": "confirmed", "user_id": "the-advisor"},
+    )
+
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND.value
+
+
+def test_the_guidance_door_refuses_a_dispute_without_a_reason(
+    context: ApplicationContext,
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """A dispute without a reason is a shrug, and the memory refuses one.
+
+    **The reason is the memory's business, and the refusal is the
+    memory's** — the route asks it rather than ruling on the reason itself.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {"verdict": "disputed", "user_id": "reader-2"},
+    )
+
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.GUIDANCE_RESOLUTION_WITHOUT_REASON.value
+
+    served = client.get(f"/guidance/rules/{candidate_rule.rule_id}")
+    assert served.status_code == 200, served.text
+    assert served.json()["state"] == "candidate"
+
+
+def test_the_guidance_door_disputes_a_rule(
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """A dispute moves the rule, and the reason travels with it.
+
+    **The dispute is not a retraction.** The rule stays in the memory, in
+    the ``disputed`` state, with the case against it — and the reason the
+    person gave is on the rule.
+    """
+    response = _verdict(
+        client,
+        token,
+        candidate_rule.rule_id,
+        {
+            "verdict": "disputed",
+            "user_id": "reader-2",
+            "reason": "The ablation paragraph of 2026-03-09 named its baseline.",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["state"] == "disputed"
+    assert body["resolution_reason"] == "The ablation paragraph of 2026-03-09 named its baseline."
+
+
+def test_the_guidance_door_needs_the_session_token(
+    client: TestClient,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """The door changes something, so the session token is asked for.
+
+    **The right origin is not consent to act**, and the refusal is the
+    guard's own — the same one every other mutating route answers with.
+    """
+    response = client.post(
+        f"/guidance/rules/{candidate_rule.rule_id}/confirm",
+        json={"verdict": "confirmed", "user_id": "the-advisor"},
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_the_guidance_door_is_refused_from_a_foreign_origin(
+    client: TestClient,
+    token: str,
+    candidate_rule: GuidanceRule,
+) -> None:
+    """A page on another site cannot settle a rule.
+
+    **The token does not get past the origin**, and the origin is checked
+    before the session is read — so a refusal here says nothing about the
+    token and everything about the page that asked.
+    """
+    response = client.post(
+        f"/guidance/rules/{candidate_rule.rule_id}/confirm",
+        json={"verdict": "confirmed", "user_id": "the-advisor"},
+        headers={"Origin": FOREIGN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
