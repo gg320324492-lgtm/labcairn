@@ -127,6 +127,17 @@ number will be read against the gold set's, and the two are the same kind
 of number only if both are described the same way. **A human reading of the
 same corpus is the comparison the number is meant to be read against.**
 
+## 4.1 The workbench that shows this
+
+**The pilot's chain is invisible today**: the workbench has not moved since
+Phase 1, and its own rule — *a view draws only what the contract carries* —
+means the routes come before the views. The plan is
+[`LC-P2-16-task-breakdown.md`](LC-P2-16-task-breakdown.md), and it is
+where the trajectory, the confirmed rules and the proposals become visible
+and contestable. **The desktop shell is deliberately not in it**: packaging
+and multi-platform distribution are Phase 3's row, and the owner ruled on
+2026-10-31 that the interface comes first.
+
 ## 5. The decisions waiting for the owner
 
 1. **The corpus's breadth.** One paper (nine versions) or three to five.
