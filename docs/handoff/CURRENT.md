@@ -238,6 +238,19 @@ piece of work that touches that file owes another runner measurement.**
 shards or a cheaper `test_cli.py`, and both are the owner's call** — the
 same call the branch made in October, now with a smaller number on it.
 
+**And one kind of citation in the threat model has no witness.** The write
+enumeration reads the tree and asks the document whether it describes
+every write, so a write's citation cannot drift far without something
+noticing. **A citation that names something other than a write is not
+watched that way**: the local socket probe's citation pointed at a figure
+command's docstring for months, and the only witness that read it checked
+that the line was inside the file. **A document that cites a place is
+making a claim about that place**, and the claim wants a witness of its
+own — the identifier the sentence names has to appear at the line the
+citation names. That witness does not exist yet; it is the next piece of
+work, and it is the kind of gap this branch keeps finding: a check that
+runs, reporting a green answer, about something narrower than the claim.
+
 **The new route found a hole in the pinned clock, and the hole was in the
 test's own metaclass.** `/guidance/rules` serves the guidance memory's
 rules, and a rule carries the moment it was proposed and the moment it was
