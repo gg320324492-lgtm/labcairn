@@ -262,6 +262,36 @@ modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
 
+**The rules' confirmation door is on the console and on the wire.** A
+person confirms or disputes a rule — `labcairn guidance rule-confirm
+<rule_id> --verdict confirmed|disputed --user <who> [--reason <why>]`, and
+`POST /guidance/rules/{rule_id}/confirm` — and **the second-reader rule
+stays where the memory keeps it**: neither surface restates it, and a
+mutation that made the console or the route bypass
+`guidance.rules.confirm_rule` turned that surface's own witness red while
+the other stayed green. The verdict vocabulary is in the request body's
+**type**, so the regenerated TypeScript carries it and the workbench does
+not hard-code it.
+
+**And the door found a transaction hole in the layer.** The memory's writes
+are flushed and left for the caller's unit of work to commit — **unlike the
+papers layer's, which commits itself**, so the two styles coexist and a
+caller that guesses wrong loses its write. The route was the first caller
+to arrive without a unit, and **the rule it had just confirmed was back to
+`candidate` the moment the request ended**: inside the request the answer
+said `confirmed`, and the next request read `candidate`. The route holds
+the unit now, and the two witnesses that watch the door read the rule back
+**through another request**, because each request forks its own session.
+The layer says so in its own docstring now, and which style a layer uses is
+still not uniform — a thing to settle, and not this round's to settle.
+
+**And the two surfaces refuse the same bad verdict in different shapes.**
+The route's body check answers 422 in the schema's own vocabulary, the
+route's own two refusals answer `arguments_invalid` at 403, and the
+console answers `invalid_arguments`. **So one door has three refusal
+shapes on it**, and a workbench has to know that before it draws the
+panel. Whether they become one shape is the owner's call.
+
 **The ORM writes a row in mapper order, not in dependency order.** The
 chain's `EditActionRow` sorts before `FeedbackEventRow` — by the mapper
 class names, not by the foreign keys — so a batch write that inserts both

@@ -14,6 +14,19 @@ So the memory's reads and writes live here, and
 :mod:`labcairn.guidance.rules`, :mod:`labcairn.guidance.retrieval` and
 :mod:`labcairn.guidance.distil` call these operations instead of the store.
 
+**And these writes do not commit; the caller holds the transaction.** The
+memory's writes are flushed and left for the caller's unit of work to
+commit, because a rule's state and the event that describes it have to
+land together. **A caller that writes through this module inside the
+store's own ``unit(...)`` gets a committed write; a caller that writes
+through it outside one gets a write that is lost when the session
+closes.** That is not a hypothetical: the rule door's API route was the
+first caller to arrive without a unit, and the rule it had just confirmed
+was back to ``candidate`` the moment the request ended. The route now
+holds the unit, and the two witnesses that watch the door read the rule
+back **through another request** — each request forks its own session, so
+a write that did not land cannot pass for one that did.
+
 **What these operations refuse.** The memory's own reasons, in the layer's
 vocabulary: a rule that is not there, and a transition the closed state
 machine does not have. The rules about **words and people** — the closed
