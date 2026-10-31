@@ -397,6 +397,19 @@ the comments cannot.** Those two sentences together are the whole of what
 this corpus can say about time, and a product that says more than that is
 guessing.
 
+**And the loop asks the model once for the whole run, which has a
+consequence worth naming.** One answer carries all three roles'
+judgements, so **role C reviews a card it has not seen** -- the document
+that held the model's judgement did not hold the card. The alternative,
+one call per role with each its own consent, needs the card to exist
+before its consent can be asked for, and the order does not allow that;
+the one-call form keeps the consent airtight. **So the choice is between a
+card the critic has not read and a consent that cannot be asked for, and
+the second is the worse one.** The consequence is written down rather than
+glossed: **a card reviewed by a role that did not read it is not the
+same claim as one reviewed after reading it**, and a report that cites
+such a card should say so.
+
 **And the contract carries no version's date either, so even the
 edits' order cannot be drawn.** The revisions in this corpus *are* dated,
 so the order the reviewer worked in is there to be read -- but the panel
