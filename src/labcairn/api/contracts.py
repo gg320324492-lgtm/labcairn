@@ -1,4 +1,5 @@
-"""The shapes this service speaks: the refusal body, and the request bodies.
+"""The shapes this service speaks: the refusal body, the request bodies, and
+the one panel it composes out of the layer's own objects.
 
 The *response* models are not here, and that is the point. They are the
 application layer's own models — ``TaskState``, ``TaskPlan``, ``SourceView``,
