@@ -60,6 +60,18 @@ actually demonstrate. **All three were failing the CI that had already
 run**: the first run stopped at `mypy --strict` with its pytest step
 skipped, so nobody had seen the other two.
 
+**The workbench's plan is written, and it is a plan.** The owner's
+decision of 2026-10-31 was to fill the web interface in before any
+desktop shell is considered — and the reason is measured, not asserted:
+**Phase 2 has not moved the interface at all.** `web/package.json` still
+says *"Phase 1 baseline skeleton, no product features yet"*, and the only
+change under `web/` in the Phase 2 range is a regenerated TypeScript
+contract. The plan is `docs/plans/LC-P2-16-task-breakdown.md`: the
+contract's outlets first, the views second, the rules' confirmation door
+and the loop's caller after them — and **the desktop shell stays in
+Phase 3's packaging row**, with the licence question that a distribution
+raises.
+
 **The confirmation door is there.** A person can now stand behind a
 claim (`labcairn task claim-attest`) and can settle a model's proposal
 (`labcairn task proposal-confirm`) — which was the fifth gap the pilot's
