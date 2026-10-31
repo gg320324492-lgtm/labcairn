@@ -307,6 +307,39 @@ record. The corpus is outside the repository, in the library, with the
 reviewer's edits extracted per paragraph and the seven pairs extracted
 beside them.
 
+**And the second corpus carries the thing this project is for: the
+group's own writing-skills specification.** Two documents sit in its
+`advisor-guidance/` folder, and one of them is titled *组内论文写作 Skills
+模板* -- and says so in its own words: *"把它当成'默认写法规则'"* and *"默认
+执行流程（像 skills 一样用）"*. **The project set out to turn an advisor into
+skills, and the group had already written a skill down.** Its shape is a
+complete one: how to use it; three core principles (state the whole before
+the parts, data before mechanism, results apart from discussion); a
+one-page table of **what to do and what not to write**; **trigger
+situations, a default output style and a five-step procedure**; six
+sentence skeletons to fill in; **how little each section may get away
+with, and the common mistake in each**; the figure and layout rules; a
+**taboo list** (no "obviously", "significantly", "better" without a
+number); and **a one-page check list to run before submitting**. The
+material stays outside this repository; its paragraphs are extracted into
+the library beside it.
+
+**And the two kinds of rule agree with each other in more than one
+place.** The eight rules distilled today from the advisor's own comments
+and this written specification come from different directions -- one is a
+norm written down in advance, the other is a judgement recovered from
+where the advisor's hand went -- yet they meet: *results and discussion
+apart* (the specification's third principle) against **the rule that the
+explanatory belongs in the discussion**; *data first* and *write how much,
+by how much* against **the rule that a mean alone is not a distribution**;
+*comparisons must land on a relative quantity* against **the rule that
+compares by relative efficiency, fall and recovery time**; *figures must
+correspond to the text* against **the rule that a figure answers to the
+experiment and to the whole**; and the taboo list's "no significant
+without a number" against **the rule that a claim of necessity is made of
+quantified data**. **Two independent sources meeting in five places is
+the strongest thing this round produced.**
+
 **And the reviewer here is the same person the second corpus carries** --
 so his standards can be compared across two papers, which is what "the
 rules get more precise" has to be measured against.
