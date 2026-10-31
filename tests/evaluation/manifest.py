@@ -373,6 +373,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # the priced call that sends nothing. Its clause is the event append,
     # because the last thing it checks is the events the run wrote.
     "test_guidance_loop_demo.py": ("integration", "event-append"),
+    # -- LC-P2-16: the workbench for the guidance line ----------------------
+    # The loop, on demand: the roles a request names and only those, the
+    # two-step action that asks before it spends, and the roles' own
+    # refusals reached through the loop. Its clause is the approvals,
+    # because the property at the centre of it is that asking writes the
+    # question down and spends nothing, and the run spends once.
+    "test_roles_run.py": ("integration", "approvals"),
     # -- LC-P2-01: the model-call path ---------------------------------------
     # The path: the two gates in their order, the budget's preflight, the
     # schema a request is refused without, and the answer that is judged

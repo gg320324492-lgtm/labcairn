@@ -228,15 +228,19 @@ runner's own log: **Ubuntu's balance factor was 1.603, was 1.224 after the
 first measurement, and is 1.535 now** — the rule door's eleven console
 witnesses made `tests/test_cli.py` the heavier file it already was — while
 Windows stays at 1.000, and the witness that had been red for the whole
-branch is green.
+branch is green — and the factor moved again when the costs were measured
+once the batch's own new test file was in it.
 
-**And Ubuntu's slack is now sixteen seconds.** That is the margin the
+**And Ubuntu's slack is eighty-seven seconds.** That is the margin the
 partition has left before a changed file could unbalance it, and
-`tests/test_cli.py` costs 382 seconds of a 1,378-second suite: **the next
-piece of work that touches that file owes another runner measurement.**
-**A partition with sixteen seconds of slack needs a different number of
-shards or a cheaper `test_cli.py`, and both are the owner's call** — the
-same call the branch made in October, now with a smaller number on it.
+`tests/test_cli.py` costs 300 seconds of a 1,268-second suite: **the next
+piece of work that touches that file owes another runner measurement.** The
+number moved because the costs were measured again on a runner once the
+batch's own new test file was in it — the balance factor went from 1.603
+through 1.535 to **1.240** as the distribution evened out. **A partition
+with that much slack still wants a different number of shards or a cheaper
+`test_cli.py`, and both are the owner's call** — the same call the branch
+made in October, with a different number on it.
 
 **And one kind of citation in the threat model has no witness.** The write
 enumeration reads the tree and asks the document whether it describes
@@ -285,8 +289,227 @@ modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
 
-**The rules' confirmation door is on the console and on the wire.** A
-person confirms or disputes a rule — `labcairn guidance rule-confirm
+**The owner's third body of material carries a feedback shape the
+ledger does not hold.** The first corpus's feedback was *comments* -- the
+advisor's words beside the text. The second carried the advisor's
+*marked-up versions*. The third carries a third shape: **the reviewer's
+edits are written into the text** -- 897 tracked insertions and deletions by
+one reviewer across five copies, with no sentence of explanation anywhere
+-- **and the author's answers are in their own files**, paired comment by
+comment, seven pairs, each naming the lines it is about.
+
+**So there are three shapes of feedback and the chain's model holds one.**
+The chain's `feedback_events` hold words written beside the text; the
+author's own edits are `edit_action`s. **A reviewer's edit in the text is
+neither**: it is somebody else's hand, it carries no reason, and its
+meaning is the change itself. Rules can be distilled from it -- *what the
+reviewer changed, and where* is the standard -- but **nothing in the
+ledger holds it yet**. And the paired answers hold something the ledger
+holds not at all: **a decision and its reasoning together**, which is the
+only place in the material where the author's own judgement is on the
+record. The corpus is outside the repository, in the library, with the
+reviewer's edits extracted per paragraph and the seven pairs extracted
+beside them.
+
+**And the second corpus carries the thing this project is for: the
+group's own writing-skills specification.** Two documents sit in its
+`advisor-guidance/` folder, and one of them is titled *组内论文写作 Skills
+模板* -- and says so in its own words: *"把它当成'默认写法规则'"* and *"默认
+执行流程（像 skills 一样用）"*. **The project set out to turn an advisor into
+skills, and the group had already written a skill down.** Its shape is a
+complete one: how to use it; three core principles (state the whole before
+the parts, data before mechanism, results apart from discussion); a
+one-page table of **what to do and what not to write**; **trigger
+situations, a default output style and a five-step procedure**; six
+sentence skeletons to fill in; **how little each section may get away
+with, and the common mistake in each**; the figure and layout rules; a
+**taboo list** (no "obviously", "significantly", "better" without a
+number); and **a one-page check list to run before submitting**. The
+material stays outside this repository; its paragraphs are extracted into
+the library beside it.
+
+**And the two kinds of rule agree with each other in more than one
+place.** The eight rules distilled today from the advisor's own comments
+and this written specification come from different directions -- one is a
+norm written down in advance, the other is a judgement recovered from
+where the advisor's hand went -- yet they meet: *results and discussion
+apart* (the specification's third principle) against **the rule that the
+explanatory belongs in the discussion**; *data first* and *write how much,
+by how much* against **the rule that a mean alone is not a distribution**;
+*comparisons must land on a relative quantity* against **the rule that
+compares by relative efficiency, fall and recovery time**; *figures must
+correspond to the text* against **the rule that a figure answers to the
+experiment and to the whole**; and the taboo list's "no significant
+without a number" against **the rule that a claim of necessity is made of
+quantified data**. **Two independent sources meeting in five places is
+the strongest thing this round produced.**
+
+**The three advisors answer in three different ways, and the chain has to
+hold all of them.** The second corpus's marked-up copies are not three
+copies of one habit. One advisor changed the text in 349 places **and** wrote
+25 comments; one changed the text in 58 places and wrote **no** comment at
+all; one wrote 9 comments and changed **nothing**. **And the one who only
+changed the text is the reviewer of the third corpus** -- the same
+person, the same habit, in two batches of material. So the habit is
+reproducible, and it is one of three.
+
+**This is an answer to what the roles are.** It is not that three roles
+stand for three advisors, and it is not that a role is one person's
+style. **It is that feedback arrives in more than one form, and a product
+that says it holds a "feedback chain" has to hold every form of it** --
+the margin, the text itself, and the two together, where a comment and
+the change it prompted may or may not correspond. **A model built for one
+advisor's habit would be a model of that habit**, not of the chain.
+
+**The material's own shape says something the product has to say out
+loud.** The reviewer changed 897 pieces of text across five copies and wrote
+**no sentence of explanation anywhere** -- the corpus holds **no comment in
+any of its fifteen files**, so the chain's first link is empty for it. **That
+is 897 demonstrations and no statements.** ADR-0016 D9 is the project's own
+standing warning: *the system's agreement with the advisor's wording is a
+risk metric, not a quality metric.* A system that distils rules from
+silent edits learns "this advisor's prose looks like this" and then offers
+it as guidance. **So the most valuable thing in this corpus may be the
+opposite of what a design for it wants**: the mentor says nothing, and the
+product's job is to say so.
+
+**And the chain is not where this belongs.** ADR-0017's chain is the
+mentor's exchange -- comment, change, judgement, assessment -- and its own
+tables say what they hold: `feedback_events` is *a comment that is there*,
+addressed into `word/comments.xml`; `edit_actions` names *the parent/child
+pair it moved and who moved it* and **holds no text and no address**; and
+`response_links` is *a judgement*, and names the edit it judges. **A
+reviewer's edit is none of the three**: it is somebody else's hand in the
+text, with no reason attached. The author's answer is a document, not a
+judgement. **The tree already designed where it goes** -- ADR-0014 D8
+declares four tables for the revision provenance and **two were built**;
+`revision_events` and `document_spans` were designed and never written,
+and the reader has produced the object since LC-P2-07 with nothing
+consuming it. **897 events would also be the project's largest revision
+benchmark yet** -- and the old metric could not see the difference that
+matters, because 300 events in fourteen paragraphs and 300 events in three
+hundred paragraphs are both "recall 1.0" to it.
+
+**And the chain has no timestamps, which two independent readings found
+the same way.** The chain's rows carry no time and no sequence, so *"read
+them, in the order the paper was corrected"* **cannot be met from the
+contract** -- a panel can only draw the order the service answered in, and
+the only order that exists is the accepted edges'. But **the revisions
+themselves are dated** -- the reviewer's 897 carry 2025-08-08, 2025-09-04
+and the rest -- so **the order of the edits can be read and the order of
+the comments cannot.** Those two sentences together are the whole of what
+this corpus can say about time, and a product that says more than that is
+guessing.
+
+**And the loop's material is now the chain's, which has two
+consequences the operator has to be told.** The loop **computes** the
+material -- the comment's version, then the version's source, then the
+source's workspace-relative path -- and **checks the caller's declaration
+against it**, a difference refused by name (which of the three differs)
+rather than silently replaced. **And the path the loop sends is the
+workspace-relative one**, because that is the address it can prove: the
+subject-scoped path the consent demonstration uses is not derivable from
+the chain, and a loop that computed it would be inventing it. **So for
+chain-originated material an operator's grant scope has to cover the
+workspace path**, and an operator who has not updated their grant is
+refused -- fail closed, but they must be told.
+
+**One residue, and it is the owner's call.** The `subject_ref` is still
+the caller's declaration. The grant checks it exactly against the
+operator's grant, so a request can only use a grant made for the subject
+it declares -- **but the loop does not check that the declared subject is
+the chain's project.** Under the project-shaped scope convention that
+residue is closed by construction, and it opens only if an operator
+writes a scope broad over the workspace. **Closing it is one more check**
+-- the declared subject against the chain's project id or pseudonym --
+and it was left out because it changes what an operator may declare.
+
+**And one of the measurements that came out of the material is a
+warning about the measurements themselves.** A tracked change with **no text
+in it** is not a change: Word's `w:ins` element can carry nothing at all,
+which is what a cursor-level edit leaves behind, and it asserts nothing
+about anyone's judgement. **And a change whose text is a single space is
+not the same thing** -- that is an edit that wrote a space, and the
+reviewer whose own review of the authors' revision was *"leave a space
+before the reference number"* is making exactly that edit. The counts
+therefore differ by what they count: **one advisor's 58 revisions carry
+text in 32 of them, another advisor's 349 carry it in 56, and the rest are
+spaces or empty marks.** So **"how many revisions" does not describe an
+advisor** -- the same hand is a cursor on one paper and a sentence on
+another -- **and a count that includes the empty marks is a number about
+the file, not about the person.**
+
+**And the two hands differ by an order of magnitude in the grain of a
+single edit**: the median edit that carries text is two characters in one
+advisor's marked-up copy and ten in another's, and on one paper that
+advisor reaches for numbers a quarter of the time while on another he
+reaches for prose and Latin abbreviations. **The standard follows the
+manuscript as well as the advisor**, which is the strongest argument yet
+for the group's template being a *general* version rather than the whole
+of it: **a rule distilled from one paper has to say which paper it came
+from**, and that is what the rule store's source binding is for.
+
+**And the loop asks the model once for the whole run, which has a
+consequence worth naming.** One answer carries all three roles'
+judgements, so **role C reviews a card it has not seen** -- the document
+that held the model's judgement did not hold the card. The alternative,
+one call per role with each its own consent, needs the card to exist
+before its consent can be asked for, and the order does not allow that;
+the one-call form keeps the consent airtight. **So the choice is between a
+card the critic has not read and a consent that cannot be asked for, and
+the second is the worse one.** The consequence is written down rather than
+glossed: **a card reviewed by a role that did not read it is not the
+same claim as one reviewed after reading it**, and a report that cites
+such a card should say so.
+
+**And the contract carries no version's date either, so even the
+edits' order cannot be drawn.** The revisions in this corpus *are* dated,
+so the order the reviewer worked in is there to be read -- but the panel
+draws no order for them, because the graph route carries a version's id
+and nothing else. **A version that could say when it was written would
+make the one order the material does have visible**; that is a route
+change, and it is the owner's call.
+
+**Two mistakes in the first extraction of this corpus, both corrected.**
+The revisions were written with five fields and **without the addresses**,
+and ADR-0014 D5 says a change is anchored by *part, element path, range and
+hash* -- so that file could never have been the source of record, and the
+re-extraction reads them from the reader instead. And the comment-answer
+pairs were written **without saying who extracted them**, which would have
+recorded one machine's reading as a machine-readable fact; the file now
+names the extraction, the day, the method, and **that there was no second
+reader and no arbiter** -- which is exactly what a first corpus's blind
+readings do say, and why an id that does not say what it is gets read as a
+person.
+
+**And the reviewer here is the same person the second corpus carries** --
+so his standards can be compared across two papers, which is what "the
+rules get more precise" has to be measured against.
+
+**The guidance memory holds its first eight confirmed rules, and every
+one of them was learned from the advisor's own comments.** The pilot's
+chain now holds 46 comments across 17 drafts -- the same 46 the blind
+readings read -- and one real distillation run (one request, four
+thousand tokens, under the owner's own approval) proposed eight candidate
+rules from eighteen of those cases. The owner confirmed all eight
+through the confirmation door, as the second reader the second-reader
+rule demands -- the proposer was `model_proposal`, a name no person
+signs, so the owner's word is the only word that could move them. The
+rules live in the workspace's memory, outside this public repository;
+what lands here is the fact and the counts.
+
+**The distillation cost three model calls, not the one the owner
+authorised, and the reason is recorded rather than buried.** The first
+answer was lost to a bug in the operator script's own record
+construction, and the second to a parsing line that read the answer
+object's wrong attribute -- in both cases the wire had already carried
+the request, so the money was spent and nothing came back. The exchange
+event carries only the exchange's metadata, not the answer's text, so a
+lost answer is lost for good. The third run wrote the answer to disk
+before anything parsed it, and that is the rule now: **the answer lands
+before anything reads it.**
+
+**The rules' confirmation door is on the console and on the wire.** Aperson confirms or disputes a rule — `labcairn guidance rule-confirm
 <rule_id> --verdict confirmed|disputed --user <who> [--reason <why>]`, and
 `POST /guidance/rules/{rule_id}/confirm` — and **the second-reader rule
 stays where the memory keeps it**: neither surface restates it, and a

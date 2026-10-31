@@ -84,6 +84,20 @@ def _source_id(context: ApplicationContext, suffix: str) -> str:
     raise AssertionError(f"the task holds no material ending in {suffix!r}")
 
 
+def _source_sha256(context: ApplicationContext, suffix: str) -> str:
+    """The hash of the ingested material whose path ends with *suffix*.
+
+    **A version names the bytes it was recorded with**, and the version
+    rows below now carry that hash. It is what lets the revision-event
+    path refuse a manuscript whose bytes changed under the name, which is
+    the check ADR-0014 D6 asks for.
+    """
+    for view in list_sources(context):
+        if view.source.relative_path.endswith(suffix):
+            return str(view.source.content_sha256)
+    raise AssertionError(f"the task holds no material ending in {suffix!r}")
+
+
 def _without_author_or_date(manuscript: Path, comment_ids: tuple[str, ...]) -> Path:
     """The manuscript with *comment_ids* carrying no author and no date.
 
@@ -120,6 +134,33 @@ def _without_author_or_date(manuscript: Path, comment_ids: tuple[str, ...]) -> P
     return manuscript
 
 
+def _with_document_xml(manuscript: Path, document_xml: str) -> Path:
+    """The manuscript with its document part replaced.
+
+    **The parts are copied rather than rewritten**, so the manuscript keeps
+    every other byte — including the fixed timestamps that make the
+    archive byte-reproducible — and the comments part is still there for a
+    test that wants both.
+
+    **This exists because the fixture writer cannot say everything Word
+    says.** A tracked change that carries no text at all, and one that
+    changes the formatting and not the words, are both real revisions and
+    neither is expressible through :class:`docx_fixtures.Revision` — which
+    always writes a run with text in it. **So a test that needs them
+    writes the document part itself.**
+    """
+    with zipfile.ZipFile(manuscript, "r") as archive:
+        parts = [(info, archive.read(info.filename)) for info in archive.infolist()]
+    temporary = manuscript.with_name(f"{manuscript.stem}-rewritten.docx")
+    with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+        for info, data in parts:
+            if info.filename == "word/document.xml":
+                data = document_xml.encode("utf-8")
+            archive.writestr(info, data)
+    temporary.replace(manuscript)
+    return manuscript
+
+
 def build_chain(
     store: TaskStore,
     workspace_root: Path,
@@ -129,6 +170,7 @@ def build_chain(
     revisions: tuple[Revision, ...] = (),
     second_comments: tuple[Comment, ...] | None = None,
     bare_comment_ids: tuple[str, ...] = (),
+    document_xml: str | None = None,
 ) -> ChainEnv:
     """A workspace, a task, a project, two versions and an edge.
 
@@ -138,6 +180,10 @@ def build_chain(
         what a test about a *first* round wants.
     :param bare_comment_ids: the comments whose author and date are
         removed from the file altogether.
+    :param document_xml: the document part to write into both manuscripts
+        instead of the one the fixture writer builds. **It is the way to
+        say what the fixture writer cannot**: a tracked change with no
+        children, or one that changes the formatting and not the words.
     """
     materials = workspace_root / "materials"
     materials.mkdir(parents=True, exist_ok=True)
@@ -162,6 +208,9 @@ def build_chain(
     second_manuscript = materials / "manuscript-2.docx"
     manuscript.write_bytes(write_fixture(first, directory).read_bytes())
     second_manuscript.write_bytes(write_fixture(second, directory).read_bytes())
+    if document_xml is not None:
+        manuscript = _with_document_xml(manuscript, document_xml)
+        second_manuscript = _with_document_xml(second_manuscript, document_xml)
     if bare_comment_ids:
         manuscript = _without_author_or_date(manuscript, bare_comment_ids)
 
@@ -203,6 +252,7 @@ def build_chain(
             version_id="ver-1",
             project_id="proj-1",
             source_id=source_id,
+            source_content_sha256=_source_sha256(context, "manuscript.docx"),
             version_label_raw="manuscript.docx",
             stage_candidate="advisor_reviewed",
             status="resolved",
@@ -214,6 +264,7 @@ def build_chain(
             version_id="ver-2",
             project_id="proj-1",
             source_id=second_source_id,
+            source_content_sha256=_source_sha256(context, "manuscript-2.docx"),
             version_label_raw="manuscript-2.docx",
             stage_candidate="draft",
             status="resolved",

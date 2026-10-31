@@ -372,6 +372,16 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.papers.edits",
         "labcairn.papers.feedback",
         "labcairn.papers.responses",
+        # ADR-0014's document model, and the writer that closes the seam
+        # between LC-P2-07's reader and the store: one row per tracked
+        # change a manuscript records, with its text, its address, its
+        # author and its date. It is the paper domain's operation rather
+        # than a surface, and like the chain's operations beside it **it
+        # asks the policy about the material before it reads a byte of
+        # it** -- which is the property this guard exists to protect. It
+        # is recorded here because a module that reaches the store must be
+        # named.
+        "labcairn.papers.revisions",
         # Predate the layer.
         "labcairn.analysis.service",
         "labcairn.recovery.approvals",

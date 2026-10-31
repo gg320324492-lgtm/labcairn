@@ -25,8 +25,12 @@ import type {
   ApprovalRequested,
   ArtifactReceipt,
   ArtifactView,
+  EvidenceRecord,
   FigureRun,
+  GuidanceRule,
+  GuidanceRuleVerdictBody,
   Health,
+  ProjectGraph,
   Selection,
   SessionInfo,
   Source,
@@ -35,6 +39,7 @@ import type {
   TaskPlan,
   TaskState,
   TaskStep,
+  Trajectory,
 } from '../api/generated'
 
 /** The token the fake service mints. */
@@ -80,6 +85,14 @@ export interface FakeApiState {
   artifacts: ArtifactView[]
   /** The artefact bytes the service would serve. */
   artefactContent: string
+  /** The chain's comments, the edits that answered them, and the states. */
+  trajectory: Trajectory
+  /** The project's versions and the accepted edges between them. */
+  trajectoryGraph: ProjectGraph
+  /** The guidance rules the memory holds. */
+  guidanceRules: GuidanceRule[]
+  /** The ledger's records for this task. */
+  records: EvidenceRecord[]
 }
 
 /** The task the fake service is bound to. */
@@ -122,6 +135,248 @@ export function reportReceipt(): ArtifactReceipt {
     media_type: 'text/html',
     created_at: '2026-10-20T09:05:00+00:00',
   }
+}
+
+/** The chain's own key for the issue the fake serves. */
+export const ISSUE_KEY = 'issue-method'
+
+/** The paper project the fake serves. */
+export const PROJECT_ID = 'project-core'
+
+/** The advisor's comment, and the change that answered it. */
+export const FEEDBACK_ID = 'fb-method'
+
+/** The rule the fake serves as a candidate, with a case against it. */
+export const RULE_ID = 'rule-method'
+
+/**
+ * The chain's rows, as the mentor line's route serves them.
+ *
+ * **The states are the chain's own vocabulary** — pending, addressed,
+ * partially addressed, not addressed — and the grades are observed,
+ * inferred and human verified.
+ */
+export function trajectoryFixture(): Trajectory {
+  return {
+    comments: [
+      {
+        feedback_id: FEEDBACK_ID,
+        issue_key: ISSUE_KEY,
+        version_id: 'v1',
+        comment_text: 'Name the method before its result.',
+        anchor_text: 'the method was not named',
+      },
+      {
+        feedback_id: 'fb-units',
+        issue_key: ISSUE_KEY,
+        version_id: 'v2',
+        comment_text: 'Say which core the depth came from.',
+        anchor_text: '4.2 mm of silt',
+      },
+    ],
+    edits: [
+      {
+        edit_action_id: 'edit-method',
+        feedback_id: FEEDBACK_ID,
+        version_edge_id: 'edge-1',
+        actor_kind: 'student',
+        grade: 'observed',
+      },
+      {
+        edit_action_id: 'edit-method-2',
+        feedback_id: FEEDBACK_ID,
+        version_edge_id: 'edge-1',
+        actor_kind: 'model',
+        grade: 'inferred',
+      },
+      {
+        edit_action_id: 'edit-no-comment',
+        feedback_id: null,
+        version_edge_id: 'edge-2',
+        actor_kind: 'advisor',
+        grade: 'human_verified',
+      },
+    ],
+    responses: [
+      { feedback_id: FEEDBACK_ID, states: ['addressed'] },
+      { feedback_id: 'fb-units', states: ['pending', 'partially_addressed'] },
+    ],
+  }
+}
+
+/** The project's versions and the accepted edges between them. */
+export function projectGraphFixture(): ProjectGraph {
+  return {
+    version_ids: ['v1', 'v2'],
+    edges: [{ edge_id: 'edge-1', parent_version_id: 'v1', child_version_id: 'v2' }],
+  }
+}
+
+/**
+ * The rules the memory holds.
+ *
+ * **One candidate with a case against it, and one that stands.** The
+ * candidate is the one a person may settle; the confirmed one is the one
+ * the memory refuses to settle twice.
+ */
+export function guidanceRulesFixture(): GuidanceRule[] {
+  return [
+    {
+      rule_id: RULE_ID,
+      version: 1,
+      issue_type: 'method',
+      statement: 'Name the method before its result.',
+      context: 'A result with no method cannot be checked by anybody else.',
+      scope: 'Every claim about a measurement.',
+      example: 'The core was X-rayed before it was sectioned.',
+      state: 'candidate',
+      proposed_by: 'alice',
+      proposed_at: '2026-10-20T09:00:00+00:00',
+      confirmed_by: null,
+      confirmed_at: null,
+      resolution_reason: null,
+      sources: [ISSUE_KEY],
+      counterexamples: [
+        {
+          statement: 'A reading from a published protocol needs no naming.',
+          issue_key: 'issue-protocol',
+          recorded_by: 'bob',
+          recorded_at: '2026-10-21T11:30:00+00:00',
+        },
+      ],
+    },
+    {
+      rule_id: 'rule-units',
+      version: 2,
+      issue_type: 'units',
+      statement: 'Give the unit with the number.',
+      context: 'A number without a unit is not a quantity.',
+      scope: 'Every numeric claim.',
+      example: '4.2 mm, and not 4.2.',
+      state: 'confirmed',
+      proposed_by: 'bob',
+      proposed_at: '2026-10-22T08:00:00+00:00',
+      confirmed_by: 'carol',
+      confirmed_at: '2026-10-22T09:00:00+00:00',
+      resolution_reason: null,
+      sources: ['issue-units'],
+      counterexamples: [
+        {
+          statement: 'A dimensionless ratio needs no unit.',
+          issue_key: 'issue-ratio',
+          recorded_by: 'carol',
+          recorded_at: '2026-10-23T10:00:00+00:00',
+        },
+      ],
+    },
+    {
+      rule_id: 'rule-anchors',
+      version: 1,
+      issue_type: 'anchors',
+      statement: 'Cite the anchor the claim rests on.',
+      context: 'A claim with no address cannot be found again.',
+      scope: 'Every claim.',
+      example: 'Anchor the sentence that carries the number.',
+      state: 'withdrawn',
+      proposed_by: 'carol',
+      proposed_at: '2026-10-18T08:00:00+00:00',
+      confirmed_by: 'dave',
+      confirmed_at: '2026-10-19T08:00:00+00:00',
+      resolution_reason: 'the ledger cannot check an anchor yet',
+      sources: ['issue-anchors'],
+      counterexamples: [],
+    },
+  ]
+}
+
+/**
+ * The ledger's records: a model's proposal, and the person's own record
+ * beside it.
+ *
+ * **The proposal is marked as superseded by the person's record**, which is
+ * the only link the contract carries between them.
+ */
+export function recordsFixture(): EvidenceRecord[] {
+  return [
+    {
+      schema_version: 1,
+      evidence_id: 'rec-model',
+      task_id: TASK_ID,
+      kind: 'claim',
+      text: 'The core records 4.2 mm of silt.',
+      value: null,
+      unit: null,
+      tolerance: null,
+      anchor_ids: ['anchor-core-1'],
+      extracted_span: '4.2 mm of silt',
+      extracted_span_sha256: 'e'.repeat(64),
+      status: 'extracted',
+      verification_log: [],
+      created_by: 'model_proposal',
+      created_by_id: 'model-1',
+      source_content_hash: 'c'.repeat(64),
+      created_at: '2026-10-25T09:00:00+00:00',
+      superseded_by: 'rec-person',
+    },
+    {
+      schema_version: 1,
+      evidence_id: 'rec-person',
+      task_id: TASK_ID,
+      kind: 'claim',
+      text: 'The core records 4.2 mm of silt.',
+      value: null,
+      unit: null,
+      tolerance: null,
+      anchor_ids: ['anchor-core-1'],
+      extracted_span: '4.2 mm of silt',
+      extracted_span_sha256: 'e'.repeat(64),
+      status: 'user_attested',
+      verification_log: [
+        {
+          schema_version: 1,
+          check: 'c4',
+          checker_id: 'alice',
+          outcome: 'not_checked',
+          detail: 'confirmed. I read the core log.',
+          checked_at: '2026-10-25T10:00:00+00:00',
+        },
+      ],
+      created_by: 'user',
+      created_by_id: 'alice',
+      source_content_hash: 'c'.repeat(64),
+      created_at: '2026-10-25T09:30:00+00:00',
+      superseded_by: null,
+    },
+    {
+      schema_version: 1,
+      evidence_id: 'rec-rule',
+      task_id: TASK_ID,
+      kind: 'result',
+      text: 'The core holds 4.2 mm of silt.',
+      value: 4.2,
+      unit: 'mm',
+      tolerance: 0.1,
+      anchor_ids: ['anchor-core-1'],
+      extracted_span: '4.2 mm of silt',
+      extracted_span_sha256: 'e'.repeat(64),
+      status: 'verified_by_rule',
+      verification_log: [
+        {
+          schema_version: 1,
+          check: 'c2',
+          checker_id: 'rule-units',
+          outcome: 'pass',
+          detail: 'the number carries its unit',
+          checked_at: '2026-10-24T09:00:00+00:00',
+        },
+      ],
+      created_by: 'rule',
+      created_by_id: 'rule-units',
+      source_content_hash: 'c'.repeat(64),
+      created_at: '2026-10-24T08:00:00+00:00',
+      superseded_by: null,
+    },
+  ]
 }
 
 /** The state the fake service starts in. */
@@ -207,6 +462,10 @@ export function initialState(): FakeApiState {
       { receipt: reportReceipt(), resource_key: 'reports/report.html' },
     ],
     artefactContent: `<html><body><p>${ARTEFACT_CONTENT_MARKER}</p></body></html>`,
+    trajectory: trajectoryFixture(),
+    trajectoryGraph: projectGraphFixture(),
+    guidanceRules: guidanceRulesFixture(),
+    records: recordsFixture(),
   }
 }
 
@@ -259,6 +518,36 @@ export class FakeApi {
   /** How many consent questions the service has been asked to write down. */
   approvalRequests = 0
 
+  /** How many verdicts the service has been asked for. */
+  ruleConfirmations = 0
+
+  /**
+   * Whether the service refuses the verdict in the route's own vocabulary.
+   *
+   * **This is the route's own refusal**, the one it makes before the memory
+   * is asked: `arguments_invalid`, with the message the route writes.
+   */
+  refuseWithArguments = false
+
+  /**
+   * Whether the service answers the verdict in the schema's vocabulary.
+   *
+   * **The schema's answer, not the layer's refusal**: a status, and the
+   * schema's own lines about which part of the body it would not accept.
+   */
+  refuseWithSchema = false
+
+  /**
+   * Whether the trajectory's answer carries a change that answers no
+   * comment.
+   *
+   * **The service cannot send one**: it reads its changes by the comments it
+   * read, so every change it answers with answers a comment. The flag
+   * exists so that the panel's handling of the contract's nullable field is
+   * watched rather than assumed.
+   */
+  serveLooseEdits = false
+
   /** How long a grant takes to answer, in milliseconds. */
   grantDelayMs = 0
 
@@ -278,6 +567,8 @@ export class FakeApi {
       ['/steps', () => this.state.steps],
       ['/sources', () => this.state.sources],
       ['/artifacts', () => this.state.artifacts],
+      ['/records', () => this.state.records],
+      ['/guidance/rules', () => this.state.guidanceRules],
     ])
   }
 
@@ -466,6 +757,18 @@ export class FakeApi {
       })
     }
 
+    if (method === 'POST' && path.startsWith('/guidance/rules/') && path.endsWith('/confirm')) {
+      return this.settleTheRule(path, init)
+    }
+
+    if (method === 'GET' && path.startsWith('/trajectory/graph')) {
+      return this.answerTheGraph(path)
+    }
+
+    if (method === 'GET' && path.startsWith('/trajectory')) {
+      return this.answerTheTrajectory(path)
+    }
+
     if (path.startsWith('/artifacts/') && path.endsWith('/content')) {
       this.artefactContentReads += 1
       return new Response(this.state.artefactContent, {
@@ -484,10 +787,147 @@ export class FakeApi {
     return jsonResponse(200, route())
   }
 
+  /**
+   * The verdict on one rule, and the rule as it stands afterwards.
+   *
+   * **The refusals are the service's own, in the service's own order.** The
+   * route checks its body before the memory is asked, so an empty `user_id`
+   * and a reason given with a confirmation are `arguments_invalid` — and the
+   * memory's own reasons come after: the second reader, the closed state
+   * machine, and the reason a dispute must carry.
+   */
+  private settleTheRule(path: string, init?: RequestInit): Response {
+    const ruleId = decodeURIComponent(path.slice('/guidance/rules/'.length, -'/confirm'.length))
+    const body = JSON.parse(init?.body as string) as GuidanceRuleVerdictBody
+    this.ruleConfirmations += 1
+    if (this.refuseWithSchema) {
+      return jsonResponse(422, {
+        detail: [
+          {
+            loc: ['body', 'verdict'],
+            msg: "Input should be 'confirmed' or 'disputed'",
+            type: 'literal_error',
+            input: body.verdict,
+          },
+        ],
+      })
+    }
+    if (this.refuseWithArguments) {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a confirmation nobody signs is not a confirmation. Name the person whose word it is.',
+      })
+    }
+    if (body.verdict === 'confirmed' && (body.reason ?? '').trim() !== '') {
+      return jsonResponse(403, {
+        reason: 'arguments_invalid',
+        message:
+          'a reason belongs to a dispute, and a confirmed rule carries none: the memory holds ' +
+          'no reason on a rule that stands. Dispute the rule with the reason instead.',
+      })
+    }
+    const rule = this.state.guidanceRules.find((entry) => entry.rule_id === ruleId)
+    if (rule === undefined) {
+      return jsonResponse(403, {
+        reason: 'guidance_rule_not_found',
+        message: `no rule carries the id ${JSON.stringify(ruleId)}`,
+      })
+    }
+    if (body.verdict === 'disputed' && (body.reason ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'guidance_resolution_without_reason',
+        message: 'a dispute without a reason is a shrug.',
+      })
+    }
+    if (rule.proposed_by === body.user_id) {
+      return jsonResponse(403, {
+        reason: 'guidance_confirmer_is_proposer',
+        message:
+          'the person who proposed a rule cannot be the one who confirms it: one person ' +
+          'reading twice is one person reading once with extra steps.',
+      })
+    }
+    if (body.verdict === 'confirmed' && rule.state !== 'candidate') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: `a rule in state ${JSON.stringify(rule.state)} cannot be confirmed; only a candidate can`,
+      })
+    }
+    if (body.verdict === 'disputed' && rule.state === 'withdrawn') {
+      return jsonResponse(403, {
+        reason: 'guidance_transition_not_possible',
+        message: 'a withdrawn rule cannot be disputed; propose a new version instead',
+      })
+    }
+    rule.state = body.verdict
+    rule.confirmed_by = rule.confirmed_by ?? body.user_id
+    rule.confirmed_at = rule.confirmed_at ?? '2026-11-01T09:00:00+00:00'
+    if (body.verdict === 'disputed') {
+      rule.resolution_reason = body.reason ?? null
+    }
+    return jsonResponse(200, rule)
+  }
+
+  /**
+   * The project's versions among the ones named, and the accepted edges
+   * between them.
+   *
+   * **Only the versions named are answered with**, and only the edges whose
+   * two ends were both named — the service's own rule.
+   */
+  private answerTheGraph(path: string): Response {
+    const query = queryOf(path)
+    const named = query.getAll('version_id')
+    const versionIds = this.state.trajectoryGraph.version_ids.filter((id) => named.includes(id))
+    const edges = this.state.trajectoryGraph.edges.filter(
+      (edge) => named.includes(edge.parent_version_id) && named.includes(edge.child_version_id),
+    )
+    return jsonResponse(200, { version_ids: versionIds, edges })
+  }
+
+  /**
+   * The chain's comments under the issues named, the edits that answered
+   * them, and the states of the responses.
+   *
+   * **The edits are read by the comments, as the service reads them**, so an
+   * edit that answers no comment is not among them — unless the flag says
+   * the service sent one anyway.
+   */
+  private answerTheTrajectory(path: string): Response {
+    const query = queryOf(path)
+    const keys = query.getAll('issue_key')
+    const comments = this.state.trajectory.comments.filter((comment) =>
+      keys.includes(comment.issue_key),
+    )
+    const feedbackIds = comments.map((comment) => comment.feedback_id)
+    const edits = this.state.trajectory.edits.filter(
+      (edit) => edit.feedback_id !== null && feedbackIds.includes(edit.feedback_id),
+    )
+    if (this.serveLooseEdits) {
+      edits.push(...this.state.trajectory.edits.filter((edit) => edit.feedback_id === null))
+    }
+    const responses = this.state.trajectory.responses.filter((response) =>
+      feedbackIds.includes(response.feedback_id),
+    )
+    return jsonResponse(200, { comments, edits, responses })
+  }
+
   /** The requests the client made to one path. */
   requestsTo(path: string): RecordedRequest[] {
     return this.requests.filter((request) => request.url.replace(/^\/api/, '') === path)
   }
+}
+
+/**
+ * The query parameters of the path the fake was asked for.
+ *
+ * **The query is part of the question**, so the fake reads it: the route
+ * that takes an issue key answers about that issue and no other.
+ */
+function queryOf(path: string): URLSearchParams {
+  const [, query = ''] = path.split('?')
+  return new URLSearchParams(query)
 }
 
 /** The URL a request was made to. */

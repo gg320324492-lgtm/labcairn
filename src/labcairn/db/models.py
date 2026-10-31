@@ -50,6 +50,7 @@ from typing import Any, Final
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     Float,
     ForeignKey,
@@ -1669,6 +1670,210 @@ class VersionEdgeRejectionRow(Base):
             "length(rejection_id) > 0 AND length(edge_id) > 0 "
             "AND length(project_id) > 0 AND length(decided_by) > 0",
             name="version_edge_rejections_ids_present",
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# ADR-0014: the revision events a manuscript's file records
+# --------------------------------------------------------------------------- #
+
+
+class RevisionEventRow(Base):
+    """One tracked change, as the file records it.
+
+    **This is the third of ADR-0014's four tables, and the first one that
+    has ever had a writer.** ``PaperVersion`` and ``VersionEdge`` are the
+    version graph; ``DocumentSpan`` and ``RevisionEvent`` are the document
+    model, and neither was ever written. The reader has produced the object
+    for two years -- :class:`labcairn.material.ooxml.RevisionEvent` carries
+    its kind, text, author, date, element id, locator, paragraph, baseline
+    range, nesting flag and text hash -- and **nothing in ``src/`` stored
+    it**, so a marked-up manuscript was a file the archive could cite but
+    could not describe.
+
+    **Why it is a table of its own and not a column on the version.** A
+    marked-up manuscript holds hundreds of changes, each with its own
+    address, its own text and its own author; a version holds one file.
+    And ADR-0014 D8's rule is the reason the chain's tables do not grow
+    these columns: *"a table where 'revision 3' means two things is a table
+    nobody can read."*
+
+    **The address is the event.** ADR-0014 D5 chose an XML path plus a
+    content hash over every alternative, and D4a made the **view** part of
+    the address: a ``w:del`` element's text is in the *rejected* view, so
+    the same element in the two views is two addresses that resolve to two
+    different texts. The columns below are that address, flattened: the
+    part, the element path, the view and the character range within the
+    element's text.
+
+    **The hash is what makes drift detectable.** ``text_sha256`` is the
+    hash of the anchored text at the moment it was recorded; if the text at
+    that address no longer hashes to it, the anchor is **stale** and is
+    reported as stale rather than silently re-pointed. This is ADR-0009's
+    mechanism applied one level down.
+
+    **A missing author is unknown, and its absence is named.** Word permits
+    a ``w:ins`` with no ``w:author`` and no ``w:date``. ADR-0014 D3 says
+    such a thing is ``UNKNOWN`` and never a guess, so the author and the
+    date are nullable **and each absence carries the reason it is an
+    absence** -- the constraint below makes that pairing structural rather
+    than a convention the writer is trusted to keep.
+
+    **And a row that was not read carries no address and no words.** The
+    ``grade`` column is ADR-0014 D2's three levels, and the rule about
+    them is the same one ``feedback_events`` holds: an ``inferred`` row
+    read no file, so it quotes nobody and points at nothing. The address
+    follows the grade, and the constraint says so.
+    """
+
+    __tablename__ = "revision_events"
+
+    #: Caller-minted, and **derived** rather than sequential: the id is a
+    #: function of the version and the element's path, so recording the
+    #: same file twice finds the rows that are already there.
+    revision_event_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The manuscript version whose document this event was read from.
+    #: **The version carries the file and the bytes** -- ``source_id`` and
+    #: ``source_content_sha256`` -- so the event does not repeat them.
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``ins``, ``del``, ``moveFrom`` or ``moveTo`` -- the four kinds the
+    #: reader reports. A closed vocabulary, because a kind nobody can name
+    #: says nothing about what happened.
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The inserted or the deleted text. **Empty is a real value**: Word
+    #: records an empty tracked insertion, and one is in the corpus this
+    #: table was written for. A row that read nothing carries the empty
+    #: string, and the constraint says so.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of that text at the moment it was recorded (ADR-0014 D5).
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The package part the element is in -- ``word/document.xml`` today,
+    #: and the column is there because ADR-0014 D5 names it: a revision can
+    #: live in ``word/footnotes.xml`` too.
+    part: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The path of the ``w:ins`` / ``w:del`` element inside that part.
+    element_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ``accepted`` or ``rejected`` (ADR-0014 D4a). **The view is part of
+    #: the address**, so it is a field and not a convention.
+    view: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: The range inside the addressed element's text, in the named view.
+    #: Both or neither: a one-ended range cannot be located.
+    char_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    char_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The paragraph the event sits in, by index into the body's paragraphs.
+    paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The range in the paragraph's **rejected** (baseline) text -- the same
+    #: coordinate system the comment anchor uses, and the one that makes a
+    #: deletion addressable at all.
+    baseline_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    baseline_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The revision's author, or ``None`` when the file records none. **An
+    #: empty author is not a missing one**: the reader tells them apart,
+    #: and the constraint below preserves the difference.
+    author: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Why the author is unknown. Present exactly when the author is not.
+    author_unknown_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The revision's timestamp, or ``None`` when the file records none.
+    occurred_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: Why the timestamp is unknown. Present exactly when it is not.
+    date_unknown_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Word's ``w:id`` for the element. It pairs a move's source with its
+    #: destination.
+    element_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: Whether this revision is nested inside another one. Word permits it
+    #: and a reader that flattens it cannot tell "inserted then deleted"
+    #: from "inserted" -- so the flattening is **detectable** here.
+    nested: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    #: The extraction version the reader was running when the event was
+    #: recorded (ADR-0014 D5). **Derived from the reader's own source**, so
+    #: changing the parser changes the version without anybody remembering
+    #: to bump a constant.
+    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: ``observed``, ``inferred`` or ``human_verified`` (ADR-0014 D2).
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: When the event was recorded.
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_revision_events_version", "version_id"),
+        CheckConstraint(
+            "length(revision_event_id) > 0 AND length(version_id) > 0 "
+            "AND length(text_sha256) = 64 AND length(parser_version) > 0",
+            name="revision_events_ids_present",
+        ),
+        CheckConstraint(
+            "kind IN ('ins', 'del', 'moveFrom', 'moveTo')",
+            name="revision_events_kind_vocabulary",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'inferred', 'human_verified')",
+            name="revision_events_grade_vocabulary",
+        ),
+        CheckConstraint(
+            "view IS NULL OR view IN ('accepted', 'rejected')",
+            name="revision_events_view_vocabulary",
+        ),
+        # **The address belongs to a read.** A row nobody read points at
+        # nothing and quotes nobody; a row that was read carries the
+        # address it read. This is the rule ``feedback_events`` holds for
+        # the comment's locator, and it is stated here for the same
+        # reason: a row carrying an address nobody read *is* the file
+        # being claimed to have said something.
+        CheckConstraint(
+            "(grade = 'inferred' AND part IS NULL AND element_path IS NULL "
+            "AND view IS NULL) OR "
+            "(grade <> 'inferred' AND part IS NOT NULL AND length(part) > 0 "
+            "AND element_path IS NOT NULL AND length(element_path) > 0 "
+            "AND view IS NOT NULL)",
+            name="revision_events_the_address_belongs_to_a_read",
+        ),
+        # **And an inferred row carries no words.** It read none, so it
+        # quotes none.
+        CheckConstraint(
+            "grade <> 'inferred' OR text = ''",
+            name="revision_events_an_inferred_row_carries_no_words",
+        ),
+        # **A range is a range.** Both ends or neither -- a one-ended span
+        # cannot be located -- and the end does not precede the start.
+        CheckConstraint(
+            "(char_start IS NULL AND char_end IS NULL) OR "
+            "(char_start IS NOT NULL AND char_end IS NOT NULL "
+            "AND char_end >= char_start)",
+            name="revision_events_the_range_is_paired",
+        ),
+        # **The same rule for the baseline range**, which is what makes a
+        # deletion addressable in the paragraph's rejected text.
+        CheckConstraint(
+            "(baseline_start IS NULL AND baseline_end IS NULL) OR "
+            "(baseline_start IS NOT NULL AND baseline_end IS NOT NULL "
+            "AND baseline_start >= 0 AND baseline_end >= baseline_start)",
+            name="revision_events_the_baseline_is_a_range",
+        ),
+        # **A missing author is unknown, and its absence is named.** The
+        # reason and the absence travel together, so "unknown" is a fact
+        # on the record rather than a hole a reader has to notice.
+        CheckConstraint(
+            "(author IS NULL AND author_unknown_reason IS NOT NULL "
+            "AND length(trim(author_unknown_reason)) > 0) OR "
+            "(author IS NOT NULL AND author_unknown_reason IS NULL)",
+            name="revision_events_an_author_is_named_or_its_absence_is",
+        ),
+        # **And the same for the timestamp.**
+        CheckConstraint(
+            "(occurred_at IS NULL AND date_unknown_reason IS NOT NULL "
+            "AND length(trim(date_unknown_reason)) > 0) OR "
+            "(occurred_at IS NOT NULL AND date_unknown_reason IS NULL)",
+            name="revision_events_a_date_is_named_or_its_absence_is",
+        ),
+        # **A paragraph is a place.** The index is never negative.
+        CheckConstraint(
+            "paragraph IS NULL OR paragraph >= 0",
+            name="revision_events_the_paragraph_is_a_place",
         ),
     )
 
