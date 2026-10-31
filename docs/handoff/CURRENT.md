@@ -224,9 +224,19 @@ route from a refusal into a 200, and a task-area check put on the mentor
 route turned it from a 200 into a 403 — **so the two witnesses that say
 what the routes do and do not ask are the ones that go red when the
 answer changes.** And the shard costs are measured again from the
-runner's own log: **Ubuntu's balance factor was 1.603 and is now 1.224**,
+runner's own log: **Ubuntu's balance factor was 1.603, was 1.224 after the
+first measurement, and is 1.535 now** — the rule door's eleven console
+witnesses made `tests/test_cli.py` the heavier file it already was — while
 Windows stays at 1.000, and the witness that had been red for the whole
 branch is green.
+
+**And Ubuntu's slack is now sixteen seconds.** That is the margin the
+partition has left before a changed file could unbalance it, and
+`tests/test_cli.py` costs 382 seconds of a 1,378-second suite: **the next
+piece of work that touches that file owes another runner measurement.**
+**A partition with sixteen seconds of slack needs a different number of
+shards or a cheaper `test_cli.py`, and both are the owner's call** — the
+same call the branch made in October, now with a smaller number on it.
 
 **The new route found a hole in the pinned clock, and the hole was in the
 test's own metaclass.** `/guidance/rules` serves the guidance memory's
