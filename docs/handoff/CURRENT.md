@@ -397,6 +397,14 @@ the comments cannot.** Those two sentences together are the whole of what
 this corpus can say about time, and a product that says more than that is
 guessing.
 
+**And the contract carries no version's date either, so even the
+edits' order cannot be drawn.** The revisions in this corpus *are* dated,
+so the order the reviewer worked in is there to be read -- but the panel
+draws no order for them, because the graph route carries a version's id
+and nothing else. **A version that could say when it was written would
+make the one order the material does have visible**; that is a route
+change, and it is the owner's call.
+
 **Two mistakes in the first extraction of this corpus, both corrected.**
 The revisions were written with five fields and **without the addresses**,
 and ADR-0014 D5 says a change is anchored by *part, element path, range and
