@@ -185,9 +185,20 @@ function split(records: EvidenceRecord[]): {
   return { proposals, others }
 }
 
-export function ProposalsView(): JSX.Element {
-  const records = usePanelRead<EvidenceRecord[]>(API_PATHS.records)
-  const panel: ApiRead<EvidenceRecord[]> = asApiRead(records.read)
+interface ProposalsViewProps {
+  /**
+   * The workbench's cycle.
+   *
+   * **The panel reads again when the workbench reads again**, so a proposal
+   * the roles wrote after the panel last looked is on the screen when the
+   * page refreshes rather than only after a reload.
+   */
+  readonly cycle: number
+}
+
+export function ProposalsView({ cycle }: ProposalsViewProps): JSX.Element {
+  const records = usePanelRead<EvidenceRecord[]>(API_PATHS.records, cycle)
+  const panel: ApiRead<EvidenceRecord[]> = asApiRead(records)
   return (
     <Panel title="Proposals" read={panel}>
       {(data) => {

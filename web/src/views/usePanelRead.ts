@@ -16,6 +16,14 @@
  * answered would be a second source of truth, and a change to the API would
  * not reach it.
  *
+ * **And the read joins the workbench's cycle.** The `cycle` is the number
+ * that turns when the workbench reads again — when it is asked to, and when
+ * its answer changes. A panel that holds its own answer and ignores the
+ * cycle would draw a memory of the service that a write elsewhere had
+ * already moved on from, and the reader would believe it. So the cycle is
+ * part of the question: the same path asked in a later cycle is a later
+ * question, and it is asked again.
+ *
  * **Four states, and the first one is the panel's own.** A panel with no
  * question to ask has neither failed nor landed, and the frame's own
  * vocabulary has no word for it — so `idle` is said in the panel's words,
@@ -23,7 +31,7 @@
  * an answer, and a failure with the service's reason.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { api, describeError } from '../api/client'
 import type { ApiError } from '../api/client'
@@ -40,24 +48,9 @@ export type PanelRead<T> =
   /** The service did not answer, and this is why. */
   | { readonly kind: 'failed'; readonly error: ApiError }
 
-/** A panel's read, and the way to ask again. */
-export interface PanelReading<T> {
-  /** What the read knows. */
-  readonly read: PanelRead<T>
-  /**
-   * Ask the service again.
-   *
-   * Called after something has changed — a write the panel made, or a
-   * question the caller changed. The read happens on the next effect, so
-   * what the screen shows afterwards is the database's state and not the
-   * page's memory of the call.
-   */
-  readonly again: () => void
-}
-
 /** What the last answer was, and which question it answered. */
 interface Settled<T> {
-  /** The question the answer belongs to: the path and the asking. */
+  /** The question the answer belongs to: the path and the cycle. */
   readonly key: string
   /** The answer, or why there is none. */
   readonly answer:
@@ -87,15 +80,16 @@ export function asApiRead<T>(read: PanelRead<T>): ApiRead<T> {
  * @param path the path to read, or null when the panel has no question to
  *   ask yet. A null path is not a failure and not an empty answer: it is
  *   the panel's own state, and the panel says it in its own words.
+ * @param cycle the workbench's cycle. The same path asked in a later cycle
+ *   is a later question, and it is asked again.
  */
-export function usePanelRead<T>(path: string | null): PanelReading<T> {
-  const [asking, setAsking] = useState(0)
+export function usePanelRead<T>(path: string | null, cycle: number): PanelRead<T> {
   const [settled, setSettled] = useState<Settled<T>>({ key: '', answer: null })
 
-  // The question the answer belongs to. The asking is in the key, so a
-  // second read of the same path is a different question — and the answer
-  // on hand stops being this one's.
-  const key = path === null ? '' : `${path}#${asking}`
+  // The question the answer belongs to: the path, and the cycle it was asked
+  // in. The cycle is in the key, so the answer on hand stops being this
+  // one's as soon as the workbench reads again.
+  const key = path === null ? '' : `${path}#${cycle}`
 
   useEffect(() => {
     if (path === null) {
@@ -117,25 +111,22 @@ export function usePanelRead<T>(path: string | null): PanelReading<T> {
     return () => {
       live = false
     }
-    // The key carries the path, and the path is the only thing the read
-    // depends on. No dependency list of its own: the read is scheduled by
-    // the question, not by a change in anything else.
+    // The key carries the path and the cycle, and they are the only things
+    // the read depends on. No dependency list of its own: the read is
+    // scheduled by the question, not by a change in anything else.
   }, [key, path])
 
-  const again = useCallback(() => {
-    setAsking((count) => count + 1)
-  }, [])
-
-  const read: PanelRead<T> =
-    path === null
-      ? { kind: 'idle' }
-      : settled.key !== key
-        ? { kind: 'pending' }
-        : settled.answer === null
-          ? { kind: 'pending' }
-          : settled.answer.kind === 'failed'
-            ? { kind: 'failed', error: settled.answer.error }
-            : { kind: 'answered', data: settled.answer.data }
-
-  return { read, again }
+  if (path === null) {
+    return { kind: 'idle' }
+  }
+  if (settled.key !== key) {
+    return { kind: 'pending' }
+  }
+  if (settled.answer === null) {
+    return { kind: 'pending' }
+  }
+  if (settled.answer.kind === 'failed') {
+    return { kind: 'failed', error: settled.answer.error }
+  }
+  return { kind: 'answered', data: settled.answer.data }
 }

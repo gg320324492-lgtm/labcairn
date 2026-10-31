@@ -58,7 +58,7 @@ async function nameTheIssue(issue = ISSUE_KEY, project = PROJECT_ID): Promise<vo
 
 describe('the panel that cannot list what there is to look at', () => {
   it('says so, because a gap that is written down is a decision', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
 
     // The service has no outlet that lists the chain's issue keys, so the
     // panel can only draw an issue the caller names. A reader who found the
@@ -66,15 +66,24 @@ describe('the panel that cannot list what there is to look at', () => {
     expect(await screen.findByText(/no outlet that lists the chain/i)).toBeInTheDocument()
   })
 
+  it('says that the chain carries no time, because a reader would ask', async () => {
+    render(<TrajectoryView cycle={0} />)
+
+    // The chain's rows carry no timestamp and no sequence, so the panel
+    // shows none. A reader who found a comment with no date and no note
+    // about it would assume the panel had dropped one.
+    expect(await screen.findByText(/carry no time and no sequence/)).toBeInTheDocument()
+  })
+
   it('asks for nothing until an issue is named', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
 
     expect(await screen.findByText(/No issue has been named/)).toBeInTheDocument()
     expect(fake.requests.filter((request) => request.url.includes('/trajectory'))).toHaveLength(0)
   })
 
   it('asks the service for the issue the caller named', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     await waitFor(() => {
@@ -85,7 +94,7 @@ describe('the panel that cannot list what there is to look at', () => {
 
 describe('the trajectory it draws', () => {
   it('draws the comment, its anchor, its version and its states', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     const comment = await screen.findByText('Name the method before its result.')
@@ -100,7 +109,7 @@ describe('the trajectory it draws', () => {
   })
 
   it('draws the edits that answered the comment, with their own fields', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     const edit = await screen.findByText('student')
@@ -113,7 +122,7 @@ describe('the trajectory it draws', () => {
   })
 
   it('draws a comment no edit answers, as one no edit answers', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     const comment = await screen.findByText('Say which core the depth came from.')
@@ -125,7 +134,7 @@ describe('the trajectory it draws', () => {
     // send one that answers no comment. The contract says the field may be
     // null, so the panel's handling of it is watched rather than assumed.
     fake.serveLooseEdits = true
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     expect(await screen.findByText('Changes the answer ties to no comment')).toBeInTheDocument()
@@ -135,7 +144,7 @@ describe('the trajectory it draws', () => {
 
 describe('the versions it draws', () => {
   it('asks the project graph about the versions the comments name', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     await waitFor(() => {
@@ -159,7 +168,7 @@ describe('the versions it draws', () => {
   })
 
   it('says the versions are a set and the edges are the only order', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     const panel = (await screen.findByRole('heading', { name: 'Version graph' })).closest('section')
@@ -168,7 +177,7 @@ describe('the versions it draws', () => {
   })
 
   it('draws the accepted edges as the pairs the contract carries', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
 
     const edge = await screen.findByText('v1 \u2192 v2')
@@ -176,9 +185,28 @@ describe('the versions it draws', () => {
   })
 })
 
+describe('the workbench cycle', () => {
+  it('reads again when the workbench reads again', async () => {
+    // A comment the advisor wrote after the panel last looked must be on
+    // the screen when the page refreshes, and not only after a reload.
+    const view = render(<TrajectoryView cycle={0} />)
+    await nameTheIssue()
+    await screen.findByText('Name the method before its result.')
+    const readsBefore = fake.requestsTo(`/trajectory?issue_key=${ISSUE_KEY}`).length
+
+    view.rerender(<TrajectoryView cycle={1} />)
+
+    await waitFor(() => {
+      expect(fake.requestsTo(`/trajectory?issue_key=${ISSUE_KEY}`).length).toBeGreaterThan(
+        readsBefore,
+      )
+    })
+  })
+})
+
 describe('what it does not draw', () => {
   it('draws no time, because no row of the chain carries one', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
     await screen.findByText('Name the method before its result.')
 
@@ -189,7 +217,7 @@ describe('what it does not draw', () => {
   })
 
   it('draws no record the contract did not carry', async () => {
-    render(<TrajectoryView />)
+    render(<TrajectoryView cycle={0} />)
     await nameTheIssue()
     await screen.findByText('Name the method before its result.')
 
@@ -207,7 +235,7 @@ async function versionsDrawn(versionIds: string[]): Promise<string> {
     version_ids: versionIds,
     edges: [{ edge_id: 'edge-1', parent_version_id: 'v1', child_version_id: 'v2' }],
   }
-  const view = render(<TrajectoryView />)
+  const view = render(<TrajectoryView cycle={0} />)
   await nameTheIssue()
   // The answer, not the panel's pending state: two reads that differ only
   // in the order of the array must draw the same thing.

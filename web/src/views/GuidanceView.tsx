@@ -169,8 +169,28 @@ function Counterexample({
   )
 }
 
-export function GuidanceView(): JSX.Element {
-  const rules = usePanelRead<GuidanceRule[]>(API_PATHS.guidanceRules)
+interface GuidanceViewProps {
+  /**
+   * The workbench's cycle.
+   *
+   * **The panel reads again when the workbench reads again**, so a rule
+   * settled elsewhere is on the screen when the page refreshes rather than
+   * only after a reload.
+   */
+  readonly cycle: number
+  /**
+   * Ask the workbench to read again after a verdict lands.
+   *
+   * **The service's record is the answer, and this page's guess at it is
+   * not**: a verdict writes a rule and an event, so the page reads the task
+   * again rather than marking the rule settled here. The cycle turns with
+   * that read, and the panel reads its own list again with it.
+   */
+  readonly onChanged: () => void
+}
+
+export function GuidanceView({ cycle, onChanged }: GuidanceViewProps): JSX.Element {
+  const rules = usePanelRead<GuidanceRule[]>(API_PATHS.guidanceRules, cycle)
   const [userId, setUserId] = useState('')
   const [reason, setReason] = useState('')
   const [action, setAction] = useState<ActionState>(IDLE)
@@ -203,9 +223,10 @@ export function GuidanceView(): JSX.Element {
     void api.post<GuidanceRule>(guidanceRuleConfirmPath(rule.rule_id), body).then(
       () => {
         // The list is the answer, and the list is read again rather than
-        // patched: the service's record is what the screen shows.
+        // patched: the service's record is what the screen shows. The
+        // workbench reads again too, and its cycle turns with it.
         setAction(IDLE)
-        rules.again()
+        onChanged()
       },
       (error: unknown) => {
         setAction({ busy: null, outcome: classify(error) })
@@ -214,7 +235,7 @@ export function GuidanceView(): JSX.Element {
   }
 
   return (
-    <Panel title="Guidance" read={asApiRead(rules.read)}>
+    <Panel title="Guidance" read={asApiRead(rules)}>
       {(data) => (
         <>
           <p className="panel__note">
