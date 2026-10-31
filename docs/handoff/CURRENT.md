@@ -386,6 +386,17 @@ benchmark yet** -- and the old metric could not see the difference that
 matters, because 300 events in fourteen paragraphs and 300 events in three
 hundred paragraphs are both "recall 1.0" to it.
 
+**And the chain has no timestamps, which two independent readings found
+the same way.** The chain's rows carry no time and no sequence, so *"read
+them, in the order the paper was corrected"* **cannot be met from the
+contract** -- a panel can only draw the order the service answered in, and
+the only order that exists is the accepted edges'. But **the revisions
+themselves are dated** -- the reviewer's 897 carry 2025-08-08, 2025-09-04
+and the rest -- so **the order of the edits can be read and the order of
+the comments cannot.** Those two sentences together are the whole of what
+this corpus can say about time, and a product that says more than that is
+guessing.
+
 **Two mistakes in the first extraction of this corpus, both corrected.**
 The revisions were written with five fields and **without the addresses**,
 and ADR-0014 D5 says a change is anchored by *part, element path, range and
