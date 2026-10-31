@@ -39,6 +39,14 @@ export const API_PATHS = {
   sources: '/sources',
   /** The artefacts this task has produced. */
   artifacts: '/artifacts',
+  /** The ledger's records for this task, each saying whose words it is. */
+  records: '/records',
+  /** The guidance rules the memory holds, each with its counterexamples. */
+  guidanceRules: '/guidance/rules',
+  /** One issue's advisor trajectory: the comments, the edits and the states. */
+  trajectory: '/trajectory',
+  /** A paper project's versions and the accepted edges between them. */
+  trajectoryGraph: '/trajectory/graph',
 } as const
 
 /**
@@ -72,6 +80,53 @@ export function artifactContentPath(receiptId: string): string {
 /** The path of one approval's grant. */
 export function approvalGrantPath(approvalId: string): string {
   return APPROVAL_GRANT_PATH.replace('{approval_id}', encodeURIComponent(approvalId))
+}
+
+/**
+ * The template of one rule's verdict.
+ *
+ * A change, so it needs the session token — which is why it is a POST and
+ * why the client sends the token for it. The id is encoded, for the same
+ * reason the artefact's is: a path segment that carries a slash would
+ * address a different rule.
+ */
+export const GUIDANCE_RULE_CONFIRM_PATH = '/guidance/rules/{rule_id}/confirm'
+
+/** The path of one rule's verdict. */
+export function guidanceRuleConfirmPath(ruleId: string): string {
+  return GUIDANCE_RULE_CONFIRM_PATH.replace('{rule_id}', encodeURIComponent(ruleId))
+}
+
+/**
+ * One issue's advisor trajectory.
+ *
+ * **The issue is a query parameter, and it is the caller's to name.** The
+ * route takes the chain's own keys and the chain has no other outlet, so a
+ * caller that has not named an issue has nothing to ask about. The key is
+ * encoded, because a key that is not encoded is a key the service reads as
+ * something else.
+ */
+export function trajectoryPath(issueKey: string): string {
+  return `${API_PATHS.trajectory}?issue_key=${encodeURIComponent(issueKey)}`
+}
+
+/**
+ * The project's versions, and the accepted edges between them.
+ *
+ * **The versions are named, and the naming is the caller's.** The route
+ * answers with the versions the project holds *among the ones named*, so a
+ * version nobody named is a version the answer does not carry — and the
+ * panel that draws the graph says which versions it asked about.
+ *
+ * **The project is named too**, for the same reason: no route carries a
+ * project id, so the caller supplies the one it means.
+ */
+export function trajectoryGraphPath(projectId: string, versionIds: readonly string[]): string {
+  const query = [
+    `project_id=${encodeURIComponent(projectId)}`,
+    ...versionIds.map((versionId) => `version_id=${encodeURIComponent(versionId)}`),
+  ].join('&')
+  return `${API_PATHS.trajectoryGraph}?${query}`
 }
 
 /**
