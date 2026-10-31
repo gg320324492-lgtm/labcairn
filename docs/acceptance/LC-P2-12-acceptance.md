@@ -29,7 +29,7 @@ authorisation**, which has not been asked for.
 
 | # | The decision | Held by | Witnessed by |
 |---|---|---|---|
-| 1 | **A role's contract is a versioned row, and the code enforces it** — `require_allowed` for a capability, `refuse_forbidden` for an action, each refusal machine-readable; the version rides on every output through `RoleOutput` | `src/labcairn/roles/spec.py`, the `agent_role_specs` CHECKs | `test_a_role_spec_is_versioned_and_the_version_is_on_the_output`, `test_a_call_outside_the_role_spec_is_refused`, and the schema refusals by raw `INSERT` |
+| 1 | **A role's contract is a versioned row, and the code enforces it** — `require_allowed` for a capability, `refuse_forbidden` for an action, each refusal machine-readable; the version rides on every output through `RoleOutput` | `src/labcairn/roles/models.py` (the contract and its enforcement), `src/labcairn/roles/spec.py`, the `agent_role_specs` CHECKs | `test_a_role_spec_is_versioned_and_the_version_is_on_the_output`, `test_a_call_outside_the_role_spec_is_refused`, and the schema refusals by raw `INSERT` |
 | 2 | **The five forbidden actions are closed** — a sixth arrives by editing `ForbiddenAction`, not by typing it into a spec; and the module's import surface is watched, so a role holds no socket and no requests | `ForbiddenAction`, `test_a_role_holds_no_direct_path_out`'s AST check | `test_a_role_holds_no_direct_path_out`, `test_an_unknown_capability_or_action_is_refused_by_name` |
 | 3 | **A candidate is a judgement, never a fact**: `TrajectoryCandidate` has no `comment_locator` field — the shape itself refuses — and the advisor's words must sit verbatim on the chain | `src/labcairn/roles/trajectory.py` | `test_role_a_proposes_judgements_and_never_facts` |
 | 4 | **The version order is walked, not spelled**: only accepted edges, Kahn's order; a version outside the graph and a fork are refused rather than ordered by file name | `order_versions` | `test_role_a_does_not_order_versions_by_name_or_invent_a_round` |
@@ -38,6 +38,15 @@ authorisation**, which has not been asked for.
 | 7 | **A verdict enters the ledger at the grade its evidence supports** — every review verdict is `inferred`, and the review writes no store row at all (counted, not asserted); the counter-evidence is **C's own retrieval**, not a field B filled in | `REVIEW_GRADE`, `review_card`, `search_rules` | `test_a_verdict_does_not_promote_a_proposal`, `test_role_c_reads_the_sources_and_its_own_counterevidence` |
 | 8 | **The routing is data**: the tables are parameters, the kind vocabulary is closed (there is no swarm), and every role runs for a recorded reason; a cost ceiling that is not priced refuses, and a retry is the same plan | `ROUTING_TABLE`, `ESCALATION_TABLE`, `prepare_invocation`, `retry` | `test_the_roles_that_run_are_the_ones_the_request_needed`, `test_an_unmeasurable_cost_refuses_and_a_retry_does_not_pay_twice` |
 | 9 | **A person decides, and the decision is audited**: the ledger appends and cannot edit — a change of mind is a second record | `DecisionLedger`, `record_human_decision` | `test_a_human_decision_on_a_card_is_audited` |
+
+**And where the rows are reached.** The contract's table and the chain's own
+facts are read and written through the application layer —
+`src/labcairn/application/roles.py` for the contracts,
+`src/labcairn/application/chain.py` for the comments, the changes, the
+judgements and the accepted edges — so the mentor line is reached in one place
+and a guard applied there reaches every caller. **The contract itself is data**
+in `src/labcairn/roles/models.py`, below both, because the layer answers with a
+contract and the contract's own lifecycle calls the layer.
 
 ## 2. What the schema refuses, and how that is witnessed
 

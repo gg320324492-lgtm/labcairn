@@ -109,7 +109,27 @@ as `user_attested`, and the proposal is superseded by it and **kept**. What
 a report cites is the person's word, and the model's answer is beside it,
 marked, and attributable to the model that said it.
 
+**The store boundary is fixed, and the witness is green.** Seven domain
+modules — `labcairn.guidance.{rules,retrieval,distil}` and
+`labcairn.roles.{spec,guidance,critique,trajectory}` — read the store
+directly, outside the application layer, and the repository's own witness
+said so. **The application layer owns those reads and writes now**:
+`src/labcairn/application/guidance.py` for the memory's rules,
+`src/labcairn/application/roles.py` for the role contracts, and
+`src/labcairn/application/chain.py` for the chain's own facts. **The rules
+about words and people did not move**: the closed vocabulary, the second
+reader and the reason a dispute must carry are still where they were, and
+the *transitions* are the layer's, because a row may not hold a state the
+memory forbids. Fourteen new operations are witnessed one each in
+`tests/test_application_layer.py`, and the companion witness now proves
+that the three new layer modules really do reach the store, so the
+recorded set cannot become a set that says nothing.
+
 **What is still red, and what it needs.** One witness in the CI is still
+red, and it is not a repair: the shard costs were measured before this
+branch's changes, so the shard-coverage witness asks for a measurement of
+the tree as it is now. **That is what the push buys** — the runner's own
+log, re-measured against the tree that carries this work.
 red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
 _it` says that six domain modules — `labcairn.guidance.{rules,retrieval,
 distil}` and `labcairn.roles.{spec,guidance,critique}` — read the store

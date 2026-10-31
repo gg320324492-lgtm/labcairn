@@ -38,7 +38,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from sqlalchemy.exc import IntegrityError
 from test_analysis_report_render import (
@@ -87,17 +89,29 @@ from labcairn.application import (
     resolve_abandoned,
     run_stage,
 )
+from labcairn.application import chain as chain_layer
+from labcairn.application import guidance as guidance_layer
 from labcairn.application import records as records_layer
 from labcairn.application import reports as report_layer
+from labcairn.application import roles as roles_layer
 from labcairn.application.events import MAX_EVENT_LIMIT, MIN_EVENT_LIMIT
 from labcairn.application.reports import ReportRequest
 from labcairn.core.ids import ApprovalId, OperationId, RunId, SourceId, TaskId, new_id
 from labcairn.db.materials import ExtractedTextRow, put_source, put_source_texts
+from labcairn.db.models import (
+    AgentRoleSpecRow,
+    EditActionRow,
+    GuidanceRuleCounterexampleRow,
+    GuidanceRuleRow,
+    GuidanceRuleSourceRow,
+    ResponseLinkRow,
+)
 from labcairn.db.repository import count_events, events_after, list_operations
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
 from labcairn.evidence.store import append_record
 from labcairn.material.addressing import render_locator_key
+from labcairn.papers.feedback import FeedbackEvent, record_feedback, set_issue_key
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -105,6 +119,7 @@ from labcairn.reports.receipt import (
     DerivationRef,
     DerivationTargetKind,
 )
+from labcairn.roles.models import FORBIDDEN_ACTIONS
 from labcairn.runtime.event import Event, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import Stage, StageStatus, TaskGoal
 from labcairn.runtime.operation import ApprovalState, Operation, OperationState
@@ -321,6 +336,15 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.application.artifacts",
         "labcairn.application.context",
         "labcairn.application.events",
+        # The mentor line's layer: the guidance memory's rules, the role
+        # contracts, and the chain's own facts. They are the operations the
+        # mentor line's modules call, so the memory, the contracts and the
+        # chain are reached in one place and a guard applied there reaches
+        # every caller -- which is what LC-P2-11 and LC-P2-12's own modules
+        # no longer being in this list means.
+        "labcairn.application.chain",
+        "labcairn.application.guidance",
+        "labcairn.application.roles",
         # A layer operation like the readers beside it: it answers through the
         # store's own readers and writes through ``db.materials``, and its
         # import of ``LOCAL_USER_ID`` is the actor of a surface operation.
@@ -409,11 +433,22 @@ def test_the_layer_itself_reads_and_writes_through_the_store(repo_root: Path) ->
 
     Without this, a layer that stopped touching the store would satisfy the
     guard above for the wrong reason.
+
+    **And the mentor line's own layer is in the set.** The three modules
+    that hold the guidance memory's rules, the role contracts and the
+    chain's facts are named in the recorded set above, and **a recorded
+    name that reached nothing would be a recorded name that says nothing**:
+    a layer operation that stopped touching the store would leave the
+    guard satisfied for the wrong reason, exactly as an emptied layer
+    would.
     """
     touching = _modules_touching_the_store(repo_root)
     assert "labcairn.application.events" in touching
     assert "labcairn.application.records" in touching
     assert "labcairn.application.tasks" in touching
+    assert "labcairn.application.chain" in touching
+    assert "labcairn.application.guidance" in touching
+    assert "labcairn.application.roles" in touching
 
 
 # --------------------------------------------------------------------------- #
@@ -2882,3 +2917,459 @@ def test_reconcile_refuses_a_value_that_is_not_a_digest_and_a_settled_operation(
     assert settled.value.reason is ApplicationRefusal.OPERATION_NOT_UNCERTAIN, (
         "an authorised operation was never attempted, so there is no doubt to answer"
     )
+
+
+# --------------------------------------------------------------------------- #
+# the mentor line's layer operations
+# --------------------------------------------------------------------------- #
+
+
+#: The key the mentor line's chain material is filed under.
+_MENTOR_KEY = "iss-gold-a-r1"
+
+#: What the rule the tests below write says.
+_RULE_STATEMENT = (
+    "When the claim rests on a comparison, the advisor asks for the baseline to be named."
+)
+
+
+@dataclass(frozen=True)
+class _MentorChain:
+    """A chain with a keyed comment, the change that answered it, and the judgement."""
+
+    context: ApplicationContext
+    chain: ChainEnv
+    comment: FeedbackEvent
+    edit_action_id: str
+    response_link_id: str
+
+
+@pytest.fixture()
+def mentor_chain(env: StoreEnv, tmp_path: Path) -> _MentorChain:
+    """A chain with a comment under a key, a change answering it, and a judgement.
+
+    **The comment comes from the reader** -- the chain's own operation
+    records it, because that is what puts the advisor's words in the
+    chain -- **and the judgement is written by hand**, because writing the
+    judgement *is* the judgement.
+    """
+    workspace_root = tmp_path / "mentor-workspace"
+    workspace_root.mkdir()
+    chain = build_chain(env.store(), workspace_root, comments=(a_comment("201"),))
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=_MOMENT,
+    )
+    comment = set_issue_key(
+        chain.context,
+        feedback_id=events[0].feedback_id,
+        issue_key=_MENTOR_KEY,
+        now=_MOMENT,
+    )
+    session = chain.context.store.session
+    edit_action_id = "edit-201"
+    session.add(
+        EditActionRow(
+            edit_action_id=edit_action_id,
+            feedback_id=comment.feedback_id,
+            version_edge_id=chain.edge_id,
+            actor_kind="student",
+            grade="observed",
+            created_at=_MOMENT,
+        )
+    )
+    response_link_id = "resp-r1"
+    session.add(
+        ResponseLinkRow(
+            response_link_id=response_link_id,
+            feedback_id=comment.feedback_id,
+            edit_action_id=edit_action_id,
+            state="addressed",
+            grade="human_verified",
+            decided_by="user",
+            decided_at=_MOMENT,
+            evidence_refs=[f"check:{_MENTOR_KEY}"],
+            created_at=_MOMENT,
+        )
+    )
+    session.flush()
+    return _MentorChain(
+        context=chain.context,
+        chain=chain,
+        comment=comment,
+        edit_action_id=edit_action_id,
+        response_link_id=response_link_id,
+    )
+
+
+def _rule_draft(rule_id: str = "rule-1", version: int = 1) -> guidance_layer.RuleDraft:
+    """A rule's fields, as the layer's write takes them."""
+    return guidance_layer.RuleDraft(
+        rule_id=rule_id,
+        version=version,
+        issue_type="method_and_hypothesis",
+        statement=_RULE_STATEMENT,
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        proposed_by="distil-run-7",
+        sources=(_MENTOR_KEY,),
+        proposed_at=_MOMENT,
+    )
+
+
+def _spec_draft(role_id: str = "trajectory", role_version: int = 1) -> roles_layer.RoleSpecDraft:
+    """A role's contract, as the layer's write takes it."""
+    return roles_layer.RoleSpecDraft(
+        role_id=role_id,
+        role_version=role_version,
+        objective="Align the advisor's comments with the edits actually made.",
+        input_schema="TrajectoryInput",
+        output_schema="TrajectoryCandidate",
+        allowed_capabilities=(CapabilityId.SOURCE_READ,),
+        forbidden_actions=FORBIDDEN_ACTIONS,
+        allowed_data_purposes=("guidance_review",),
+        provider_routing_policy="none",
+        cost_budget=None,
+        token_budget=1,
+        timeout_seconds=60,
+        retry_policy="no-retry",
+        fallback_policy="abstain",
+        abstain_conditions=("material_under_two_comments",),
+        escalation_conditions=("a_fork_in_the_graph",),
+        prompt_template_version="trajectory-v1",
+        model_config_ref="configs/model.json",
+        defined_at=_MOMENT,
+    )
+
+
+# -- the chain's facts ------------------------------------------------------ #
+
+
+def test_the_layer_reads_the_chains_comments_for_the_keys_it_is_given(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The chain's comments are read by key, and a key with none gives none.
+
+    **The key is the filter, and nothing else is.** A comment filed under
+    another key is not the one that was asked for, and a key the chain
+    holds nothing under is an empty answer rather than somebody else's
+    comment.
+    """
+    found = chain_layer.read_comments(mentor_chain.context, issue_keys=[_MENTOR_KEY])
+    assert [comment.feedback_id for comment in found] == [mentor_chain.comment.feedback_id]
+    assert found[0].comment_text == mentor_chain.comment.comment_text
+    assert found[0].version_id == mentor_chain.chain.version_id
+    assert found[0].anchor_text == mentor_chain.comment.anchor_text
+    assert chain_layer.read_comments(mentor_chain.context, issue_keys=["iss-nowhere"]) == ()
+
+
+def test_the_layer_reads_the_changes_that_answer_the_comments_it_is_given(
+    mentor_chain: _MentorChain,
+) -> None:
+    """A change is read by the comment it answers, and by nothing else.
+
+    **Who made the change and how good it is come back with it**, because
+    a reader that could not tell a student's change from a model's would
+    be reading the actor out of nothing.
+    """
+    found = chain_layer.read_edits(
+        mentor_chain.context, feedback_ids=[mentor_chain.comment.feedback_id]
+    )
+    assert [edit.edit_action_id for edit in found] == [mentor_chain.edit_action_id]
+    assert found[0].feedback_id == mentor_chain.comment.feedback_id
+    assert found[0].actor_kind == "student"
+    assert found[0].grade == "observed"
+    assert chain_layer.read_edits(mentor_chain.context, feedback_ids=["fb-nowhere"]) == ()
+
+
+def test_the_layer_reads_the_judgements_states_and_nothing_else(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The state is the judgement, and the layer reports the states the chain holds.
+
+    **Which states count as standing is the caller's rule**, so the layer
+    reports the four states the schema closes and decides nothing among
+    them.
+    """
+    states = chain_layer.read_response_states(
+        mentor_chain.context, feedback_ids=[mentor_chain.comment.feedback_id]
+    )
+    assert states == ("addressed",)
+    assert chain_layer.read_response_states(mentor_chain.context, feedback_ids=["fb-nowhere"]) == ()
+
+
+def test_the_layer_reads_the_material_a_version_was_made_from(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The path is the workspace-relative spelling, and a version with none is absent.
+
+    **The path is what the permission layer is asked about**, so it is the
+    spelling
+    :meth:`~labcairn.application.context.ApplicationContext.resource_for`
+    resolves -- and a version whose material the ledger does not hold
+    names no path at all.
+    """
+    paths = chain_layer.read_material_paths(
+        mentor_chain.context, version_ids=[mentor_chain.chain.version_id]
+    )
+    assert list(paths) == [mentor_chain.chain.version_id]
+    assert paths[mentor_chain.chain.version_id].endswith("manuscript.docx")
+    assert chain_layer.read_material_paths(mentor_chain.context, version_ids=["ver-nowhere"]) == {}
+
+
+def test_the_layer_reads_the_projects_graph_and_only_its_accepted_edges(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The versions the project holds, and the accepted edges between the ones named.
+
+    **An edge between two versions the caller did not name says nothing
+    about the order the caller asked for**, so it is not in the answer;
+    and a version the project does not hold is absent rather than
+    reported as a round nobody has.
+    """
+    graph = chain_layer.read_project_graph(
+        mentor_chain.context,
+        project_id=mentor_chain.chain.project_id,
+        version_ids=("ver-1", "ver-2"),
+    )
+    assert graph.version_ids == frozenset({"ver-1", "ver-2"})
+    assert [(edge.parent_version_id, edge.child_version_id) for edge in graph.edges] == [
+        ("ver-1", "ver-2")
+    ]
+    alone = chain_layer.read_project_graph(
+        mentor_chain.context,
+        project_id=mentor_chain.chain.project_id,
+        version_ids=("ver-1",),
+    )
+    assert alone.version_ids == frozenset({"ver-1"})
+    assert alone.edges == ()
+
+
+# -- the guidance memory's rules --------------------------------------------- #
+
+
+def test_the_layer_reads_a_rule_with_its_sources_and_its_cases(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The rule comes back whole, and a rule that is not there is refused.
+
+    **The cases come back in the same read** -- a counterexample is part
+    of the answer, and a reader that had to ask twice could be answered
+    twice differently.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft())
+    guidance_layer.write_guidance_counterexample(
+        context,
+        rule_id="rule-1",
+        statement="The ablation paragraph of 2026-03-09 named its baseline.",
+        recorded_by="reader-2",
+        recorded_at=_MOMENT,
+        issue_key=None,
+    )
+    found = guidance_layer.read_guidance_rule(context, rule_id="rule-1")
+    assert found.version == 1
+    assert found.state == "candidate"
+    assert found.sources == (_MENTOR_KEY,)
+    assert [case.recorded_by for case in found.counterexamples] == ["reader-2"]
+    with pytest.raises(ApplicationRefusedError) as absent:
+        guidance_layer.read_guidance_rule(context, rule_id="rule-nowhere")
+    assert absent.value.reason is ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND
+
+
+def test_the_layer_reads_the_highest_version_of_every_rule(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The memory keeps its past, and the read serves each rule's newest words.
+
+    **The old rows stay in the table and out of the answer**, so a rule
+    that has been reworded comes back once, at its highest version.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft("rule-1", 1))
+    guidance_layer.write_guidance_rule_version(context, _rule_draft("rule-1", 2))
+    guidance_layer.write_guidance_rule_version(context, _rule_draft("rule-2", 1))
+    found = guidance_layer.read_guidance_rules(context)
+    assert sorted((rule.rule_id, rule.version) for rule in found) == [
+        ("rule-1", 2),
+        ("rule-2", 1),
+    ]
+
+
+def test_the_layer_writes_a_rule_version_with_its_source_bindings(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The row and its source bindings are written, and the rule lands as a candidate.
+
+    **A rule whose sources were not bound would be a rule nobody can
+    check**, so the bindings are part of the write and not a separate act
+    that a caller could forget.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    written = guidance_layer.write_guidance_rule_version(context, _rule_draft())
+    assert written.state == "candidate"
+    assert written.sources == (_MENTOR_KEY,)
+    session = context.store.session
+    row = session.get(GuidanceRuleRow, ("rule-1", 1))
+    assert row is not None
+    assert row.statement == _RULE_STATEMENT
+    assert row.context == "A results section whose claim is comparative."
+    bindings = session.scalars(
+        select(GuidanceRuleSourceRow.issue_key).where(GuidanceRuleSourceRow.rule_id == "rule-1")
+    ).all()
+    assert list(bindings) == [_MENTOR_KEY]
+
+
+def test_the_layer_confirms_a_candidate_and_refuses_anything_else(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """Only a candidate can be confirmed, and the confirmation names who and when.
+
+    **The closed state machine is the layer's to refuse** (ADR-0016 D8): a
+    rule that has already been confirmed is not a proposal any more, and
+    confirming it again would overwrite a decision rather than make one.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft())
+    confirmed = guidance_layer.write_guidance_rule_confirmation(
+        context, rule_id="rule-1", confirmed_by="the-advisor", confirmed_at=_MOMENT
+    )
+    assert confirmed.state == "confirmed"
+    assert confirmed.confirmed_by == "the-advisor"
+    assert confirmed.confirmed_at == _MOMENT
+    with pytest.raises(ApplicationRefusedError) as twice:
+        guidance_layer.write_guidance_rule_confirmation(
+            context, rule_id="rule-1", confirmed_by="reader-3", confirmed_at=_MOMENT
+        )
+    assert twice.value.reason is ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE
+
+
+def test_the_layer_disputes_a_rule_and_refuses_a_withdrawn_one(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A dispute carries its reason and names who made it.
+
+    **A withdrawn rule cannot be disputed**: a retraction says the rule
+    stopped being true, and disputing it after the fact would put two
+    answers on one row.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft())
+    disputed = guidance_layer.write_guidance_rule_resolution(
+        context,
+        rule_id="rule-1",
+        reason="The corpus case where it did not hold.",
+        disputed_by="reader-2",
+        now=_MOMENT,
+    )
+    assert disputed.state == "disputed"
+    assert disputed.resolution_reason == "The corpus case where it did not hold."
+    assert disputed.confirmed_by == "reader-2"
+    guidance_layer.write_guidance_rule_withdrawal(
+        context, rule_id="rule-1", reason="The source was re-judged."
+    )
+    with pytest.raises(ApplicationRefusedError) as late:
+        guidance_layer.write_guidance_rule_resolution(
+            context, rule_id="rule-1", reason="after the fact", disputed_by="r", now=_MOMENT
+        )
+    assert late.value.reason is ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE
+
+
+def test_the_layer_withdraws_a_rule_once_and_refuses_the_second(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A withdrawal carries its reason, and the reason is not overwritten.
+
+    **The reason is what makes the retraction learnable**, so the second
+    withdrawal is refused rather than replacing the first reason with a
+    new one.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft())
+    withdrawn = guidance_layer.write_guidance_rule_withdrawal(
+        context, rule_id="rule-1", reason="The source response was re-judged."
+    )
+    assert withdrawn.state == "withdrawn"
+    assert withdrawn.resolution_reason == "The source response was re-judged."
+    with pytest.raises(ApplicationRefusedError) as twice:
+        guidance_layer.write_guidance_rule_withdrawal(
+            context, rule_id="rule-1", reason="a second reason"
+        )
+    assert twice.value.reason is ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE
+    kept = guidance_layer.read_guidance_rule(context, rule_id="rule-1")
+    assert kept.resolution_reason == "The source response was re-judged."
+
+
+def test_the_layer_records_a_counterexample_against_the_rules_version(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The case is bound to the version it challenged, and it comes back with the rule.
+
+    **A rule that is later reworded keeps the cases recorded against the
+    wording they challenged**, so the case lands on the version that was
+    current when it was recorded.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    guidance_layer.write_guidance_rule_version(context, _rule_draft("rule-1", 1))
+    guidance_layer.write_guidance_rule_version(context, _rule_draft("rule-1", 2))
+    guidance_layer.write_guidance_counterexample(
+        context,
+        rule_id="rule-1",
+        statement="The case.",
+        recorded_by="reader-2",
+        recorded_at=_MOMENT,
+        issue_key=_MENTOR_KEY,
+    )
+    session = context.store.session
+    cases = session.scalars(
+        select(GuidanceRuleCounterexampleRow).where(
+            GuidanceRuleCounterexampleRow.rule_id == "rule-1"
+        )
+    ).all()
+    assert [(case.version, case.issue_key) for case in cases] == [(2, _MENTOR_KEY)]
+
+
+# -- the role contracts ----------------------------------------------------- #
+
+
+def test_the_layer_writes_and_reads_a_role_contract(env: StoreEnv, workspace_root: Path) -> None:
+    """The contract lands as a row and comes back as the contract.
+
+    **The vocabularies are the code's**, so the read gives back the
+    registered capability and the forbidden actions the architecture
+    closes -- and a contract that is not there is refused by name.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    written = roles_layer.write_role_spec(context, _spec_draft())
+    assert written.role_id == "trajectory"
+    assert written.role_version == 1
+    assert written.allowed_capabilities == (CapabilityId.SOURCE_READ,)
+    assert written.forbidden_actions == FORBIDDEN_ACTIONS
+    found = roles_layer.read_role_spec(context, role_id="trajectory")
+    assert found == written
+    with pytest.raises(ApplicationRefusedError) as absent:
+        roles_layer.read_role_spec(context, role_id="nowhere")
+    assert absent.value.reason is ApplicationRefusal.ROLE_SPEC_NOT_FOUND
+
+
+def test_the_layer_refuses_a_second_contract_for_the_same_role_and_version(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A new contract is a new version, not an overwrite of the old one.
+
+    **The terms that were there keep the terms they had**: the second
+    write is refused by name, and the row the first write left is
+    unchanged.
+    """
+    context = _make_context(env, workspace_root, _allow_all())
+    roles_layer.write_role_spec(context, _spec_draft())
+    with pytest.raises(ApplicationRefusedError) as taken:
+        roles_layer.write_role_spec(context, _spec_draft())
+    assert taken.value.reason is ApplicationRefusal.ROLE_SPEC_ALREADY_DEFINED
+    row = context.store.session.get(AgentRoleSpecRow, ("trajectory", 1))
+    assert row is not None
+    assert json.loads(row.allowed_capabilities) == [CapabilityId.SOURCE_READ.value]
+    assert json.loads(row.forbidden_actions) == [action.value for action in FORBIDDEN_ACTIONS]
