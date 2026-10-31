@@ -1,6 +1,76 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
+real request went through, and the pilot's readers are three independent
+sessions.**
+
+**The first real model request is done.** A request with a schema, against
+the owner's own MiniMax endpoint, under an approval a person granted,
+with the ceiling the owner set: **one request, four thousand tokens, and
+no money ceiling** (MiniMax has no price table, and a money ceiling nobody
+can measure fails closed — it would have refused the request). The
+transmit gate refused twice before it permitted anything, and each
+refusal named its remedy: the grant's scope did not reach the material,
+and then the approval's task scope did not match. **The answer was
+decoded against the schema it was asked for, the approval was consumed
+exactly once, and the exchange landed with digests and counts and the
+credential by its fingerprint** — the token counts are *known* for the
+first time against a real provider, which is the fourth probe defect
+fixed. Three earlier approvals were granted and never spent, because
+every refusal happened before the spend. **The request deliberately
+carried no manuscript**: the owner chose a material-free first request,
+and the model answered honestly — *"No manuscript or revision materials
+were provided for evaluation."* The pilot's task book is
+`docs/plans/PHASE_2-pilot-task-breakdown.md`.
+
+**The material is in a library of its own, outside the repository.**
+`E:\labcairn-local\materials-library` holds the owner's paper: the
+versions under descriptive names (`v03-chinese-draft.docx`,
+`v05b-variant-1-chinese-draft.docx`, `en-translation-copy-v09.pdf`), the
+advisor's comments and the tracked revisions **extracted per version**
+with the product's own OOXML reader, the annotation guide beside them,
+the untouched archive, and a manifest recording every file's original
+name, size and SHA-256. **Nothing of the paper is in the repository, and
+the two stale Office lock files were kept rather than deleted.** The
+advisor's comments are where the pilot's work is: version 8's are
+pasted references, and versions 3, 4, 4(2) and 5(1) carry the real
+critique — *"缺少量化数据…一定要用数据体现"*, *"这部分不要放到这里了，放到讨论
+中吧"* — alongside a few whose reading is genuinely arguable, which is
+where a blind-reading number has meaning.
+
+**The pilot's readers are three independent sessions** — two blind
+readers and a third, the arbiter — each in its own directory, blind to
+each other's work, and each working the corpus by a different route: one
+by the taxonomy, one by the requirement first and the label second. **This
+is the arrangement the annotation guide already used for the gold set**,
+and §1.0 of that guide says what the number is and is not: it measures
+**how far two independent readings of the same material converge**, and
+**not how far two people would agree**. The pilot's record will say the
+same, where it reports the number.
+
+**The branch's own reds are three, and two are repaired.** `mypy
+--strict` over `src` and `tests` was red on ten counts, all in LC-P2-11's
+and LC-P2-12's own test files; the checked-in TypeScript contract had not
+been regenerated since LC-P2-01 added the `model_exchanged` event; and
+twelve new test files were in **no gate class**, so the evaluation
+harness reported their cases as entering no denominator. The first is
+fixed, the second is regenerated, and the third is filed — each file under
+the class its own marker declares and the protocol clause its cases
+actually demonstrate. **All three were failing the CI that had already
+run**: the first run stopped at `mypy --strict` with its pytest step
+skipped, so nobody had seen the other two.
+
+**What is still red, and what it needs.** One witness in the CI is still
+red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
+_it` says that six domain modules — `labcairn.guidance.{rules,retrieval,
+distil}` and `labcairn.roles.{spec,guidance,critique}` — read the store
+directly, outside the application layer, and **nothing in the product
+calls them yet**. The remedy is application-layer operations that own
+those reads, which is LC-P2-11's and LC-P2-12's scope and **the next
+piece of work**, not a repair to bolt on. The shard-cost witness waits on
+the runner measurement this push buys.
+
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 live probe ran, and it found four defects in the provider layer.** The
 pilot's probe against the operator's own OpenAI-compatible endpoint (the
 model the operator named, the credential in a file outside the repository)
@@ -148,7 +218,6 @@ records are local until then.
 **Where the branch stands.** `main` is at `da470bb`; this branch carries
 LC-P2-10, LC-P2-11, LC-P2-12 and LC-P2-01 and is pushed, with no pull
 request opened beyond #133, which the owner has yet to merge.
-
 **Decisions waiting for the owner** (each is a message, not a blocker):
 (a) the push, and the merge of PR #133 — the four work orders ride one
 branch; (b) the shard re-measurement against the next run's logs; (c)
