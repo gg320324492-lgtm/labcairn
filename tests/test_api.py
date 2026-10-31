@@ -39,6 +39,7 @@ import logging
 import os
 import secrets
 from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
+from feedback_chain_fixtures import PARAGRAPH, ChainEnv, a_comment, build_chain
 from sqlalchemy import Connection, Engine, select, text
 from sqlalchemy import event as sa_event
 from sqlalchemy.exc import OperationalError
@@ -68,15 +70,30 @@ from labcairn.api.typescript import render_types
 from labcairn.application import (
     ApplicationContext,
     ApplicationRefusedError,
+    ClaimRequest,
+    RuleDraft,
+    attest_claim,
     create_task,
     ingest_material,
+    list_source_addresses,
+    list_sources,
     read_task_state,
+    record_claim,
+    record_model_proposal,
+    write_guidance_counterexample,
+    write_guidance_rule_version,
 )
 from labcairn.application.refusal import ApplicationRefusal
 from labcairn.core.ids import TaskId, new_id
 from labcairn.db import create_db_engine
-from labcairn.db.models import TaskRow
+from labcairn.db.models import (
+    EditActionRow,
+    ResponseLinkRow,
+    TaskRow,
+    VersionEdgeRow,
+)
 from labcairn.db.repository import events_after
+from labcairn.papers.feedback import record_feedback, set_issue_key
 from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import TaskGoal
@@ -98,6 +115,13 @@ FOREIGN_ORIGIN = "https://evil.example"
 
 #: A moment far enough ahead that an approval asked for now has not lapsed.
 _FUTURE = datetime(2027, 1, 1, tzinfo=UTC)
+
+#: The one moment the mentor line's tests write. **No wall clock**, for the
+#: project's reason.
+_MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+
+#: The material the ledger's tests record claims against.
+_CSV_TEXT = "group,mean\ncontrol,4.253\ntreated,5.101\n"
 
 
 # --------------------------------------------------------------------------- #
@@ -318,6 +342,10 @@ def test_the_origin_check_covers_every_route(client: TestClient) -> None:
         "/sources",
         "/artifacts",
         "/events",
+        "/trajectory",
+        "/trajectory/graph",
+        "/guidance/rules",
+        "/records",
     ):
         response = client.get(path, headers={"Origin": FOREIGN_ORIGIN})
         assert response.status_code == 403, f"{path} was served to a foreign origin"
@@ -1385,6 +1413,12 @@ def test_the_contract_names_the_layer_s_response_models() -> None:
         "EventStreamPage",
         "Event",
         "RefusalBody",
+        # The mentor line's own objects. They are the layer's, and the
+        # routes serve them as they are.
+        "ChainComment",
+        "ChainEdit",
+        "ChainEdge",
+        "ProjectGraph",
     ):
         assert name in schemas, f"{name} is not in the contract"
 
@@ -1503,6 +1537,17 @@ def test_the_api_package_calls_the_layer_and_nothing_else(
         "grant_approval",
         "consume_approval",
         "run_stage",
+        # The mentor line's three outlets. The chain's facts, the rule
+        # memory's rules and the task's own evidence records, each read
+        # through the layer — so a guard applied to one of them reaches
+        # this route as well as every other caller.
+        "read_comments",
+        "read_edits",
+        "read_response_states",
+        "read_project_graph",
+        "read_guidance_rule",
+        "read_guidance_rules",
+        "list_task_records",
     }
     called = {name for name in dir(routes) if name in layer and callable(getattr(routes, name))}
     assert called == layer, f"the routes do not call every layer operation: {layer - called}"
@@ -1925,3 +1970,439 @@ def test_an_analysis_run_reaches_the_layer_and_returns_its_reason(
     )
     assert response.status_code == 403, response.text
     assert response.json()["reason"] == ApplicationRefusal.RECIPE_UNREADABLE.value
+
+
+# --------------------------------------------------------------------------- #
+# the mentor line's three outlets
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def chain(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A chain: a manuscript with a comment, a project, two versions, an accepted edge.
+
+    **The chain's rows belong to a paper project, not to a task.** The
+    scaffolding is the one the chain's own tests use, so the rows this
+    route serves are rows the product wrote rather than rows a test made
+    up — and the version graph they hang on is a real accepted edge.
+    """
+    return build_chain(env.store(), workspace_root, comments=(a_comment("201"),))
+
+
+@pytest.fixture
+def chain_client(chain: ChainEnv) -> Iterator[TestClient]:
+    """A client over the chain's own task."""
+    app = create_app(chain.context, event_source=_StoreEventSource())
+    with TestClient(app) as wired:
+        yield wired
+
+
+@pytest.fixture
+def ledger_context(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
+    """A task whose material has been ingested, so the ledger can hold records."""
+    (workspace_root / "materials" / "groups.csv").write_text(_CSV_TEXT, encoding="utf-8")
+    context = _make_context(env, workspace_root)
+    ingest_material(context)
+    return context
+
+
+@pytest.fixture
+def ledger_client(ledger_context: ApplicationContext) -> Iterator[TestClient]:
+    """A client over the task whose ledger holds records."""
+    app = create_app(ledger_context, event_source=_StoreEventSource())
+    with TestClient(app) as wired:
+        yield wired
+
+
+def _the_advisor_s_comment(chain: ChainEnv, *, issue_key: str) -> str:
+    """The advisor's comment, read out of the manuscript and keyed.
+
+    **The product's own path, not a row made up here.** The reader reads
+    the comment out of the file and the key is given afterwards, so the row
+    the route serves is a row the product wrote — with the words, the
+    anchor and the key in it.
+
+    :returns: the comment's own id.
+    """
+    (event,) = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=_MOMENT,
+    )
+    set_issue_key(
+        chain.context,
+        feedback_id=event.feedback_id,
+        issue_key=issue_key,
+        now=_MOMENT,
+    )
+    return event.feedback_id
+
+
+def _the_edit(chain: ChainEnv, *, feedback_id: str, edit_action_id: str) -> EditActionRow:
+    """The change made in answer to that comment."""
+    return EditActionRow(
+        edit_action_id=edit_action_id,
+        feedback_id=feedback_id,
+        version_edge_id=chain.edge_id,
+        actor_kind="student",
+        actor_id=None,
+        grade="observed",
+        created_at=_MOMENT,
+    )
+
+
+def _the_response(*, feedback_id: str, edit_action_id: str) -> ResponseLinkRow:
+    """The judgement that the change answered the comment."""
+    return ResponseLinkRow(
+        response_link_id="link-1",
+        feedback_id=feedback_id,
+        edit_action_id=edit_action_id,
+        state="addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=_MOMENT,
+        evidence_refs=[edit_action_id],
+        created_at=_MOMENT,
+    )
+
+
+def test_the_trajectory_route_carries_the_chain_s_own_facts(
+    chain: ChainEnv, chain_client: TestClient
+) -> None:
+    """The first outlet: the advisor's comments, the edits, and the responses.
+
+    **The words and the anchor travel together.** A role may not put words
+    in the advisor's mouth, so a comment is served with the text it was
+    written against — and a reader that had only the anchor would be
+    reading a place, not a remark.
+
+    **And the state belongs to its comment.** The layer answers with the
+    states themselves, so the route asks once per comment: a list of
+    states with no comment beside them would leave a reader to guess which
+    answer belonged to which question, and a guess is not a fact.
+    """
+    session = chain.context.store.session
+    feedback_id = _the_advisor_s_comment(chain, issue_key="iss-1")
+    session.add(_the_edit(chain, feedback_id=feedback_id, edit_action_id="edit-1"))
+    session.add(_the_response(feedback_id=feedback_id, edit_action_id="edit-1"))
+    session.commit()
+
+    body = chain_client.get("/trajectory", params={"issue_key": "iss-1"}).json()
+
+    assert [comment["issue_key"] for comment in body["comments"]] == ["iss-1"]
+    assert body["comments"][0]["comment_text"] == "Define the parameter."
+    assert body["comments"][0]["anchor_text"] == PARAGRAPH
+    assert [edit["edit_action_id"] for edit in body["edits"]] == ["edit-1"]
+    assert body["edits"][0]["feedback_id"] == feedback_id
+    assert body["edits"][0]["actor_kind"] == "student"
+    assert body["responses"] == [{"feedback_id": feedback_id, "states": ["addressed"]}]
+
+
+def test_the_trajectory_route_asks_for_no_key_and_serves_nothing(
+    chain: ChainEnv, chain_client: TestClient
+) -> None:
+    """A key the chain holds nothing under is an empty answer, not a refusal.
+
+    **The route does not invent a reading.** The chain holds a comment
+    here, under a key nobody asked for — and the answer says the chain
+    holds nothing under the keys asked for, rather than answering with the
+    comment it happens to hold. A panel that drew a comment the reader
+    did not ask for would be a second spelling of the chain, and a reader
+    would believe it.
+    """
+    _the_advisor_s_comment(chain, issue_key="iss-nobody-asked-for")
+    body = chain_client.get("/trajectory").json()
+    assert body == {"comments": [], "edits": [], "responses": []}
+
+
+def test_the_graph_route_carries_only_the_accepted_edges(
+    chain: ChainEnv, chain_client: TestClient
+) -> None:
+    """The version graph, as the accepted edges have it.
+
+    **An edge nobody accepted is a proposal, and a proposal may not decide
+    an order.** So the unaccepted edge below is absent from the answer
+    even though it is in the table and even though it carries the highest
+    confidence: a similarity score may never silently decide an order.
+
+    **And the versions are the ones the project holds.** A version the
+    project does not hold is absent rather than present — a missing round
+    is not a round.
+    """
+    session = chain.context.store.session
+    session.add(
+        VersionEdgeRow(
+            edge_id="edge-proposed",
+            project_id=chain.project_id,
+            parent_version_id=chain.second_version_id,
+            child_version_id=chain.version_id,
+            source="model",
+            confidence=0.99,
+            evidence_spans=[{"kind": "revision", "text": "revised"}],
+            accepted_by=None,
+            accepted_at=None,
+            edge_version=1,
+            superseded_by=None,
+            created_at=_MOMENT,
+        )
+    )
+    session.commit()
+
+    response = chain_client.get(
+        "/trajectory/graph",
+        params={
+            "project_id": chain.project_id,
+            "version_id": [chain.version_id, chain.second_version_id, "ver-absent"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [edge["edge_id"] for edge in body["edges"]] == ["edge-1"]
+    assert body["edges"][0]["parent_version_id"] == chain.version_id
+    assert body["edges"][0]["child_version_id"] == chain.second_version_id
+    assert sorted(body["version_ids"]) == sorted([chain.version_id, chain.second_version_id])
+
+
+def test_the_guidance_route_carries_the_state_the_scope_the_sources_and_the_cases(
+    context: ApplicationContext, client: TestClient
+) -> None:
+    """The second outlet: a rule with everything a reader needs to judge it.
+
+    **The cases come with the rule.** A counterexample is part of the
+    answer and not a footnote beside it, so the route serves it in the
+    same read — a workbench that showed a rule without the case against
+    it would be showing the rule as though it were the whole truth.
+
+    **And the state is the rule's own.** A rule is a candidate until a
+    person confirms it, so the state travels with the rule rather than
+    being something the reader has to remember.
+    """
+    rule = write_guidance_rule_version(
+        context,
+        RuleDraft(
+            rule_id="rule-1",
+            version=1,
+            issue_type="method_and_hypothesis",
+            statement="Name the baseline in the same paragraph as the comparison.",
+            rule_context="A results section whose claim is comparative.",
+            scope="Empirical papers in this group's field.",
+            example="The comment of 2026-03-02 on the ablation paragraph.",
+            proposed_by="distil-run-7",
+            sources=("iss-gold-a-r1",),
+            proposed_at=_MOMENT,
+        ),
+    )
+    write_guidance_counterexample(
+        context,
+        rule_id=rule.rule_id,
+        statement="The ablation paragraph of 2026-03-09 named its baseline.",
+        recorded_by="reader-2",
+        recorded_at=_MOMENT,
+        issue_key="iss-gold-a-r2",
+    )
+    context.store.session.commit()
+
+    body = client.get("/guidance/rules").json()
+
+    assert len(body) == 1
+    served = body[0]
+    assert served["rule_id"] == "rule-1"
+    assert served["state"] == "candidate"
+    assert served["scope"] == "Empirical papers in this group's field."
+    assert served["sources"] == ["iss-gold-a-r1"]
+    assert len(served["counterexamples"]) == 1
+    assert (
+        served["counterexamples"][0]["statement"]
+        == "The ablation paragraph of 2026-03-09 named its baseline."
+    )
+    assert served["counterexamples"][0]["recorded_by"] == "reader-2"
+
+
+def test_one_rule_is_served_with_its_own_cases(
+    context: ApplicationContext, client: TestClient
+) -> None:
+    """One rule, by its own id — and the cases travel with it.
+
+    **The same read, asked about one rule.** The counterexamples are not
+    a second request here, and a route that served the rule without them
+    would be serving half the answer.
+    """
+    rule = write_guidance_rule_version(
+        context,
+        RuleDraft(
+            rule_id="rule-1",
+            version=1,
+            issue_type="figures",
+            statement="A figure's caption states what the axes are.",
+            rule_context="A figure a reader cannot read without the caption.",
+            scope="Every figure in the group's papers.",
+            example="The figure of 2026-03-11.",
+            proposed_by="distil-run-9",
+            sources=("iss-gold-a-r3",),
+            proposed_at=_MOMENT,
+        ),
+    )
+    write_guidance_counterexample(
+        context,
+        rule_id=rule.rule_id,
+        statement="The axis label of 2026-04-02 carried its unit instead.",
+        recorded_by="reader-3",
+        recorded_at=_MOMENT,
+        issue_key=None,
+    )
+    context.store.session.commit()
+
+    response = client.get(f"/guidance/rules/{rule.rule_id}")
+    assert response.status_code == 200, response.text
+    served = response.json()
+    assert served["rule_id"] == "rule-1"
+    assert served["issue_type"] == "figures"
+    assert len(served["counterexamples"]) == 1
+    assert served["counterexamples"][0]["recorded_by"] == "reader-3"
+
+
+def test_a_rule_that_is_not_there_is_refused_by_name(client: TestClient) -> None:
+    """A rule nobody proposed is refused, with a reason a script can branch on.
+
+    **An empty rule would be a lie.** A rule with no statement, no scope
+    and no sources is exactly the row the work order forbids, and
+    answering with one would put it on the screen as though a person had
+    written it.
+    """
+    response = client.get("/guidance/rules/rule-nobody-proposed")
+    assert response.status_code == 403
+    assert response.json()["reason"] == ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND.value
+
+
+def _the_first_address(context: ApplicationContext) -> tuple[str, str]:
+    """The id of the ingested material, and one address in it."""
+    source_id = ""
+    for view in list_sources(context):
+        if view.source.relative_path.endswith("groups.csv"):
+            source_id = view.source.source_id
+            break
+    assert source_id, "the task holds no groups.csv"
+    address = list_source_addresses(context, source_id)[0]
+    return source_id, address.locator_key
+
+
+def test_the_records_route_carries_whose_words_each_record_is(
+    ledger_context: ApplicationContext, ledger_client: TestClient
+) -> None:
+    """The third outlet: the ledger's own records, each saying whose words it is.
+
+    **The model's proposal and the person's attestation are told apart.**
+    A workbench that could not tell them apart would show a model's
+    answer as though a person had stood behind it — and the two creators
+    exist for exactly that reason.
+
+    **And the person is named.** The record's own creator field says "a
+    person"; the attestation's entry says *which* one, and a reader told
+    only that somebody signed is told nothing.
+    """
+    source_id, locator_key = _the_first_address(ledger_context)
+    claim = record_claim(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The control group measured 4.253.",
+            span="The control group measured 4.253.",
+        ),
+    )
+    attest_claim(
+        ledger_context,
+        claim.record.evidence_id,
+        user_id="reader-2",
+        note="I measured this myself.",
+    )
+    record_model_proposal(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The treated group measured 5.101.",
+            span="The treated group measured 5.101.",
+        ),
+    )
+    ledger_context.store.session.commit()
+
+    body = ledger_client.get("/records").json()
+
+    by_creator = {record["created_by"]: record for record in body}
+    assert set(by_creator) == {"user", "model_proposal"}
+    assert by_creator["user"]["status"] == "user_attested"
+    assert by_creator["model_proposal"]["status"] == "planned"
+    assert by_creator["user"]["verification_log"][0]["checker_id"] == "reader-2"
+    assert by_creator["model_proposal"]["verification_log"] == []
+
+
+def test_the_records_route_is_refused_when_the_policy_denies_the_task_s_area(
+    ledger_context: ApplicationContext,
+) -> None:
+    """The read of the task's own records is guarded, and the refusal is machine-readable.
+
+    **The records belong to the task, so the policy is asked about the
+    task's own area** — the same resource, and the same question, that
+    the task's state is read under. A reading that asked nothing would
+    serve one task's records to a reader the policy refused, and the
+    refusal it answers with is a reason a script can branch on.
+    """
+    denied = replace(ledger_context, policy=_deny_all())
+    app = create_app(denied, event_source=_StoreEventSource())
+    with TestClient(app) as refused:
+        response = refused.get("/records")
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.PERMISSION_DENIED.value
+
+
+def test_the_mentor_line_s_routes_ask_no_permission_of_the_task_s_area(
+    chain: ChainEnv,
+) -> None:
+    """The chain's rows name no path, so the routes ask no permission of the task's area.
+
+    **A guard here would be a guard on the wrong question.** The chain's
+    rows belong to a paper project and name no path of their own, so the
+    permission that governs what a reader may be shown is the permission on
+    the material, and it is asked where the material is named (ADR-0003
+    C5). **A task-area check here would refuse a reader who may read the
+    material**, and the retrieval's own witness already pins that the
+    memory is read for exactly such a reader.
+
+    **The rule memory's rows are the same case.** They name no path
+    either, so the route that serves them is refused by nothing but the
+    layer's own refusals — and a rule that is not there is refused by
+    name, as its own witness says.
+    """
+    _the_advisor_s_comment(chain, issue_key="iss-1")
+    denied = replace(chain.context, policy=_deny_all())
+    app = create_app(denied, event_source=_StoreEventSource())
+    with TestClient(app) as refused:
+        trajectory = refused.get("/trajectory", params={"issue_key": "iss-1"})
+        guidance = refused.get("/guidance/rules")
+    assert trajectory.status_code == 200, trajectory.text
+    assert [comment["issue_key"] for comment in trajectory.json()["comments"]] == ["iss-1"]
+    assert guidance.status_code == 200, guidance.text
+
+
+def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
+    """The three outlets' shapes are in the contract, and the front end gets them.
+
+    **A shape the contract does not carry is a shape a view would have to
+    invent** — and a view that invented one would be showing the reader
+    something the service never said.
+    """
+    schemas = contract_app().openapi()["components"]["schemas"]
+    for name in (
+        # The rule memory's own rule, and the case against it.
+        "GuidanceRule",
+        "RuleCounterexample",
+        # The ledger's own record, and the entry in its log.
+        "EvidenceRecord",
+        "VerificationRecord",
+        # The one shape the API composes, and the tie it adds.
+        "Trajectory",
+        "CommentResponses",
+    ):
+        assert name in schemas, f"{name} is not in the contract"

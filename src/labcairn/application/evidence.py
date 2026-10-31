@@ -7,7 +7,7 @@ carry a claim: the only path that ended with a report was the outsider walk,
 which wrote the claim's own address and record itself. This module is that
 gap closed — the surfaces' one way to say "the material says this".
 
-Two operations, and they are deliberately different questions
+The operations, and the questions they are deliberately different
 -------------------------------------------------------------
 
 :func:`list_source_addresses` answers *what can be cited here*. It reads the
@@ -29,6 +29,24 @@ listing, each because a record outlives the moment it was written:
 * **the address must resolve, now.** The anchor is bound to the source's
   current hash, and the text at the address must exist in those bytes. An
   anchor at an address nothing answers is an anchor to nothing.
+
+And one operation reads what the ledger holds back
+---------------------------------------------------
+
+:func:`list_task_records` answers *what has been claimed here*. The other
+operations write records or enumerate the addresses they may be written at;
+this one reads the task's own records back, so a surface can show a person
+what is on the ledger — the model's proposals and the person's attestations
+side by side, each carrying whose words it is.
+
+**It is a read of the task's own rows, and it is guarded as one.** The
+records belong to the task, so the capability asked is ``fs.read`` on the
+task area — the same resource and the same question
+:func:`~labcairn.application.tasks.read_task_state` asks. That is the
+distinction this module rests on: the *material* is guarded by
+``source.inventory`` where it is named, and the *task's own records* are
+guarded by the task's own area, because a record is not a path and the
+material it was taken from is not named by the record itself.
 
 What the operation does not do
 ------------------------------
@@ -91,6 +109,7 @@ from labcairn.evidence.store import (
     append_record,
     attest,
     load_record,
+    load_task_records,
     record_for_span,
     supersede_record,
 )
@@ -113,6 +132,7 @@ __all__ = [
     "attest_claim",
     "confirm_proposal",
     "list_source_addresses",
+    "list_task_records",
     "record_claim",
     "record_model_proposal",
 ]
@@ -220,6 +240,42 @@ def list_source_addresses(context: ApplicationContext, source_id: str) -> tuple[
         )
         for row in rows
     )
+
+
+def list_task_records(context: ApplicationContext) -> tuple[EvidenceRecord, ...]:
+    """Every record the ledger holds for this task, in the ledger's own order.
+
+    **These are the task's own rows, so the task's own area is what guards
+    them.** A record is a statement about material the task holds, and this
+    is a read of the task's state — so the capability asked is ``fs.read``
+    on the task area, the **same resource and the same question** that
+    :func:`~labcairn.application.tasks.read_task_state` asks. Two spellings
+    of "the task's area" would be two things for a policy rule to match, and
+    a rule written against one of them would silently not cover the other.
+
+    **The order is the ledger's, and it is not a ranking.** The ledger
+    orders its records by creation time and then by id, and ADR-0004 A5 says
+    a conflict is not settled by taking the newer row — so this order is
+    for a reader that renders a list, and it decides nothing.
+
+    **And every record says whose words it is.** ``created_by`` says whether
+    a person or a model wrote it, ``created_by_id`` says which, and the
+    verification log says who stood behind it. So a reader can tell a
+    model's proposal from a person's attestation without this operation
+    having to say so a second way — and a surface that blurred the two would
+    be the "second spelling" the work order exists to avoid.
+
+    :raises ApplicationRefusedError: the policy denied reading the task's area.
+    """
+    area = context.task_area()
+    consent.evaluate(
+        context,
+        capability=CapabilityId.FS_READ,
+        arguments={"path": area.declared_key},
+        resource=area,
+    )
+    with store_refusals():
+        return load_task_records(context.store.session.connection(), str(context.task_id))
 
 
 def record_claim(
