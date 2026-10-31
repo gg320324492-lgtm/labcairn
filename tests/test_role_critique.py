@@ -23,6 +23,7 @@ verdict that never promotes anything.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -340,7 +341,7 @@ def _store_row_count(context: ApplicationContext) -> int:
     from sqlalchemy import text
 
     session = context.store.session
-    tables = session.execute(
+    tables: Iterable[str] = session.execute(
         text(
             "SELECT name FROM sqlite_master WHERE type='table'"
             " AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'alembic_%'"

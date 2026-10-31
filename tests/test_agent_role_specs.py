@@ -245,7 +245,11 @@ def test_an_empty_field_or_a_zero_ceiling_is_refused(context: ApplicationContext
         "model_config_ref",
         "role_id",
     ):
-        refused = _reason(_capture(lambda fn=field_name: _define(context, **{fn: "   "})))
+
+        def blank(fn: str = field_name) -> object:
+            return _define(context, **{fn: "   "})
+
+        refused = _reason(_capture(blank))
         assert refused is RoleRefusal.SPEC_FIELD_EMPTY, field_name
     refused = _reason(_capture(lambda: _define(context, token_budget=0)))
     assert refused is RoleRefusal.SPEC_FIELD_EMPTY

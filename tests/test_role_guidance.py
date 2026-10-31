@@ -409,7 +409,8 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
             ),
         ),
     )
-    assert card.claims[0].advisor_quote in guidance.event.comment_text
+    assert card.claims[0].advisor_quote == quote
+    assert quote in guidance.event.comment_text
 
 
 def test_facts_and_style_are_recorded_separately(guidance: Guidance) -> None:

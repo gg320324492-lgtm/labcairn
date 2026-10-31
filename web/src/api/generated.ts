@@ -215,6 +215,7 @@ export type EventType =
   | 'edit_action_recorded'
   | 'response_recorded'
   | 'followup_assessed'
+  | 'model_exchanged'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 

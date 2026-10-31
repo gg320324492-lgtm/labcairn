@@ -1,5 +1,75 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
+live probe ran, and it found four defects in the provider layer.** The
+pilot's probe against the operator's own OpenAI-compatible endpoint (the
+model the operator named, the credential in a file outside the repository)
+reported **all four capabilities unsupported** — while the endpoint answered
+every question correctly and returned a complete usage block. Four defects,
+all of one shape: **the probe spoke a wire form that no real endpoint
+speaks.** A tool call's `arguments` arrive as a JSON *string*, and the
+probe compared them to the schema undecoded. The prompted-output template
+was the schema JSON itself, which pydantic-ai renders with `str.format` —
+every brace of the schema read as a format field, and the request died with
+`KeyError` before it was sent. Each probe ran in its own event loop while
+the httpx client's transport pooled connections across them, so the second
+request inherited a keep-alive connection from a closed loop and died with
+`RuntimeError: Event loop is closed`. And the usage sniffer kept the
+provider's block verbatim while LC-P1-01's parser reads LabCairn's
+`input_tokens`/`output_tokens` — an OpenAI-compatible body says
+`prompt_tokens`/`completion_tokens`, so every counter came back
+`Unknown(PROVIDER_OMITTED)`. All four are fixed and witnessed, and the
+live probe now reports **four of four ok**: the same endpoint, the same
+model, the same credential, the only difference the tree. The acceptance
+record is `docs/acceptance/LC-P1-03-probe-wire-fixes.md`; the witnesses are
+five tests in `tests/test_provider_capabilities.py` and two in
+`tests/test_provider_redaction.py`, and each of the four defects was
+mutation-checked. **The blind spot was the test equipment as much as the
+code**: the fake endpoint's fixtures all spoke LabCairn's vocabulary, so a
+probe that assumed that vocabulary could not be caught by them. The fake
+can now script a tool call's arguments as a JSON string, and the usage
+fixtures speak the OpenAI names.
+
+**Three independent read-only reviews came back** (LC-P2-11, LC-P2-12,
+LC-P2-01), each in its own worktree with its own virtualenv, each tree
+clean at the end: **every claim HOLDS**, every named witness re-checked by
+a mutation re-applied to the tree, and every record's mutation count
+reproduced. Their three weakest points are named in the acceptance
+records. Two of the reviews found things that are not about the code:
+`docs/plans/PHASE_2-review-points.md` carried **no LC-P2-11 section at
+all** — the task breakdown's §7.6 obligation, unfulfilled until a reviewer
+looked for it — and its LC-P2-01 row paired an import-surface witness with
+an order witness, while the two that redden together are the two *order*
+witnesses. Both are fixed in that file now, and the LC-P2-11 section
+names ten claims with the mutations that break them.
+
+**The branch's own reds were repaired.** `mypy --strict` over `src` and
+`tests` was red on ten counts, all in LC-P2-11's and LC-P2-12's own test
+files, and the checked-in TypeScript contract had not been regenerated
+since LC-P2-01 added the `model_exchanged` event — one line, now
+regenerated. **Both were failing the CI that had already run**: the first
+run stopped at `mypy --strict` with the pytest step skipped, so nobody had
+seen the second. The shard costs are re-measured from the last green
+runner's log (`remeasure_shards.py 41110813867`): twelve new test files
+had no measured cost, and the partition is rebuilt from the runner's
+numbers rather than guessed.
+
+**What is not done, on purpose.** One witness is still red —
+`test_the_costs_belong_to_the_tree_they_were_measured_on` — because
+`tests/test_store_events.py` changed on this branch and its cost exceeds
+the partition's slack. Its fix is a runner measurement of the current
+tree, and a runner measurement of the current tree is a push, and **a push
+is the owner's call**. Everything else on this branch is green locally:
+the whole suite, `mypy --strict` over 357 files, `ruff check`, and
+`ruff format --check`.
+
+**Decisions waiting for the owner** (each is a message, not a blocker):
+(a) **the push** — which is also what the one red witness needs, and which
+starts ten CI jobs; (b) the pilot's **annotators and arbiter** (two
+readers and a third, none of them the same person); (c) the **grant's
+scope and ceiling** for the first real request, which the probe has now
+made possible and which is still a human's to set.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
 the model-call path, is landed: T00–T07.** `src/labcairn/application/
 model_request.py` is one operation, `request_model`, that turns "a model
@@ -69,18 +139,15 @@ a row whose file is not there refuses the reader. The demonstration now
 ingests real text files through the product's own intake — the same
 lesson the retrieval's witnesses taught, met again from the other side.
 
-**What is not done, on purpose.** Ten new test files (six from this work
-order, four from LC-P2-11) have no runner-measured cost, so
-`test_ci_shard_coverage` is red in its two coverage clauses — the
-partition is re-measured on the runner with
-`python .github/remeasure_shards.py <run-id>`, not guessed. And no
-whole-suite run has been made on the final tree since the machine's
-restart; the figures in the acceptance records are local until then.
+**What is not done, on purpose.** The shard costs are re-measured from a
+runner's log (see the entry above), and one witness of that file is still
+red for the reason given there. And no whole-suite run has been made on
+the final tree since the machine's restart; the figures in the acceptance
+records are local until then.
 
-**Where the branch stands.** `main` is at `da470bb`; this branch is 49
-commits ahead of it (50 with this file's own commit) — LC-P2-10, LC-P2-11,
-LC-P2-12 and LC-P2-01, none pushed and no pull request opened beyond
-#133, which the owner has yet to merge.
+**Where the branch stands.** `main` is at `da470bb`; this branch carries
+LC-P2-10, LC-P2-11, LC-P2-12 and LC-P2-01 and is pushed, with no pull
+request opened beyond #133, which the owner has yet to merge.
 
 **Decisions waiting for the owner** (each is a message, not a blocker):
 (a) the push, and the merge of PR #133 — the four work orders ride one

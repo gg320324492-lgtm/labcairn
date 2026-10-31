@@ -102,13 +102,28 @@ anchors before writing.
   (108), the refusal-vocabulary suites (36), and the demonstration's
   own two. Every one green; lint and `mypy` clean on every file the
   work order touched.
-- **The shard costs are not re-measured yet, and that is deliberate.**
-  Fifteen test files this phase added have no runner-measured costs, so
-  `test_ci_shard_coverage`'s balance witness is red on purpose until a
-  runner's `--durations=0` output exists to apportion from. The fix is
-  one command on a run id, per the evidence pack's two-step process:
-  `python .github/remeasure_shards.py <run-id>`. The numbers must come
-  from a runner; a development machine answers differently.
+- **The shard costs were re-measured on 2026-10-31, and one witness is
+  still red.** Fifteen test files this phase added had no runner-measured
+  costs, so `test_ci_shard_coverage`'s coverage clauses were red on
+  purpose until a runner's `--durations=0` output existed to apportion
+  from. The costs are now written from the last green runner's log
+  (`python .github/remeasure_shards.py 41110813867`), and the partition is
+  rebuilt from the runner's numbers rather than guessed. What remains red
+  is `test_the_costs_belong_to_the_tree_they_were_measured_on`:
+  `tests/test_store_events.py` changed on this branch, and its cost
+  exceeds the partition's slack, so the witness asks for a measurement of
+  the current tree — which is a push, and a push is the owner's call.
+  **The numbers must come from a runner**; a development machine answers
+  differently, not only a different total but a different order.
+- **The checked-in TypeScript contract was regenerated on 2026-10-31.** The
+  `model_exchanged` event this work order added had not been carried into
+  `web/src/api/generated.ts`, and `test_the_checked_in_typescript_is_what_
+  the_python_models_produce` was red for exactly that one line. The file is
+  generated from the OpenAPI document, which is generated from the models,
+  so it was regenerated rather than edited: `uv run python -m
+  labcairn.api.typescript web/src/api/generated.ts`. The witness that
+  watches the drift was already in the suite; it had simply never run
+  against this branch's tree.
 
 ## 5. What this work order does not carry
 

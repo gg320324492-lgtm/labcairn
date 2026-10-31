@@ -27,9 +27,11 @@ judgement by hand is saying what a person said, which is what the
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
@@ -59,6 +61,7 @@ from labcairn.guidance.rules import (
 from labcairn.papers.feedback import FeedbackEvent, record_feedback, set_issue_key
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
+from labcairn.security.paths import CanonicalPath
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.integration
@@ -528,17 +531,23 @@ def test_the_memory_reads_through_the_consent_layer(
     ``test_a_rule_outside_the_readers_consent_is_not_retrieved``, which
     is what keeps this spy from watching an unused call.
     """
-    from labcairn.guidance import retrieval as retrieval_module
+    from labcairn.application import consent as consent_module
 
     _confirm(memory.context)
     asked: list[str] = []
-    real = retrieval_module.consent.evaluate_each
+    real = consent_module.evaluate_each
 
-    def spy(context: object, **kwargs: object):
-        asked.append(kwargs["capability"].value)
-        return real(context, **kwargs)  # type: ignore[arg-type]
+    def spy(
+        context: ApplicationContext,
+        *,
+        capability: CapabilityId,
+        arguments: Mapping[str, Any],
+        resources: Sequence[CanonicalPath],
+    ) -> tuple[CanonicalPath, ...]:
+        asked.append(capability.value)
+        return real(context, capability=capability, arguments=arguments, resources=resources)
 
-    monkeypatch.setattr(retrieval_module.consent, "evaluate_each", spy)
+    monkeypatch.setattr(consent_module, "evaluate_each", spy)
     assert search_rules(memory.context), "the served rules exercise the read path"
     assert asked, "the memory answered without asking the permission layer"
     assert asked.count(CapabilityId.SOURCE_READ.value) == len(asked)

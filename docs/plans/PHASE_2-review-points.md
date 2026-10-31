@@ -219,6 +219,35 @@ already applied and what they reddened.
 
 ---
 
+## LC-P2-11 — The mentor guidance memory
+
+**Task breakdown:**
+[`LC-P2-11-task-breakdown.md`](LC-P2-11-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-11-acceptance.md`](../acceptance/LC-P2-11-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §4 lists the mutations that were
+already applied and what they reddened. **A reviewer who finds this section
+missing must say so before reviewing anything else**: it was absent until an
+independent review on 2026-10-31 looked for it, which is the task
+breakdown's §7.6 obligation unfulfilled.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **The state machine is closed** — `candidate → confirmed \| disputed \| withdrawn`, and only a person moves a rule out of `candidate`. The API guard and the migration's CHECK are two walls, and the ORM's mirror is a third. | `test_the_schema_refuses_what_the_api_refuses`, `test_the_migrated_schema_matches_the_orm_models` | Widen the CHECK in migration 0015 to admit `proposed`; or widen the models-side mirror. **The first is caught by the schema witness, the second by the parity test — apply each mutation against both files, or the answer is a false negative.** |
+| 2 | **The confirmer is a second reader**: whoever proposed a rule cannot confirm it, and `model_proposal` is refused as a confirmer like any other proposer. | `test_the_proposer_cannot_confirm_their_own_rule` | Drop the `confirmed_by == row.proposed_by` refusal. **A rule its own author confirms is an echo wearing a rule's clothes.** |
+| 3 | **A source stands or falls at query time, by its state and not by a clock** — the chain's presence under the key, the reader's reach through the permission layer, and a judgement that says the change answered. | `test_a_withdrawn_source_invalidates_its_rule_and_says_so`, `test_a_rule_outside_the_readers_consent_is_not_retrieved`, `test_the_memory_reads_through_the_consent_layer` | Discard the permission layer's answer and return every path; or neuter the standing guard. **The second is a common exit for all three ways a source dies, so it reddens more witnesses than the record's table lists.** |
+| 4 | **The invalidation is not silent**: a rule the memory stops serving is reported, each dead source saying which of the three ways it died. | the withdrawal witness's second half | Replace the invalidation report with `pass`. **A rule that stopped being served for a reason nobody was told is a rule that stopped being served.** |
+| 5 | **Two conflicting rules are both returned, and neither wins by recency** — the ordering consults state and rule id, never a version or a timestamp. | `test_two_conflicting_rules_are_both_returned_and_neither_wins_by_recency` | Reverse the ordering key. **The order the witness asserts is the id order, so a seed where the two rules differ in version would tell a recency-key from an id-key apart — the current seed cannot, and that is a gap in the witness, not in the code.** |
+| 6 | **The distillation may not invent a scope**: it has no scope parameter, the scope is assembled from the cases' anchored text, and a named key the chain holds nothing under is refused. | `test_a_rule_with_an_unsupported_scope_is_refused` | Take the scope from the caller's `rule_context`. **A scope the cases do not support is a rule about something that was never said.** |
+| 7 | **A distilled rule is a candidate until a person confirms it**, and a suggestion retrieved often does not become a rule by being retrieved often. | `test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it`, `test_a_frequently_retrieved_suggestion_is_still_a_candidate` | Confirm the rule as the model that proposed it; or promote on retrieval count. **Frequency is not consent.** |
+| 8 | **The retrieval returns the source and its conditions, never a bare sentence.** | `test_the_retrieval_returns_the_rule_with_its_source_and_its_conditions` | Drop the source from the returned hit. **A sentence without its source cannot be checked against anything.** |
+| 9 | **A rule's problem comes from the closed vocabulary** — LC-P2-10's thirteen labels, imported rather than retyped, at propose, at distil, and at the query boundary. | `test_a_problem_outside_the_vocabulary_is_refused`, `test_the_query_filters_and_the_vocabulary_gates_it` | Accept a free-text problem type. **A vocabulary that can be widened at the door is a vocabulary.** |
+| 10 | **The demonstration is run by a test, and its exit code means something.** | `test_the_guidance_memory_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
 ## LC-P2-01 — The model-call path
 
 **Task breakdown:**
@@ -232,7 +261,7 @@ already applied and what they reddened.
 
 | # | The claim | The witness | How to break it |
 |---|---|---|---|
-| 1 | **The bridge is at the caller, and `providers/` still imports nothing of the permission layer.** The call site hands the caller's `ApprovalUse` straight through and inherits `transmit_request`'s order as the property it is — the material gate first, then the approval. | `test_providers_does_not_import_the_permission_layer`, `test_the_material_gate_runs_before_the_approval_is_spent` | Move the `send` call ahead of the gates. **Both order witnesses redden at once, which is what shows they watch the same line from its two sides.** |
+| 1 | **The bridge is at the caller, and `providers/` still imports nothing of the permission layer.** The call site hands the caller's `ApprovalUse` straight through and inherits `transmit_request`'s order as the property it is — the material gate first, then the approval. | `test_providers_does_not_import_the_permission_layer` (the import surface), `test_the_material_gate_runs_before_the_approval_is_spent` and `test_an_unapproved_model_request_refuses_and_sends_nothing` (the order) | Move the `send` call ahead of the gates. **The two order witnesses redden at once, which is what shows they watch the same line from its two sides; the import-surface witness does not redden, because an import is not an order.** |
 | 2 | **A fresh checkout cannot spend money by accident**: `httpx` is declared at a chosen version, and the tree carries no model id, endpoint, price or capability claim. | `test_httpx_is_a_declared_dependency`, `test_no_model_id_endpoint_or_price_is_written_into_the_tree` | Remove the declaration; or write a model id into any `src/` file. **A supplier's identity is the operator's configuration, never the tree's.** |
 | 3 | **The budget's preflight runs before the gate**, so an unmeasurable refusal costs the person nothing. | `test_a_cost_ceiling_fails_closed_when_the_price_is_unknown` | Move the preflight past the approval consumption. **Exactly that witness reddens: the position is the property.** |
 | 4 | **A schema request the probe does not license is refused before a socket exists** — and the two ways not to be licensed name themselves, because their remedies differ. | `test_an_unprobed_provider_is_blocked` | Drop the schema-ability check, or collapse the two refusals into one. **The first asks a provider to try; the second sends a caller to remedy a probe that has not run.** |

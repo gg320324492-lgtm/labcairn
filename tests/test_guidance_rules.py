@@ -222,7 +222,7 @@ def _raw_insert(session: Session, **overrides: object) -> None:
         "proposed_at": MOMENT,
     }
     values.update(overrides)
-    session.add(GuidanceRuleRow(**values))  # type: ignore[arg-type]
+    session.add(GuidanceRuleRow(**values))
     session.flush()
 
 

@@ -33,7 +33,7 @@ from labcairn.db.models import GuidanceRuleRow
 from labcairn.guidance.distil import MODEL_PROPOSER, distil_candidate
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.retrieval import search_rules
-from labcairn.guidance.rules import confirm_rule, read_rule
+from labcairn.guidance.rules import GuidanceRule, confirm_rule, read_rule
 from labcairn.papers.feedback import record_feedback, set_issue_key
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
@@ -87,7 +87,7 @@ def cases(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, str]:
     return chain.context, chain.project_id
 
 
-def _distil(context: ApplicationContext, **overrides: object):
+def _distil(context: ApplicationContext, **overrides: object) -> GuidanceRule:
     kwargs: dict[str, object] = {
         "issue_type": "method_and_hypothesis",
         "statement": STATEMENT,
