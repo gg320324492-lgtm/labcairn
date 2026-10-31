@@ -173,7 +173,9 @@ body {
 .record__flag--stale,
 .record__flag--failed,
 .record__flag--blocked,
-.record__flag--denied {
+.record__flag--denied,
+.record__flag--disputed,
+.record__flag--withdrawn {
   color: var(--labcairn-warn);
   border-color: var(--labcairn-warn);
 }
@@ -261,4 +263,18 @@ body {
 
 .revisions__group {
   margin-bottom: 0.5rem;
+}
+
+/* The proposals panel: the model's answer and the person's verdict, side by
+ * side, each labelled with whose words it is. */
+.proposals__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.proposals__pair > .record {
+  border-top: none;
+  padding-top: 0;
 }

@@ -11,21 +11,33 @@ The skeleton came from work order **LC-P1-01 / T10** (see
 
 ## What it shows
 
-Eight views over one task, each read from the API and drawn:
+Thirteen panels over one task, each read from the API and drawn:
 
-| View               | What it draws                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| **Projects**       | The tasks in the workspace's store, and the one the service is bound to               |
-| **Plan**           | The declared workflow, and how far the task has got through it                        |
-| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to     |
-| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it |
-| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by    |
-| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`       |
-| **Artefacts**      | The receipts, and a preview of each artefact                                          |
-| **Revisions**      | What each path has been through, and which revision is current                        |
+| View               | What it draws                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| **Projects**       | The tasks in the workspace's store, and the one the service is bound to                 |
+| **Plan**           | The declared workflow, and how far the task has got through it                          |
+| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to       |
+| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it   |
+| **Figure**         | The consent a figure needs, and the run that spends it                                  |
+| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by      |
+| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`         |
+| **Artefacts**      | The receipts, and a preview of each artefact                                            |
+| **Revisions**      | What each path has been through, and which revision is current                          |
+| **Trajectory**     | The advisor's comments, the edits that answered them, and the states of the responses   |
+| **Version graph**  | A project's versions, and the accepted edges between them                               |
+| **Guidance**       | The rules, their state and their counterexamples, and the door that settles one         |
+| **Proposals**      | The model's answer and the person's verdict on it, each labelled with whose words it is |
 
-The one thing the page changes is a pending approval. Everything else it does
-is read.
+The page changes two things: a pending approval, and the verdict a person
+returns on a guidance rule. Everything else it does is read.
+
+**The panels draw only what the contract carries.** A panel that drew a list
+it could not see would be a second spelling of the model behind it, and a
+reader would believe it — so the trajectory panel draws the issue the caller
+names (the service has no outlet that lists the chain's issue keys), the
+proposals panel draws the records the ledger holds, and each of them says on
+the screen what it is.
 
 ## The API it talks to
 
@@ -86,10 +98,11 @@ report is shown with the limit the report itself states.
   state and reads it again when something changes.
 - **The selected project cannot be switched.** The service is bound to one
   task, and the API has no route to change that.
-- **The contract carries no evidence records and no list of anchors.** The
-  evidence view draws the evidence stage's standing, and the anchors view
-  draws each source's hash and key; both say so on the screen rather than
-  implying that the evidence itself is there.
+- **The contract carries no list of anchors.** The anchors view draws each
+  source's hash and key, and the evidence view draws the evidence stage's
+  standing; both say so on the screen rather than implying that the records
+  themselves are there. The ledger's records are the proposals panel's to
+  draw, each labelled with whose words it is.
 - **The Markdown, DOCX and PDF forms of a report are linked, not shown.** The
   workbench does not compose a fifth wording of the report.
 
@@ -166,7 +179,7 @@ web/
     app/
       Workbench.tsx              # the shell, and the one change it makes
       useWorkbench.ts            # the read, scheduled by the render
-    views/                       # one file per view
+    views/                       # one file per view, and the read they share
     report/firstPassNotice.ts    # the report's own limit, quoted from the renderer
     test/                        # the fake API, at the network boundary
     App.tsx / App.test.tsx

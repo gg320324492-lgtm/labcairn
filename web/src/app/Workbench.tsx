@@ -35,11 +35,14 @@ import { ApprovalView } from '../views/ApprovalView'
 import { ArtefactsView } from '../views/ArtefactsView'
 import { EvidenceView } from '../views/EvidenceView'
 import { FigureView } from '../views/FigureView'
+import { GuidanceView } from '../views/GuidanceView'
 import { PlanView } from '../views/PlanView'
+import { ProposalsView } from '../views/ProposalsView'
 import { ProjectsView } from '../views/ProjectsView'
 import { RevisionsView } from '../views/RevisionsView'
 import { SourcesView } from '../views/SourcesView'
 import { StepsView } from '../views/StepsView'
+import { TrajectoryView } from '../views/TrajectoryView'
 import { useWorkbench } from './useWorkbench'
 
 /** What the last request did, and whether one is in flight. */
@@ -140,6 +143,9 @@ export function Workbench(): JSX.Element {
       <EvidenceView plan={reads.plan} steps={reads.steps} />
       <ArtefactsView artifacts={reads.artifacts} />
       <RevisionsView artifacts={reads.artifacts} />
+      <TrajectoryView />
+      <GuidanceView />
+      <ProposalsView />
 
       <footer className="workbench__footer">
         <p>

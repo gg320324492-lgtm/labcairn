@@ -43,6 +43,10 @@ describe('the views', () => {
       'Evidence',
       'Artefacts',
       'Revisions',
+      'Trajectory',
+      'Version graph',
+      'Guidance',
+      'Proposals',
     ]) {
       expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
     }
