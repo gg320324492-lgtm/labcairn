@@ -820,6 +820,18 @@ which would let a change carry a reason it never had. The witnesses are
 `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made`
 and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason`.
 
+**And an empty marker is observed, and it is nothing.** Word records an
+operation at a point by leaving an element with no children at all, and
+**those carry no judgement**: on the corpus that motivated the table, 65
+of its 897 events are of that kind, and **a count that called them
+changes would be a number the file does not support** — one reviewer's
+copy holds 58 revision elements and 32 changes. **So the chain counts the
+four kinds apart** — a change that carries words, a change that carries
+only whitespace, a run whose formatting changed, and a cursor left behind
+— and the empty marker is never counted as a change. That is the same
+family of statement as the one above: **what was changed is observed; why
+it was changed, and whether it meant anything at all, are not.**
+
 ### 6.14 The chain records other people's words, and the product does not take on their correctness
 
 **The chain is the part of this tree that most obviously carries somebody

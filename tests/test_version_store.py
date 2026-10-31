@@ -1300,6 +1300,63 @@ def marked_up_with_a_comment(env: StoreEnv, workspace_root: Path) -> ChainEnv:
     )
 
 
+#: A document part with **the four kinds of tracked change**, written by
+#: hand because the fixture writer cannot say them.
+#:
+#: - **an empty marker** — an ``w:ins`` with no children at all, under the
+#:   paragraph mark's run properties. It is what an operation at a point
+#:   leaves behind, and **it carries no judgement**.
+#: - **a change that carries words.**
+#: - **a change that carries only whitespace** — a space was inserted, and
+#:   that is a change.
+#: - **a change that carries no words but has a run in it** — the run's
+#:   formatting changed and its text did not.
+_FOUR_KINDS_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+    "<w:body>\n"
+    "<w:p>"
+    "<w:pPr><w:rPr>"
+    '<w:ins w:id="301" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z"/>'
+    "</w:rPr></w:pPr>"
+    '<w:r><w:t xml:space="preserve">The method estimates the parameter</w:t></w:r>'
+    '<w:ins w:id="302" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:r><w:t xml:space="preserve">carefully</w:t></w:r>'
+    "</w:ins>"
+    '<w:r><w:t xml:space="preserve">.</w:t></w:r>'
+    "</w:p>\n"
+    "<w:p>"
+    '<w:ins w:id="303" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    "<w:r><w:rPr/></w:r>"
+    "</w:ins>"
+    '<w:r><w:t xml:space="preserve">A space follows</w:t></w:r>'
+    '<w:ins w:id="304" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:r><w:t xml:space="preserve"> </w:t></w:r>'
+    "</w:ins>"
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+
+@pytest.fixture
+def four_kinds(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A marked-up manuscript holding **the four kinds of tracked change**.
+
+    **This is the shape of a reviewer's hand that the corpus is full of**
+    — a file whose revision elements are not all changes, and where a
+    single total would say a number the file does not support.
+    """
+    return build_chain(
+        env.store(),
+        workspace_root,
+        paragraphs=("The method estimates the parameter", "A space follows"),
+        revisions=(),
+        document_xml=_FOUR_KINDS_DOCUMENT,
+    )
+
+
 def _recorded(context: ApplicationContext, env: ChainEnv) -> tuple[RevisionRecord, ...]:
     """The revision events of the first version, recorded."""
     return record_revision_events(
@@ -1651,6 +1708,61 @@ def test_a_listing_drops_the_events_of_denied_material(marked_up: ChainEnv) -> N
     assert list_revision_events(denied) == ()
 
 
+def test_the_four_kinds_of_change_are_told_apart(four_kinds: ChainEnv) -> None:
+    """A change that carries words, a change that carries only whitespace,
+    a formatting change and a cursor left behind are four different things.
+
+    **And the empty marker is not a change.** Word records an operation at
+    a point by leaving an element with no children under the paragraph
+    mark's properties; it carries no text and **no judgement**, and
+    **counting it as a change is how a panel ends up drawing "this
+    reviewer made 58 changes" when the file holds 32.**
+
+    **The reader flattens two of them.** An empty marker and a
+    formatting-only change both arrive with an empty text, and **the
+    address is what tells them apart** — so the rule reads the address
+    and not only the text.
+
+    **What breaks it:** a classifier that counts the empty marker as a
+    change, or one that cannot tell a space from a word.
+    """
+    _recorded(four_kinds.context, four_kinds)
+
+    events = chain_layer.read_revision_events(
+        four_kinds.context, version_ids=[four_kinds.version_id]
+    )
+    assert len(events) == 4, "the manuscript holds four revision elements"
+    by_kind: dict[str, list[str]] = {}
+    for event in events:
+        by_kind.setdefault(event.change_kind, []).append(event.text)
+    assert set(by_kind) == set(chain_layer.REVISION_CHANGE_KINDS), (
+        f"the four kinds are not told apart: {sorted(by_kind)}"
+    )
+    assert by_kind["with_text"] == ["carefully"]
+    assert by_kind["whitespace_only"] == [" "]
+    assert by_kind["formatting_only"] == [""]
+    assert by_kind["empty_marker"] == [""]
+
+    activity = chain_layer.read_revision_activity(
+        four_kinds.context, version_ids=[four_kinds.version_id]
+    )[0]
+    assert activity.revision_event_count == 4
+    assert activity.changes_with_text == 1
+    assert activity.whitespace_only_changes == 1
+    assert activity.formatting_only_changes == 1
+    assert activity.empty_markers == 1
+
+    # **And the empty marker is not a change.** The three counts that are
+    # changes do not add up to the number of events, and the difference is
+    # exactly the markers.
+    assert (
+        activity.changes_with_text
+        + activity.whitespace_only_changes
+        + activity.formatting_only_changes
+        == activity.revision_event_count - activity.empty_markers
+    )
+
+
 def test_the_application_layer_reads_the_revision_events_and_the_activity(
     marked_up: ChainEnv,
 ) -> None:
@@ -1675,7 +1787,11 @@ def test_the_application_layer_reads_the_revision_events_and_the_activity(
         marked_up.context, version_ids=[marked_up.version_id]
     )
     assert len(activity) == 1
-    assert activity[0].revision_count == 2
+    assert activity[0].revision_event_count == 2
+    assert activity[0].changes_with_text == 2
+    assert activity[0].whitespace_only_changes == 0
+    assert activity[0].formatting_only_changes == 0
+    assert activity[0].empty_markers == 0
     assert activity[0].paragraphs_touched == 1
     assert activity[0].most_events_in_a_paragraph == 2
     assert activity[0].comment_count == 0
@@ -1723,7 +1839,9 @@ def test_a_comment_and_a_change_in_one_manuscript_are_two_facts(
 
     # **And the changes stand beside it, with nothing joining them.**
     activity = chain_layer.read_revision_activity(marked.context, version_ids=[marked.version_id])
-    assert activity[0].revision_count == 2
+    assert activity[0].revision_event_count == 2
+    assert activity[0].changes_with_text == 2
+    assert activity[0].empty_markers == 0
     assert activity[0].comment_count == 1
 
 

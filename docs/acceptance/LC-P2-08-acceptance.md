@@ -261,8 +261,8 @@ is a function of the version and the element's path.
 
 ### 6.4 The witnesses, and the mutations that broke them
 
-**Thirteen witnesses** — twelve functions and one with twelve parameterised
-cases, so twenty-four cases — all in `tests/test_version_store.py`, the
+**Fourteen witnesses** — thirteen functions and one with twelve parameterised
+cases, so twenty-five cases — all in `tests/test_version_store.py`, the
 file that is about *storing* the paper project's rows, plus one more in
 `tests/test_threat_model.py`. **Not a new file:** a new `tests/test_*.py`
 has no measured shard cost, and `tests/test_ci_shard_coverage.py` fails on
@@ -281,18 +281,22 @@ a file with no cost until a runner measures it.
 | a version nobody holds is refused | `test_a_revision_event_about_a_version_nobody_holds_is_refused` |
 | a listing drops the events of denied material rather than refusing | `test_a_listing_drops_the_events_of_denied_material` |
 | the mentor line reads the changes and the shape of the manuscript | `test_the_application_layer_reads_the_revision_events_and_the_activity` |
+| **the four kinds of change are told apart, and an empty marker is not a change** | `test_the_four_kinds_of_change_are_told_apart` |
 | **a comment and a change in one manuscript are two facts, and the chain asserts no correspondence** | `test_a_comment_and_a_change_in_one_manuscript_are_two_facts` |
 | **the schema cannot express why a change was made** | `test_the_schema_cannot_express_why_a_change_was_made`, and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason` |
 
-**Twenty-four mutations were applied, and none survived.** Each broke one
+**Twenty-nine mutations were applied, and none survived.** Each broke one
 property — a constraint removed from the table *and* from the migration, a
 text dropped, a view dropped, an author guessed, an id that depends on
 insertion order, a stale anchor re-pointed instead of refused, the byte
 check skipped, the policy not asked, the refusal for the wrong reason, a
 count that counts nothing, a listing that does not drop denied material, a
-count that cannot see the comments, and a column added for the reason a
-change was made. **Every one of them was caught by the witness that claims
-that property, and each by its own.**
+count that cannot see the comments, **an empty marker counted as a
+change**, **a space counted as a word**, a column added for the reason a
+change was made, the threat model stopped mentioning the chain, the
+chain's judgement freed of its evidence, and the assessment's vocabulary
+given a member meaning acceptance. **Every one of them was caught by the
+witness that claims that property, and each by its own.**
 
 **And one of the twenty-three was not applied at first**, because a
 reformat had moved the line the mutation named. **A mutation that was never
@@ -320,15 +324,40 @@ and not a runner's**, and the record says so.
 **And the property the old baseline cannot see.** LC-P2-07's baseline is a
 recall measure on synthetic fixtures, and it cannot tell "300 events in 14
 paragraphs" from "300 events in 300 paragraphs". **On real files the
-distribution is the finding**:
+distribution is the finding**: the third copy's 298 changes fall in **14**
+of its 113 paragraphs, and the busiest paragraph of the fourth copy holds
+**59.6 %** of its 49 changes.
 
-| The review copy | Changes | Paragraphs with a change | Paragraphs in the document | Busiest paragraph | Median per changed paragraph |
-|---|---|---|---|---|---|
-| the first (203 changes) | 203 | 43 | 113 (38.1 %) | 34 (16.7 % of the copy) | 2 |
-| the second (225 changes) | 225 | 25 | 106 (23.6 %) | 53 (23.6 %) | 3 |
-| the third (303 changes) | 303 | **14** | 113 (**12.4 %**) | 77 (25.4 %) | 13 |
-| the fourth (52 changes) | 52 | 6 | 90 (6.7 %) | 31 (**59.6 %**) | 3 |
-| the fifth (114 changes) | 114 | 11 | 111 (9.9 %) | 39 (34.2 %) | 6 |
+| **The review copy** | Events | Changes | Of which: words | whitespace only | formatting only | empty markers | Paragraphs touched | Busiest paragraph |
+|---|---|---|---|---|---|---|---|---|
+| the first (203 events) | 203 | **160** | 153 | 1 | 6 | 43 | 43 of 113 | 34 |
+| the second (225 events) | 225 | **215** | 213 | 2 | 0 | 10 | 25 of 106 | 53 |
+| the third (303 events) | 303 | **298** | 297 | 1 | 0 | 5 | 14 of 113 | 77 |
+| the fourth (52 events) | 52 | **49** | 49 | 0 | 0 | 3 | 6 of 90 | 31 |
+| the fifth (114 events) | 114 | **110** | 109 | 1 | 0 | 4 | 11 of 111 | 39 |
+| **all five** | **897** | **832** | **821** | **5** | **6** | **65** | — | — |
+
+**And the empty marker is not a change.** **65 of the 897 events carry
+nothing at all**: they are the element Word leaves behind when an
+operation happened at a point, and **they carry no judgement**. The
+"changes" column is the number a panel may honestly draw, and it is 832
+rather than 897.
+
+**The two counts are read from the same rows the store holds**, by the
+rule in `application/chain.py::classify_revision_change`: the text says
+whether the change carries words or only whitespace, and **the address
+says whether an empty text is a cursor left behind or a run whose
+formatting changed** — a revision Word records under a paragraph's or a
+run's properties is a change to the *mark*, and it is written with no
+children at all. **The reader flattens the two into one empty text**, and
+the address is what tells them apart.
+
+**The same shape in the second corpus, where it is starker.** One
+reviewer's copy holds **58 revision elements and 32 changes** — 26 are
+cursors left behind — and the other holds **349 elements of which 292
+are the insertion of a single space**, which *is* a change, and one is a
+cursor. **So "58 changes" and "349 changes" are both numbers the files do
+not support**, and the four counts are what they do support.
 
 **The corpus's file names are not in this repository.** The material is the
 owner's unpublished paper, and **no part of it enters the tree** — not the
