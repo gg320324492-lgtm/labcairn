@@ -89,3 +89,30 @@ the application package; and **six domain modules read the store from
 outside the application layer**, which the repository's own witness says
 and which is the next piece of work. The pilot's task book is
 [`../plans/PHASE_2-pilot-task-breakdown.md`](../plans/PHASE_2-pilot-task-breakdown.md).
+
+## 6. The business request, and what it proved about the product
+
+**The pilot's first request carried no manuscript**, so it proved the
+path and disclosed nothing. The second one carried **the advisor's
+comment, the passage it is anchored to, and the paragraph it sits in** —
+507 characters, named in the approval's arguments and so bound by its
+digest — and the owner authorised exactly that.
+
+What it proved, about the product:
+
+- the **material gate** judged the request against the grant, the approval
+  and the excerpt, and permitted it;
+- the **exchange record** landed with the prompt's digest, the counts and
+  the credential by its fingerprint: no key, no prompt, no answer;
+- the **answer was decoded** against the schema it was asked for, and the
+  approval was consumed exactly once;
+- **the answer entered the ledger as a `model_proposal` on `planned`**,
+  bound to the address of the advisor's comment it speaks for — the
+  anchor resolves inside the owner's draft, and the record carries the
+  model's own words as its quotation.
+
+**What the request does not say.** The label the model gave and the
+comparison with the two readings and the arbiter's resolution are the
+owner's paper's business, and they live in the library beside the
+readings they belong to:
+`E:\labcairn-local\materials-library\pilot-model-proposal.json`.

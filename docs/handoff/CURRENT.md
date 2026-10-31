@@ -70,6 +70,19 @@ those reads, which is LC-P2-11's and LC-P2-12's scope and **the next
 piece of work**, not a repair to bolt on. The shard-cost witness waits on
 the runner measurement this push buys.
 
+**The pilot's business request went through too, with the paper in it.**
+The second request carried **the advisor's comment, the passage it is
+anchored to, and the paragraph it sits in** — 507 characters, named in the
+approval's arguments and so bound by its digest, which the owner
+authorised exactly that far. The material gate permitted it, the exchange
+landed with the prompt's digest and the counts, the answer was decoded
+against the schema it was asked for, the approval was consumed exactly
+once, and **the answer entered the ledger as a `model_proposal` on
+`planned`, bound to the address of the advisor's comment it speaks for.**
+What the model said, and how it compares with the readings, is the
+owner's paper's business and stays in the library — the repository is
+public.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 live probe ran, and it found four defects in the provider layer.** The
 pilot's probe against the operator's own OpenAI-compatible endpoint (the
