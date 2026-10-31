@@ -2970,5 +2970,32 @@ def test_task_claim_attest_refuses_an_id_that_is_not_an_evidence_id(
     )
 
     assert refused.returncode != 0, refused.stdout
-    assert "is not an evidence id" in refused.stderr
-    assert "evidence ids are UUIDv7" in refused.stderr
+    assert "is not a claim id" in refused.stderr
+    assert "claim ids are UUIDv7" in refused.stderr
+
+
+def test_task_proposal_confirm_refuses_an_id_that_is_not_a_proposal_id(
+    workspace: Path, task_id: str
+) -> None:
+    """The command's own refusal, before it reaches the layer.
+
+    **One witness watches one refusal**, so the two commands' sentences
+    differ: a witness that quoted one of them would otherwise watch both.
+    """
+    refused = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "proposal-confirm",
+        "not-an-id",
+        "--verdict",
+        "confirmed",
+        "--user",
+        "the-advisor",
+        "--note",
+        "I read it.",
+    )
+
+    assert refused.returncode != 0, refused.stdout
+    assert "is not a proposal id" in refused.stderr
+    assert "proposal ids are UUIDv7" in refused.stderr

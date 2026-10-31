@@ -1223,7 +1223,7 @@ def task_claim_attest(
         if not is_uuid7(evidence_id):
             _refuse(
                 CLI_REFUSAL_INVALID_ARGUMENTS,
-                f"{evidence_id!r} is not an evidence id: evidence ids are UUIDv7.",
+                f"{evidence_id!r} is not a claim id: claim ids are UUIDv7.",
                 as_json=as_json,
             )
         config = _require_workspace(location, as_json=as_json)
@@ -1287,7 +1287,7 @@ def task_proposal_confirm(
         if not is_uuid7(proposal_id):
             _refuse(
                 CLI_REFUSAL_INVALID_ARGUMENTS,
-                f"{proposal_id!r} is not an evidence id: evidence ids are UUIDv7.",
+                f"{proposal_id!r} is not a proposal id: proposal ids are UUIDv7.",
                 as_json=as_json,
             )
         config = _require_workspace(location, as_json=as_json)
