@@ -60,6 +60,20 @@ actually demonstrate. **All three were failing the CI that had already
 run**: the first run stopped at `mypy --strict` with its pytest step
 skipped, so nobody had seen the other two.
 
+**The confirmation door is there.** A person can now stand behind a
+claim (`labcairn task claim-attest`) and can settle a model's proposal
+(`labcairn task proposal-confirm`) — which was the fifth gap the pilot's
+own first proposal found: the machinery that moves a record's status was
+tested twenty-seven times and **nothing in `src/` called it**. Building the
+door turned up a **contradiction inside ADR-0016**: D2's promotion diagram
+said a model proposal becomes `user_attested` when a person attests it,
+and D2's own rule, and the record model's constructor, forbid exactly
+that. The correction is the store's own answer, which had been in
+`evidence/store.py`'s docstring all along — *a person writes their own
+record, and the rule's is kept and marked*. The record is
+`docs/acceptance/pilot-confirmation-door.md`, with six application-layer
+witnesses, two CLI witnesses and seven mutations.
+
 **What is still red, and what it needs.** One witness in the CI is still
 red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
 _it` says that six domain modules — `labcairn.guidance.{rules,retrieval,

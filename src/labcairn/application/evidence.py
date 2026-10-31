@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
+from typing import Final
 
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -78,11 +79,25 @@ from labcairn.db.materials import current_texts, put_anchor
 from labcairn.db.models import LOCAL_USER_ID
 from labcairn.db.repository import load_source, load_task
 from labcairn.evidence.cite_support import LocationResolution
-from labcairn.evidence.index import LabCairnIndex, locator_from_key
-from labcairn.evidence.record import EvidenceRecord
-from labcairn.evidence.states import EvidenceCreator, EvidenceKind, VerificationStatus
-from labcairn.evidence.store import append_record, record_for_span
-from labcairn.material.addressing import LocatorKeyError
+from labcairn.evidence.index import LabCairnIndex, load_anchor, locator_from_key
+from labcairn.evidence.record import EvidenceRecord, VerificationRecord
+from labcairn.evidence.states import (
+    CheckKind,
+    CheckOutcome,
+    EvidenceCreator,
+    EvidenceKind,
+    VerificationStatus,
+)
+from labcairn.evidence.store import (
+    LedgerError,
+    append_record,
+    append_verification,
+    attest,
+    load_record,
+    record_for_span,
+    supersede_record,
+)
+from labcairn.material.addressing import LocatorKeyError, render_locator_key
 from labcairn.security.capabilities import CapabilityId
 from labcairn.sources.source import (
     AnchorKind,
@@ -92,11 +107,17 @@ from labcairn.sources.source import (
 )
 
 __all__ = [
+    "PROPOSAL_VERDICTS",
+    "ClaimAttested",
     "ClaimRecorded",
     "ClaimRequest",
+    "ProposalSettled",
     "SourceAddress",
+    "attest_claim",
+    "confirm_proposal",
     "list_source_addresses",
     "record_claim",
+    "record_model_proposal",
 ]
 
 #: The kinds a claim can carry. A ``result`` is this project's own analysis
@@ -275,6 +296,279 @@ def record_model_proposal(
     )
 
 
+#: The two things a person can say about a model's proposal. **Closed**, because
+#: "the person had a look" is not a verdict a record can carry, and a
+#: vocabulary of one would make every word a synonym for "yes".
+PROPOSAL_VERDICTS: Final[tuple[str, ...]] = ("confirmed", "disputed")
+
+
+class ClaimAttested(Result):
+    """The claim as it now stands, and the person who stands behind it.
+
+    **The person is returned by name**, because the record's own creator
+    field says "a person" and this says *which* one: the ledger keeps the
+    two apart, and a reader who is told only that "a person" signed is told
+    nothing.
+    """
+
+    record: EvidenceRecord
+    user_id: str
+    note: str
+
+
+class ProposalSettled(Result):
+    """A model's proposal, and the person's word about it.
+
+    **Both records are returned**, because the history is part of the
+    answer: the proposal is kept and marked, and the thing a report may
+    cite is the person's own record.
+    """
+
+    proposal: EvidenceRecord
+    confirmation: EvidenceRecord
+    verdict: str
+    user_id: str
+
+
+def attest_claim(
+    context: ApplicationContext,
+    evidence_id: str,
+    *,
+    user_id: str,
+    note: str,
+    now: datetime | None = None,
+) -> ClaimAttested:
+    """A person stands behind **their own** claim.
+
+    The claim must be theirs. The store's ``attest`` refuses any record
+    whose creator is not a person, and that refusal is ADR-0016 D2's rule
+    rather than an oversight — *"an attestation is something a person did"*.
+    **A model's proposal is not attested here**: a person settles one with
+    :func:`confirm_proposal`, which is the route the schema leaves open.
+
+    The attestation is logged as a **C4** entry — the check whose only
+    verdict is ``not_checked`` — so the entry says *no machine checked this,
+    and a person is standing behind it*, and it carries **that person's
+    id**, which is what keeps an attestation distinguishable from a rule's
+    pass.
+
+    :raises ApplicationRefusedError: no such record; the record is not the
+        person's own; the person signed nothing; or the ledger refused the
+        move.
+    """
+    moment = now if now is not None else datetime.now(UTC)
+    if not user_id.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ATTESTATION_IDENTITY_EMPTY,
+            "an attestation nobody signs is not an attestation. Name the person whose word it is.",
+        )
+    session = context.store.session
+    connection = session.connection()
+    record = load_record(connection, evidence_id)
+    if record is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.EVIDENCE_NOT_FOUND,
+            f"the ledger holds no record with the id {evidence_id!r}.",
+        )
+    if record.created_by is not EvidenceCreator.USER:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ATTESTATION_NOT_THE_AUTHOR,
+            f"the record {evidence_id!r} was written by {record.created_by.value!r}, "
+            "and an attestation is of a person's own claim. A model's proposal is "
+            "settled by a person writing their own word about the same material, "
+            "which supersedes the proposal — that is confirm_proposal's route, and "
+            "it is the only one the schema leaves.",
+        )
+    try:
+        attested = attest(
+            connection,
+            evidence_id,
+            user_id=user_id,
+            note=note,
+            checked_at=moment,
+        )
+    except LedgerError as error:
+        session.rollback()
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ATTESTATION_REFUSED,
+            f"the ledger refused the attestation: {error}. Nothing was written.",
+        ) from error
+    session.commit()
+    return ClaimAttested(record=attested, user_id=user_id, note=note)
+
+
+def confirm_proposal(
+    context: ApplicationContext,
+    proposal_id: str,
+    *,
+    user_id: str,
+    verdict: str,
+    note: str,
+    now: datetime | None = None,
+) -> ProposalSettled:
+    """A person confirms or disputes a model's proposal.
+
+    **The proposal is not promoted; the person's own word replaces it.**
+
+    ADR-0016 D2 holds that a model proposal never becomes
+    ``user_attested`` — the record model refuses it at construction, in
+    every path, including a hand-written file — and the store's own exit
+    for a record nobody may promote is **supersession**: *"a person writes
+    their own record, and the rule's is kept and marked."* So this
+    operation does three things, and one transaction:
+
+    1. **the proposal's log gains a C4 entry** naming the person, their
+       verdict and their note. The log is where "who stood behind this" is
+       kept; the proposal's status and its creator are untouched, because a
+       model's say-so never becomes a person's.
+    2. **the person's own record** is written at the same address, carrying
+       their words as its span — a confirmation is a claim in its own right,
+       and ``uq_evidence_task_span`` holds that the same words are one
+       claim.
+    3. **the proposal is superseded** by it. The old row is kept, not
+       deleted: its log and its history are the evidence of what was
+       claimed and when.
+
+    The person's record is then attested, so **the thing a report may cite
+    is a person's word and not a model's** — which is the whole point of
+    the route.
+
+    :raises ApplicationRefusedError: no such record; the record is not a
+        model's proposal; the proposal has already been settled; the verdict
+        is outside the vocabulary; the person signed nothing; or the ledger
+        refused the move.
+    """
+    moment = now if now is not None else datetime.now(UTC)
+    if verdict not in PROPOSAL_VERDICTS:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PROPOSAL_VERDICT_UNKNOWN,
+            f"{verdict!r} is not a verdict a person can return about a proposal. "
+            "The verdicts are " + ", ".join(PROPOSAL_VERDICTS) + ".",
+        )
+    if not user_id.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ATTESTATION_IDENTITY_EMPTY,
+            "an attestation nobody signs is not an attestation. Name the person whose word it is.",
+        )
+    session = context.store.session
+    connection = session.connection()
+    proposal = load_record(connection, proposal_id)
+    if proposal is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.EVIDENCE_NOT_FOUND,
+            f"the ledger holds no record with the id {proposal_id!r}.",
+        )
+    if proposal.created_by is not EvidenceCreator.MODEL_PROPOSAL:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PROPOSAL_NOT_A_PROPOSAL,
+            f"the record {proposal_id!r} was written by {proposal.created_by.value!r}, "
+            "and there is nothing to settle: a proposal is a model's, and a "
+            "person's own claim is attested with attest_claim.",
+        )
+    if proposal.superseded_by is not None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PROPOSAL_ALREADY_SETTLED,
+            f"the proposal {proposal_id!r} was already settled by "
+            f"{proposal.superseded_by!r}. A proposal is settled once: a second "
+            "confirmation would be a second answer to a question that has one.",
+        )
+    if not proposal.anchor_ids:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the proposal {proposal_id!r} names no address, so there is nothing "
+            "a person's word could be about.",
+        )
+    anchor = load_anchor(connection, proposal.anchor_ids[0])
+    if anchor is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ADDRESS_NOT_FOUND,
+            f"the proposal {proposal_id!r} names an anchor the ledger does not "
+            "hold, so there is nothing a person's word could be about.",
+        )
+    with store_refusals():
+        source = load_source(session, anchor.source_id)
+    if source is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_NOT_FOUND,
+            f"the ledger holds no source with the id {anchor.source_id!r}.",
+        )
+    _require_inventory(context, source)
+
+    span = note
+    span_sha256 = _sha256(span)
+    existing = record_for_span(connection, str(context.task_id), span_sha256)
+    if existing is not None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.CLAIM_ALREADY_RECORDED,
+            f"the task already holds the record {existing!r}, whose extracted span "
+            f"hashes to {span_sha256}. uq_evidence_task_span permits one record "
+            "per span per task, so the same words are one claim; a person's word "
+            "about the same material has to be their own words.",
+        )
+
+    request = ClaimRequest(
+        source_id=anchor.source_id,
+        locator_key=render_locator_key(anchor.locator),
+        kind=EvidenceKind.CLAIM,
+        text=note,
+        span=span,
+    )
+    record = _the_record(
+        context,
+        request,
+        anchor=anchor,
+        span=span,
+        span_sha256=span_sha256,
+        source=source,
+        moment=moment,
+        creator=EvidenceCreator.USER,
+        status=VerificationStatus.EXTRACTED,
+        creator_id=user_id,
+    )
+    try:
+        # The replacement is inserted by ``supersede_record`` itself — the
+        # store's exit writes the new row and marks the old one, and doing
+        # it here as well would write the same record twice.
+        append_verification(
+            connection,
+            proposal_id,
+            VerificationRecord(
+                check=CheckKind.C4,
+                checker_id=user_id,
+                outcome=CheckOutcome.NOT_CHECKED,
+                detail=f"{verdict} by {user_id!r}: {note}",
+                checked_at=moment,
+            ),
+        )
+        superseded = supersede_record(connection, proposal_id, record)
+        attested = attest(
+            connection,
+            record.evidence_id,
+            user_id=user_id,
+            note=note,
+            checked_at=moment,
+        )
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the ledger refused the settlement: {error.orig}. Nothing was written.",
+        ) from error
+    except LedgerError as error:
+        session.rollback()
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ATTESTATION_REFUSED,
+            f"the ledger refused the settlement: {error}. Nothing was written.",
+        ) from error
+    return ProposalSettled(
+        proposal=superseded,
+        confirmation=attested,
+        verdict=verdict,
+        user_id=user_id,
+    )
+
+
 def _record_against_material(
     context: ApplicationContext,
     request: ClaimRequest,
@@ -439,6 +733,7 @@ def _the_record(
     moment: datetime,
     creator: EvidenceCreator,
     status: VerificationStatus,
+    creator_id: str = LOCAL_USER_ID,
 ) -> EvidenceRecord:
     """The record model for this write, or a refusal naming what is unusable.
 
@@ -446,6 +741,12 @@ def _the_record(
     fields a kind requires, whether the span and its hash are both present,
     and whether a claim carries a number are ADR-0004 Contract 1's rules, and
     a second statement of them here would be a second thing to keep in step.
+
+    ``creator_id`` is **who** wrote it, and it is an argument rather than a
+    constant because a person's record must name that person: the creator
+    field says "a person" and this says which one, and a ledger that kept
+    only the first would be a ledger that could not say who stood behind
+    anything.
     """
     try:
         return EvidenceRecord.model_validate(
@@ -462,7 +763,7 @@ def _the_record(
                 "extracted_span_sha256": span_sha256,
                 "status": status,
                 "created_by": creator,
-                "created_by_id": LOCAL_USER_ID,
+                "created_by_id": creator_id,
                 "source_content_hash": source.content_sha256,
                 "created_at": moment,
             }

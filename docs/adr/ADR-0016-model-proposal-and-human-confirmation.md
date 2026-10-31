@@ -143,6 +143,21 @@ record in it.** A proposal therefore has exactly two legitimate routes out of
 - **a human** attests it — and a human attestation is logged by *that
   person's* id, never by the model's.
 
+> **Corrected on 2026-10-31, and the correction is D1's second bullet
+> that was never reachable.** The two routes above are the ones the *state
+> machine* offers. The second of them cannot be taken on the proposal's own
+> record: `user_attested` requires `created_by='user'`, and D2's own rule
+> forbids rewriting a model's creator to make it fit — which is correct, and
+> which leaves the person's route as **the person's own record, which
+> supersedes the proposal**. The store says so in its own words
+> (`evidence/store.py`, `supersede_record`): *"the only route to
+> `user_attested` needs `created_by == 'user'` … a rule-written record …
+> has nowhere to go — it cannot be verified, because no check passed, and it
+> cannot be attested, because it is not a person's record. Superseding is the
+> exit the schema provides: a person writes their own record, and the
+> rule's is kept and marked."* D2's diagram is corrected below, and the
+> confirmation door implements what it says.
+
 **A model proposal cannot promote itself.** The `model_proposal` member's
 comment says it: *"a proposal reaches `planned` and no further without a log
 entry from C1-C3 or a user."*
@@ -194,12 +209,26 @@ it is a Phase 2 witness, not a Phase 1 one.
 
 ```
 model_proposal ──(a rule verifies a STRUCTURAL fact)──> verified_by_rule
-model_proposal ──(a named human attests it)──────────> user_attested, attributed to that human
-model_proposal ──(conflicting readings)─────────────> conflicted
 model_proposal ──(the anchor does not resolve)──────> unsupported
+model_proposal ──(conflicting readings)─────────────> conflicted
+```
+
+**And the human's route, which is not a status on the proposal** (corrected
+on 2026-10-31, because the arrow that was here was unreachable — see D1's
+correction above):
+
+```
+a person's own record ──(at the same address)──> user_attested, attributed to that person
+        └── supersedes ──> the proposal, which is kept and marked
 ```
 
 `model_proposal` never becomes `user`, and never becomes `user_attested`.
+**And a model proposal never becomes citable**, because the states a report
+may cite are `verified_by_rule` and `user_attested` and it is neither. What
+a report cites after a person has settled a proposal is **the person's own
+record** — which is the point: the thing in front of a reader is a person's
+word, and the model's answer is beside it in the ledger, kept, marked, and
+attributable to the model that said it.
 
 ### D3 — Structured output is not assumed; the schema is enforced on the way in and the way out
 

@@ -54,6 +54,8 @@ Operation                  Capability
 ``list_source_addresses``  ``source.inventory``
 ``record_claim``           ``source.inventory``
 ``record_model_proposal``  ``source.inventory``
+``attest_claim``          ``source.inventory``
+``confirm_proposal``       ``source.inventory``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
@@ -103,6 +105,8 @@ from labcairn.application.evidence import (
     ClaimRecorded,
     ClaimRequest,
     SourceAddress,
+    attest_claim,
+    confirm_proposal,
     list_source_addresses,
     record_claim,
     record_model_proposal,
@@ -211,6 +215,8 @@ __all__ = [
     "TaskStep",
     "VersionRequest",
     "VersionStored",
+    "attest_claim",
+    "confirm_proposal",
     "consume_approval",
     "create_task",
     "describe_abandoned",

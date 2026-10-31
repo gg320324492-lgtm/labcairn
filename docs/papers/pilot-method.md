@@ -99,13 +99,16 @@ and which is the next piece of work. The pilot's task book is
 [`../plans/PHASE_2-pilot-task-breakdown.md`](../plans/PHASE_2-pilot-task-breakdown.md).
 
 **And a fifth gap, which the pilot's own first proposal found: nothing
-advances a record's status.** The machinery is there and tested — the
+advanced a record's status.** The machinery was there and tested — the
 store's `advance()` runs the named checks, appends their verdicts and
 moves the record, and the suite drives it twenty-seven times — but **no
-operation in `src/` calls it**: not the application layer, not the API,
-not the CLI. So the model's proposal sits at `planned` for ever, because
-the one step that would take it to `verified_by_rule` or `user_attested`
-has no door. The pilot's next piece of work is that door.
+operation in `src/` called it**: not the application layer, not the API,
+not the CLI. **It is closed now.** The confirmation door
+(`docs/acceptance/pilot-confirmation-door.md`) lets a person attest their
+own claim, or settle a model's proposal, and **ADR-0016 D2's promotion
+diagram was corrected** because the arrow it drew was unreachable: a model
+proposal never becomes `user_attested`, so the person's route is their own
+record, which supersedes the proposal — kept, and marked.
 
 ## 6. The business request, and what it proved about the product
 

@@ -81,6 +81,29 @@ class ApplicationRefusal(StrEnum):
     #: per task, so the second write is refused by name rather than by a
     #: constraint error out of the middle of the transaction.
     CLAIM_ALREADY_RECORDED = "claim_already_recorded"
+    #: The ledger holds no evidence record with that id.
+    EVIDENCE_NOT_FOUND = "evidence_not_found"
+    #: The attestation named nobody. **An attestation nobody signs is not an
+    #: attestation**, so the person's id is the operation's argument and not a
+    #: default.
+    ATTESTATION_IDENTITY_EMPTY = "attestation_identity_empty"
+    #: The record is not the person's own, so it cannot be attested in place.
+    #: A model's proposal is settled by the person's own word about the same
+    #: material, which supersedes it — a different operation, and the only
+    #: one the schema leaves.
+    ATTESTATION_NOT_THE_AUTHOR = "attestation_not_the_author"
+    #: The ledger refused the move. The original failure is kept as the cause.
+    ATTESTATION_REFUSED = "attestation_refused"
+    #: The record is not a model's proposal, so there is nothing to settle.
+    PROPOSAL_NOT_A_PROPOSAL = "proposal_not_a_proposal"
+    #: The proposal has already been settled by a person. **A proposal is
+    #: settled once**: a second confirmation would be a second answer to a
+    #: question that has one.
+    PROPOSAL_ALREADY_SETTLED = "proposal_already_settled"
+    #: The verdict is not one a person can return about a proposal. The
+    #: vocabulary is closed, because "the person had a look" is not a verdict
+    #: a record can carry.
+    PROPOSAL_VERDICT_UNKNOWN = "proposal_verdict_unknown"
     #: The store holds no artefact with that id.
     ARTIFACT_NOT_FOUND = "artifact_not_found"
     #: The store holds no operation with that id.

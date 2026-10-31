@@ -1182,6 +1182,135 @@ def task_claim(
         )
 
 
+@task_app.command("claim-attest")
+def task_claim_attest(
+    ctx: typer.Context,
+    evidence_id: Annotated[str, typer.Argument(help="The claim being attested.")],
+    user_id: Annotated[
+        str,
+        typer.Option(
+            "--user",
+            help="The person whose word it is. An attestation nobody signs is not "
+            "an attestation, so the name is the command's argument.",
+        ),
+    ],
+    note: Annotated[
+        str,
+        typer.Option("--note", help="What that person says about the claim."),
+    ],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """A person stands behind **their own** claim.
+
+    The claim must be theirs: a model's proposal is settled by
+    `labcairn task proposal-confirm`, which is the route the ledger's own rules
+    leave open — a model proposal never becomes a person's attestation, and
+    the record model refuses it at construction in every path.
+
+    The attestation is logged as a **C4** entry, the check whose only verdict
+    is `not_checked`, carrying that person's id. So the ledger says *who*
+    stands behind the claim, and not only that somebody does.
+    """
+    from labcairn.application import attest_claim
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(evidence_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{evidence_id!r} is not an evidence id: evidence ids are UUIDv7.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            attested = attest_claim(context, evidence_id, user_id=user_id, note=note)
+    if as_json:
+        emit_model(attested)
+    else:
+        _console().print(
+            f"[bold]attested[/bold] {attested.record.evidence_id} — "
+            f"{attested.user_id} stands behind it: {attested.note}"
+        )
+
+
+@task_app.command("proposal-confirm")
+def task_proposal_confirm(
+    ctx: typer.Context,
+    proposal_id: Annotated[str, typer.Argument(help="The model's proposal being settled.")],
+    verdict: Annotated[
+        str,
+        typer.Option(
+            "--verdict",
+            help="What the person returns: 'confirmed' or 'disputed'. The vocabulary "
+            "is closed, because 'the person had a look' is not a verdict a record "
+            "can carry.",
+        ),
+    ],
+    user_id: Annotated[
+        str,
+        typer.Option(
+            "--user",
+            help="The person whose word it is. An attestation nobody signs is not "
+            "an attestation, so the name is the command's argument.",
+        ),
+    ],
+    note: Annotated[
+        str,
+        typer.Option("--note", help="What that person says about the proposal."),
+    ],
+    task: TaskOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """A person confirms or disputes a model's proposal.
+
+    **The proposal is not promoted; the person's own word replaces it.** The
+    proposal's log gains a C4 entry naming the person and their verdict, the
+    person's own record is written at the same address, and the proposal is
+    superseded by it — **kept, not deleted**, because a record that was wrong
+    is worth more in the ledger than outside it. The thing a report may cite
+    is then a person's word and not a model's.
+    """
+    from labcairn.application import confirm_proposal
+    from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
+    from labcairn.cli.workspace import application_context, locate
+    from labcairn.core.ids import is_uuid7
+
+    options = _options(ctx)
+    location = locate(options.workspace)
+    with _refusals(as_json):
+        if not is_uuid7(proposal_id):
+            _refuse(
+                CLI_REFUSAL_INVALID_ARGUMENTS,
+                f"{proposal_id!r} is not an evidence id: evidence ids are UUIDv7.",
+                as_json=as_json,
+            )
+        config = _require_workspace(location, as_json=as_json)
+        task_id = _select_task(config, task, as_json=as_json)
+        with application_context(location, config, task_id) as context:
+            settled = confirm_proposal(
+                context,
+                proposal_id,
+                user_id=user_id,
+                verdict=verdict,
+                note=note,
+            )
+    if as_json:
+        emit_model(settled)
+    else:
+        _console().print(
+            f"[bold]{settled.verdict}[/bold] by {settled.user_id} — the proposal "
+            f"{settled.proposal.evidence_id} is superseded by "
+            f"{settled.confirmation.evidence_id}, which is the record a report "
+            f"may cite."
+        )
+
+
 @task_app.command("approval-request")
 def task_approval_request(
     ctx: typer.Context,

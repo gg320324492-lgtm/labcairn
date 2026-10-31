@@ -2830,3 +2830,119 @@ def test_the_figure_command_refuses_before_the_run_with_the_layers_reasons(
     )
     assert bad_json.returncode == EXIT_REFUSED, bad_json.stdout
     assert bad_json.json()["reason"] == "invalid_arguments"
+
+
+# --------------------------------------------------------------------------- #
+# the confirmation door, through the console script
+# --------------------------------------------------------------------------- #
+
+
+def test_task_claim_attest_puts_a_person_behind_the_claim(
+    workspace: Path, task_id: str, material: Path
+) -> None:
+    """The attestation is reached through the console script, and the JSON says who.
+
+    **The claim is recorded through the CLI too**, so the whole path a person
+    types is the path under test: record, attest, and the record is
+    ``user_attested`` with the attester's name on it.
+    """
+    source_id = _ingest(workspace)
+    address = next(item for item in _addresses(workspace, source_id) if item["text"].strip() == "2")
+
+    claimed = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim",
+        "--source",
+        source_id,
+        "--address",
+        address["locator_key"],
+        "--kind",
+        "numeric",
+        "--value",
+        "2",
+        "--unit",
+        "dimensionless",
+        "--json",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+    evidence_id = str(claimed.json()["record"]["evidence_id"])
+
+    attested = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "claim-attest",
+        evidence_id,
+        "--user",
+        "the-advisor",
+        "--note",
+        "I read it against the table.",
+        "--json",
+    )
+
+    assert attested.returncode == 0, attested.stderr
+    record = attested.json()["record"]
+    assert record["status"] == "user_attested"
+    assert record["created_by"] == "user"
+    assert attested.json()["user_id"] == "the-advisor"
+
+
+def test_task_proposal_confirm_settles_a_models_proposal_through_the_console(
+    workspace: Path, task_id: str, material: Path
+) -> None:
+    """The settlement is reached through the console script.
+
+    **The proposal is written by the layer, not by the console**, because the
+    console has no command that records a model's answer — the model path is
+    code, and the operator's half is this command. So the proposal is put in
+    the ledger the way the pilot's own request puts it there, and the
+    settlement is the one thing under test.
+    """
+    from uuid import UUID
+
+    from labcairn.application import ClaimRequest, record_model_proposal
+    from labcairn.cli.workspace import application_context, locate, read_config
+    from labcairn.core.ids import TaskId
+    from labcairn.evidence.states import EvidenceKind
+
+    source_id = _ingest(workspace)
+    address = next(item for item in _addresses(workspace, source_id) if item["text"].strip() == "2")
+
+    location = locate(workspace)
+    config = read_config(location)
+    with application_context(location, config, TaskId(UUID(config.current_task))) as context:
+        proposed = record_model_proposal(
+            context,
+            ClaimRequest(
+                source_id=source_id,
+                locator_key=address["locator_key"],
+                kind=EvidenceKind.CLAIM,
+                text="The value reads 2.",
+            ),
+        )
+    proposal_id = str(proposed.record.evidence_id)
+
+    settled = run_cli(
+        "--workspace",
+        str(workspace),
+        "task",
+        "proposal-confirm",
+        proposal_id,
+        "--verdict",
+        "confirmed",
+        "--user",
+        "the-advisor",
+        "--note",
+        "I read the table; the number is the one it carries.",
+        "--json",
+    )
+
+    assert settled.returncode == 0, settled.stderr
+    body = settled.json()
+    assert body["verdict"] == "confirmed"
+    assert body["user_id"] == "the-advisor"
+    assert body["confirmation"]["status"] == "user_attested"
+    assert body["confirmation"]["created_by"] == "user"
+    assert body["proposal"]["superseded_by"] == body["confirmation"]["evidence_id"]

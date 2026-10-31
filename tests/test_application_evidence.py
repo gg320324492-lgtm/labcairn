@@ -43,19 +43,28 @@ from labcairn.application import (
     ClaimRequest,
     ReportRequest,
     SourceAddress,
+    attest_claim,
+    confirm_proposal,
     create_task,
     ingest_material,
     list_source_addresses,
     list_sources,
     record_claim,
+    record_model_proposal,
     render_report,
 )
 from labcairn.core.ids import SourceId
 from labcairn.db.materials import put_source
 from labcairn.db.repository import load_task
+from labcairn.evidence.gate import CITABLE_STATUSES
 from labcairn.evidence.index import LabCairnIndex, load_anchor
-from labcairn.evidence.states import CheckKind, EvidenceKind, VerificationStatus
-from labcairn.evidence.store import advance, load_task_records
+from labcairn.evidence.states import (
+    CheckKind,
+    EvidenceCreator,
+    EvidenceKind,
+    VerificationStatus,
+)
+from labcairn.evidence.store import advance, load_record, load_task_records
 from labcairn.material.addressing import split_locator_key
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
@@ -594,4 +603,266 @@ def test_a_claim_with_a_missing_unit_is_an_argument_that_is_not_usable(
             now=_MOMENT,
         ),
         ApplicationRefusal.ARGUMENTS_INVALID,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the confirmation door
+# --------------------------------------------------------------------------- #
+#
+# **A person's word is the only promotion, and there is a door for it.**
+# ADR-0016 D1 says a model proposal has two routes out of the ledger — a
+# rule verifies it, or a person attests it — and D2 says a model proposal
+# never becomes ``user_attested``: the record model refuses it at
+# construction, in every path. The store's own exit for a record nobody may
+# promote is **supersession** — "a person writes their own record, and the
+# rule's is kept and marked" — and these witnesses are about that route.
+
+
+def _a_claim_and_its_address(
+    context: ApplicationContext,
+) -> tuple[str, str]:
+    """The id of the material, and one address in it."""
+    source_id = _source_id(context, "notes.md")
+    locator_key, _ = _an_address(
+        context,
+        source_id,
+        predicate=lambda address: address.text.strip() != "",
+    )
+    return source_id, locator_key
+
+
+def test_a_person_attests_their_own_claim_and_the_ledger_says_who(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """A person's own claim reaches ``user_attested``, with their id on it.
+
+    **The claim must be theirs** — the store's ``attest`` refuses any record
+    whose creator is not a person, and that refusal is ADR-0016 D2's rule
+    rather than an oversight.
+
+    **The attestation is logged as a C4 entry**, the check whose only
+    verdict is ``not_checked``: the entry says *no machine checked this, and
+    a person is standing behind it*, and it carries **that person's id**,
+    which is what keeps an attestation distinguishable from a rule's pass.
+
+    **And the record becomes citable**, which is the whole point of the
+    door: a report may cite ``user_attested`` and nothing else.
+    """
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+
+    recorded = record_claim(
+        context,
+        ClaimRequest(
+            source_id=source_id, locator_key=locator_key, text="The yield was 4.253 percent."
+        ),
+        now=_MOMENT,
+    )
+    assert recorded.record.status is VerificationStatus.EXTRACTED
+
+    attested = attest_claim(
+        context,
+        recorded.record.evidence_id,
+        user_id="the-advisor",
+        note="I read it against the table.",
+        now=_MOMENT,
+    )
+
+    assert attested.record.status is VerificationStatus.USER_ATTESTED
+    assert attested.record.created_by is EvidenceCreator.USER
+    assert attested.record.created_by_id == recorded.record.created_by_id, (
+        "the attester's name does not overwrite the author's: the author is who "
+        "wrote the claim, and the attester is who stands behind it"
+    )
+    entries = [entry for entry in attested.record.verification_log if entry.check is CheckKind.C4]
+    assert entries, "the attestation is logged, and it is logged as a C4 entry"
+    assert entries[-1].checker_id == "the-advisor"
+    assert attested.record.status in CITABLE_STATUSES, "a person's word is what a report may cite"
+
+
+def test_a_models_proposal_cannot_be_attested_in_place(env: StoreEnv, workspace_root: Path) -> None:
+    """ADR-0016 D2: a model proposal never becomes a person's attestation.
+
+    **The refusal names the route that is open**, because a refusal that
+    only says no leaves the operator with nothing to do next.
+    """
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+    proposed = record_model_proposal(
+        context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The yield reads 4.253 percent.",
+        ),
+        now=_MOMENT,
+    )
+
+    refused = _assert_refused(
+        lambda: attest_claim(
+            context,
+            proposed.record.evidence_id,
+            user_id="the-advisor",
+            note="I read the table.",
+        ),
+        ApplicationRefusal.ATTESTATION_NOT_THE_AUTHOR,
+    )
+    assert "proposal" in str(refused), "the refusal names the route that is open"
+    assert proposed.record.status is VerificationStatus.PLANNED, (
+        "a refused attestation leaves the proposal exactly as it was"
+    )
+
+
+def test_a_person_settles_a_models_proposal_and_the_proposal_is_kept(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The proposal is not promoted; the person's own word replaces it.
+
+    The settlement does three things, and this is a witness for each: **the
+    proposal's log names the person and their verdict**; **the person's own
+    record is written at the same address** and is the one a report may cite;
+    and **the proposal is kept**, marked as superseded — because a record that
+    was wrong is worth more in the ledger than outside it.
+
+    **The proposal's own status does not move.** A model proposal reaches
+    ``planned`` and no further, and a person's word does not rewrite that:
+    what it does is stand in front of it, in the person's own name.
+    """
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+    proposed = record_model_proposal(
+        context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The yield reads 4.253 percent.",
+        ),
+        now=_MOMENT,
+    )
+
+    settled = confirm_proposal(
+        context,
+        proposed.record.evidence_id,
+        user_id="the-advisor",
+        verdict="confirmed",
+        note="I read the table; the number is the one it carries.",
+        now=_MOMENT,
+    )
+
+    entries = [entry for entry in settled.proposal.verification_log if entry.check is CheckKind.C4]
+    assert entries, "the proposal's log names who stood behind it"
+    assert entries[-1].checker_id == "the-advisor"
+    assert "confirmed" in entries[-1].detail
+
+    assert settled.confirmation.created_by is EvidenceCreator.USER
+    assert settled.confirmation.created_by_id == "the-advisor"
+    assert settled.confirmation.status is VerificationStatus.USER_ATTESTED
+    assert settled.confirmation.status in CITABLE_STATUSES, (
+        "the thing a report may cite is a person's word and not a model's"
+    )
+
+    kept = load_record(context.store.session.connection(), proposed.record.evidence_id)
+    assert kept is not None, "the proposal is kept, not deleted"
+    assert kept.superseded_by == settled.confirmation.evidence_id
+    assert kept.status is VerificationStatus.PLANNED, (
+        "a model proposal's own status is not changed by a person's word"
+    )
+    assert kept.created_by is EvidenceCreator.MODEL_PROPOSAL, (
+        "and the model's name on it is not rewritten either"
+    )
+
+
+def test_a_proposal_is_settled_once(env: StoreEnv, workspace_root: Path) -> None:
+    """A second confirmation is a second answer to a question that has one."""
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+    proposed = record_model_proposal(
+        context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The yield reads 4.253 percent.",
+        ),
+        now=_MOMENT,
+    )
+    confirm_proposal(
+        context,
+        proposed.record.evidence_id,
+        user_id="the-advisor",
+        verdict="confirmed",
+        note="I read the table.",
+        now=_MOMENT,
+    )
+
+    _assert_refused(
+        lambda: confirm_proposal(
+            context,
+            proposed.record.evidence_id,
+            user_id="someone-else",
+            verdict="disputed",
+            note="I read it differently.",
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PROPOSAL_ALREADY_SETTLED,
+    )
+
+
+def test_the_verdicts_are_a_closed_vocabulary(env: StoreEnv, workspace_root: Path) -> None:
+    """ "The person had a look" is not a verdict a record can carry."""
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+    proposed = record_model_proposal(
+        context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The yield reads 4.253 percent.",
+        ),
+        now=_MOMENT,
+    )
+
+    refused = _assert_refused(
+        lambda: confirm_proposal(
+            context,
+            proposed.record.evidence_id,
+            user_id="the-advisor",
+            verdict="looked at it",
+            note="It seemed fine.",
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PROPOSAL_VERDICT_UNKNOWN,
+    )
+    assert "confirmed" in str(refused) and "disputed" in str(refused), (
+        "the refusal names the verdicts that are open"
+    )
+
+
+def test_nobody_signs_nothing(env: StoreEnv, workspace_root: Path) -> None:
+    """An attestation nobody signs is not an attestation."""
+    _write_the_material(workspace_root)
+    context = _context(env, workspace_root)
+    source_id, locator_key = _a_claim_and_its_address(context)
+    recorded = record_claim(
+        context,
+        ClaimRequest(
+            source_id=source_id, locator_key=locator_key, text="The yield was 4.253 percent."
+        ),
+        now=_MOMENT,
+    )
+
+    _assert_refused(
+        lambda: attest_claim(
+            context,
+            recorded.record.evidence_id,
+            user_id="   ",
+            note="I read it.",
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.ATTESTATION_IDENTITY_EMPTY,
     )

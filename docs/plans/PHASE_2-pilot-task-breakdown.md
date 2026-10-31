@@ -79,7 +79,7 @@ paper's business out of it.
 | **The model path has no CLI.** `request_model` is an application-layer operation; the operator reaches it through code. | The pilot's operators run a script, not a command, and the approval they grant is granted for a command that does not exist. | A `labcairn task model-request` command that asks for the approval the way `task figure` does — printing the request it will make. |
 | **`request_model` is not exported from `labcairn.application`.** The demo and the test import the module path directly. | A caller must know a module path to call the operation the application layer offers. | Export it, with the capability table row the other operations have. |
 | **Six domain modules reach past the application layer to the store.** `labcairn.guidance.{rules,retrieval,distil}` and `labcairn.roles.{spec,guidance,critique,trajectory}` import the store's rows directly, and the repository's own witness says so. | **The pilot's next operation would be a surface reading the store without the layer**, which is the hole the witness exists to close. | Application-layer operations that own those reads, and the six modules calling them. This is LC-P2-11's and LC-P2-12's scope, and it is **the next piece of work**, not a repair to bolt on here. |
-| **Nothing advances a record's status.** The machinery is there — `evidence/store.py`'s `advance()` runs the named checks, appends the verdicts and moves the record, and the suite drives it twenty-seven times — but **no operation in `src/` calls it**: not the application layer, not the API, not the CLI. | **A proposal cannot be confirmed or disputed.** The model's answer sits at `planned` for ever, because the one step that would take it to `verified_by_rule` or `user_attested` has no door. This is the pilot's step 4, and it stops there. | An application-layer operation that advances a record — the checks named, the policy digest bound, the refusal named — and a CLI command that asks for it. The machinery is tested; what is missing is the door. |
+| ~~**Nothing advances a record's status.**~~ **Closed on 2026-10-31.** The machinery was there — `evidence/store.py`'s `advance()` runs the named checks, appends the verdicts and moves the record, and the suite drives it twenty-seven times — but no operation in `src/` called it. The confirmation door is now there: `attest_claim` (a person stands behind their own claim) and `confirm_proposal` (a person settles a model's proposal), with `labcairn task claim-attest` and `labcairn task proposal-confirm`. | — | The record is `docs/acceptance/pilot-confirmation-door.md`, and **ADR-0016 D2's promotion diagram was corrected**, because the arrow it drew was unreachable: a model proposal never becomes `user_attested`, so the person's route is their own record, which supersedes the proposal. |
 
 ## 4. The pilot's shape
 
@@ -102,9 +102,11 @@ paper's business out of it.
    a person confirms or disputes it. **A model's say-so never becomes a
    rule by being retrieved often** — that is LC-P2-11's line, and the
    pilot is where it is tested on real text. **The proposal is in the
-   ledger; the second half of this step is not yet possible**, because
-   nothing advances a record's status (§3's last row) — and that is the
-   pilot's next piece of work, not a step it can skip.
+   ledger, and the person can now settle it**: the confirmation door
+   (`docs/acceptance/pilot-confirmation-door.md`) lets a person attest their
+   own claim or settle a model's proposal — and what a report cites
+   afterwards is the person's own record, with the model's answer kept and
+   marked beside it.
 5. **The measurement.** What the pilot produces: the agreement number, the
    count of proposals a person confirmed, and the cases where the model's
    card and the advisor's comment disagreed. **The cases where the model
