@@ -261,8 +261,8 @@ is a function of the version and the element's path.
 
 ### 6.4 The witnesses, and the mutations that broke them
 
-**Twelve witnesses** — eleven functions and one with twelve parameterised
-cases, so twenty-three cases — all in `tests/test_version_store.py`, the
+**Thirteen witnesses** — twelve functions and one with twelve parameterised
+cases, so twenty-four cases — all in `tests/test_version_store.py`, the
 file that is about *storing* the paper project's rows, plus one more in
 `tests/test_threat_model.py`. **Not a new file:** a new `tests/test_*.py`
 has no measured shard cost, and `tests/test_ci_shard_coverage.py` fails on
@@ -281,16 +281,18 @@ a file with no cost until a runner measures it.
 | a version nobody holds is refused | `test_a_revision_event_about_a_version_nobody_holds_is_refused` |
 | a listing drops the events of denied material rather than refusing | `test_a_listing_drops_the_events_of_denied_material` |
 | the mentor line reads the changes and the shape of the manuscript | `test_the_application_layer_reads_the_revision_events_and_the_activity` |
+| **a comment and a change in one manuscript are two facts, and the chain asserts no correspondence** | `test_a_comment_and_a_change_in_one_manuscript_are_two_facts` |
 | **the schema cannot express why a change was made** | `test_the_schema_cannot_express_why_a_change_was_made`, and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason` |
 
-**Twenty-three mutations were applied, and none survived.** Each broke one
+**Twenty-four mutations were applied, and none survived.** Each broke one
 property — a constraint removed from the table *and* from the migration, a
 text dropped, a view dropped, an author guessed, an id that depends on
 insertion order, a stale anchor re-pointed instead of refused, the byte
 check skipped, the policy not asked, the refusal for the wrong reason, a
-count that counts nothing, a listing that does not drop denied material,
-and a column added for the reason a change was made. **Every one of them
-was caught by the witness that claims that property, and each by its own.**
+count that counts nothing, a listing that does not drop denied material, a
+count that cannot see the comments, and a column added for the reason a
+change was made. **Every one of them was caught by the witness that claims
+that property, and each by its own.**
 
 **And one of the twenty-three was not applied at first**, because a
 reformat had moved the line the mutation named. **A mutation that was never
@@ -320,13 +322,27 @@ recall measure on synthetic fixtures, and it cannot tell "300 events in 14
 paragraphs" from "300 events in 300 paragraphs". **On real files the
 distribution is the finding**:
 
-| File | Changes | Paragraphs with a change | Paragraphs in the document | Busiest paragraph | Median per changed paragraph |
+| The review copy | Changes | Paragraphs with a change | Paragraphs in the document | Busiest paragraph | Median per changed paragraph |
 |---|---|---|---|---|---|
-| `v08-05-chinese-review` | 203 | 43 | 113 (38.1 %) | 34 (16.7 % of the file) | 2 |
-| `v08-16-chinese-review` | 225 | 25 | 106 (23.6 %) | 53 (23.6 %) | 3 |
-| `v09-04-chinese-review` | 303 | **14** | 113 (**12.4 %**) | 77 (25.4 %) | 13 |
-| `v09-07-chinese-review` | 52 | 6 | 90 (6.7 %) | 31 (**59.6 %**) | 3 |
-| `v09-25-chinese-review` | 114 | 11 | 111 (9.9 %) | 39 (34.2 %) | 6 |
+| the first (203 changes) | 203 | 43 | 113 (38.1 %) | 34 (16.7 % of the copy) | 2 |
+| the second (225 changes) | 225 | 25 | 106 (23.6 %) | 53 (23.6 %) | 3 |
+| the third (303 changes) | 303 | **14** | 113 (**12.4 %**) | 77 (25.4 %) | 13 |
+| the fourth (52 changes) | 52 | 6 | 90 (6.7 %) | 31 (**59.6 %**) | 3 |
+| the fifth (114 changes) | 114 | 11 | 111 (9.9 %) | 39 (34.2 %) | 6 |
+
+**The corpus's file names are not in this repository.** The material is the
+owner's unpublished paper, and **no part of it enters the tree** — not the
+bytes, not an excerpt, and not the names of the files. **The copies are
+named here by how many changes they carry**, which anchors every number
+above and identifies nothing.
+
+**And the reviewer's clock, which is now the chain's.** **All 897 events
+carry a timestamp** — not one is undated — and they fall on **six distinct
+days**, in batches of 203, 225, 48, 255, 52 and 114 changes. **The third
+copy was worked over two days** (48 changes on one, 255 on the next), which
+is the kind of thing a count of files cannot show and a count of days can.
+**The dates themselves stay with the material**; what is here is the shape
+of the clock and not the clock.
 
 **Three real cases the synthetic corpus does not reach**, all three of them
 in the material rather than in a fixture: **71 events carry empty text**
@@ -341,7 +357,7 @@ wrong. **A record is not evidence, and where they differ the measurement
 wins** — so the counter was corrected and the number above is the
 corrected one.
 
-### 6.6 The two limits, stated here rather than only in a report
+### 6.6 The three limits, stated here rather than only in a report
 
 1. **The revision events are not on the event stream, and so they cannot be
    replayed from it.** ADR-0017 D8 puts the chain's four objects on the
@@ -353,6 +369,18 @@ corrected one.
    against real files, run on one machine, and the record names the machine
    and the date. **No shard cost comes from it**, and nothing in it is
    presented as a runner's number.
+3. **The shard costs are stale, and one file is the reason.** The
+   witnesses went into `tests/test_version_store.py` rather than into a
+   new file, because a new file has no measured cost. But the application
+   layer's seam guard — *a module that reaches the store must be named* —
+   is in `tests/test_application_layer.py`, and this work had to name
+   `labcairn.papers.revisions` in it. **That file costs 34.59 s on the
+   Ubuntu runner against a partition slack of 16.2 s**, so
+   `tests/test_ci_shard_coverage.py` will report it as needing a
+   re-measurement, and the fix is the project's own:
+   `python .github/remeasure_shards.py <run-id>`. **The shard file was not
+   touched here**, and the re-measurement needs a runner, which is the
+   owner's call.
 
 ### 6.7 What was deliberately **not** built, and why
 
@@ -374,11 +402,13 @@ corrected one.
   metric* rather than a quality metric**, and 897 silent rewrites are
   exactly the material that would be mistaken for the advisor's rules.
   **The schema is what stops it:** `revision_events` has no column for a
-  reason and no foreign key to `feedback_events`, and the rule store's
-  only binding to chain material is by `issue_key`, which a revision event
-  does not carry. **"Distil a rule from the reviewer's rewrites" is not
-  expressible in the data model at all** — which is §6.13 of the threat
-  model and its witness.
+  reason and no foreign key to `feedback_events`, the rule store's only
+  binding to chain material is by `issue_key`, which a revision event does
+  not carry, and **the distillation's cases are the chain's comments** — so
+  **a rule cannot be distilled from a reviewer's rewrites at all**. **A
+  person may still write a rule by hand**, and that is a person's
+  judgement: it lands as a candidate, and only a second reader moves it on.
+  §6.13 of the threat model says this and its witness watches it.
 - **The group's own writing template.** It is a *rule* object, it has no
   `issue_key`, and it cannot be a rule's source under the current schema
   (`guidance_rule_sources.issue_key` is NOT NULL). What it needs is a
@@ -386,6 +416,14 @@ corrected one.
   in the tree, and its pre-submission checklist is a catalogue of decidable
   checks rather than a rule or a counterexample. **That is LC-P2-11's
   decision and not this work order's**, and it is handed over as such.
+  **And how the two traditions would coexist is part of that decision:
+  they are two sources of rules bound to two different things** — the
+  advisor's to chain material under an `issue_key`, the group's to a
+  document — **and the rule store serves both without ranking one above
+  the other.** The places where the group's norms and the advisor's
+  criteria agree are **two independent rules that agree**, and whether they
+  are one rule or two is a person's judgement about scope rather than a
+  competition between the two.
 
 ## 7. What this work order has not had
 
@@ -394,11 +432,17 @@ corrected one.
   owner's decision of 2026-10-29 the reviewer is the owner — they wrote
   none of this code. **That review has not happened yet**, and this
   document does not claim it has.
-- **No real material.** Everything here is synthetic. A real manuscript
-  brings run fragmentation inside a revision, revision ids Word renumbers on
+- **No real material in the tests.** Everything the tests measure is
+  synthetic. **The reader has now been measured over real material** — 897
+  real tracked changes, §6.5 — and what the real files brought that the
+  synthetic corpus does not is written down there: **71 events with empty
+  text, a revision inside a revision, and a move whose text is in `w:t`
+  rather than in `w:delText`.** What real material has **not** yet brought
+  is run fragmentation inside a revision, revision ids Word renumbers on
   save, comments in headers and footnotes, and adviser prose with hedging
-  and politeness in it. **The reader has never seen one**, and the
-  pilot corpus is where it will.
+  and politeness in it — **the corpus measured in §6.5 carries no comments
+  at all**, so the reader's handling of a comment in a real file is still
+  the synthetic corpus's word.
 - ~~**No persistence of the events.** The tables hold projects, versions and
   the edges between them. **LC-P2-07's revision events are read and then
   go nowhere**, because the tables they would live in — `EditAction`,

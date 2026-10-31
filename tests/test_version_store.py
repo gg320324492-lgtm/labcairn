@@ -53,7 +53,7 @@ from pathlib import Path
 import pytest
 from docx_fixtures import Revision
 from feedback_chain_fixtures import MOMENT as CHAIN_MOMENT
-from feedback_chain_fixtures import ChainEnv, build_chain
+from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -88,6 +88,8 @@ from labcairn.db.materials import put_source
 from labcairn.db.models import RevisionEventRow
 from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.material.ooxml import read_document
+from labcairn.papers.feedback import record_feedback
+from labcairn.papers.responses import list_unaddressed
 from labcairn.papers.revisions import (
     RevisionRecord,
     list_revision_events,
@@ -1260,6 +1262,44 @@ def anonymous(env: StoreEnv, workspace_root: Path) -> ChainEnv:
     )
 
 
+@pytest.fixture
+def marked_up_with_a_comment(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A marked-up manuscript that carries **both**: changes and a comment.
+
+    **This is the shape of the richest sample in the corpus** — one person
+    who both rewrote the text and wrote a remark about it — and **the two
+    are two things**. A comment says what a person asked for; a change says
+    what was altered. They may correspond and they may not, and the chain
+    asserts no correspondence that nobody recorded.
+    """
+    return build_chain(
+        env.store(),
+        workspace_root,
+        paragraphs=(_MARKED_PARAGRAPH,),
+        revisions=(
+            Revision(
+                kind="ins",
+                text="carefully",
+                author="Prof. Lin",
+                date="2026-03-02T09:30:00Z",
+                element_id="101",
+                paragraph=0,
+                after_text="estimates",
+            ),
+            Revision(
+                kind="del",
+                text="roughly",
+                author="Prof. Lin",
+                date="2026-03-02T09:31:00Z",
+                element_id="102",
+                paragraph=0,
+                anchor_text="roughly",
+            ),
+        ),
+        comments=(a_comment("201", text="Say what the parameter is."),),
+    )
+
+
 def _recorded(context: ApplicationContext, env: ChainEnv) -> tuple[RevisionRecord, ...]:
     """The revision events of the first version, recorded."""
     return record_revision_events(
@@ -1639,6 +1679,52 @@ def test_the_application_layer_reads_the_revision_events_and_the_activity(
     assert activity[0].paragraphs_touched == 1
     assert activity[0].most_events_in_a_paragraph == 2
     assert activity[0].comment_count == 0
+
+
+def test_a_comment_and_a_change_in_one_manuscript_are_two_facts(
+    marked_up_with_a_comment: ChainEnv,
+) -> None:
+    """The same person's comment and the same person's change are two
+    things, and the chain records them side by side.
+
+    **The corpus's richest sample is one person who both rewrote the text
+    and wrote a remark about it, and the two are not one thing.** A
+    comment says what a person asked for; a change says what was altered.
+    They may correspond and they may not, and **the chain asserts no
+    correspondence that nobody recorded** — the pairing is a judgement, it
+    carries its own decider and its own evidence, and it lives in
+    ``response_links``.
+
+    **So this is what the model says about the two cases.** A comment with
+    no change answering it is **listed as unaddressed** — not absent from
+    the listing. And the changes stand beside it, with nothing joining
+    them.
+
+    **What breaks it:** a reader that joins the two, or one that drops the
+    comment because a change exists in the same manuscript.
+    """
+    marked = marked_up_with_a_comment
+    feedback = record_feedback(
+        marked.context,
+        project_id=marked.project_id,
+        version_id=marked.version_id,
+        now=CHAIN_MOMENT,
+    )
+    recorded = _recorded(marked.context, marked)
+
+    assert len(feedback) == 1
+    assert len(recorded) == 2
+
+    # **The comment is listed as unaddressed** — the reason says nobody
+    # answered it, and it is not absent from the listing.
+    unaddressed = list_unaddressed(marked.context, project_id=marked.project_id)
+    assert [item.feedback.feedback_id for item in unaddressed] == [feedback[0].feedback_id]
+    assert unaddressed[0].reason == "no_response"
+
+    # **And the changes stand beside it, with nothing joining them.**
+    activity = chain_layer.read_revision_activity(marked.context, version_ids=[marked.version_id])
+    assert activity[0].revision_count == 2
+    assert activity[0].comment_count == 1
 
 
 def test_the_schema_cannot_express_why_a_change_was_made() -> None:

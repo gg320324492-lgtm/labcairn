@@ -287,6 +287,11 @@ def read_revision_events(
     **A version nobody holds changes for is simply not among them.** The
     events are read by the version they were read from, and a version with
     no events is a version whose document holds none.
+
+    **And the permission is asked where the material is named**, as this
+    module's rule says: the events carry the reviewer's own words, so the
+    caller asks about the material through
+    :func:`read_material_paths` before it shows any of them.
     """
     ids = tuple(version_id for version_id in version_ids if version_id)
     if not ids:

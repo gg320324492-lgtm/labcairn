@@ -810,8 +810,10 @@ quality metric, and a manuscript full of silent rewrites is exactly the
 material that would be mistaken for the advisor's rules. **The schema is
 what stops it**: there is no column for a reason, and the rule store's only
 binding to chain material is by `issue_key`, which a revision event does
-not carry — so *"distil a rule from the reviewer's rewrites"* is not
-expressible in the data model at all.
+not carry — and **the distillation's cases are the chain's comments**, so a
+rule cannot be distilled from a reviewer's rewrites at all. **A person may
+still write a rule by hand**, and that is a person's judgement: it lands as
+a candidate, and only a second reader moves it on.
 
 **What breaks it:** a column or a foreign key added to `revision_events`,
 which would let a change carry a reason it never had. The witnesses are
