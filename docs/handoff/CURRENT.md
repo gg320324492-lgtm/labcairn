@@ -340,6 +340,23 @@ without a number" against **the rule that a claim of necessity is made of
 quantified data**. **Two independent sources meeting in five places is
 the strongest thing this round produced.**
 
+**The three advisors answer in three different ways, and the chain has to
+hold all of them.** The second corpus's marked-up copies are not three
+copies of one habit. One advisor changed the text in 349 places **and** wrote
+25 comments; one changed the text in 58 places and wrote **no** comment at
+all; one wrote 9 comments and changed **nothing**. **And the one who only
+changed the text is the reviewer of the third corpus** -- the same
+person, the same habit, in two batches of material. So the habit is
+reproducible, and it is one of three.
+
+**This is an answer to what the roles are.** It is not that three roles
+stand for three advisors, and it is not that a role is one person's
+style. **It is that feedback arrives in more than one form, and a product
+that says it holds a "feedback chain" has to hold every form of it** --
+the margin, the text itself, and the two together, where a comment and
+the change it prompted may or may not correspond. **A model built for one
+advisor's habit would be a model of that habit**, not of the chain.
+
 **And the reviewer here is the same person the second corpus carries** --
 so his standards can be compared across two papers, which is what "the
 rules get more precise" has to be measured against.
