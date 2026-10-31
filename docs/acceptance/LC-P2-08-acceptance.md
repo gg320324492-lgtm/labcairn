@@ -463,6 +463,14 @@ credential, and three Windows-path cases — and none of them is new.
 guard forced, and apart from a machine with no route to PyPI.** The number
 is a local one and it is anchored to the commit it was measured at.
 
+**And the tree moved on by one commit after the measurement.** The commit
+that followed added §6.14 to the threat model and its witness, so
+`tests/test_threat_model.py` is one test longer than it was when the
+number was taken; **that file and every other file the commit touched were
+re-run and are green** (507 passed, and the same eight network errors).
+**The file's recorded cost is 2.57 s against a partition slack of 16.2 s**,
+so the shard costs are not affected by it either.
+
 ## 7. What this work order has not had
 
 - **No independent review.** The project's rule is that a work order is
