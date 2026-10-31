@@ -397,6 +397,29 @@ the comments cannot.** Those two sentences together are the whole of what
 this corpus can say about time, and a product that says more than that is
 guessing.
 
+**And the loop's material is now the chain's, which has two
+consequences the operator has to be told.** The loop **computes** the
+material -- the comment's version, then the version's source, then the
+source's workspace-relative path -- and **checks the caller's declaration
+against it**, a difference refused by name (which of the three differs)
+rather than silently replaced. **And the path the loop sends is the
+workspace-relative one**, because that is the address it can prove: the
+subject-scoped path the consent demonstration uses is not derivable from
+the chain, and a loop that computed it would be inventing it. **So for
+chain-originated material an operator's grant scope has to cover the
+workspace path**, and an operator who has not updated their grant is
+refused -- fail closed, but they must be told.
+
+**One residue, and it is the owner's call.** The `subject_ref` is still
+the caller's declaration. The grant checks it exactly against the
+operator's grant, so a request can only use a grant made for the subject
+it declares -- **but the loop does not check that the declared subject is
+the chain's project.** Under the project-shaped scope convention that
+residue is closed by construction, and it opens only if an operator
+writes a scope broad over the workspace. **Closing it is one more check**
+-- the declared subject against the chain's project id or pseudonym --
+and it was left out because it changes what an operator may declare.
+
 **And the loop asks the model once for the whole run, which has a
 consequence worth naming.** One answer carries all three roles'
 judgements, so **role C reviews a card it has not seen** -- the document
