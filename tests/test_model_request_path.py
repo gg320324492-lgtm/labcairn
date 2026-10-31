@@ -124,10 +124,22 @@ def test_no_model_id_endpoint_or_price_is_written_into_the_tree(repo_root: Path)
 
     The repository's own configuration is the fake default: no
     ``configs/`` directory exists, because a configuration file is an
-    operator's act. And no source file, example or project metadata
-    carries a model id or a supplier endpoint — the probe's measured
-    answers live in the store and the work orders' measurement
-    histories, which are records, not configuration.
+    operator's act. And **no authorised supplier's** model id or endpoint
+    appears in any source file, example or project metadata — the list of
+    markers grows only when the owner authorises a supplier, and the
+    probe's measured answers live in the store and the work orders'
+    measurement histories, which are records, not configuration.
+
+    **The boundary is narrower than the sentence above it sounds, and the
+    narrowing is the point.** This watches the *authorised* suppliers'
+    markers on those three surfaces. It does not watch every model id or
+    every endpoint, because the tree holds some on purpose: the two
+    public protocol defaults of ADR-0019 §D2, and model ids in prose and
+    in usage examples. **Those are the vocabulary, not a route** — the
+    tree does not read them as configuration. The route side is watched
+    by the witnesses in ``tests/test_provider_credentials.py``: that the
+    tree ships no configuration at all, and that the provider layer names
+    no endpoint beyond those two defaults.
     """
     configs = repo_root / "configs"
     assert not configs.exists(), (

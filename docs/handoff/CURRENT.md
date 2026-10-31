@@ -165,21 +165,30 @@ behaviour, and the gap is an old one rather than a regression** — it is
 named here, and it is LC-P2-09's to close, because a project's grant is
 what says who may read its material at all.
 
-**One claim this file makes in several places has no witness, and the gap
-is on the tree's side rather than the product's.** *"The tree carries no
-model id, endpoint, price or capability claim — a fresh checkout cannot
-spend money by accident"* is written here and in the LC-P2-01 record, and
-the product's half of it is watched: the fake provider opens no socket,
-needs no key and needs no environment, a provider with no probe record is
-refused before a request is made, and `httpx` is read out of
-`pyproject.toml` rather than out of the installed environment. **The tree's
-half is not**: nothing reads the checkout and says that no supplier's
-endpoint, model id or price is written in it, that the settings schema has
-nowhere to put a price or a capability claim, or that no price table
-exists. **A claim stated in several places and watched in none of them is a
-claim nothing keeps.** The witness for it turned up in a worktree whose
-own work had already landed; it is kept outside the repository, and it is
-the next piece of work.
+**A claim this file makes in several places was not accurate as written,
+and the tree's half of it had no witness.** *"The tree carries no model
+id, endpoint, price or capability claim — a fresh checkout cannot spend
+money by accident"* was written here and in the LC-P2-01 record, and
+**the second half of that sentence was true while the first was not**:
+the tree does hold two public endpoints — `api.openai.com` and
+`api.anthropic.com`, ADR-0019 §D2's *protocol defaults* — and model ids
+in prose and in usage examples. **What the tree does not hold is a
+route**: no configuration file, no price, no capability claim, and no
+*authorised* supplier's model id or endpoint. The line between the two is
+**whether the product reads it as configuration** — a docstring's string
+is prose, a settings file's string is a route.
+
+**And the tree's half had no witness at all**, while the product's half
+did: the fake provider opens no socket, needs no key and needs no
+environment; a provider with no probe record is refused before a request
+is made; `httpx` is read out of `pyproject.toml` rather than out of the
+installed environment. Six witnesses now read the checkout: that the
+tree ships no configuration whatever, that the settings format's key set
+is closed and carries no price or capability claim, that no module under
+`src/` calls the ledger's price recorder, that the provider layer names
+no endpoint beyond those two defaults, that a model can only enter the
+product from the operator, and that the tracked `.env.example` carries
+no value. **The claim is now narrower and true, and it is watched.**
 
 **LC-P2-16's first subtask is landed: the contract carries the three
 outlets.** The workbench cannot draw what the API does not carry, so the
@@ -367,8 +376,9 @@ creator field around it. `application/model_refusals.py` and the
 `MODEL_REFUSALS` table name the path's four refusals in the layer's
 vocabulary, closed against each other in both directions, with the path
 raising through `model_refused`. `httpx` is a declared dependency at
-`>=0.27,<1` (ADR-0019), and the tree carries no model id, endpoint,
-price or capability claim — a fresh checkout cannot spend money by
+`>=0.27,<1` (ADR-0019), and the tree carries no **route** to a supplier —
+no configuration file, no price, no capability claim, and no authorised
+supplier's model id or endpoint — so a fresh checkout cannot spend money by
 accident. The witnesses are `tests/test_model_request_path.py`
 (fifteen), `tests/test_model_request_demo.py` (two), and
 `examples/model_request_demo.py`, which runs four scenes — consented,
