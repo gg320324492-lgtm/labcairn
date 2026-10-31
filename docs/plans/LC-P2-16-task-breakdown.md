@@ -150,6 +150,17 @@ confirmation-door round of 2026-10-31.
 The workbench's panel for the advisor's correction history: what the
 advisor wrote, what changed in response, and how the versions stand.
 
+**What the route it draws actually carries, measured by the route's
+author.** The versions in the graph are a **frozenset**, so the array the
+contract serialises has **no stable order** — the view must not depend on
+one, and the contract says so. The route asks for the response states
+**once per comment**, so a panel with many comments asks many times. And
+there is **no outlet that lists the chain's keys**, so the view can draw
+only the trajectory of an issue the caller already names — **a panel that
+cannot list what there is to look at is a panel with no way in**, and
+whether that needs an outlet is the owner's call, not this plan's.
+**Both are written here rather than discovered by the view's author.**
+
 ### T03 — The guidance view
 
 The rules with their state, their scope, **their counterexamples**, and

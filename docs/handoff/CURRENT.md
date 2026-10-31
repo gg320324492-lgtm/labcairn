@@ -253,6 +253,15 @@ modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
 
+**The ORM writes a row in mapper order, not in dependency order.** The
+chain's `EditActionRow` sorts before `FeedbackEventRow` — by the mapper
+class names, not by the foreign keys — so a batch write that inserts both
+has the edit's foreign key checked before the comment it points at
+exists, and the batch is refused. **The product's own write path does not
+hit it**, because it writes the rows one at a time; a test that writes
+rows in one batch does. It is named here because the failure it produces
+reads like a product defect and is not one.
+
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is
 anchored to, and the paragraph it sits in** — 507 characters, named in the
