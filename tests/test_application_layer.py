@@ -30,7 +30,9 @@ from __future__ import annotations
 import ast
 import contextlib
 import hashlib
+import inspect
 import json
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -449,6 +451,88 @@ def test_the_layer_itself_reads_and_writes_through_the_store(repo_root: Path) ->
     assert "labcairn.application.chain" in touching
     assert "labcairn.application.guidance" in touching
     assert "labcairn.application.roles" in touching
+
+
+def test_the_capability_table_covers_every_operation_the_layer_exports() -> None:
+    """The table is the layer's account of itself, and it does not lag.
+
+    The layer's docstring carries a table of its operations and the
+    permission each one answers to. **A table that lags is a table that
+    says something false**: an operation that is exported but not listed is
+    an operation whose permission a reader cannot look up, and the table is
+    what a reader trusts about the layer's boundary. Four operations were
+    missing from it when this witness was written, which is the size of the
+    drift a reader would have had to notice alone.
+
+    So the two are compared **both ways**. The first direction catches an
+    operation nobody wrote down; the second catches a row left behind by an
+    operation that was renamed away — and the second matters as much as the
+    first, because a row that names an operation the package no longer has
+    is a row that describes a boundary that is not there.
+    """
+    import labcairn.application as application
+
+    exported = {
+        name for name in application.__all__ if inspect.isfunction(getattr(application, name))
+    }
+    listed = set(
+        re.findall(
+            r"^``([a-z][a-z0-9_]*)``",
+            application.__doc__ or "",
+            re.MULTILINE,
+        )
+    )
+    assert exported <= listed, (
+        "these operations are exported but the capability table does not list "
+        f"them: {sorted(exported - listed)}"
+    )
+    assert listed <= set(application.__all__), (
+        "the capability table lists operations the package does not export: "
+        f"{sorted(listed - set(application.__all__))}"
+    )
+
+
+def test_the_layer_and_the_mentor_line_import_in_any_order(repo_root: Path) -> None:
+    """The import graph has no cycle, and the order a process imports in does not decide it.
+
+    **A cycle is invisible in the code and fatal in one order.** The
+    mentor line's contract types live in :mod:`labcairn.roles.models`,
+    that module reaches for the layer's refusal vocabulary at import time,
+    and the layer's own operations read those contract types — so the three
+    are a circle, and which side of it breaks depends on **which module a
+    process happens to import first**. The suite happened to import the
+    contract module first, and the whole suite died in collection; another
+    order would have died in a different place, and an order that imported
+    the layer first would have passed. **A test that passes in the order it
+    happens to use is not a test of the graph.**
+
+    So each order is imported in a process of its own, and the refusal is
+    the one that names the cycle: *"cannot import name ... from partially
+    initialized module"*.
+    """
+    import subprocess
+    import sys
+
+    orders = (
+        ("labcairn.roles.models", "labcairn.application"),
+        ("labcairn.application", "labcairn.roles.models"),
+        ("labcairn.roles.spec", "labcairn.guidance.distil"),
+        ("labcairn.guidance.distil", "labcairn.roles.spec"),
+        ("labcairn.roles.critique", "labcairn.roles.models"),
+        ("labcairn.roles.guidance", "labcairn.guidance.retrieval"),
+    )
+    for order in orders:
+        program = "; ".join(f"import {name}" for name in order)
+        finished = subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+        )
+        assert finished.returncode == 0, (
+            f"importing {order} failed, which means the import graph has a cycle "
+            f"that this order walks into:\n{finished.stderr.strip()}"
+        )
 
 
 # --------------------------------------------------------------------------- #

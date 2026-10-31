@@ -130,14 +130,40 @@ red, and it is not a repair: the shard costs were measured before this
 branch's changes, so the shard-coverage witness asks for a measurement of
 the tree as it is now. **That is what the push buys** — the runner's own
 log, re-measured against the tree that carries this work.
-red and it is not a repair: `test_no_module_outside_the_layer_reaches_past
-_it` says that six domain modules — `labcairn.guidance.{rules,retrieval,
-distil}` and `labcairn.roles.{spec,guidance,critique}` — read the store
-directly, outside the application layer, and **nothing in the product
-calls them yet**. The remedy is application-layer operations that own
-those reads, which is LC-P2-11's and LC-P2-12's scope and **the next
-piece of work**, not a repair to bolt on. The shard-cost witness waits on
-the runner measurement this push buys.
+
+**The layer now exports what it holds, and the table that says so cannot
+drift.** The fourteen operations the store-boundary work added are
+exported from `labcairn.application` — the chain's five reads, the guidance
+memory's seven, the role contracts' two — and the layer's capability table
+lists every operation the package exports, **both ways**: an operation
+that is exported but not listed is an operation whose permission a reader
+cannot look up, and a row that names an operation the package no longer
+has is a row describing a boundary that is not there. **Four operations
+were missing from that table when the check was written**, which is the
+size of the drift a reader would have had to notice alone, and the table
+also gained a second table for the mentor line's own rows: those name no
+path, so the permission that governs them is the material's, and it is
+asked where the material is named.
+
+**Exporting them turned up a cycle that the export had hidden.** The
+contract types live in `labcairn.roles.models`, that module reaches for the
+layer's refusal vocabulary at import time, and the layer's own operations
+read those contract types — so the three are a circle, and **which side of
+it breaks depends on which module a process imports first**. The suite
+imported the contract module first and died in collection; an order that
+imported the layer first would have passed. The layer now imports the
+contract types where they are used rather than at the top of its module,
+and a witness imports six orders in six processes of their own — **a test
+that passes in the order it happens to use is not a test of the graph.**
+
+**The chain's reads do not check the project's grant, and did not before
+this branch either.** `papers/chain.py` never asked it, and the layer's
+reads over it ask it no more than the module they replaced did; what
+survived the move is the retrieval's own per-source check, which drops the
+sources a reader may not reach (ADR-0003 C5). **So the merge preserved the
+behaviour, and the gap is an old one rather than a regression** — it is
+named here, and it is LC-P2-09's to close, because a project's grant is
+what says who may read its material at all.
 
 **The pilot's business request went through too, with the paper in it.**
 The second request carried **the advisor's comment, the passage it is

@@ -34,15 +34,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import role_refused
 from labcairn.db.models import AgentRoleSpecRow
-from labcairn.roles.models import AgentRoleSpec, ForbiddenAction
 from labcairn.roles.refusals import RoleRefusal
 from labcairn.security.capabilities import CapabilityId
+
+if TYPE_CHECKING:
+    from labcairn.roles.models import AgentRoleSpec, ForbiddenAction
 
 
 @dataclass(frozen=True)
@@ -168,7 +171,21 @@ def _the_spec(row: AgentRoleSpecRow) -> AgentRoleSpec:
     the enums the security layer and the architecture close — so a row that
     named something else would fail here rather than be carried into a role
     that believes it holds a grant nobody made.
+
+    **The contract's own types are imported here rather than at the top of
+    the module, and the reason is a loop.** The contract types live in
+    :mod:`labcairn.roles.models`, and that module reaches for the layer's
+    refusal vocabulary at import time — so a module-level import here would
+    make ``labcairn.roles.models`` half-built while the layer was still
+    being built, and the import of the contract type would fail with *"cannot
+    import name ... from partially initialized module"*. The loop was hidden
+    while this module was reached only through
+    :mod:`labcairn.application.roles`; the layer's own package now exports
+    these operations, and a package that cannot be imported is a package
+    that cannot be used.
     """
+    from labcairn.roles.models import AgentRoleSpec, ForbiddenAction
+
     return AgentRoleSpec(
         role_id=row.role_id,
         role_version=row.role_version,

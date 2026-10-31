@@ -16,12 +16,22 @@ a surface that does not cannot reach the task at all. That is what makes it a
 seam rather than a convenience: a guard applied to an operation applies to
 every caller, because there is only one caller path.
 
-**Every operation goes through the capability model.** The capability id, the
-policy verdict and the approval ledger's ``consume`` — with the arguments'
-digest recomputed at the moment of use — are applied in
-:mod:`labcairn.application.consent`, once, for every operation. So a surface
-cannot grant itself a permission the other surfaces would not, and the
-question "may this happen?" is answered in one place.
+**Every operation on the task's own state goes through the capability model.**
+The capability id, the policy verdict and the approval ledger's ``consume`` —
+with the arguments' digest recomputed at the moment of use — are applied in
+:mod:`labcairn.application.consent`, once, for every such operation. So a
+surface cannot grant itself a permission the other surfaces would not, and
+the question "may this happen?" is answered in one place.
+
+**The exceptions are named, not hidden.** Some operations do not ask the
+capability model, and the table below says which and why. The reason is
+always the same shape: the rows they reach name **no resource of their own**,
+so the permission that governs them is the permission on something else, and
+it is asked where that something is named. A row that names no path cannot be
+judged by a policy about paths. The modules that hold those operations carry
+the argument in full: :mod:`labcairn.application.chain`,
+:mod:`labcairn.application.guidance` and :mod:`labcairn.application.roles`
+say which permission governs them and who asks it.
 
 **Every operation returns data.** A CLI's ``--json`` output and an API's
 response body are the same model, rendered the same way, because
@@ -73,7 +83,42 @@ Operation                  Capability
 ``read_edge``              ``source.inventory``
 ``list_versions``          ``source.inventory``
 ``list_edges``             ``source.inventory``
+``list_rejections``        — (the project's own rows)
+``describe_abandoned``     — (the task's own operations)
+``reconcile_abandoned``    — (the task's own operations)
+``resolve_abandoned``      — (the task's own operations)
 =========================  ===========================================
+
+**The mentor line's own rows.** The operations below reach rows that belong
+to a paper project, to the guidance memory and to the role contracts rather
+than to a task. **None of them names a path**, so none of them can be judged
+by a policy about paths: the permission that governs them is the permission
+on the material, and it is asked where the material is named — the retrieval
+asks it per source at serve time and drops the sources the reader may not
+reach (ADR-0003 C5). A role contract names no material either, and it holds
+its own boundary: the capabilities it lists, and the actions it forbids.
+
+Centralising these reads is what makes a guard added to those modules reach
+**every** caller, which is the property the seam exists for.
+
+====================================  ========================================
+Operation  The permission that governs it
+====================================  ========================================
+``read_comments``                     the material's — asked where it is named
+``read_edits``                        the material's — asked where it is named
+``read_response_states``              the material's — asked where it is named
+``read_material_paths``               the material's — asked where it is named
+``read_project_graph``                the material's — asked where it is named
+``read_guidance_rule``                the material's — asked where it is named
+``read_guidance_rules``               the material's — asked where it is named
+``write_guidance_rule_version``       the material's — asked where it is named
+``write_guidance_rule_confirmation``  the material's — asked where it is named
+``write_guidance_rule_resolution``    the material's — asked where it is named
+``write_guidance_rule_withdrawal``    the material's — asked where it is named
+``write_guidance_counterexample``     the material's — asked where it is named
+``read_role_spec``                    the contract's own allowed capabilities
+``write_role_spec``                   the contract's own allowed capabilities
+====================================  ========================================
 """
 
 from __future__ import annotations
@@ -99,6 +144,17 @@ from labcairn.application.artifacts import (
     list_artifacts,
     read_artifact,
 )
+from labcairn.application.chain import (
+    ChainComment,
+    ChainEdge,
+    ChainEdit,
+    ProjectGraph,
+    read_comments,
+    read_edits,
+    read_material_paths,
+    read_project_graph,
+    read_response_states,
+)
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import EventPage, read_events
 from labcairn.application.evidence import (
@@ -110,6 +166,16 @@ from labcairn.application.evidence import (
     list_source_addresses,
     record_claim,
     record_model_proposal,
+)
+from labcairn.application.guidance import (
+    RuleDraft,
+    read_guidance_rule,
+    read_guidance_rules,
+    write_guidance_counterexample,
+    write_guidance_rule_confirmation,
+    write_guidance_rule_resolution,
+    write_guidance_rule_version,
+    write_guidance_rule_withdrawal,
 )
 from labcairn.application.material_ingestion import (
     IngestedFile,
@@ -151,6 +217,7 @@ from labcairn.application.reports import (
     ReportRequest,
     render_report,
 )
+from labcairn.application.roles import RoleSpecDraft, read_role_spec, write_role_spec
 from labcairn.application.sources import SourceView, inspect_source, list_sources
 from labcairn.application.stages import (
     PlanStage,
@@ -185,6 +252,9 @@ __all__ = [
     "ApprovalUse",
     "ArtifactContent",
     "ArtifactView",
+    "ChainComment",
+    "ChainEdge",
+    "ChainEdit",
     "ClaimRecorded",
     "ClaimRequest",
     "ConfirmationRecorded",
@@ -198,11 +268,14 @@ __all__ = [
     "IngestedFile",
     "MaterialIngested",
     "PlanStage",
+    "ProjectGraph",
     "ProjectRequest",
     "ProjectStored",
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "RoleSpecDraft",
+    "RuleDraft",
     "SourceAddress",
     "SourceView",
     "StageOutcome",
@@ -231,10 +304,18 @@ __all__ = [
     "list_tasks",
     "list_versions",
     "read_artifact",
+    "read_comments",
     "read_edge",
+    "read_edits",
     "read_events",
+    "read_guidance_rule",
+    "read_guidance_rules",
+    "read_material_paths",
     "read_plan",
     "read_project",
+    "read_project_graph",
+    "read_response_states",
+    "read_role_spec",
     "read_steps",
     "read_task_state",
     "read_version",
@@ -250,4 +331,10 @@ __all__ = [
     "resolve_abandoned",
     "run_figure",
     "run_stage",
+    "write_guidance_counterexample",
+    "write_guidance_rule_confirmation",
+    "write_guidance_rule_resolution",
+    "write_guidance_rule_version",
+    "write_guidance_rule_withdrawal",
+    "write_role_spec",
 ]
