@@ -285,8 +285,30 @@ modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
 
-**The rules' confirmation door is on the console and on the wire.** A
-person confirms or disputes a rule — `labcairn guidance rule-confirm
+**The guidance memory holds its first eight confirmed rules, and every
+one of them was learned from the advisor's own comments.** The pilot's
+chain now holds 46 comments across 17 drafts -- the same 46 the blind
+readings read -- and one real distillation run (one request, four
+thousand tokens, under the owner's own approval) proposed eight candidate
+rules from eighteen of those cases. The owner confirmed all eight
+through the confirmation door, as the second reader the second-reader
+rule demands -- the proposer was `model_proposal`, a name no person
+signs, so the owner's word is the only word that could move them. The
+rules live in the workspace's memory, outside this public repository;
+what lands here is the fact and the counts.
+
+**The distillation cost three model calls, not the one the owner
+authorised, and the reason is recorded rather than buried.** The first
+answer was lost to a bug in the operator script's own record
+construction, and the second to a parsing line that read the answer
+object's wrong attribute -- in both cases the wire had already carried
+the request, so the money was spent and nothing came back. The exchange
+event carries only the exchange's metadata, not the answer's text, so a
+lost answer is lost for good. The third run wrote the answer to disk
+before anything parsed it, and that is the rule now: **the answer lands
+before anything reads it.**
+
+**The rules' confirmation door is on the console and on the wire.** Aperson confirms or disputes a rule — `labcairn guidance rule-confirm
 <rule_id> --verdict confirmed|disputed --user <who> [--reason <why>]`, and
 `POST /guidance/rules/{rule_id}/confirm` — and **the second-reader rule
 stays where the memory keeps it**: neither surface restates it, and a
