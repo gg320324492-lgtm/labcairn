@@ -285,6 +285,32 @@ modules already draw: a domain model does not import pydantic**, and a
 model that cannot name pydantic's types has to be able to live in a world
 where `datetime` is a subclass.
 
+**The owner's third body of material carries a feedback shape the
+ledger does not hold.** The first corpus's feedback was *comments* -- the
+advisor's words beside the text. The second carried the advisor's
+*marked-up versions*. The third carries a third shape: **the reviewer's
+edits are written into the text** -- 897 tracked insertions and deletions by
+one reviewer across five copies, with no sentence of explanation anywhere
+-- **and the author's answers are in their own files**, paired comment by
+comment, seven pairs, each naming the lines it is about.
+
+**So there are three shapes of feedback and the chain's model holds one.**
+The chain's `feedback_events` hold words written beside the text; the
+author's own edits are `edit_action`s. **A reviewer's edit in the text is
+neither**: it is somebody else's hand, it carries no reason, and its
+meaning is the change itself. Rules can be distilled from it -- *what the
+reviewer changed, and where* is the standard -- but **nothing in the
+ledger holds it yet**. And the paired answers hold something the ledger
+holds not at all: **a decision and its reasoning together**, which is the
+only place in the material where the author's own judgement is on the
+record. The corpus is outside the repository, in the library, with the
+reviewer's edits extracted per paragraph and the seven pairs extracted
+beside them.
+
+**And the reviewer here is the same person the second corpus carries** --
+so his standards can be compared across two papers, which is what "the
+rules get more precise" has to be measured against.
+
 **The guidance memory holds its first eight confirmed rules, and every
 one of them was learned from the advisor's own comments.** The pilot's
 chain now holds 46 comments across 17 drafts -- the same 46 the blind
