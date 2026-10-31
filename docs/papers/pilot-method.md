@@ -66,10 +66,18 @@ of number only if both are described the same way.
 
 | What | Where | Why there |
 |---|---|---|
-| the draft, the comments, the revisions | `E:\labcairn-local\materials-library\versions-chinese/`, `comments/`, `revisions/` | the paper is the owner's data, and it is not in a public repository |
-| the two readings, with their rationales | `E:\labcairn-local\materials-library\labels/reading-1.json`, `reading-2.json` | same |
-| the agreement, and the arbiter's resolutions | `E:\labcairn-local\materials-library\pilot-blind-readings.json` | same |
-| the untouched archive, and every file's original name and hash | `E:\labcairn-local\materials-library\originals/`, `MANIFEST.json` | so the library can be checked against what arrived |
+| the draft, the comments, the revisions | `E:\labcairn-local\materials-library\corpus-1-mn-bubbles\versions-chinese/`, `comments/`, `revisions/` | the paper is the owner's data, and it is not in a public repository |
+| the two readings, with their rationales | `E:\labcairn-local\materials-library\corpus-1-mn-bubbles\labels/reading-1.json`, `reading-2.json` | same |
+| the agreement, and the arbiter's resolutions | `E:\labcairn-local\materials-library\corpus-1-mn-bubbles\pilot-blind-readings.json` | same |
+| the model's answer, and how it compares | `E:\labcairn-local\materials-library\corpus-1-mn-bubbles\pilot-model-proposal.json` | same |
+| the untouched archive, and every file's original name and hash | `E:\labcairn-local\materials-library\corpus-1-mn-bubbles\originals/`, `MANIFEST.json` | so the library can be checked against what arrived |
+
+**The library holds two corpora**, each in a folder of its own: this one
+(the drinking-water paper) and `corpus-2-recycling-4404737` (the MDPI
+submission, its reference papers, the experimental plan, the advisor's
+marked-up versions, the standardised data package and the journal
+formats). The library's own index is
+`E:\labcairn-local\materials-library\README.md`.
 
 **The library is the pilot's record, and it is not in the repository.** The
 project's rule is that a record must be checkable; the rule that the
