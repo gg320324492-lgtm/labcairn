@@ -24,7 +24,7 @@ readings of it.
 | # | The thing | State |
 |---|---|---|
 | 1 | The corpus | **chosen.** The owner's paper: nine Chinese process drafts, an English version, and a tracked-changes copy. One of them (`manuscript-1.docx`, the English version of version 9) is ingested into the pilot workspace; the rest are one `sources ingest` away. |
-| 2 | The first real model request | **done.** A request with a schema, under an approval a person granted, against the owner's own MiniMax endpoint, with the exchange recorded. See §2. |
+| 2 | The first real model request | **done**, twice. A material-free one, which proved the path and disclosed nothing, and a business one that carried 507 characters of the draft under an approval that binds them. See §2. |
 | 3 | The two readers | **three independent sessions**, working in parallel in their own directories, blind to each other's work. The third is the arbiter. |
 | 4 | The corpus's owner | **the owner.** The paper is theirs; it never enters this repository. |
 | 5 | The material library | **built**, outside the repository: `E:\labcairn-local\materials-library`, with the versions under descriptive names, the advisor's comments and the tracked revisions extracted per version, the annotation guide beside them, and the untouched archive with a manifest of every file's original name and hash. |
@@ -59,6 +59,16 @@ material**, and this request carried no material — so there was nothing to
 bind. Recording a proposal about a manuscript the model never saw would be
 exactly the thing this project refuses to do. The proposal lands in the
 pilot's next request, the one that carries an excerpt.
+
+**And it did.** The business request carried the advisor's comment, the
+passage it is anchored to and the paragraph it sits in — 507 characters,
+named in the approval's arguments and so bound by its digest — and **the
+answer entered the ledger as a `model_proposal` on `planned`, bound to the
+address of that comment.** The address resolves inside the owner's own
+draft, and the record carries the model's own words as its quotation.
+What the model said and how it compares with the readings lives in the
+library; the repository is public, and the pilot's own decisions keep the
+paper's business out of it.
 
 ## 3. The gaps the pilot found, and what they cost
 
