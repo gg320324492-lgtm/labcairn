@@ -53,6 +53,7 @@ from sqlalchemy import (
     CheckConstraint,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -2265,5 +2266,357 @@ class FollowupAssessmentRow(Base):
         CheckConstraint(
             "json_array_length(evidence_refs) > 0",
             name="followup_assessments_an_assessment_carries_its_evidence",
+        ),
+    )
+
+
+class GuidanceRuleRow(Base):
+    """A mentor's rule as the memory holds it: sourced, scoped, versioned.
+
+    **A rule is a record, not an opinion.** The work order's "must not" is
+    *"an advisor prefers this style"* — a sentence with no problem, no
+    situation and nothing to check it against. Every column below exists
+    so that a rule can be opened, traced to the comment it was learned
+    from, and shown together with the cases where it did **not** hold;
+    the columns that carry those are not nullable, and the constraints
+    refuse a row that would store a bare preference.
+
+    **The issue type is the closed vocabulary**, because a rule whose
+    problem is outside LC-P2-10's labels cannot be measured against the
+    gold set that uses them. The vocabulary is written into the CHECK as
+    the thirteen values the labels module defines; a fourteenth arrives
+    by a migration, not by an insert.
+
+    **The state machine is closed**: ``candidate``, ``confirmed``,
+    ``disputed``, ``withdrawn`` (ADR-0016 D8). A ``confirmed`` row names
+    its confirmer — **who may not be its proposer, which the API refuses
+    and this schema cannot see across rows** — and a ``disputed`` or
+    ``withdrawn`` row carries the reason. A ``candidate`` row names
+    neither, and the schema refuses one that does.
+
+    **And a new statement is a new row.** The primary key is the pair of
+    the rule's id and its version; editing a rule's words inserts the
+    next version, and the old row keeps the state it had. Retrieval
+    serves each rule's highest version and nothing else.
+    """
+
+    __tablename__ = "guidance_rules"
+
+    #: Caller-minted, so a rule may be cited before the row that carries
+    #: it is written, and identity cannot depend on insertion order.
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The rule's version, from one. A new statement is a new row.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, primary_key=True)
+    #: What problem the rule addresses, from the closed vocabulary.
+    issue_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: What the rule says. A rule without a statement is a preference.
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the rule applies: the situation a reader would recognise.
+    context: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The domain and situation it applies in.
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    #: A case the rule was derived from — not invented to illustrate it.
+    example: Mapped[str] = mapped_column(Text, nullable=False)
+    #: ``candidate``, ``confirmed``, ``disputed`` or ``withdrawn``.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who proposed the rule — a person, or a distillation run whose
+    #: proposal lands here as a candidate (ADR-0016 D8).
+    proposed_by: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When it was proposed.
+    proposed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: Who confirmed the rule. **A second reader**: the API refuses a
+    #: confirmation by the proposer, and this column is what that refusal
+    #: exists to protect.
+    confirmed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: When it was confirmed.
+    confirmed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: Why the rule was disputed or withdrawn. **A retraction without a
+    #: reason is a shrug, and the schema refuses a shrug.**
+    resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        # **The problem comes from the closed vocabulary.** The thirteen
+        # labels LC-P2-10 defines, written out so the database refuses
+        # what the application would.
+        CheckConstraint(
+            "issue_type IN ('research_question_and_motivation',"
+            "'novelty_and_contribution','introduction_and_storyline',"
+            "'method_and_hypothesis','data_quality','controls_and_ablation',"
+            "'statistical_conclusion','figures','sources','review_response',"
+            "'language_and_format','other','unknown')",
+            name="guidance_rules_the_problem_is_from_the_vocabulary",
+        ),
+        # **No field of a rule is empty.** The "must not" row the work
+        # order forbids is a rule with nothing in it — and *empty* means
+        # blank as well as absent, which is why the check trims before it
+        # counts: SQLite's ``length`` counts the spaces a shrug is made of.
+        CheckConstraint(
+            "length(trim(statement)) > 0 AND length(trim(context)) > 0"
+            " AND length(trim(scope)) > 0 AND length(trim(example)) > 0"
+            " AND length(trim(proposed_by)) > 0",
+            name="guidance_rules_no_field_of_a_rule_is_empty",
+        ),
+        # **The state machine is closed.**
+        CheckConstraint(
+            "state IN ('candidate','confirmed','disputed','withdrawn')",
+            name="guidance_rules_the_state_machine_is_closed",
+        ),
+        # **A confirmed rule names its confirmer.** ADR-0016 D8: a human
+        # confirms, and an unnamed confirmation is a proposal in a robe.
+        CheckConstraint(
+            "state != 'confirmed' OR (confirmed_by IS NOT NULL"
+            " AND length(trim(confirmed_by)) > 0 AND confirmed_at IS NOT NULL)",
+            name="guidance_rules_a_confirmed_rule_names_its_confirmer",
+        ),
+        # **A candidate names nobody.** The state machine starts at
+        # ``candidate``, and a candidate carrying a confirmation is a
+        # record pretending it was confirmed before it was.
+        CheckConstraint(
+            "state != 'candidate' OR (confirmed_by IS NULL AND confirmed_at IS NULL)",
+            name="guidance_rules_a_candidate_names_nobody",
+        ),
+        # **A disputed or withdrawn rule carries its reason.**
+        CheckConstraint(
+            "state NOT IN ('disputed','withdrawn')"
+            " OR (resolution_reason IS NOT NULL AND length(trim(resolution_reason)) > 0)",
+            name="guidance_rules_a_resolution_carries_its_reason",
+        ),
+        # **And a resolution names nothing on a live rule.**
+        CheckConstraint(
+            "state IN ('disputed','withdrawn') OR resolution_reason IS NULL",
+            name="guidance_rules_a_live_rule_carries_no_resolution",
+        ),
+    )
+
+
+class GuidanceRuleSourceRow(Base):
+    """The chain material a rule was learned from, by the chain's own key.
+
+    **A rule without a source is not a rule** — that is what makes it
+    checkable — **and the source is named the way the chain names
+    itself**: by ``issue_key``, which is the same key the feedback
+    events, the responses and the assessments carry. A source row is a
+    pointer into LC-P2-09's tables, and the serve-time check (LC-P2-11
+    T02) resolves the pointer against the chain's *current* state rather
+    than against a snapshot taken when the rule was confirmed.
+
+    **The database cannot count a rule's sources** — a cross-table
+    ``CHECK`` is not SQLite's to give — so *"a rule carries at least one
+    source"* is enforced by the API that proposes rules and witnessed in
+    the tests. What the schema does enforce is that a source row is
+    non-empty and belongs to a version of a rule.
+    """
+
+    __tablename__ = "guidance_rule_sources"
+
+    #: Table-wide identity, never used for ordering.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The rule and the version of it the source belongs to. A source is
+    #: bound to a version because a new statement may rest on new cases.
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The version, with the rule, as a composite foreign key.
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The chain's own key for the material: the feedback events and the
+    #: before/after edit the rule was learned from.
+    issue_key: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["rule_id", "version"],
+            ["guidance_rules.rule_id", "guidance_rules.version"],
+            ondelete="CASCADE",
+        ),
+        # **A source that names nothing is not a source.**
+        CheckConstraint(
+            "length(trim(issue_key)) > 0",
+            name="guidance_rule_sources_a_source_names_its_material",
+        ),
+        # **And the same material is bound to a version once.** A second
+        # row for the same key adds nothing a reader could check.
+        UniqueConstraint(
+            "rule_id",
+            "version",
+            "issue_key",
+            name="guidance_rule_sources_one_binding_per_material",
+        ),
+    )
+
+
+class GuidanceRuleCounterexampleRow(Base):
+    """The case where a rule does not hold, bound to the rule.
+
+    **A counterexample is not a footnote; it is part of the answer.** The
+    work order's acceptance says a counterexample stops the rule being
+    served unconditionally, and the mechanism is this row plus a hit type
+    that carries counterexamples non-optionally: the retrieval cannot
+    forget them, because they are not stored somewhere it may skip.
+
+    **The statement is required and the source is not.** A counterexample
+    a person recorded from a conversation has no ``issue_key`` to name,
+    and refusing to record it would lose the one case that stops the
+    rule; a counterexample that does name chain material is resolved the
+    same way a rule's source is.
+    """
+
+    __tablename__ = "guidance_rule_counterexamples"
+
+    #: Table-wide identity, never used for ordering.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The rule and the version the counterexample challenges.
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The version, with the rule, as a composite foreign key.
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The case: what was done, and what the rule would have said, and
+    #: what actually held.
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The chain material the counterexample came from, when it has one.
+    issue_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Who recorded it, and when. **A counterexample is somebody's
+    #: reading, and the record says whose.**
+    recorded_by: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When it was recorded.
+    recorded_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["rule_id", "version"],
+            ["guidance_rules.rule_id", "guidance_rules.version"],
+            ondelete="CASCADE",
+        ),
+        # **A counterexample with no case in it challenges nothing.**
+        CheckConstraint(
+            "length(trim(statement)) > 0 AND length(trim(recorded_by)) > 0",
+            name="guidance_rule_counterexamples_a_counterexample_carries_its_case",
+        ),
+    )
+
+
+class AgentRoleSpecRow(Base):
+    """A role's contract, as the store holds it: versioned, typed, enforced.
+
+    **A role is not a prompt.** The prompt is one field of this row, and
+    the least load-bearing one (ADR-0018 D1): what binds a role is the
+    objective, the typed input and output schemas it answers to, the
+    capabilities it may exercise, the actions it may not take, the
+    purposes it may read material for, the budgets and the routing it
+    works under, and the conditions under which it abstains and under
+    which it hands the work to a person.
+
+    **The list columns hold JSON arrays**, because a contract's clauses
+    are lists and a second table per list would be four tables to read
+    one contract. The database can say ``json_valid`` and
+    ``json_array_length``; **what it cannot say across a JSON column it
+    leaves to the API** — that every capability named is one the security
+    layer has registered, and that every forbidden action is one of the
+    five the architecture closes. The API refuses those by name, and
+    this schema does not pretend to check them.
+
+    **A new contract is a new row.** The primary key is the pair of the
+    role's id and the contract's version; editing a role's terms defines
+    the next version, and the old row keeps the terms it had. An output
+    carries the pair it was produced under, so a reader can always open
+    the contract that governed it.
+    """
+
+    __tablename__ = "agent_role_specs"
+
+    #: Caller-minted, so a role may be named before the row that defines
+    #: it is written, and identity cannot depend on insertion order.
+    role_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    #: The contract's version, with the role, as a composite primary key.
+    role_version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: What the role is for, in one sentence a reader can check the
+    #: role's outputs against.
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The typed input model the role answers to — a name in the code,
+    #: not a description of one.
+    input_schema: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The typed output model the role produces — a name in the code,
+    #: not a description of one.
+    output_schema: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The capabilities the role may exercise, as a JSON array of
+    #: capability ids. **The registered vocabulary is the security
+    #: layer's, and the API checks membership; the schema checks only
+    #: that this is a non-empty JSON array.**
+    allowed_capabilities: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The actions the role may not take, as a JSON array of the five
+    #: closed forbidden actions.
+    forbidden_actions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The purposes the role may read material for, as a JSON array.
+    allowed_data_purposes: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The provider-routing policy the role works under — a reference,
+    #: not a model id and not an endpoint (ADR-0018 C14).
+    provider_routing_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The cost ceiling, when one is priced. **A null here is not
+    #: unbounded** — the API reads it as *no real call is priced for
+    #: this role yet*, which a FakeProvider run does not need.
+    cost_budget: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: The token ceiling, which a role always has.
+    token_budget: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The wall-clock ceiling of one invocation.
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: How a failed invocation is retried — a policy's name.
+    retry_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What happens when the retries are spent — a policy's name.
+    fallback_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The conditions under which the role abstains, as a JSON array of
+    #: named conditions. **An empty array is a role that never says
+    #: "I do not know"**, and the schema refuses it.
+    abstain_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The conditions under which the role hands the work to a person,
+    #: as a JSON array of named conditions.
+    escalation_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The prompt template's version. **The prompt is a field of the
+    #: contract, and the least load-bearing one** — but it is on the
+    #: contract, so a replay can name the words the role was given.
+    prompt_template_version: Mapped[str] = mapped_column(Text, nullable=False)
+    #: A reference to a model configuration in the configuration store.
+    #: **Never a model id, never an endpoint** — the tree carries no
+    #: supplier's name (ADR-0018 C14), and a swap of supplier is a
+    #: change of the referenced configuration, not of the contract.
+    model_config_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When the contract was defined.
+    defined_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        # **A contract binds from version one.** A version zero would be
+        # a contract that was never in force.
+        CheckConstraint(
+            "role_version >= 1",
+            name="agent_role_specs_a_contract_binds_from_version_one",
+        ),
+        # **A contract with nothing in it binds nobody.** Every text
+        # field a reader needs is required, and SQLite's length()
+        # counts the spaces a shrug is made of, so each check trims.
+        CheckConstraint(
+            "length(trim(objective)) > 0 AND length(trim(input_schema)) > 0"
+            " AND length(trim(output_schema)) > 0"
+            " AND length(trim(provider_routing_policy)) > 0"
+            " AND length(trim(retry_policy)) > 0 AND length(trim(fallback_policy)) > 0"
+            " AND length(trim(prompt_template_version)) > 0"
+            " AND length(trim(model_config_ref)) > 0",
+            name="agent_role_specs_a_contract_carries_its_terms",
+        ),
+        # **Every list column is a well-formed JSON array, and the lists
+        # that cannot be empty are not.** The vocabulary of each list is
+        # the API's to check; the schema's claim is only that these are
+        # arrays a reader can iterate.
+        CheckConstraint(
+            "json_valid(allowed_capabilities) AND json_valid(forbidden_actions)"
+            " AND json_valid(allowed_data_purposes) AND json_valid(abstain_conditions)"
+            " AND json_valid(escalation_conditions)",
+            name="agent_role_specs_list_columns_hold_json_arrays",
+        ),
+        CheckConstraint(
+            "json_array_length(allowed_capabilities) > 0"
+            " AND json_array_length(allowed_data_purposes) > 0"
+            " AND json_array_length(abstain_conditions) > 0",
+            name="agent_role_specs_a_role_may_work_read_for_a_purpose_and_abstain",
+        ),
+        # **A role always has a ceiling.** A token budget or a timeout
+        # of zero or less is a ceiling that holds nothing.
+        CheckConstraint(
+            "token_budget > 0 AND timeout_seconds > 0",
+            name="agent_role_specs_a_role_works_under_a_ceiling",
         ),
     )

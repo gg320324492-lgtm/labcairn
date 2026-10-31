@@ -146,6 +146,31 @@ measurement established:
 | **Acceptance** | A published label guide; a gold set with two independent annotators and an arbiter; inter-annotator agreement reported with its denominator; `UNKNOWN` is a label and not a failure; **the split is by `PaperProject`, never by event** — every version of a paper is in the same partition. |
 | **Must not** | Import a taxonomy from a paper and call it Phase 2's. The arXivEdits study says why: its classes describe *what kind of text edit* was made, which is a different axis from *what problem the advisor pointed at*. |
 
+**Task breakdown:** [`LC-P2-10-task-breakdown.md`](LC-P2-10-task-breakdown.md),
+written 2026-10-30. **Half of it is a person's job**: T00–T05 are dispatchable
+as code and documents, and **T06 is two annotators and an arbiter filling the
+manifest** — the work order is not done until that block exists.
+
+**Status 2026-10-31: T00–T06 landed** on the branch
+`claude/p2-lc-p2-10-plans`. **T06 was done by three Claude sessions rather
+than three people** — two reading independently from the guide and a third
+that wrote its own reading before comparing it against the two — and **the
+manifest's ids say so** (`agent-annotator-a`, `agent-annotator-b`,
+`agent-arbiter-1`), because an id that does not say what it is will be read
+as a person. **So the agreement number in the acceptance record measures how
+far two independent readings converge, not how far two people would agree**,
+and a human reading of the same corpus is the comparison it is meant to be
+read against. **And two further readings were made by sessions that had
+never seen the labels** — the fourth found that the leak was still open in
+the guide, the fifth closed it — so **the twenty issue-kind labels have a
+measured independent agreement, and those readings are in the tree**
+(`docs/papers/gold-set-blind-readings.json`) with two witnesses over them.
+The acceptance record is
+[`../acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md);
+**its §6 says what the limit of the number is, and what else the round
+found** — including the one channel through which a hint reached two of the
+three readers, and the rule the manifest did not have about its arbiter.
+
 ### LC-P2-11 — The mentor guidance memory
 
 | | |
@@ -246,7 +271,7 @@ touching them is a declared dependency, not a convenience.**
 | LC-P2-07 | **done**: `src/labcairn/material/ooxml.py`, `src/labcairn/sources/locators.py` (**new locator kind**), `src/labcairn/sources/source.py` (**new source kind**), `src/labcairn/material/addressing.py` (**new locator fields**), `src/labcairn/material/ingest.py` (**extension map**), `src/labcairn/material/__init__.py` (**registration**), `migrations/versions/0009_docx_locator.py` (**migration**), `db/models.py` (**the new columns and constraints**), `tests/test_ooxml_revisions.py` | as above, plus `tests/test_source_contracts.py` (**the closed sets moved**) |
 | LC-P2-08 | `src/labcairn/papers/versions.py` (new), `src/labcairn/papers/alignment.py` (new), `tests/test_version_graph.py` (new) | `db/models.py` (new tables), `db/migrations.py` |
 | LC-P2-09 | `src/labcairn/papers/feedback.py` (new), `tests/test_feedback_response.py` (new) | `db/models.py`, `db/migrations.py` |
-| LC-P2-10 | `docs/papers/annotation-guide.md` (new), `docs/papers/gold-set-manifest.json` (new), `tests/fixtures/papers-gold/` (new) | — |
+| LC-P2-10 | `src/labcairn/papers/labels.py` (new), `src/labcairn/papers/gold_manifest.py` (new), `docs/papers/annotation-guide.md` (new), `docs/papers/gold-set-manifest.json` (new), `tests/fixtures/papers-gold/` (new), `tests/gold_set_fixtures.py` (new), `tests/test_gold_set_corpus.py` (new) | — |
 | LC-P2-11 | `src/labcairn/papers/rules.py` (new), `src/labcairn/papers/retrieval.py` (new), `tests/test_guidance_rules.py` (new) | `db/models.py`, `db/migrations.py`, `evidence/index.py` |
 | LC-P2-12 | `src/labcairn/papers/guidance.py` (new), `src/labcairn/application/guidance.py` (new), `tests/test_guidance_cards.py` (new) | `application/` (the layer), `evidence/record.py`, `security/capabilities.py` |
 | LC-P2-13 | `src/labcairn/papers/review.py` (new), `tests/test_review_loop.py` (new) | `db/models.py`, `db/migrations.py` |

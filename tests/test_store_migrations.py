@@ -125,6 +125,10 @@ EXPECTED_TABLES = frozenset(
         "edit_actions",
         "response_links",
         "followup_assessments",
+        "guidance_rules",
+        "guidance_rule_sources",
+        "guidance_rule_counterexamples",
+        "agent_role_specs",
     }
 )
 

@@ -190,6 +190,91 @@ result — the project's own lesson, and the one this file exists to keep.
 
 ---
 
+## LC-P2-12 — The three-role guidance loop
+
+**Task breakdown:**
+[`LC-P2-12-task-breakdown.md`](LC-P2-12-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-12-acceptance.md`](../acceptance/LC-P2-12-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §4 lists the mutations that were
+already applied and what they reddened.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **A role's contract is a versioned row, and the version is stamped on every output.** | `test_a_role_spec_is_versioned_and_the_version_is_on_the_output` | Return an output whose `role_version` is not the contract's. **An output that does not say which contract governed it cannot be replayed against that contract.** |
+| 2 | **A role may exercise only what its contract lists, and the refusal is machine-readable.** | `test_a_call_outside_the_role_spec_is_refused` | Turn the refusal into a message. **A caller that can only read prose cannot branch on it.** |
+| 3 | **The five forbidden actions are closed, and a role holds no direct path out** — no socket, no requests, no database connection. | `test_a_role_holds_no_direct_path_out`, `test_an_unknown_capability_or_action_is_refused_by_name` | Add a sixth action as a string in a spec; or import `httpx` inside a roles module. **The first is refused by vocabulary, the second by the watched import surface.** |
+| 4 | **Role A proposes judgements, never facts** — the candidate type has no `comment_locator` field, and the advisor's words must sit verbatim on the chain. | `test_role_a_proposes_judgements_and_never_facts` | Add the field; or accept a paraphrase. **The shape itself is the refusal; a paraphrase would be A putting words in the advisor's mouth.** |
+| 5 | **The version order is walked over accepted edges, never spelled by name** — a version outside the graph is refused, a fork is refused. | `test_role_a_does_not_order_versions_by_name_or_invent_a_round` | Sort by `version_label_raw`. **`manuscript-2.txt` before `manuscript-10.txt` is the dictionary's order, not the paper's.** |
+| 6 | **An abstention is a result, and it names what was missing.** | `test_insufficient_material_produces_a_named_abstention` | Allow an empty `missing`. **An abstention that names nothing is a shrug wearing a record's clothes.** |
+| 7 | **A rule is cited with its counter-examples, and they cannot be trimmed.** | `test_a_card_cites_a_rule_with_its_counterexamples` | Return the citation without the cases against the rule. **A rule without its failure cases is an advertisement.** |
+| 8 | **A verdict is `inferred` and writes no store row** — two models agreeing promotes nothing. | `test_a_verdict_does_not_promote_a_proposal` | Let the review persist; or let `grade` be raised to `human_verified`. **The store row count is counted, not asserted, so the first shows immediately.** |
+| 9 | **The critique's counter-evidence is its own retrieval**, not a field B filled in. | `test_role_c_reads_the_sources_and_its_own_counterevidence` | Pre-fill `counter_evidence` from the card. **Then C reads B's homework and the independence is a word.** |
+| 10 | **The routing is data** — the tables are parameters, the kind vocabulary is closed, every role runs for a recorded reason. | `test_the_roles_that_run_are_the_ones_the_request_needed` | Route an unknown kind by a default. **A default is a branch wearing data's clothes; there is no swarm.** |
+| 11 | **An unmeasurable cost refuses, and a retry is the same plan.** | `test_an_unmeasurable_cost_refuses_and_a_retry_does_not_pay_twice` | Let an unpriced spec send; or make `retry` build a second plan. **A budget whose price is unknown fails closed; a retry that pays twice pays for a guess.** |
+| 12 | **A person's decision is audited** — appended, attributed, never overwritten. | `test_a_human_decision_on_a_card_is_audited` | Add an `update` to the ledger. **A decision a person made stays made; a change of mind is a second record.** |
+| 13 | **The demonstration sends nothing, and its exit code means something.** | `test_the_guidance_loop_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
+## LC-P2-11 — The mentor guidance memory
+
+**Task breakdown:**
+[`LC-P2-11-task-breakdown.md`](LC-P2-11-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-11-acceptance.md`](../acceptance/LC-P2-11-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §4 lists the mutations that were
+already applied and what they reddened. **A reviewer who finds this section
+missing must say so before reviewing anything else**: it was absent until an
+independent review on 2026-10-31 looked for it, which is the task
+breakdown's §7.6 obligation unfulfilled.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **The state machine is closed** — `candidate → confirmed \| disputed \| withdrawn`, and only a person moves a rule out of `candidate`. The API guard and the migration's CHECK are two walls, and the ORM's mirror is a third. | `test_the_schema_refuses_what_the_api_refuses`, `test_the_migrated_schema_matches_the_orm_models` | Widen the CHECK in migration 0015 to admit `proposed`; or widen the models-side mirror. **The first is caught by the schema witness, the second by the parity test — apply each mutation against both files, or the answer is a false negative.** |
+| 2 | **The confirmer is a second reader**: whoever proposed a rule cannot confirm it, and `model_proposal` is refused as a confirmer like any other proposer. | `test_the_proposer_cannot_confirm_their_own_rule` | Drop the `confirmed_by == row.proposed_by` refusal. **A rule its own author confirms is an echo wearing a rule's clothes.** |
+| 3 | **A source stands or falls at query time, by its state and not by a clock** — the chain's presence under the key, the reader's reach through the permission layer, and a judgement that says the change answered. | `test_a_withdrawn_source_invalidates_its_rule_and_says_so`, `test_a_rule_outside_the_readers_consent_is_not_retrieved`, `test_the_memory_reads_through_the_consent_layer` | Discard the permission layer's answer and return every path; or neuter the standing guard. **The second is a common exit for all three ways a source dies, so it reddens more witnesses than the record's table lists.** |
+| 4 | **The invalidation is not silent**: a rule the memory stops serving is reported, each dead source saying which of the three ways it died. | the withdrawal witness's second half | Replace the invalidation report with `pass`. **A rule that stopped being served for a reason nobody was told is a rule that stopped being served.** |
+| 5 | **Two conflicting rules are both returned, and neither wins by recency** — the ordering consults state and rule id, never a version or a timestamp. | `test_two_conflicting_rules_are_both_returned_and_neither_wins_by_recency` | Reverse the ordering key. **The order the witness asserts is the id order, so a seed where the two rules differ in version would tell a recency-key from an id-key apart — the current seed cannot, and that is a gap in the witness, not in the code.** |
+| 6 | **The distillation may not invent a scope**: it has no scope parameter, the scope is assembled from the cases' anchored text, and a named key the chain holds nothing under is refused. | `test_a_rule_with_an_unsupported_scope_is_refused` | Take the scope from the caller's `rule_context`. **A scope the cases do not support is a rule about something that was never said.** |
+| 7 | **A distilled rule is a candidate until a person confirms it**, and a suggestion retrieved often does not become a rule by being retrieved often. | `test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it`, `test_a_frequently_retrieved_suggestion_is_still_a_candidate` | Confirm the rule as the model that proposed it; or promote on retrieval count. **Frequency is not consent.** |
+| 8 | **The retrieval returns the source and its conditions, never a bare sentence.** | `test_the_retrieval_returns_the_rule_with_its_source_and_its_conditions` | Drop the source from the returned hit. **A sentence without its source cannot be checked against anything.** |
+| 9 | **A rule's problem comes from the closed vocabulary** — LC-P2-10's thirteen labels, imported rather than retyped, at propose, at distil, and at the query boundary. | `test_a_problem_outside_the_vocabulary_is_refused`, `test_the_query_filters_and_the_vocabulary_gates_it` | Accept a free-text problem type. **A vocabulary that can be widened at the door is a vocabulary.** |
+| 10 | **The demonstration is run by a test, and its exit code means something.** | `test_the_guidance_memory_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
+## LC-P2-01 — The model-call path
+
+**Task breakdown:**
+[`LC-P2-01-task-breakdown.md`](LC-P2-01-task-breakdown.md) ·
+**Acceptance:**
+[`../acceptance/LC-P2-01-acceptance.md`](../acceptance/LC-P2-01-acceptance.md)
+
+The reviewer is asked to break each claim below. Each is carried by the
+witness named; the acceptance record §3 lists the mutations that were
+already applied and what they reddened.
+
+| # | The claim | The witness | How to break it |
+|---|---|---|---|
+| 1 | **The bridge is at the caller, and `providers/` still imports nothing of the permission layer.** The call site hands the caller's `ApprovalUse` straight through and inherits `transmit_request`'s order as the property it is — the material gate first, then the approval. | `test_providers_does_not_import_the_permission_layer` (the import surface), `test_the_material_gate_runs_before_the_approval_is_spent` and `test_an_unapproved_model_request_refuses_and_sends_nothing` (the order) | Move the `send` call ahead of the gates. **The two order witnesses redden at once, which is what shows they watch the same line from its two sides; the import-surface witness does not redden, because an import is not an order.** |
+| 2 | **A fresh checkout cannot spend money by accident**: `httpx` is declared at a chosen version, and the tree carries no model id, endpoint, price or capability claim. | `test_httpx_is_a_declared_dependency`, `test_no_model_id_endpoint_or_price_is_written_into_the_tree` | Remove the declaration; or write a model id into any `src/` file. **A supplier's identity is the operator's configuration, never the tree's.** |
+| 3 | **The budget's preflight runs before the gate**, so an unmeasurable refusal costs the person nothing. | `test_a_cost_ceiling_fails_closed_when_the_price_is_unknown` | Move the preflight past the approval consumption. **Exactly that witness reddens: the position is the property.** |
+| 4 | **A schema request the probe does not license is refused before a socket exists** — and the two ways not to be licensed name themselves, because their remedies differ. | `test_an_unprobed_provider_is_blocked` | Drop the schema-ability check, or collapse the two refusals into one. **The first asks a provider to try; the second sends a caller to remedy a probe that has not run.** |
+| 5 | **What came back is judged, not accepted** — an empty result is not a result, and an undecodable answer is a refusal naming what was expected. | `test_an_empty_result_is_not_a_result`, `test_an_undecodable_answer_is_refused_with_the_expectation` | Pass the decode failure through as an answer; or drop the empty check and let `{}` fall to the decoder. **Illegal output must never become evidence by accident.** |
+| 6 | **The refusal does not unstate the call**: the wire carried the request, the approval is spent, and the exchange record stays. | the A10 witness's exchange assertions | Move the emit after the decode. **The log and the wire must agree about whether a call happened.** |
+| 7 | **A model's answer enters as a proposal, bound before it can be cited**, and the constructor — not the path — holds the line to `planned`. | `test_a_models_answer_enters_as_a_proposal_and_is_bound` | Grade the status to `EXTRACTED`; or drop the locator binding. **A model's say-so is never a reader's record, and an unpinned claim cannot be checked.** |
+| 8 | **The exchange record is safe to persist by construction** — digests and counts, the credential by its fingerprint, no field a plaintext key could occupy. | `test_the_transcript_and_usage_land_and_no_key_is_written` | Send a key-shaped string as the fingerprint. **Exactly that witness reddens: the shape is the proof, not the docstring.** |
+| 9 | **The path's refusals are in the layer's vocabulary, closed both ways**, and every refusal is looked up rather than hand-written. | `test_the_model_path_refusals_are_in_the_layers_vocabulary`, `test_the_path_raises_through_the_vocabulary` | Add an orphan `MODEL_` member; or construct the layer's error directly in the module. **A name no refusal carries is as dead as a refusal no surface can name.** |
+| 10 | **An unanswered call is unknown and not a success, and one approval pays for one call.** | `test_an_unanswered_request_is_unknown_and_not_a_success`, `test_a_retry_does_not_pay_twice` | Record an exchange on the unanswered path; or let a spent approval be consumed again. **A record shaped like an answer would be a lie about what came back.** |
+| 11 | **The demonstration sends nothing, and its exit code means something** — consented, budgeted, recorded, and refused before a socket exists. | `test_the_model_request_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | Neuter the planting and watch the second test stay green — it does not. **A demonstration whose `check()` is neutered prints the same lines and exits zero.** |
+
+---
+
 ## How this file grows
 
 **Each work order adds its own section, and the file is edited in the

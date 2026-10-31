@@ -1,0 +1,683 @@
+{
+  "version": "1",
+  "corpus": {
+    "gold-a-v1": {
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a1",
+      "partition": "train",
+      "sha256": "190fa4c185ce72b53ded71a61c73c5a7f49181dfd28a408ba425eab9073a1027",
+      "generator": "tests/gold_set_fixtures.py:gold_fixtures"
+    },
+    "gold-a-v2": {
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a2",
+      "partition": "train",
+      "sha256": "1fe995c2313286c6210fb10e5dc806e0d571ff795b708abc41377591544a467d",
+      "generator": "tests/gold_set_fixtures.py:gold_fixtures"
+    },
+    "gold-b-v1": {
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b1",
+      "partition": "test",
+      "sha256": "f29b4bb0a1fc14fefd74de2595fd3e51bc4cbc05159b2b8026c4748d3f525e45",
+      "generator": "tests/gold_set_fixtures.py:gold_fixtures"
+    },
+    "gold-b-v2": {
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b2",
+      "partition": "test",
+      "sha256": "ce3639012f1226e1b9fb21e9c7f97df2905eb7e11199dc8ce61cc2e5ad57f11d",
+      "generator": "tests/gold_set_fixtures.py:gold_fixtures"
+    }
+  },
+  "partitions": {
+    "train": [
+      "proj-gold-a"
+    ],
+    "test": [
+      "proj-gold-b"
+    ]
+  },
+  "items": [
+    {
+      "item_id": "it-8c51f71155b12e69",
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a1",
+      "feedback_id": "fb-2397fcdd732dc631",
+      "fixture": "gold-a-v1",
+      "comment_id": "c301",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[1]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 112
+      },
+      "paragraph": 0,
+      "start": 0,
+      "end": 91,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "data_quality",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-39ef6a616bd079a4",
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a1",
+      "feedback_id": "fb-b41e72ab341eacc8",
+      "fixture": "gold-a-v1",
+      "comment_id": "c302",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[2]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 136
+      },
+      "paragraph": 1,
+      "start": 0,
+      "end": 130,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": "iss-gold-a-r1"
+    },
+    {
+      "item_id": "it-d06e97d83a003768",
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a1",
+      "feedback_id": "fb-0a79e28af3dcb13c",
+      "fixture": "gold-a-v1",
+      "comment_id": "c303",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[3]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 76
+      },
+      "paragraph": 2,
+      "start": 0,
+      "end": 94,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "method_and_hypothesis",
+            "response_state": "partially_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "method_and_hypothesis",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "method_and_hypothesis",
+          "response_state": "partially_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-bd899521f968a827",
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a2",
+      "feedback_id": "fb-19dc318e5cbcd3f3",
+      "fixture": "gold-a-v2",
+      "comment_id": "c401",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[1]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 138
+      },
+      "paragraph": 1,
+      "start": 0,
+      "end": 176,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "statistical_conclusion",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "statistical_conclusion",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": "iss-gold-a-r1"
+    },
+    {
+      "item_id": "it-4496ea2c07ae635a",
+      "project_id": "proj-gold-a",
+      "version_id": "ver-gold-a2",
+      "feedback_id": "fb-5f1314fbcb98d35f",
+      "fixture": "gold-a-v2",
+      "comment_id": "c402",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[2]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 122
+      },
+      "paragraph": null,
+      "start": null,
+      "end": null,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "unknown",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "unknown",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "unknown",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-966a9ea1ea18e00a",
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b1",
+      "feedback_id": "fb-7b80c653306525d7",
+      "fixture": "gold-b-v1",
+      "comment_id": "c501",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[1]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 219
+      },
+      "paragraph": 0,
+      "start": 0,
+      "end": 83,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "controls_and_ablation",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "pending",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "controls_and_ablation",
+            "response_state": "addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "pending",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "controls_and_ablation",
+          "response_state": "addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "pending",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-418e5d664b4b7d0b",
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b1",
+      "feedback_id": "fb-98bf435b54de0b90",
+      "fixture": "gold-b-v1",
+      "comment_id": "c502",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[2]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 184
+      },
+      "paragraph": 1,
+      "start": 0,
+      "end": 117,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "introduction_and_storyline",
+            "response_state": "not_addressed",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "introduction_and_storyline",
+          "response_state": "not_addressed",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "introduction_and_storyline",
+          "response_state": "not_addressed",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-1e0a1a4720e9a692",
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b2",
+      "feedback_id": "fb-1260a115798ef723",
+      "fixture": "gold-b-v2",
+      "comment_id": "c601",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[1]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 113
+      },
+      "paragraph": 2,
+      "start": 0,
+      "end": 91,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "data_quality",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "data_quality",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "data_quality",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-37b271bc52b985ae",
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b2",
+      "feedback_id": "fb-285d44b8a4a29bdb",
+      "fixture": "gold-b-v2",
+      "comment_id": "c602",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[2]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 156
+      },
+      "paragraph": 3,
+      "start": 0,
+      "end": 59,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "review_response",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "review_response",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "review_response",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    },
+    {
+      "item_id": "it-09a9de494f51644c",
+      "project_id": "proj-gold-b",
+      "version_id": "ver-gold-b2",
+      "feedback_id": "fb-72b807267bdb3ef8",
+      "fixture": "gold-b-v2",
+      "comment_id": "c603",
+      "comment_locator": {
+        "locator_kind": "docx",
+        "part": "word/comments.xml",
+        "element_path": "/comments[1]/comment[3]",
+        "view": "accepted",
+        "char_start": 0,
+        "char_end": 170
+      },
+      "paragraph": 4,
+      "start": 0,
+      "end": 84,
+      "annotations": [
+        {
+          "annotator_id": "agent-annotator-a",
+          "annotated_at": "2026-10-30T23:25:45+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        },
+        {
+          "annotator_id": "agent-annotator-b",
+          "annotated_at": "2026-10-30T23:26:00+08:00",
+          "comment_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          },
+          "body_address": {
+            "issue_kind": "language_and_format",
+            "response_state": "unknown",
+            "assessment_outcome": "unknown"
+          }
+        }
+      ],
+      "resolution": {
+        "arbiter_id": "agent-arbiter-1",
+        "resolved_at": "2026-10-30T23:40:00+08:00",
+        "comment_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        },
+        "body_address": {
+          "issue_kind": "language_and_format",
+          "response_state": "unknown",
+          "assessment_outcome": "unknown"
+        }
+      },
+      "issue_key": null
+    }
+  ]
+}

@@ -1,10 +1,12 @@
 # LC-P2-11 — The mentor guidance memory: rules that carry their sources — task breakdown
 
 **Work order:** LC-P2-11 (the mentor guidance memory) · **Status:** drafted
-2026-10-30, **not yet dispatched**. **Priority:** the adjustment of
-2026-10-30 (P2-AMD-01) makes this the phase's **core route** — *"the
-mentor experience library uses retrieval-augmentation and rule storage,
-not model parameter memory"*.
+2026-10-30, **not yet dispatched**; **amended 2026-10-31** — the second-
+reader rule (§2.7), the closed vocabulary's arrival (§1.2), and the branch
+note in §6, each written into the document that already stood rather than
+over it. **Priority:** the adjustment of 2026-10-30 (P2-AMD-01) makes this
+the phase's **core route** — *"the mentor experience library uses
+retrieval-augmentation and rule storage, not model parameter memory"*.
 
 ## 0. How to read this document
 
@@ -56,6 +58,11 @@ asking for one was declined"* is.
 - **ADR-0016's D8 and D9** — a rule distilled from cases is a candidate
   until a human confirms it, and **a suggestion does not become an
   advisor's rule by being retrieved often**.
+- **The closed vocabulary** — LC-P2-10's `ISSUE_LABELS`, which landed
+  after this document was drafted. **A rule's issue type is one of those
+  labels, and the schema refuses the rest**, because a rule whose problem
+  is outside the vocabulary cannot be measured against the gold set that
+  uses it.
 
 ### 1.3 Explicitly not in scope
 
@@ -129,6 +136,16 @@ retrieval finds it** — with no training, no fine-tuning and no GPU. **The
 phase's claim is that a retrievable, sourced, scoped rule is worth more
 than a parameter that cannot be asked where it came from**, and this work
 order is where that claim is made concrete.
+
+### 2.7 The confirmer is a second reader
+
+**The owner's rule of 2026-10-31, written for the gold set's readings and
+carried here unchanged: whoever proposed a rule cannot be the one who
+confirms it.** One person reading twice is one person reading once with
+extra steps; the arbiter had to be the third reader, and a rule's
+confirmer is that rule's arbiter. `confirm` refuses
+`confirmed_by == proposed_by` with a machine-readable reason, and the
+refusal is witnessed — A7's mutation set gains one more.
 
 ## 3. The work
 
@@ -262,6 +279,17 @@ like a success.
 work order that adds a table, and the migration number is shared with
 them. **This work order may not be dispatched at the same time as another
 one that takes a migration number.**
+
+**Two notes from 2026-10-31.** **The work order's §5 table says
+`src/labcairn/papers/rules.py`; this breakdown says
+`src/labcairn/guidance/` and the breakdown wins** — guidance is a new
+domain, and `papers/` is where the manuscript material lives, not where
+the memory over it lives; the work order's table was written before the
+package existed. **And the ticket shares the branch and the one pull
+request with LC-P2-10** (PR #133): the owner's landing model is one pull
+request per body of work, the files the two tickets own do not overlap,
+and the migration number LC-P2-11 takes is **0015**, next after the
+chain's 0014.
 
 ## 7. What "done" means
 

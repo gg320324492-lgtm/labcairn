@@ -202,6 +202,15 @@ class _AnyDatetime(type):
     def __instancecheck__(cls, instance):
         return isinstance(instance, _datetime)
 
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        # The pinned clock replaces every ``datetime`` a product module
+        # names, and FastAPI builds a schema for each response model when
+        # the service starts -- so without this, a route whose response
+        # model carries a timestamp stops the service from starting at
+        # all. The pinned clock *is* a datetime, and the schema says
+        # exactly that.
+        return handler(_datetime)
+
 
 class Pinned(_datetime, metaclass=_AnyDatetime):
     @classmethod

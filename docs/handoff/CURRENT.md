@@ -1,5 +1,587 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
+real request went through, and the pilot's readers are three independent
+sessions.**
+
+**The first real model request is done.** A request with a schema, against
+the owner's own MiniMax endpoint, under an approval a person granted,
+with the ceiling the owner set: **one request, four thousand tokens, and
+no money ceiling** (MiniMax has no price table, and a money ceiling nobody
+can measure fails closed — it would have refused the request). The
+transmit gate refused twice before it permitted anything, and each
+refusal named its remedy: the grant's scope did not reach the material,
+and then the approval's task scope did not match. **The answer was
+decoded against the schema it was asked for, the approval was consumed
+exactly once, and the exchange landed with digests and counts and the
+credential by its fingerprint** — the token counts are *known* for the
+first time against a real provider, which is the fourth probe defect
+fixed. Three earlier approvals were granted and never spent, because
+every refusal happened before the spend. **The request deliberately
+carried no manuscript**: the owner chose a material-free first request,
+and the model answered honestly — *"No manuscript or revision materials
+were provided for evaluation."* The pilot's task book is
+`docs/plans/PHASE_2-pilot-task-breakdown.md`.
+
+**The material is in a library of its own, outside the repository.**
+`E:\labcairn-local\materials-library` holds the owner's paper: the
+versions under descriptive names (`v03-chinese-draft.docx`,
+`v05b-variant-1-chinese-draft.docx`, `en-translation-copy-v09.pdf`), the
+advisor's comments and the tracked revisions **extracted per version**
+with the product's own OOXML reader, the annotation guide beside them,
+the untouched archive, and a manifest recording every file's original
+name, size and SHA-256. **Nothing of the paper is in the repository, and
+the two stale Office lock files were kept rather than deleted.** The
+advisor's comments are where the pilot's work is: version 8's are
+pasted references, and versions 3, 4, 4(2) and 5(1) carry the real
+critique — *"缺少量化数据…一定要用数据体现"*, *"这部分不要放到这里了，放到讨论
+中吧"* — alongside a few whose reading is genuinely arguable, which is
+where a blind-reading number has meaning.
+
+**The pilot's readers are three independent sessions** — two blind
+readers and a third, the arbiter — each in its own directory, blind to
+each other's work, and each working the corpus by a different route: one
+by the taxonomy, one by the requirement first and the label second. **This
+is the arrangement the annotation guide already used for the gold set**,
+and §1.0 of that guide says what the number is and is not: it measures
+**how far two independent readings of the same material converge**, and
+**not how far two people would agree**. The pilot's record will say the
+same, where it reports the number.
+
+**The branch's own reds are three, and two are repaired.** `mypy
+--strict` over `src` and `tests` was red on ten counts, all in LC-P2-11's
+and LC-P2-12's own test files; the checked-in TypeScript contract had not
+been regenerated since LC-P2-01 added the `model_exchanged` event; and
+twelve new test files were in **no gate class**, so the evaluation
+harness reported their cases as entering no denominator. The first is
+fixed, the second is regenerated, and the third is filed — each file under
+the class its own marker declares and the protocol clause its cases
+actually demonstrate. **All three were failing the CI that had already
+run**: the first run stopped at `mypy --strict` with its pytest step
+skipped, so nobody had seen the other two.
+
+**The workbench's plan is written, and it is a plan.** The owner's
+decision of 2026-10-31 was to fill the web interface in before any
+desktop shell is considered — and the reason is measured, not asserted:
+**Phase 2 has not moved the interface at all.** `web/package.json` still
+says *"Phase 1 baseline skeleton, no product features yet"*, and the only
+change under `web/` in the Phase 2 range is a regenerated TypeScript
+contract. The plan is `docs/plans/LC-P2-16-task-breakdown.md`: the
+contract's outlets first, the views second, the rules' confirmation door
+and the loop's caller after them — and **the desktop shell stays in
+Phase 3's packaging row**, with the licence question that a distribution
+raises.
+
+**The confirmation door is there.** A person can now stand behind a
+claim (`labcairn task claim-attest`) and can settle a model's proposal
+(`labcairn task proposal-confirm`) — which was the fifth gap the pilot's
+own first proposal found: the machinery that moves a record's status was
+tested twenty-seven times and **nothing in `src/` called it**. Building the
+door turned up a **contradiction inside ADR-0016**: D2's promotion diagram
+said a model proposal becomes `user_attested` when a person attests it,
+and D2's own rule, and the record model's constructor, forbid exactly
+that. The correction is the store's own answer, which had been in
+`evidence/store.py`'s docstring all along — *a person writes their own
+record, and the rule's is kept and marked*. The record is
+`docs/acceptance/pilot-confirmation-door.md`, with six application-layer
+witnesses, two CLI witnesses and seven mutations.
+
+**The door's first version was caught by the threat model, and the
+branch had a latent defect the CI's shard order hid.** C14 says *"no
+product operation runs the ledger's checks"*; the door's first version
+wrote the person's verdict onto the proposal's log, which meant calling
+the ledger's verification write from a product module. **The store's own
+design was the answer** — *a person writes their own record, and the
+rule's is kept and marked* — so the door takes it and the threat model
+and its witness are untouched. And the full suite on one machine found
+that **the exchange event's payload schema was registered only where the
+writer was imported**, so a process that only read events had no schema
+for it and a stored exchange's payload was accepted unchecked — the
+defect `runtime/event.py` names and the CI's separate shards never
+exposed. The registration now sits in the runtime package's own import,
+and the witness asks about it in a fresh interpreter.
+
+**And the pilot's own proposal has been settled.** The owner confirmed
+it on 2026-10-31 through the new command: the model's answer keeps its
+identity (`model_proposal`, `planned`) and gains a C4 entry naming the
+person and the verdict; the person's own record stands at the same address
+as `user_attested`, and the proposal is superseded by it and **kept**. What
+a report cites is the person's word, and the model's answer is beside it,
+marked, and attributable to the model that said it.
+
+**The store boundary is fixed, and the witness is green.** Seven domain
+modules — `labcairn.guidance.{rules,retrieval,distil}` and
+`labcairn.roles.{spec,guidance,critique,trajectory}` — read the store
+directly, outside the application layer, and the repository's own witness
+said so. **The application layer owns those reads and writes now**:
+`src/labcairn/application/guidance.py` for the memory's rules,
+`src/labcairn/application/roles.py` for the role contracts, and
+`src/labcairn/application/chain.py` for the chain's own facts. **The rules
+about words and people did not move**: the closed vocabulary, the second
+reader and the reason a dispute must carry are still where they were, and
+the *transitions* are the layer's, because a row may not hold a state the
+memory forbids. Fourteen new operations are witnessed one each in
+`tests/test_application_layer.py`, and the companion witness now proves
+that the three new layer modules really do reach the store, so the
+recorded set cannot become a set that says nothing.
+
+**What is still red, and what it needs.** One witness in the CI is still
+red, and it is not a repair: the shard costs were measured before this
+branch's changes, so the shard-coverage witness asks for a measurement of
+the tree as it is now. **That is what the push buys** — the runner's own
+log, re-measured against the tree that carries this work.
+
+**The layer now exports what it holds, and the table that says so cannot
+drift.** The fourteen operations the store-boundary work added are
+exported from `labcairn.application` — the chain's five reads, the guidance
+memory's seven, the role contracts' two — and the layer's capability table
+lists every operation the package exports, **both ways**: an operation
+that is exported but not listed is an operation whose permission a reader
+cannot look up, and a row that names an operation the package no longer
+has is a row describing a boundary that is not there. **Four operations
+were missing from that table when the check was written**, which is the
+size of the drift a reader would have had to notice alone, and the table
+also gained a second table for the mentor line's own rows: those name no
+path, so the permission that governs them is the material's, and it is
+asked where the material is named.
+
+**Exporting them turned up a cycle that the export had hidden.** The
+contract types live in `labcairn.roles.models`, that module reaches for the
+layer's refusal vocabulary at import time, and the layer's own operations
+read those contract types — so the three are a circle, and **which side of
+it breaks depends on which module a process imports first**. The suite
+imported the contract module first and died in collection; an order that
+imported the layer first would have passed. The layer now imports the
+contract types where they are used rather than at the top of its module,
+and a witness imports six orders in six processes of their own — **a test
+that passes in the order it happens to use is not a test of the graph.**
+
+**The chain's reads do not check the project's grant, and did not before
+this branch either.** `papers/chain.py` never asked it, and the layer's
+reads over it ask it no more than the module they replaced did; what
+survived the move is the retrieval's own per-source check, which drops the
+sources a reader may not reach (ADR-0003 C5). **So the merge preserved the
+behaviour, and the gap is an old one rather than a regression** — it is
+named here, and it is LC-P2-09's to close, because a project's grant is
+what says who may read its material at all.
+
+**One claim this file makes in several places has no witness, and the gap
+is on the tree's side rather than the product's.** *"The tree carries no
+model id, endpoint, price or capability claim — a fresh checkout cannot
+spend money by accident"* is written here and in the LC-P2-01 record, and
+the product's half of it is watched: the fake provider opens no socket,
+needs no key and needs no environment, a provider with no probe record is
+refused before a request is made, and `httpx` is read out of
+`pyproject.toml` rather than out of the installed environment. **The tree's
+half is not**: nothing reads the checkout and says that no supplier's
+endpoint, model id or price is written in it, that the settings schema has
+nowhere to put a price or a capability claim, or that no price table
+exists. **A claim stated in several places and watched in none of them is a
+claim nothing keeps.** The witness for it turned up in a worktree whose
+own work had already landed; it is kept outside the repository, and it is
+the next piece of work.
+
+**LC-P2-16's first subtask is landed: the contract carries the three
+outlets.** The workbench cannot draw what the API does not carry, so the
+routes come first — `/trajectory` (the advisor's comments, the edits that
+answer them, and the state of each judgement, **tied to the comment it is
+about**, because a reader that had to guess which state belonged to which
+comment would be guessing), `/trajectory/graph` (the project's versions
+and **only its accepted edges** — an edge nobody accepted is a proposal,
+and a proposal may not decide an order), `/guidance/rules` and
+`/guidance/rules/{rule_id}` (each rule with its state, its scope, its
+source bindings and **its counterexamples**), and `/records` (the task's
+own evidence records, each carrying whose words it is — a model's proposal
+and a person's attestation side by side, which is the whole point of the
+proposals panel). Every handler calls one application-layer operation and
+returns the layer's own objects, so no shape is spelled a second time.
+
+**Reading the records needed a way in that the layer owns, and it was
+authorized rather than taken.** The evidence ledger had write operations
+and no read: the only way to read a task's records was the store's own
+`load_task_records`, which `application/reports.py` uses internally, and a
+route that reached past the layer would be a route the capability model
+does not reach. So `list_task_records` was added to
+`application/evidence.py` — asking the policy about **the task's own
+area**, the same resource and the same question `read_task_state` asks,
+because a record belongs to the task and names no path of its own. **The
+mentor line's own rows are not asked that**: they name no path either,
+and the permission that governs them is the material's, asked where the
+material is named (ADR-0003 C5).
+
+**Two of the eleven mutations were re-applied here, and both were
+caught.** The capability check taken off `list_task_records` turned the
+route from a refusal into a 200, and a task-area check put on the mentor
+route turned it from a 200 into a 403 — **so the two witnesses that say
+what the routes do and do not ask are the ones that go red when the
+answer changes.** And the shard costs are measured again from the
+runner's own log: **Ubuntu's balance factor was 1.603 and is now 1.224**,
+Windows stays at 1.000, and the witness that had been red for the whole
+branch is green.
+
+**The new route found a hole in the pinned clock, and the hole was in the
+test's own metaclass.** `/guidance/rules` serves the guidance memory's
+rules, and a rule carries the moment it was proposed and the moment it was
+confirmed — so FastAPI builds a schema for a `datetime` when the service
+starts. The demonstration that pins every clock in the product's process
+replaces the `datetime` every module names with `Pinned`, a `datetime`
+subclass whose metaclass knew how to answer `isinstance` and nothing
+else — so the schema could not be built, **the service could not start,
+and the demonstration that was supposed to watch it failed instead.** The
+fix is in the metaclass: the pinned clock answers with the real
+`datetime`'s schema, because it *is* a datetime. **Nothing in the product
+changed**, and the witness that caught it was the one that runs the
+demonstration at two hours eighteen apart — which is exactly what it is
+for.
+
+**Two things the route's author measured, and both are worth keeping.**
+**FastAPI 0.151's `app.routes` holds `_IncludedRouter` objects, which have
+no `.path`** — so *"the route is on the service"* cannot be asserted with
+`route.path`, and the service's own OpenAPI path table is where it is.
+And **pydantic v2 refuses any subclass of `datetime`** unless that class
+implements `__get_pydantic_core_schema__` — so **replacing the clock with
+a `datetime` subclass is a legitimate state of the product**, and a model
+that carries a timestamp has to be able to live in it. That is why the fix
+is in the metaclass and not in the model. **The scope of the fix is the
+narrower one, and the route's author measured it rather than assumed it:**
+the model that broke is the guidance memory's own dataclass, whose
+`datetime` is a bare annotation the pinning replaces. A pydantic model that
+names `AwareDatetime` never had the problem — that alias's `datetime` lives
+in pydantic's module and the pinning never reaches it — and
+`EvidenceRecord` is written that way. **So the dividing line is the one the
+modules already draw: a domain model does not import pydantic**, and a
+model that cannot name pydantic's types has to be able to live in a world
+where `datetime` is a subclass.
+
+**The pilot's business request went through too, with the paper in it.**
+The second request carried **the advisor's comment, the passage it is
+anchored to, and the paragraph it sits in** — 507 characters, named in the
+approval's arguments and so bound by its digest, which the owner
+authorised exactly that far. The material gate permitted it, the exchange
+landed with the prompt's digest and the counts, the answer was decoded
+against the schema it was asked for, the approval was consumed exactly
+once, and **the answer entered the ledger as a `model_proposal` on
+`planned`, bound to the address of the advisor's comment it speaks for.**
+What the model said, and how it compares with the readings, is the
+owner's paper's business and stays in the library — the repository is
+public.
+
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
+live probe ran, and it found four defects in the provider layer.** The
+pilot's probe against the operator's own OpenAI-compatible endpoint (the
+model the operator named, the credential in a file outside the repository)
+reported **all four capabilities unsupported** — while the endpoint answered
+every question correctly and returned a complete usage block. Four defects,
+all of one shape: **the probe spoke a wire form that no real endpoint
+speaks.** A tool call's `arguments` arrive as a JSON *string*, and the
+probe compared them to the schema undecoded. The prompted-output template
+was the schema JSON itself, which pydantic-ai renders with `str.format` —
+every brace of the schema read as a format field, and the request died with
+`KeyError` before it was sent. Each probe ran in its own event loop while
+the httpx client's transport pooled connections across them, so the second
+request inherited a keep-alive connection from a closed loop and died with
+`RuntimeError: Event loop is closed`. And the usage sniffer kept the
+provider's block verbatim while LC-P1-01's parser reads LabCairn's
+`input_tokens`/`output_tokens` — an OpenAI-compatible body says
+`prompt_tokens`/`completion_tokens`, so every counter came back
+`Unknown(PROVIDER_OMITTED)`. All four are fixed and witnessed, and the
+live probe now reports **four of four ok**: the same endpoint, the same
+model, the same credential, the only difference the tree. The acceptance
+record is `docs/acceptance/LC-P1-03-probe-wire-fixes.md`; the witnesses are
+five tests in `tests/test_provider_capabilities.py` and two in
+`tests/test_provider_redaction.py`, and each of the four defects was
+mutation-checked. **The blind spot was the test equipment as much as the
+code**: the fake endpoint's fixtures all spoke LabCairn's vocabulary, so a
+probe that assumed that vocabulary could not be caught by them. The fake
+can now script a tool call's arguments as a JSON string, and the usage
+fixtures speak the OpenAI names.
+
+**Three independent read-only reviews came back** (LC-P2-11, LC-P2-12,
+LC-P2-01), each in its own worktree with its own virtualenv, each tree
+clean at the end: **every claim HOLDS**, every named witness re-checked by
+a mutation re-applied to the tree, and every record's mutation count
+reproduced. Their three weakest points are named in the acceptance
+records. Two of the reviews found things that are not about the code:
+`docs/plans/PHASE_2-review-points.md` carried **no LC-P2-11 section at
+all** — the task breakdown's §7.6 obligation, unfulfilled until a reviewer
+looked for it — and its LC-P2-01 row paired an import-surface witness with
+an order witness, while the two that redden together are the two *order*
+witnesses. Both are fixed in that file now, and the LC-P2-11 section
+names ten claims with the mutations that break them.
+
+**The branch's own reds were repaired.** `mypy --strict` over `src` and
+`tests` was red on ten counts, all in LC-P2-11's and LC-P2-12's own test
+files, and the checked-in TypeScript contract had not been regenerated
+since LC-P2-01 added the `model_exchanged` event — one line, now
+regenerated. **Both were failing the CI that had already run**: the first
+run stopped at `mypy --strict` with the pytest step skipped, so nobody had
+seen the second. The shard costs are re-measured from the last green
+runner's log (`remeasure_shards.py 41110813867`): twelve new test files
+had no measured cost, and the partition is rebuilt from the runner's
+numbers rather than guessed.
+
+**What is not done, on purpose.** One witness is still red —
+`test_the_costs_belong_to_the_tree_they_were_measured_on` — because
+`tests/test_store_events.py` changed on this branch and its cost exceeds
+the partition's slack. Its fix is a runner measurement of the current
+tree, and a runner measurement of the current tree is a push, and **a push
+is the owner's call**. Everything else on this branch is green locally:
+the whole suite, `mypy --strict` over 357 files, `ruff check`, and
+`ruff format --check`.
+
+**Decisions waiting for the owner** (each is a message, not a blocker):
+(a) **the push** — which is also what the one red witness needs, and which
+starts ten CI jobs; (b) the pilot's **annotators and arbiter** (two
+readers and a third, none of them the same person); (c) the **grant's
+scope and ceiling** for the first real request, which the probe has now
+made possible and which is still a human's to set.
+
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
+the model-call path, is landed: T00–T07.** `src/labcairn/application/
+model_request.py` is one operation, `request_model`, that turns "a model
+may be asked" into an actual ask: the budget's preflight runs first
+(because a refusal that cannot be measured should not cost the person
+their approval), a schema request the provider's probe does not license
+is refused at the same price — nothing — with never-probed and
+probed-and-failed naming themselves as two refusals, the material gate
+runs next and only a permitted request consumes the approval, and the
+exchange lands in the event log as a `model_exchanged` annotation in the
+provider layer's own wire form — digests and counts, the credential by
+its fingerprint, no field a plaintext key could occupy. What came back
+is judged, not accepted: an empty result is not a result, an undecodable
+answer is a refusal naming what was expected, and the refusal does not
+unstate the call. `record_model_proposal` in `application/evidence.py`
+brings a model's answer into the ledger as a `model_proposal` on
+`planned`, bound to the locator the write was given — the constructor,
+not the path, holds the line to `planned`, and nothing writes the
+creator field around it. `application/model_refusals.py` and the
+`MODEL_REFUSALS` table name the path's four refusals in the layer's
+vocabulary, closed against each other in both directions, with the path
+raising through `model_refused`. `httpx` is a declared dependency at
+`>=0.27,<1` (ADR-0019), and the tree carries no model id, endpoint,
+price or capability claim — a fresh checkout cannot spend money by
+accident. The witnesses are `tests/test_model_request_path.py`
+(fifteen), `tests/test_model_request_demo.py` (two), and
+`examples/model_request_demo.py`, which runs four scenes — consented,
+budgeted, recorded, refused — against a real ingested material and the
+scripted fake, **and nothing sent**. The acceptance record is
+`docs/acceptance/LC-P2-01-acceptance.md`; the eleven review points are
+in `docs/plans/PHASE_2-review-points.md`.
+
+**Before this, LC-P2-12, the three-role guidance loop, landed:**
+`src/labcairn/roles/`
+carries `spec.py` (a role's contract as a **versioned row** — capabilities,
+the five forbidden actions, purposes, budgets, abstain and escalation
+conditions — with `require_allowed`/`refuse_forbidden` enforcing it and
+`RoleOutput` stamping the version on every output),
+`trajectory.py` (role A's candidates: no `comment_locator` field — the
+shape itself refuses — advisor quotes verified verbatim on the chain,
+versions ordered by walking accepted edges, forks and invented rounds
+refused), `guidance.py` (role B's card: evidence required, claims bound
+to the evidence they cite, facts and style separate, a rule cited **with
+its counter-examples**, and the structured abstention that names what was
+missing), `critique.py` (role C: every verdict `inferred`, no store row
+written, and the counter-evidence **retrieved by C itself** through the
+memory), `orchestration.py` (the routing tables as data — four ways in
+for the critique and no fifth, a cost ceiling that fails closed, a retry
+that is the same plan, and the append-only ledger of human decisions),
+`refusals.py`, the `agent_role_specs` row and migration 0016. The
+witnesses are `tests/test_agent_role_specs.py` (eight, including eleven
+raw-`INSERT` schema refusals), `tests/test_role_trajectory.py` (three),
+`tests/test_role_guidance.py` (five), `tests/test_role_critique.py`
+(two), `tests/test_role_orchestration.py` (four),
+`tests/test_guidance_loop_demo.py` (two), and
+`examples/guidance_loop_demo.py`, which runs six scenes against a real
+ingested material and a planted chain — **one priced call through
+`FakeProvider`, and nothing sent**. The acceptance record is
+`docs/acceptance/LC-P2-12-acceptance.md`; the thirteen review points are
+in `docs/plans/PHASE_2-review-points.md`.
+
+**The demonstration caught a mistake in its own planting.** The first
+draft planted the chain by inserting `SourceRow`s for materials that did
+not exist on disk, and scene four's counter-evidence came back empty:
+the memory's retrieval resolves every source's reach at query time, and
+a row whose file is not there refuses the reader. The demonstration now
+ingests real text files through the product's own intake — the same
+lesson the retrieval's witnesses taught, met again from the other side.
+
+**What is not done, on purpose.** The shard costs are re-measured from a
+runner's log (see the entry above), and one witness of that file is still
+red for the reason given there. And no whole-suite run has been made on
+the final tree since the machine's restart; the figures in the acceptance
+records are local until then.
+
+**Where the branch stands.** `main` is at `da470bb`; this branch carries
+LC-P2-10, LC-P2-11, LC-P2-12 and LC-P2-01 and is pushed, with no pull
+request opened beyond #133, which the owner has yet to merge.
+**Decisions waiting for the owner** (each is a message, not a blocker):
+(a) the push, and the merge of PR #133 — the four work orders ride one
+branch; (b) the shard re-measurement against the next run's logs; (c)
+the whole-suite re-run on the final tree, after the restart; (d) LC-P2-10's
+three pilot decisions (the annotators, the papers, the corpus widening);
+(e) the review of what LC-P2-11, LC-P2-12 and LC-P2-01 landed.
+
+**Before this, LC-P2-11 — the mentor guidance memory — landed:**
+`src/labcairn/guidance/`
+carries `rules.py` (the closed state machine `candidate → confirmed \|
+disputed \| withdrawn`; only a person moves a rule out of candidate, and
+**the confirmer cannot be the proposer** — `model_proposal` included),
+`distil.py` (the model's candidate, whose scope is assembled from the
+cases' anchored text and whose example is the advisor's own words — it has
+**no scope parameter to invent one through**), `retrieval.py` (every
+source resolved against the chain **at the moment of the query** — found
+in the chain, reachable through the consent layer, answered by a
+judgement — and `invalidated_rules()` reporting, not silently dropping,
+every rule a dead source takes down), `refusals.py`, the `GuidanceRule*`
+rows and migration 0015. The witnesses are `tests/test_guidance_rules.py`
+(twelve), `tests/test_guidance_retrieval.py` (fifteen),
+`tests/test_guidance_distillation.py` (three),
+`tests/test_guidance_memory_demo.py` (two), the migration suite's
+raw-`INSERT` refusals, and `examples/guidance_memory_demo.py`, which runs
+six scenes against a real chain. The acceptance record is
+`docs/acceptance/LC-P2-11-acceptance.md`.
+
+**The demonstration caught a mistake in the retrieval.** The first draft
+required every served rule's sources to carry an answered judgement, and
+the distillation's witnesses exposed it: a proposal's cases have usually
+not been judged at all, so the requirement hid from the reviewer the very
+thing they were to judge. The conditions split — a candidate stands on
+sources found and in reach; a confirmed or disputed rule also requires the
+judgement — and the split is written into `search_rules`'s docstring and
+the acceptance record's §1.
+
+**What is not done, on purpose.** Four new test files have no
+runner-measured cost, so `test_ci_shard_coverage` is red **on purpose**
+until `python .github/remeasure_shards.py <run-id>` runs against the next
+run's logs. And no one-shot whole-suite run was made on the final tree:
+the machine is still un-restarted, so the standing decision holds and the
+evidence is local-incremental, anchored at `826cc49` plus the acceptance
+record's own commit.
+
+**`main` is `da470bb`** (PR #132, LC-P2-02) and **this branch is
+thirty-four commits ahead of it** — twenty-eight of LC-P2-10 and six of
+LC-P2-11 (`310ad46` through `9e9f845`, plus this record's own commit).
+**Nothing of the round was pushed and no new pull request was opened**;
+PR #133 carries LC-P2-10 and stays as it is, and the LC-P2-11 work rides
+the same branch on the owner's call.
+
+**The decisions waiting for the owner** (none was taken, and none of the
+work below them blocks): the push of the round; the shard re-measurement
+for the four new test files; when PR #133 merges; the re-measurement of
+the suite after the machine's restart; LC-P2-10's three pilot decisions —
+the annotators, the manuscripts, the widened corpus; and the review of
+what LC-P2-11 landed.
+
+---
+
+**Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — LC-P2-10's
+T00–T06: the label set, the annotation guide, the synthetic corpus and its
+manifest, the agreement, the manifest's refusals, the acceptance record and
+the shard costs, **and the annotations themselves**. **`main` is
+`da470bb`** — the merge of PR #132, LC-P2-02 — **and this branch is
+twenty-three commits ahead of it, every one of them LC-P2-10's.**
+**Nothing of this round was pushed and no new pull request was opened**,
+because a CI run is spent on a whole body of work rather than on each piece
+of it, and that is the owner's call. PR #133 carries the work and is green.
+
+**The full suite has not been measured as one run on the final tree, and
+the reason is the machine, not the tree.** Two overnight attempts ended in
+the same fingerprint — `0xC0000142`, Windows refusing to start a new
+process, while this machine's nonpaged pool stands at 6.72 GB with 453
+processes (a known driver leak; only a restart clears it). The judgement,
+its five pieces of evidence and the chain that stands instead are in
+`docs/acceptance/LC-P2-10-acceptance.md` §5; after a restart, one command
+re-measures it: the project's temp rules, then `pytest` with a basetemp
+outside the repository. **The owner chose this on 2026-10-31: after a
+restart, the suite is re-measured on the final tree and its figures go
+into §5, replacing the chain that stands there now.**
+
+**What landed.** `src/labcairn/papers/labels.py` (the closed vocabulary),
+`src/labcairn/papers/gold_manifest.py` (the manifest's one contract, with
+**two verdicts** — well formed, and finished), `docs/papers/annotation-guide.md`
+(every label with a worked example and a boundary case),
+`docs/papers/gold-set-manifest.json` and `tests/fixtures/papers-gold/`
+(**four manuscripts, two projects, two partitions, ten comments**),
+`tests/test_gold_set_labels.py`, `tests/test_gold_set_agreement.py`,
+`tests/test_gold_set_manifest.py` and `tests/test_gold_set_corpus.py` —
+**forty-eight witnesses** — every one of them re-checked by a mutation that
+had to turn that witness red — and
+[`acceptance/LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md).
+
+**Five things the round found, and they are worth more than the code.**
+
+- **The breakdown's premise about the issue kinds was wrong, and wrong
+  invisibly.** It read *"the issue kinds are LC-P2-09's"* — and LC-P2-09 has
+  no issue kinds: it has `issue_key`, a free-text key a person gives, which
+  the chain refuses to infer because the same wording is not the same issue.
+  **A key somebody types is not a vocabulary somebody can choose from.** The
+  real source is in the tree — the upstream study's own quotation of the
+  design's twelve — and the label set is now **tied to that document**: the
+  witness reads the set out of it, so a change to the vocabulary that nobody
+  recorded fails the test rather than passing it.
+- **The agreement's denominator cannot be told from the manifest's item
+  count by its number.** The manifest requires two readings per item, so over
+  any manifest the function accepts, the two counts are equal. The witness
+  pins the number, the words that name what it counted, and the refusal to
+  compute over a manifest with one reading — and the record says plainly
+  that the fourth thing it cannot pin is the fourth.
+- **The Ubuntu shard partition is outside the balance limit, and that is
+  structural.** `tests/test_cli.py` costs 278 seconds of a 959-second suite,
+  so the best factor five shards can reach is `278 / (681 / 4) = 1.634`, and
+  the partition is already at that floor. The cost check's slack came out
+  negative, so it reported **every** changed file as one that could unbalance
+  the partition — a quarter-second test file, named as the reason a partition
+  is lopsided. The check now asks whether the changed file is the bottleneck,
+  and two witnesses hold that reading down. **A partition inside the limit
+  needs a different number of shards or a cheaper `test_cli.py`, and both are
+  the owner's call.**
+- **A key that names its issue hands the reader the answer, and one did.**
+  The manifest's `issue_key` was a value that says the issue kind before
+  anyone reads the manuscript. **All three annotation sessions read the
+  manifest**, and the transcripts were searched for the moment that wording
+  entered each one: it was in A's and B's context **before either wrote its
+  labels**, and in the arbiter's only afterwards. B's own notes say it used
+  the key. **So four of the sixty labels were made with the answer in
+  reach**, and the record says so rather than reporting 60/60 as if every
+  label had been read blind. The key is now opaque, the guide has a section
+  on which fields not to read before labelling, and **a blind-read audit —
+  a fourth session given only the manuscripts and the guide — is the
+  measurement that turns "the hint did not change the labels" into a
+  number.** It agreed with both readings on **all twenty issue kinds**,
+  **and it found the leak was still open in the guide's §1.0.1** — the one
+  section every annotator reads first. **That text no longer quotes the
+  retired name**, and the retired name is now written down only in the
+  acceptance record, where it is evidence rather than a hint.
+  **The pair was then read again by a session that had never seen that
+  name**, and it gave both items the same label the manifest's three
+  readers gave — **so all twenty issue-kind labels now have a measured
+  independent agreement.** **And those readings are in the tree**
+  (`docs/papers/gold-set-blind-readings.json`) with two witnesses over
+  them: one that every label they carry is the label the manifest's own
+  readers gave, and one that the record carries no `issue_key` and names
+  none of the manifest's readers — **a record of somebody's blindness
+  that names what they were blind to is not a record of blindness.**
+- **The manifest refused two readings by one annotator, and said nothing
+  about the arbiter.** So a manifest whose arbiter *was* one of its own
+  annotators was accepted — **and an arbiter who is one of the two has
+  read the item twice rather than arbitrated it**, and the agreement
+  number over that item would be a statement about one reader. The
+  contract now refuses it by name, and two witnesses watch it: one for
+  the rule and one for the tree's own manifest, so neither can cover for
+  the other.
+
+**What this round does not do:** **T06's readings were made by Claude
+sessions, not by people** — the manifest's ids say so (`agent-annotator-a`,
+`agent-annotator-b`, `agent-arbiter-1`), because an id that does not say
+what it is will be read as a person. **Two of the six agreement views are
+degenerate**: the corpus holds no assessment record, so `assessment_outcome`
+is `unknown` on all twenty readings and its two views are 10/10 by default
+rather than by judgement. **The external readings cover the issue-kind
+axis only**, so the other two axes are backed by the two annotators and
+the arbiter and by nothing else. The four new test files' shard costs are
+**apportioned rather than measured on a runner**, and the first CI run after
+this lands will give better numbers.
+
 **Date:** 2026-10-30 · **`main`:** `76d25ca` — the merge of PR #130, which is
 LC-P2-09 · **Previous `main`:** `503b5fe` (PR #129, LC-P2-06's review and its
 seven findings).

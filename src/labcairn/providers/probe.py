@@ -134,6 +134,18 @@ PROBE_STRUCTURED_SCHEMA: Mapping[str, object] = {
     "additionalProperties": False,
 }
 
+#: The instruction pydantic-ai renders the prompted schema into. A fixed
+#: literal with a ``{schema}`` placeholder, because pydantic-ai applies the
+#: template with ``str.format``: a template that *is* the schema JSON — as the
+#: first probe version shipped — has every brace of the schema read as a
+#: format field, and the request dies with ``KeyError`` before it is sent
+#: (the first real smoke, 2026-10-31, MiniMax, recorded prompted structured
+#: output as unsupported on exactly that).
+PROBE_PROMPTED_TEMPLATE: str = (
+    "Always respond with a single JSON object and nothing else. The object must "
+    "validate against this JSON schema: {schema}"
+)
+
 
 def endpoint_fingerprint(*, base_url: str | None, model: str, protocol: str) -> str:
     """A cache key that cannot be reversed into a URL.
@@ -332,6 +344,14 @@ class PydanticAiProbe:
         ``TOOL_CALLS`` and ``STRUCTURED_OUTPUT_PROMPTED`` should learn about both
         in one session, and a network blip on probe two does not invalidate
         probe one's answer.
+
+        The whole session is driven by **one** call to the runner, so every
+        request runs on one event loop. A real model holds one httpx client
+        whose transport pools connections; a runner call per probe would make
+        probe two inherit probe one's keep-alive connection from a loop that
+        is now closed, and die with ``RuntimeError: Event loop is closed`` —
+        which the first real smoke (2026-10-31, MiniMax) recorded as an
+        unsupported capability the endpoint had never been asked about.
         """
         wanted = capabilities or frozenset(ALL_CAPABILITIES)
         outcomes: dict[Capability, CapabilityOutcome] = {}
@@ -343,23 +363,26 @@ class PydanticAiProbe:
         if token is not None:
             token.raise_if_cancelled()
 
-        if Capability.TOOL_CALLS in wanted:
-            ran.add(Capability.TOOL_CALLS)
-            outcome, why = self._probe_tool_calls()
-            outcomes[Capability.TOOL_CALLS] = outcome
-            evidence[Capability.TOOL_CALLS] = why
+        async def _session() -> None:
+            if Capability.TOOL_CALLS in wanted:
+                ran.add(Capability.TOOL_CALLS)
+                outcome, why = await self._probe_tool_calls()
+                outcomes[Capability.TOOL_CALLS] = outcome
+                evidence[Capability.TOOL_CALLS] = why
 
-        if Capability.STRUCTURED_OUTPUT_NATIVE in wanted:
-            ran.add(Capability.STRUCTURED_OUTPUT_NATIVE)
-            outcome, why = self._probe_structured_output(native=True)
-            outcomes[Capability.STRUCTURED_OUTPUT_NATIVE] = outcome
-            evidence[Capability.STRUCTURED_OUTPUT_NATIVE] = why
+            if Capability.STRUCTURED_OUTPUT_NATIVE in wanted:
+                ran.add(Capability.STRUCTURED_OUTPUT_NATIVE)
+                outcome, why = await self._probe_structured_output(native=True)
+                outcomes[Capability.STRUCTURED_OUTPUT_NATIVE] = outcome
+                evidence[Capability.STRUCTURED_OUTPUT_NATIVE] = why
 
-        if Capability.STRUCTURED_OUTPUT_PROMPTED in wanted:
-            ran.add(Capability.STRUCTURED_OUTPUT_PROMPTED)
-            outcome, why = self._probe_structured_output(native=False)
-            outcomes[Capability.STRUCTURED_OUTPUT_PROMPTED] = outcome
-            evidence[Capability.STRUCTURED_OUTPUT_PROMPTED] = why
+            if Capability.STRUCTURED_OUTPUT_PROMPTED in wanted:
+                ran.add(Capability.STRUCTURED_OUTPUT_PROMPTED)
+                outcome, why = await self._probe_structured_output(native=False)
+                outcomes[Capability.STRUCTURED_OUTPUT_PROMPTED] = outcome
+                evidence[Capability.STRUCTURED_OUTPUT_PROMPTED] = why
+
+        self._runner(_session())
 
         if Capability.USAGE_REPORTING in wanted:
             ran.add(Capability.USAGE_REPORTING)
@@ -394,9 +417,9 @@ class PydanticAiProbe:
 
     # --- the three probes -------------------------------------------------
 
-    def _probe_tool_calls(self) -> tuple[CapabilityOutcome, str]:
+    async def _probe_tool_calls(self) -> tuple[CapabilityOutcome, str]:
         try:
-            response = self._send(
+            response = await self._send(
                 prompt=PROBE_INSTRUCTION,
                 tool_names={PROBE_TOOL_NAME: PROBE_TOOL_SCHEMA},
             )
@@ -424,16 +447,32 @@ class PydanticAiProbe:
                 CapabilityOutcome.UNSUPPORTED,
                 f"tool call named {named!r} rather than the probe tool",
             )
-        if not _arguments_match_schema(getattr(call, "args", None), PROBE_TOOL_SCHEMA):
+        args = getattr(call, "args", None)
+        if isinstance(args, str):
+            # pydantic-ai keeps the OpenAI wire form, where a tool call's
+            # ``arguments`` is a JSON *string*. Decoding it here is protocol
+            # decoding, not the prose fallback ADR-0002 refuses: the field is
+            # structured by the protocol, not free text. The first real smoke
+            # (2026-10-31, MiniMax) recorded a perfectly valid call as
+            # "arguments did not validate" because the string went to the
+            # schema comparison undecoded.
+            try:
+                args = json.loads(args)
+            except ValueError:
+                return (
+                    CapabilityOutcome.UNSUPPORTED,
+                    "tool call arguments were not parseable JSON",
+                )
+        if not _arguments_match_schema(args, PROBE_TOOL_SCHEMA):
             return (
                 CapabilityOutcome.UNSUPPORTED,
                 "tool call arguments did not validate against the probe schema",
             )
         return CapabilityOutcome.OK, "a well-formed tool call naming the probe tool"
 
-    def _probe_structured_output(self, *, native: bool) -> tuple[CapabilityOutcome, str]:
+    async def _probe_structured_output(self, *, native: bool) -> tuple[CapabilityOutcome, str]:
         try:
-            response = self._send(
+            response = await self._send(
                 prompt=PROBE_STRUCTURED_PROMPT,
                 structured_schema=PROBE_STRUCTURED_SCHEMA,
                 native=native,
@@ -461,7 +500,7 @@ class PydanticAiProbe:
             )
         return CapabilityOutcome.OK, "a bare JSON object validating against the probe schema"
 
-    def _send(
+    async def _send(
         self,
         *,
         prompt: str,
@@ -503,11 +542,11 @@ class PydanticAiProbe:
                 kwargs["allow_text_output"] = False
             else:
                 kwargs["output_mode"] = "prompted"
-                kwargs["prompted_output_template"] = json.dumps(structured_schema, sort_keys=True)
+                kwargs["prompted_output_template"] = PROBE_PROMPTED_TEMPLATE
 
         parameters = ModelRequestParameters(**kwargs)
         self._sends += 1
-        response = self._runner(self._model.request(messages, None, parameters))
+        response = await self._model.request(messages, None, parameters)
         self._note_usage()
         return response
 

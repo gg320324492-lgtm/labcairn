@@ -120,6 +120,28 @@ export type CapabilityId =
   | 'report.render'
   | 'model.request'
 
+export type ChainComment = {
+  feedback_id: string
+  issue_key: string
+  version_id: string
+  comment_text: string
+  anchor_text: string
+}
+
+export type ChainEdge = {
+  edge_id: string
+  parent_version_id: string
+  child_version_id: string
+}
+
+export type ChainEdit = {
+  edit_action_id: string
+  feedback_id: string | null
+  version_edge_id: string
+  actor_kind: string
+  grade: string
+}
+
 export type CheckKind = 'c1' | 'c2' | 'c3' | 'c4'
 
 export type CheckOutcome = 'pass' | 'fail' | 'indeterminate' | 'not_checked'
@@ -138,6 +160,11 @@ export type ClaimBody = {
 export type ClaimRecorded = {
   record: EvidenceRecord
   anchor_id: string
+}
+
+export type CommentResponses = {
+  feedback_id: string
+  states: string[]
 }
 
 export type ComputationLocator = {
@@ -215,6 +242,7 @@ export type EventType =
   | 'edit_action_recorded'
   | 'response_recorded'
   | 'followup_assessed'
+  | 'model_exchanged'
 
 export type EvidenceCreator = 'rule' | 'user' | 'model_proposal'
 
@@ -258,6 +286,24 @@ export type FileRef = {
 }
 
 export type FilterOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
+
+export type GuidanceRule = {
+  rule_id: string
+  version: number
+  issue_type: string
+  statement: string
+  context: string
+  scope: string
+  example: string
+  state: string
+  proposed_by: string
+  proposed_at: string
+  confirmed_by: string | null
+  confirmed_at: string | null
+  resolution_reason: string | null
+  sources: string[]
+  counterexamples: RuleCounterexample[]
+}
 
 export type HTTPValidationError = {
   detail?: ValidationError[]
@@ -308,6 +354,11 @@ export type PlanStage = {
   stage: StageName
   status: StageStatus
   blocked_reason?: string | null
+}
+
+export type ProjectGraph = {
+  version_ids: string[]
+  edges: ChainEdge[]
 }
 
 export type RawId = string
@@ -361,6 +412,13 @@ export type RowRange = {
 
 export type RowSet = {
   rows: number[]
+}
+
+export type RuleCounterexample = {
+  statement: string
+  issue_key: string | null
+  recorded_by: string
+  recorded_at: string
 }
 
 export type Run = {
@@ -506,6 +564,12 @@ export type TaskState = {
 export type TaskStep = {
   stage: Stage
   attempt: number
+}
+
+export type Trajectory = {
+  comments: ChainComment[]
+  edits: ChainEdit[]
+  responses: CommentResponses[]
 }
 
 export type ValidationError = {

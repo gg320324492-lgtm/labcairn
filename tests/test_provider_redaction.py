@@ -551,3 +551,52 @@ def test_the_sniffer_forwards_the_response_untouched() -> None:
 
     assert transport.requests == ["request-object"]
     assert response.content == b'{"usage": {"input_tokens": 1}}'
+
+
+@pytest.mark.unit
+def test_the_sniffer_renames_the_openai_wire_names_at_the_capture_point() -> None:
+    """A real OpenAI-compatible usage block is measured, not omitted.
+
+    LC-P1-01's parser reads ``input_tokens``/``output_tokens``; an
+    OpenAI-compatible endpoint reports ``prompt_tokens``/``completion_tokens``.
+    The first real smoke (2026-10-31, MiniMax) answered with a complete block
+    in those names and was still recorded ``usage_reporting: unsupported``,
+    because the verbatim block went to the parser un-renamed. The capture is
+    the only place that speaks wire, so the rename happens there.
+    """
+    import asyncio
+
+    from labcairn.providers.usage_capture import HttpxUsageSniffer
+
+    body = json.dumps(
+        {
+            "choices": [{"message": {"content": FAKE_EXCERPT}}],
+            "usage": {"total_tokens": 210, "prompt_tokens": 207, "completion_tokens": 3},
+        }
+    ).encode()
+    sniffer = HttpxUsageSniffer(_FakeTransport(body))
+    asyncio.run(sniffer.handle_async_request(object()))
+
+    assert sniffer.report().input_tokens == Known(207)
+    assert sniffer.report().output_tokens == Known(3)
+
+
+@pytest.mark.unit
+def test_the_sniffer_leaves_labcairn_vocabulary_untouched() -> None:
+    """A block already in the parser's vocabulary is identity, not renamed twice.
+
+    The fake provider's transcripts and an Anthropic body already speak
+    ``input_tokens``/``output_tokens``; the rename must not need their names
+    to be present to keep theirs.
+    """
+    import asyncio
+
+    from labcairn.providers.usage_capture import HttpxUsageSniffer
+
+    body = json.dumps(
+        {"choices": [{"message": {"content": FAKE_EXCERPT}}], "usage": {"input_tokens": 11}}
+    ).encode()
+    sniffer = HttpxUsageSniffer(_FakeTransport(body))
+    asyncio.run(sniffer.handle_async_request(object()))
+
+    assert sniffer.report().input_tokens == Known(11)

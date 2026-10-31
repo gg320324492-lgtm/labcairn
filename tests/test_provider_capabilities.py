@@ -520,3 +520,123 @@ def test_endpoint_fingerprint_changes_when_protocol_model_or_endpoint_changes() 
     assert base != endpoint_fingerprint(base_url="https://a/v1", model="m", protocol="anthropic")
     assert base != endpoint_fingerprint(base_url="https://a/v1", model="m2", protocol="openai")
     assert base != endpoint_fingerprint(base_url="https://b/v1", model="m", protocol="openai")
+
+
+# --- the real-wire forms the first smoke found (2026-10-31, MiniMax) -------
+
+
+@pytest.mark.unit
+def test_a_string_shaped_tool_call_argument_is_decoded() -> None:
+    """The OpenAI wire form keeps ``arguments`` as a JSON *string*.
+
+    The first real smoke answered the tool probe with exactly this shape and
+    was recorded ``unsupported`` because the string went to the schema
+    comparison undecoded. Decoding the protocol's own field is not the prose
+    fallback ADR-0002 refuses: a prose answer is still never parsed.
+    """
+    endpoint = FakeEndpoint(
+        replies=(Reply(name="wire-form", tool_calls=((PROBE_TOOL_NAME, '{"verdict": "ok"}'),)),)
+    )
+    record = _run(endpoint, capabilities=frozenset({Capability.TOOL_CALLS}))
+
+    assert record.outcomes[Capability.TOOL_CALLS] is CapabilityOutcome.OK
+
+
+@pytest.mark.unit
+def test_an_unparseable_string_argument_is_refused() -> None:
+    """A string that is not JSON is a protocol failure, and it is named as one."""
+    endpoint = FakeEndpoint(
+        replies=(Reply(name="wire-form-broken", tool_calls=((PROBE_TOOL_NAME, "not json"),)),)
+    )
+    record = _run(endpoint, capabilities=frozenset({Capability.TOOL_CALLS}))
+
+    assert record.outcomes[Capability.TOOL_CALLS] is CapabilityOutcome.UNSUPPORTED
+    assert record.evidence[Capability.TOOL_CALLS] == ("tool call arguments were not parseable JSON")
+
+
+@pytest.mark.unit
+def test_the_prompted_template_is_a_literal_with_a_schema_placeholder() -> None:
+    """pydantic-ai renders the prompted template with ``str.format``.
+
+    A template that *is* the schema JSON — as the first probe version
+    shipped — has every schema brace read as a format field, and the request
+    dies with ``KeyError`` before it is sent. The probe ships a fixed literal
+    carrying ``{schema}``, so the placeholder is the only brace format reads.
+    """
+    endpoint = FakeEndpoint(replies=(_NATIVE_JSON_REPLY,))
+    record = _run(endpoint, capabilities=frozenset({Capability.STRUCTURED_OUTPUT_PROMPTED}))
+
+    assert record.outcomes[Capability.STRUCTURED_OUTPUT_PROMPTED] is CapabilityOutcome.OK
+    template = endpoint.calls[0].prompted_output_template
+    assert template is not None
+    assert "{schema}" in template
+    # The template is an instruction, not the schema itself.
+    assert '"additionalProperties"' not in template
+
+
+@pytest.mark.unit
+def test_one_session_is_one_runner_call() -> None:
+    """All probes of a session run on one event loop, through one runner call.
+
+    A real model holds one httpx client whose transport pools connections; a
+    runner call per probe made probe two inherit probe one's keep-alive
+    connection from a closed loop and die with ``RuntimeError: Event loop is
+    closed`` — recorded by the first real smoke as an unsupported capability
+    the endpoint had never been asked about. One runner call is the property
+    that keeps every request of a session on one loop.
+    """
+    runner_calls: list[object] = []
+
+    def counting_runner(awaitable: object) -> object:
+        runner_calls.append(awaitable)
+        return sync_runner(awaitable)
+
+    endpoint = FakeEndpoint(
+        replies=(_PROBE_REPLY_WITH_TOOL, _NATIVE_JSON_REPLY, _NATIVE_JSON_REPLY)
+    )
+    probe = PydanticAiProbe(
+        model=endpoint,
+        usage_capture=endpoint.capture,
+        clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
+        runner=counting_runner,
+    )
+    probe.probe(
+        capabilities=frozenset(ALL_CAPABILITIES),
+        endpoint_fingerprint=_FINGERPRINT,
+        protocol="openai_compatible",
+    )
+
+    assert len(runner_calls) == 1
+    assert len(endpoint.calls) == 3
+
+
+@pytest.mark.unit
+def test_usage_reporting_reads_the_openai_wire_names() -> None:
+    """A usage block in OpenAI's wire names is measured, not omitted.
+
+    The first real smoke answered with a complete block
+    (``prompt_tokens``/``completion_tokens``) and was still recorded
+    ``usage_reporting: unsupported``, because the block went to the parser
+    un-renamed. The capture renames at the observe point, so a real
+    OpenAI-compatible body reaches ``USAGE_REPORTING`` as OK.
+    """
+    openai_form: dict[str, object] = {
+        "total_tokens": 210,
+        "prompt_tokens": 207,
+        "completion_tokens": 3,
+    }
+    endpoint = FakeEndpoint(
+        replies=(
+            Reply(
+                name="openai-wire",
+                tool_calls=((PROBE_TOOL_NAME, {"verdict": "ok"}),),
+                usage_body=openai_form,
+            ),
+        )
+    )
+    record = _run(
+        endpoint,
+        capabilities=frozenset({Capability.TOOL_CALLS, Capability.USAGE_REPORTING}),
+    )
+
+    assert record.outcomes[Capability.USAGE_REPORTING] is CapabilityOutcome.OK

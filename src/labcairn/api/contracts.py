@@ -1,4 +1,5 @@
-"""The shapes this service speaks: the refusal body, and the request bodies.
+"""The shapes this service speaks: the refusal body, the request bodies, and
+the one panel it composes out of the layer's own objects.
 
 The *response* models are not here, and that is the point. They are the
 application layer's own models — ``TaskState``, ``TaskPlan``, ``SourceView``,
@@ -15,7 +16,26 @@ So the only models here are the ones the API owns outright:
   produces, so the two refusals — the layer's and a guard's — are the same
   shape on the wire and a script branches on one field either way;
 * the request bodies, which are the API's own because the CLI has no request
-  bodies to share.
+  bodies to share;
+* :class:`SessionInfo` and :class:`Health`, which describe **the service**
+  — the token it minted and the address it listens on — and there is no
+  layer operation that produces either;
+* :class:`Trajectory` and :class:`CommentResponses`, which **compose** the
+  layer's own objects into the one panel a workbench draws.
+
+The composed shapes are not a second model
+------------------------------------------
+
+:class:`Trajectory` is a bundle, and **every member of it is the layer's own
+object**: the comments are ``application.chain``'s, the edits are its, and
+the states of the judgements are its. The bundle adds no field of its own
+except the one that ties a state to the comment it is about — and that tie
+is a *fact the layer's own read does not spell out*, so the API states it
+once, in one place, rather than every reader guessing it.
+
+**A composed shape that re-spelled a member would be the defect this module
+exists to prevent.** So a member is carried as the layer carries it, and
+the composition is the only thing this package adds.
 
 The refusal body is not a copy of the layer's payload
 ------------------------------------------------------
@@ -33,6 +53,7 @@ from typing import Any
 
 from pydantic import Field
 
+from labcairn.application import ChainComment, ChainEdit
 from labcairn.application.models import Result
 from labcairn.core.ids import ApprovalId, RunId
 from labcairn.evidence.states import EvidenceKind
@@ -192,14 +213,44 @@ class Health(Result):
     task_id: str
 
 
+class CommentResponses(Result):
+    """The judgements on one comment, and the states they hold.
+
+    **The states belong to the comment they are about.** The layer's read
+    answers with the states themselves, so a caller that wanted to know
+    which comment a state belonged to would have to ask again — and asking
+    again is how a reader ends up with two answers to one question.
+    """
+
+    feedback_id: str
+    states: tuple[str, ...]
+
+
+class Trajectory(Result):
+    """The advisor's comments, the edits that answer them, and the responses.
+
+    **Every member is the application layer's own object.** The comments are
+    :class:`~labcairn.application.chain.ChainComment`, the edits are
+    :class:`~labcairn.application.chain.ChainEdit`, and the states are the
+    layer's own — so a workbench that draws this panel draws the chain, and
+    not a second spelling of it.
+    """
+
+    comments: tuple[ChainComment, ...]
+    edits: tuple[ChainEdit, ...]
+    responses: tuple[CommentResponses, ...]
+
+
 __all__ = [
     "AnalysisBody",
     "ApprovalBody",
     "ApprovalUseBody",
     "ClaimBody",
+    "CommentResponses",
     "Health",
     "RefusalBody",
     "ReportBody",
     "SessionInfo",
     "StageBody",
+    "Trajectory",
 ]

@@ -34,9 +34,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum
 
+from labcairn.application.model_refusals import ModelRefusal
+from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.material.intake import IntakeRefusal
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.versions import PaperRefusal
+from labcairn.roles.refusals import RoleRefusal
 from labcairn.security.permissions import ConsentRefusal
 
 
@@ -78,6 +81,29 @@ class ApplicationRefusal(StrEnum):
     #: per task, so the second write is refused by name rather than by a
     #: constraint error out of the middle of the transaction.
     CLAIM_ALREADY_RECORDED = "claim_already_recorded"
+    #: The ledger holds no evidence record with that id.
+    EVIDENCE_NOT_FOUND = "evidence_not_found"
+    #: The attestation named nobody. **An attestation nobody signs is not an
+    #: attestation**, so the person's id is the operation's argument and not a
+    #: default.
+    ATTESTATION_IDENTITY_EMPTY = "attestation_identity_empty"
+    #: The record is not the person's own, so it cannot be attested in place.
+    #: A model's proposal is settled by the person's own word about the same
+    #: material, which supersedes it — a different operation, and the only
+    #: one the schema leaves.
+    ATTESTATION_NOT_THE_AUTHOR = "attestation_not_the_author"
+    #: The ledger refused the move. The original failure is kept as the cause.
+    ATTESTATION_REFUSED = "attestation_refused"
+    #: The record is not a model's proposal, so there is nothing to settle.
+    PROPOSAL_NOT_A_PROPOSAL = "proposal_not_a_proposal"
+    #: The proposal has already been settled by a person. **A proposal is
+    #: settled once**: a second confirmation would be a second answer to a
+    #: question that has one.
+    PROPOSAL_ALREADY_SETTLED = "proposal_already_settled"
+    #: The verdict is not one a person can return about a proposal. The
+    #: vocabulary is closed, because "the person had a look" is not a verdict
+    #: a record can carry.
+    PROPOSAL_VERDICT_UNKNOWN = "proposal_verdict_unknown"
     #: The store holds no artefact with that id.
     ARTIFACT_NOT_FOUND = "artifact_not_found"
     #: The store holds no operation with that id.
@@ -261,6 +287,133 @@ class ApplicationRefusal(StrEnum):
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
     CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED = "chain_issue_key_may_not_be_inferred"
+    # -- the reasons the guidance memory says no ---------------------------- #
+    #
+    # **Why these are the memory's own, and not one ``rule_refused``.** The
+    # same argument the run path's vocabulary makes: a surface branches on a
+    # *reason*, and "the problem is outside the vocabulary" and "the proposer
+    # cannot confirm their own rule" are different remedies for different
+    # people — one is a wording fix, the other is a person the record needs.
+    #: The rule's problem is not one of the closed vocabulary's labels.
+    GUIDANCE_PROBLEM_OUTSIDE_VOCABULARY = "guidance_problem_outside_vocabulary"
+    #: A required field of the rule is missing or empty.
+    GUIDANCE_RULE_FIELD_EMPTY = "guidance_rule_field_empty"
+    #: The rule names no chain material, and a rule without a source is not
+    #: a rule.
+    GUIDANCE_RULE_WITHOUT_SOURCE = "guidance_rule_without_source"
+    #: No rule carries that id, at any version.
+    GUIDANCE_RULE_NOT_FOUND = "guidance_rule_not_found"
+    #: The proposer cannot be the one who confirms the rule.
+    GUIDANCE_CONFIRMER_IS_PROPOSER = "guidance_confirmer_is_proposer"
+    #: The state transition asked for is not one the machine has.
+    GUIDANCE_TRANSITION_NOT_POSSIBLE = "guidance_transition_not_possible"
+    #: A dispute or a retraction without a reason is a shrug.
+    GUIDANCE_RESOLUTION_WITHOUT_REASON = "guidance_resolution_without_reason"
+    #: A counterexample with no case in it challenges nothing.
+    GUIDANCE_COUNTEREXAMPLE_EMPTY = "guidance_counterexample_empty"
+    # -- the reasons the role contract says no ------------------------------ #
+    #
+    # **Why these are the contract's own.** The boundary exists to refuse a
+    # call a contract does not allow, and a refusal a surface cannot branch
+    # on is a refusal a caller can only read. "The capability is not listed"
+    # and "the action is forbidden" have different remedies — one is a
+    # contract amendment, the other is the operation stopping — so they are
+    # different reasons, and the machine reads them without a message.
+    #: A required field of the spec is missing or empty.
+    ROLE_SPEC_FIELD_EMPTY = "role_spec_field_empty"
+    #: The spec names a capability the security layer has not registered.
+    ROLE_SPEC_CAPABILITY_UNKNOWN = "role_spec_capability_unknown"
+    #: The spec names a forbidden action outside the closed five.
+    ROLE_SPEC_FORBIDDEN_ACTION_UNKNOWN = "role_spec_forbidden_action_unknown"
+    #: The spec declares no purpose for which it may read material.
+    ROLE_SPEC_PURPOSE_EMPTY = "role_spec_purpose_empty"
+    #: The operation asked to exercise a capability the spec does not list.
+    ROLE_SPEC_CAPABILITY_NOT_LISTED = "role_spec_capability_not_listed"
+    #: The operation asked to perform an action the spec forbids.
+    ROLE_SPEC_FORBIDDEN_ACTION_REQUESTED = "role_spec_forbidden_action_requested"
+    #: No spec carries that role id, at any version.
+    ROLE_SPEC_NOT_FOUND = "role_spec_not_found"
+    #: A spec at that role id and version is already defined.
+    ROLE_SPEC_ALREADY_DEFINED = "role_spec_already_defined"
+    #: The chain holds no comment under the issue key named.
+    ROLE_COMMENT_NOT_IN_THE_CHAIN = "role_comment_not_in_the_chain"
+    #: The candidate quotes words the advisor did not write.
+    ROLE_QUOTE_NOT_IN_THE_CHAIN = "role_quote_not_in_the_chain"
+    #: The alignment named is outside the four the vocabulary closes.
+    ROLE_ALIGNMENT_STATE_UNKNOWN = "role_alignment_state_unknown"
+    #: The candidate's issue type is outside the closed vocabulary.
+    ROLE_CANDIDATE_ISSUE_TYPE_UNKNOWN = "role_candidate_issue_type_unknown"
+    #: The edit named does not answer the comment named.
+    ROLE_EDIT_DOES_NOT_ANSWER_THE_COMMENT = "role_edit_does_not_answer_the_comment"
+    #: A version the trajectory was asked to order is not in the graph.
+    ROLE_VERSION_OUTSIDE_THE_GRAPH = "role_version_outside_the_graph"
+    #: The accepted edges leave the order ambiguous.
+    ROLE_VERSION_ORDER_AMBIGUOUS = "role_version_order_ambiguous"
+    #: A required field of the card is empty.
+    ROLE_CARD_FIELD_EMPTY = "role_card_field_empty"
+    #: The card's evidence list is empty.
+    ROLE_CARD_WITHOUT_EVIDENCE = "role_card_without_evidence"
+    #: The severity named is outside the vocabulary.
+    ROLE_SEVERITY_UNKNOWN = "role_severity_unknown"
+    #: A claim's kind is outside the vocabulary.
+    ROLE_CLAIM_KIND_UNKNOWN = "role_claim_kind_unknown"
+    #: A claim cites evidence the card does not declare.
+    ROLE_CLAIM_WITHOUT_EVIDENCE = "role_claim_without_evidence"
+    #: An advisor claim's quote is not the advisor's words in the chain.
+    ROLE_ADVICE_NOT_IN_THE_CHAIN = "role_advice_not_in_the_chain"
+    #: The uncertainty named is outside the vocabulary.
+    ROLE_UNCERTAINTY_KIND_UNKNOWN = "role_uncertainty_kind_unknown"
+    #: An abstention that cannot say what it lacks.
+    ROLE_ABSTENTION_WITHOUT_A_MISSING = "role_abstention_without_a_missing"
+    #: The memory holds no rule under the id a card tries to cite.
+    ROLE_RULE_NOT_IN_THE_MEMORY = "role_rule_not_in_the_memory"
+    #: The verdict named is outside the four the vocabulary closes.
+    ROLE_VERDICT_UNKNOWN = "role_verdict_unknown"
+    #: The review accepted evidence it cannot check.
+    ROLE_UNVERIFIABLE_EVIDENCE_ACCEPTED = "role_unverifiable_evidence_accepted"
+    #: A chain reference names a key the chain does not hold.
+    ROLE_EVIDENCE_NOT_IN_THE_CHAIN = "role_evidence_not_in_the_chain"
+    #: A refusing verdict carries no reason for the hand-over.
+    ROLE_HANDOVER_WITHOUT_A_REASON = "role_handover_without_a_reason"
+    #: The role's cost ceiling is not priced, and the call fails closed.
+    ROLE_SPEC_COST_UNMEASURED = "role_spec_cost_unmeasured"
+    #: The request's kind is not one the routing table knows.
+    ROLE_REQUEST_KIND_UNKNOWN = "role_request_kind_unknown"
+    #: The request's risk is outside the vocabulary.
+    ROLE_REQUEST_RISK_UNKNOWN = "role_request_risk_unknown"
+    #: The decision is neither accepted nor rejected.
+    ROLE_DECISION_UNKNOWN = "role_decision_unknown"
+    #: The decision names nobody who made it.
+    ROLE_DECISION_WITHOUT_A_PERSON = "role_decision_without_a_person"
+    #: The decision carries no reason.
+    ROLE_DECISION_WITHOUT_A_REASON = "role_decision_without_a_reason"
+    # -- the reasons the model-call path says no (LC-P2-01) ----------------- #
+    #
+    # **Why these are the path's own.** The same argument the run path's and
+    # the guidance memory's vocabularies make: a surface branches on a
+    # *reason*, and "the provider was never probed" and "the probe ran and
+    # said no" and "the answer came back unreadable" have different remedies
+    # for different people -- probe first, choose another provider, and look
+    # at what actually arrived. LC-P2-01 T06 closes this vocabulary against
+    # the path's own, in both directions.
+    #: No capability probe has run for the provider a schema request was
+    #: addressed to. **The request is refused rather than sent on the
+    #: chance the schema comes back** -- ADR-0002 treats an unprobed
+    #: capability exactly like an unsupported one, and so does this path.
+    MODEL_SCHEMA_UNPROBED = "model_schema_unprobed"
+    #: The probe ran and licensed no structured output -- neither the
+    #: protocol's own channel nor the prompt-described fallback. **A provider
+    #: that cannot produce a schema's output is blocked from that request**,
+    #: rather than being asked to try.
+    MODEL_SCHEMA_UNSUPPORTED = "model_schema_unsupported"
+    #: The call came back with nothing in the schema's shape. **An empty
+    #: result is not a result** -- a refusal here, not an answer to hand on.
+    MODEL_ANSWER_EMPTY = "model_answer_empty"
+    #: The answer is not decodable into the schema it was asked for. The
+    #: refusal's message names what was expected, and **illegal output is
+    #: never silently turned into evidence** -- ADR-0016 keeps a model's
+    #: say-so out of the record until it is verifiable.
+    MODEL_ANSWER_UNDECODABLE = "model_answer_undecodable"
 
 
 class ApplicationRefusedError(RuntimeError):
@@ -359,6 +512,81 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ),
 }
 
+GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
+    GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY: (
+        ApplicationRefusal.GUIDANCE_PROBLEM_OUTSIDE_VOCABULARY
+    ),
+    GuidanceRefusal.RULE_FIELD_EMPTY: ApplicationRefusal.GUIDANCE_RULE_FIELD_EMPTY,
+    GuidanceRefusal.RULE_WITHOUT_SOURCE: ApplicationRefusal.GUIDANCE_RULE_WITHOUT_SOURCE,
+    GuidanceRefusal.RULE_NOT_FOUND: ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND,
+    GuidanceRefusal.CONFIRMER_IS_PROPOSER: (ApplicationRefusal.GUIDANCE_CONFIRMER_IS_PROPOSER),
+    GuidanceRefusal.TRANSITION_NOT_POSSIBLE: (ApplicationRefusal.GUIDANCE_TRANSITION_NOT_POSSIBLE),
+    GuidanceRefusal.RESOLUTION_WITHOUT_REASON: (
+        ApplicationRefusal.GUIDANCE_RESOLUTION_WITHOUT_REASON
+    ),
+    GuidanceRefusal.COUNTEREXAMPLE_EMPTY: (ApplicationRefusal.GUIDANCE_COUNTEREXAMPLE_EMPTY),
+}
+
+ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
+    RoleRefusal.SPEC_FIELD_EMPTY: ApplicationRefusal.ROLE_SPEC_FIELD_EMPTY,
+    RoleRefusal.SPEC_CAPABILITY_UNKNOWN: ApplicationRefusal.ROLE_SPEC_CAPABILITY_UNKNOWN,
+    RoleRefusal.SPEC_FORBIDDEN_ACTION_UNKNOWN: (
+        ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_UNKNOWN
+    ),
+    RoleRefusal.SPEC_PURPOSE_EMPTY: ApplicationRefusal.ROLE_SPEC_PURPOSE_EMPTY,
+    RoleRefusal.SPEC_CAPABILITY_NOT_LISTED: (ApplicationRefusal.ROLE_SPEC_CAPABILITY_NOT_LISTED),
+    RoleRefusal.SPEC_FORBIDDEN_ACTION_REQUESTED: (
+        ApplicationRefusal.ROLE_SPEC_FORBIDDEN_ACTION_REQUESTED
+    ),
+    RoleRefusal.SPEC_NOT_FOUND: ApplicationRefusal.ROLE_SPEC_NOT_FOUND,
+    RoleRefusal.SPEC_ALREADY_DEFINED: ApplicationRefusal.ROLE_SPEC_ALREADY_DEFINED,
+    RoleRefusal.COMMENT_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_COMMENT_NOT_IN_THE_CHAIN),
+    RoleRefusal.QUOTE_NOT_IN_THE_CHAIN: ApplicationRefusal.ROLE_QUOTE_NOT_IN_THE_CHAIN,
+    RoleRefusal.ALIGNMENT_STATE_UNKNOWN: (ApplicationRefusal.ROLE_ALIGNMENT_STATE_UNKNOWN),
+    RoleRefusal.CANDIDATE_ISSUE_TYPE_UNKNOWN: (
+        ApplicationRefusal.ROLE_CANDIDATE_ISSUE_TYPE_UNKNOWN
+    ),
+    RoleRefusal.EDIT_DOES_NOT_ANSWER_THE_COMMENT: (
+        ApplicationRefusal.ROLE_EDIT_DOES_NOT_ANSWER_THE_COMMENT
+    ),
+    RoleRefusal.VERSION_OUTSIDE_THE_GRAPH: (ApplicationRefusal.ROLE_VERSION_OUTSIDE_THE_GRAPH),
+    RoleRefusal.VERSION_ORDER_AMBIGUOUS: (ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS),
+    RoleRefusal.CARD_FIELD_EMPTY: ApplicationRefusal.ROLE_CARD_FIELD_EMPTY,
+    RoleRefusal.CARD_WITHOUT_EVIDENCE: ApplicationRefusal.ROLE_CARD_WITHOUT_EVIDENCE,
+    RoleRefusal.SEVERITY_UNKNOWN: ApplicationRefusal.ROLE_SEVERITY_UNKNOWN,
+    RoleRefusal.CLAIM_KIND_UNKNOWN: ApplicationRefusal.ROLE_CLAIM_KIND_UNKNOWN,
+    RoleRefusal.CLAIM_WITHOUT_EVIDENCE: (ApplicationRefusal.ROLE_CLAIM_WITHOUT_EVIDENCE),
+    RoleRefusal.ADVICE_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_ADVICE_NOT_IN_THE_CHAIN),
+    RoleRefusal.UNCERTAINTY_KIND_UNKNOWN: (ApplicationRefusal.ROLE_UNCERTAINTY_KIND_UNKNOWN),
+    RoleRefusal.ABSTENTION_WITHOUT_A_MISSING: (
+        ApplicationRefusal.ROLE_ABSTENTION_WITHOUT_A_MISSING
+    ),
+    RoleRefusal.RULE_NOT_IN_THE_MEMORY: (ApplicationRefusal.ROLE_RULE_NOT_IN_THE_MEMORY),
+    RoleRefusal.VERDICT_UNKNOWN: ApplicationRefusal.ROLE_VERDICT_UNKNOWN,
+    RoleRefusal.UNVERIFIABLE_EVIDENCE_ACCEPTED: (
+        ApplicationRefusal.ROLE_UNVERIFIABLE_EVIDENCE_ACCEPTED
+    ),
+    RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN: (ApplicationRefusal.ROLE_EVIDENCE_NOT_IN_THE_CHAIN),
+    RoleRefusal.HANDOVER_WITHOUT_A_REASON: (ApplicationRefusal.ROLE_HANDOVER_WITHOUT_A_REASON),
+    RoleRefusal.SPEC_COST_UNMEASURED: (ApplicationRefusal.ROLE_SPEC_COST_UNMEASURED),
+    RoleRefusal.REQUEST_KIND_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_KIND_UNKNOWN,
+    RoleRefusal.REQUEST_RISK_UNKNOWN: ApplicationRefusal.ROLE_REQUEST_RISK_UNKNOWN,
+    RoleRefusal.DECISION_UNKNOWN: ApplicationRefusal.ROLE_DECISION_UNKNOWN,
+    RoleRefusal.DECISION_WITHOUT_A_PERSON: (ApplicationRefusal.ROLE_DECISION_WITHOUT_A_PERSON),
+    RoleRefusal.DECISION_WITHOUT_A_REASON: (ApplicationRefusal.ROLE_DECISION_WITHOUT_A_REASON),
+}
+
+
+def role_refused(reason: RoleRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of the role machinery, carrying its own reason.
+
+    :class:`labcairn.roles.refusals.RoleRefusal` enumerates the reasons the
+    contract says no, and this table gives each one the application layer's
+    name. The mapping is looked up, not defaulted, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return ApplicationRefusedError(ROLE_REFUSALS[reason], detail)
+
 
 def consent_refusal_name(reason: ConsentRefusal) -> ApplicationRefusal:
     """The layer's name for a refusal of the consent machinery.
@@ -426,16 +654,70 @@ def chain_refused(reason: ChainRefusal, detail: str) -> ApplicationRefusedError:
     return ApplicationRefusedError(chain_refusal_name(reason), detail)
 
 
+def guidance_refused(reason: GuidanceRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of a rule-memory operation, named in the layer's vocabulary.
+
+    **One spelling, so a surface catches one thing** — the same argument
+    :func:`chain_refused` records, and the same lookup rather than a
+    default.
+    """
+    return ApplicationRefusedError(GUIDANCE_REFUSALS[reason], detail)
+
+
+#: Every refusal the model-call path can make, and the layer's name for it.
+#:
+#: **The same closure, over the path's own vocabulary.** The path knows
+#: things the layer would otherwise have to guess — that a provider was
+#: never probed rather than probed-and-failed, that an answer was empty
+#: rather than unreadable — and a reason the layer cannot name is a reason
+#: a surface cannot render. The two schema refusals stay distinct because
+#: their remedies differ, and flattening them at this boundary would throw
+#: that difference away.
+MODEL_REFUSALS: Mapping[ModelRefusal, ApplicationRefusal] = {
+    ModelRefusal.SCHEMA_UNPROBED: ApplicationRefusal.MODEL_SCHEMA_UNPROBED,
+    ModelRefusal.SCHEMA_UNSUPPORTED: ApplicationRefusal.MODEL_SCHEMA_UNSUPPORTED,
+    ModelRefusal.ANSWER_EMPTY: ApplicationRefusal.MODEL_ANSWER_EMPTY,
+    ModelRefusal.ANSWER_UNDECODABLE: ApplicationRefusal.MODEL_ANSWER_UNDECODABLE,
+}
+
+
+def model_refusal_name(reason: ModelRefusal) -> ApplicationRefusal:
+    """The layer's name for a refusal of the model-call path.
+
+    **Looked up, not defaulted**, for the reason
+    :func:`consent_refusal_name` records.
+    """
+    return MODEL_REFUSALS[reason]
+
+
+def model_refused(reason: ModelRefusal, detail: str) -> ApplicationRefusedError:
+    """The refusal of a model-call operation, named in the layer's vocabulary.
+
+    **One spelling, so a surface catches one thing** — the same argument
+    :func:`chain_refused` records, and the same lookup rather than a
+    default.
+    """
+    return ApplicationRefusedError(MODEL_REFUSALS[reason], detail)
+
+
 __all__ = [
     "CHAIN_REFUSALS",
     "CONSENT_REFUSALS",
+    "GUIDANCE_REFUSALS",
     "INTAKE_REFUSALS",
+    "MODEL_REFUSALS",
     "PAPER_REFUSALS",
+    "ROLE_REFUSALS",
     "ApplicationRefusal",
     "ApplicationRefusedError",
+    "ModelRefusal",
     "chain_refusal_name",
     "chain_refused",
     "consent_refusal_name",
+    "guidance_refused",
     "intake_refusal_name",
+    "model_refusal_name",
+    "model_refused",
     "paper_refusal_name",
+    "role_refused",
 ]

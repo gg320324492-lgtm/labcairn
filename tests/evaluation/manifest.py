@@ -300,6 +300,89 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # is the event append because the last thing it checks is that the four
     # annotation events are in the stream in the order they were written.
     "test_feedback_demo.py": ("integration", "event-append"),
+    # -- LC-P2-10: the annotation gold set --------------------------------
+    # The label set: a closed vocabulary that a label outside it cannot
+    # enter, and the chain's own words for two of its three axes. Its clause
+    # is the typed contracts, because the set is a type and the refusal is
+    # part of the type's contract.
+    "test_gold_set_labels.py": ("unit", "typed-contracts"),
+    # The agreement: a number computed from the manifest over a denominator
+    # it names. Its clause is numeric extraction, because the number is
+    # taken out of the manifest rather than written into it.
+    "test_gold_set_agreement.py": ("unit", "numeric-extraction"),
+    # The manifest's own rules: two independent readings and an arbiter's
+    # resolution for every item, a resolution that does not overwrite the
+    # disagreement, and a split by project. Its clause is insufficient
+    # evidence, because an item with one reading, or with no arbiter, is an
+    # item whose evidence is short.
+    "test_gold_set_manifest.py": ("unit", "insufficient-evidence"),
+    # The corpus and the manifest that names it: every item names a comment
+    # the corpus has, the corpus section records the bytes that are written,
+    # the archives carry no clock, the feedback ids are the chain's own, and
+    # the annotations are all or nothing. Its clause is the dataset
+    # locators, because the property is that the gold set's rows address the
+    # material they name -- and that the two do not drift apart.
+    "test_gold_set_corpus.py": ("unit", "dataset-locators"),
+    # -- LC-P2-11: the mentor guidance memory --------------------------------
+    # The guidance rules: the closed state machine, the second-reader rule,
+    # and the schema that refuses what the API refuses. Its clause is the
+    # state transitions, because the property is that a rule's state moves
+    # only along the machine.
+    "test_guidance_rules.py": ("integration", "state-transitions"),
+    # The distillation: a scope assembled from the cases, a rule that may
+    # not invent one, and a proposal that stays a candidate until a person
+    # says so. Its clause is insufficient evidence, because the refusal is
+    # about a rule the cases do not support.
+    "test_guidance_distillation.py": ("integration", "insufficient-evidence"),
+    # The retrieval: a source that stands or falls by its state, the
+    # reader's consent, and a hit that carries its source and its
+    # conditions. Its clause is the dataset locators, because the property
+    # is that a returned rule addresses the material it names.
+    "test_guidance_retrieval.py": ("integration", "dataset-locators"),
+    # The memory's own demonstration: the rule with its source and its
+    # counterexample, the conflict beside it, the source withdrawn from
+    # under a rule, and the candidate nobody has confirmed. Its clause is
+    # the state transitions, because the claims are the machine's moves.
+    "test_guidance_memory_demo.py": ("integration", "state-transitions"),
+    # -- LC-P2-12: the three-role guidance loop ------------------------------
+    # A role's contract as a versioned row, the five forbidden actions, and
+    # the schema that refuses an empty field. Its clause is the typed
+    # contracts, because the contract is a type and the refusal is part of
+    # that type's contract.
+    "test_agent_role_specs.py": ("integration", "typed-contracts"),
+    # Role A's candidates: judgements and never facts, the advisor's words
+    # verified verbatim, the version order walked over accepted edges. Its
+    # clause is the dataset locators, because a candidate must address the
+    # chain it claims to speak for.
+    "test_role_trajectory.py": ("integration", "dataset-locators"),
+    # Role B's card: evidence required, a rule cited with its
+    # counter-examples, and an abstention that names what was missing. Its
+    # clause is the insufficient evidence, because the card is refused when
+    # the evidence is short.
+    "test_role_guidance.py": ("integration", "insufficient-evidence"),
+    # Role C's critique: every verdict inferred, no store row written, and
+    # the counter-evidence retrieved by C itself. Its clause is the
+    # insufficient evidence, because the verdict says what the evidence
+    # supports and no more.
+    "test_role_critique.py": ("integration", "insufficient-evidence"),
+    # The routing as data, the cost ceiling that fails closed, and the
+    # ledger of human decisions. Its clause is the approvals, because a
+    # decision a person made is what the ledger audits.
+    "test_role_orchestration.py": ("integration", "approvals"),
+    # The loop's own demonstration: the chain, the card, the critique, and
+    # the priced call that sends nothing. Its clause is the event append,
+    # because the last thing it checks is the events the run wrote.
+    "test_guidance_loop_demo.py": ("integration", "event-append"),
+    # -- LC-P2-01: the model-call path ---------------------------------------
+    # The path: the two gates in their order, the budget's preflight, the
+    # schema a request is refused without, and the answer that is judged
+    # rather than accepted. Its clause is the approvals, because the
+    # approval is spent exactly once and only after every gate permitted.
+    "test_model_request_path.py": ("integration", "approvals"),
+    # The demonstration: consented, budgeted, recorded, and refused before a
+    # socket exists. Its clause is the provider redaction, because what it
+    # checks about the record is that no key and no text can be in it.
+    "test_model_request_demo.py": ("integration", "provider-redaction"),
     # -- providers ----------------------------------------------------------
     "test_provider_adapter.py": ("unit", "typed-contracts"),
     "test_provider_budget.py": ("unit", "typed-contracts"),
