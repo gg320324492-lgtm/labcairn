@@ -66,7 +66,7 @@ Operation                  Capability
 ``record_model_proposal``  ``source.inventory``
 ``attest_claim``          ``source.inventory``
 ``confirm_proposal``       ``source.inventory``
-``list_task_records``       ``fs.read``
+``list_task_records``    ``fs.read``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
