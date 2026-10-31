@@ -22,7 +22,7 @@ order's **contract** is extended, not replaced.
 | Work order | Disposition | What changes, and in what | Risk |
 |---|---|---|---|
 | **LC-P2-00** Freeze the P1 baseline | **keep** | Nothing. It is still the denominator the exit gate needs, and the adjustment does not change the gate. | Low. **But note:** the baseline must be frozen *before* the cloud-model path exists, or the "before" arm has no model in it at all. |
-| **LC-P2-01** The model-call path | **supplement** | The path becomes **configurable across cloud providers**, and it takes the **two independent gates** from LC-P2-06: the operation approval (LC-P2-02) and the material-purpose grant. **No second, parallel API path** — one provider boundary. A model id, an endpoint, a price or a capability is **never written into the tree**: the provider is configuration, and each supplier's connectivity and structured-output behaviour is measured separately. | **The gates are not connected yet.** `external_transmit` exists and is correct, and **nothing in `src/` consumes it** — see §2.1. Until the path exists, "the refusal does not spend the approval" cannot be exercised in the product. |
+| **LC-P2-01** The model-call path | **supplement** | The path becomes **configurable across cloud providers**, and it takes the **two independent gates** from LC-P2-06: the operation approval (LC-P2-02) and the material-purpose grant. **No second, parallel API path** — one provider boundary. A model id, an endpoint, a price or a capability is **never written into the tree**: the provider is configuration, and each supplier's connectivity and structured-output behaviour is measured separately. | **Both gates are connected as of 2026-10-31.** `external_transmit` was correct and unwired; the pilot's first real request (2026-10-31) went through the material-purpose grant *and* the operation approval, and the approval was consumed exactly once. **What is still unwired is the writer:** nothing in `src/` writes a grant row, so the pilot's grant was written by a script outside the product. |
 | **LC-P2-02** Restart-durable consent | **keep, and go first** | Unchanged in content; **its priority rises**, because it is the operation half of LC-P2-01's gate and the adjustment's second step names it. | Low. Its own debt — the approval row holds no grant-time policy digest and no bound-source column — is untouched by the adjustment. |
 | **LC-P2-03** The competitor baseline | **keep** | Unchanged. The adjustment adds a requirement the draft already implies: the comparison must be **like-for-like on the same tasks and a comparable budget**, and **a difference in role is not a weight-training result**. | Low. But a comparison against a **cloud** model needs the budget and the model version recorded; Phase 1's baseline mechanism already records the model name. |
 | **LC-P2-04** Citation identity and support | **keep** | Unchanged. | Low. |
@@ -53,6 +53,21 @@ alone, `inspect_archive` from nothing, and `stale_copies` from nothing.
 adjustment's question ("is the withdrawal's propagation to indexes and
 caches really wired?") answers **no**, and the answer is about *wiring*, not
 about the mechanism.
+
+**Updated 2026-10-31 — the transmit gate is now wired, and the gap that
+remains is the writer.** `may_use` was already called from
+`model_transmit.py`, and the pilot's first real request exercised it: the
+material-purpose grant was read, judged and **refused twice** — once because
+the grant's scope did not reach the material, once because the approval's
+task scope did not match — each refusal naming its remedy, before the
+approval was consumed. So "the refusal does not spend the approval" is
+now exercised in the product, against a real endpoint.
+
+**What is still unwired is the other side of the table.** Nothing in `src/`
+*writes* a grant row, so the pilot's grant was written by a script outside
+the product; and `inspect_archive` and `stale_copies` still have no
+production caller. **The withdrawal's propagation remains unwired**, which
+is the adjustment's own question and still answers **no**.
 
 **What it costs to close it.** LC-P2-01's path has to call the transmit
 gate **before** the approval is consumed, and the withdrawal has to reach
@@ -161,6 +176,25 @@ order is compatible with what has already landed:**
 
 **And LC-P2-15 leaves the critical path entirely.**
 
+**Where the five steps stand on 2026-10-31.** Steps 2, 3 and 4 have
+**landed**: the cloud-model path (LC-P2-02, LC-P2-01, wired to LC-P2-06's
+transmit gate — and the first real request went through it), the chain from
+the reader to the version graph and the retrievable experience (LC-P2-07,
+LC-P2-08, LC-P2-09, LC-P2-10, LC-P2-11), and the three-role loop
+(LC-P2-12). **The pilot's first real request on the owner's own paper is
+the first exercise of steps 2–4 together**, and the reading exercise ran
+over the owner's real advisor comments.
+
+**So the remaining work is step 5 and the wiring the pilot exposed**, and
+the pilot's own book names them: the **store-boundary repair** (seven
+domain modules reach past the application layer to the store), the
+**grant writer** (nothing in `src/` writes a grant row), the **record
+advance** (the machinery that would let a person confirm a model's
+proposal has no door), the **probe record's persistence**, and a **CLI for
+the model path**. LC-P2-14's evaluation and LC-P2-03's baseline are what
+remain of step 5, and LC-P2-00's frozen baseline is still its
+denominator.
+
 ## 5. What the owner must decide
 
 **The adjustment names four.** They are carried here unchanged, with what
@@ -168,15 +202,30 @@ each one blocks:
 
 1. **Which suppliers and which data categories are permitted.** It blocks
    LC-P2-01's provider configuration and any real (non-`FakeProvider`) smoke.
+   **Ruled in substance on 2026-10-31:** the owner's own MiniMax endpoint
+   is the pilot's supplier, the credential is the owner's, and the pilot's
+   first real request went through it against the owner's endpoint. **The
+   general rule — which suppliers may be configured for other work — is
+   still open**, and the answer is a configuration question, not a code one.
 2. **The per-task budget and the total budget.** It blocks LC-P2-01's
    budget policy and LC-P2-02's consumption semantics. **Ruled 2026-10-30:
    zero until a number is given** — a real call is refused, and the offline
-   path runs the scripted provider.
+   path runs the scripted provider. **Supplemented 2026-10-31, for the
+   pilot's first request only:** the owner set **one request and four
+   thousand tokens, and no money ceiling** — MiniMax has no price table, so
+   a money ceiling nobody can measure fails closed and would have refused
+   the request. The zero rule still stands for everything else.
 3. **The authorisation for the pilot's first batch of material.** It blocks
-   any real transmit and the pilot's corpus.
+   any real transmit and the pilot's corpus. **Ruled 2026-10-31:** the
+   owner's material is in the library, and the first real request carried
+   **507 characters** of it — the advisor's comment, the passage it is
+   anchored to and the paragraph it sits in — named in the approval's
+   arguments, so the approval's digest binds that excerpt and not another.
+   The first request before it carried **nothing**: it asked the model to
+   judge a manuscript without being given one, and the model said so.
 4. **The scope of a multi-person deployment.** It blocks ADR-0015 D6's
    identity model, and therefore any claim that the chain is safe beyond
-   the administrator.
+   the administrator. **Still open.**
 
 **Two more this matrix found, and both are cheap to decide now:**
 
