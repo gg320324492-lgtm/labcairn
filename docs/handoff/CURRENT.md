@@ -228,15 +228,19 @@ runner's own log: **Ubuntu's balance factor was 1.603, was 1.224 after the
 first measurement, and is 1.535 now** — the rule door's eleven console
 witnesses made `tests/test_cli.py` the heavier file it already was — while
 Windows stays at 1.000, and the witness that had been red for the whole
-branch is green.
+branch is green — and the factor moved again when the costs were measured
+once the batch's own new test file was in it.
 
-**And Ubuntu's slack is now sixteen seconds.** That is the margin the
+**And Ubuntu's slack is eighty-seven seconds.** That is the margin the
 partition has left before a changed file could unbalance it, and
-`tests/test_cli.py` costs 382 seconds of a 1,378-second suite: **the next
-piece of work that touches that file owes another runner measurement.**
-**A partition with sixteen seconds of slack needs a different number of
-shards or a cheaper `test_cli.py`, and both are the owner's call** — the
-same call the branch made in October, now with a smaller number on it.
+`tests/test_cli.py` costs 300 seconds of a 1,268-second suite: **the next
+piece of work that touches that file owes another runner measurement.** The
+number moved because the costs were measured again on a runner once the
+batch's own new test file was in it — the balance factor went from 1.603
+through 1.535 to **1.240** as the distribution evened out. **A partition
+with that much slack still wants a different number of shards or a cheaper
+`test_cli.py`, and both are the owner's call** — the same call the branch
+made in October, with a different number on it.
 
 **And one kind of citation in the threat model has no witness.** The write
 enumeration reads the tree and asks the document whether it describes
