@@ -357,6 +357,47 @@ the margin, the text itself, and the two together, where a comment and
 the change it prompted may or may not correspond. **A model built for one
 advisor's habit would be a model of that habit**, not of the chain.
 
+**The material's own shape says something the product has to say out
+loud.** The reviewer changed 897 pieces of text across five copies and wrote
+**no sentence of explanation anywhere** -- the corpus holds **no comment in
+any of its fifteen files**, so the chain's first link is empty for it. **That
+is 897 demonstrations and no statements.** ADR-0016 D9 is the project's own
+standing warning: *the system's agreement with the advisor's wording is a
+risk metric, not a quality metric.* A system that distils rules from
+silent edits learns "this advisor's prose looks like this" and then offers
+it as guidance. **So the most valuable thing in this corpus may be the
+opposite of what a design for it wants**: the mentor says nothing, and the
+product's job is to say so.
+
+**And the chain is not where this belongs.** ADR-0017's chain is the
+mentor's exchange -- comment, change, judgement, assessment -- and its own
+tables say what they hold: `feedback_events` is *a comment that is there*,
+addressed into `word/comments.xml`; `edit_actions` names *the parent/child
+pair it moved and who moved it* and **holds no text and no address**; and
+`response_links` is *a judgement*, and names the edit it judges. **A
+reviewer's edit is none of the three**: it is somebody else's hand in the
+text, with no reason attached. The author's answer is a document, not a
+judgement. **The tree already designed where it goes** -- ADR-0014 D8
+declares four tables for the revision provenance and **two were built**;
+`revision_events` and `document_spans` were designed and never written,
+and the reader has produced the object since LC-P2-07 with nothing
+consuming it. **897 events would also be the project's largest revision
+benchmark yet** -- and the old metric could not see the difference that
+matters, because 300 events in fourteen paragraphs and 300 events in three
+hundred paragraphs are both "recall 1.0" to it.
+
+**Two mistakes in the first extraction of this corpus, both corrected.**
+The revisions were written with five fields and **without the addresses**,
+and ADR-0014 D5 says a change is anchored by *part, element path, range and
+hash* -- so that file could never have been the source of record, and the
+re-extraction reads them from the reader instead. And the comment-answer
+pairs were written **without saying who extracted them**, which would have
+recorded one machine's reading as a machine-readable fact; the file now
+names the extraction, the day, the method, and **that there was no second
+reader and no arbiter** -- which is exactly what a first corpus's blind
+readings do say, and why an id that does not say what it is gets read as a
+person.
+
 **And the reviewer here is the same person the second corpus carries** --
 so his standards can be compared across two papers, which is what "the
 rules get more precise" has to be measured against.
