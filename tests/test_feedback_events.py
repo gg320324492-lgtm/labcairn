@@ -2793,17 +2793,12 @@ def test_a_judgement_the_door_refuses_never_reaches_the_store(
             evidence_refs=(),
         )
     assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_NEEDS_EVIDENCE
-    rows = reply_env.chain.context.store.session.scalars(
-        select(ReplySettlementRow)
-    ).all()
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
     assert not rows, "the refused judgement wrote nothing"
 
     with pytest.raises(ApplicationRefusedError) as caught:
         _settle(reply_env, reply.reply_id, decided_by="model", grade="inferred")
-    assert (
-        caught.value.reason
-        is ApplicationRefusal.CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL
-    )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL
 
     with pytest.raises(ApplicationRefusedError) as caught:
         _settle(

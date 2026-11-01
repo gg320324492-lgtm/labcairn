@@ -867,3 +867,82 @@ written** — *the element's path is unique inside a part* — and it holds
 only because the four duplicates are the same change. **Two different
 changes sharing a path would lose one of them silently**, and the
 witness for that belongs to LC-P2-07.
+
+## 10. The settlement over a reply: the judgement that an answer settled a point
+
+**What this is.** LC-P2-13's half of the peer-review loop. The reply
+(recorded in §6) is a record of what was said, and a record still needed
+the judgement over it: *did the authors' answer settle the reviewer's
+point, on what evidence, and where in the manuscript the change it
+claims lives*. That judgement is the `reply_settlements` table
+(migration 0020) and the operation `settle_reply`, with the two listings
+`list_reply_settlements` and `list_unsettled_replies` — all in
+`src/labcairn/papers/replies.py`, beside the record they judge.
+
+### 10.1 The decisions, and where each is held
+
+| The decision | Held by | Witnessed by |
+|---|---|---|
+| **The verdict is a row of its own, never a column on the reply** — a record of what was said must not be readable as a ruling | `ReplyRow`'s columns are unchanged; the judgement lives in `reply_settlements`, and the reply's table still carries no state, no decider and no evidence | `test_a_reply_is_a_record_and_not_a_verdict` (unchanged; the reply's shape is the same as §6 recorded it) |
+| **The judgement goes through the same door as `record_response`** — a state other than `pending` needs a decider and evidence, and a model may put a settlement forward but may not decide one | `settle_reply`'s discipline checks, plus the schema's `reply_settlements_a_judgement_names_its_decider_and_its_evidence`, `..._a_model_may_not_settle` and `..._an_inferred_settlement_is_a_candidates` | `test_a_judgement_the_door_refuses_never_reaches_the_store` |
+| **A response that claims an experiment the manuscript does not contain is not marked done** — refused or held, by name | A settled settlement names its `claim_terms`, and the operation reads the manuscript's accepted text and checks every one before the row is written; a claim that is not found is refused with the term named (`ChainRefusal.CLAIM_NOT_IN_MANUSCRIPT`), and the caller's honest path past the refusal is `held` with a named `hold_reason` | `test_a_settlement_whose_claim_the_manuscript_does_not_hold_is_refused_by_name`, `test_an_answer_whose_claim_cannot_be_found_is_held_by_name` |
+| **Acceptance is not proof the advice was scientifically right** | What `settled` says is exactly what the operation checked — the claimed terms are findable in the manuscript's accepted text. No column in the table carries a wider claim, and the row's docstring says so | the same settled-judgement witness, whose docstring states the boundary |
+| **An unanswered point stays unanswered** — an answer that was never judged does not make the point answered | `list_unsettled_replies` lists a reply with no settlement as `unjudged` and a pending one as `pending`; only `settled` keeps a reply off the listing | `test_an_unjudged_reply_stays_on_the_unsettled_listing` |
+| **A review point is located in the response and, if it can be, in the change** — a missing address is a value, never a guess | The settlement carries `anchor_status` (`resolved`/`unknown`, the chain's own vocabulary), and the schema holds the two address columns to agree with it in both directions (`reply_settlements_an_address_is_a_value_not_a_guess`); a resolved address is checked against the manuscript's own length | `test_a_settlement_places_the_change_or_says_it_could_not` |
+| **A conflict between the advisor's view and the settlement's is shown as two sides, not resolved by recency** | The correspondence with a chain comment is part of the judgement (`feedback_id`, given by the decider, never inferred), and the listing joins **every** state the chain holds for that comment into `chain_states` | `test_a_disagreement_between_the_chain_and_a_settlement_is_shown_as_two_sides` |
+| **A point is judged once** — a judgement is a fact, and the store holds no revisions of facts | `reply_settlements.reply_id` is unique; a judged reply is refused rather than judged again, and a pending settlement is completed under the name it was put forward with | `test_a_reply_that_has_already_been_judged_is_not_judged_again` |
+| **The schema refuses what the writer would have to be trusted not to write** | Nine forbidden rows written raw — a settled settlement with no claim, one with no address, an unknown that names a place, a hold with no reason, a judgement with no decider, a model's verdict, a pending settlement carrying a decision's trappings, an anchor status outside its vocabulary, a state outside its vocabulary — and a second judgement over one reply | `test_the_store_refuses_a_settlement_the_schema_forbids` |
+
+### 10.2 The mutations, and what each broke
+
+**Eight mutations applied, watched, and reverted.** Each was applied to
+the source, the named witness was run alone, and the working tree was
+restored from the commit taken before the first mutation.
+
+| # | The mutation | What went red | What it tells you |
+|---|---|---|---|
+| 1 | the claim-findability check returns "nothing missing" whatever it reads | `test_a_settlement_whose_claim_the_manuscript_does_not_hold_is_refused_by_name` — *"DID NOT RAISE"* | an answer's claim is checked against the manuscript before the row is written, not reported beside it |
+| 2 | the operation's own judgement-discipline block is short-circuited (`elif False`) | `test_a_judgement_the_door_refuses_never_reaches_the_store` — refused `CHAIN_SETTLEMENT_NEEDS_EVIDENCE`, got `IntegrityError` | **the door refuses first, saying why** — the schema holds the same line, but an `IntegrityError` is a refusal nobody can act on |
+| 3 | the unsettled listing's state set drops `pending` | `test_an_unjudged_reply_stays_on_the_unsettled_listing` — the pending reply is not on the listing | an answer that was never judged does not make the point answered |
+| 4 | the resolved address's range check is short-circuited | `test_a_settlement_places_the_change_or_says_it_could_not` — *"DID NOT RAISE"* at the out-of-range paragraph | an address the manuscript does not have is not an address |
+| 5 | the listing's chain-side join keeps only the newest link's state | `test_a_disagreement_between_the_chain_and_a_settlement_is_shown_as_two_sides` — *"assert 1 == 2"* | **both sides are shown, and the newer one is not picked** |
+| 6 | the already-decided check is short-circuited | `test_a_reply_that_has_already_been_judged_is_not_judged_again` — *"DID NOT RAISE"* | a judgement is a fact, and the store holds no revisions of facts |
+| 7 | the migration's `reply_settlements_an_address_is_a_value_not_a_guess` CHECK is deleted | `test_the_store_refuses_a_settlement_the_schema_forbids` — *"DID NOT RAISE"*: the forbidden row was written | the schema holds the address to the status in both directions, and the parity test holds the model and the migration together |
+| 8 | the operation-layer `held`-reason check is short-circuited | **survived** — the schema's `reply_settlements_a_hold_names_what_it_holds` refuses the row instead, and the held witness (which records a well-formed hold) stays green | recorded rather than counted: the hold's *bottom line* is the schema's, and mutation 2's witness covers the door's own voice. **A hold without a reason is still unrecordable** |
+
+### 10.3 What was measured
+
+See §10.5.
+
+### 10.4 What was deliberately not done
+
+- **No trajectory event.** A chain judgement emits one
+  (`emit_response_recorded`, `emit_followup_assessed`); a settlement
+  emits none, because `src/labcairn/runtime/trajectory.py` is outside
+  this work order's file-ownership map. **A settlement is therefore not
+  replayable from the event stream** — the same debt 0019 recorded for
+  the reply, and the fix is the same shape: an event type when the
+  stream's fifth object is wanted.
+- **No `propose_reply_settlements`.** The chain's correspondence has a
+  batch proposal operation (`propose_responses`) because the operator's
+  step puts correspondences forward in bulk; the work order names no
+  such step for settlements, and `settle_reply`'s `pending` state is
+  the single forward a caller needs. A bulk forward is a small
+  addition to an existing door, not a design.
+- **No claim extraction.** `claim_terms` are given by the caller and
+  checked mechanically; the product does not read "we ran X" out of the
+  answer and guess what X is. **A rule that guesses the claim would be
+  a rule that can be wrong in a way nobody named** — the caller says
+  what is claimed, and the product says whether the manuscript bears it
+  out. A model's reading of an answer belongs in the caller's hands,
+  at grade `inferred`, subject to the same door.
+- **The word-level findability is deliberately plain.** A claim term is
+  found when its words appear in the accepted text, case-folded, with
+  no guess at morphology. A paraphrase the manuscript makes in other
+  words will not be found — **and that failure is on the safe side**:
+  it holds or refuses rather than settling.
+
+### 10.5 What was measured
+
+*pending the full suite run; filled in below.*
+
