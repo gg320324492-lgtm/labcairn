@@ -48,6 +48,7 @@ from labcairn.db.models import (
     ResponseLinkRow,
     VersionEdgeRow,
 )
+from labcairn.guidance.checks import confirm_check, propose_check
 from labcairn.guidance.distil import distil_candidate
 from labcairn.guidance.retrieval import RuleHit, invalidated_rules, search_rules
 from labcairn.guidance.rules import (
@@ -112,6 +113,7 @@ def _propose(
     sources: tuple[str, ...] = (KEY_ONE,),
     proposed_by: str = "distil-run-7",
     now: datetime = MOMENT,
+    checks: tuple[str, ...] = (),
 ) -> GuidanceRule:
     return propose_rule(
         context,
@@ -123,6 +125,7 @@ def _propose(
         sources=sources,
         proposed_by=proposed_by,
         now=now,
+        checks=checks,
     )
 
 
@@ -587,3 +590,30 @@ def test_a_new_comment_changes_the_retrieval_without_anything_trained(
     assert {hit.rule.statement for hit in served} == {BASELINE, CAPTION}
     rows = memory.context.store.session.query(GuidanceRuleRow).count()
     assert rows == 2, "the change the retrieval found is the row the memory gained"
+
+
+def test_the_served_rule_carries_the_checks_that_decide_it(memory: Memory) -> None:
+    """The binding reaches the reader: the rule comes back with its checks.
+
+    **A rule served without the checks that decide it is the same defect a
+    rule served without its counterexamples is** — the reader cannot tell
+    which rule a checklist item is checking, because the answer never
+    says. So the checks travel with the rule in the same read.
+    """
+    check = propose_check(
+        memory.context,
+        question="Does every paragraph that carries a comparison name what it compares against?",
+        pass_criterion="The paragraph names the quantity compared against.",
+        proposed_by="the-group",
+        now=MOMENT,
+    )
+    confirm_check(memory.context, check_id=check.check_id, confirmed_by="the-advisor", now=LATER)
+    rule = _confirm(memory.context, checks=(check.check_id,))
+
+    served = search_rules(memory.context)
+    assert [hit.rule.statement for hit in served] == [BASELINE]
+    assert [bound.check_id for bound in served[0].rule.checks] == [check.check_id]
+    assert served[0].rule.checks[0].pass_criterion.strip(), (
+        "the served check carries no criterion, and a question with no criterion cannot be answered"
+    )
+    assert rule.checks == served[0].rule.checks

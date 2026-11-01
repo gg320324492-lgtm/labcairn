@@ -99,6 +99,13 @@ asks it per source at serve time and drops the sources the reader may not
 reach (ADR-0003 C5). A role contract names no material either, and it holds
 its own boundary: the capabilities it lists, and the actions it forbids.
 
+**And the checks name no material either.** A check is a question a reader
+runs against a manuscript, and the rule it decides is a rule of the memory
+— neither names a path, and neither is reachable by anybody but through the
+operations below. **A check that a rule names is part of that rule's
+version**, so the binding is made against a version and a new version starts
+with none.
+
 **And the loop that runs the roles.** :mod:`labcairn.application.roles_run`
 routes a request to the roles it names and runs those and no others. Its
 two operations are listed with the mentor line's rows because they are bound
@@ -126,6 +133,14 @@ Operation  The permission that governs it
 ``write_guidance_rule_resolution``    the material's — asked where it is named
 ``write_guidance_rule_withdrawal``    the material's — asked where it is named
 ``write_guidance_counterexample``     the material's — asked where it is named
+``read_guidance_check``               the material's — asked where it is named
+``read_guidance_checks``              the material's — asked where it is named
+``read_guidance_rule_checks``         the material's — asked where it is named
+``read_guidance_check_rules``         the material's — asked where it is named
+``write_guidance_check``              the material's — asked where it is named
+``write_guidance_check_confirmation`` the material's — asked where it is named
+``write_guidance_check_withdrawal``   the material's — asked where it is named
+``write_guidance_rule_check``         the material's — asked where it is named
 ``read_role_spec``                    the contract's own allowed capabilities
 ``write_role_spec``                   the contract's own allowed capabilities
 ``request_role_run``                  the contract's own allowed capabilities
@@ -183,10 +198,19 @@ from labcairn.application.evidence import (
     record_model_proposal,
 )
 from labcairn.application.guidance import (
+    CheckDraft,
     RuleDraft,
+    read_guidance_check,
+    read_guidance_check_rules,
+    read_guidance_checks,
     read_guidance_rule,
+    read_guidance_rule_checks,
     read_guidance_rules,
+    write_guidance_check,
+    write_guidance_check_confirmation,
+    write_guidance_check_withdrawal,
     write_guidance_counterexample,
+    write_guidance_rule_check,
     write_guidance_rule_confirmation,
     write_guidance_rule_resolution,
     write_guidance_rule_version,
@@ -284,6 +308,7 @@ __all__ = [
     "ChainComment",
     "ChainEdge",
     "ChainEdit",
+    "CheckDraft",
     "ClaimRecorded",
     "ClaimRequest",
     "ConfirmationRecorded",
@@ -347,7 +372,11 @@ __all__ = [
     "read_edge",
     "read_edits",
     "read_events",
+    "read_guidance_check",
+    "read_guidance_check_rules",
+    "read_guidance_checks",
     "read_guidance_rule",
+    "read_guidance_rule_checks",
     "read_guidance_rules",
     "read_issue_keys",
     "read_material_paths",
@@ -374,7 +403,11 @@ __all__ = [
     "run_role_run",
     "run_stage",
     "the_role_run_question",
+    "write_guidance_check",
+    "write_guidance_check_confirmation",
+    "write_guidance_check_withdrawal",
     "write_guidance_counterexample",
+    "write_guidance_rule_check",
     "write_guidance_rule_confirmation",
     "write_guidance_rule_resolution",
     "write_guidance_rule_version",

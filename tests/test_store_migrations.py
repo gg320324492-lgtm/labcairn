@@ -128,6 +128,15 @@ EXPECTED_TABLES = frozenset(
         "guidance_rules",
         "guidance_rule_sources",
         "guidance_rule_counterexamples",
+        # LC-P2-11's next piece. The checks that decide the rules -- the
+        # questions a reader can run against a manuscript and answer yes or
+        # no -- and the binding that says which check decides which rule.
+        # The binding names the rule's *version*, because a rule is a
+        # versioned row and a new statement is a new version, so the check
+        # that decides one version's words is not the check that decides
+        # the next one's.
+        "guidance_checks",
+        "guidance_rule_checks",
         "agent_role_specs",
         # ADR-0014 D8. The third of that ADR's four tables, and the first
         # one that ever had a writer: one row per tracked change a
