@@ -1,59 +1,78 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-01 · **Branch:** `claude/p2-16-mentor-line` — **the
-second body of material is read, and it is in the chain.**
+**Date:** 2026-11-01 · **Branch:** `main` — **the guidance line is merged,
+and the second body of material is read and in the chain.**
 
-**The second corpus is in the product now, as a second project.** It is a
-**different paper** -- a composting study, not the drinking-water one --
+**PR #135 is merged.** The three workbench views, the loop on demand,
+`revision_events`, the record of the three bodies of material, and **the
+two defects the second corpus forced** — a comment whose range spans
+paragraphs no longer stores an end offset borrowed from another
+paragraph, and a rule's scope never quotes the empty string as the
+advisor's words. The merge commit is on `main`.
+
+**And two more pieces the owner asked for are on `main` too.** **The
+chain's issue keys have an outlet** — `read_issue_keys` is the layer's
+own read, it answers with the chain's own keys and nothing else, it
+refuses a project the chain does not hold and a version that does not
+belong to it, and the order is sorted because the chain's rows carry no
+time and no sequence. **And a card has an address of its own**: made of
+the issue key, the feedback id and the version id, minted by the
+product from the chain, with no parameter through which a caller could
+supply one — and the review checks it, so a card whose address names a
+comment the chain does not hold is refused by name.
+
+**The second corpus is in the product, as a second project.** It is a
+**different paper** — a composting study, not the drinking-water one —
 so it is `proj-pilot-2` with its own grant, and the first project's
 seventeen versions and forty-six comments are untouched. **Three versions,
-thirty-four comments**, and the chain tells three shapes apart: **28**
-placed on a passage, **5** the reader could not place in the body, and
-**1** placed on a point. **The second corpus's rules are not in the
-memory** -- the distillation's question is written down, the approval is
-asked for, and **nothing has been sent.**
+thirty-four comments.**
 
-**Two defects the material forced are fixed, and both are the shape of the
-three commits before them: an address that claims more than it holds.**
-The reader paired a comment's start paragraph with the end marker's
-offset, and stored a range that cannot exist -- comment 192 of
-`v03-chinese-draft.docx` is paragraph 64, characters 0-134, in a paragraph
-whose baseline is ten characters long. **Four comments across the owner's
-three bodies of material hold this case, and the synthetic corpus held
-none of it**, so the witness that checked the anchored text against the
-offsets had never seen it; the corpus now holds one, and two witnesses
-watch it. And the chain's row already held an `anchor_status` and an
-`anchor_reason` that **the application layer dropped**, so a rule's scope
-built from an unplaced comment quoted `""` as though it were the advisor's
-words -- **and six of the pilot's eight confirmed rules carry a scope that
-quotes `""`.** The layer now carries the status and the reason, and the
-scope names every case it holds: the text the comment was written
-against, or the fact that the reader could not place it.
+**Three advisors marked it at three different levels**: one wrote beside
+the text word by word (25 comments, 349 revisions); one **rewrote
+silently** (58 revisions, **no comment at all**); one **criticised the
+paper as a whole** (9 comments, **four of them attached to no
+passage**). **So a card about a word and a card about the whole paper
+are not the same card**, and a product that says it holds a "feedback
+chain" has to hold every form of it.
 
-**The reading was done by three independent sessions, and the number is
-lower than the first corpus's.** Two blind readers and an arbiter, none
-of them seeing another's work: **28 of 34 agreed, 0.8235**, against the
-first corpus's 0.9167. **Every disagreement is in one advisor's file**,
-and the two readers independently named the same three places where the
-annotation guide does not settle the question -- so **the lower number is
-a fact about the guide, not about the readings**, and the guide's
-unsettled places are named for the owner rather than patched. The arbiter
-followed one reader on each of the six, gave no third label and returned
-no `unknown`.
+**The reading was done by three independent sessions** — two blind
+readers and an arbiter, none seeing another's work: **28 of 34 agreed,
+0.8235**, against the first corpus's 0.9167. **Every disagreement is in
+one advisor's file**, and the two readers independently named the same
+three places where the guide does not settle the question — **the lower
+number is a fact about the guide, not about the readings**. The arbiter
+followed one reader on each of the six, gave no third label, returned
+no `unknown`, and **named five places the guide does not settle** for
+the owner rather than patching them.
 
-**And the three advisors answer in three different ways, which is the
-answer to what the roles are.** The second corpus's marked-up copies are
-not three copies of one habit: one advisor changed the text in 349 places
-**and** wrote 25 comments; one changed it in 58 places and wrote **no**
-comment at all; one wrote 9 comments and changed **nothing**. **So a
-product that says it holds a "feedback chain" has to hold every form of
-it**, and a card about a word and a card about the whole paper are not
-the same card.
+**The distillation ran** — one request, four thousand tokens, under the
+owner's own approval — and **eight candidate rules came back**, each
+with a **truthful scope**: five name the text the comment was written
+against, one names a case whose anchor resolved to an empty text, and
+three name the cases the reader could not place, with the chain's
+reason. **Not one quotes the empty string as the advisor's words**,
+which is what six of the pilot's eight confirmed rules do. **They are
+candidates**: the proposer is `model_proposal`, so the owner's word is
+the only word that can move them.
+
+**And the rules cross-confirm across advisors.** Corpus-1's eight
+confirmed rules cover seven issue types, and **corpus-2's comments
+corroborate seven of the eight rules** — a different advisor, a
+different paper, a different field. The one that is not corroborated
+is the rule about reporting a mean without the distribution, and the
+second corpus simply never raises it: **absence is not refutation**.
+
+**The first chain held the same false address** — three rows, and
+**three confirmed rules cite them as their cases**. The anchor's text
+hash is the same before and after the fix, so re-recording would have
+kept the old row; those three rows were rewritten with what the fixed
+reader reports, and **the eight rules with their eighteen sources are
+exactly what they were**.
 
 **The record is `docs/acceptance/second-corpus-absorption.md`**, and it
-carries the counts, the two fixes, the five places the guide does not
-settle, and **the numbers re-measured against the store rather than
-carried forward**.
+carries the counts, the two fixes, the guide's five unsettled places,
+and the numbers **re-measured against the store rather than carried
+forward**.
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 real request went through, and the pilot's readers are three independent
