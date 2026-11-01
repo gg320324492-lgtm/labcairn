@@ -73,7 +73,6 @@ import collections
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -90,7 +89,13 @@ from labcairn.db.models import (
     VersionEdgeRow,
 )
 from labcairn.db.repository import load_source
-from labcairn.papers.chain import ChainRefusal, project_row, project_version_rows
+from labcairn.papers.chain import (
+    REVISION_CHANGE_KINDS,
+    ChainRefusal,
+    classify_revision_change,
+    project_row,
+    project_version_rows,
+)
 
 
 @dataclass(frozen=True)
@@ -232,68 +237,14 @@ class ChainRevision:
     grade: str
 
 
-#: The four kinds of change a stored revision event can record.
-#:
-#: **They are not the same thing, and counting them as one is how a panel
-#: ends up drawing "this reviewer made 58 changes" when the file holds
-#: 32 changes, 26 cursors left behind and no words at all.**
-#:
-#: - ``with_text`` — the change carries words.
-#: - ``whitespace_only`` — the change carries only whitespace. **A space
-#:   was inserted, and that is a change.**
-#: - ``formatting_only`` — the run's formatting changed and its text did
-#:   not.
-#: - ``empty_marker`` — the element carries nothing at all: a cursor left
-#:   behind by an operation at a point. **It is not a change, and it
-#:   carries no judgement.**
-REVISION_CHANGE_KINDS: Final[tuple[str, ...]] = (
-    "with_text",
-    "whitespace_only",
-    "formatting_only",
-    "empty_marker",
-)
-
-#: The element steps that say a revision is about a *mark* — a paragraph's
-#: properties or a run's — rather than about the text. Word writes such a
-#: revision with no children at all.
-_MARK_STEPS: Final[frozenset[str]] = frozenset({"rPr", "pPr"})
-
-
-def classify_revision_change(text: str, element_path: str | None) -> str:
-    """What kind of change a stored revision event records.
-
-    **Three of the four are told by the text.** A change that carries
-    words is a change of the words; a change that carries only
-    whitespace is a change too — a space was inserted — and it is not the
-    same thing as a change that carries nothing.
-
-    **And the fourth is told by the address.** Word records a revision to
-    a paragraph mark or to a run's properties **under the properties
-    element**, and it writes it with no children at all: that is a cursor
-    left behind, and **it carries no judgement**. A revision in the run
-    sequence that carries no words is a run whose formatting changed and
-    whose text did not — which is a change, and a different one.
-
-    **The reader flattens the two.** Both arrive with an empty text, and
-    the address is what tells them apart. That is why this rule reads the
-    address and not only the text, and why the empty marker must never
-    be counted as a change.
-
-    :param text: the text the event carries, exactly as it was read.
-    :param element_path: the address of the element, in the reader's own
-        spelling — ``/document[1]/body[1]/p[8]/pPr[1]/rPr[1]/ins[1]``.
-    :returns: one of :data:`REVISION_CHANGE_KINDS`.
-    """
-    if text.strip():
-        return "with_text"
-    if text:
-        return "whitespace_only"
-    steps = {
-        step.split("[")[0].replace("w:", "") for step in (element_path or "").split("/") if step
-    }
-    if steps & _MARK_STEPS:
-        return "empty_marker"
-    return "formatting_only"
+# **The four kinds of change a stored revision event can record, and the
+# rule that tells them apart, live in :mod:`labcairn.papers.chain`** — below
+# both this layer and the chain's own writer — and they are imported here
+# rather than spelled a second time: the layer counts a marked-up
+# manuscript's activity with them and the chain's writer records a change
+# with them, and a rule the two sides spelled separately is a rule that can
+# drift. **The empty marker is not a change**, and it must never be
+# counted as one.
 
 
 @dataclass(frozen=True)

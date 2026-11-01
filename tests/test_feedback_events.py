@@ -45,7 +45,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 
 import pytest
-from docx_fixtures import Fixture, write_fixture
+from docx_fixtures import Fixture, Revision, write_fixture
 from feedback_chain_fixtures import (
     MOMENT,
     ChainEnv,
@@ -67,13 +67,19 @@ from labcairn.application.refusal import (
 )
 from labcairn.application.sources import list_sources
 from labcairn.db.models import (
+    EditActionRow,
     FeedbackEventRow,
     PaperProjectRow,
     PaperVersionRow,
     ReplyRow,
+    ResponseLinkRow,
+    VersionEdgeRow,
 )
+from labcairn.guidance.retrieval import invalidated_rules, search_rules
+from labcairn.guidance.rules import confirm_rule, propose_rule
 from labcairn.material.ooxml import read_document
 from labcairn.papers.chain import ChainRefusal
+from labcairn.papers.edits import ActorClaim, EditAction, record_edits_from_revisions
 from labcairn.papers.feedback import (
     FeedbackEvent,
     anchor_state,
@@ -87,6 +93,13 @@ from labcairn.papers.replies import (
     list_replies,
     record_replies,
 )
+from labcairn.papers.responses import (
+    AnswerProposal,
+    list_unaddressed,
+    propose_responses,
+    record_response,
+)
+from labcairn.papers.revisions import record_revision_events
 
 pytestmark = pytest.mark.integration
 
@@ -1391,3 +1404,625 @@ def test_a_reply_names_no_paragraph_the_document_does_not_have(
 
     rows = session.scalars(select(ReplyRow)).all()
     assert len(rows) == 1, "a refused exchange writes nothing"
+
+
+# --------------------------------------------------------------------------- #
+# the middle rings: the change that was made, and the link put forward
+# --------------------------------------------------------------------------- #
+#
+# **What is under test here.** The chain's second ring (``edit_actions``)
+# and its third (``response_links``), and the step that fills the first
+# and puts the second forward. **The material the owner's manuscript
+# gave is a fact about a file** — every version's revisions carry their
+# author's name — and these witnesses are written on **invented** names
+# and invented prose, because the repository is public and the paper is
+# the owner's.
+
+
+#: The two names the marked-up manuscript's revisions carry. **They are
+#: two people, and the chain does not know which is which** — the roster
+#: is the operator's answer to that question, and it is supplied every
+#: time the ring is filled.
+_ADVISOR_NAME = "Prof. Lin"
+_AUTHOR_NAME = "Dr. Chen"
+
+#: The paragraph the marked-up manuscript holds.
+_MARKED_PARAGRAPH = "The method estimates the parameter roughly from a single observation."
+
+#: **One change by each of the two people**, so the roster has something
+#: to be right about and something to be wrong about.
+_TWO_REVISIONS = (
+    Revision(
+        kind="ins",
+        text="carefully",
+        author=_ADVISOR_NAME,
+        date="2026-03-02T09:30:00Z",
+        element_id="101",
+        paragraph=0,
+        after_text="estimates",
+    ),
+    Revision(
+        kind="del",
+        text="roughly",
+        author=_AUTHOR_NAME,
+        date="2026-03-03T10:15:00Z",
+        element_id="102",
+        paragraph=0,
+        anchor_text="roughly",
+    ),
+)
+
+#: **The roster.** The operator's answer to *"whose change is this?"*,
+#: and **the file's names are the keys and never the values** — the
+#: ``actor_id`` is the operator's own handle for the person.
+_ROSTER = {
+    _ADVISOR_NAME: ActorClaim(actor_kind="advisor", actor_id="advisor-1"),
+    _AUTHOR_NAME: ActorClaim(actor_kind="student", actor_id="student-1"),
+}
+
+#: A document part with **a change that carries words** and **a cursor
+#: left behind**, written by hand because the fixture writer cannot say
+#: them.
+#:
+#: **The empty marker is an ``w:ins`` with no children at all**, under the
+#: paragraph mark's run properties: it is what an operation at a point
+#: leaves behind, and **it carries no judgement**.
+_CURSOR_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+    "<w:body>\n"
+    "<w:p>"
+    "<w:pPr><w:rPr>"
+    '<w:ins w:id="301" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z"/>'
+    "</w:rPr></w:pPr>"
+    '<w:r><w:t xml:space="preserve">The method estimates the parameter</w:t></w:r>'
+    '<w:ins w:id="302" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:r><w:t xml:space="preserve">carefully</w:t></w:r>'
+    "</w:ins>"
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+
+@pytest.fixture()
+def marked_up(env: StoreEnv, tmp_path: Path) -> ChainEnv:
+    """A workspace whose manuscript carries **two changes by two people**."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=(_MARKED_PARAGRAPH,),
+        revisions=_TWO_REVISIONS,
+    )
+    record_feedback(
+        built.context,
+        project_id=built.project_id,
+        version_id=built.version_id,
+        now=MOMENT,
+    )
+    return built
+
+
+def _the_comment_id(chain: ChainEnv) -> str:
+    """The one comment the chain holds for this version."""
+    return record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )[0].feedback_id
+
+
+def _the_changes(chain: ChainEnv) -> tuple[str, ...]:
+    """The revision-event ids the version's document records.
+
+    **The second version**, because a change is a change in the version
+    the edge arrives at: the edge moves from the version the comment was
+    written against to the version that carries the change.
+    """
+    return tuple(
+        event.revision_event_id
+        for event in record_revision_events(
+            chain.context,
+            project_id=chain.project_id,
+            version_id=chain.second_version_id,
+            now=MOMENT,
+        )
+    )
+
+
+def _fill_the_second_ring(
+    chain: ChainEnv, *, answers: dict[str, str] | None = None
+) -> tuple[EditAction, ...]:
+    """The step that fills the chain's second ring, with the roster."""
+    return record_edits_from_revisions(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        version_edge_id=chain.edge_id,
+        actors=_ROSTER,
+        answers=answers,
+        now=MOMENT,
+    )
+
+
+def _the_edit_for(chain: ChainEnv, change_id: str) -> str:
+    """The id of the edit row that records one of the version's changes."""
+    return f"ea-{change_id}"
+
+
+def _a_second_edge_to_the_same_version(chain: ChainEnv) -> None:
+    """A second edge arriving at the same version.
+
+    **Written directly**, the way the scaffolding writes the version
+    graph: a version that is the child of two edges is a graph the
+    chain's own writer cannot be asked to write, and it is the shape
+    that makes "the edge the change moved along" a question with more
+    than one answer.
+    """
+    session = chain.context.store.session
+    session.add(
+        VersionEdgeRow(
+            edge_id="edge-2",
+            project_id=chain.project_id,
+            parent_version_id=chain.version_id,
+            child_version_id=chain.second_version_id,
+            source="human",
+            confidence=1.0,
+            evidence_spans=[{"kind": "revision", "text": "revised"}],
+            accepted_by="Dr. Chen",
+            accepted_at=MOMENT,
+            edge_version=1,
+            superseded_by=None,
+            created_at=MOMENT,
+        )
+    )
+    session.commit()
+
+
+def test_a_change_is_recorded_from_the_file_and_the_actor_is_the_roster_say(
+    marked_up: ChainEnv,
+) -> None:
+    """One row per tracked change, and the actor is the roster's answer.
+
+    **The chain does not read an actor out of a file.** A name in a
+    manuscript is a string somebody typed, and the same person is spelled
+    two ways across two drafts — so the roster is the operator's answer,
+    supplied every time, and **the file's name is the key the roster is
+    looked up by and never the value that is written down**.
+
+    **And one row is one change**, whether or not it answers a comment:
+    the column is nullable for exactly that reason, and a student may
+    edit for reasons the advisor never wrote down.
+
+    **And the row's id names the change it is.** This table holds no
+    text and no address of its own, so the id is what joins a row to
+    the revision event it records — and a reader that wants to know
+    whose name the file gives the change follows it there.
+    """
+    recorded = _fill_the_second_ring(marked_up)
+
+    assert len(recorded) == 2, "one row per tracked change"
+    by_actor = {action.actor_kind: action for action in recorded}
+    assert set(by_actor) == {"advisor", "student"}, "the roster's answer is on the rows"
+    assert by_actor["advisor"].actor_id == "advisor-1"
+    assert by_actor["student"].actor_id == "student-1"
+    assert not any(action.actor_id in (_ADVISOR_NAME, _AUTHOR_NAME) for action in recorded), (
+        "the file's name is never copied into the row"
+    )
+    assert all(action.feedback_id is None for action in recorded), (
+        "a change the caller named no comment for answers nothing, and that is not an error"
+    )
+    assert all(action.grade == "observed" for action in recorded)
+    assert all(action.version_edge_id == marked_up.edge_id for action in recorded)
+    assert {action.edit_action_id for action in recorded} == {
+        _the_edit_for(marked_up, event_id) for event_id in _the_changes(marked_up)
+    }, "the row's id names the change it is"
+
+
+def test_a_name_the_roster_does_not_name_is_refused_and_nothing_is_written(
+    marked_up: ChainEnv,
+) -> None:
+    """A name the roster does not name is refused, and nothing is written.
+
+    **The chain guesses nothing.** A default is how a model's change
+    becomes the advisor's, so an author the roster does not name stops
+    the whole operation — **before the first row** — and the refusal
+    names the author, because "a name nobody placed" is not an answer a
+    person can act on.
+    """
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id=marked_up.second_version_id,
+            version_edge_id=marked_up.edge_id,
+            actors={
+                _ADVISOR_NAME: ActorClaim(actor_kind="advisor", actor_id="advisor-1"),
+            },
+            now=MOMENT,
+        )
+
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert _AUTHOR_NAME in caught.value.detail, "the refusal names the author"
+
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused roster writes nothing"
+
+
+def test_an_answer_must_name_a_change_and_a_comment_the_chain_holds(
+    marked_up: ChainEnv,
+) -> None:
+    """The correspondence is the caller's, and it names rows the chain holds.
+
+    **The file does not say which change answers which comment**, and a
+    change that answers nothing is not an error — so the caller names the
+    correspondence, and **a name the chain does not hold is refused**
+    rather than recorded: a change that answers a comment nobody holds
+    has answered nothing.
+    """
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _fill_the_second_ring(marked_up, answers={"rv-nowhere": comment_id})
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _fill_the_second_ring(marked_up, answers={change_id: "fb-nowhere"})
+    assert caught.value.reason is ApplicationRefusal.CHAIN_FEEDBACK_NOT_FOUND
+
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused answer writes nothing"
+
+    recorded = _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    answered = [action for action in recorded if action.feedback_id == comment_id]
+    assert len(answered) == 1, "the change names the comment it answers"
+    assert answered[0].edit_action_id == _the_edit_for(marked_up, change_id)
+    assert len([action for action in recorded if action.feedback_id is None]) == 1, (
+        "the other change answers nothing, and that is not an error"
+    )
+
+
+def test_a_cursor_left_behind_is_not_a_change(env: StoreEnv, tmp_path: Path) -> None:
+    """Word leaves a mark behind when an operation happens at a point.
+
+    **It is not a change**, and it carries no judgement — so the chain
+    records the change and not the mark. **A single total would call the
+    mark a change**, and the number a reader draws would be wrong.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        paragraphs=("The method estimates the parameter",),
+        revisions=(),
+        document_xml=_CURSOR_DOCUMENT,
+    )
+
+    recorded = record_edits_from_revisions(
+        built.context,
+        project_id=built.project_id,
+        version_id=built.second_version_id,
+        version_edge_id=built.edge_id,
+        actors={
+            _ADVISOR_NAME: ActorClaim(actor_kind="advisor", actor_id="advisor-1"),
+        },
+        now=MOMENT,
+    )
+
+    assert len(recorded) == 1, "the cursor left behind is not a change"
+    assert recorded[0].actor_kind == "advisor"
+
+
+def test_a_recorded_change_is_not_rewritten_in_place(marked_up: ChainEnv) -> None:
+    """The roster is applied when the change is recorded, and not after.
+
+    **A recorded fact is not rewritten in place** — so a roster that
+    contradicts the row already written is refused rather than quietly
+    ignored, because the chain would otherwise hold two stories about
+    one change. **And re-running the same step with the same roster is
+    the same rows**, because identity does not depend on insertion order.
+    """
+    first = _fill_the_second_ring(marked_up)
+    again = _fill_the_second_ring(marked_up)
+    assert [action.edit_action_id for action in first] == [
+        action.edit_action_id for action in again
+    ], "recording the same manuscript twice is the same rows"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id=marked_up.second_version_id,
+            version_edge_id=marked_up.edge_id,
+            actors={
+                **_ROSTER,
+                _AUTHOR_NAME: ActorClaim(actor_kind="advisor", actor_id="advisor-2"),
+            },
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "student-1" in caught.value.detail, "the refusal says what the row says"
+    assert "advisor-2" in caught.value.detail, "the refusal says what the roster says"
+
+    # **And the correspondence is fixed when the change is recorded.**
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "None" in caught.value.detail, "the refusal says what the row says"
+
+    # **And the edge the change moved along is fixed too.** A version
+    # that is the child of two edges makes "the edge" a question with
+    # more than one answer, and the chain will not answer it twice.
+    _a_second_edge_to_the_same_version(marked_up)
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id=marked_up.second_version_id,
+            version_edge_id="edge-2",
+            actors=_ROSTER,
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "edge-1" in caught.value.detail, "the refusal says what the row says"
+
+
+def test_a_proposal_is_put_forward_and_decides_nothing(marked_up: ChainEnv) -> None:
+    """The operator's step puts a link forward, and decides nothing.
+
+    **A proposal is a pending link**, and the comment stays on the
+    unaddressed listing — with the reason that says somebody put it
+    forward and nobody has judged it. **The third ring is filled by a
+    person or a rule**, and the operation that puts a link forward has
+    no way to decide one.
+
+    **And the same correspondence proposed twice is the same link**, so a
+    proposal cannot be duplicated under a second name.
+    """
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+    _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    edit_id = _the_edit_for(marked_up, change_id)
+
+    links = propose_responses(
+        marked_up.context,
+        proposals=[AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id)],
+        proposed_by="model",
+        now=MOMENT,
+    )
+
+    assert len(links) == 1
+    link = links[0]
+    assert link.state == "pending", "a proposal decides nothing"
+    assert link.grade == "inferred", "a model's candidate is the system's own inference"
+    assert link.decided_by == "model", "the row says who put it forward"
+    assert link.evidence_refs == (), "a pending link carries no decision"
+
+    unaddressed = list_unaddressed(marked_up.context, project_id=marked_up.project_id)
+    assert [item.feedback.feedback_id for item in unaddressed] == [comment_id]
+    assert unaddressed[0].reason == "pending", (
+        "the reason says a judgement is outstanding, and not that nobody answered"
+    )
+
+    again = propose_responses(
+        marked_up.context,
+        proposals=[AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id)],
+        proposed_by="model",
+        now=MOMENT,
+    )
+    assert again[0].response_link_id == link.response_link_id, (
+        "the same correspondence proposed twice is the same link"
+    )
+
+    # **And a person's proposal is a candidate of its own kind**: it is
+    # observed rather than inferred, because nothing has confirmed it
+    # and a model's inference and a person's proposal are two different
+    # things.
+    other_change_id = _the_changes(marked_up)[1]
+    other_edit_id = _the_edit_for(marked_up, other_change_id)
+    proposed = propose_responses(
+        marked_up.context,
+        proposals=[AnswerProposal(feedback_id=comment_id, edit_action_id=other_edit_id)],
+        proposed_by="user",
+        now=MOMENT,
+    )
+    assert len(proposed) == 1
+    assert proposed[0].state == "pending", "a proposal decides nothing"
+    assert proposed[0].grade == "observed", "a person's proposal is not an inference"
+    assert proposed[0].decided_by == "user", "the row says who put it forward"
+
+
+def test_a_proposal_about_a_row_the_chain_does_not_hold_is_refused(
+    marked_up: ChainEnv,
+) -> None:
+    """A link is about a comment and a change, and both must be there.
+
+    **A link to a comment nobody holds is a link to nothing**, and a
+    refused proposal writes nothing.
+    """
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+    _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    edit_id = _the_edit_for(marked_up, change_id)
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        propose_responses(
+            marked_up.context,
+            proposals=[
+                AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id),
+                AnswerProposal(feedback_id="fb-nowhere", edit_action_id=edit_id),
+            ],
+            proposed_by="model",
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_FEEDBACK_NOT_FOUND
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        propose_responses(
+            marked_up.context,
+            proposals=[
+                AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id),
+                AnswerProposal(feedback_id=comment_id, edit_action_id="ea-nowhere"),
+            ],
+            proposed_by="model",
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_EDIT_NOT_FOUND
+
+    rows = marked_up.context.store.session.scalars(select(ResponseLinkRow)).all()
+    assert not rows, (
+        "a refused proposal writes nothing — the whole plan is checked before the "
+        "first link is written, so a good proposal beside a bad one is not written "
+        "either"
+    )
+
+
+def test_a_link_does_not_join_two_manuscripts(marked_up: ChainEnv) -> None:
+    """A link is about one manuscript.
+
+    **A link across manuscripts joins two archives**, and a chain that
+    does that is a chain about nothing: the comment belongs to one
+    manuscript and the change to another, and the answer would be a
+    claim about a lineage that does not exist.
+    """
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+    _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    edit_id = _the_edit_for(marked_up, change_id)
+    _another_project_with_a_key(marked_up, issue_key="iss-theirs")
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        propose_responses(
+            marked_up.context,
+            proposals=[AnswerProposal(feedback_id="fb-other-project", edit_action_id=edit_id)],
+            proposed_by="model",
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "proj-2" in caught.value.detail, "the refusal names the two projects"
+
+    rows = marked_up.context.store.session.scalars(select(ResponseLinkRow)).all()
+    assert not rows, "a refused proposal writes nothing"
+
+
+def test_a_settled_correspondence_is_not_put_forward_again(marked_up: ChainEnv) -> None:
+    """A link that has been judged is a question that has an answer.
+
+    **A second proposal about it is a second answer to a question that
+    has one**, and the chain refuses it rather than holding the
+    correspondence twice over.
+    """
+    comment_id = _the_comment_id(marked_up)
+    change_id = _the_changes(marked_up)[0]
+    _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    edit_id = _the_edit_for(marked_up, change_id)
+    record_response(
+        marked_up.context,
+        response_link_id="rl-judged",
+        feedback_id=comment_id,
+        edit_action_id=edit_id,
+        state="addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT,
+        evidence_refs=("check:1",),
+        now=MOMENT,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        propose_responses(
+            marked_up.context,
+            proposals=[AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id)],
+            proposed_by="model",
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+
+def test_a_chain_of_pending_links_serves_no_rule_and_a_judged_one_serves_it(
+    marked_up: ChainEnv,
+) -> None:
+    """What filling the rings changes for the memory, and what it does not.
+
+    **A pending link serves nothing.** The rule is not served and it is
+    *reported* — the invalidation is not silent — and the chain says
+    which of the two situations it is: the unaddressed listing's reason
+    is ``pending`` when somebody has put a link forward and
+    ``no_response`` when nobody has.
+
+    **And only a judgement makes the rule servable.** That is the
+    design, and it is why the third ring is filled by a person or a
+    rule: the operator's step puts the correspondence forward, and the
+    memory serves the rule once somebody has decided it.
+    """
+    comment_id = _the_comment_id(marked_up)
+    set_issue_key(
+        marked_up.context,
+        feedback_id=comment_id,
+        issue_key="iss-one",
+        now=MOMENT,
+    )
+    change_id = _the_changes(marked_up)[0]
+    _fill_the_second_ring(marked_up, answers={change_id: comment_id})
+    edit_id = _the_edit_for(marked_up, change_id)
+    rule = propose_rule(
+        marked_up.context,
+        issue_type="method_and_hypothesis",
+        statement="Name the baseline the comparison is against.",
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The advisor's comment on the ablation paragraph.",
+        sources=("iss-one",),
+        proposed_by="the-mentor",
+        now=MOMENT,
+    )
+    confirmed = confirm_rule(
+        marked_up.context,
+        rule_id=rule.rule_id,
+        confirmed_by="the-second-reader",
+        now=MOMENT,
+    )
+    assert confirmed.state == "confirmed"
+
+    # **Nothing answered: the rule is not served, and it is reported.**
+    assert search_rules(marked_up.context) == ()
+    assert [item.rule.rule_id for item in invalidated_rules(marked_up.context)] == [rule.rule_id], (
+        "the invalidation is not silent"
+    )
+
+    # **A proposal put forward, and nobody has judged it: still nothing.**
+    propose_responses(
+        marked_up.context,
+        proposals=[AnswerProposal(feedback_id=comment_id, edit_action_id=edit_id)],
+        proposed_by="model",
+        now=MOMENT,
+    )
+    assert search_rules(marked_up.context) == (), "a pending link is not an answer"
+    assert [item.rule.rule_id for item in invalidated_rules(marked_up.context)] == [rule.rule_id]
+
+    # **And a judgement is what makes the rule servable.**
+    record_response(
+        marked_up.context,
+        response_link_id="rl-judged",
+        feedback_id=comment_id,
+        edit_action_id=edit_id,
+        state="addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT,
+        evidence_refs=("check:1",),
+        now=MOMENT,
+    )
+    hits = search_rules(marked_up.context)
+    assert [hit.rule.rule_id for hit in hits] == [rule.rule_id]
+    assert invalidated_rules(marked_up.context) == ()
+    assert list_unaddressed(marked_up.context, project_id=marked_up.project_id) == ()
