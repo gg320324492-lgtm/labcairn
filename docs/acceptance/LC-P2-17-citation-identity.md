@@ -127,7 +127,9 @@ entry.
 | `src/labcairn/evidence/gate.py` | `_judge_identifiers`, the `unresolved_identifier` finding |
 | `src/labcairn/application/identifiers.py` | **new** — `record_identifier`, `request_outbound_resolution`, `confirm_identifier_resolution`, `list_task_identifiers`; capability asked per operation, the signature and ownership rules |
 | `src/labcairn/application/refusal.py` | `IDENTIFIER_NOT_FOUND`, `RESOLUTION_IDENTITY_EMPTY` |
-| `src/labcairn/application/__init__.py` | the new operations exported |
+| `src/labcairn/application/__init__.py` | the new operations exported, and the docstring's capability table rows for all four |
+| `tests/test_application_layer.py` | `labcairn.application.identifiers` recorded in `_ALLOWED_STORE_READERS`, with its reason |
+| `web/src/api/generated.ts` | regenerated from the models this work changed (`EvidenceRecord.identifier_ids`) — a mechanical derivative, not a hand edit |
 | `tests/test_identifier_records.py` | **new** — 35 tests, `pytestmark = pytest.mark.integration` |
 | `tests/test_store_migrations.py` | the two new tables in `EXPECTED_TABLES` (the hand-listed set) |
 
@@ -183,14 +185,40 @@ survived and why: none survived, and the one that appeared to was misplaced.
 
 ## Measurement status
 
-* `ruff check .`, `ruff format --check .`, `mypy --strict`: clean (192 source files).
+* `ruff check .`, `ruff format --check .`: clean (409 files).
+* `mypy --strict src/labcairn tests/test_application_layer.py`: clean (193
+  source files); the README's own `uv run mypy` check: 371 files, clean.
 * New and neighbouring evidence tests: 35 new, 225 total across the seven
   evidence/store/migration files — all green.
-* The full suite: see the coordinator's report; the two clean-room files
-  (`test_readme_accuracy.py`, `test_outsider_path.py`) are run without
-  `PYTHONPATH` per the repository's rule.
-* **Shard note, expected:** `tests/test_identifier_records.py` is a new test
-  file and is in no shard yet, so the shard-coverage and shard-cost witnesses
-  are red on purpose. Adding it needs runner-measured costs
-  (`python .github/remeasure_shards.py` from a CI run's log), which a
-  development machine cannot supply — the repository's own rule.
+* **The full suite** (with `PYTHONPATH` pointing at this worktree's `src`,
+  clean-room files excluded): 4477 passed, 7 failed. **Four of the seven were
+  this work's own drift, all fixed and green on the same tree:**
+  1. `test_the_capability_table_covers_every_operation_the_layer_exports` —
+     the four new operations were missing from the layer's docstring table.
+     Added.
+  2. `test_no_module_outside_the_layer_reaches_past_it` —
+     `labcairn.application.identifiers` reaches the store, so it is recorded
+     in the witness's `_ALLOWED_STORE_READERS` with its reason, as
+     LC-P2-09's `papers` was before it.
+  3. `test_the_checked_in_typescript_is_what_the_python_models_produce` —
+     `EvidenceRecord.identifier_ids` was missing from
+     `web/src/api/generated.ts`. Regenerated with the command the failure
+     names (`python -m labcairn.api.typescript`), pointed at this worktree's
+     `src`. The generated file is a mechanical derivative of the models this
+     work changed, so it moved with them; `web/**` is otherwise untouched,
+     and the main checkout's `web/` had no uncommitted work to collide with.
+  4. `test_wheel_installs_clean_and_imports` — **not a code failure.** The
+     `PYTHONPATH` set for the suite run leaks into the throwaway venv's
+     subprocess and shadows the installed wheel with the source tree. Run
+     without it (the test builds its wheel from this worktree's `repo_root`,
+     so migration 0021's packaging is what the green run exercised), it
+     passes.
+  **The remaining two** are `test_ci_shard_coverage.py`'s shard-coverage and
+  recorded-cost witnesses: `tests/test_identifier_records.py` is a new test
+  file in no shard yet, so they are red on purpose. Adding it needs
+  runner-measured costs (`python .github/remeasure_shards.py` from a CI
+  run's log), which a development machine cannot supply — the repository's
+  own rule.
+* The two clean-room files (`test_readme_accuracy.py`,
+  `test_outsider_path.py`) are run without `PYTHONPATH` per the
+  repository's rule.

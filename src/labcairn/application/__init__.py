@@ -88,6 +88,12 @@ Operation                  Capability
 ``describe_abandoned``     — (the task's own operations)
 ``reconcile_abandoned``    — (the task's own operations)
 ``resolve_abandoned``      — (the task's own operations)
+``record_identifier``      ``fs.write``
+``request_outbound_resolution``
+                           ``fs.write``
+``confirm_identifier_resolution``
+                           ``fs.write``
+``list_task_identifiers``  ``fs.read``
 =========================  ===========================================
 
 **The mentor line's own rows.** The operations below reach rows that belong
