@@ -240,6 +240,12 @@ export function issueKeysFixture(): IssueKeys {
  * **One candidate with a case against it, and one that stands.** The
  * candidate is the one a person may settle; the confirmed one is the one
  * the memory refuses to settle twice.
+ *
+ * **And the checks that decide them.** The candidate names none: a
+ * rule may only name a check a person has confirmed, and this one has
+ * not been settled. The confirmed rule names one, and the withdrawn
+ * one names none, because a binding is in force only while both of its
+ * ends are.
  */
 export function guidanceRulesFixture(): GuidanceRule[] {
   return [
@@ -258,6 +264,7 @@ export function guidanceRulesFixture(): GuidanceRule[] {
       confirmed_at: null,
       resolution_reason: null,
       sources: [ISSUE_KEY],
+      checks: [],
       counterexamples: [
         {
           statement: 'A reading from a published protocol needs no naming.',
@@ -282,6 +289,19 @@ export function guidanceRulesFixture(): GuidanceRule[] {
       confirmed_at: '2026-10-22T09:00:00+00:00',
       resolution_reason: null,
       sources: ['issue-units'],
+      checks: [
+        {
+          check_id: 'check-units',
+          question: 'Does every number in this sentence carry its unit?',
+          pass_criterion: 'The number is followed by the unit it is measured in.',
+          state: 'confirmed',
+          proposed_by: 'bob',
+          proposed_at: '2026-10-22T08:00:00+00:00',
+          confirmed_by: 'carol',
+          confirmed_at: '2026-10-22T09:00:00+00:00',
+          resolution_reason: null,
+        },
+      ],
       counterexamples: [
         {
           statement: 'A dimensionless ratio needs no unit.',
@@ -306,6 +326,7 @@ export function guidanceRulesFixture(): GuidanceRule[] {
       confirmed_at: '2026-10-19T08:00:00+00:00',
       resolution_reason: 'the ledger cannot check an anchor yet',
       sources: ['issue-anchors'],
+      checks: [],
       counterexamples: [],
     },
   ]
