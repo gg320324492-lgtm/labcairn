@@ -169,11 +169,31 @@ paragraph does not say what it is for. **A rule distilled from a comment
 the reader could not place is still a rule, and its scope says so
 rather than pretending the comment was written against a passage.**
 
-**The candidates are candidates.** The proposer was `model_proposal`, a
-name no person signs, so **the owner's word is the only word that could
-move them** — and the confirmation door is where that word goes. **The
-second corpus's rules are not in the memory until the owner settles
-them.**
+**And the owner settled them on 2026-11-01: all eight confirmed.**
+The proposer was `model_proposal`, a name no person signs, so the
+owner's word was the only word that could move them — and it went
+through the product's own door, which refuses the proposer confirming
+their own rule. **The memory now holds sixteen confirmed rules**: the
+first corpus's eight and the second corpus's eight.
+
+**And then the retrieval was measured, and it serves none of them.**
+That is a real gap, and it is not about these rules: `search_rules`
+returns **zero** and `invalidated_rules` returns **all sixteen**, each
+saying the same thing about its sources — *found, reachable, not
+addressed*. The chain holds the comments (**80** of them across the
+two projects) and **no `edit_actions` and no `response_links`**: only the
+first of the chain's four rings is filled. **The retrieval asks whether
+a judgement says the change answered the comment**, and there is no
+judgement, so no rule stands on any source — and the chain's own
+listing says all **80** comments are unaddressed.
+
+**The write paths are all there** — `record_edit` takes a change on a
+version edge, `record_response` takes the judgement that the change
+answered the comment — **so this is a missing operator's step, not a
+missing capability.** What it takes to fill is a decision that is the
+owner's: **whether the chain should carry the mentor's judgement about
+the student at all**, or whether a rule's standing should rest on the
+comments alone.
 
 ## 3. What the chain now holds
 
