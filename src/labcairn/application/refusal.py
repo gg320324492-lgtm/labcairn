@@ -287,6 +287,28 @@ class ApplicationRefusal(StrEnum):
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
     CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED = "chain_issue_key_may_not_be_inferred"
+    # -- LC-P2-13: the settlement over a reply ------------------------------ #
+    #
+    #: The store holds no reply with that id. A settlement judges an
+    #: exchange, and a settlement of an exchange nobody holds is a
+    #: settlement about nothing.
+    CHAIN_REPLY_NOT_FOUND = "chain_reply_not_found"
+    #: A settlement state other than ``pending`` was asked for with no
+    #: evidence behind it. **A status anybody can set is not a status.**
+    CHAIN_SETTLEMENT_NEEDS_EVIDENCE = "chain_settlement_needs_evidence"
+    #: A model may put a settlement forward, but it may not decide one.
+    #: Only a rule or a person settles whether an answer settled a point.
+    CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL = (
+        "chain_settlement_may_not_be_decided_by_a_model"
+    )
+    #: A reply that has already been judged was judged again. A judgement
+    #: is a fact, and the store does not hold revisions of facts.
+    CHAIN_SETTLEMENT_ALREADY_DECIDED = "chain_settlement_already_decided"
+    #: A settlement claimed a reply settled because the manuscript holds
+    #: what the answer claims, and the claimed thing is not in the
+    #: manuscript's accepted text. **Refused by name** -- the detail says
+    #: which term was not found -- and never silently accepted.
+    CHAIN_CLAIM_NOT_IN_MANUSCRIPT = "chain_claim_not_in_manuscript"
     # -- the reasons the guidance memory says no ---------------------------- #
     #
     # **Why these are the memory's own, and not one ``rule_refused``.** The
@@ -557,6 +579,13 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ChainRefusal.ISSUE_KEY_MAY_NOT_BE_INFERRED: (
         ApplicationRefusal.CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED
     ),
+    ChainRefusal.REPLY_NOT_FOUND: ApplicationRefusal.CHAIN_REPLY_NOT_FOUND,
+    ChainRefusal.SETTLEMENT_NEEDS_EVIDENCE: (ApplicationRefusal.CHAIN_SETTLEMENT_NEEDS_EVIDENCE),
+    ChainRefusal.SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL: (
+        ApplicationRefusal.CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL
+    ),
+    ChainRefusal.SETTLEMENT_ALREADY_DECIDED: (ApplicationRefusal.CHAIN_SETTLEMENT_ALREADY_DECIDED),
+    ChainRefusal.CLAIM_NOT_IN_MANUSCRIPT: (ApplicationRefusal.CHAIN_CLAIM_NOT_IN_MANUSCRIPT),
 }
 
 GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {

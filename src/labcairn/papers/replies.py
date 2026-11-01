@@ -8,12 +8,21 @@ judgement that the change answered it, a later assessment -- and it holds
 **none** of this. **Nothing in the product answered "what did the author
 say, and why"**, and the answer is the half that carries the reasoning.
 
-**A reply is a record of what was said, and not a judgement.** So this
-module writes no state, no decider and no evidence: those belong to
-``labcairn.papers.responses``, which answers the other question -- *did
-the change answer the comment* -- and answers it with a verdict that
-needs evidence behind it. **A reply has no verdict.** Two parties said
-two things, and the table holds them.
+**A reply is a record of what was said, and not a judgement.** So the
+reply row itself writes no state, no decider and no evidence: **a verdict
+bolted onto the row that holds the words would let a record of what was
+said be read as a ruling.** What the record still needed was the
+*judgement over it* -- did the authors' answer settle the reviewer's
+point, and on what evidence -- and that judgement lives here too, behind
+its own table and its own door (:func:`settle_reply`,
+:func:`list_reply_settlements`, :func:`list_unsettled_replies`). The
+door is the same one ``labcairn.papers.responses`` opens for the chain's
+own judgement: a state other than ``pending`` needs a decider and the
+evidence behind it, and a model may put a settlement forward but may not
+decide one. A settled settlement says only what the schema can check --
+that the answer's claimed terms are findable in the manuscript's
+accepted text -- and **never says the science was right**, because that
+is a claim no row in the store can carry.
 
 **And a reply is neither the mentor's exchange nor the student's.** The
 two halves are a *reviewer* and *the authors*, and they are the paper's
@@ -78,10 +87,11 @@ from labcairn.application.refusal import (
     ApplicationRefusedError,
     chain_refused,
 )
-from labcairn.db.models import ReplyRow
+from labcairn.db.models import ReplyRow, ReplySettlementRow, ResponseLinkRow
 from labcairn.material.ooxml import read_document
 from labcairn.papers.chain import (
     ChainRefusal,
+    feedback_row,
     material_relative_path,
     project_row,
     version_row,
@@ -592,12 +602,632 @@ def _material_or_none(context: ApplicationContext, version_id: str) -> Canonical
     return context.resource_for(relative_path)
 
 
+# --------------------------------------------------------------------------- #
+# The settlement: the judgement that an answer settled a reviewer's point     #
+#                                                                             #
+# **The reply is a record, and the settlement is a judgement.** The row       #
+# above holds what two parties said and holds no verdict -- that absence is   #
+# the design, and it stays. What a reader still cannot ask the store is       #
+# *did the authors' answer settle the point*, and this is the judgement       #
+# that answers it. It goes through the same door as ``record_response``:      #
+# a state other than ``pending`` needs a decider and the evidence behind      #
+# it, and a model may put a settlement forward but may not decide one.        #
+# **The verdict lives in its own table, never on the row that holds the       #
+# words.**                                                                    #
+# --------------------------------------------------------------------------- #
+
+#: The four states a settlement may hold. **Only ``pending`` says nobody
+#: has judged.** ``settled`` says the answer settled the point and the
+#: manuscript holds what the answer claims; ``held`` says the claim could
+#: not be found and names what it is holding for; ``unresolved`` says the
+#: judgement went the other way. **``settled`` does not say the science
+#: was right** -- it says the claimed thing is findable in the
+#: manuscript's accepted text, and no wider a claim than that.
+SETTLEMENT_STATES: frozenset[str] = frozenset({"pending", "settled", "held", "unresolved"})
+
+#: Who may decide a settlement. **A model may not**: a rule or a person
+#: settles whether an author's answer settled a reviewer's point.
+SETTLEMENT_DECIDERS: frozenset[str] = frozenset({"rule", "user"})
+
+#: Who may **put a settlement forward**. A model's candidate is
+#: ``pending`` at grade ``inferred`` -- a claim about what the model
+#: proposed, and not a judgement.
+SETTLEMENT_PROPOSERS: frozenset[str] = frozenset({"model", "user"})
+
+#: The grades a settlement may carry.
+SETTLEMENT_GRADES: frozenset[str] = frozenset({"observed", "human_verified", "inferred"})
+
+#: Whether the change the answer claims has been placed in the
+#: manuscript. **A missing address is a value, never a guess**: a
+#: settlement that could not place the change says ``unknown``, and the
+#: schema holds the two address columns to agree with it in both
+#: directions.
+ANCHOR_STATUSES: frozenset[str] = frozenset({"resolved", "unknown"})
+
+#: Why a reply is on the unsettled listing. **A reply the chain holds no
+#: settlement for is listed as ``unjudged``** -- an answer that was never
+#: judged does not make the point answered -- and a reply whose settlement
+#: is pending, held or unresolved is listed for the state it is in. Only
+#: ``settled`` keeps a reply off the listing.
+UNSETTLED_REASONS: frozenset[str] = frozenset({"unjudged", "pending", "held", "unresolved"})
+
+
+@dataclass(frozen=True, slots=True)
+class ReplySettlement:
+    """One judgement about one exchange, as the store records it.
+
+    **And the chain's own side travels with it when the two are about the
+    same point.** ``chain_states`` holds the states of every response link
+    the chain holds for the comment this settlement says the reply is
+    about -- **all of them**, because a disagreement between the mentor's
+    judgement and this one is shown as two sides, and a product that kept
+    only the newer of the two would be deciding a disagreement by recency.
+    It is a read-side join and not a column: the correspondence is part of
+    the judgement, the chain's verdicts are the chain's, and neither is
+    stored in the other's table.
+    """
+
+    settlement_id: str
+    reply_id: str
+    state: str
+    grade: str
+    decided_by: str | None
+    decided_at: datetime | None
+    evidence_refs: tuple[str, ...]
+    #: The words a settled judgement vouches for, each of which the
+    #: operation found in the manuscript's accepted text before the row
+    #: was written.
+    claim_terms: tuple[str, ...]
+    change_version_id: str | None
+    change_paragraph: int | None
+    anchor_status: str
+    feedback_id: str | None
+    hold_reason: str | None
+    created_at: datetime
+    chain_states: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class UnsettledReply:
+    """A reply whose point is not settled, and why it is listed.
+
+    **The reason is part of the answer.** A reply the store holds no
+    settlement for, a settlement nobody has judged, a hold, and a
+    judgement that went the other way are four different situations, and
+    a reader asking "what has not been settled?" wants to tell them
+    apart.
+    """
+
+    reply: Reply
+    reason: str
+
+
+def _settlement_from_row(
+    row: ReplySettlementRow, chain_states: tuple[str, ...] = ()
+) -> ReplySettlement:
+    """The record a row is."""
+    return ReplySettlement(
+        settlement_id=row.settlement_id,
+        reply_id=row.reply_id,
+        state=row.state,
+        grade=row.grade,
+        decided_by=row.decided_by,
+        decided_at=row.decided_at,
+        evidence_refs=tuple(row.evidence_refs),
+        claim_terms=tuple(row.claim_terms),
+        change_version_id=row.change_version_id,
+        change_paragraph=row.change_paragraph,
+        anchor_status=row.anchor_status,
+        feedback_id=row.feedback_id,
+        hold_reason=row.hold_reason,
+        created_at=row.created_at,
+        chain_states=chain_states,
+    )
+
+
+def _manuscript_paragraphs(context: ApplicationContext, version_id: str) -> tuple[str, ...]:
+    """The paragraphs of the manuscript a version names, after the gate.
+
+    **The bytes are checked against the version's own hash** -- the
+    version names a manuscript *and* the bytes it was recorded with, and
+    a manuscript whose bytes have changed under the name is not the one
+    the coordinates would name.
+
+    :raises ApplicationRefusedError: the version names material the
+        ledger does not hold, the policy denied reading it, the material
+        is unreadable, or the bytes have drifted.
+    """
+    resource = _material(context, version_id)
+    consent.evaluate(
+        context,
+        capability=CapabilityId.SOURCE_READ,
+        arguments={"max_bytes": MAX_MANUSCRIPT_BYTES},
+        resource=resource,
+    )
+    return read_document(_read_material(context, version_id)).paragraphs
+
+
+def _claims_not_found(paragraphs: tuple[str, ...], claim_terms: Sequence[str]) -> tuple[str, ...]:
+    """The claim terms the manuscript's accepted text does not hold.
+
+    **A term is found when its words appear in the text**, matched
+    case-insensitively and without a guess at morphology: a claim of "we
+    ran the Gibbs sampler" is answered by the sampler being named in the
+    manuscript, and a manuscript that names no such thing settles
+    nothing.
+    """
+    text = "\n".join(paragraphs).casefold()
+    return tuple(term for term in claim_terms if term.casefold() not in text)
+
+
+def _verify_change_address(
+    context: ApplicationContext,
+    *,
+    change_version_id: str,
+    change_paragraph: int,
+) -> tuple[str, ...]:
+    """The paragraphs of the manuscript, after the named place is checked.
+
+    **A place in the manuscript is this judgement's to give, and a place
+    the manuscript does not have is not a place.**
+
+    :raises ApplicationRefusedError: the manuscript could not be read, or
+        names no such paragraph.
+    """
+    paragraphs = _manuscript_paragraphs(context, change_version_id)
+    if change_paragraph < 0 or change_paragraph >= len(paragraphs):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the manuscript has {len(paragraphs)} paragraph(s) and the settlement "
+            f"places the change at paragraph {change_paragraph!r}. A missing address "
+            "is a value -- anchor_status 'unknown' -- and an address that names no "
+            "place is not an address.",
+        )
+    return paragraphs
+
+
+def settle_reply(
+    context: ApplicationContext,
+    *,
+    settlement_id: str,
+    reply_id: str,
+    state: str,
+    grade: str = "observed",
+    decided_by: str | None = None,
+    decided_at: datetime | None = None,
+    evidence_refs: tuple[str, ...] = (),
+    claim_terms: tuple[str, ...] = (),
+    change_version_id: str | None = None,
+    change_paragraph: int | None = None,
+    anchor_status: str = "unknown",
+    feedback_id: str | None = None,
+    hold_reason: str | None = None,
+    now: datetime,
+) -> ReplySettlement:
+    """Record the judgement that an author's answer settled a review point.
+
+    **A settlement is a judgement, and it goes through the same door as
+    ``record_response``.** A state other than ``pending`` needs a decider
+    and the evidence behind it, and a model may put a settlement forward
+    -- ``state='pending'``, ``grade='inferred'``, ``decided_by='model'``
+    -- but may not decide one. A status anybody can set is not a status.
+
+    **And a point is judged once.** A reply that has already been judged
+    is refused rather than judged again: a judgement is a fact, and a
+    second judgement over the same reply is a revision of a fact, which
+    the store does not hold. A pending settlement is completed by the
+    judgement that decides it.
+
+    **And a settled judgement has found what the answer claims.** The
+    whole point of settling is that what the answer claims can be found
+    in the manuscript's accepted text: a settled settlement names its
+    ``claim_terms``, and the operation reads the manuscript and checks
+    every one of them before the row is written. **A claim the manuscript
+    does not hold is refused, by name** -- the refusal says which term
+    was not found -- and never silently accepted. The caller's honest
+    path past that refusal is ``held``: state the claim is not found, and
+    name what the hold is holding for. **And what ``settled`` says is
+    narrow by design: the claimed thing is findable in the manuscript.
+    It does not say the science was right, and nothing in the settlement
+    carries that.**
+
+    **And the place of the change is a value, never a guess.** A
+    settlement either places the change -- ``anchor_status='resolved'``,
+    with the version and the paragraph of the manuscript it lives in --
+    or says ``unknown``, and the two address columns are held to agree
+    with the status in both directions.
+
+    **And the correspondence with the chain's own comment is part of the
+    judgement.** ``feedback_id`` names the comment the decider judged
+    this reply to be about; the reply carries no issue key and nobody
+    derived one. A reader asking whether the chain and the settlement
+    agree gets both sides -- the listing joins the chain's verdicts in,
+    and reports a disagreement rather than resolving it.
+
+    :raises ApplicationRefusedError: the reply, the chain comment or the
+        manuscript version is not there; the state, the grade, the
+        decider or the anchor status is outside its vocabulary; a decided
+        settlement has no evidence behind it; a model tried to decide;
+        the reply has already been judged; a settled settlement's claim
+        is not in the manuscript's accepted text; the change is placed at
+        a paragraph the manuscript does not have; or the policy denied
+        reading the manuscript.
+    """
+    session = context.store.session
+    if state not in SETTLEMENT_STATES:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{state!r} is not a state a settlement may hold. A settlement is "
+            "pending, settled, held or unresolved, and a state outside those four "
+            "says nothing about whether the answer settled the point.",
+        )
+    if grade not in SETTLEMENT_GRADES:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{grade!r} is not a grade. A judgement is observed, confirmed by a "
+            "person, or the system's own inference.",
+        )
+    if anchor_status not in ANCHOR_STATUSES:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{anchor_status!r} is not an anchor status. A settlement either places "
+            "the change -- 'resolved', with the version and the paragraph of the "
+            "manuscript it lives in -- or says 'unknown' that it could not.",
+        )
+    if decided_by is not None and decided_by not in (SETTLEMENT_DECIDERS | SETTLEMENT_PROPOSERS):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{decided_by!r} is not a decider. A settlement is decided by a rule, "
+            "by a person, or put forward by a model.",
+        )
+    reply = session.get(ReplyRow, reply_id)
+    if reply is None:
+        raise chain_refused(
+            ChainRefusal.REPLY_NOT_FOUND,
+            f"the store holds no reply with the id {reply_id!r}. A settlement "
+            "judges an exchange, and a settlement of an exchange nobody holds is "
+            "a settlement about nothing.",
+        )
+    if feedback_id is not None and feedback_row(session, feedback_id) is None:
+        raise chain_refused(
+            ChainRefusal.FEEDBACK_NOT_FOUND,
+            f"the store holds no feedback event with the id {feedback_id!r}. The "
+            "correspondence between a reply and a chain comment is part of the "
+            "judgement, and a correspondence with a comment nobody holds is a "
+            "correspondence with nothing.",
+        )
+    if change_version_id is not None:
+        change_version = version_row(session, change_version_id)
+        if change_version is None:
+            raise chain_refused(
+                ChainRefusal.VERSION_NOT_FOUND,
+                f"the store holds no manuscript version with the id "
+                f"{change_version_id!r}. A settlement that places the change names "
+                "the manuscript the change lives in, and a place in a manuscript "
+                "nobody holds is a place about nothing.",
+            )
+        if change_version.project_id != reply.project_id:
+            raise chain_refused(
+                ChainRefusal.VERSION_NOT_FOUND,
+                f"the manuscript version {change_version_id!r} belongs to the "
+                f"project {change_version.project_id!r}, not to "
+                f"{reply.project_id!r}. The change an answer claims lives in the "
+                "manuscript the reply's project is about.",
+            )
+    existing = session.scalar(
+        select(ReplySettlementRow).where(ReplySettlementRow.reply_id == reply_id)
+    )
+    if existing is not None and existing.state != "pending":
+        raise chain_refused(
+            ChainRefusal.SETTLEMENT_ALREADY_DECIDED,
+            f"the reply {reply_id!r} was judged on {existing.decided_at} by "
+            f"{existing.decided_by!r} and stands at {existing.state!r}. A judgement "
+            "is a fact, and a second judgement over the same reply is a revision of "
+            "a fact, which the store does not hold.",
+        )
+    if existing is not None and settlement_id != existing.settlement_id:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the reply {reply_id!r} has a settlement on the record as "
+            f"{existing.settlement_id!r}. Judging it completes that settlement; it "
+            "does not rename it.",
+        )
+    if state == "pending":
+        if decided_by == "model" and grade != "inferred":
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is put forward by a model and "
+                "graded "
+                f"{grade!r}. A model's candidate is a proposal, and a proposal is "
+                "graded 'inferred'; a settlement graded otherwise was not put "
+                "forward by a model.",
+            )
+        if decided_by == "user" and grade == "inferred":
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is put forward by a person and "
+                "graded 'inferred'. A person's proposal is 'observed'; 'inferred' "
+                "is the system's grade.",
+            )
+        if decided_at is not None or evidence_refs or claim_terms:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is pending and carries a "
+                "decision's trappings. A pending settlement is a question somebody "
+                "put forward: it has no moment, no evidence and no claim it has "
+                "checked, because nothing has been decided yet.",
+            )
+        if hold_reason is not None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is pending and carries a hold "
+                "reason. A hold is a judgement, and a pending settlement is not "
+                "one yet.",
+            )
+    else:
+        if decided_by == "model":
+            raise chain_refused(
+                ChainRefusal.SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL,
+                f"the settlement {settlement_id!r} is decided by a model. A model "
+                "may put a settlement forward -- that is a candidate, at grade "
+                "'inferred' -- but only a rule or a person settles whether an "
+                "author's answer settled a reviewer's point.",
+            )
+        if decided_by is None or decided_at is None or not evidence_refs:
+            raise chain_refused(
+                ChainRefusal.SETTLEMENT_NEEDS_EVIDENCE,
+                f"the settlement {settlement_id!r} is {state!r} and names no "
+                "decision, no moment and no evidence. A status anybody can set is "
+                "not a status: a settlement that is not pending must say who "
+                "decided it, when, and on what.",
+            )
+        if grade == "inferred":
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is decided by {decided_by!r} and "
+                "graded 'inferred'. A judgement the system inferred and a judgement "
+                "a person made are two different records, and one row cannot be "
+                "both.",
+            )
+    if anchor_status == "resolved":
+        if change_version_id is None or change_paragraph is None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} says the change is resolved and "
+                "names no place for it. An address is a value, never a guess: a "
+                "settlement that could not place the change says 'unknown', and one "
+                "that says 'resolved' names the version and the paragraph.",
+            )
+        assert change_paragraph is not None  # resolved was checked above
+        paragraphs = _verify_change_address(
+            context,
+            change_version_id=change_version_id,
+            change_paragraph=change_paragraph,
+        )
+    else:
+        if change_version_id is not None or change_paragraph is not None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} says the change could not be "
+                "placed and names a place for it anyway. The status and the address "
+                "agree in both directions, or the row does not hold.",
+            )
+        paragraphs = None
+    if state == "settled":
+        if not claim_terms or any(not term.strip() for term in claim_terms):
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the settlement {settlement_id!r} is settled and names no claim. "
+                "The whole point of settling is that what the answer claims can be "
+                "found in the manuscript's accepted text, and a settled settlement "
+                "that checked nothing has no check behind it.",
+            )
+        assert paragraphs is not None  # a settled settlement is resolved
+        missing = _claims_not_found(paragraphs, claim_terms)
+        if missing:
+            raise chain_refused(
+                ChainRefusal.CLAIM_NOT_IN_MANUSCRIPT,
+                f"the settlement {settlement_id!r} claims the manuscript holds "
+                f"{', '.join(repr(term) for term in claim_terms)}, and the "
+                f"manuscript's accepted text holds none of "
+                f"{', '.join(repr(term) for term in missing)}. An answer whose "
+                "claim the manuscript does not bear out is not settled by this "
+                "product: record it as held, and name what the hold is holding "
+                "for.",
+            )
+    if state == "held" and (hold_reason is None or not hold_reason.strip()):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the settlement {settlement_id!r} is held and names no reason. A hold "
+            "that says only 'held' is a hold nobody can lift: it names the claim "
+            "that could not be found, and what a later reader should look for.",
+        )
+    if existing is not None:
+        row = existing
+    else:
+        row = ReplySettlementRow(
+            settlement_id=settlement_id,
+            reply_id=reply_id,
+            created_at=now,
+        )
+        session.add(row)
+    row.state = state
+    row.grade = grade
+    row.decided_by = decided_by
+    row.decided_at = decided_at
+    row.evidence_refs = list(evidence_refs)
+    row.claim_terms = list(claim_terms)
+    row.change_version_id = change_version_id
+    row.change_paragraph = change_paragraph
+    row.anchor_status = anchor_status
+    row.feedback_id = feedback_id
+    row.hold_reason = hold_reason
+    session.commit()
+    return _settlement_from_row(row)
+
+
+def list_reply_settlements(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    version_id: str | None = None,
+) -> tuple[ReplySettlement, ...]:
+    """The settlements the chain holds about a project, or about one version.
+
+    **And the chain's own verdicts travel with them.** A settlement that
+    names a chain comment arrives carrying every state the chain holds
+    for that comment, because a disagreement between the mentor's
+    judgement and the settlement is shown as two sides -- **a product
+    that kept only the newer of the two would be deciding a disagreement
+    by recency, and that is a judgement the listing does not make.**
+
+    **Denied material is dropped, not refused.** A settlement's
+    visibility is the visibility of the reply it judges, and the reply's
+    is the visibility of the document it was read from: ADR-0003 C5 asks
+    a bulk listing to filter denied entries out of its results rather
+    than refusing the call.
+
+    :raises ApplicationRefusedError: the project is not there, or the
+        arguments are not usable.
+    """
+    session = context.store.session
+    if project_row(session, project_id) is None:
+        raise chain_refused(
+            ChainRefusal.PROJECT_NOT_FOUND,
+            f"the store holds no paper project with the id {project_id!r}.",
+        )
+    statement = (
+        select(ReplySettlementRow)
+        .join(ReplyRow, ReplySettlementRow.reply_id == ReplyRow.reply_id)
+        .where(ReplyRow.project_id == project_id)
+    )
+    if version_id is not None:
+        statement = statement.where(ReplyRow.version_id == version_id)
+    rows = tuple(session.scalars(statement.order_by(ReplySettlementRow.settlement_id)))
+    if not rows:
+        return ()
+    materials: dict[str, CanonicalPath | None] = {}
+    for row in rows:
+        reply = session.get(ReplyRow, row.reply_id)
+        assert reply is not None  # the settlement's reply_id is on the record
+        if reply.version_id not in materials:
+            materials[reply.version_id] = _material_or_none(context, reply.version_id)
+    present = tuple(resource for resource in materials.values() if resource is not None)
+    permitted = consent.evaluate_each(
+        context,
+        capability=CapabilityId.SOURCE_INVENTORY,
+        arguments={},
+        resources=present,
+    )
+    allowed = {resource.resolved_key for resource in permitted}
+    kept = []
+    for row in rows:
+        reply = session.get(ReplyRow, row.reply_id)
+        assert reply is not None  # the settlement's reply_id is on the record
+        resource = materials[reply.version_id]
+        if resource is not None and resource.resolved_key in allowed:
+            kept.append(row)
+    feedback_ids = {row.feedback_id for row in kept if row.feedback_id is not None}
+    chain: dict[str, list[str]] = {}
+    if feedback_ids:
+        for link in session.scalars(
+            select(ResponseLinkRow)
+            .where(ResponseLinkRow.feedback_id.in_(feedback_ids))
+            .order_by(ResponseLinkRow.response_link_id)
+        ):
+            chain.setdefault(link.feedback_id, []).append(link.state)
+    return tuple(
+        _settlement_from_row(
+            row,
+            chain_states=(tuple(chain[row.feedback_id]) if row.feedback_id is not None else ()),
+        )
+        for row in kept
+    )
+
+
+def list_unsettled_replies(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    version_id: str | None = None,
+) -> tuple[UnsettledReply, ...]:
+    """The replies whose points are not settled, and why each is listed.
+
+    **An answer that was never judged does not make the point answered.**
+    A reply the store holds no settlement for is listed as ``unjudged``,
+    and a reply whose settlement is pending is listed as ``pending`` --
+    the answer's words are on the record, and the question is still open.
+    A hold and a judgement that went the other way are listed for the
+    state they are in. **Only a settled settlement keeps a reply off this
+    listing.**
+
+    :raises ApplicationRefusedError: the project is not there, or the
+        arguments are not usable.
+    """
+    session = context.store.session
+    if project_row(session, project_id) is None:
+        raise chain_refused(
+            ChainRefusal.PROJECT_NOT_FOUND,
+            f"the store holds no paper project with the id {project_id!r}.",
+        )
+    reply_statement = select(ReplyRow).where(ReplyRow.project_id == project_id)
+    if version_id is not None:
+        reply_statement = reply_statement.where(ReplyRow.version_id == version_id)
+    replies = tuple(
+        session.scalars(
+            reply_statement.order_by(
+                ReplyRow.version_id,
+                ReplyRow.objection_paragraph,
+                ReplyRow.answer_paragraph,
+            )
+        )
+    )
+    if not replies:
+        return ()
+    materials: dict[str, CanonicalPath | None] = {}
+    for reply in replies:
+        if reply.version_id not in materials:
+            materials[reply.version_id] = _material_or_none(context, reply.version_id)
+    present = tuple(resource for resource in materials.values() if resource is not None)
+    permitted = consent.evaluate_each(
+        context,
+        capability=CapabilityId.SOURCE_INVENTORY,
+        arguments={},
+        resources=present,
+    )
+    allowed = {resource.resolved_key for resource in permitted}
+    settlements = {row.reply_id: row for row in session.scalars(select(ReplySettlementRow))}
+    listed: list[UnsettledReply] = []
+    for reply in replies:
+        resource = materials[reply.version_id]
+        if resource is None or resource.resolved_key not in allowed:
+            continue
+        settlement = settlements.get(reply.reply_id)
+        if settlement is None:
+            listed.append(UnsettledReply(reply=_reply_from_row(reply), reason="unjudged"))
+            continue
+        if settlement.state in ("held", "unresolved", "pending"):
+            listed.append(UnsettledReply(reply=_reply_from_row(reply), reason=settlement.state))
+    return tuple(listed)
+
+
 __all__ = [
+    "ANCHOR_STATUSES",
     "MAX_MANUSCRIPT_BYTES",
     "PAIRING_GRADES",
     "REPLY_PARTIES",
+    "SETTLEMENT_DECIDERS",
+    "SETTLEMENT_GRADES",
+    "SETTLEMENT_PROPOSERS",
+    "SETTLEMENT_STATES",
+    "UNSETTLED_REASONS",
     "Reply",
     "ReplyExchange",
+    "ReplySettlement",
+    "UnsettledReply",
     "list_replies",
+    "list_reply_settlements",
+    "list_unsettled_replies",
     "record_replies",
+    "settle_reply",
 ]
