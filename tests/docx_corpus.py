@@ -1,6 +1,6 @@
 """The synthetic DOCX corpus: one fixture per case the parser must handle.
 
-Twenty-nine fixtures, each isolating one behaviour of a revision-aware
+Thirty fixtures, each isolating one behaviour of a revision-aware
 reader. The corpus is organised by what the fixture is *for*, and each
 fixture's ``purpose`` says so in one line, because a corpus whose cases are
 named only by filename teaches nothing.
@@ -19,9 +19,13 @@ named only by filename teaches nothing.
    `KNOWN_GAPS` at the bottom, so the gap is a list and not a surprise.
 4. What the **owner's real material** turned out to hold — a comment whose
    range spans two paragraphs, which Word writes routinely and which this
-   corpus did not have. `29-comment-spanning-two-paragraphs` is that case,
-   and it is here because a real document found it, not because it was
-   thought of in advance.
+   corpus did not have (`29-comment-spanning-two-paragraphs` is that
+   case), and a revision inside a drawing's text box, whose first reader
+   reported twice (`30-revision-in-drawing-textbox` is that one). Both are
+   here because a real document found them, not because they were thought
+   of in advance — and the second one exists so the corpus-wide witnesses
+   hold data that carries the shape, not only the one test that built it
+   by hand.
 
 **How a fixture is anchored.** A revision names the text it affects by
 *what that text means*, not by a character offset:
@@ -45,6 +49,75 @@ writer's internals.
 from __future__ import annotations
 
 from docx_fixtures import Comment, Fixture, Revision
+
+#: The hand-written ``document.xml`` of the drawing-text-box fixture.
+#:
+#: The shape is the one real material holds and the paragraph assembler
+#: cannot reach: paragraph 1's run carries Word's routine
+#: ``mc:AlternateContent``, whose ``Choice`` holds the modern drawing and
+#: whose ``Fallback`` holds the VML copy — and each branch wraps a text box
+#: whose ``w:txbxContent`` holds a paragraph of its own, carrying its own
+#: ``w:ins`` revisions. Every declaration the gold derives from
+#: (:attr:`Fixture.paragraphs`, the five :class:`Revision` entries) is
+#: written against this XML, and the corpus's own tests check the written
+#: bytes against them: the override changes where the elements sit, never
+#: what the gold says.
+_DRAWING_DOCUMENT_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document'
+    ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
+    ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+    ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    ' xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"'
+    ' xmlns:v="urn:schemas-microsoft-com:vml">'
+    "<w:body>"
+    # Paragraph 0: a plain baseline paragraph, untouched by the figure.
+    '<w:p><w:r><w:t xml:space="preserve">'
+    "A plain sentence stands on its own."
+    "</w:t></w:r></w:p>"
+    # Paragraph 1: the baseline run, then the insertion whose run carries
+    # the figure. The figure's two branches each hold a text box of one
+    # paragraph carrying two insertions.
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">'
+    "The body sentence carries a figure beside it."
+    "</w:t></w:r>"
+    '<w:ins w:id="101" w:author="Prof. Lin" w:date="2026-03-02T09:45:00Z">'
+    "<w:r>"
+    "<mc:AlternateContent>"
+    '<mc:Choice Requires="wps">'
+    "<w:drawing><wp:anchor><a:graphic><a:graphicData>"
+    "<wps:wsp><wps:txbx><w:txbxContent>"
+    "<w:p>"
+    '<w:ins w:id="102" w:author="Prof. Lin" w:date="2026-03-02T09:45:00Z">'
+    '<w:r><w:t xml:space="preserve">caption choice one</w:t></w:r>'
+    "</w:ins>"
+    '<w:ins w:id="103" w:author="Prof. Lin" w:date="2026-03-02T09:45:00Z">'
+    '<w:r><w:t xml:space="preserve">caption choice two</w:t></w:r>'
+    "</w:ins>"
+    "</w:p>"
+    "</w:txbxContent></wps:txbx></wps:wsp>"
+    "</a:graphicData></a:graphic></wp:anchor></w:drawing>"
+    "</mc:Choice>"
+    "<mc:Fallback>"
+    "<w:pict><v:shape><v:textbox><w:txbxContent>"
+    "<w:p>"
+    '<w:ins w:id="104" w:author="Prof. Lin" w:date="2026-03-02T09:45:00Z">'
+    '<w:r><w:t xml:space="preserve">caption fallback one</w:t></w:r>'
+    "</w:ins>"
+    '<w:ins w:id="105" w:author="Prof. Lin" w:date="2026-03-02T09:45:00Z">'
+    '<w:r><w:t xml:space="preserve">caption fallback two</w:t></w:r>'
+    "</w:ins>"
+    "</w:p>"
+    "</w:txbxContent></v:textbox></v:shape></w:pict>"
+    "</mc:Fallback>"
+    "</mc:AlternateContent>"
+    "</w:r>"
+    "</w:ins>"
+    "</w:p>"
+    "</w:body></w:document>"
+)
 
 #: The corpus.
 #:
@@ -880,6 +953,89 @@ FIXTURES: list[Fixture] = [
             "It is NOT reported as a resolved range: the end offset belongs to the "
             "other paragraph, and an address that names no text is not a text.",
         ),
+    ),
+    # -- 9. the second case the real material found ------------------------- #
+    Fixture(
+        name="30-revision-in-drawing-textbox",
+        paragraphs=(
+            "A plain sentence stands on its own.",
+            "The body sentence carries a figure beside it.",
+            "",
+            "",
+        ),
+        revisions=(
+            Revision(
+                kind="ins",
+                # The text the outer element contributes in the accepted
+                # view: both text boxes' revisions, in document order, with
+                # nothing between them -- the Choice box first, then the
+                # Fallback one. That is what "the text of this element"
+                # means when the element carries a figure, and the corpus's
+                # own test checks the written XML against exactly it.
+                text=(
+                    "caption choice one"
+                    "caption choice two"
+                    "caption fallback one"
+                    "caption fallback two"
+                ),
+                author="Prof. Lin",
+                date="2026-03-02T09:45:00Z",
+                element_id="101",
+                paragraph=1,
+                after_text="carries a figure",
+            ),
+            Revision(
+                kind="ins",
+                text="caption choice one",
+                author="Prof. Lin",
+                date="2026-03-02T09:45:00Z",
+                element_id="102",
+                paragraph=2,
+            ),
+            Revision(
+                kind="ins",
+                text="caption choice two",
+                author="Prof. Lin",
+                date="2026-03-02T09:45:00Z",
+                element_id="103",
+                paragraph=2,
+            ),
+            Revision(
+                kind="ins",
+                text="caption fallback one",
+                author="Prof. Lin",
+                date="2026-03-02T09:45:00Z",
+                element_id="104",
+                paragraph=3,
+            ),
+            Revision(
+                kind="ins",
+                text="caption fallback two",
+                author="Prof. Lin",
+                date="2026-03-02T09:45:00Z",
+                element_id="105",
+                paragraph=3,
+            ),
+        ),
+        purpose=(
+            "A revision inside a drawing's text box: the run carries Word's "
+            "mc:AlternateContent, whose Choice and Fallback each wrap a text "
+            "box of paragraphs, and the boxes' revisions are reported once by "
+            "their own paragraphs and a second time by the outer paragraph's "
+            "walk unless the walk stops at a nested paragraph. Real material "
+            "holds this shape, and the first reader reported four of its "
+            "revisions twice."
+        ),
+        expectations=(
+            "Five revision events: the outer insertion, and two in each of "
+            "the two text boxes.",
+            "No two events share an element path.",
+            "The text-box revisions are reported by their own paragraphs, "
+            "not nested under the outer one.",
+            "The two baseline paragraphs of the text boxes are empty: their "
+            "text is all inserted.",
+        ),
+        document_override=_DRAWING_DOCUMENT_XML,
     ),
 ]
 
