@@ -124,6 +124,19 @@ standard it bears on. A comment can bear on a rule and still carry a
 different label — the label is the advisor's problem, and the rule is
 the standard distilled from several such problems.
 
+**And a remark may bear on more than one standard, which is not a
+duplicate.** The two `research_question_and_motivation` rules are
+different rules about the same paper — one about what the question is,
+one about what the necessity rests on — and a remark saying *the
+significance never lands* bears on both.
+
+**The comments are named by their file as well as their id**, because
+**the two advisors' copies number their comments independently**: `id=7`
+names two different remarks. A matcher that keys on the id alone finds
+the same comment twice and credits it to two rules — which it did, once,
+before the key was fixed. **The check that caught it is in the script
+and runs every time**: no remark is counted twice for the same rule.
+
 **The record is `E:\labcairn-local\pilot-ws\cross-confirmation-corpus1-corpus2.json`**
 — the library, because the rule statements and the comments are the
 owner's.
