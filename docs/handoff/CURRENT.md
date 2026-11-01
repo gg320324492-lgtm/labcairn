@@ -1,5 +1,38 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-02 · **the reader reports one change once, the
+peer-review loop has its judgement half, and the P1 baseline is frozen.**
+
+**The reader's double-read is fixed, and the corpus carries the shape.**
+A paragraph whose run carries a drawing — Word's `mc:AlternateContent`,
+a `Choice` and a `Fallback` each wrapping a text box — had its inner
+revisions reported a second time by the outer paragraph's walk: 243
+events where the file holds 239 addresses. The walk now reports a
+revision only from the nearest containing paragraph, and the corpus
+carries the shape as fixture 30, so the corpus-wide witnesses catch the
+defect by construction. **Verified on the real file both ways**: 243
+before, 239 after, 239 real addresses; the pilot's chain was checked
+unpolluted (the writer's idempotent insert had absorbed the duplicates).
+
+**The peer-review loop has its judgement half.** The reply (a record of
+what was said) had no judgement over it; `reply_settlements` (migration
+0020) and `settle_reply` add one. A response whose claimed experiment
+the manuscript does not contain is refused or held **by name**; an
+unjudged reply stays unsettled; the change is placed or the settlement
+says it could not be; and a disagreement between the chain's judgement
+and a settlement is shown as **two sides**, not resolved by recency. **A
+model may put a settlement forward and may not decide one.**
+
+**And the P1 baseline is frozen.** The phase's exit gate had no
+denominator; it has one now — `docs/acceptance/LC-P2-00-baseline.json`,
+measured on `81babd5` offline, five gate classes, four measured metrics,
+the real-provider smoke honestly NOT RUN, and `model: ""` rather than an
+invented name. **A run on this tree compares on all six conditions**, a
+doctored run and a doctored baseline are each refused, and the record
+says what the numbers do not establish.
+
+---
+
 **Date:** 2026-11-01 · **the chain's two middle rings are filled on the
 owner's own workspace, and the memory serves one rule where it served
 none.**

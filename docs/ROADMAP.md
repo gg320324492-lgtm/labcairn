@@ -102,10 +102,22 @@ threshold did not move** — a rule is served on a source a judgement says
 was answered — and **the chain's judgement is a fact**: a second judgement
 on the same correspondence does not undo the first, and a wrong judgement is
 corrected **on the rule**. **What is left** is in the merged ticket: the
-frozen P1 baseline the exit gate needs and does not have, the blind
-evaluation that is written and not run, the peer-review loop's judgement
-half, citation identity, retrieval quality beyond three papers, and the
-competitor comparison whose precondition has now been met.
+blind
+evaluation that is written and not run, citation identity, retrieval
+quality beyond three papers, and the competitor comparison.
+
+**Where Line B stands (2026-11-02).** Everything the 2026-11-01 entry
+lists is merged, and three more pieces have landed: **the reader reports
+one tracked change once** (the drawing-text-box double-read, with the
+shape in the corpus so the witnesses catch it by construction), **the
+peer-review loop has its judgement half** (the settlement over a reply,
+LC-P2-13), and **the P1 baseline is frozen** — the exit gate's
+denominator exists, measured on `81babd5`, six conditions verified
+comparable end to end. **Of the merged ticket's six, two are done and
+four are left**: the blind evaluation (written, not run), citation
+identity, retrieval quality beyond three papers, and the competitor
+comparison, whose preconditions — the frozen baseline and the model-call
+path — are now both met.
 
 ## Phase 1 upstream research
 
