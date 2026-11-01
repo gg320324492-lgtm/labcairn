@@ -1,5 +1,60 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-01 · **Branch:** `claude/p2-16-mentor-line` — **the
+second body of material is read, and it is in the chain.**
+
+**The second corpus is in the product now, as a second project.** It is a
+**different paper** -- a composting study, not the drinking-water one --
+so it is `proj-pilot-2` with its own grant, and the first project's
+seventeen versions and forty-six comments are untouched. **Three versions,
+thirty-four comments**, and the chain tells three shapes apart: **28**
+placed on a passage, **5** the reader could not place in the body, and
+**1** placed on a point. **The second corpus's rules are not in the
+memory** -- the distillation's question is written down, the approval is
+asked for, and **nothing has been sent.**
+
+**Two defects the material forced are fixed, and both are the shape of the
+three commits before them: an address that claims more than it holds.**
+The reader paired a comment's start paragraph with the end marker's
+offset, and stored a range that cannot exist -- comment 192 of
+`v03-chinese-draft.docx` is paragraph 64, characters 0-134, in a paragraph
+whose baseline is ten characters long. **Four comments across the owner's
+three bodies of material hold this case, and the synthetic corpus held
+none of it**, so the witness that checked the anchored text against the
+offsets had never seen it; the corpus now holds one, and two witnesses
+watch it. And the chain's row already held an `anchor_status` and an
+`anchor_reason` that **the application layer dropped**, so a rule's scope
+built from an unplaced comment quoted `""` as though it were the advisor's
+words -- **and six of the pilot's eight confirmed rules carry a scope that
+quotes `""`.** The layer now carries the status and the reason, and the
+scope names every case it holds: the text the comment was written
+against, or the fact that the reader could not place it.
+
+**The reading was done by three independent sessions, and the number is
+lower than the first corpus's.** Two blind readers and an arbiter, none
+of them seeing another's work: **28 of 34 agreed, 0.8235**, against the
+first corpus's 0.9167. **Every disagreement is in one advisor's file**,
+and the two readers independently named the same three places where the
+annotation guide does not settle the question -- so **the lower number is
+a fact about the guide, not about the readings**, and the guide's
+unsettled places are named for the owner rather than patched. The arbiter
+followed one reader on each of the six, gave no third label and returned
+no `unknown`.
+
+**And the three advisors answer in three different ways, which is the
+answer to what the roles are.** The second corpus's marked-up copies are
+not three copies of one habit: one advisor changed the text in 349 places
+**and** wrote 25 comments; one changed it in 58 places and wrote **no**
+comment at all; one wrote 9 comments and changed **nothing**. **So a
+product that says it holds a "feedback chain" has to hold every form of
+it**, and a card about a word and a card about the whole paper are not
+the same card.
+
+**The record is `docs/acceptance/second-corpus-absorption.md`**, and it
+carries the counts, the two fixes, the five places the guide does not
+settle, and **the numbers re-measured against the store rather than
+carried forward**.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 real request went through, and the pilot's readers are three independent
 sessions.**
