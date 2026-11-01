@@ -120,6 +120,45 @@ def _without_author_or_date(manuscript: Path, comment_ids: tuple[str, ...]) -> P
     return manuscript
 
 
+def _with_a_point_anchor(manuscript: Path, comment_ids: tuple[str, ...]) -> Path:
+    """The manuscript with some comments' ranges closed where they open.
+
+    **A comment anchored on a point is a comment the reader placed.** Its
+    two range markers sit next to each other, so the range covers no text
+    and the reader reports an anchor that *resolved* to an empty text —
+    **a different fact from a comment it could not place at all**, and the
+    reader's own account of its three empty cases says so.
+
+    **And the manuscript's text does not change.** The paragraph's runs
+    stay where they were and only the two markers swap places, so the
+    baseline the reader cuts is the same text as before: what changed is
+    where the comment sits, not what the paper says.
+
+    **The file is replaced, not joined by a second copy**, for the reason
+    :func:`_without_author_or_date` gives.
+    """
+    with zipfile.ZipFile(manuscript, "r") as archive:
+        parts = [(info, archive.read(info.filename)) for info in archive.infolist()]
+    temporary = manuscript.with_name(f"{manuscript.stem}-point.docx")
+    with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+        for info, data in parts:
+            if info.filename == "word/document.xml":
+                text = data.decode("utf-8")
+                for comment_id in comment_ids:
+                    text = re.sub(
+                        rf'(<w:commentRangeStart w:id="{comment_id}"/>)'
+                        rf"(.*?)"
+                        rf'(<w:commentRangeEnd w:id="{comment_id}"/>)',
+                        r"\1\3\2",
+                        text,
+                        flags=re.DOTALL,
+                    )
+                data = text.encode("utf-8")
+            archive.writestr(info, data)
+    temporary.replace(manuscript)
+    return manuscript
+
+
 def build_chain(
     store: TaskStore,
     workspace_root: Path,
@@ -129,6 +168,7 @@ def build_chain(
     revisions: tuple[Revision, ...] = (),
     second_comments: tuple[Comment, ...] | None = None,
     bare_comment_ids: tuple[str, ...] = (),
+    point_comment_ids: tuple[str, ...] = (),
 ) -> ChainEnv:
     """A workspace, a task, a project, two versions and an edge.
 
@@ -138,6 +178,9 @@ def build_chain(
         what a test about a *first* round wants.
     :param bare_comment_ids: the comments whose author and date are
         removed from the file altogether.
+    :param point_comment_ids: the comments whose range is closed where it
+        opens, so the reader places them on a point and reports an anchor
+        that resolved to an empty text.
     """
     materials = workspace_root / "materials"
     materials.mkdir(parents=True, exist_ok=True)
@@ -164,6 +207,8 @@ def build_chain(
     second_manuscript.write_bytes(write_fixture(second, directory).read_bytes())
     if bare_comment_ids:
         manuscript = _without_author_or_date(manuscript, bare_comment_ids)
+    if point_comment_ids:
+        manuscript = _with_a_point_anchor(manuscript, point_comment_ids)
 
     created = create_task(
         store=store,
@@ -258,6 +303,7 @@ def a_comment(
     date: str = "2026-03-02T09:30:00Z",
     anchor_text: str = "the parameter",
     anchor: str = "both",
+    paragraph: int = 0,
 ) -> Comment:
     """One comment on the standard paragraph.
 
@@ -266,13 +312,16 @@ def a_comment(
     with no author has an unknown author, and never a guessed one. Pass
     ``author=""`` for the *empty* author, which is a different case from a
     missing one.
+
+    **The paragraph is a parameter too**, so a test may put two comments
+    on two paragraphs and get two different anchored texts.
     """
     return Comment(
         comment_id=comment_id,
         author=author,
         date=date,
         text=text,
-        paragraph=0,
+        paragraph=paragraph,
         anchor_text=anchor_text,
         anchor=anchor,
     )

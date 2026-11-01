@@ -15,6 +15,15 @@ A9  a rule whose scope the cases do not support is     the scope is the
     refused                                            cases', or there is
                                                        no rule
 =====================================================  =========================
+
+**And A9 has a second half.** The scope the cases give is the
+*applicability condition*, and it has to be **true**: a case whose
+comment the reader could not place in the body carries no anchored text
+at all, and a scope that quoted that empty string as the advisor's words
+would say the advisor wrote about nothing — which is not what happened.
+So the scope names every case it holds: the text the comment was written
+against, or the fact that the reader could not place it, with the reason
+the chain gives.
 """
 
 from __future__ import annotations
@@ -23,10 +32,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from feedback_chain_fixtures import a_comment, build_chain
+from docx_fixtures import Comment
+from feedback_chain_fixtures import PARAGRAPH, a_comment, build_chain
 from test_store_support import StoreEnv
 from test_store_support import env as _shared_env
 
+from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.db.models import GuidanceRuleRow
@@ -45,6 +56,13 @@ MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
 LATER = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
 
 KEY = "iss-gold-a-r1"
+#: The key of a case whose comment the reader could not place in the body.
+KEY_UNPLACED = "iss-gold-b-r1"
+#: The key of a case whose comment the reader placed on a point, so the
+#: anchor resolved to an empty text.
+KEY_POINT = "iss-gold-c-r1"
+#: The second paragraph of the two-paragraph manuscript.
+SECOND_PARAGRAPH = "The comparison group is not named."
 
 STATEMENT = (
     "When the claim rests on a comparison, the advisor asks for the baseline"
@@ -97,6 +115,49 @@ def _distil(context: ApplicationContext, **overrides: object) -> GuidanceRule:
     }
     kwargs.update(overrides)
     return distil_candidate(context, **kwargs)  # type: ignore[arg-type]
+
+
+def _chain_keyed(
+    env: StoreEnv,
+    workspace_root: Path,
+    comments: tuple[Comment, ...],
+    keys: tuple[str, ...],
+    *,
+    paragraphs: tuple[str, ...] = (PARAGRAPH,),
+    point_comment_ids: tuple[str, ...] = (),
+) -> ApplicationContext:
+    """A chain whose comments are recorded and filed under the keys given.
+
+    **The keys are in the order the reader found the comments**, so a test
+    may say which case is filed where without reading the file.
+    """
+    workspace_root.mkdir(parents=True)
+    store = env.store()
+    chain = build_chain(
+        store,
+        workspace_root,
+        comments=comments,
+        paragraphs=paragraphs,
+        point_comment_ids=point_comment_ids,
+    )
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )
+    for key, event in zip(keys, events, strict=True):
+        set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=key, now=MOMENT)
+    return chain.context
+
+
+def _quoted_texts(scope: str) -> tuple[str, ...]:
+    """The texts a scope quotes, as the scope spells them.
+
+    **Read out of the scope itself**, so a witness cannot pass by agreeing
+    with the code that built it: the scope is the only thing inspected.
+    """
+    return tuple(part for part in scope.split('"')[1::2])
 
 
 def test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it(
@@ -177,3 +238,181 @@ def test_a_rule_with_an_unsupported_scope_is_refused(
     ), "the scope is the case's anchored text, assembled, not a caller's words"
     assert distilled.example.startswith("The advisor's comment (iss-gold-a-r1):")
     assert "Define the parameter." in distilled.example
+
+
+# --------------------------------------------------------------------------- #
+# the scope tells the truth about every case it names
+# --------------------------------------------------------------------------- #
+
+
+def test_a_case_the_reader_could_not_place_is_named_as_unplaced_and_never_quoted(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A case with no anchored text is named as unplaced, and never as ``""``.
+
+    **The empty string is not the advisor's words.** A comment the reader
+    could not place in the body carries no anchored text, and a scope
+    that quoted that empty string as though it were a quotation of the
+    manuscript would say the advisor wrote about nothing — which is not
+    what happened: the reader could not find where the remark sits.
+
+    **So the scope says what happened**, and it says it with the reason
+    the chain gives: the reader's own account of why the anchor is
+    unknown, carried through rather than re-guessed here.
+
+    **What breaks it:** a scope that quotes the empty string, or one that
+    drops the case and names only the texts it can quote.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(a_comment("201"), a_comment("202", anchor="none")),
+        keys=(KEY, KEY_UNPLACED),
+    )
+
+    distilled = _distil(context, issue_keys=(KEY, KEY_UNPLACED))
+
+    assert '""' not in distilled.scope, (
+        f"the empty string was quoted as though it were the advisor's words: {distilled.scope!r}"
+    )
+    assert "could not place" in distilled.scope, (
+        f"the scope does not say the comment was not placed: {distilled.scope!r}"
+    )
+    assert "the comment carries no range markers" in distilled.scope, (
+        f"the scope does not name the reason the chain gives: {distilled.scope!r}"
+    )
+    assert f"the comment under {KEY_UNPLACED!r}" in distilled.scope, (
+        f"the scope does not name the case it could not place: {distilled.scope!r}"
+    )
+    assert f'"{PARAGRAPH}"' in distilled.scope, (
+        f"the scope dropped the case it could quote: {distilled.scope!r}"
+    )
+
+
+def test_a_scope_of_cases_that_all_have_anchored_text_is_the_shape_it_was(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """Every case names a text, and the scope reads as it always has.
+
+    **The shape is unchanged**: the same lead, the same quoted texts, the
+    same separator. A fix that made the scope say more about the cases it
+    could quote would be a fix that changed every rule the product has
+    ever written, and the change here is only about the cases it could
+    not quote.
+
+    **What breaks it:** a lead of its own for the ordinary case, or a
+    separator that is not the one the scope has always used.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(a_comment("201"), a_comment("202", paragraph=1, anchor_text="comparison group")),
+        keys=(KEY, "iss-gold-a-r2"),
+        paragraphs=(PARAGRAPH, SECOND_PARAGRAPH),
+    )
+
+    distilled = _distil(context, issue_keys=(KEY, "iss-gold-a-r2"))
+
+    assert distilled.scope == (
+        'Cases whose anchored text reads: "The comparison group is not named."; '
+        '"The method estimates the parameter from a single observation."'
+    ), "the scope of cases that all name a text reads as it always has"
+
+
+def test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_placed(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """Two facts, and the scope keeps them apart.
+
+    **These are different facts.** A comment anchored on a point *is*
+    placed — the reader found where it sits — and the text it covers is
+    empty; a comment the reader could not place is not placed at all.
+    **Both carry an empty anchored text**, so the text alone cannot tell
+    them apart, and a scope that gave them the same words would be wrong
+    about one of them.
+
+    **So the scope says which is which**: *"resolved to an empty text"*
+    for the one the reader placed, and *"could not place"* for the one it
+    did not. **And neither is quoted as the empty string.**
+
+    **What breaks it:** a scope that treats a resolved-but-empty anchor as
+    an unplaced one (or the other way round), and a scope that quotes
+    the empty string for either.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(a_comment("301"), a_comment("302", anchor="none")),
+        keys=(KEY_POINT, KEY_UNPLACED),
+        point_comment_ids=("301",),
+    )
+
+    point_scope = _distil(context, issue_keys=(KEY_POINT,), now=MOMENT).scope
+    unplaced_scope = _distil(context, issue_keys=(KEY_UNPLACED,), now=LATER).scope
+
+    assert '""' not in point_scope, (
+        f"the empty string was quoted as the advisor's words: {point_scope!r}"
+    )
+    assert "resolved to an empty text" in point_scope, (
+        f"the scope does not say the anchor resolved to nothing: {point_scope!r}"
+    )
+    assert "could not place" not in point_scope, (
+        f"a case the reader placed was called unplaced: {point_scope!r}"
+    )
+
+    assert '""' not in unplaced_scope, (
+        f"the empty string was quoted as the advisor's words: {unplaced_scope!r}"
+    )
+    assert "could not place" in unplaced_scope, (
+        f"the scope does not say the comment was not placed: {unplaced_scope!r}"
+    )
+    assert "resolved to an empty text" not in unplaced_scope, (
+        f"a case the reader could not place was called resolved: {unplaced_scope!r}"
+    )
+
+    assert point_scope != unplaced_scope, (
+        "the two facts were given the same words, and they are not the same fact"
+    )
+
+
+def test_the_scope_names_every_case_it_claims_and_the_sources_agree(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """Every case under the rule's sources is named in the scope.
+
+    **The scope and the sources are two halves of one statement**, and
+    they have to agree: a scope that named a case the rule does not
+    source would claim a case the rule never learned from, and a scope
+    that dropped one would lose a case the rule does.
+
+    **Both directions are checked.** Every case under every source is
+    accounted for — by the text it was written against, or by being named
+    as a case the reader could not place — and every text the scope
+    quotes belongs to one of those cases.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(a_comment("401"), a_comment("402", anchor="none")),
+        keys=(KEY, KEY_UNPLACED),
+    )
+
+    distilled = _distil(context, issue_keys=(KEY, KEY_UNPLACED))
+
+    assert distilled.sources == (KEY, KEY_UNPLACED), "the rule sources both cases"
+    cases = chain_layer.read_comments(context, issue_keys=distilled.sources)
+    assert len(cases) == 2, "the chain holds the two cases the rule named"
+
+    for case in cases:
+        if case.anchor_status == "resolved" and case.anchor_text:
+            assert f'"{case.anchor_text}"' in distilled.scope, (
+                f"the scope dropped the case {case.issue_key!r}: {distilled.scope!r}"
+            )
+        else:
+            assert f"the comment under {case.issue_key!r}" in distilled.scope, (
+                f"the scope dropped the case {case.issue_key!r}: {distilled.scope!r}"
+            )
+
+    assert set(_quoted_texts(distilled.scope)) == {
+        case.anchor_text for case in cases if case.anchor_text
+    }, f"the scope quotes a text no case holds: {distilled.scope!r}"
