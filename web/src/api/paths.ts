@@ -47,6 +47,8 @@ export const API_PATHS = {
   trajectory: '/trajectory',
   /** A paper project's versions and the accepted edges between them. */
   trajectoryGraph: '/trajectory/graph',
+  /** The issue keys a paper project's chain holds: what there is to look at. */
+  issueKeys: '/trajectory/issue-keys',
 } as const
 
 /**
@@ -127,6 +129,19 @@ export function trajectoryGraphPath(projectId: string, versionIds: readonly stri
     ...versionIds.map((versionId) => `version_id=${encodeURIComponent(versionId)}`),
   ].join('&')
   return `${API_PATHS.trajectoryGraph}?${query}`
+}
+
+/**
+ * The chain's issue keys for a project: **what there is to look at**.
+ *
+ * **The project is named as a query parameter**, the way the graph's is —
+ * the route answers about a project, and the project id is the caller's to
+ * name. The keys are the chain's own, and they are names: the answer
+ * carries no comment's words, so a panel that draws this draws names and
+ * nothing else.
+ */
+export function issueKeysPath(projectId: string): string {
+  return `${API_PATHS.issueKeys}?project_id=${encodeURIComponent(projectId)}`
 }
 
 /**

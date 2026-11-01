@@ -56,14 +56,136 @@ async function nameTheIssue(issue = ISSUE_KEY, project = PROJECT_ID): Promise<vo
   fireEvent.click(screen.getByRole('button', { name: 'Draw the trajectory' }))
 }
 
-describe('the panel that cannot list what there is to look at', () => {
-  it('says so, because a gap that is written down is a decision', async () => {
+/** Name a project, and ask for the issue keys it holds. */
+async function nameTheProject(project = PROJECT_ID): Promise<void> {
+  const projectField = await screen.findByLabelText('Project id')
+  fireEvent.change(projectField, { target: { value: project } })
+  fireEvent.click(screen.getByRole('button', { name: 'List the issues' }))
+}
+
+/** The text of the issues panel. */
+async function issuesPanelText(): Promise<string> {
+  const heading = await screen.findByRole('heading', { name: 'Issues' })
+  const panel = heading.closest('section')
+  return panel?.textContent ?? ''
+}
+
+/**
+ * The key names the issues panel drew, in the order it drew them.
+ *
+ * **The names are what the panel drew, so the names are what is checked.**
+ * A panel that added a key of its own would add a name here, and the list
+ * would no longer be the one the contract produced.
+ */
+async function drawnKeyNames(): Promise<string[]> {
+  const heading = await screen.findByRole('heading', { name: 'Issues' })
+  const panel = heading.closest('section')
+  return Array.from(panel?.querySelectorAll('span.record__name') ?? []).map(
+    (span) => span.textContent ?? '',
+  )
+}
+
+describe('the issues it lists', () => {
+  it('asks the service for the chain’s issue keys, because a panel that cannot list what there is to look at has no way in', async () => {
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+
+    await waitFor(() => {
+      expect(fake.requestsTo(`/trajectory/issue-keys?project_id=${PROJECT_ID}`)).toHaveLength(1)
+    })
+  })
+
+  it('asks for nothing until a project is named', async () => {
     render(<TrajectoryView cycle={0} />)
 
-    // The service has no outlet that lists the chain's issue keys, so the
-    // panel can only draw an issue the caller names. A reader who found the
-    // omission and no note about it would assume it had been forgotten.
-    expect(await screen.findByText(/no outlet that lists the chain/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/No project has been named, so no issue key is listed/),
+    ).toBeInTheDocument()
+    expect(
+      fake.requests.filter((request) => request.url.includes('/trajectory/issue-keys')),
+    ).toHaveLength(0)
+  })
+
+  it('draws the key the answer carried, and calls it a key', async () => {
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+
+    const key = await screen.findByText(ISSUE_KEY)
+    expect(drawn(rowOf(key))).toEqual([ISSUE_KEY, 'issue key'])
+  })
+
+  it('draws the keys the answer carried, and none it did not', async () => {
+    // The panel keeps no list of its own: it draws what the contract
+    // carried, and a key it invented would be a second spelling of the
+    // chain that a reader would believe.
+    fake.state.issueKeys = { project_id: PROJECT_ID, issue_keys: ['issue-only-one'] }
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+
+    await screen.findByText('issue-only-one')
+    expect(screen.queryByText(ISSUE_KEY)).not.toBeInTheDocument()
+    expect(await drawnKeyNames()).toEqual(['issue-only-one'])
+  })
+
+  it('draws the order the service answered in, and no order of its own', async () => {
+    // The contract carries an order for the keys — the service keeps it
+    // stable — so the panel draws the order it was given. A panel that
+    // sorted the list itself would be keeping a second rule about order,
+    // and the reader would be looking at the panel's rule and not the
+    // service's.
+    fake.state.issueKeys = { project_id: PROJECT_ID, issue_keys: ['zzz-last', 'aaa-first'] }
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+
+    await screen.findByText('zzz-last')
+    expect(await drawnKeyNames()).toEqual(['zzz-last', 'aaa-first'])
+  })
+
+  it('says where the order came from, because the chain carries none', async () => {
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+    await screen.findByText(ISSUE_KEY)
+
+    expect(await issuesPanelText()).toMatch(/order is the service/i)
+  })
+
+  it('draws no comment’s words, because the contract carries none', async () => {
+    // A key says which problem, not what the advisor wrote. The contract's
+    // body carries the keys and the project and nothing else, so a panel
+    // that drew a comment's words here would be drawing a second spelling
+    // of the chain — **and the words are on the screen, in the other
+    // panel**, so the temptation is real.
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+    await nameTheIssue()
+    await screen.findByText('Name the method before its result.')
+    await screen.findByText(ISSUE_KEY)
+
+    expect(await issuesPanelText()).not.toContain('Name the method before its result.')
+  })
+
+  it('draws the way into an issue, and the way in draws it', async () => {
+    render(<TrajectoryView cycle={0} />)
+    await nameTheProject()
+
+    const key = await screen.findByText(ISSUE_KEY)
+    const button = within(rowOf(key)).getByRole('button', { name: 'Draw this issue' })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(fake.requestsTo(`/trajectory?issue_key=${ISSUE_KEY}`)).toHaveLength(1)
+    })
+  })
+})
+
+describe('the panel it asks', () => {
+  it('says the issue keys are listed, because the gap is closed', async () => {
+    render(<TrajectoryView cycle={0} />)
+
+    // The service serves the chain's issue keys now, so the panel says
+    // where they are rather than claiming it cannot list them. A reader
+    // who found a claim that is no longer true would believe the panel.
+    expect(await screen.findByText(/issue keys are listed above/i)).toBeInTheDocument()
   })
 
   it('says that the chain carries no time, because a reader would ask', async () => {
@@ -71,8 +193,15 @@ describe('the panel that cannot list what there is to look at', () => {
 
     // The chain's rows carry no timestamp and no sequence, so the panel
     // shows none. A reader who found a comment with no date and no note
-    // about it would assume the panel had dropped one.
-    expect(await screen.findByText(/carry no time and no sequence/)).toBeInTheDocument()
+    // about it would assume the panel had dropped one. **The note is the
+    // trajectory panel's**, and it is found there: the issues panel says
+    // the same thing about the list, and a reader of the screen must be
+    // able to tell the two panels apart.
+    const heading = await screen.findByRole('heading', { name: 'Trajectory' })
+    const panel = heading.closest('section')
+    expect(
+      await within(panel as HTMLElement).findByText(/carry no time and no sequence/),
+    ).toBeInTheDocument()
   })
 
   it('asks for nothing until an issue is named', async () => {

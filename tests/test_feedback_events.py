@@ -57,7 +57,7 @@ from labcairn.application.refusal import (
     ApplicationRefusedError,
     chain_refusal_name,
 )
-from labcairn.db.models import FeedbackEventRow
+from labcairn.db.models import FeedbackEventRow, PaperProjectRow, PaperVersionRow
 from labcairn.material.ooxml import read_document
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.feedback import (
@@ -488,6 +488,264 @@ def test_the_listing_holds_the_comments_the_chain_found(chain: ChainEnv) -> None
 
     assert len(listed) == 1
     assert listed[0].feedback_id == recorded[0].feedback_id
+
+
+# --------------------------------------------------------------------------- #
+# the layer's own issue-key listing
+# --------------------------------------------------------------------------- #
+
+
+def _a_chain_with_comments(env: StoreEnv, tmp_path: Path) -> ChainEnv:
+    """A chain with three comments in the first round and one in the second.
+
+    **Three and one, so that the versions can be told apart.** A listing
+    that narrows to the versions named is a different answer from one that
+    does not, and a test that has only one version cannot tell them apart.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    return build_chain(
+        env.store(),
+        workspace,
+        comments=(
+            a_comment("201", text="Define the parameter."),
+            a_comment("202", text="Name the core."),
+            a_comment("203", text="Give the units."),
+        ),
+        second_comments=(a_comment("204", text="Report the depth."),),
+    )
+
+
+def _the_comments(chain: ChainEnv, version_id: str) -> dict[str, str]:
+    """The comments of one version, by their words, with their ids.
+
+    **Read out of the manuscript by the reader**, so the rows are rows the
+    product wrote — and keyed afterwards, because a key is given rather
+    than derived.
+    """
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=version_id,
+        now=MOMENT,
+    )
+    return {event.comment_text: event.feedback_id for event in events}
+
+
+def test_the_layer_lists_the_chain_s_own_issue_keys(env: StoreEnv, tmp_path: Path) -> None:
+    """The listing is the chain's own keys, sorted, and it carries no words.
+
+    **The keys are given out of order on purpose**, so a listing that came
+    back in the order the rows were written would not pass. **The chain's
+    rows carry no time and no sequence**, so there is no chronology to read
+    an order out of: an order taken from the rows would be the storage
+    engine's and not the chain's, and the same chain would then be two
+    listings. **Sorting is an order of the names themselves**, so the same
+    set of keys answers the same list however the rows came back.
+
+    **And the comment nobody keyed is not in it.** A key is a person's
+    judgement and it is given; a comment with no key is uncategorised, and
+    the listing does not turn it into an issue.
+
+    **And the list carries names, not the advisor's words.** The words are
+    in the chain, and they are not here: *a key says which problem, not
+    what the advisor wrote*.
+    """
+    chain = _a_chain_with_comments(env, tmp_path)
+    first = _the_comments(chain, chain.version_id)
+    _the_comments(chain, chain.second_version_id)
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Define the parameter."],
+        issue_key="iss-b",
+        now=MOMENT,
+    )
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Name the core."],
+        issue_key="iss-a",
+        now=MOMENT,
+    )
+
+    keys = chain_layer.read_issue_keys(chain.context, project_id=chain.project_id)
+
+    assert keys == ("iss-a", "iss-b"), (
+        f"the listing is the chain's own keys and it is sorted, and it is {keys!r}"
+    )
+    assert "Give the units." not in keys, (
+        "a comment nobody keyed is uncategorised, and the listing does not key it"
+    )
+    assert "Define the parameter." not in keys, (
+        "the listing carries names, and the advisor's words are not names the chain gave"
+    )
+
+
+def _another_project_with_a_key(chain: ChainEnv, *, issue_key: str) -> None:
+    """A second project, with a comment of its own under a key of its own.
+
+    **The rows are written directly**, the way the scaffolding writes the
+    version graph: the chain's rows are the product's own, and a second
+    project is not something the product can be asked to write here.
+    """
+    session = chain.context.store.session
+    session.add(
+        PaperProjectRow(
+            project_id="proj-2",
+            workspace_id="ws-1",
+            subject_pseudonym="subject-2",
+            consent_ref=None,
+            created_at=MOMENT,
+        )
+    )
+    session.add(
+        PaperVersionRow(
+            version_id="ver-9",
+            project_id="proj-2",
+            source_id=chain.source_id,
+            source_content_sha256=None,
+            version_label_raw="manuscript.docx",
+            stage_candidate="advisor_reviewed",
+            status="resolved",
+            created_at=MOMENT,
+        )
+    )
+    session.commit()
+    _raw_insert(
+        session,
+        feedback_id="fb-other-project",
+        project_id="proj-2",
+        version_id="ver-9",
+        issue_key=issue_key,
+    )
+
+
+def test_the_layer_lists_this_project_s_keys_and_not_another_project_s(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The listing answers about the project it was asked for.
+
+    **Two projects, two chains, two sets of keys.** A listing that carried
+    another project's keys would answer a question nobody asked: a reader
+    would see an issue that belongs to a manuscript they are not looking at,
+    and would look for a trajectory under it that is not there.
+    """
+    chain = _a_chain_with_comments(env, tmp_path)
+    first = _the_comments(chain, chain.version_id)
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Define the parameter."],
+        issue_key="iss-mine",
+        now=MOMENT,
+    )
+    _another_project_with_a_key(chain, issue_key="iss-theirs")
+
+    keys = chain_layer.read_issue_keys(chain.context, project_id=chain.project_id)
+
+    assert keys == ("iss-mine",), (
+        f"the listing is the project's own keys and not another's, and it is {keys!r}"
+    )
+
+
+def test_the_layer_refuses_a_project_the_chain_does_not_hold(env: StoreEnv, tmp_path: Path) -> None:
+    """A project nobody holds is refused by name, not answered with an empty list.
+
+    **An empty list would say the project has no issues**, and that is a
+    different fact from *"there is no such project"*. A reader told the
+    first would believe the project exists and has nothing to say.
+    """
+    chain = _a_chain_with_comments(env, tmp_path)
+    first = _the_comments(chain, chain.version_id)
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Define the parameter."],
+        issue_key="iss-a",
+        now=MOMENT,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        chain_layer.read_issue_keys(chain.context, project_id="proj-nobody-holds")
+
+    assert caught.value.reason is ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND
+
+
+def test_the_layer_refuses_a_version_that_is_not_the_project_s(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A version outside the project is refused rather than ignored.
+
+    **Ignoring it would answer about a chain that is not this one.** A
+    version that is not the project's would widen the answer to a different
+    manuscript, and the caller who named it would not know that.
+
+    **And the project's own version is served**, so the refusal is about
+    the version that does not belong and not about the listing.
+    """
+    chain = _a_chain_with_comments(env, tmp_path)
+    first = _the_comments(chain, chain.version_id)
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Define the parameter."],
+        issue_key="iss-a",
+        now=MOMENT,
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        chain_layer.read_issue_keys(
+            chain.context,
+            project_id=chain.project_id,
+            version_ids=("ver-of-another-project",),
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_VERSION_NOT_FOUND
+
+    assert chain_layer.read_issue_keys(
+        chain.context,
+        project_id=chain.project_id,
+        version_ids=(chain.version_id,),
+    ) == ("iss-a",)
+
+
+def test_the_layer_narrows_the_listing_to_the_versions_named(env: StoreEnv, tmp_path: Path) -> None:
+    """The versions named narrow the answer, and naming none means the project.
+
+    **A key is a fact about a comment, and a comment belongs to a
+    version.** So the version a comment was written against decides whether
+    its key is in the answer — and a caller that asks about one round gets
+    that round's keys and not the other round's.
+
+    **And naming no version means the whole project**, which is the one
+    scope a caller reaches before it knows which versions it wants: a panel
+    that lists what there is to look at has the versions from the list, not
+    from a question it has not been asked yet.
+    """
+    chain = _a_chain_with_comments(env, tmp_path)
+    first = _the_comments(chain, chain.version_id)
+    second = _the_comments(chain, chain.second_version_id)
+    set_issue_key(
+        chain.context,
+        feedback_id=first["Define the parameter."],
+        issue_key="iss-first",
+        now=MOMENT,
+    )
+    set_issue_key(
+        chain.context,
+        feedback_id=second["Report the depth."],
+        issue_key="iss-second",
+        now=MOMENT,
+    )
+
+    whole = chain_layer.read_issue_keys(chain.context, project_id=chain.project_id)
+    assert whole == ("iss-first", "iss-second"), (
+        f"naming no version means the project's whole chain, and it is {whole!r}"
+    )
+
+    narrowed = chain_layer.read_issue_keys(
+        chain.context,
+        project_id=chain.project_id,
+        version_ids=(chain.version_id,),
+    )
+    assert narrowed == ("iss-first",), (
+        f"the version named decides whose keys are listed, and it is {narrowed!r}"
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -8,15 +8,21 @@
  * accepted is a proposal, and a proposal may not decide an order, so the
  * graph this panel draws is the one the accepted edges describe.
  *
- * **Three gaps, written down rather than discovered.**
+ * **Four things, written down rather than discovered.**
  *
- * ***The panel cannot list what there is to look at.*** No route serves the
- * chain's issue keys, and no route carries a project id, so the issue and
- * the project are the caller's to name — and **a panel that cannot list
- * what there is to look at has no way in**. The missing outlet is written
- * here rather than left for the next reader to find: an endpoint that lists
- * the chain's issues is what the workbench would need to open this panel,
- * and whether it is wanted is the owner's call, not this panel's.
+ * ***The panel lists what there is to look at.*** The chain holds its
+ * comments under keys a person gave, and the service serves **the list of
+ * those keys for a project** — so the panel asks for the list, draws it,
+ * and the reader names an issue out of it rather than out of memory. A
+ * panel that cannot list what there is to look at has no way in.
+ *
+ * ***The list is names, and the names are all it carries.*** A key says
+ * *which problem*, not *what the advisor wrote*: the contract carries no
+ * comment's words, no anchored text and no author beside the keys, so the
+ * panel draws names and has nothing else to draw. **A key the contract did
+ * not carry is not drawn either** — the panel does not keep a list of its
+ * own, and a key it invented would be a second spelling of the chain that
+ * a reader would believe.
  *
  * ***The chain's rows carry no time and no sequence.*** So the comments'
  * order cannot be read from the contract at all: the panel draws the order
@@ -34,6 +40,13 @@
  * edges', beside it. A panel that numbered the versions would be drawing a
  * chronology the contract does not carry, and a reader would believe it.
  *
+ * **The issue keys are not a set, and the panel does not treat them as
+ * one.** The layer sorts them, so the contract carries an order and the
+ * panel draws it as it arrives — **the order is the service's, and the
+ * panel invents none of its own.** The versions are sorted *here* because
+ * the contract carries no order for them; the keys are not, because it
+ * does.
+ *
  * **What the panel does not draw.** A version is an id and nothing else, so
  * the panel shows the id and no words of the paper. The route serves only
  * accepted edges, so there is no proposed edge to draw and none is invented.
@@ -43,14 +56,19 @@ import { useId, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { ApiRead } from '../app/useWorkbench'
-import type { ChainEdit, ProjectGraph, Trajectory } from '../api/generated'
-import { trajectoryGraphPath, trajectoryPath } from '../api/paths'
+import type { ChainEdit, IssueKeys, ProjectGraph, Trajectory } from '../api/generated'
+import { issueKeysPath, trajectoryGraphPath, trajectoryPath } from '../api/paths'
 import { Panel, RecordList } from './Panel'
 import { usePanelRead } from './usePanelRead'
 
 /** What the trajectory panel draws: the answer, or the panel's own state. */
 type TrajectoryAnswer =
   { readonly asked: false } | { readonly asked: true; readonly trajectory: Trajectory }
+
+/** What the issue panel draws: the answer, or the panel's own state. */
+type IssueKeysAnswer =
+  | { readonly asked: false; readonly why: string }
+  | { readonly asked: true; readonly keys: IssueKeys }
 
 /** What the version panel draws: the answer, or the panel's own state. */
 type GraphAnswer =
@@ -144,9 +162,14 @@ export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
   const [issueKey, setIssueKey] = useState('')
   const [projectId, setProjectId] = useState('')
   const [question, setQuestion] = useState<Question | null>(null)
+  const [keysQuestion, setKeysQuestion] = useState<string | null>(null)
   const headingId = useId()
   const field = (name: string): string => `${headingId}-${name}`
 
+  const keys = usePanelRead<IssueKeys>(
+    keysQuestion === null || keysQuestion === '' ? null : issueKeysPath(keysQuestion),
+    cycle,
+  )
   const trajectory = usePanelRead<Trajectory>(
     question === null || question.issue === '' ? null : trajectoryPath(question.issue),
     cycle,
@@ -158,6 +181,18 @@ export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
       : trajectoryGraphPath(question.project, versions),
     cycle,
   )
+
+  const keysAnswer: IssueKeysAnswer | null =
+    keys.kind === 'idle'
+      ? {
+          asked: false,
+          why: 'No project has been named, so no issue key is listed.',
+        }
+      : keys.kind === 'answered'
+        ? { asked: true, keys: keys.data }
+        : null
+  const keysPanel: ApiRead<IssueKeysAnswer> =
+    keys.kind === 'failed' ? { data: null, error: keys.error } : { data: keysAnswer, error: null }
 
   const trajectoryAnswer: TrajectoryAnswer | null =
     trajectory.kind === 'idle'
@@ -193,15 +228,47 @@ export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
     setQuestion({ issue: issueKey.trim(), project: projectId.trim() })
   }
 
+  const listTheIssues = (): void => {
+    setKeysQuestion(projectId.trim())
+  }
+
+  const pick = (key: string): void => {
+    setIssueKey(key)
+    if (keysQuestion !== null) {
+      setQuestion({ issue: key, project: keysQuestion })
+    }
+  }
+
   return (
     <>
+      <Panel title="Issues" read={keysPanel}>
+        {(answer) => (
+          <>
+            <p className="panel__note">
+              The issue keys the chain holds for the project named: what there is to look at. The
+              keys are names — a key says which problem, not what the advisor wrote — so this list
+              carries no comment&rsquo;s words.
+            </p>
+            <p className="panel__note">
+              The order is the service&rsquo;s. The chain&rsquo;s rows carry no time and no
+              sequence, so the list comes in the order the service answered it, and this panel draws
+              that order and invents none of its own.
+            </p>
+            {answer.asked ? (
+              <IssueKeyBody answer={answer.keys} onPick={pick} />
+            ) : (
+              <p className="panel__status">{answer.why}</p>
+            )}
+          </>
+        )}
+      </Panel>
       <Panel title="Trajectory" read={trajectoryPanel}>
         {(answer) => (
           <>
             <p className="panel__note">
               The advisor&rsquo;s comments, the edits that answered them, and the states of the
-              responses. The service has no outlet that lists the chain&rsquo;s issue keys, so this
-              panel cannot list what there is to look at: name an issue below.
+              responses. The chain&rsquo;s issue keys are listed above: name one of them below, or
+              ask for the issues of the project named to see what there is.
             </p>
             <p className="panel__note">
               The chain&rsquo;s rows carry no time and no sequence, so this panel shows none: the
@@ -231,6 +298,9 @@ export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
               </label>
             </div>
             <p className="panel__actions">
+              <button className="button" type="button" onClick={listTheIssues}>
+                List the issues
+              </button>{' '}
               <button className="button" type="button" onClick={ask}>
                 Draw the trajectory
               </button>
@@ -259,6 +329,52 @@ export function TrajectoryView({ cycle }: TrajectoryViewProps): JSX.Element {
           </>
         )}
       </Panel>
+    </>
+  )
+}
+
+/**
+ * The chain's issue keys, and the way into each one.
+ *
+ * **The rows are the contract's rows and nothing else.** The list is drawn
+ * as it arrived — the service's order — and a key the contract did not
+ * carry is not drawn: the panel keeps no list of its own, and a key it
+ * invented would be a second spelling of the chain that a reader would
+ * believe.
+ */
+function IssueKeyBody({
+  answer,
+  onPick,
+}: {
+  readonly answer: IssueKeys
+  readonly onPick: (key: string) => void
+}): JSX.Element {
+  return (
+    <>
+      <p className="panel__status">The chain&rsquo;s issue keys for project {answer.project_id}.</p>
+      {answer.issue_keys.length === 0 ? (
+        <p className="panel__status">The chain holds no keyed comment for this project.</p>
+      ) : (
+        <RecordList>
+          {answer.issue_keys.map((key) => (
+            <li className="record record--artefact" key={key}>
+              <span className="record__name">{key}</span>
+              <span className="record__detail">issue key</span>
+              <p className="panel__actions">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => {
+                    onPick(key)
+                  }}
+                >
+                  Draw this issue
+                </button>
+              </p>
+            </li>
+          ))}
+        </RecordList>
+      )}
     </>
   )
 }

@@ -21,7 +21,9 @@ So the only models here are the ones the API owns outright:
   — the token it minted and the address it listens on — and there is no
   layer operation that produces either;
 * :class:`Trajectory` and :class:`CommentResponses`, which **compose** the
-  layer's own objects into the one panel a workbench draws.
+  layer's own objects into the one panel a workbench draws;
+* :class:`IssueKeys`, which **names the scope of a list of names** — the
+  chain's issue keys, and the project they are the project's.
 
 The composed shapes are not a second model
 ------------------------------------------
@@ -266,6 +268,33 @@ class Trajectory(Result):
     responses: tuple[CommentResponses, ...]
 
 
+class IssueKeys(Result):
+    """The issue keys the chain holds for one project.
+
+    **The keys are names, and the names are all this carries.** A key says
+    *which problem* the advisor raised, not *what the advisor wrote*: no
+    comment's words, no anchored text, no author, no date and no grade
+    travel with it. **A panel that draws this draws names**, and a reader
+    who wants the words asks for the comments under the key — which is a
+    different route and a different answer.
+
+    **The order is the service's, and the service says so.** The chain's
+    rows carry no time and no sequence, so the list is sorted rather than
+    chronological, and a panel draws it in the order the service answered
+    rather than inventing an order of its own. **The keys are the whole
+    body**, so a panel cannot show a fact about the chain that the contract
+    does not carry — there is nowhere else for one to come from.
+
+    **And the project is named, because a list of names says nothing about
+    whose names they are.** The layer refuses a project the chain does not
+    hold, so the project in this body is one the chain holds.
+    """
+
+    project_id: str
+    #: The keys, in the order the service answers them.
+    issue_keys: tuple[str, ...]
+
+
 __all__ = [
     "AnalysisBody",
     "ApprovalBody",
@@ -274,6 +303,7 @@ __all__ = [
     "CommentResponses",
     "GuidanceRuleVerdictBody",
     "Health",
+    "IssueKeys",
     "RefusalBody",
     "ReportBody",
     "SessionInfo",
