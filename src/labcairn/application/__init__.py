@@ -123,6 +123,7 @@ Operation  The permission that governs it
 ``read_comments``                     the material's — asked where it is named
 ``read_edits``                        the material's — asked where it is named
 ``read_response_states``              the material's — asked where it is named
+``read_replies``                      the material's — asked where it is named
 ``read_material_paths``               the material's — asked where it is named
 ``read_project_graph``                the material's — asked where it is named
 ``read_issue_keys``                   the material's — asked where it is named
@@ -147,6 +148,15 @@ Operation  The permission that governs it
 ``run_role_run``                      the contract's own allowed capabilities
 ``the_role_run_question``             the contract's own allowed capabilities
 ====================================  ========================================
+
+**And one of them is not the mentor's rows at all.** ``read_replies`` reads
+the exchanges a *response document* holds: a reviewer's objection and the
+authors' answer. **It is not the mentor's exchange and not the student's** —
+it is the paper's own review history — and it is listed here because the
+permission that governs it is the same one: the permission on the material,
+asked where the material is named. **The chain's keys, its judgements and
+its issue keys do not reach it**, because a reply is a record of what was
+said rather than a verdict on anything.
 """
 
 from __future__ import annotations
@@ -176,12 +186,14 @@ from labcairn.application.chain import (
     ChainComment,
     ChainEdge,
     ChainEdit,
+    ChainReply,
     ProjectGraph,
     read_comments,
     read_edits,
     read_issue_keys,
     read_material_paths,
     read_project_graph,
+    read_replies,
     read_response_states,
 )
 from labcairn.application.context import ApplicationContext
@@ -308,6 +320,7 @@ __all__ = [
     "ChainComment",
     "ChainEdge",
     "ChainEdit",
+    "ChainReply",
     "CheckDraft",
     "ClaimRecorded",
     "ClaimRequest",
@@ -383,6 +396,7 @@ __all__ = [
     "read_plan",
     "read_project",
     "read_project_graph",
+    "read_replies",
     "read_response_states",
     "read_role_spec",
     "read_steps",

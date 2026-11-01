@@ -1,11 +1,12 @@
-"""The twenty-four tables that make SQLite the task authority.
+"""The thirty-one tables that make SQLite the task authority.
 
-Twenty-four is not a claim to be trusted: ``tests/test_evidence_schema.py``'s parity
-test walks ``Base.metadata`` and the migrated schema independently, and that is
-what catches a table added to one and not the other. It is written here so a
-reader knows the scope of the file, and it has been wrong before -- it still said
-"eight" after LC-P1-08 and T01 added six tables, and "fifteen" after LC-P2-08
-and LC-P2-06 added five more -- because nothing recomputed it.
+Thirty-one is not a claim to be trusted: ``tests/test_store_migrations.py``'s
+parity test walks ``Base.metadata`` and the migrated schema independently, and
+that is what catches a table added to one and not the other. It is written here
+so a reader knows the scope of the file, and it has been wrong before -- it said
+"eight" after LC-P1-08 and T01 added six tables, "fifteen" after LC-P2-08 and
+LC-P2-06 added five more, and "twenty-four" while the file held thirty --
+because nothing recomputed it.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -2471,6 +2472,209 @@ class FollowupAssessmentRow(Base):
         CheckConstraint(
             "json_array_length(evidence_refs) > 0",
             name="followup_assessments_an_assessment_carries_its_evidence",
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# LC-P2-09: the reply -- one party's answer to another's objection
+# --------------------------------------------------------------------------- #
+#
+# **A fifth table of the feedback work order, and the only one that is not
+# the mentor's exchange.** The chain's four tables above are the mentor's
+# line with a student: a comment, a change made in answer to it, the
+# judgement that the change answered it, and a later assessment of the
+# issue. This one holds something the mentor's line does not hold at all --
+# a *reviewer's* objection and *the authors'* answer, read out of a
+# response document.
+#
+# It is written here, beside the chain's four tables, because it is about
+# the same manuscripts and because it is the table a reader of the chain
+# would look in first and not find. **It is not a fifth link in that
+# chain, and the schema says so**: there is no state, no decider and no
+# evidence here, because a reply is not a judgement.
+
+
+class ReplyRow(Base):
+    """One exchange read out of a document: an objection, and the answer to it.
+
+    **A reply is a record of what two parties said, and not a judgement.**
+    The chain already answers *"did the change answer the comment"*, and it
+    answers it with a state, a decider and the evidence behind the decider
+    -- ``response_links`` above. **A reply carries none of those, and the
+    absence is the design.** A reply is one party's answer to another
+    party's objection, and the answer *is* the content: it carries the
+    reasoning. **Nothing in the chain answers "what did the author say, and
+    why"**, and this row does.
+
+    **One row holds both halves, and that is what lets the schema enforce
+    it.** A reply without its objection is not a reply, and a reply without
+    its answer is not a reply either. **Two tables, one half each, could
+    not say so**: a CHECK constraint sees one row and never another, so
+    "an answer exists only where its objection exists" would be a
+    convention the writer was trusted to keep. In one row it is a
+    constraint the database holds.
+
+    **And the objection is copied here rather than pointed at.** The chain
+    already holds comments, and an objection is a kind of comment, so the
+    obvious design would be a foreign key to ``feedback_events``. **It is
+    not one, and the reason is that the objection in a reply is not a
+    comment the chain holds.** A ``feedback_events`` row is the *advisor's*
+    remark *in a manuscript*: it names the version it was written against
+    (ADR-0017 D1 refuses a feedback row without one), and a row that was
+    read carries the locator in ``word/comments.xml`` that the reader
+    read. A reviewer's objection in a response letter names **no version**
+    -- it is addressed to a manuscript that was submitted, and the place it
+    points at is a line in a rendering the corpus does not hold.
+    **Pointing at a comment would mean inventing a version and an address
+    the material does not have.**
+
+    **What that costs.** The objection's words are held here, and in other
+    cases they are held in the chain's comment table as well: a second
+    spelling of something the chain may also hold. The price is paid
+    knowingly, and it is these three: the reply cannot be joined to
+    ``feedback_events`` to say "this reply answers that comment"; it
+    carries no issue key; and the chain's ``set_issue_key`` does not reach
+    it. **A reply is a different kind of speech act**, and keeping the two
+    apart costs the join.
+
+    **Where the table sits.** **Neither the mentor's exchange nor the
+    student's.** The two halves here are a *reviewer* and *the authors*,
+    and they are the paper's own review history rather than anybody's
+    tutoring. **So the permission that governs a reply is the permission
+    on the material the reply was read from** -- the response document the
+    version names -- and it is asked where that material is named, exactly
+    as the chain's own reads are asked.
+
+    **And the address it carries is the address it has.** The row says
+    which paragraph of the document each half was read from, and the hash
+    of those words, so a later read can tell whether the same paragraph
+    still holds them. **It carries no address into the manuscript under
+    review, because there is none to carry**: the objections in this
+    family address lines in a rendering the corpus does not hold, and a
+    row that named one would be inventing an address the file does not
+    have. **The place the objection points at lives in the objection's own
+    words and nowhere else.**
+
+    **And the two halves are two parties.** A reply is one party's answer
+    to *another's* objection, so the row says who said each half, and the
+    schema refuses a row whose two halves are the same party. **The
+    vocabulary is the reply's own** -- ``reviewer`` and ``author`` -- and
+    not the chain's ``actor_kind``: that vocabulary answers "who acted in
+    the mentor's chain", and a peer reviewer of a submitted manuscript is
+    neither the mentor nor the student. **Forcing a value out of it would
+    be a wrong value**, and ``human`` on both halves would be worse than
+    wrong: it would say "two people spoke" and be unable to say which was
+    which, which is the whole content of a reply.
+
+    **``pairing_grade`` grades the pairing and not the words.** The words
+    are always the document's -- this table has no other source for them
+    -- so the chain's ``grade``, which says how a row's *content* was
+    obtained, has nothing to grade here. What varies is how the *pairing*
+    was established: by the document's own structure, by the system's
+    proposal, or by a person who confirmed it. **It is not called
+    ``grade``** because the same name meaning two things is how a reader
+    comes to believe the store holds one thing when it holds another.
+    """
+
+    __tablename__ = "replies"
+
+    #: Derived rather than caller-minted: the id is a function of the version
+    #: and the two paragraphs the exchange was read from, so recording the
+    #: same document twice finds the rows that are already there. A version
+    #: is a fixed set of bytes, so the derivation is stable for ever.
+    reply_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The project the exchange belongs to. The chain's own scope: a reply
+    #: about a manuscript means nothing outside the project that holds it.
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: **The version whose material the reply was read from** -- the
+    #: response document, not the manuscript under review. The version
+    #: carries the file and the bytes, so the reply does not repeat them.
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: Who wrote the objection: ``reviewer`` or ``author``.
+    objection_party: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What the objection says, verbatim, as the document holds it.
+    objection_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of those words, so a later read can tell whether the same
+    #: paragraph still holds them.
+    objection_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: **The paragraph of the document the objection was read from** --
+    #: the reader's own coordinate, in the response document. **It is not
+    #: a place in the manuscript under review**, which the material does
+    #: not have.
+    objection_paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Who wrote the answer: ``reviewer`` or ``author``.
+    answer_party: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What the answer says, verbatim, as the document holds it. **The
+    #: answer is the point**: it carries the reasoning, and a reply that
+    #: kept only the objection would throw away the half that matters.
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of those words.
+    answer_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The paragraph of the document the answer was read from.
+    answer_paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: How the pairing was established: ``observed`` (the document states
+    #: it), ``inferred`` (the system proposed it) or ``human_verified``
+    #: (a person confirmed it). **The words are the document's in all
+    #: three**; only the pairing is graded.
+    pairing_grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_replies_version", "version_id"),
+        Index("ix_replies_project", "project_id"),
+        CheckConstraint(
+            "length(reply_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="replies_ids_present",
+        ),
+        # **The parties are the reply's own, and the vocabulary is closed.**
+        # The chain's ``actor_kind`` cannot say what these two are, and a
+        # value coerced into it would be a wrong value.
+        CheckConstraint(
+            "objection_party IN ('reviewer', 'author')",
+            name="replies_objection_party_vocabulary",
+        ),
+        CheckConstraint(
+            "answer_party IN ('reviewer', 'author')",
+            name="replies_answer_party_vocabulary",
+        ),
+        # **A reply is one party's answer to *another's* objection.** A row
+        # whose two halves are the same party is a monologue, and the
+        # schema refuses it rather than the writer's discretion.
+        CheckConstraint(
+            "objection_party <> answer_party",
+            name="replies_the_two_halves_are_two_parties",
+        ),
+        CheckConstraint(
+            "pairing_grade IN ('observed', 'inferred', 'human_verified')",
+            name="replies_pairing_grade_vocabulary",
+        ),
+        # **The objection comes before the answer.** The exchange is read
+        # in the order the document has it, and a row whose answer comes
+        # first is not an exchange the document states.
+        CheckConstraint(
+            "objection_paragraph >= 0 AND answer_paragraph > objection_paragraph",
+            name="replies_the_paragraphs_are_ordered",
+        ),
+        CheckConstraint(
+            "length(objection_text_sha256) = 64 AND objection_text_sha256 NOT GLOB '*[^0-9a-f]*' "
+            "AND length(answer_text_sha256) = 64 AND answer_text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="replies_the_hash_shape",
+        ),
+        # **A reply holds both halves or it is not a reply.** One half alone
+        # is not an exchange, and this is the constraint that says so --
+        # the database holding it, rather than the writer being trusted to.
+        CheckConstraint(
+            _has_content("objection_text") + " AND " + _has_content("answer_text"),
+            name="replies_both_halves_are_present",
         ),
     )
 

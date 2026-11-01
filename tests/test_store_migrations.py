@@ -145,6 +145,13 @@ EXPECTED_TABLES = frozenset(
         # nothing stored it, so a marked-up manuscript was a file the
         # archive could cite but could not describe.
         "revision_events",
+        # LC-P2-09. The reply: one party's answer to another's objection,
+        # read out of a response document. **It is not the mentor's
+        # exchange** -- a reviewer's objection and the authors' answer
+        # are the paper's own review history -- and it holds no state, no
+        # decider and no evidence, because a reply is a record of what was
+        # said and not a verdict on anything.
+        "replies",
     }
 )
 
