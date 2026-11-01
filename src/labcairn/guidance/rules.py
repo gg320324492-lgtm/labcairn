@@ -25,6 +25,14 @@ stay here**: the closed vocabulary of problems, the fields that may not be
 empty, the source a rule must name, the second reader who may not be the
 proposer, and the reason a dispute or a retraction must carry. The layer
 holds the transitions and the rows; this module holds what may be said.
+
+**And the checks are named here, and they live in their own module.** A
+rule may name the checks that decide it — the questions a reader can run
+against a manuscript — and the binding belongs to the rule's **version**,
+so a new version starts with none and the binding is made again by hand.
+The check's own lifecycle is :mod:`labcairn.guidance.checks`, and the
+binding operation is there too; what this module holds is the rule about
+which checks a rule may name, because that is a rule about the rule.
 """
 
 from __future__ import annotations
@@ -99,6 +107,30 @@ def _validated_fields(
     )
 
 
+def _validated_checks(context: ApplicationContext, checks: Sequence[str]) -> tuple[str, ...]:
+    """The checks a rule may name, or the refusal that says it may not.
+
+    **A rule may name only a check a person has confirmed** — the same
+    rule the memory applies to a rule's own confirmer: a candidate is a
+    proposal, and a rule that leans on a proposal leans on nothing that
+    has been decided.
+
+    **And the checks are asked about before the rule is written**, so a
+    rule that cannot be bound is never half-written: the version and its
+    instruments land together or not at all.
+    """
+    named = tuple(sorted(set(checks)))
+    for check_id in named:
+        check = guidance_layer.read_guidance_check(context, check_id=check_id)
+        if check.state != "confirmed":
+            raise guidance_refused(
+                GuidanceRefusal.CHECK_NOT_CONFIRMED,
+                f"the check {check_id!r} is in state {check.state!r}, and a rule may name"
+                " only a check a person has confirmed",
+            )
+    return named
+
+
 def propose_rule(
     context: ApplicationContext,
     *,
@@ -110,6 +142,7 @@ def propose_rule(
     sources: Sequence[str],
     proposed_by: str,
     now: datetime,
+    checks: Sequence[str] = (),
 ) -> GuidanceRule:
     """Propose a rule from real chain material, as a candidate.
 
@@ -118,9 +151,16 @@ def propose_rule(
     proposing from a corpus land here the same way, and neither is
     confirmed until a second reader confirms it (ADR-0016 D8).
 
+    **And the rule may name the checks that decide it**, which is what
+    makes the rule and a checklist item the same standard rather than two
+    documents. **A check that is not confirmed is refused**, and the
+    refusal comes before the rule is written. **The binding belongs to
+    this version**, so a rule that is superseded later does not carry the
+    old version's checks into the new one.
+
     :raises ApplicationRefusedError: the problem is outside the closed
         vocabulary; a required field is empty; the rule names no chain
-        material.
+        material; a named check is not confirmed.
     """
     issue_type, statement, rule_context, scope, example, proposed_by, sources = _validated_fields(
         issue_type=issue_type,
@@ -131,7 +171,8 @@ def propose_rule(
         proposed_by=proposed_by,
         sources=sources,
     )
-    return guidance_layer.write_guidance_rule_version(
+    named = _validated_checks(context, checks)
+    rule = guidance_layer.write_guidance_rule_version(
         context,
         guidance_layer.RuleDraft(
             rule_id=_rule_id(issue_type, statement, proposed_by, now),
@@ -146,6 +187,11 @@ def propose_rule(
             proposed_at=now,
         ),
     )
+    for check_id in named:
+        rule = guidance_layer.write_guidance_rule_check(
+            context, rule_id=rule.rule_id, check_id=check_id
+        )
+    return rule
 
 
 def confirm_rule(
@@ -262,6 +308,7 @@ def supersede_rule(
     sources: Sequence[str],
     proposed_by: str,
     now: datetime,
+    checks: Sequence[str] = (),
 ) -> GuidanceRule:
     """Insert the rule's next version, as a fresh candidate.
 
@@ -270,6 +317,13 @@ def supersede_rule(
     versions they belong to, and the new version starts as a candidate
     that needs a second reader like any other — **a rewording is not a
     confirmation**.
+
+    **And the new version starts with no checks, unless the caller names
+    them.** The check that decided the old words is not automatically the
+    check that decides the new ones, so the binding is made again by
+    hand: **the binding belongs to the version, and a new version is a
+    new claim.** The sources are asked for the same reason — they are
+    re-named rather than carried forward.
 
     :raises ApplicationRefusedError: whatever :func:`propose_rule`
         refuses, or the rule is not there.
@@ -284,7 +338,8 @@ def supersede_rule(
         proposed_by=proposed_by,
         sources=sources,
     )
-    return guidance_layer.write_guidance_rule_version(
+    named = _validated_checks(context, checks)
+    rule = guidance_layer.write_guidance_rule_version(
         context,
         guidance_layer.RuleDraft(
             rule_id=rule_id,
@@ -299,6 +354,11 @@ def supersede_rule(
             proposed_at=now,
         ),
     )
+    for check_id in named:
+        rule = guidance_layer.write_guidance_rule_check(
+            context, rule_id=rule.rule_id, check_id=check_id
+        )
+    return rule
 
 
 def record_counterexample(

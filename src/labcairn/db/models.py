@@ -2696,6 +2696,160 @@ class GuidanceRuleCounterexampleRow(Base):
     )
 
 
+class GuidanceCheckRow(Base):
+    """A check: the question a reader asks, and the criterion that answers it.
+
+    **A check is decidable, and decidability is two things.** The
+    ``question`` is what a reader asks of a piece of the manuscript, and the
+    ``pass_criterion`` is the condition under which the answer is yes. **The
+    two are not the same field**: a question with no criterion cannot be
+    answered, and a criterion with no question decides nothing. A checklist
+    that gives only a question leaves the reader to guess what would pass,
+    and a check that gives only a criterion leaves the reader to guess what
+    to run it on.
+
+    **The check is a norm, and a norm lives beside the rules it decides.**
+    It is not in the chain: the chain is the mentor's material, and a
+    checklist written down in advance is not the mentor's material. It is
+    not a counterexample either: a counterexample is a case *against* a
+    rule, and a check is a test *for* one.
+
+    **The state machine is closed, and it is the rule's.** A check is
+    proposed as a ``candidate``, and only a person moves it on — a second
+    reader, who may not be the proposer. **What a model proposes, a person
+    confirms**, and that rule is the same here as everywhere else in this
+    product: a check a model wrote is a proposal, and a rule may name only
+    a check a person has confirmed.
+
+    **A withdrawn check carries its reason**, for the reason the rule's own
+    withdrawal does: a retraction that says only "no" is a retraction
+    nobody can learn from.
+    """
+
+    __tablename__ = "guidance_checks"
+
+    #: The check's identity, derived from what it says and who said it.
+    check_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: What the reader asks of the manuscript.
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The condition under which the answer is yes. **Different from the
+    #: question, and required with it.**
+    pass_criterion: Mapped[str] = mapped_column(Text, nullable=False)
+    #: ``candidate``, ``confirmed`` or ``withdrawn``.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who proposed the check — a person, or a run whose proposal lands here
+    #: as a candidate.
+    proposed_by: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When it was proposed.
+    proposed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: Who confirmed the check. **A second reader**: the API refuses a
+    #: confirmation by the proposer, and this column is what that refusal
+    #: exists to protect.
+    confirmed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: When it was confirmed.
+    confirmed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: Why the check was withdrawn. Null on a live check.
+    resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        # **A check carries its question and its criterion, and neither may
+        # be empty.** Empty means blank as well as absent, so the check
+        # trims before it counts.
+        CheckConstraint(
+            "length(trim(question)) > 0 AND length(trim(pass_criterion)) > 0"
+            " AND length(trim(proposed_by)) > 0",
+            name="guidance_checks_a_check_carries_its_question_and_its_criterion",
+        ),
+        # **The state machine is closed.**
+        CheckConstraint(
+            "state IN ('candidate','confirmed','withdrawn')",
+            name="guidance_checks_the_state_machine_is_closed",
+        ),
+        # **A confirmed check names its confirmer.**
+        CheckConstraint(
+            "state != 'confirmed' OR (confirmed_by IS NOT NULL"
+            " AND length(trim(confirmed_by)) > 0 AND confirmed_at IS NOT NULL)",
+            name="guidance_checks_a_confirmed_check_names_its_confirmer",
+        ),
+        # **A candidate names nobody.**
+        CheckConstraint(
+            "state != 'candidate' OR (confirmed_by IS NULL AND confirmed_at IS NULL)",
+            name="guidance_checks_a_candidate_names_nobody",
+        ),
+        # **A withdrawn check carries its reason.**
+        CheckConstraint(
+            "state != 'withdrawn' OR (resolution_reason IS NOT NULL"
+            " AND length(trim(resolution_reason)) > 0)",
+            name="guidance_checks_a_withdrawal_carries_its_reason",
+        ),
+        # **And a live check carries no resolution.**
+        CheckConstraint(
+            "state = 'withdrawn' OR resolution_reason IS NULL",
+            name="guidance_checks_a_live_check_carries_no_resolution",
+        ),
+    )
+
+
+class GuidanceRuleCheckRow(Base):
+    """The binding: the check that decides this rule, at this version.
+
+    **A rule and a check are two things, and this is the row that says
+    they are the same.** The rule says what the advisor demands; the check
+    says what a reader would run to find out whether the manuscript meets
+    it. Without this row the two are two documents, and a student cannot
+    tell which rule a checklist item is checking.
+
+    **The binding is to the version, not to the rule.** A rule is a
+    versioned row and a new statement is a new version, so the check that
+    decides version 1's words is not automatically the check that decides
+    version 2's words. The binding therefore names the pair.
+
+    **The two foreign keys are the schema's own witnesses.** A binding to a
+    check that does not exist, or to a version of a rule that does not
+    exist, cannot be written: the database refuses the row.
+
+    **And one rule names one check once**, while two rules may name the
+    same check — the checklist item is generic, and several rules may be
+    decided by it.
+    """
+
+    __tablename__ = "guidance_rule_checks"
+
+    #: Table-wide identity, never used for ordering.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The rule and the version the binding belongs to. A binding is to a
+    #: version because a new statement may be decided by a different check.
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The version, with the rule, as a composite foreign key.
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The check that decides the rule at that version.
+    check_id: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["rule_id", "version"],
+            ["guidance_rules.rule_id", "guidance_rules.version"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["check_id"],
+            ["guidance_checks.check_id"],
+            ondelete="CASCADE",
+        ),
+        # **And the same check is bound to a version once.** A second row
+        # for the same pair says nothing a reader could not already read.
+        UniqueConstraint(
+            "rule_id",
+            "version",
+            "check_id",
+            name="guidance_rule_checks_one_binding_per_check",
+        ),
+        # The reverse question -- which rules does this check decide -- is
+        # asked by the check's own id, and the index is what answers it.
+        Index("ix_guidance_rule_checks_check", "check_id"),
+    )
+
+
 class AgentRoleSpecRow(Base):
     """A role's contract, as the store holds it: versioned, typed, enforced.
 

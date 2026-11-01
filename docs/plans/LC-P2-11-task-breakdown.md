@@ -224,6 +224,54 @@ source making it invalid, and a candidate that a person has not yet
 confirmed — **and it shows that a new comment changes what the retrieval
 returns, with no training of anything.**
 
+### T06 — The checks, and the binding from a rule to the check that decides it
+
+**Files:** `src/labcairn/guidance/checks.py` (new),
+`src/labcairn/guidance/models.py`, `src/labcairn/guidance/rules.py`,
+`src/labcairn/application/guidance.py`, `src/labcairn/application/__init__.py`,
+`src/labcairn/db/models.py`, `migrations/versions/0018_rule_checks.py` (new),
+`tests/test_guidance_rules.py`, `tests/test_guidance_retrieval.py`.
+
+**A check is a decidable standard, and it takes two fields.** The
+**question** is what a reader asks of a piece of the manuscript; the
+**pass criterion** is the condition under which the answer is yes. **They
+are different things**, and they are kept apart: a question with no
+criterion cannot be answered, and a criterion with no question decides
+nothing. A checklist that gives only a question leaves the reader to guess
+what would pass; one that gives only a criterion leaves them to guess what
+to run it on. **So they are two columns, and neither may be empty.**
+
+**Where a check lives.** Beside the rules it decides, in the rule
+memory's own store — **and not in the chain**. The chain is the mentor's
+material: a comment, a change, a judgement. **A checklist written down in
+advance is not the mentor's material**, and putting it in the chain would
+say it was learned from the advisor's mouth when it was not. **And it is
+not a counterexample either**: a counterexample is a case *against* a
+rule, and a check is a test *for* one.
+
+**And the binding is the product's side of the problem.** A rule says what
+the advisor demands; a check says what a reader would run to find out
+whether the manuscript meets it. **Without the binding the two are two
+documents**, and a student cannot tell which rule a checklist item is
+checking. The binding is a row of its own, and it names **the version of
+the rule** as well as the check — because a rule is a versioned row and a
+new statement is a new version, so **the check that decides version 1's
+words is not automatically the check that decides version 2's**.
+
+**The binding is in force only while both of its ends are.** A withdrawn
+rule names no check, and a withdrawn check is named by no rule. **And a
+new version starts with no checks**: the binding is made again by hand,
+as the sources are re-named.
+
+**May two rules share one check? Yes.** The checklist is generic, and the
+same item may decide more than one rule; a check that could be named by
+only one rule would have to be written once per rule.
+
+**Who may put a check there.** **What a model proposes, a person
+confirms** — the same rule the memory applies to a rule. A check is a
+candidate until a second reader confirms it, the proposer may not confirm
+it, and **a rule may name only a confirmed check**.
+
 ## 4. Acceptance, mapped to where it is carried
 
 | # | The clause | The test |
@@ -241,6 +289,14 @@ returns, with no training of anything.**
 | A11 | The memory is **not** a second store: every read goes through the consent layer | `test_the_memory_reads_through_the_consent_layer` |
 | A12 | A new comment changes what the retrieval returns, **with nothing trained** | `test_a_new_comment_changes_the_retrieval_without_anything_trained` |
 | A13 | The demo is run by a test | `test_the_guidance_memory_demo_runs` |
+| A14 | A check carries **a question and a pass criterion**, and neither may be empty | `test_a_check_carries_its_question_and_its_criterion`, `test_an_empty_check_field_is_refused` |
+| A15 | **What a model proposes, a person confirms** — a check's proposer may not confirm it | `test_the_proposer_cannot_confirm_their_own_check` |
+| A16 | **A rule may name only a confirmed check**, and a rule that cannot be bound is not written | `test_a_rule_may_name_only_a_confirmed_check` |
+| A17 | **The binding says which rule a checklist item is checking**, in both directions | `test_a_rule_names_the_checks_that_decide_it` |
+| A18 | **Two rules may share one check** | `test_two_rules_may_share_one_check` |
+| A19 | **A withdrawn rule names no check**, and a withdrawn check is named by no rule | `test_a_withdrawn_rule_names_no_check`, `test_a_withdrawn_check_is_named_by_no_rule` |
+| A20 | **A new version starts with no check**, and the old version keeps what it was bound against | `test_a_new_version_starts_with_no_check` |
+| A21 | **The schema refuses what the API refuses**, and a binding to a check or a rule version that is not there cannot be written | `test_the_schema_refuses_what_the_api_refuses_about_the_checks`, `test_the_schema_refuses_a_binding_to_a_check_that_is_not_there`, `test_the_schema_refuses_a_binding_to_a_rule_version_that_is_not_there` |
 
 **Every one of these needs a witness, and the witness must fail for the
 property.** When a test goes red, ask what made it red before believing
@@ -274,6 +330,7 @@ like a success.
 | T03 | — | `src/labcairn/guidance/retrieval.py`, `tests/test_guidance_retrieval.py` |
 | T04 | — | `src/labcairn/guidance/retrieval.py`, `tests/test_guidance_retrieval.py` |
 | T05 | `examples/guidance_memory_demo.py`, `tests/test_guidance_memory_demo.py`, `docs/acceptance/LC-P2-11-acceptance.md` | `.github/ci-shards.json`, `tests/evaluation/manifest.py` |
+| T06 | `src/labcairn/guidance/checks.py`, `migrations/versions/0018_rule_checks.py` | `src/labcairn/guidance/models.py`, `src/labcairn/guidance/rules.py`, `src/labcairn/application/guidance.py`, `src/labcairn/application/__init__.py`, `src/labcairn/db/models.py`, `tests/test_guidance_rules.py`, `tests/test_guidance_retrieval.py` |
 
 **And the shared files.** `src/labcairn/db/models.py` is shared with every
 work order that adds a table, and the migration number is shared with
@@ -290,6 +347,12 @@ request with LC-P2-10** (PR #133): the owner's landing model is one pull
 request per body of work, the files the two tickets own do not overlap,
 and the migration number LC-P2-11 takes is **0015**, next after the
 chain's 0014.
+
+**And the migration T06 takes is 0018**, next after the revision
+events' 0017 — the checks and their binding are one design, so they are
+one migration. **The number is shared with every other work order that
+adds a table, and this work order may not be dispatched at the same time
+as another one that takes a migration number.**
 
 ## 7. What "done" means
 

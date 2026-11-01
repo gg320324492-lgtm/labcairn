@@ -45,3 +45,14 @@ class GuidanceRefusal(StrEnum):
     RESOLUTION_WITHOUT_REASON = "resolution_without_reason"
     #: A counterexample with no case in it challenges nothing.
     COUNTEREXAMPLE_EMPTY = "counterexample_empty"
+    #: A check's question or its pass criterion is missing or empty. **A
+    #: check is decidable, and decidability is two things**: a question
+    #: with no criterion cannot be answered, and a criterion with no
+    #: question decides nothing.
+    CHECK_FIELD_EMPTY = "check_field_empty"
+    #: The check, at that id, is not there.
+    CHECK_NOT_FOUND = "check_not_found"
+    #: A rule may name only a check a person has confirmed. A candidate is
+    #: a proposal, and a rule that leans on a proposal leans on nothing
+    #: that has been decided.
+    CHECK_NOT_CONFIRMED = "check_not_confirmed"

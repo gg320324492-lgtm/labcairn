@@ -35,6 +35,38 @@ class RuleCounterexample:
 
 
 @dataclass(frozen=True)
+class GuidanceCheck:
+    """A decidable standard: the question, and the criterion that answers it.
+
+    **The question and the pass criterion are two fields, not one.** The
+    question is what a reader asks of a piece of the manuscript; the
+    criterion is the condition under which the answer is yes. A checklist
+    that gives only a question leaves the reader to guess what would pass,
+    and one that gives only a criterion leaves them to guess what to run it
+    on.
+
+    **And a check is a norm, not a case.** A counterexample is a case
+    *against* a rule; a check is a test *for* one. The two answer different
+    questions and are stored apart.
+
+    **The state is the rule's own.** A check is proposed as a ``candidate``
+    and only a second reader confirms it, because **what a model proposes,
+    a person confirms** — and a rule may name only a check a person has
+    confirmed.
+    """
+
+    check_id: str
+    question: str
+    pass_criterion: str
+    state: str
+    proposed_by: str
+    proposed_at: datetime
+    confirmed_by: str | None
+    confirmed_at: datetime | None
+    resolution_reason: str | None
+
+
+@dataclass(frozen=True)
 class GuidanceRule:
     """A mentor's rule as the memory holds it, with its sources and its cases.
 
@@ -43,6 +75,12 @@ class GuidanceRule:
     served unconditionally, and the mechanism starts here: a caller that
     has a rule has its cases against it, because they came back in the
     same read.
+
+    **And so do the checks.** The checks are the instruments that decide
+    the rule — the questions a reader can run against a manuscript — and a
+    rule served without them is the same defect a rule served without its
+    cases is: the reader cannot tell which rule a checklist item is
+    checking, because the answer never says.
     """
 
     rule_id: str
@@ -64,6 +102,10 @@ class GuidanceRule:
     #: The cases against the rule. **Possibly empty, never optional** —
     #: an empty tuple says the memory holds none, not that it did not look.
     counterexamples: tuple[RuleCounterexample, ...]
+    #: The checks that decide this rule, at this version. **Possibly empty,
+    #: never optional** — a rule that names no check says so, and a rule
+    #: whose checks were released by its withdrawal says that too.
+    checks: tuple[GuidanceCheck, ...]
 
 
-__all__ = ["GuidanceRule", "RuleCounterexample"]
+__all__ = ["GuidanceCheck", "GuidanceRule", "RuleCounterexample"]

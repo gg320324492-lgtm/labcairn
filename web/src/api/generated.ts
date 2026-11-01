@@ -289,6 +289,18 @@ export type FileRef = {
 
 export type FilterOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
 
+export type GuidanceCheck = {
+  check_id: string
+  question: string
+  pass_criterion: string
+  state: string
+  proposed_by: string
+  proposed_at: string
+  confirmed_by: string | null
+  confirmed_at: string | null
+  resolution_reason: string | null
+}
+
 export type GuidanceRule = {
   rule_id: string
   version: number
@@ -305,6 +317,7 @@ export type GuidanceRule = {
   resolution_reason: string | null
   sources: string[]
   counterexamples: RuleCounterexample[]
+  checks: GuidanceCheck[]
 }
 
 export type GuidanceRuleVerdictBody = {
