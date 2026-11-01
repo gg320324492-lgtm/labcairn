@@ -92,6 +92,42 @@ and it does not measure how far two people would agree — the guide says so
 itself, and this record says it again because the number will be read
 against the gold set's.
 
+### 2.1 What the second corpus says about the first corpus's rules
+
+**Seven of the eight confirmed rules are corroborated** — and the
+corroboration is the strongest kind the material can give, because the
+two corpora share **no advisor, no paper and no field**:
+
+| corpus-1's rule | corpus-2's comments that bear on the same standard |
+|---|---|
+| figures | 1 — the axes and the fonts should follow one convention |
+| introduction_and_storyline | 3 — what is this piece of the text doing, and how does it join what came before |
+| research_question_and_motivation | 2 — the significance never lands; the introduction shows no novelty |
+| method_and_hypothesis | 2 — what are these tools, and what were they used to obtain |
+| statistical_conclusion | 2 — what is this result allowed to conclude |
+| language_and_format | 2 — an abbreviation given once; is this term an abbreviation or the full name |
+| **data_quality** | **none** — **and absence is not refutation** |
+
+**A rule that a second advisor, on a second paper, in a second field also
+holds is not that advisor's habit on one manuscript.** That is what "the
+rules get more precise" has to be measured against, and it is a
+different claim from the first corpus's own confirmation.
+
+**And the one rule with no counterpart is not a rule that failed.** The
+second corpus holds two advisors' remarks on one manuscript, and a
+standard can be absent from it because the manuscript did not raise it.
+**The record says which it is**, so nobody reads the absence as a verdict.
+
+**The comparison is by the standard the rule states**, not by the label:
+the rules were read, and each comment was matched to the rule whose
+standard it bears on. A comment can bear on a rule and still carry a
+different label — the label is the advisor's problem, and the rule is
+the standard distilled from several such problems.
+
+**The record is `E:\labcairn-local\pilot-ws\cross-confirmation-corpus1-corpus2.json`**
+— the library, because the rule statements and the comments are the
+owner's.
+
 ## 3. What the chain now holds
 
 **The second corpus is in the product, as a second project.** The first
@@ -208,6 +244,9 @@ and 3 the reader could not place — each with its reason named.
 | the reading | 34 comments, two independent readings, one arbiter, **0.8235** agreement |
 | the chain | a second project, 3 versions, 34 comments, 3 shapes told apart |
 | the reader's fix | **4 real comments** across three bodies of material; 1 synthetic fixture added |
+| the scope's fix | **6 of the 8 confirmed rules** carried a scope quoting `""`; the layer now carries the status and the reason |
+| the repair of the first chain | **3 rows** held the false address and **3 confirmed rules cite them**; rewritten, checked, and the rules left alone |
+| **the cross-confirmation** | **7 of the 8 confirmed rules** are corroborated by a different advisor on a different paper in a different field; **6 of the 7 issue types** |
 | the witnesses | 4 caught the reader's mutation; 3 caught the scope's |
 | the record's own errors | **4 corrected** — an invocation that never ran, a revision breakdown that did not add up, a fixture said to be extracted that is lost, and a claim that the measurement had scored the reader when it had not |
 
