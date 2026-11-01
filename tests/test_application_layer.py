@@ -357,6 +357,12 @@ _ALLOWED_STORE_READERS = frozenset(
         # operations beside it do; LC-P2-09 T00 added it.
         "labcairn.application.papers",
         "labcairn.application.records",
+        # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
+        # operations like the writers beside it: each evaluates the policy
+        # about the task's own area before it touches the store, and the
+        # identifier rows are the task's own data. It is recorded here
+        # because a module that reaches the store must be named.
+        "labcairn.application.identifiers",
         "labcairn.application.sources",
         "labcairn.application.stages",
         "labcairn.application.tasks",

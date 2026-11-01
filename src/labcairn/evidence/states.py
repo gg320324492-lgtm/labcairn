@@ -75,6 +75,20 @@ class VerificationStatus(StrEnum):
     UNSUPPORTED = "unsupported"
 
 
+#: The states a report may cite from. ``verified_by_rule`` is a rule's pass and
+#: ``user_attested`` is a person's word; the other four are all "not yet" or
+#: "not any more", and citing them would put an unexamined claim in front of a
+#: reader as though it had been examined.
+#:
+#: Defined here, beside the six states it is a property of, so that both
+#: :mod:`labcairn.evidence.gate` (which reports it) and
+#: :mod:`labcairn.evidence.store` (which refuses a citeable record resting on
+#: an unresolved identifier) read one set rather than spelling their own.
+CITABLE_STATUSES: Final[frozenset[VerificationStatus]] = frozenset(
+    {VerificationStatus.VERIFIED_BY_RULE, VerificationStatus.USER_ATTESTED}
+)
+
+
 class EvidenceKind(StrEnum):
     """What sort of statement the record carries.
 

@@ -68,8 +68,10 @@ from sqlalchemy.engine import Connection
 from labcairn.evidence.catalog import is_registered_rule
 from labcairn.evidence.checks.c2 import quotation_match
 from labcairn.evidence.cite_support import LocationResolution, SourceIndex, Verdict
+from labcairn.evidence.identifiers import ResolutionState, load_identifier
 from labcairn.evidence.record import EvidenceRecord, VerificationRecord
 from labcairn.evidence.states import (
+    CITABLE_STATUSES,
     CheckKind,
     CheckOutcome,
     NormalizationProfile,
@@ -154,6 +156,7 @@ def append_record(connection: Connection, record: EvidenceRecord) -> None:
     reader cannot see from the row alone.
     """
     _require_catalog_backed(record)
+    _require_supported_identifiers(connection, record, record.status)
     connection.execute(
         sql_text(
             "INSERT INTO evidence_records (evidence_id, schema_version, task_id, kind, text,"
@@ -190,6 +193,14 @@ def append_record(connection: Connection, record: EvidenceRecord) -> None:
             ),
             {"eid": record.evidence_id, "pos": position, "aid": anchor_id},
         )
+    for position, identifier_id in enumerate(record.identifier_ids):
+        connection.execute(
+            sql_text(
+                "INSERT INTO evidence_identifiers (evidence_id, position, identifier_id)"
+                " VALUES (:eid,:pos,:iid)"
+            ),
+            {"eid": record.evidence_id, "pos": position, "iid": identifier_id},
+        )
     for entry in record.verification_log:
         _insert_verification(connection, record.evidence_id, entry)
 
@@ -202,6 +213,65 @@ def render_anchor_key(anchor_ids: tuple[str, ...]) -> str:
     rendering is produced, so the column and the join table cannot disagree.
     """
     return json.dumps(list(anchor_ids))
+
+
+def _require_supported_identifiers(
+    connection: Connection, record: EvidenceRecord, target: VerificationStatus
+) -> None:
+    """The identifier half of the evidence model's contract, at write time.
+
+    Two rules, and they are not the same rule:
+
+    * **An identifier must exist and belong to the task.** A record citing an
+      identifier the ledger has never heard of is the identifier-shaped version
+      of the fabricated source C1 catches, and a record citing another task's
+      identifier is a claim resting on material its task does not hold. Both
+      are refused wherever the record is written or moved.
+    * **A citeable record may not rest on an identifier nothing resolved.**
+      LC-P1-09's rule, built here: a record whose status says a rule passed or
+      a person attested is exactly the record a report will quote, and its
+      support naming a DOI nobody has resolved is claim inflation wearing a
+      locator. The refusal names the identifier and its state, because a
+      refusal that says only "an identifier is unresolved" sends the reader
+      hunting through every row for the one that is.
+
+    A record in any other state may cite any state of identifier: a
+    ``planned`` proposal carrying a model's DOI is data, and refusing it would
+    refuse the provenance the work order exists to record.
+    """
+    if not record.identifier_ids:
+        return
+    identifiers = []
+    for identifier_id in record.identifier_ids:
+        identifier = load_identifier(connection, identifier_id)
+        if identifier is None:
+            raise LedgerError(
+                f"the record cites identifier {identifier_id!r}, which the ledger"
+                f" holds no row for. An identifier nobody recorded is neither"
+                f" resolved nor unresolved; it does not exist"
+            )
+        if identifier.task_id != record.task_id:
+            raise LedgerError(
+                f"the record cites identifier {identifier_id!r}, which belongs to"
+                f" task {identifier.task_id!r}, not to the record's task"
+                f" {record.task_id!r}. A claim rests on what its task holds"
+            )
+        identifiers.append(identifier)
+    if target in CITABLE_STATUSES:
+        unresolved = [
+            f"{identifier.identifier_id!r} ({identifier.resolution_state.value})"
+            for identifier in identifiers
+            if identifier.resolution_state is not ResolutionState.RESOLVED
+        ]
+        if unresolved:
+            raise LedgerError(
+                f"a record with status {target.value!r} may not rest on an"
+                f" identifier nothing resolved, and this one cites:"
+                f" {', '.join(unresolved)}. LC-P1-09's rule, built: a citation"
+                f" check is a resolution or a located anchor, never a bare"
+                f" identifier -- confirm each one, or cite records that do not"
+                f" lean on it"
+            )
 
 
 def load_record(connection: Connection, evidence_id: str) -> EvidenceRecord | None:
@@ -232,6 +302,16 @@ def load_record(connection: Connection, evidence_id: str) -> EvidenceRecord | No
         ).scalars()
     )
     anchors = tuple(str(anchor_id) for anchor_id in anchor_ids)
+    identifier_ids: list[str] = list(
+        connection.execute(
+            sql_text(
+                "SELECT identifier_id FROM evidence_identifiers"
+                " WHERE evidence_id = :eid ORDER BY position"
+            ),
+            {"eid": evidence_id},
+        ).scalars()
+    )
+    identifiers = tuple(str(identifier_id) for identifier_id in identifier_ids)
     log = tuple(_read_verification(connection, evidence_id))
 
     return EvidenceRecord.model_validate(
@@ -245,6 +325,7 @@ def load_record(connection: Connection, evidence_id: str) -> EvidenceRecord | No
             "unit": row[6],
             "tolerance": row[7],
             "anchor_ids": anchors,
+            "identifier_ids": identifiers,
             "extracted_span": row[8],
             "extracted_span_sha256": row[9],
             "source_content_hash": row[10],
@@ -414,6 +495,11 @@ def advance(
     if updated is None:  # pragma: no cover - the row was read a moment ago
         raise UnknownRecordError(f"no record with id {evidence_id!r}")
     _require_precondition(connection, updated, to_status, index=index)
+    # The move is the moment a record's status starts claiming more, so it is
+    # the moment the identifier rule bites: a record may carry unresolved
+    # identifiers while it is planned or extracted, but it may not carry them
+    # into a state a report cites from.
+    _require_supported_identifiers(connection, updated, to_status)
 
     connection.execute(
         sql_text("UPDATE evidence_records SET status = :status WHERE evidence_id = :eid"),
@@ -474,6 +560,11 @@ def attest(
     updated = load_record(connection, evidence_id)
     if updated is None:  # pragma: no cover
         raise UnknownRecordError(f"no record with id {evidence_id!r}")
+    # An attestation is a person standing behind a record; it is not the
+    # person resolving an identifier on the record's behalf. The same rule the
+    # rule-driven move enforces applies here: what a report may cite may not
+    # rest on an identifier nothing resolved.
+    _require_supported_identifiers(connection, updated, VerificationStatus.USER_ATTESTED)
     connection.execute(
         sql_text("UPDATE evidence_records SET status = :status WHERE evidence_id = :eid"),
         {"status": VerificationStatus.USER_ATTESTED.value, "eid": evidence_id},

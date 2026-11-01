@@ -203,6 +203,18 @@ class EvidenceRecord(BaseModel):
     #: by editing the record that cites it. Order is meaningful (primary anchor
     #: first); duplicates are not.
     anchor_ids: tuple[NonEmptyText, ...] = ()
+    #: Ids of :class:`~labcairn.evidence.identifiers.ScholarlyIdentifier` rows.
+    #: Ids, for the same reason anchors are: the identifier is looked up so its
+    #: resolution state cannot be edited by rewriting the record that cites it.
+    #: Order is meaningful (primary identifier first); duplicates are not.
+    #:
+    #: A record citing an identifier is *data*, not a verdict: nothing here or
+    #: in the store treats a listed identifier as a check. What the ledger does
+    #: enforce is the other half of the rule -- a record whose status says it
+    #: was verified may not rest on an identifier nobody resolved, and
+    #: :func:`~labcairn.evidence.store.append_record` refuses that with the
+    #: identifier and its state named.
+    identifier_ids: tuple[NonEmptyText, ...] = ()
     #: The literal text copied out of the source. Both this and the hash below
     #: are required together for any status past ``planned``.
     extracted_span: NonEmptyText | None = None
@@ -311,6 +323,16 @@ class EvidenceRecord(BaseModel):
                 f"anchor_ids contains duplicates: {list(self.anchor_ids)}. One address "
                 f"cited twice is one anchor; two rows for it make 'how many sources "
                 f"back this' answerable two ways."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _identifiers_are_unique(self) -> Self:
+        if len(set(self.identifier_ids)) != len(self.identifier_ids):
+            raise ValueError(
+                f"identifier_ids contains duplicates: {list(self.identifier_ids)}. One "
+                f"identifier cited twice is one identifier; two rows for it make 'which "
+                f"identifiers support this' answerable two ways."
             )
         return self
 

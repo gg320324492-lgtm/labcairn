@@ -104,6 +104,13 @@ class ApplicationRefusal(StrEnum):
     #: vocabulary is closed, because "the person had a look" is not a verdict
     #: a record can carry.
     PROPOSAL_VERDICT_UNKNOWN = "proposal_verdict_unknown"
+    #: The ledger holds no identifier with that id.
+    IDENTIFIER_NOT_FOUND = "identifier_not_found"
+    #: The confirmation named nobody. A resolution is a person's word about an
+    #: identifier, and **a resolution nobody signs is not a resolution** — the
+    #: same rule an attestation obeys, because ``resolved_by`` is what a reader
+    #: audits and an unsigned row gives them nothing to audit.
+    RESOLUTION_IDENTITY_EMPTY = "resolution_identity_empty"
     #: The store holds no artefact with that id.
     ARTIFACT_NOT_FOUND = "artifact_not_found"
     #: The store holds no operation with that id.
