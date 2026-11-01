@@ -160,6 +160,14 @@ EXPECTED_TABLES = frozenset(
         # manuscript's accepted text and the place in the manuscript they
         # live at, or says unknown that the change could not be placed.
         "reply_settlements",
+        # LC-P2-17. The scholarly identifiers: the shelf a record cites a
+        # DOI or an arXiv id from, with who supplied it and whether anyone
+        # resolved it, and the join that lets an evidence record carry
+        # one. Resolution is a state, not a failure -- ``not_attempted``
+        # is what a resolution request records in a build that cannot
+        # consent an outbound lookup.
+        "identifier_records",
+        "evidence_identifiers",
     }
 )
 

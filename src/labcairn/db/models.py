@@ -66,6 +66,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
 from labcairn.db.base import Base, sql_string_list
+from labcairn.evidence.identifiers import (
+    IdentifierProvenance,
+    IdentifierScheme,
+    ResolutionState,
+)
 from labcairn.evidence.states import (
     CheckKind,
     CheckOutcome,
@@ -1162,6 +1167,109 @@ class SourceAnchorRow(Base):
         ),
         # C1 resolves by id on every check, so this is the table's only hot path.
         Index("ix_source_anchors_source", "source_id"),
+    )
+
+
+class IdentifierRow(Base):
+    """A scholarly identifier a task holds, with its provenance and its state.
+
+    The registry LC-P1-09's acceptance review named as missing: a record could
+    cite an anchor but had nowhere to put the DOI it was citing. This table is
+    the shelf. Three closed vocabularies live in
+    :mod:`labcairn.evidence.identifiers`, which is also where the model-level
+    halves of these CHECK constraints are validated; here they are repeated for
+    the same reason the evidence tables repeat theirs -- the store is a
+    *boundary*, and a row written by a SQL client skips the Pydantic model
+    entirely.
+
+    The three state rules below are one idea in three rows: a resolution state
+    carries the evidence of what it names. ``unresolved`` carries nothing,
+    because nothing has happened; ``not_attempted`` carries the reason and
+    nothing else, because a refusal with no reason is the one thing worse than
+    no refusal; ``resolved`` carries who answered, what they found and when.
+    """
+
+    __tablename__ = "identifier_records"
+
+    identifier_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    scheme: Mapped[str] = mapped_column(String(32), nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    supplied_by: Mapped[str] = mapped_column(String(32), nullable=False)
+    supplied_by_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    resolution_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    resolution_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        # One identifier, one row per task: a second row for the same triple
+        # would make "is it resolved" answerable two ways.
+        UniqueConstraint("task_id", "scheme", "value", name="uq_identifier_task_scheme_value"),
+        CheckConstraint(
+            f"scheme IN {sql_string_list(v.value for v in IdentifierScheme)}",
+            name="identifier_scheme_vocabulary",
+        ),
+        CheckConstraint(
+            f"supplied_by IN {sql_string_list(v.value for v in IdentifierProvenance)}",
+            name="identifier_provenance_vocabulary",
+        ),
+        CheckConstraint(
+            f"resolution_state IN {sql_string_list(v.value for v in ResolutionState)}",
+            name="identifier_resolution_vocabulary",
+        ),
+        CheckConstraint(
+            "length(identifier_id) > 0 AND length(task_id) > 0"
+            " AND length(value) > 0 AND length(supplied_by_id) > 0",
+            name="identifier_fields_present",
+        ),
+        CheckConstraint(
+            "resolution_state != 'unresolved' OR (resolution_detail IS NULL"
+            " AND resolved_by IS NULL AND resolved_at IS NULL)",
+            name="identifier_unresolved_carries_nothing",
+        ),
+        CheckConstraint(
+            "resolution_state != 'not_attempted' OR (resolution_detail IS NOT NULL"
+            " AND resolved_by IS NULL AND resolved_at IS NULL)",
+            name="identifier_not_attempted_says_why",
+        ),
+        CheckConstraint(
+            "resolution_state != 'resolved' OR (resolution_detail IS NOT NULL"
+            " AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)",
+            name="identifier_resolved_says_who",
+        ),
+        Index("ix_identifier_records_task", "task_id"),
+    )
+
+
+class EvidenceIdentifierRow(Base):
+    """One identifier cited by one evidence record.
+
+    A join table rather than a column, for the same reason ``evidence_anchors``
+    is one: ``identifier_ids`` is an ordered tuple, the first identifier is the
+    primary one, and ``position`` is that order, dense from 0. And like
+    ``evidence_anchors``, no foreign key -- an identifier id naming nothing is
+    a finding for the ledger's checks to report, not a constraint error to
+    replace them.
+    """
+
+    __tablename__ = "evidence_identifiers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    identifier_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("evidence_id", "position", name="uq_evidence_identifiers_position"),
+        UniqueConstraint("evidence_id", "identifier_id", name="uq_evidence_identifiers_identifier"),
+        CheckConstraint("position >= 0", name="evidence_identifiers_position_non_negative"),
+        CheckConstraint(
+            "length(identifier_id) > 0 AND length(evidence_id) > 0",
+            name="evidence_identifiers_ids_present",
+        ),
+        Index("ix_evidence_identifiers_identifier", "identifier_id"),
     )
 
 
