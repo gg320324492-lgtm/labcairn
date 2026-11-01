@@ -50,6 +50,7 @@ from sqlalchemy.orm import Session
 from test_store_support import StoreEnv
 from test_store_support import env as _shared_env
 
+from labcairn.application import chain as chain_layer
 from labcairn.application.refusal import (
     CHAIN_REFUSALS,
     ApplicationRefusal,
@@ -487,3 +488,61 @@ def test_the_listing_holds_the_comments_the_chain_found(chain: ChainEnv) -> None
 
     assert len(listed) == 1
     assert listed[0].feedback_id == recorded[0].feedback_id
+
+
+# --------------------------------------------------------------------------- #
+# the layer's own comment
+# --------------------------------------------------------------------------- #
+
+
+def test_the_layers_comment_carries_the_anchors_status_and_its_reason(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A caller can tell a placed comment from one the reader could not place.
+
+    **The layer's own comment says which.** The chain's row carries the
+    anchor's status and the reason the anchor is unknown, and the
+    application layer carries both — so a caller may tell *"the advisor's
+    remark was written against this text"* from *"the reader could not
+    place the remark in the body"*.
+
+    **And the anchored text alone does not say it.** An unplaced comment
+    carries the empty string as its anchored text, and so does a comment
+    the reader *did* place on a stretch of the manuscript that holds no
+    text: **two different facts, one spelling.** A layer that carried the
+    text and left the status behind would make them indistinguishable —
+    and the scope of a distilled rule would then quote the empty string
+    as though it were the advisor's words.
+
+    **What breaks it:** the layer dropping ``anchor_status`` and
+    ``anchor_reason`` on the way out of the store, which is exactly what
+    it did before.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    chain = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("501"), a_comment("502", anchor="none")),
+    )
+    recorded = _record(chain)
+    for event, key in zip(recorded, ("iss-placed", "iss-unplaced"), strict=True):
+        set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=key, now=MOMENT)
+
+    comments = chain_layer.read_comments(chain.context, issue_keys=("iss-placed", "iss-unplaced"))
+    assert len(comments) == 2, "the chain holds the two comments it recorded"
+    by_key = {comment.issue_key: comment for comment in comments}
+
+    placed = by_key["iss-placed"]
+    assert placed.anchor_status == "resolved", "the placed comment says it was placed"
+    assert placed.anchor_reason is None, "a placed anchor has no reason to give"
+    assert placed.anchor_text, "the placed comment names the text it sits at"
+
+    unplaced = by_key["iss-unplaced"]
+    assert unplaced.anchor_status == "unknown", (
+        "the unplaced comment says the reader could not place it"
+    )
+    assert unplaced.anchor_reason == "the comment carries no range markers", (
+        "the reason is the chain's own, not a guess made here"
+    )
+    assert unplaced.anchor_text == "", "an unplaced comment carries no anchored text"

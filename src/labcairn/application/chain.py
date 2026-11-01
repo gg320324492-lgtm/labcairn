@@ -77,6 +77,21 @@ class ChainComment:
     words in the advisor's mouth, so the quote a role proposes is checked
     against the very comment it points at — and the anchored text is what
     the scope of a distilled rule is built from.
+
+    **And the anchor's status travels with them, because the text alone
+    does not say where the comment sits.** A comment the reader could not
+    place in the body carries the empty string as its anchored text, and
+    so does a comment the reader *did* place on a stretch of the
+    manuscript that holds no text. **Those are two different facts**: the
+    first is a remark the reader could not attach to anything, the second
+    is a remark about a place the reader found and that is empty.
+
+    **So the layer carries the status and the reason, and a caller can
+    ask.** A caller that cannot tell the two apart will say something
+    false about the case — and the scope of a distilled rule that quotes
+    the empty string as though it were the advisor's words is exactly
+    that. The reason is the chain's own, carried through so a caller may
+    name it rather than invent one.
     """
 
     feedback_id: str
@@ -86,7 +101,16 @@ class ChainComment:
     #: The manuscript state the comment was written against.
     version_id: str
     comment_text: str
+    #: The text the comment was written against. **Empty when the reader
+    #: could not place the comment, and empty also when the place it
+    #: found holds no text** — which is why the status below is here.
     anchor_text: str
+    #: ``resolved`` or ``unknown``: whether the reader placed the comment
+    #: in the body at all.
+    anchor_status: str
+    #: Why the anchor is unknown, or ``None`` when it resolved. **The
+    #: chain's own reason**, so a caller may name it.
+    anchor_reason: str | None
 
 
 @dataclass(frozen=True)
@@ -300,6 +324,10 @@ def read_comments(
     what an absent comment means — a card that quotes it may not, a
     distillation that needs a case may not invent one.
 
+    **And the anchor's status comes with the comment**, so that a caller
+    may tell a remark the advisor's words sit at some text from one the
+    reader could not place in the body at all.
+
     :param issue_keys: the chain's own keys. **Duplicates and blanks are
         the caller's business**: the chain's keys are names, not values,
         and a key that matches nothing contributes nothing.
@@ -317,6 +345,8 @@ def read_comments(
             version_id=row.version_id,
             comment_text=row.comment_text,
             anchor_text=row.anchor_text,
+            anchor_status=row.anchor_status,
+            anchor_reason=row.anchor_reason,
         )
         for row in rows
     )
