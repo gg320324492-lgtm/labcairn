@@ -129,6 +129,7 @@ class Loop:
     context: ApplicationContext
     chain: ChainEnv
     key: str
+    feedback_id: str
     quote: str
     rule_id: str
     specs: dict[str, AgentRoleSpec] = field(default_factory=dict)
@@ -183,6 +184,7 @@ def loop(env: StoreEnv, tmp_path: Path) -> Loop:
         context=chain.context,
         chain=chain,
         key=KEY,
+        feedback_id=event.feedback_id,
         quote=QUOTE,
         rule_id=rule.rule_id,
     )
@@ -502,6 +504,33 @@ def test_the_roles_run_in_the_dependency_order_whatever_order_they_were_named_in
     assert result.card is not None
     assert result.verdict is not None
     assert result.verdict.reviewed_locator == result.card.target_locator
+
+
+def test_the_loop_does_not_supply_the_card_address(loop: Loop) -> None:
+    """The card's address is the product's, and the request cannot supply it.
+
+    **The request has no field for it.** The address is minted by the
+    product from the comment the card's evidence names, and a caller that
+    could write it could point the card at a comment it is not about — so
+    the shape refuses before the body runs.
+
+    **And the card the loop builds carries the address the product
+    minted**: the issue, the comment under it, and the manuscript state
+    the comment was written against.
+    """
+    assert "target_locator" not in RoleRunRequest.__dataclass_fields__
+    ticket = request_role_run(
+        loop.context,
+        _request(loop, roles=("guidance",), rule_id=loop.rule_id, guidance=_guidance_judgement()),
+        plan=_plan(),
+        expires_at=EXPIRES,
+        now=MOMENT,
+    )
+    result = run_role_run(loop.context, ticket, grants=_grants(), at=MOMENT)
+    assert result.card is not None
+    assert result.card.target_locator == (
+        f"card:{loop.key}@{loop.feedback_id}@{loop.chain.version_id}"
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -343,7 +343,6 @@ def main() -> int:
         card = build_card(
             context,
             spec=specs["guidance"],
-            target_locator="docx:word/document.xml#para=12",
             issue_type="method_and_hypothesis",
             severity="major",
             reason="the comparison names no baseline, and the rule asks for one.",
@@ -368,7 +367,9 @@ def main() -> int:
             repair_advice="none needed; the evidence is the chain's",
         )
         check(verdict.verdict == "supported" and verdict.grade == "inferred")
+        check(card.target_locator.startswith("card:"), "the card carries an address of its own")
         print(f"  the card's evidence: {card.evidence_refs}")
+        print(f"  the card's address: {card.target_locator}")
         print(f"  the review's verdict: {verdict.verdict}, at grade {verdict.grade}")
 
         _print("4. A suggestion the critique refuses")
@@ -399,7 +400,6 @@ def main() -> int:
         refused_card = build_card(
             context,
             spec=specs["guidance"],
-            target_locator="docx:word/document.xml#para=14",
             issue_type="method_and_hypothesis",
             severity="moderate",
             reason="the advice rests on the rule alone.",
@@ -438,14 +438,14 @@ def main() -> int:
         ledger = DecisionLedger()
         decision = record_human_decision(
             ledger,
-            card_locator="docx:word/document.xml#para=12",
+            card_locator=card.target_locator,
             decision="accepted",
             decided_by="the-student",
             reason="the card names the baseline; the paragraph now has one.",
             now=LATER,
         )
         check(decision.decision == "accepted")
-        check(len(ledger.decisions_for("docx:word/document.xml#para=12")) == 1)
+        check(len(ledger.decisions_for(card.target_locator)) == 1)
 
         _print("6. The priced call, and nothing sent")
         from labcairn.core.providers import FakeProvider, ModelRequest
