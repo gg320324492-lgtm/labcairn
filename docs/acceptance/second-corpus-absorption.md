@@ -24,9 +24,16 @@ people**:
 
 | The advisor's copy | Comments | Tracked revisions | What the advisor did |
 |---|---|---|---|
-| `杨慈师姐修改版.docx` | 25 | 349 | wrote beside the text, word by word |
-| `王老师修改版.docx` | 0 | 58 | **rewrote silently** — no remark at all |
-| `航佳师姐修改版.docx` | 9 | 0 | **criticised the paper as a whole** |
+| the first | 25 | 349 | wrote beside the text, word by word |
+| the second | 0 | 58 | **rewrote silently** — no remark at all |
+| the third | 9 | 0 | **criticised the paper as a whole** |
+
+**The copies' own names are not in this record**, because the
+project's practice for the first corpus was to keep the advisor's identity
+out of the repository along with the manuscript, the labels and the
+agreement number. **What each advisor did is a fact about the material and
+it is stated; who each of them is is the owner's business.** The
+library holds the names, and this record can be checked against it.
 
 **And that is the finding the first corpus could not produce.** One
 advisor's hand is at the level of the word, one's is at the level of the
