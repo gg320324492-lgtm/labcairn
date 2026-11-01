@@ -192,11 +192,31 @@ class Comment:
     #: The baseline text the comment follows, used when the anchor is a
     #: point rather than a range.
     after_text: str = ""
-    #: ``"both"`` (the normal case), ``"start_only"``, ``"end_only"`` or
-    #: ``"none"``. The last three are the malformed cases, and they exist
-    #: because the upstream study found a library that drops the entire
-    #: comment set when the counts do not match.
+    #: ``"both"`` (the normal case), ``"start_only"``, ``"end_only"``,
+    #: ``"none"`` or ``"cross_paragraph"``. The first three of the rest are
+    #: the malformed cases, and they exist because the upstream study found
+    #: a library that drops the entire comment set when the counts do not
+    #: match.
+    #:
+    #: ``"cross_paragraph"`` is a fourth case and a different one: the
+    #: range starts in one paragraph and ends in another, which **Word
+    #: writes routinely** and which the corpus did not have. Each marker
+    #: carries an offset within its own paragraph, so the pair names no
+    #: range that exists.
     anchor: str = "both"
+    #: The paragraph the comment's range **ends** in, when the range spans
+    #: two paragraphs. ``None`` for every other anchor kind, and it must
+    #: name a paragraph after :attr:`paragraph` when it is given.
+    end_paragraph: int | None = None
+
+
+#: The anchor kinds whose range **opens** with a ``w:commentRangeStart``.
+#:
+#: ``"cross_paragraph"`` is here for the same reason as ``"start_only"``:
+#: the range starts, and the marker for that is written in the paragraph
+#: the range starts in. Where it *ends* is a different paragraph, and the
+#: end marker is written there.
+_STARTING_ANCHORS: frozenset[str] = frozenset({"both", "start_only", "cross_paragraph"})
 
 
 @dataclass(frozen=True)
@@ -332,6 +352,15 @@ def _build_document(fixture: Fixture) -> str:
     comments_by_para: dict[int, list[Comment]] = {}
     for comment in fixture.comments:
         comments_by_para.setdefault(comment.paragraph, []).append(comment)
+    # **A range that spans two paragraphs ends in a different paragraph
+    # from the one it starts in**, and its end marker is written there —
+    # which is exactly what Word does for a comment covering several
+    # paragraphs. The end marker is collected separately, because it is not
+    # a marker of the paragraph the comment *starts* in.
+    cross_ends_by_para: dict[int, list[Comment]] = {}
+    for comment in fixture.comments:
+        if comment.anchor == "cross_paragraph" and comment.end_paragraph is not None:
+            cross_ends_by_para.setdefault(comment.end_paragraph, []).append(comment)
 
     body_parts: list[str] = []
     for index, baseline in enumerate(fixture.paragraphs):
@@ -339,6 +368,7 @@ def _build_document(fixture: Fixture) -> str:
             revisions_by_para.get(index, []), key=lambda r: revision_range(fixture, r)
         )
         comments = comments_by_para.get(index, [])
+        cross_ends = cross_ends_by_para.get(index, [])
         ranges = {rev.element_id: revision_range(fixture, rev) for rev in revisions}
         comment_ranges = {c.comment_id: comment_range(fixture, c) for c in comments}
 
@@ -355,7 +385,7 @@ def _build_document(fixture: Fixture) -> str:
             # Comment markers that begin at this revision open before it.
             for comment in comments:
                 c_start, c_end = comment_ranges[comment.comment_id]
-                if comment.anchor in ("both", "start_only") and c_start == start:
+                if comment.anchor in _STARTING_ANCHORS and c_start == start:
                     pieces.append(f'<w:commentRangeStart w:id="{comment.comment_id}"/>')
             pieces.append(_revision_xml(rev))
             # Comment markers that end at this revision close after it.
@@ -373,13 +403,25 @@ def _build_document(fixture: Fixture) -> str:
             # closes around that text.
             for comment in comments:
                 c_start, c_end = comment_ranges[comment.comment_id]
-                if comment.anchor in ("both", "start_only") and c_start >= tail_start:
+                if comment.anchor in _STARTING_ANCHORS and c_start >= tail_start:
                     pieces.append(f'<w:commentRangeStart w:id="{comment.comment_id}"/>')
             pieces.append(_run(baseline[tail_start:]))
             for comment in comments:
                 c_start, c_end = comment_ranges[comment.comment_id]
                 if comment.anchor == "both" and c_end >= tail_start:
                     pieces.append(f'<w:commentRangeEnd w:id="{comment.comment_id}"/>')
+
+        # **The end of a range that spans two paragraphs.** The end marker
+        # and the comment reference are written in the paragraph the range
+        # ends in, and the end marker's offset is an offset into *that*
+        # paragraph — which is why pairing it with the start marker's
+        # offset names a range that cannot exist.
+        for comment in cross_ends:
+            pieces.append(f'<w:commentRangeEnd w:id="{comment.comment_id}"/>')
+            pieces.append(
+                f'<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr>'
+                f'<w:commentReference w:id="{comment.comment_id}"/></w:r>'
+            )
 
         for comment in comments:
             if comment.anchor in ("both", "end_only"):
@@ -405,6 +447,53 @@ def _build_comments(fixture: Fixture) -> str:
     return f'{_XML_HEADER}<w:comments xmlns:w="{W}">{comments}</w:comments>'
 
 
+def _check_fixture(fixture: Fixture) -> None:
+    """Refuse to build a fixture whose declaration contradicts itself.
+
+    **A fixture that says one thing and writes another tests nothing.**
+    The writer already refuses a revision whose anchor does not occur in
+    its own baseline; this is the same rule for the anchor kinds, and it
+    is checked before a single byte is written.
+
+    In particular a range that spans two paragraphs must say **which**
+    paragraph it ends in, and that paragraph must be one the document
+    has and one that comes after the paragraph it starts in — a range
+    runs forwards, and a fixture that says otherwise would write markers
+    a reader could not make sense of.
+    """
+    for comment in fixture.comments:
+        if comment.anchor != "cross_paragraph":
+            if comment.end_paragraph is not None:
+                raise ValueError(
+                    f"{fixture.name}: comment {comment.comment_id} has anchor "
+                    f"{comment.anchor!r} and an end paragraph "
+                    f"{comment.end_paragraph!r}; only a range that spans two "
+                    f"paragraphs has one"
+                )
+            continue
+        if comment.end_paragraph is None:
+            raise ValueError(
+                f"{fixture.name}: comment {comment.comment_id} has a range that spans "
+                f"two paragraphs and no paragraph for the range to end in"
+            )
+        if not 0 <= comment.paragraph < len(fixture.paragraphs):
+            raise ValueError(
+                f"{fixture.name}: comment {comment.comment_id} starts in paragraph "
+                f"{comment.paragraph}, which the document does not have"
+            )
+        if not 0 <= comment.end_paragraph < len(fixture.paragraphs):
+            raise ValueError(
+                f"{fixture.name}: comment {comment.comment_id} ends in paragraph "
+                f"{comment.end_paragraph}, which the document does not have"
+            )
+        if comment.end_paragraph <= comment.paragraph:
+            raise ValueError(
+                f"{fixture.name}: comment {comment.comment_id} starts in paragraph "
+                f"{comment.paragraph} and ends in {comment.end_paragraph}; a range "
+                f"runs forwards"
+            )
+
+
 def write_fixture(fixture: Fixture, directory: Path) -> Path:
     """Write one fixture to ``directory`` and return its path.
 
@@ -424,6 +513,7 @@ def write_fixture(fixture: Fixture, directory: Path) -> Path:
     the local machine had hidden it for as long as only Windows wrote the
     corpus.
     """
+    _check_fixture(fixture)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{fixture.name}.docx"
     document = _build_document(fixture)
@@ -446,6 +536,23 @@ def write_fixture(fixture: Fixture, directory: Path) -> Path:
     return path
 
 
+def comment_anchor_status(anchor: str) -> str:
+    """The anchor status a correct reader must report for an anchor kind.
+
+    **Only a range that is a pair inside one paragraph resolves.** Every
+    other kind leaves the anchor unknown, and the reason names which
+    defect it was: a range that never closes, a range that never opens, a
+    comment with no range at all, and a range whose two markers sit in
+    different paragraphs.
+
+    **They are four different defects.** A reader that reports them as
+    one has thrown away the difference between a damaged document and an
+    unusual one, and — in the last case — has stored an address that
+    names no text.
+    """
+    return "resolved" if anchor == "both" else "UNKNOWN"
+
+
 def gold_for(fixture: Fixture) -> dict[str, Any]:
     """The expected answer for one fixture, as data.
 
@@ -455,6 +562,33 @@ def gold_for(fixture: Fixture) -> dict[str, Any]:
     ``"UNKNOWN"`` rather than omitting the field — an omitted field and an
     unknown field are different, and only one of them is honest.
     """
+    comments: list[dict[str, Any]] = []
+    for comment in fixture.comments:
+        if comment.anchor == "cross_paragraph":
+            # **A range that spans two paragraphs names no single range.**
+            # The start offset is into one paragraph and the end offset is
+            # into another, so there is no pair of offsets a reader could
+            # report, and the answer is None for both. A reader that
+            # borrowed the end offset would be storing an address that
+            # resolves to text nobody wrote.
+            start: int | None = None
+            end: int | None = None
+        else:
+            start, end = comment_range(fixture, comment)
+        comments.append(
+            {
+                "id": comment.comment_id,
+                "author": comment.author,
+                "date": comment.date,
+                "text": comment.text,
+                "paragraph": comment.paragraph,
+                "start": start,
+                "end": end,
+                "anchor": comment.anchor,
+                "anchor_status": comment_anchor_status(comment.anchor),
+            }
+        )
+
     return {
         "name": fixture.name,
         "purpose": fixture.purpose,
@@ -476,20 +610,7 @@ def gold_for(fixture: Fixture) -> dict[str, Any]:
             }
             for rev in fixture.revisions
         ],
-        "comments": [
-            {
-                "id": comment.comment_id,
-                "author": comment.author,
-                "date": comment.date,
-                "text": comment.text,
-                "paragraph": comment.paragraph,
-                "start": comment_range(fixture, comment)[0],
-                "end": comment_range(fixture, comment)[1],
-                "anchor": comment.anchor,
-                "anchor_status": "resolved" if comment.anchor == "both" else "UNKNOWN",
-            }
-            for comment in fixture.comments
-        ],
+        "comments": comments,
         "expectations": list(fixture.expectations),
     }
 

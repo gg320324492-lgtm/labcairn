@@ -59,6 +59,7 @@ from typing import Final
 import pytest
 from fastapi.routing import APIRoute
 from pydantic import TypeAdapter, ValidationError
+from sqlalchemy import CheckConstraint
 
 from labcairn.analysis.chart.recipe import ChartRecipe
 from labcairn.analysis.manifest import FileRef
@@ -666,6 +667,109 @@ def test_the_write_enumeration_in_the_threat_model_matches_the_tree() -> None:
         )
 
 
+def test_the_threat_model_says_what_the_chain_holds() -> None:
+    """C17 — the chain holds other people's words, and the document says so.
+
+    **A threat model that never mentions the chain does not describe the
+    part of this tree that most obviously carries somebody else's
+    language.** The chain's rows are a reviewer's comments, a reviewer's
+    rewrites, and the product's own judgements about them — all of it text
+    somebody else wrote, arriving from a file the product did not write.
+    **This document had no entry for any of it**, and the gap was not
+    visible to anybody reading it.
+
+    **And the product does not take on their correctness just because it
+    recorded them.** That is not a promise the document makes; it is a
+    property of the schema, and the witness reads it out of the schema: a
+    response that is not ``pending`` cannot be reached without a decider
+    and its evidence, and the vocabulary of what an assessment may rest on
+    has **no member meaning "the change was accepted"**.
+
+    **What breaks it:** a sentence removed from the document, a state
+    reachable without evidence, or a basis meaning the acceptance of a
+    change.
+    """
+    from labcairn.db.base import Base
+
+    text = _threat_model_text()
+    for table in ("feedback_events", "edit_actions", "response_links", "followup_assessments"):
+        assert table in text, (
+            f"the threat model does not mention {table}, and the chain is the part "
+            "of this tree that carries the most somebody else's language"
+        )
+
+    tables = Base.metadata.tables
+
+    # **The judgement cannot be reached without its evidence.**
+    link_checks = {
+        str(constraint.name): constraint.sqltext.text
+        for constraint in tables["response_links"].constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    judgement = next(
+        text
+        for name, text in link_checks.items()
+        if name.endswith("response_links_a_judgement_needs_a_decider_and_its_evidence")
+    )
+    assert "decided_by IS NOT NULL" in judgement
+    assert "json_array_length(evidence_refs) > 0" in judgement
+
+    # **And the assessment may not rest on the acceptance of a change.**
+    assessment_checks = {
+        str(constraint.name): constraint.sqltext.text
+        for constraint in tables["followup_assessments"].constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    basis = next(
+        text
+        for name, text in assessment_checks.items()
+        if name.endswith("followup_assessments_basis_vocabulary")
+    )
+    assert "basis IN (" in basis
+    assert "accept" not in basis.lower(), (
+        "the vocabulary of what an assessment may rest on has a member that means "
+        "the change was accepted, and the product would then be recording the "
+        "advisor's correctness as a consequence of the student's change being kept"
+    )
+
+
+def test_the_revision_events_cannot_carry_a_reason() -> None:
+    """C16 — a change is observed; **why it was changed is not established**.
+
+    **The schema is the guarantee, and the guarantee is structural.** The
+    revision events are the only table in the tree that holds a large
+    quantity of another person's own prose — a reviewer's rewriting of a
+    manuscript, with no explanation beside it. So the table has no column
+    for a reason, and no foreign key to the table where a person's words
+    live: the pairing of a comment with a change is somebody's judgement,
+    it carries its own decider and its own evidence, and the revision
+    events assert none of it.
+
+    **What breaks it:** a column or a foreign key added to the table,
+    which would let a change carry a reason it never had — and would let
+    ADR-0016 D9's risk metric (a system's agreement with an advisor's
+    wording) be quietly promoted into a rule.
+    """
+    from labcairn.db.models import RevisionEventRow
+
+    columns = set(RevisionEventRow.__table__.columns.keys())
+    assert "feedback_id" not in columns, (
+        "a revision event may not name the comment it answers: the "
+        "correspondence is a judgement, and a judgement carries its own "
+        "decider and its own evidence"
+    )
+    assert "reason" not in columns, "a change has no reason of its own"
+    assert "why" not in columns
+    assert "motive" not in columns
+
+    targets = {
+        foreign_key.target_fullname for foreign_key in RevisionEventRow.__table__.foreign_keys
+    }
+    assert not any("feedback_events" in target for target in targets), (
+        f"the revision events are joined to the comments by the schema: {targets}"
+    )
+
+
 def test_the_mpl_config_directory_is_pinned_and_not_ambient() -> None:
     """C7 — matplotlib's configuration and font cache live in a declared place.
 
@@ -1238,6 +1342,8 @@ def test_every_claim_in_the_witness_table_has_a_test_that_watches_it() -> None:
         "C13": ("out_of_the_machine", "remote_url"),
         "C14": ("event_stream", "selects_a_workspace", "ledger_checks"),
         "C15": ("write_enumeration",),
+        "C16": ("revision_event", "reason"),
+        "C17": ("chain_holds",),
     }
     names = " ".join(defined)
     for claim_id, words in keywords.items():

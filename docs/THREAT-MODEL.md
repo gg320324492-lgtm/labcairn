@@ -786,6 +786,83 @@ Stated here because they are real and because the code flags them itself:
   claim are `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`
   and `::test_a_grant_bound_to_an_unregistered_capability_cannot_be_consumed`.
 
+### 6.13 A reviewer's change is observed; **why it was changed is not established**
+
+**The tree now holds a table of the reviewer's own prose.** ADR-0014's
+`revision_events` (`src/labcairn/db/models.py:1682`, written by the migration
+`migrations/versions/0017_revision_events.py`) stores one row per tracked
+change a Word document records: the text that changed, the address it
+changed at, the author and the date. **On the corpus that motivated it,
+that is 897 rows of one reviewer's rewriting of a manuscript, and not one
+sentence of explanation anywhere in the material.**
+
+**So the product says what it can say and stops.** The table holds *what*
+changed, *where*, and *who* changed it. **It holds no reason, and it has
+no link to the table where a person's words live** — the pairing of a
+comment with a change is somebody's judgement, it carries its own decider
+and its own evidence, and the revision events assert none of it. A
+manuscript holding hundreds of changes and no comment is a shape the chain
+reports (`src/labcairn/application/chain.py:315`) and does not explain away.
+
+**Why this is a limit and not a feature.** ADR-0016 D9 calls the agreement
+between a system and an advisor's wording a *risk metric* rather than a
+quality metric, and a manuscript full of silent rewrites is exactly the
+material that would be mistaken for the advisor's rules. **The schema is
+what stops it**: there is no column for a reason, and the rule store's only
+binding to chain material is by `issue_key`, which a revision event does
+not carry — and **the distillation's cases are the chain's comments**, so a
+rule cannot be distilled from a reviewer's rewrites at all. **A person may
+still write a rule by hand**, and that is a person's judgement: it lands as
+a candidate, and only a second reader moves it on.
+
+**What breaks it:** a column or a foreign key added to `revision_events`,
+which would let a change carry a reason it never had. The witnesses are
+`tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made`
+and `tests/test_threat_model.py::test_the_revision_events_cannot_carry_a_reason`.
+
+**And an empty marker is observed, and it is nothing.** Word records an
+operation at a point by leaving an element with no children at all, and
+**those carry no judgement**: on the corpus that motivated the table, 65
+of its 897 events are of that kind, and **a count that called them
+changes would be a number the file does not support** — one reviewer's
+copy holds 58 revision elements and 32 changes. **So the chain counts the
+four kinds apart** — a change that carries words, a change that carries
+only whitespace, a run whose formatting changed, and a cursor left behind
+— and the empty marker is never counted as a change. That is the same
+family of statement as the one above: **what was changed is observed; why
+it was changed, and whether it meant anything at all, are not.**
+
+### 6.14 The chain records other people's words, and the product does not take on their correctness
+
+**The chain is the part of this tree that most obviously carries somebody
+else's language.** `feedback_events` holds a reviewer's comments — the
+words they wrote beside the text, with their anchor, their author and their
+date. `revision_events` holds the reviewer's rewrites — what changed,
+where, and who changed it. `edit_actions` holds the chain's judgement
+that a change was made in answer to a comment, and **who** made it.
+`response_links` and `followup_assessments` hold the judgements about those
+changes.
+
+**All of it is text somebody else wrote, arriving from a file the product
+did not write**, and the product is the thing a reader will look to for
+judgement. **Recording it is not adopting it.** A comment is an
+observation about a file; a revision is an observation about a file; and a
+judgement about either is **somebody's** judgement, with its decider and
+its evidence on the row.
+
+**That is a property of the schema and not a promise this document
+makes.** A response that is not `pending` cannot be reached without a
+decider and a non-empty evidence list
+(`src/labcairn/db/models.py:2357`), and the vocabulary of what an
+assessment may rest on **has no member meaning "the change was accepted"**
+(`src/labcairn/db/models.py:2453`) — because acceptance is a fact about the
+process and not about the science, and a product that recorded the
+advisor's correctness as a consequence of the student's change being kept
+would be claiming something it cannot know.
+
+**What breaks it:** a state reachable without evidence, a basis meaning
+acceptance, or a sentence removed from this section.
+
 ---
 
 ## §7 — Where each claim is witnessed
@@ -812,6 +889,8 @@ drifts from the tree goes red.
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
 | C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; no product operation runs the ledger's checks |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
+| C16 | A revision event records what changed, where and who — and **the schema cannot say why** | `test_threat_model.py` — `test_the_revision_events_cannot_carry_a_reason`; and `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made` |
+| C17 | The chain holds other people's words — comments, rewrites and judgements about them — and **the product does not take on their correctness** | `test_threat_model.py` — `test_the_threat_model_says_what_the_chain_holds` |
 
 **And the claims about the document itself are watched too.** The witness
 checks that **every citation this document names resolves** to a file that

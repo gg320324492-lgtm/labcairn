@@ -49,15 +49,24 @@ export class ApiRefusal extends Error {
 /**
  * A request that failed for a reason that is not a refusal: the service was
  * not there, or answered with something this client does not understand.
+ *
+ * **The body is kept, because a caller may have to show it.** A refusal
+ * arrives in the refusal body's own shape, but a schema's answer does not:
+ * the service answers `422` with the schema's vocabulary, and a panel that
+ * could only say "422" would be saying less than the service said. The
+ * payload is what the service answered, held verbatim.
  */
 export class ApiFailure extends Error {
   /** The status the service answered with, or zero when there was no answer. */
   readonly status: number
+  /** What the service answered, when it was not a refusal. */
+  readonly payload: unknown
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, payload: unknown = null) {
     super(message)
     this.name = 'ApiFailure'
     this.status = status
+    this.payload = payload
   }
 }
 
@@ -267,6 +276,7 @@ export class LabCairnClient {
     throw new ApiFailure(
       response.status,
       `the service answered ${response.status} ${response.statusText} for this request.`,
+      payload,
     )
   }
 }

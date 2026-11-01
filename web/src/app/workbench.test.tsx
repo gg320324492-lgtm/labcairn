@@ -43,6 +43,10 @@ describe('the views', () => {
       'Evidence',
       'Artefacts',
       'Revisions',
+      'Trajectory',
+      'Version graph',
+      'Guidance',
+      'Proposals',
     ]) {
       expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
     }
@@ -186,6 +190,31 @@ describe('the changes the workbench makes', () => {
       expect(screen.getByText('granted')).toBeInTheDocument()
     })
     expect(fake.requests.filter((request) => request.method === 'POST')).toHaveLength(1)
+  })
+})
+
+describe('the panels that read for themselves', () => {
+  it('read again when the workbench reads again', async () => {
+    render(<App />)
+    await screen.findByText('Sediment core 04.pdf')
+    const readsBefore = fake.requestsTo('/records').length
+
+    // A rule confirmed is a write the task's own state does not carry, so
+    // the workbench's answer does not change: the cycle turns because the
+    // workbench was asked to read again, and not because the answer moved.
+    // The panel that holds its own answer must read again all the same.
+    fireEvent.change(await screen.findByLabelText('Whose word is it'), {
+      target: { value: 'carol' },
+    })
+    const guidance = (await screen.findByRole('heading', { name: 'Guidance' })).closest('section')
+    const rule = within(guidance as HTMLElement).getByText('Name the method before its result.')
+    fireEvent.click(
+      within(rule.closest('li') as HTMLElement).getByRole('button', { name: 'Confirm' }),
+    )
+
+    await waitFor(() => {
+      expect(fake.requestsTo('/records').length).toBeGreaterThan(readsBefore)
+    })
   })
 })
 

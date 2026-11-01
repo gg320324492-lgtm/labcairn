@@ -99,6 +99,14 @@ asks it per source at serve time and drops the sources the reader may not
 reach (ADR-0003 C5). A role contract names no material either, and it holds
 its own boundary: the capabilities it lists, and the actions it forbids.
 
+**And the loop that runs the roles.** :mod:`labcairn.application.roles_run`
+routes a request to the roles it names and runs those and no others. Its
+two operations are listed with the mentor line's rows because they are bound
+by the same boundary: **a role's contract decides what may be asked of it,
+and the run asks only what the contract lists.** The model call the loop
+may spend is spent through the model path, and the consent it asks for is
+the consent layer's.
+
 Centralising these reads is what makes a guard added to those modules reach
 **every** caller, which is the property the seam exists for.
 
@@ -119,6 +127,9 @@ Operation  The permission that governs it
 ``write_guidance_counterexample``     the material's — asked where it is named
 ``read_role_spec``                    the contract's own allowed capabilities
 ``write_role_spec``                   the contract's own allowed capabilities
+``request_role_run``                  the contract's own allowed capabilities
+``run_role_run``                      the contract's own allowed capabilities
+``the_role_run_question``             the contract's own allowed capabilities
 ====================================  ========================================
 """
 
@@ -220,6 +231,20 @@ from labcairn.application.reports import (
     render_report,
 )
 from labcairn.application.roles import RoleSpecDraft, read_role_spec, write_role_spec
+from labcairn.application.roles_run import (
+    CritiqueJudgement,
+    GuidanceJudgement,
+    MaterialAddress,
+    ModelCallPlan,
+    RoleRunQuestion,
+    RoleRunRequest,
+    RoleRunResult,
+    RoleRunTicket,
+    TrajectoryJudgement,
+    request_role_run,
+    run_role_run,
+    the_role_run_question,
+)
 from labcairn.application.sources import SourceView, inspect_source, list_sources
 from labcairn.application.stages import (
     PlanStage,
@@ -261,14 +286,18 @@ __all__ = [
     "ClaimRequest",
     "ConfirmationRecorded",
     "ConfirmationRequest",
+    "CritiqueJudgement",
     "EdgeRequest",
     "EdgeStored",
     "EventPage",
     "FigureRequest",
     "FigureRun",
+    "GuidanceJudgement",
     "IngestFailure",
     "IngestedFile",
+    "MaterialAddress",
     "MaterialIngested",
+    "ModelCallPlan",
     "PlanStage",
     "ProjectGraph",
     "ProjectRequest",
@@ -276,6 +305,10 @@ __all__ = [
     "ReportRendered",
     "ReportRequest",
     "Result",
+    "RoleRunQuestion",
+    "RoleRunRequest",
+    "RoleRunResult",
+    "RoleRunTicket",
     "RoleSpecDraft",
     "RuleDraft",
     "SourceAddress",
@@ -288,6 +321,7 @@ __all__ = [
     "TaskPlan",
     "TaskState",
     "TaskStep",
+    "TrajectoryJudgement",
     "VersionRequest",
     "VersionStored",
     "attest_claim",
@@ -331,9 +365,12 @@ __all__ = [
     "record_version",
     "render_report",
     "request_approval",
+    "request_role_run",
     "resolve_abandoned",
     "run_figure",
+    "run_role_run",
     "run_stage",
+    "the_role_run_question",
     "write_guidance_counterexample",
     "write_guidance_rule_confirmation",
     "write_guidance_rule_resolution",

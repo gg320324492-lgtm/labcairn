@@ -6,7 +6,7 @@ synthetic corpus in ``tests/docx_corpus.py``:
 * every revision is reported, with its kind, text, author and date;
 * every deletion's **text** is recovered -- the deleted text lives in
   ``w:delText``, and a reader that reads ``w:t`` sees an empty run;
-* every comment is reported, including the four whose anchor cannot be
+* every comment is reported, including the five whose anchor cannot be
   resolved, each with the reason it cannot;
 * a missing author or date is ``UNKNOWN`` and never a guess;
 * the original bytes are unchanged;
@@ -194,7 +194,7 @@ def test_every_deletion_text_is_recovered(corpus: dict[str, RevisionDocument]) -
 def test_every_comment_is_reported_including_the_unanchorable_ones(
     corpus: dict[str, RevisionDocument],
 ) -> None:
-    """Comment recall is 1.0, and the four un-anchorable comments are in it.
+    """Comment recall is 1.0, and the five un-anchorable comments are in it.
 
     **What breaks it:** the failure the upstream study found in a library --
     a count mismatch makes the whole comment set vanish. Here the corpus
@@ -215,17 +215,17 @@ def test_a_comment_with_no_resolvable_anchor_is_still_a_comment(
     """The un-anchorable comments keep their body, author and date.
 
     **What breaks it:** a reader that reports an un-anchorable comment as
-    an empty string, or that drops it. The corpus's four un-anchorable
-    cases are the design's §7 "isolated comment marker" case, and each of
-    them has a **body that is in the file** -- dropping it loses a remark
-    the advisor actually wrote.
+    an empty string, or that drops it. The corpus's five un-anchorable
+    cases are the design's §7 "isolated comment marker" case and the
+    cross-paragraph range, and each of them has a **body that is in the
+    file** -- dropping it loses a remark the advisor actually wrote.
     """
     unanchorable = [
         fixture
         for fixture in FIXTURES
         if any(comment["anchor_status"] == "UNKNOWN" for comment in gold_for(fixture)["comments"])
     ]
-    assert len(unanchorable) == 4, "the corpus must hold the four un-anchorable cases"
+    assert len(unanchorable) == 5, "the corpus must hold the five un-anchorable cases"
 
     for fixture in unanchorable:
         document = corpus[fixture.name]
@@ -242,12 +242,13 @@ def test_a_comment_with_no_resolvable_anchor_is_still_a_comment(
 
 
 def test_each_unresolvable_anchor_names_its_own_reason(corpus: dict[str, RevisionDocument]) -> None:
-    """The three malformed-anchor cases are told apart.
+    """The four unresolvable-anchor cases are told apart.
 
     A range that starts and never ends, a range that ends and never
-    started, and a comment with no range at all are **three different
-    defects**. A reader that reports them as one has thrown away the
-    distinction between a damaged document and an unusual one.
+    started, a comment with no range at all, and a range whose two markers
+    sit in different paragraphs are **four different defects**. A reader
+    that reports them as one has thrown away the distinction between a
+    damaged document and an unusual one.
     """
     reasons = {
         fixture.name: {
@@ -260,6 +261,111 @@ def test_each_unresolvable_anchor_names_its_own_reason(corpus: dict[str, Revisio
     assert reasons["12-orphan-comment-start-only"] == {"the comment's range starts but never ends"}
     assert reasons["13-orphan-comment-end-only"] == {"the comment's range ends but never starts"}
     assert reasons["14-comment-without-anchor"] == {"the comment carries no range markers"}
+    assert reasons["29-comment-spanning-two-paragraphs"] == {
+        "the comment's range spans two paragraphs"
+    }
+
+    # **Four defects, four phrases.** A reader that reused one phrase for
+    # two of them would say the corpus's cases are the same case, and the
+    # distinction is the whole point of naming them.
+    named = [
+        next(iter(reasons[name]))
+        for name in (
+            "12-orphan-comment-start-only",
+            "13-orphan-comment-end-only",
+            "14-comment-without-anchor",
+            "29-comment-spanning-two-paragraphs",
+        )
+    ]
+    assert len(set(named)) == 4, f"the four reasons are not four phrases: {named}"
+
+
+def test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor(
+    corpus: dict[str, RevisionDocument],
+) -> None:
+    """A range across two paragraphs is reported as an anchor it cannot name.
+
+    **This is the case the owner's real material found.** Word writes a
+    comment covering several paragraphs with its ``w:commentRangeStart`` in
+    the first paragraph and its ``w:commentRangeEnd`` in the last, and
+    **each marker carries an offset within its own paragraph**. The two
+    offsets are therefore offsets into two different texts.
+
+    The reader used to pair them: it reported the start marker's paragraph
+    with the end marker's offset, which names a range that cannot exist.
+    On the corpus that is characters 0-106 of a 61-character paragraph.
+    On the owner's ``v03-chinese-draft.docx`` it is comment 192, stored as
+    paragraph 64 characters 0-134, in a paragraph whose baseline is 10
+    characters long.
+
+    **What breaks it:** a reader that borrows the other paragraph's offset
+    instead of saying it cannot name the range. The address it stores
+    resolves to text nobody wrote, and the chain that follows it cites
+    text the advisor never marked.
+
+    **And the comment itself is untouched.** The body, the author and the
+    date are in the file, and dropping them because the anchor did not
+    pair is the failure the upstream study found in a library.
+    """
+    document = corpus["29-comment-spanning-two-paragraphs"]
+    comment = next(c for c in document.comments if c.comment_id == "215")
+
+    assert comment.anchor.status == "unknown", (
+        "a range that spans two paragraphs must not be reported as resolved: "
+        "the end offset belongs to another paragraph"
+    )
+    assert comment.anchor.reason == "the comment's range spans two paragraphs"
+    assert comment.anchor.paragraph == 0, "the paragraph the range starts in is kept"
+    assert comment.anchor.start is None
+    assert comment.anchor.end is None, (
+        "the end offset belongs to the other paragraph and must not be borrowed"
+    )
+    assert comment.anchor.text == ""
+
+    # The comment is still a comment: body, author and date are all there.
+    assert comment.text == "This remark covers both paragraphs."
+    assert comment.author == "Prof. Lin"
+    assert comment.date == datetime(2026, 3, 2, 9, 30, tzinfo=UTC)
+
+
+def test_a_resolved_anchor_never_names_a_range_outside_its_own_paragraph(
+    corpus: dict[str, RevisionDocument],
+) -> None:
+    """Every resolved anchor slices the paragraph it names, and says so.
+
+    **This is the invariant that was broken.** A resolved anchor is a pair
+    of offsets into one paragraph's baseline, and the text it carries is
+    that slice. A reader that reports an offset borrowed from another
+    paragraph produces an address that resolves to nothing -- or, worse, to
+    text nobody wrote.
+
+    **What breaks it:** a reader that pairs a start marker's paragraph
+    with an end marker's offset without asking whether they are the same
+    paragraph. The corpus holds the case now, so the question is asked.
+
+    **And it is checked over the whole corpus**, not over the one fixture
+    that carries the case: an address is an address whatever document it
+    came from, and a reader that is right on one file can be wrong on the
+    next.
+    """
+    for fixture in FIXTURES:
+        document = corpus[fixture.name]
+        for comment in document.comments:
+            anchor = comment.anchor
+            if anchor.status != "resolved":
+                continue
+            assert anchor.paragraph is not None, fixture.name
+            assert anchor.start is not None and anchor.end is not None, fixture.name
+            baseline = document.baseline_paragraphs[anchor.paragraph]
+            assert 0 <= anchor.start <= anchor.end <= len(baseline), (
+                f"{fixture.name}: comment {comment.comment_id} names characters "
+                f"{anchor.start}-{anchor.end} of a {len(baseline)}-character "
+                f"paragraph"
+            )
+            assert anchor.text == baseline[anchor.start : anchor.end], (
+                f"{fixture.name}: comment {comment.comment_id} carries text that is "
+                f"not the text its offsets name"
+            )
 
 
 def test_a_missing_author_or_date_is_unknown_and_never_guessed(

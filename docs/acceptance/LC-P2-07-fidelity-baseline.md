@@ -1,7 +1,7 @@
 # LC-P2-07 — DOCX revision fidelity: the baseline measurement, and the reader
 
-**Date:** 2026-10-29 · **Base commit:** `66dde87` · **Measured by:** the
-executor, on the development machine
+**Date:** 2026-10-29 · **Re-measured:** 2026-11-01 · **Base commit:**
+`66dde87` · **Measured by:** the executor, on the development machine
 
 **What this record is.** The fidelity measurement for LC-P2-07, run against
 the synthetic corpus in `tests/docx_corpus.py`. It answers one
@@ -18,18 +18,48 @@ parser does.
 is synthetic, the arms are particular versions, and every number below is a
 number *about this corpus, on this machine*.
 
+**What changed on 2026-11-01.** The corpus gained one fixture —
+`29-comment-spanning-two-paragraphs`, a comment whose range spans two
+paragraphs, which is the case the owner's real material turned out to hold
+and this corpus did not have. **Every number below was re-measured on that
+date and none was carried forward.**
+
+**The re-measurement also corrected four things the first record got
+wrong**, and they are worth naming because each is a way a record drifts
+from the measurement:
+
+1. **The invocation in §1 did not run.** `python -m
+   tests.evaluation_docx_fidelity` stops with `ModuleNotFoundError`.
+2. **The revision breakdown counted 12 insertions.** There are 16; the
+   breakdown did not add up to the total it claimed.
+3. **The correction table in §4.5 said a fixture was extracted that is in
+   fact lost.** §4.5 says which and why.
+4. **The record implied the measurement had scored the reader.** It had
+   not — the measurement's `ooxml-native` arm is still the *not written
+   yet* placeholder, and §5 says where the reader's numbers come from
+   instead.
+
 ---
 
 ## 1. How to reproduce it
 
 ```bash
 # the corpus and its gold are written by the fixture module
-python -m tests.evaluation_docx_fidelity --corpus-dir=<dir>
+python tests/evaluation_docx_fidelity.py --corpus-dir=<dir>
 
 # with the comparison arms installed (they are NOT project dependencies)
 uv run --no-project --with docx2python --with python-docx \
-  python -m tests.evaluation_docx_fidelity --corpus-dir=<dir> --json=report.json
+  python tests/evaluation_docx_fidelity.py --corpus-dir=<dir> --json=report.json
 ```
+
+**The module is run as a file, not as `python -m tests.…`.** It imports
+its corpus as top-level modules (`docx_corpus`, `docx_fixtures`), which
+are importable only when `tests/` itself is on the path — and
+`python -m tests.evaluation_docx_fidelity` puts the *repository root*
+there instead, so it stops with `ModuleNotFoundError: No module named
+'docx_corpus'`. Running the file puts `tests/` on the path, which is what
+the module expects. (The first version of this record named the `-m` form,
+which does not run.)
 
 **The arms are installed with `uv run --with`, not added to
 `pyproject.toml`.** A measurement tool that adds its subjects to the
@@ -38,23 +68,33 @@ isolation is the point, and it is the same rule the design applies to the
 reference repositories.
 
 **The corpus test** — `tests/test_docx_fixture_corpus.py` — checks the
-corpus itself, before any of this runs. 97 cases, all green.
+corpus itself, before any of this runs. 100 cases, all green.
 
 ## 2. The corpus
 
 | | |
 |---|---|
-| Fixtures | **28** |
-| Revisions | 30 (8 deletions, 12 insertions, 6 moves) |
-| Comments | 14 (4 of them deliberately un-anchorable) |
+| Fixtures | **29** |
+| Revisions | 30 (8 deletions, 16 insertions, 6 moves) |
+| Comments | 15 (5 of them deliberately un-anchorable) |
 | Paragraphs | 1–12 per fixture |
 
 Each fixture isolates one behaviour and states its purpose and its
 expectations. The negative list is the design's §7 list: insertion,
 deletion, comment spanning a revision, several authors, an orphan comment
 marker, a move pair, nesting, a revision with no author, a revision with no
-date, a comment with no anchor, non-ASCII text, markup characters, and an
-empty revision.
+date, a comment with no anchor, a comment whose range spans two paragraphs,
+non-ASCII text, markup characters, and an empty revision.
+
+**The last case is the one the real material found.** The corpus's
+twenty-ninth fixture holds a comment whose `w:commentRangeStart` is in one
+paragraph and whose `w:commentRangeEnd` is in the next — which is what Word
+writes for a comment covering several paragraphs, and what **four
+comments across the owner's three bodies of real material** turned out to
+contain. The corpus did not have the case, so the witness that checked the
+anchored text against the offsets had never seen it. **A witness that has
+never seen the case is not a witness to it**, and the corpus's job is to be
+the case.
 
 **The corpus found two of its own bugs before it found anything else**, and
 both are worth recording because they are what a synthetic corpus is for:
@@ -78,7 +118,7 @@ drifts away from the thing it describes.** The derived one cannot.
 
 | Arm | What it is |
 |---|---|
-| `ooxml-native` | LabCairn's own reader — **not written yet** |
+| `ooxml-native` | LabCairn's own reader — **the arm is still a placeholder**; §5 says where the reader's numbers are measured instead |
 | `pandoc` | text extraction, `--track-changes=accept\|reject\|all` |
 | `python-docx` | the library this project already depends on for *writing* DOCX |
 | `docx2python` | an extraction library that does handle comments |
@@ -104,15 +144,20 @@ every fixture report an average over the fixtures it happened to read.
 ## 4. The result
 
 ```
-corpus: 28 fixtures, 30 revisions, 14 comments, 8 deletions
+corpus: 29 fixtures, 30 revisions, 15 comments, 8 deletions
 
 arm            rev found rev miss  rev rec cmt found cmt miss  cmt rec   del recov  accept ok  reject ok  attr
 --------------------------------------------------------------------------------------------------------------
-ooxml-native           0       30    0.000         0       14    0.000     0/8        0/28       0/28       no
-pandoc                 0       30    0.000         0       14    0.000     0/8       26/28      28/28       no
-python-docx            0       30    0.000         0       14    0.000     0/8       13/28      18/28       no
-docx2python            0       30    0.000         6        8    0.429     0/8       23/28       9/28       no
+ooxml-native           0       30    0.000         0       15    0.000     0/8        0/29       0/29       no
+pandoc                 0       30    0.000         0       15    0.000     0/8       27/29      29/29       no
+python-docx            0       30    0.000         0       15    0.000     0/8       14/29      19/29       no
+docx2python            0       30    0.000         7        8    0.467     0/8       24/29      10/29       no
 ```
+
+**Measured on 2026-11-01, on the development machine, against the corpus at
+that date.** The `ooxml-native` row is still a row of zeros because the
+measurement's own OOXML-native arm is still the *not written yet*
+placeholder — see §5, where the reader's numbers are measured instead.
 
 ### 4.1 No arm reports a revision as an event
 
@@ -138,8 +183,8 @@ signal"*, this is the number that matters most, and it is zero.
 
 ### 4.3 `pandoc` — the best text arm, and it still loses an edit
 
-pandoc's rejected view is **exactly right on all 28 fixtures**. Its
-accepted view is right on **26**.
+pandoc's rejected view is **exactly right on all 29 fixtures**. Its
+accepted view is right on **27**.
 
 **The two it gets wrong are `06-insertion-without-author` and
 `08-insertion-without-author-or-date`, and the reason is specific: pandoc
@@ -157,7 +202,7 @@ difference is invisible in the output.
 
 `python-docx` is already a dependency of this project (LC-P1-11's report
 export). It is also the **worst** of the three text arms: its accepted view
-is right on 13 of 28 and its rejected view on 18.
+is right on 14 of 29 and its rejected view on 19.
 
 **The accepted view is worse than the rejected one, and that asymmetry is
 the finding.** `python-docx`'s `Run.text` reads `w:t` only, so a deleted
@@ -166,14 +211,14 @@ The rejected view is closer because the baseline text is still there.
 
 ### 4.5 `docx2python` — it handles comments, and it loses half of them
 
-**Comment recall 0.429: six of fourteen comments recovered, eight lost.**
+**Comment recall 0.467: seven of fifteen comments recovered, eight lost.**
 
 The six fixtures where comments were lost are exactly the ones the design
 names:
 
 | Fixture | Lost | Why |
 |---|---|---|
-| `13-orphan-comment-end-only` | 1 of 1 | the range ends without starting |
+| `13-orphan-comment-end-only` | 1 of 1 | the range ends without starting — **the library raises** |
 | `14-comment-without-anchor` | 1 of 1 | no range markers at all |
 | `21-multiple-comments-and-revisions` | **2 of 2** | one unpaired marker took the whole set |
 | `22-long-document` | 1 of 1 | the comment is un-anchored |
@@ -194,14 +239,43 @@ matters for the parser's requirements:
 | Case | Counts | Result |
 |---|---|---|
 | `12-orphan-comment-start-only` | 1 range, 1 element — the counts **match** | the comment **is** extracted, with an empty anchor |
-| `13-orphan-comment-end-only` | 1 range, 1 element — the counts **match** | the comment **is** extracted, with an empty anchor |
+| `13-orphan-comment-end-only` | 1 range, 1 element — the counts **match** | the comment is **lost, and the library raises** |
 | `14-comment-without-anchor` | 0 ranges, 1 element — the counts **differ** | the comment is **lost entirely** |
 
-So the trigger is the **count mismatch**, not the malformed marker itself.
-A comment whose marker is unpaired but whose count is balanced survives; a
-comment with no marker at all does not. **Either way the anchor is lost**,
-and the loss is silent in the output — the caller receives a comment with
-an empty reference and no indication that the anchor was there.
+**The correction found on 2026-11-01.** The first version of this record
+said that `13-orphan-comment-end-only` "**is** extracted, with an empty
+anchor". **It is not.** The counts do match — one range, one element — so
+the count check does not fire, and the library then looks the range up
+**by the comment's id** and does not find it: the range is keyed by an end
+marker with no start behind it, so the lookup raises `KeyError: '206'`
+while the document is being read (`depth_collector.py:214`). The
+measurement counts an arm that raises as an arm that could not read the
+file, and the fixture is in the lost column above. **The first record's
+correction table and its "six fixtures" table contradicted each other on
+this row, and the measurement settles it: the comment is lost.**
+
+So the trigger is **not only** the count mismatch. A range that starts and
+never ends survives, because the counts balance and the id is found; a
+range that ends and never started does not, because the id lookup fails
+before an anchor is ever computed; and a comment with no marker at all
+takes the whole set with it, because the counts differ. **Either way the
+anchor is lost**: the caller either receives a comment with an empty
+reference and no indication that the anchor was there, or receives nothing
+at all, because the library raised.
+
+**The new fixture's measurement of docx2python.**
+`29-comment-spanning-two-paragraphs` is **recovered** by docx2python — one
+range, one element, the counts match — and the anchor it reports is **the
+two paragraphs joined together**:
+
+> The method estimates the parameter from a single observation.The estimate
+> is reported with its confidence interval, and the interval is computed
+> over ten random seeds.
+
+That string is in no paragraph of the document. **It is the same defect
+this record's §5.2 is about, reached by a different road**: a reader that
+reports a text the file does not contain, where the comment's own range
+marks two paragraphs and no paragraph holds the text between them.
 
 **The second measurement of docx2python: its anchor is the whole
 paragraph, not the comment's range.** On `11-two-comments-one-paragraph`,
@@ -214,21 +288,28 @@ paragraph", which is a materially weaker claim.
 | The design asked | The measurement says |
 |---|---|
 | *"OOXML 原始 ZIP/XML 只读解析优先"* — read the XML directly | **Supported.** No text arm reports a revision as an event; none recovers a deletion. |
-| *"普通文本转换只能作为对照视图"* — plain-text conversion is a comparison view only | **Supported and sharpened.** pandoc's rejected view is exact on 28/28, which makes it a good *comparison* and a poor *source*. |
+| *"普通文本转换只能作为对照视图"* — plain-text conversion is a comparison view only | **Supported and sharpened.** pandoc's rejected view is exact on 29/29, which makes it a good *comparison* and a poor *source*. |
 | *"Docling/docx2python/Pandoc 与原始 XML 的保真率做对照报告"* | **Done here**, for three of the four; Docling is not installed and is not needed to make the finding, which is structural rather than specific to it. |
 | *"对缺失元数据输出 UNKNOWN，不伪造作者和时间"* | **Supported.** pandoc discards such an edit entirely, which is the failure this rule exists to prevent. |
 
 ## 5. The reader, measured against this baseline
 
 **`src/labcairn/material/ooxml.py` is written against ECMA-376 / ISO-IEC
-29500, and it is held to the numbers above.** The arm that was a row of
-zeros is now the reader, and the measurement is its acceptance test.
+29500, and it is held to the numbers above.** The reader's column below is
+measured by **the reader's own tests** (`tests/test_ooxml_revisions.py`),
+each of which asserts one of these numbers against the corpus.
+
+**The measurement tool's `ooxml-native` arm is still the *not written yet*
+placeholder**, and it is still a row of zeros in §4. **That arm is not
+wired to the reader.** The measurement module is not this record's
+deliverable, and a row of zeros the tool did not produce is more honest
+than a row it did.
 
 | Property | The baseline | The reader |
 |---|---|---|
 | revision recall | 0 of 30 for every text arm | **30 of 30** |
 | deletion recovery | 0 of 8 for every text arm | **8 of 8** — the text, not an empty run |
-| comment recall | 0.429 (docx2python), 0 for the rest | **14 of 14**, including the four un-anchorable |
+| comment recall | 0.467 (docx2python), 0 for the rest | **15 of 15**, including the five un-anchorable |
 | the anchor is the comment's **range** | paragraph-granular (docx2python) | **the range** |
 | a missing author or date | — | `UNKNOWN`, never a guess |
 | the original bytes | — | unchanged, and the module has **no write path at all** |
@@ -251,21 +332,70 @@ the accepted view at all, so no range there could name it. A `w:del`
 element's text in the **rejected** view is exactly the deleted text, and
 that is the locator the deletion event carries.
 
-### 5.2 The four un-anchorable comments, and what each one says
+### 5.2 The five un-anchorable comments, and what each one says
 
 The reader does not lump them. A range that starts and never ends, a range
-that ends and never started, and a comment with no range at all are three
-different defects, and each is reported with its own reason:
+that ends and never started, a comment with no range at all, and a range
+whose two markers sit in different paragraphs are **four different
+defects**, and each is reported with its own reason:
 
 | Case | The reader's answer |
 |---|---|
 | the range starts and never ends | the comment, with an **unknown anchor** and the reason *"the comment's range starts but never ends"* |
 | the range ends and never started | the comment, with an **unknown anchor** and the reason *"the comment's range ends but never starts"* |
 | no range markers at all | the comment, with an **unknown anchor** and the reason *"the comment carries no range markers"* |
+| the range spans two paragraphs | the comment, with an **unknown anchor** and the reason *"the comment's range spans two paragraphs"* |
 
-**The comment's body, author and date are reported in all three cases**,
+**The comment's body, author and date are reported in all four cases**,
 because they are in the file. Dropping them is the failure the upstream
 study found in a library, and it is what §5.4's second mutation does.
+
+### 5.2.1 The fourth case, and why it is the one that bites
+
+**A range that spans two paragraphs looks resolvable and is not.** Word
+writes a comment covering several paragraphs with its `w:commentRangeStart`
+in the first and its `w:commentRangeEnd` in the last, and **each marker
+carries an offset within its own paragraph**. The two offsets are
+therefore offsets into two different texts, and the pair names no range
+that exists.
+
+**The reader used to pair them.** It reported the start marker's paragraph
+with the end marker's offset — an address that resolves to text nobody
+wrote. On the corpus that is **characters 0–106 of a 61-character
+paragraph**; on the owner's `v03-chinese-draft.docx` it is comment 192,
+stored as **paragraph 64, characters 0–134**, in a paragraph whose baseline
+is **10 characters** long, with the end offset borrowed from paragraph 67.
+
+**An address that names no text is not a text.** So the anchor is now
+reported as **unknown**, with its own reason, and the offsets are not
+reported at all. The paragraph the range *starts* in is kept — that much
+is a fact about the file — and the comment's body, author and date are
+untouched.
+
+**The schema cannot catch this one, and the reader therefore has to.** The
+`feedback_events` CHECK constraint requires an unknown anchor to carry a
+reason and no offsets, and this row satisfies it — but a *resolved* anchor
+whose end offset was borrowed from another paragraph satisfies the
+constraint too, because the schema has no vocabulary for "this range names
+text outside its paragraph". **Only the reader can refuse that**, which is
+why the reader's own test asserts the offsets slice the paragraph they
+name rather than trusting the row to catch it later.
+
+**This is the contract the feedback chain is built against.** A chain
+whose links are addresses cannot carry a link that names no text. **The
+owner's pilot chain measured it**: of forty-six recorded comments,
+eighteen had an empty anchored text under a status of `resolved`, and
+three of the eighteen were this case. The other fifteen were legitimate
+zero-length ranges, where the offsets and the text agree.
+
+**The witness for it was right; the corpus was missing the case.** The
+invariant — the anchored text agrees with the offsets — was already
+watched (`tests/test_feedback_events.py`, A2), but the synthetic corpus
+held no cross-paragraph comment, so the witness had never seen the case
+the real material has. **A witness that has never seen the case is not a
+witness to it.** The corpus now holds it, and two new tests watch it:
+`test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor`
+and `test_a_resolved_anchor_never_names_a_range_outside_its_own_paragraph`.
 
 ### 5.3 What the reader refuses
 
@@ -279,9 +409,10 @@ study found in a library, and it is what §5.4's second mutation does.
 
 ### 5.4 The mutations, and what each one broke
 
-**A witness that has never been broken is not known to be a witness.** Four
-mutations were applied to the reader, and each is named with the test that
-caught it.
+**A witness that has never been broken is not known to be a witness.** Eight
+mutations were applied to the reader and to the corpus that carries it, and
+each is named with the test that caught it. Mutations 5–8 were applied on
+2026-11-01, for the cross-paragraph case.
 
 | # | The mutation | What went red |
 |---|---|---|
@@ -289,8 +420,19 @@ caught it.
 | 2 | a comment whose anchor does not resolve is dropped — **the upstream library's bug** | `test_every_comment_is_reported_including_the_unanchorable_ones`, `test_a_comment_with_no_resolvable_anchor_is_still_a_comment`, `test_each_unresolvable_anchor_names_its_own_reason` |
 | 3 | a missing author is filled in with a placeholder | `test_a_missing_author_or_date_is_unknown_and_never_guessed`, `test_every_revision_carries_its_kind_text_author_and_date` |
 | 4 | the locator forgets the view | `test_a_revision_locator_resolves_to_the_revisions_own_text`, `test_a_deletion_is_addressed_in_the_rejected_view` |
+| 5 | a range that spans two paragraphs is reported as **resolved**, with the end marker's offset borrowed from the other paragraph | `test_a_comment_with_no_resolvable_anchor_is_still_a_comment`, `test_each_unresolvable_anchor_names_its_own_reason`, `test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor`, `test_a_resolved_anchor_never_names_a_range_outside_its_own_paragraph` |
+| 6 | the cross-paragraph case reports a **non-empty** anchored text — a plausible-looking fragment of the first paragraph | `test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor` — **and nothing else**, which is why that test exists |
+| 7 | the fixture builder writes the range's end marker in the paragraph the range **starts** in, so the range no longer spans two | `test_a_comment_with_no_resolvable_anchor_is_still_a_comment`, `test_each_unresolvable_anchor_names_its_own_reason`, `test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor` |
+| 8 | the gold's derivation says the cross-paragraph anchor **resolves** | `test_a_comment_with_no_resolvable_anchor_is_still_a_comment` (the count of un-anchorable fixtures falls from 5 to 4) |
 
-**One mutation survived, and the reason matters.** The fifth was "the reader
+**Mutation 7 is the one that shows the corpus really carries the case.**
+A fixture that claims to hold a cross-paragraph range but does not would
+be a fixture that tests nothing — and the corpus's own test would stay
+green, because it checks the gold against the XML and the XML would be
+consistent with the gold. **Only the reader's test can tell that the
+fixture has stopped being the case it names**, and it does.
+
+**One mutation survived, and the reason matters.** It was "the reader
 writes to the file it read", and it **survived** — the whole file was green
 — because `read_document` takes **bytes** and therefore *cannot* change the
 file they came from. The property held by construction, not by the
@@ -340,14 +482,31 @@ archive**.
 - **Nothing about how a reader performs on the pilot corpus.** That is a
   second measurement, and it is the one that decides whether the reader is
   good enough.
+- **Nothing about the corpus's range granularity.** The corpus's writer
+  emits a comment's range markers around **whole paragraphs** — the start
+  marker before the paragraph's first run and the end marker after its
+  last — rather than at the offsets the fixture's `anchor_text` names. So
+  on this corpus the reader's resolved anchor for a well-formed comment
+  *is* the paragraph, and **the corpus cannot tell "the reader reports the
+  comment's range" from "the reader reports the paragraph"**. The reader
+  reports the range the markers name, and the markers in this corpus are
+  paragraph-granular; the difference is exercised by the real material,
+  where a comment's markers sit inside the paragraph. **The §5 row "the
+  anchor is the comment's range" is therefore a statement about the
+  reader's rule, not a number this corpus measures.**
+- **Nothing about the reader's behaviour on a document the corpus cannot
+  write.** §5's numbers are numbers about the corpus's files. The owner's
+  real material found a case the corpus had not (§5.2.1), and it is
+  recorded here as the reason the corpus grew — **the next real document
+  may find another one.**
 
 ## 6. What this record asked of LC-P2-07, and what answered it
 
 | The requirement | Answered by | Measured |
 |---|---|---|
 | **The OOXML-native reader must recover every revision and every deletion on this corpus**, with the author and date reported as `UNKNOWN` where the file omits them. Zero of the comparison arms manage this. | `src/labcairn/material/ooxml.py` | 30 of 30 revisions, 8 of 8 deletions |
-| **The reader must report every comment, including the four whose anchor is unresolvable**, with an unknown anchor and a reason naming the unmatched marker. `docx2python` loses eight of fourteen; the requirement is fourteen of fourteen with four of them marked unknown. | the same | 14 of 14, four of them with a reason |
-| **The reader's anchor must be the comment's range, not the paragraph's.** Measured against `docx2python`'s paragraph-granular anchor. | the same | the range |
+| **The reader must report every comment, including the five whose anchor is unresolvable**, with an unknown anchor and a reason naming the unmatched marker. `docx2python` loses eight of fifteen; the requirement is fifteen of fifteen with five of them marked unknown. | the same | 15 of 15, five of them with a reason |
+| **The reader's anchor must be the comment's range, not the paragraph's.** Measured against `docx2python`'s paragraph-granular anchor. | the same | the range — with §6's stated limit on what this corpus can tell |
 | **The reader must not modify the original bytes.** | the same, and a source-level watch on the module | unchanged, and the module has no write path |
 | **A parser that returns nothing must not score well.** The false-negative floor in §3 is what keeps that true, and it must survive into
    the acceptance test.
@@ -356,17 +515,26 @@ archive**.
 
 | | |
 |---|---|
-| Base commit | `66dde87` |
+| Base commit | `66dde87` (first measurement); re-measured on 2026-11-01 on the development machine, against the corpus with `29-comment-spanning-two-paragraphs` added |
 | Corpus | `tests/docx_corpus.py`, `tests/docx_fixtures.py` |
-| Corpus test | `tests/test_docx_fixture_corpus.py` (97 cases) |
+| Corpus test | `tests/test_docx_fixture_corpus.py` (100 cases) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
 | **The reader** | `src/labcairn/material/ooxml.py` |
-| **The reader's test** | `tests/test_ooxml_revisions.py` (21 cases) |
-| **The migration** | `migrations/versions/0009_docx_locator.py` |
+| **The reader's test** | `tests/test_ooxml_revisions.py` (24 cases) |
+| **The migration** | `migrations/versions/0009_docx_locator.py` — **unchanged**: the anchor vocabulary is `'resolved' \| 'unknown'` and this change adds a *reason*, not a value |
 | pandoc | 3.10 (installed on the machine; GPL-2.0, used as a comparison only) |
 | python-docx | the project's own declared dependency, 1.2.0 |
-| docx2python | 66b1ae3e24ffa7040ed5244490ce2872ac2e86bb, run via `uv run --with` |
+| docx2python | 66b1ae3e24ffa7040ed5244490ce2872ac2e86bb (version 3.7.2) |
 | Python | 3.12.13 (the project's virtualenv) |
+
+**How the 2026-11-01 re-measurement was run.** The `docx2python` arm was
+run against the local checkout at
+`66b1ae3e24ffa7040ed5244490ce2872ac2e86bb` — the SHA this record already
+names — with the `paragraphs` dependency taken from the project's uv
+cache, because the machine had no network and `uv run --with` could not
+fetch it. **The same numbers came out of the cached wheel** (docx2python
+3.7.2), so the arm's numbers do not depend on which of the two was used.
+pandoc 3.10 and python-docx 1.2.0 were used as before.
 
 **The repository is clean at the base commit apart from the files this
 work adds.** The measurement writes its corpus outside the repository — the

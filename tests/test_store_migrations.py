@@ -129,6 +129,13 @@ EXPECTED_TABLES = frozenset(
         "guidance_rule_sources",
         "guidance_rule_counterexamples",
         "agent_role_specs",
+        # ADR-0014 D8. The third of that ADR's four tables, and the first
+        # one that ever had a writer: one row per tracked change a
+        # Word document records, with its text, its address and its
+        # author. The reader has produced this object since LC-P2-07 and
+        # nothing stored it, so a marked-up manuscript was a file the
+        # archive could cite but could not describe.
+        "revision_events",
     }
 )
 

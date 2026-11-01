@@ -25,9 +25,17 @@
  * **Why a failed read does not blank the page.** Each read settles on its
  * own, so that a service which cannot answer one question still answers the
  * other seven, and the panel that could not be drawn says so.
+ *
+ * **And the panels that read for themselves join the cycle.** The mentor's
+ * panels hold their own answers, because their questions carry parameters
+ * this batch does not — an issue key, a project, a rule to settle. They take
+ * the **cycle**: a number that turns when the workbench is asked to read
+ * again and when its answer changes. So a record written elsewhere appears
+ * when the workbench reads again, rather than the panel holding a memory of
+ * the service that the service has already moved past.
  */
 
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { describeError } from '../api/client'
 import type { ApiError, LabCairnClient } from '../api/client'
@@ -86,6 +94,18 @@ export interface Workbench {
    * page's guess at it.
    */
   readonly readAgain: () => void
+  /**
+   * A number that turns when the workbench reads again.
+   *
+   * **The panels that read for themselves join the cycle through this.** A
+   * panel that holds its own answer — the mentor's panels do, because their
+   * questions carry parameters the batch does not — would otherwise draw a
+   * memory of the service that a write elsewhere had already moved on from.
+   * The number turns when the workbench is asked to read again, and when its
+   * answer changes, so a panel that takes it reads again with the workbench
+   * and never holds an answer the service has already moved past.
+   */
+  readonly readCycle: number
 }
 
 /**
@@ -106,6 +126,14 @@ export function combineReads<A, B>(left: ApiRead<A>, right: ApiRead<B>): ApiRead
     return { data: null, error: null }
   }
   return { data: [left.data, right.data], error: null }
+}
+
+/** What the workbench holds between renders: the answer, and the cycle it came in. */
+interface WorkbenchState {
+  /** What the service last answered. */
+  readonly reads: WorkbenchReads
+  /** How many times the workbench has read again. */
+  readonly cycle: number
 }
 
 /** A read that has not landed. */
@@ -176,11 +204,12 @@ function sameReads(left: WorkbenchReads, right: WorkbenchReads): boolean {
  *   page talks to, and the client is what refuses to talk to anything else.
  */
 export function useWorkbench(client: LabCairnClient): Workbench {
-  const [reads, setReads] = useState<WorkbenchReads>(emptyReads)
-  const [, ask] = useReducer((count: number) => count + 1, 0)
+  const [state, setState] = useState<WorkbenchState>({ reads: emptyReads(), cycle: 0 })
 
   const readAgain = useCallback(() => {
-    ask()
+    // The cycle turns whatever the answer turns out to be: a panel that
+    // holds its own answer reads again with the workbench.
+    setState((previous) => ({ reads: previous.reads, cycle: previous.cycle + 1 }))
   }, [])
 
   useEffect(() => {
@@ -190,8 +219,12 @@ export function useWorkbench(client: LabCairnClient): Workbench {
         return
       }
       // Only a change is a render. Without this the read would be its own
-      // reason to render, and the page would read the task for ever.
-      setReads((previous) => (sameReads(previous, next) ? previous : next))
+      // reason to render, and the page would read the task for ever. The
+      // cycle turns with the answer, so the panels that read for themselves
+      // turn with it too.
+      setState((previous) =>
+        sameReads(previous.reads, next) ? previous : { reads: next, cycle: previous.cycle + 1 },
+      )
     })
     return () => {
       live = false
@@ -201,5 +234,5 @@ export function useWorkbench(client: LabCairnClient): Workbench {
     // a cached copy, and a cached copy is a second source of truth.
   })
 
-  return { reads, readAgain }
+  return { reads: state.reads, readAgain, readCycle: state.cycle }
 }
