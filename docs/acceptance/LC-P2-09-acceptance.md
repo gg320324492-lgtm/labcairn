@@ -745,3 +745,125 @@ and `tests/test_ci_shard_coverage.py` asks for no re-measurement. The
 recorded costs are runner-measured and **this section does not re-measure
 them**: it changes no test file's membership, only its content.
 
+
+---
+
+## 9. The rings filled on the pilot's own workspace
+
+**What this section is.** §8 says what the two operations are. **This
+section says what happened when the operator's step was actually run**,
+on the owner's own pilot workspace, and **what the memory serves
+afterwards** — which is the question §8 could not answer.
+
+**Nothing here is a claim about the owner's manuscript.** The counts, the
+issue keys and the states are facts about the chain; no comment's words
+and no manuscript's text appear in this record or in the tree.
+
+### 9.1 What the chain holds now
+
+| | rows |
+|---|---|
+| `feedback_events` | 80 |
+| `revision_events` | **1528** |
+| `edit_actions` | **1439** |
+| `response_links` | **32** — 2 `addressed`, 8 `not_addressed`, 22 `pending` |
+| `guidance_rules` | 16 (all confirmed) |
+| `guidance_rule_sources` | 32 |
+
+**The two middle rings were empty when this work order started, and they
+are not empty now.** The second ring holds **one row per change the
+files record**, and the third holds **the correspondences and the
+owner's judgements of them**.
+
+### 9.2 How the second ring was filled, and what it took
+
+**The facts come from the files, and the names come from the operator.**
+Every version of the first paper whose file records changes was
+recorded on the edge that arrives at that version, with the actor the
+roster names — **and the change rows carry no comment of their own**,
+because the correspondence is a judgement and it lives in
+`response_links`, which is many-to-many. **A paragraph of forty-three
+changes can answer four comments, and the change row has one column for
+it.**
+
+**And the empty markers are not in the count.** Of the 1528 recorded
+changes, **89 are `empty_marker`** — the marks an operation at a point
+leaves behind — and the chain records changes and not marks.
+
+### 9.3 What the operator could put forward, and what the owner judged
+
+**Twenty-two correspondences** were put forward, each a `pending` link:
+a comment and the change in its own paragraph. **That is the whole of
+what the material supports** — the file does not say which change
+answers which comment, and a paragraph is the finest address both sides
+have.
+
+**And the owner judged the ten that a confirmed rule was waiting on.**
+Two hold, eight do not:
+
+| | |
+|---|---|
+| `iss-v03-copy-chinese-draft-116` | **addressed** — the comment asked for the background to bring out the bubbles' features, and the change moved that passage away |
+| `iss-v04b-variant-2-copy-chinese-draft-60` | **addressed** — the comment said the passage does not apply before the data, and the change deleted the words that put it there |
+| the other eight | **not_addressed** — the change in the same paragraph was not an answer to the comment |
+
+**The twelve proposals no rule was waiting on were not put to the
+owner**, and they stay `pending`, which is exactly what the chain says
+about them: somebody put them forward and nobody has judged them yet.
+
+### 9.4 What the memory serves, and what it does not
+
+**Before this, the memory served nothing**: `search_rules` returned no
+rule at all, and `invalidated_rules` reported every one of the sixteen
+confirmed rules as withdrawn.
+
+**After the owner's judgements it serves one** —
+`rule-6cc14b60015b7945` (`introduction_and_storyline`), on the two
+sources that were genuinely answered — **and it reports the other
+fifteen**, each with its sources' reasons.
+
+**One rule out of sixteen, and that is the honest number.** The material
+says that of the mentor's forty-six comments on the first paper, the
+ones a later version really answered are few. **The retrieval asks
+whether a judgement says the change answered the comment, and on this
+material most of them did not.** A memory that served all sixteen would
+be serving rules the chain cannot show to have been applied — which is
+the difference between **absorbing** the mentor's judgement and
+**arranging** it.
+
+**And the second paper contributes none of them.** Its three versions
+have **no version edge** — the material does not say which came first,
+so the chain does not order them — and a change travels an edge, so the
+operation refuses every version in it. **Its fourteen rule sources have
+no candidate either**: the changes in its files sit in paragraphs its
+comments do not. **So the eight rules distilled from it stay unserved,
+and the memory says so.**
+
+### 9.5 A defect the ruling exposed, and the fix
+
+**The owner's ruling made the listing lie.** The chain is append-only,
+so the proposal that led to a judgement stays on the chain after
+somebody has judged it — and the listing read the states in the order
+they arrived, so **a comment somebody had judged unanswered was
+reported as "a judgement is outstanding"**. **On the pilot's workspace,
+eight judged comments were called pending.**
+
+**A judgement now outranks a proposal**: the reason is `not_addressed`
+when somebody has judged the correspondence and not answered, and
+`pending` only when nobody has. **The comment stays on the listing
+either way** — judged or not, it is unaddressed. The witness is
+`test_a_judged_comment_is_listed_as_judged_and_not_as_waiting`, and the
+mutation that puts the old order back makes it red.
+
+### 9.6 A finding that belongs to the reader, not to this section
+
+**The reader records one change twice in one file.** On the first
+paper's fourth version, the reader reports **243 changes and there are
+239** — four of them are read a second time. **The chain does not lose
+anything**: the revision event's id is derived from the element's path,
+so the second reading lands on the row the first one wrote, and the
+table holds 239. **But the assumption the id rests on is false as
+written** — *the element's path is unique inside a part* — and it holds
+only because the four duplicates are the same change. **Two different
+changes sharing a path would lose one of them silently**, and the
+witness for that belongs to LC-P2-07.
