@@ -249,10 +249,25 @@ every case it holds**: the text the comment was written against, or the
 fact that the reader could not place it, with the reason the chain gives.
 **The empty string is never quoted as the advisor's words.**
 
-**The pilot's eight confirmed rules keep their stored scope.** A rule's
-scope is part of a versioned record the owner confirmed, and correcting a
-confirmed record is a person's act — the confirmation door's, not the
-product's. The product's next distillation produces a truthful scope.
+**The pilot's eight confirmed rules keep their stored scope, and the
+owner decided it on 2026-11-01.** Six of them quote `""` as the advisor's
+words. **The corrected scopes are computed and waiting** — in
+`E:\labcairn-local\pilot-ws\corrected-scopes-corpus1.txt` — and the
+owner chose **not** to rewrite the rows.
+
+**Why that is the right call, and not merely a permitted one.** A rule's
+scope is part of a versioned record the owner confirmed, and
+**correcting a confirmed record is a person's act** — the confirmation
+door's, not the product's. The product does not rewrite what a person
+signed; it writes the truth **next time**. **So the fixed code's
+truthful scope is what every distillation from now on produces**, and
+the six old rows keep the shape their confirmation made.
+
+**And the difference is not hidden.** The corrected file says, for each
+of the six, what the scope would say now — the cases whose anchor
+resolved to an empty text, and the cases the reader could not place,
+with the reason the chain gives — so a reader who wants the old scope
+and a reader who wants the new one both have what they need.
 
 ### 4.3 And the first chain held the same false address
 
