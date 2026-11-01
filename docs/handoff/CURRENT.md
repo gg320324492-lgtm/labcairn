@@ -1,5 +1,55 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-01 · **the chain's two middle rings are filled on the
+owner's own workspace, and the memory serves one rule where it served
+none.**
+
+**The two middle rings were empty.** The chain held 80 comments, 18
+confirmed rules and 32 of their sources, and **no change and no
+judgement at all** — so the retrieval, which serves a rule only on
+sources a judgement says were answered, served **nothing** and reported
+all sixteen rules as withdrawn.
+
+**They are not empty now.** The first paper's files record **1528
+changes**, the chain holds **1439** of them — the other 89 are the marks
+an operation at a point leaves behind, and **the chain records changes
+and not marks** — and **22 correspondences** were put forward: a comment
+and the change in its own paragraph, which is the finest address the
+material gives.
+
+**And the owner judged the ten that a rule was waiting on: two hold,
+eight do not.** So the memory serves **one** rule — the one about how
+the chapters follow the research question — and it reports the other
+fifteen with their reasons. **One out of sixteen is the honest
+number**: of the mentor's forty-six comments on the first paper, the
+ones a later version really answered are few, and **a memory that
+served all sixteen would be serving rules the chain cannot show to have
+been applied** — which is the difference between absorbing the mentor's
+judgement and arranging it.
+
+**The second paper contributes none of them, and the chain says why.**
+Its three versions have **no version edge** — the material does not say
+which came first, so the chain does not order them — and **a change
+travels an edge**. Its fourteen rule sources have no candidate either.
+**Its eight rules stay unserved, and the memory says so.**
+
+**And the owner ruled on what a wrong judgement becomes.** A judgement
+on the chain is a fact and is never rewritten: **a second judgement on
+the same correspondence does not undo the first**, and a judgement that
+turns out to be wrong is corrected **on the rule** — withdrawn,
+disputed or superseded — and not on the chain. The retrieval's own
+docstring had said a re-judgement brings the rule back, and **no writer
+does that**; the sentence had no carrying and is gone.
+
+**And the ruling exposed a lie in the chain's own listing.** The
+proposal that led to a judgement stays on the chain after somebody has
+judged it, and the listing read the states in the order they arrived, so
+**eight judged comments were reported as "a judgement is
+outstanding"**. **A judgement now outranks a proposal**, and the
+comment stays on the listing either way.
+
+---
+
 **Date:** 2026-11-01 · **Branch:** `main` — **the guidance line is merged,
 and the second body of material is read and in the chain.**
 

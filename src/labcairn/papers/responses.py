@@ -24,10 +24,18 @@ set is not a status, so the schema refuses one.
 ``addressed`` only when a rule or a person says so, and the thing that
 said so is on the row. A model may put a link forward — that is a
 *candidate*, at grade ``inferred`` — but it may not decide one.
+
+**And the step that puts a link forward.** :func:`propose_responses`
+writes a link **without deciding it** — and it cannot decide one,
+because the operation has no state to decide it with. **The third ring
+is filled by a person or a rule, and the operator's step only puts the
+correspondence forward.**
 """
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -43,6 +51,7 @@ from labcairn.application.refusal import (
 from labcairn.db.models import FeedbackEventRow, ResponseLinkRow
 from labcairn.papers.chain import (
     ChainRefusal,
+    edge_row,
     edit_row,
     feedback_row,
     material_relative_path,
@@ -63,6 +72,11 @@ RESPONSE_STATES: frozenset[str] = frozenset(
 #: Who may decide a link. **A model may not**: a rule or a person
 #: settles whether a change answered a comment.
 DECIDERS: frozenset[str] = frozenset({"rule", "user"})
+
+#: Who may **put a link forward**. **A model and a person, and not a
+#: rule**: a rule settles a link, and a link a rule has not settled is a
+#: proposal — and the two are different acts.
+PROPOSERS: frozenset[str] = frozenset({"model", "user"})
 
 #: The grades a link may carry.
 LINK_GRADES: frozenset[str] = frozenset({"observed", "human_verified", "inferred"})
@@ -100,6 +114,22 @@ class UnaddressedComment:
 
     feedback: FeedbackEvent
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerProposal:
+    """One correspondence put forward, and not decided.
+
+    **A proposal is a claim about two rows**, and it says nothing about
+    whether the change answered the comment. **That is the whole
+    difference between this and a judgement**, and it is why the
+    operation that takes one of these has no way to write a judgement.
+    """
+
+    #: The comment the change is proposed to answer.
+    feedback_id: str
+    #: The change proposed to answer it.
+    edit_action_id: str
 
 
 def _link_from_row(row: ResponseLinkRow) -> ResponseLink:
@@ -280,6 +310,135 @@ def record_response(
     return _link_from_row(row)
 
 
+def _response_link_id(feedback_id: str, edit_action_id: str) -> str:
+    """The id one proposal takes, derived.
+
+    **Derived from the pair it is about**, so the same correspondence
+    proposed twice is the same link — and a link that has been put
+    forward under two ids is a correspondence the chain holds twice.
+    """
+    digest = hashlib.sha256(f"{feedback_id}\x00{edit_action_id}".encode()).hexdigest()
+    return f"rl-{digest[:16]}"
+
+
+def propose_responses(
+    context: ApplicationContext,
+    *,
+    proposals: Sequence[AnswerProposal],
+    proposed_by: str,
+    now: datetime,
+) -> tuple[ResponseLink, ...]:
+    """Put a correspondence forward, **without deciding it**.
+
+    **This operation cannot decide a link, and that is the point.** It
+    has no state to decide one with: every link it writes is
+    ``pending``, and the state a link ends up in is the work of a person
+    or a rule. **The third ring is filled by a person or a rule, not by
+    the operator's step** — and this is the operation that operator's
+    step calls.
+
+    **And a model's candidate is a candidate.** A proposal put forward
+    by a model is graded ``inferred`` and names the model as the one who
+    put it forward; a proposal put forward by a person is ``observed``
+    and names that person. **On a pending link ``decided_by`` names who
+    put the link forward, not who decided it** — the state says that
+    nobody decided.
+
+    **And the same correspondence proposed twice is the same link.** The
+    id is derived from the pair, so the proposal cannot be duplicated
+    under a second name.
+
+    **And a settled correspondence is not put forward again.** A link
+    that has already been judged is a question that has an answer, and a
+    second proposal about it is a second answer to a question that has
+    one.
+
+    **And nothing is written until everything is checked.** Every
+    proposal is checked — the comment is there, the change is there, and
+    the pair has not been judged — before the first link is written, so
+    a refusal leaves nothing behind.
+
+    :raises ApplicationRefusedError: the proposer is not one who may
+        put a link forward; the comment or the change is not there; the
+        correspondence has already been judged; or the policy denied
+        reading the manuscript.
+    """
+    if proposed_by not in PROPOSERS:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{proposed_by!r} may not put a link forward. A link is put forward by a "
+            "person or by a model, and a rule settles a link rather than proposing "
+            "one: a link a rule has not settled is a proposal, and the two are "
+            "different acts.",
+        )
+    session = context.store.session
+
+    planned: list[tuple[str, str, str]] = []
+    for proposal in proposals:
+        comment = feedback_row(session, proposal.feedback_id)
+        if comment is None:
+            raise chain_refused(
+                ChainRefusal.FEEDBACK_NOT_FOUND,
+                f"the store holds no feedback event with the id {proposal.feedback_id!r}. "
+                "A link is about a comment, and a link about a comment nobody holds is "
+                "a link about nothing.",
+            )
+        change = edit_row(session, proposal.edit_action_id)
+        if change is None:
+            raise chain_refused(
+                ChainRefusal.EDIT_NOT_FOUND,
+                f"the store holds no edit action with the id {proposal.edit_action_id!r}. "
+                "A link is about a change, and a link about a change nobody made is a "
+                "link to nothing.",
+            )
+        edge = edge_row(session, change.version_edge_id)
+        if edge is not None and comment.project_id != edge.project_id:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the comment {proposal.feedback_id!r} belongs to the project "
+                f"{comment.project_id!r} and the change {proposal.edit_action_id!r} to "
+                f"the project {edge.project_id!r}. A link across manuscripts joins two "
+                "archives, and a chain that does that is a chain about nothing.",
+            )
+        settled = session.scalars(
+            select(ResponseLinkRow)
+            .where(ResponseLinkRow.feedback_id == proposal.feedback_id)
+            .where(ResponseLinkRow.edit_action_id == proposal.edit_action_id)
+            .where(ResponseLinkRow.state != "pending")
+        ).first()
+        if settled is not None:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                f"the correspondence between the comment {proposal.feedback_id!r} and "
+                f"the change {proposal.edit_action_id!r} has already been judged "
+                f"{settled.state!r}. A settled correspondence is not put forward "
+                "again: a question that has an answer does not take a second one.",
+            )
+        planned.append(
+            (
+                _response_link_id(proposal.feedback_id, proposal.edit_action_id),
+                proposal.feedback_id,
+                proposal.edit_action_id,
+            )
+        )
+
+    recorded: list[ResponseLink] = []
+    for link_id, feedback_id, edit_action_id in planned:
+        recorded.append(
+            record_response(
+                context,
+                response_link_id=link_id,
+                feedback_id=feedback_id,
+                edit_action_id=edit_action_id,
+                state="pending",
+                grade="inferred" if proposed_by == "model" else "observed",
+                decided_by=proposed_by,
+                now=now,
+            )
+        )
+    return tuple(recorded)
+
+
 def list_response_links(
     context: ApplicationContext,
     *,
@@ -405,11 +564,18 @@ def list_unaddressed(
         states = {link.state for link in by_feedback.get(comment.feedback_id, [])}
         if "addressed" in states:
             continue
+        # **A judgement outranks a proposal.** The chain is append-only,
+        # so a proposal somebody put forward stays on it after somebody
+        # has judged it -- and the listing has to say what was decided,
+        # not that somebody is still waiting. **A comment judged
+        # unanswered is ``not_addressed``,** even though the proposal
+        # that led to the judgement is still there.
+        judged = states - {"pending"}
         if not states:
             reason = "no_response"
-        elif "pending" in states:
+        elif not judged:
             reason = "pending"
-        elif "not_addressed" in states:
+        elif "not_addressed" in judged:
             reason = "not_addressed"
         else:
             reason = "partially_addressed"
@@ -420,11 +586,14 @@ def list_unaddressed(
 __all__ = [
     "DECIDERS",
     "LINK_GRADES",
+    "PROPOSERS",
     "RESPONSE_STATES",
     "UNADDRESSED_REASONS",
+    "AnswerProposal",
     "ResponseLink",
     "UnaddressedComment",
     "list_response_links",
     "list_unaddressed",
+    "propose_responses",
     "record_response",
 ]

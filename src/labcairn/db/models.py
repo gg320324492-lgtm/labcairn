@@ -2305,8 +2305,11 @@ class ResponseLinkRow(Base):
     #: Whose judgement this is: ``observed``, ``human_verified`` or
     #: ``inferred``. A model's candidate is ``inferred``.
     grade: Mapped[str] = mapped_column(String(32), nullable=False)
-    #: Who decided it: ``rule``, ``user`` or ``model``. ``None`` while the
-    #: link is pending and nobody has judged it.
+    #: Who put the link forward, and who decided it: ``rule``, ``user`` or
+    #: ``model``. **``None`` while nobody has put the link forward at
+    #: all** — a pending link may name the *proposer* (``model`` or
+    #: ``user``), because the link is a question somebody asked, and a
+    #: decided link names the rule or the person who decided it.
     decided_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
     #: When the judgement was made.
     decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
