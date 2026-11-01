@@ -220,5 +220,6 @@ survived and why: none survived, and the one that appeared to was misplaced.
   run's log), which a development machine cannot supply — the repository's
   own rule.
 * The two clean-room files (`test_readme_accuracy.py`,
-  `test_outsider_path.py`) are run without `PYTHONPATH` per the
-  repository's rule.
+  `test_outsider_path.py`), run without `PYTHONPATH` per the repository's
+  rule: **41 passed** on this worktree's final tree — the same number the
+  main checkout gives.
