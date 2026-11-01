@@ -519,6 +519,60 @@ file was **not edited**, and the mutation patched the module attribute the
 retrieval reads, from a plugin outside the tree. **The tree stayed
 byte-identical**; the witness went red on exactly the assertion it names.
 
+**And the reviewer's own pass, from outside the tree.** The thirteen
+mutations above were applied by the author of the code. **A second reader
+applied them again**, from outside the worktree, with the tree rebuilt from
+its own commit between each one — and the second pass found **four guards
+that nothing watched**:
+
+| The guard | What happens without it | The witness that watches it now |
+|---|---|---|
+| the edge must arrive at the version the change is in | a change is recorded on an edge that goes elsewhere | `test_a_change_must_travel_the_edge_it_is_recorded_on` |
+| the edge must be of the change's own project | a change is recorded on another manuscript's edge | `test_a_change_must_travel_an_edge_of_its_own_project` |
+| the version must belong to the project | a change is recorded under a project the manuscript is not part of | `test_a_change_is_recorded_against_the_project_its_manuscript_belongs_to` |
+| the comment an answer names must be of that project | a change in one manuscript answers a comment in another | `test_a_change_in_one_manuscript_cannot_answer_a_comment_in_another` |
+
+**With each guard made unable to fire, the whole file stayed green.** The
+four witnesses above are new, and each of them reddens when its own guard
+is gone — **one at a time, and each alone**.
+
+**And the retrieval's own rule was mutated on disk this time**, not in
+memory: `LIVING_STATES` in `src/labcairn/guidance/retrieval.py` was given
+`pending`, and the witness that says a pending link serves nothing went red
+on exactly its own assertion.
+
+**And the decision of 2026-11-01, which the second pass turned up.** The
+retrieval's own docstring said a re-judgement — *"the row's state,
+changed"* — brings the rule back, and **no writer does that**:
+`record_response` is insert-only. **The sentence had no carrying**, and the
+test helper that re-judged a row in place — which the product cannot do —
+was watching the product's absence rather than the product.
+
+**The owner's ruling.** A judgement on the chain is a fact about what
+somebody decided, and the chain is append-only: **a second judgement on
+the same correspondence does not undo the first one**, so a source that
+was judged answered stands. **A judgement that turns out to be wrong is
+corrected on the rule** — withdrawn, disputed or superseded — and not on
+the chain.
+
+**And three things followed from it, and each is watched:**
+
+| | |
+|---|---|
+| the retrieval's docstring | says that a judgement is a fact, that a second one does not undo the first, and that the correction is made on the rule |
+| the column `response_links.decided_by` | says what it holds: the proposer on a pending link, the decider on a judged one, `None` when nobody has put the link forward |
+| the witnesses | a source that does not stand is judged so **from the start** — the fixture asks for it — because the chain is append-only and a judgement is not rewritten in place |
+
+**And the helper that re-judged a row in place is gone**, because it did
+what the product cannot do and the witnesses it served were watching an
+absence. `test_a_judgement_on_the_chain_is_a_fact_and_a_wrong_one_is_corrected_on_the_rule`
+watches the behaviour that is real: a second judgement does not undo the
+first, a withdrawn rule is not served, and a new version stands again only
+once a second reader has confirmed it. **Four mutations were applied to it
+and each reddened it** — the retrieval reading the latest judgement, a
+withdrawn rule served again, a candidate served without a second reader,
+and the fixture's judgement state ignored.
+
 ### 8.5 What filling the rings changes, and what the product says meanwhile
 
 **And the retrieval's rule still holds.** It serves a confirmed rule on the
@@ -608,16 +662,24 @@ what it is waiting for**, and the deciding is a person's or a rule's work.
   further correspondence can live in `response_links`, which is
   many-to-many, but **the layer's `read_edits` reads the primary one only**,
   and so the mentor-trajectory role sees the primary correspondence.
-- **A judgement is a second row, not an edit of the first.** The pending
-  link stays pending, and the judgement is written under a caller's id —
-  which is why the retrieval's own docstring, which describes a row's state
-  being *changed*, does not describe what the writer does.
-- **On a pending link, `decided_by` names who put it forward.** The
-  column's own docstring says `None` while the link is pending, and the
-  model's candidate — which the writer already had — carries
-  `decided_by='model'`; **a person's proposal follows that case**, so the
-  row says who put the correspondence forward and the state says that
-  nobody decided it.
+- **A judgement is a second row, not an edit of the first — and that is
+  now the design, not only the writer's shape.** The pending link stays
+  pending, and the judgement is written under a caller's id. **The owner's
+  ruling of 2026-11-01** is that the chain keeps what was judged and the
+  correction is made on the rule, so the retrieval's docstring no longer
+  describes a row's state being *changed*: it says a judgement is a fact
+  and a second one does not undo the first. **What the ruling costs is
+  named in §8.4**: a source that was wrongly judged answered cannot be
+  withdrawn on the chain, and the rule that stands on it has to be
+  withdrawn instead.
+- **On a pending link, `decided_by` names who put it forward, and the
+  column now says so.** The model's candidate — which the writer already
+  had — carries `decided_by='model'`, and a person's proposal follows that
+  case. **The column's own docstring said `None` while the link is
+  pending**, and the writer wrote a proposer there anyway; the two
+  disagreed, and **the docstring is now the one that says what the row
+  holds**: the proposer on a pending link, the decider on a judged one,
+  and `None` when nobody has put the link forward.
 - **The guidance memory's invalidation does not say why a source died.**
   It says *not addressed*; the chain's own listing says *pending* or *not
   addressed*. **The two answers are at different levels and the product
