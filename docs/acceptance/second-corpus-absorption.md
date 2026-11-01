@@ -262,6 +262,17 @@ and 3 the reader could not place — each with its reason named.
 | **the cross-confirmation** | **7 of the 8 confirmed rules** are corroborated by a different advisor on a different paper in a different field; **6 of the 7 issue types** |
 | the witnesses | 4 caught the reader's mutation; 3 caught the scope's |
 | the record's own errors | **4 corrected** — an invocation that never ran, a revision breakdown that did not add up, a fixture said to be extracted that is lost, and a claim that the measurement had scored the reader when it had not |
+| **the suite, against the base commit** | **every failure on this branch is one the base commit has too** — the set difference is empty — and **4395 pass against the base's 4324** |
+
+**And the suite's own failures are environmental, not this batch's.** The
+three files that fail — `test_evidence_retrieval.py`,
+`test_outsider_path.py` and `test_readme_accuracy.py`, plus the eight
+wheel-building errors in `test_no_reference_leakage.py` — **need the
+network, a clone and a wheel build**, and they fail on the base commit
+too. **The comparison is the set, not the count**: a run of the whole
+suite on this machine is 25–27 minutes, and **two of them at once make
+the clone-based witnesses fail spuriously** — which is what the first
+branch run showed, and what running the file on its own does not.
 
 **Every mutation was applied and watched, and every file was restored
 byte-for-byte.** One mutation of mine did **not** apply — it changed a
