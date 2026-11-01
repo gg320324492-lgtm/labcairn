@@ -165,6 +165,8 @@ export function trajectoryFixture(): Trajectory {
         version_id: 'v1',
         comment_text: 'Name the method before its result.',
         anchor_text: 'the method was not named',
+        anchor_status: 'resolved',
+        anchor_reason: null,
       },
       {
         feedback_id: 'fb-units',
@@ -172,6 +174,8 @@ export function trajectoryFixture(): Trajectory {
         version_id: 'v2',
         comment_text: 'Say which core the depth came from.',
         anchor_text: '4.2 mm of silt',
+        anchor_status: 'resolved',
+        anchor_reason: null,
       },
     ],
     edits: [
