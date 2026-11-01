@@ -528,8 +528,12 @@ def list_replies(
     something is there and denies work the operator wanted allowed.
 
     **And the rows come back in the order the document has them** --
-    ordered by the paragraph the objection was read from, which is the
-    order a person reading the document would meet them in.
+    ordered by the paragraph the objection was read from and then by the
+    paragraph the answer was read from, which is the order a person
+    reading the document would meet them in. **The second key is not
+    decoration**: two exchanges may answer the same objection, and an
+    order that stopped at the objection would leave their order to the
+    storage engine's.
 
     :raises ApplicationRefusedError: the project is not there, or the
         arguments are not usable.
@@ -544,7 +548,13 @@ def list_replies(
     if version_id is not None:
         statement = statement.where(ReplyRow.version_id == version_id)
     rows = tuple(
-        session.scalars(statement.order_by(ReplyRow.version_id, ReplyRow.objection_paragraph))
+        session.scalars(
+            statement.order_by(
+                ReplyRow.version_id,
+                ReplyRow.objection_paragraph,
+                ReplyRow.answer_paragraph,
+            )
+        )
     )
     if not rows:
         return ()

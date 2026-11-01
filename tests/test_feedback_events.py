@@ -1262,6 +1262,41 @@ def test_the_layer_reads_the_replies(env: StoreEnv, tmp_path: Path) -> None:
     assert other == (), "a version nobody named an exchange for holds none"
 
 
+def test_two_exchanges_may_answer_the_same_objection_and_their_order_is_total(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """Two exchanges may answer the same objection, and the listing says which is first.
+
+    **The second key is not decoration.** Two exchanges may share an
+    objection paragraph -- a reviewer may say one thing and the authors
+    answer it in two places -- and **an order that stopped at the
+    objection would leave their order to the storage engine's.** The
+    listing orders by the answer's paragraph as well, so the answer is
+    the same on every machine and is the document's own order.
+
+    **What breaks it:** the tiebreaker dropped, so the two exchanges come
+    back in whichever order the rows happened to be written in.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    recorded = _record_replies(
+        reply_env,
+        _exchange(answer_paragraph=2),
+        _exchange(),
+    )
+
+    listed = list_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [reply.reply_id for reply in listed] == [
+        recorded[1].reply_id,
+        recorded[0].reply_id,
+    ], "the exchanges come back in the document's order and not in the order they were written"
+
+    read = chain_layer.read_replies(reply_env.chain.context, version_ids=(reply_env.version_id,))
+    assert [reply.reply_id for reply in read] == [
+        recorded[1].reply_id,
+        recorded[0].reply_id,
+    ], "the layer's read says the same thing the listing does"
+
+
 def test_recording_the_same_exchange_twice_is_the_same_row(env: StoreEnv, tmp_path: Path) -> None:
     """Recording the same document twice is the same rows.
 

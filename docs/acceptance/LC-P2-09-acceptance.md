@@ -277,6 +277,7 @@ compared with the ones taken before the first mutation.
 | 8 | recording a reply also writes a comment | `test_a_reply_is_a_record_and_not_a_verdict` | a reply is not the chain's comment, and it creates none |
 | 9 | the paragraph range check is gone | `test_a_reply_names_no_paragraph_the_document_does_not_have` — *"DID NOT RAISE ApplicationRefusedError"* | a paragraph number names a place the document has |
 | 10 | the duplicate-exchange check is gone | `test_a_reply_names_no_paragraph_the_document_does_not_have` | one exchange is one row |
+| 11 | the answer's paragraph is no longer the ordering tiebreaker | `test_two_exchanges_may_answer_the_same_objection_and_their_order_is_total` | two exchanges may answer the same objection, and the listing says which is first |
 
 **The mutations the record does not cover.** The reply's *shape* is witnessed
 by the column set and by the refusals above, and **no mutation was recorded

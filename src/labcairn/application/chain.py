@@ -688,10 +688,13 @@ def read_replies(
     version with none is a version whose document holds none.
 
     **And they come back in the document's order.** The exchanges are
-    ordered by the paragraph the objection was read from, which is the
-    order a person reading the response document would meet them in --
-    and the same answer on every machine, however the rows happened to
-    come back.
+    ordered by the paragraph the objection was read from and then by the
+    paragraph the answer was read from, which is the order a person
+    reading the response document would meet them in -- and the same
+    answer on every machine, however the rows happened to come back.
+    **The second key is not decoration**: two exchanges may answer the
+    same objection, and an order that stopped at the objection would
+    leave their order to the storage engine's.
 
     **And the reply is not the mentor's exchange**, so the chain's own
     keys and judgements do not reach it: a reply is a reviewer's
@@ -710,7 +713,7 @@ def read_replies(
     rows = context.store.session.scalars(
         select(ReplyRow)
         .where(ReplyRow.version_id.in_(ids))
-        .order_by(ReplyRow.version_id, ReplyRow.objection_paragraph)
+        .order_by(ReplyRow.version_id, ReplyRow.objection_paragraph, ReplyRow.answer_paragraph)
     ).all()
     return tuple(
         ChainReply(
