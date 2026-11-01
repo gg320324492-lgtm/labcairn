@@ -209,6 +209,23 @@ class TestArmsConfiguration:
         with pytest.raises(ValueError, match="missing budget"):
             ArmConfiguration.from_document({"arm_id": "A", "model": MODEL, "inputs": ["draft"]})
 
+    def test_an_arm_missing_its_own_lettered_inputs_is_refused_by_name(self) -> None:
+        # Arm A has no predecessor, so the additive chain cannot catch it
+        # shortening its own inputs: only the letter's own table does.
+        arms = _clean_configuration()
+        arms[0] = ArmConfiguration(
+            arm_id="A",
+            model=MODEL,
+            budget=BUDGET,
+            inputs=frozenset({"literature"}),
+        )
+        outcome = assess_configuration(arms)
+        assert not outcome.admissible
+        assert any(
+            "A is missing the inputs the protocol's letter names: draft" in violation
+            for violation in outcome.violations
+        )
+
     def test_the_contrasts_exist_in_an_admissible_configuration(self) -> None:
         # The clean configuration already carries D vs C and E vs D; a
         # witness mutation inside the checker's contrast loop must red the
@@ -381,6 +398,20 @@ class TestSplitCheck:
         report = check_case(case, self._assignments())
         shapes = [leak.shape for leak in report.leaks]
         assert "case-targets-wrong-side" in shapes
+
+    def test_a_case_whose_target_paper_has_no_side_is_named(self) -> None:
+        # check_case's own refusal, separate from check_split's: a case
+        # whose target paper has no side in the split cannot run at all.
+        case = EvaluationCase(
+            target_paper_id="paper-ghost",
+            target_version_id="v1",
+            side=EVALUATION,
+            retrievable=(),
+        )
+        report = check_case(case, self._assignments())
+        shapes = [leak.shape for leak in report.leaks]
+        assert "entry-unassigned" in shapes
+        assert any("case targets paper" in leak.detail for leak in report.leaks)
 
     def test_a_rule_memory_built_on_an_evaluated_paper_in_reach_is_named(self) -> None:
         case = EvaluationCase(

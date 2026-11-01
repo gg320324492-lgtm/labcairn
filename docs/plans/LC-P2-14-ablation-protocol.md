@@ -143,3 +143,38 @@ each one is a test rather than a reviewer's diligence:**
 arms, the split, the annotators, the denominators, the failure instances,
 the cost and the latency, **and the conclusion the numbers support — which
 may be that the gain is not significant.**
+
+## 8. What was prepared before the run
+
+**Prepared 2026-11-02, before any material existed.** The run waits on
+unseen papers and a budget; the machinery does not. Four pieces, each with
+mutation-reddened witnesses (the design and the mutation table are in
+`docs/acceptance/LC-P2-14-preparation.md`):
+
+1. **The five arms' run configuration** (`tests/evaluation/arms.py`) —
+   each arm a typed declaration of its letter, model, budget, evidence
+   faces and roles; `assess_configuration` refuses by name a set of arms
+   that disagrees on the model, declares no budget, breaks the additive
+   chain, or leaves D vs C or E vs D without an input difference;
+   `assess_arrangement` holds B-only vs B+C to same evidence, same model,
+   same budget.
+2. **The leak check, as a test** (`tests/evaluation/split_check.py`) —
+   the split is by paper and the checker runs over each case's
+   retrievable corpus and each arm's declared version caps; every leak
+   shape §2 and §6 name comes back with the shape that produced it and
+   the entry that committed it.
+3. **The blind score sheet** (`tests/evaluation/blind_sheet.py`) —
+   anonymous until unblinding; the loader refuses incomplete ratings,
+   missing items, and any item carrying an arm key; `resolve_pair`
+   settles one label per item and dimension from two raters and an
+   arbiter, and returns its exclusions rather than dropping them.
+4. **The aggregation that can say not significant**
+   (`tests/evaluation/significance.py`) — the paired sign test, exact,
+   from `math.comb` and nothing else; below ten paired cases the verdict
+   is not significant by rule and no p-value is computed; the
+   not-significant path renders as words with its numbers, never as a
+   silent zero or a skipped row.
+
+**Nothing here has run.** No model was contacted and no real paper was
+read; the fixtures in the witnesses are invented, and §7's record is
+still the run's to write.
