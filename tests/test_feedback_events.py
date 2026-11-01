@@ -2026,3 +2026,162 @@ def test_a_chain_of_pending_links_serves_no_rule_and_a_judged_one_serves_it(
     assert [hit.rule.rule_id for hit in hits] == [rule.rule_id]
     assert invalidated_rules(marked_up.context) == ()
     assert list_unaddressed(marked_up.context, project_id=marked_up.project_id) == ()
+
+
+# --------------------------------------------------------------------------- #
+# the edges a change and a comment may not cross
+# --------------------------------------------------------------------------- #
+#
+# **Why these four are here.** The operation holds four guards that say
+# a change belongs to one manuscript, on one edge, and may answer only a
+# comment of that manuscript. **A guard nobody watches is a sentence
+# nobody checks**, and a reviewer who mutates one of them finds the
+# whole file green — so each of the four is watched here, by a witness
+# that fails when the guard is gone.
+
+
+def _an_edge_arriving_elsewhere(chain: ChainEnv) -> str:
+    """An edge that arrives at the **first** version, not the second.
+
+    **Written directly**, the way the scaffolding writes the version
+    graph: a version that is the child of an edge is a question the
+    chain's own writer cannot be asked to write, and it is the shape
+    that makes "the edge the change moved along" a question with more
+    than one answer.
+    """
+    session = chain.context.store.session
+    session.add(
+        VersionEdgeRow(
+            edge_id="edge-elsewhere",
+            project_id=chain.project_id,
+            parent_version_id=chain.second_version_id,
+            child_version_id=chain.version_id,
+            source="human",
+            confidence=1.0,
+            evidence_spans=[{"kind": "revision", "text": "revised"}],
+            accepted_by="Dr. Chen",
+            accepted_at=MOMENT,
+            edge_version=1,
+            superseded_by=None,
+            created_at=MOMENT,
+        )
+    )
+    session.commit()
+    return "edge-elsewhere"
+
+
+def test_a_change_must_travel_the_edge_it_is_recorded_on(marked_up: ChainEnv) -> None:
+    """A change is a change in the version the edge arrives at.
+
+    **The edge names the version the change is in**, and a change
+    recorded against an edge that arrives elsewhere is a change on no
+    edge at all — so the operation refuses it rather than writing a
+    row the graph cannot place.
+    """
+    _an_edge_arriving_elsewhere(marked_up)
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id=marked_up.second_version_id,
+            version_edge_id="edge-elsewhere",
+            actors=_ROSTER,
+            now=MOMENT,
+        )
+
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused edge writes nothing"
+
+
+def test_a_change_must_travel_an_edge_of_its_own_project(marked_up: ChainEnv) -> None:
+    """An edge across manuscripts is a claim about a lineage that does not exist.
+
+    **The edge and the change belong to one manuscript**, and a link
+    between two of them would join two archives — so the operation
+    refuses it and says which two projects it saw.
+    """
+    _another_project_with_a_key(marked_up, issue_key="iss-theirs")
+    session = marked_up.context.store.session
+    session.add(
+        VersionEdgeRow(
+            edge_id="edge-foreign",
+            project_id="proj-2",
+            parent_version_id="ver-9",
+            child_version_id=marked_up.second_version_id,
+            source="human",
+            confidence=1.0,
+            evidence_spans=[{"kind": "revision", "text": "revised"}],
+            accepted_by="Dr. Chen",
+            accepted_at=MOMENT,
+            edge_version=1,
+            superseded_by=None,
+            created_at=MOMENT,
+        )
+    )
+    session.commit()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id=marked_up.project_id,
+            version_id=marked_up.second_version_id,
+            version_edge_id="edge-foreign",
+            actors=_ROSTER,
+            now=MOMENT,
+        )
+
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "proj-2" in caught.value.detail, "the refusal names the two projects"
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused edge writes nothing"
+
+
+def test_a_change_is_recorded_against_the_project_its_manuscript_belongs_to(
+    marked_up: ChainEnv,
+) -> None:
+    """A change is recorded against the project its manuscript belongs to.
+
+    **The version and the project are checked against each other**, so
+    a change cannot be recorded under a project the manuscript is not
+    part of — which would put a row in one project's chain that belongs
+    to another's.
+    """
+    _another_project_with_a_key(marked_up, issue_key="iss-theirs")
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_edits_from_revisions(
+            marked_up.context,
+            project_id="proj-2",
+            version_id=marked_up.second_version_id,
+            version_edge_id=marked_up.edge_id,
+            actors=_ROSTER,
+            now=MOMENT,
+        )
+
+    assert caught.value.reason is ApplicationRefusal.CHAIN_VERSION_NOT_FOUND
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused project writes nothing"
+
+
+def test_a_change_in_one_manuscript_cannot_answer_a_comment_in_another(
+    marked_up: ChainEnv,
+) -> None:
+    """A change answers a comment of its own manuscript, and no other.
+
+    **The answer names a comment the chain holds, in this project** —
+    a change in one manuscript cannot answer a comment in another, and
+    a correspondence that crossed the two would be a claim about a
+    lineage that does not exist.
+    """
+    _another_project_with_a_key(marked_up, issue_key="iss-theirs")
+    change_id = _the_changes(marked_up)[0]
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _fill_the_second_ring(marked_up, answers={change_id: "fb-other-project"})
+
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "proj-2" in caught.value.detail, "the refusal names the two projects"
+    rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
+    assert not rows, "a refused answer writes nothing"
