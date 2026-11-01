@@ -42,8 +42,21 @@ from typing import Any
 import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
+from test_store_support import StoreEnv
+from test_store_support import env as _shared_env
 
 from conftest import migrated_database_from
+from labcairn.application import (
+    ApplicationContext,
+    ApplicationRefusal,
+    ApplicationRefusedError,
+    IdentifierRequest,
+    confirm_identifier_resolution,
+    create_task,
+    list_task_identifiers,
+    record_identifier,
+    request_outbound_resolution,
+)
 from labcairn.db.session import create_db_engine
 from labcairn.evidence.checks.c1 import C1_CHECKER_ID
 from labcairn.evidence.gate import evaluate_task
@@ -71,9 +84,14 @@ from labcairn.evidence.states import (
 )
 from labcairn.evidence.store import LedgerError, advance, append_record, attest, load_record
 from labcairn.material.addressing import render_locator_key
+from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.security.approval import ApprovalLedger
+from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.sources.locators import PdfLocator
 
 pytestmark = pytest.mark.integration
+
+env = _shared_env
 
 NOW = dt.datetime(2026, 11, 2, tzinfo=dt.UTC)
 NOW_TEXT = "2026-11-02T00:00:00+00:00"
@@ -263,10 +281,16 @@ def test_a_state_disagreeing_with_its_fields_is_refused_at_construction() -> Non
 
 
 def test_an_unknown_spelling_is_refused_not_coerced() -> None:
+    # The values are deliberately misspelled, so they arrive as ``Any`` rather
+    # than as an ``ignore`` comment: a comment's necessity depends on which
+    # tree's types mypy reads, and ``Any`` says "no type opinion here" in
+    # every tree.
+    misspelled: Any = "DOI"
     with pytest.raises(ValueError):
-        _identifier(scheme="DOI")  # type: ignore[arg-type]
+        _identifier(scheme=misspelled)
+    misspelled_state: Any = "Verified"
     with pytest.raises(ValueError):
-        _identifier(resolution_state="Verified")  # type: ignore[arg-type]
+        _identifier(resolution_state=misspelled_state)
 
 
 def test_the_resolution_and_verification_vocabularies_share_no_words() -> None:
@@ -675,6 +699,152 @@ def test_a_request_and_a_confirmation_can_both_be_read_back(ledger: Store) -> No
         "id-1": ResolutionState.NOT_ATTEMPTED,
         "id-2": ResolutionState.UNRESOLVED,
     }
+
+
+# --------------------------------------------------------------------------- #
+# through the product: the layer operations, not the store functions
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def workspace_root(tmp_path: Path) -> Path:
+    root = tmp_path / "workspace"
+    (root / "materials").mkdir(parents=True)
+    return root
+
+
+def _context(
+    env: StoreEnv,
+    workspace_root: Path,
+    *,
+    title: str = "Citation identity",
+) -> ApplicationContext:
+    created = create_task(
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        workspace_root=workspace_root,
+        title=title,
+        goal=TaskGoal(
+            objective="Establish what the material says.",
+            success_criterion="A cited answer, or an honest 'not established'.",
+        ),
+    )
+    return ApplicationContext(
+        workspace=created.workspace,
+        store=env.store(),
+        policy=PermissionPolicy.from_rules([Rule(effect=Permission.ALLOW, pattern="**")]),
+        ledger=ApprovalLedger(),
+    )
+
+
+def test_ingestion_person_and_model_identifiers_are_recorded_with_their_provenance(
+    env: StoreEnv, workspace_root: Path
+) -> None:
+    """The first clause, through the product: the provenance is the row's own."""
+    context = _context(env, workspace_root)
+    ingested = record_identifier(
+        context,
+        IdentifierRequest(
+            scheme=IdentifierScheme.DOI,
+            value="10.1234/from-metadata",
+            supplied_by=IdentifierProvenance.INGESTION,
+            supplied_by_id="ingest-run-1",
+        ),
+        now=NOW,
+    )
+    proposed = record_identifier(
+        context,
+        IdentifierRequest(
+            scheme=IdentifierScheme.ARXIV,
+            value="2401.01234",
+            supplied_by=IdentifierProvenance.MODEL,
+            supplied_by_id="model-run-9",
+        ),
+        now=NOW,
+    )
+    states = {
+        identifier.value: (identifier.supplied_by, identifier.supplied_by_id)
+        for identifier in list_task_identifiers(context)
+    }
+    assert states == {
+        "10.1234/from-metadata": (IdentifierProvenance.INGESTION, "ingest-run-1"),
+        "2401.01234": (IdentifierProvenance.MODEL, "model-run-9"),
+    }
+    # Recorded is not resolved: a row that arrived resolved would be a
+    # resolution nobody made.
+    assert ingested.identifier.resolution_state is ResolutionState.UNRESOLVED
+    assert proposed.identifier.resolution_state is ResolutionState.UNRESOLVED
+
+
+def test_a_resolution_request_through_the_product_is_recorded_not_attempted(
+    env: StoreEnv, workspace_root: Path, forbid_sockets: None
+) -> None:
+    """The second clause, through the product, with the machine's doors shut."""
+    context = _context(env, workspace_root)
+    recorded = record_identifier(
+        context,
+        IdentifierRequest(
+            scheme=IdentifierScheme.DOI,
+            value="10.1234/abc",
+            supplied_by=IdentifierProvenance.PERSON,
+            supplied_by_id="the-owner",
+        ),
+        now=NOW,
+    )
+    result = request_outbound_resolution(
+        context, recorded.identifier.identifier_id, reason="the report asks", now=NOW
+    )
+    assert result.identifier.resolution_state is ResolutionState.NOT_ATTEMPTED
+    assert "cannot consent an outbound lookup" in (result.identifier.resolution_detail or "")
+
+
+def test_an_unsigned_confirmation_is_refused(env: StoreEnv, workspace_root: Path) -> None:
+    """A resolution nobody signs is the one thing worse than an unresolved id."""
+    context = _context(env, workspace_root)
+    recorded = record_identifier(
+        context,
+        IdentifierRequest(
+            scheme=IdentifierScheme.DOI,
+            value="10.1234/abc",
+            supplied_by=IdentifierProvenance.PERSON,
+            supplied_by_id="the-owner",
+        ),
+        now=NOW,
+    )
+    with pytest.raises(ApplicationRefusedError) as refused:
+        confirm_identifier_resolution(
+            context,
+            recorded.identifier.identifier_id,
+            resolved_by="   ",
+            detail="the DOI resolves to the paper",
+            now=NOW,
+        )
+    assert refused.value.reason is ApplicationRefusal.RESOLUTION_IDENTITY_EMPTY
+
+
+def test_another_tasks_identifier_is_not_resolved_here(env: StoreEnv, workspace_root: Path) -> None:
+    """A task moves what it holds; it does not reach into another task's shelf."""
+    first = _context(env, workspace_root, title="First task")
+    recorded = record_identifier(
+        first,
+        IdentifierRequest(
+            scheme=IdentifierScheme.DOI,
+            value="10.1234/abc",
+            supplied_by=IdentifierProvenance.PERSON,
+            supplied_by_id="the-owner",
+        ),
+        now=NOW,
+    )
+    second = _context(env, workspace_root, title="Second task")
+    with pytest.raises(ApplicationRefusedError) as refused:
+        confirm_identifier_resolution(
+            second,
+            recorded.identifier.identifier_id,
+            resolved_by="the-owner",
+            detail="the DOI resolves to the paper",
+            now=NOW,
+        )
+    assert refused.value.reason is ApplicationRefusal.IDENTIFIER_NOT_FOUND
 
 
 # --------------------------------------------------------------------------- #

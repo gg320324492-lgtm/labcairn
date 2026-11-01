@@ -57,10 +57,9 @@ from labcairn.evidence.cite_support import SourceIndex, Verdict
 from labcairn.evidence.identifiers import load_identifier
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.evidence.states import (
-    CITABLE_STATUSES,
-    CheckKind,
-    CheckOutcome,
+    CITABLE_STATUSES as CITABLE_STATUSES,
 )
+from labcairn.evidence.states import CheckKind, CheckOutcome
 from labcairn.evidence.store import detect_conflicts, load_record, load_task_records
 from labcairn.sources.locators import describe_locator
 
