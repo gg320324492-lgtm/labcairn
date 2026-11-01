@@ -287,6 +287,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_feedback_events.py": ("integration", "dataset-locators"),
     "test_edit_actions.py": ("integration", "typed-contracts"),
     "test_response_links.py": ("integration", "state-transitions"),
+    # LC-P2-17. Citation identity: scholarly identifiers as data with
+    # provenance and a resolution state, the store's refusals of the rows
+    # the schema forbids, and the gate that will not let a citable record
+    # rest on an identifier nothing resolved. The clause is state
+    # transitions: the resolution is a state and not a call, and the
+    # witnesses write the illegal row and watch the store refuse.
+    "test_identifier_records.py": ("integration", "state-transitions"),
     "test_followup_assessments.py": ("integration", "insufficient-evidence"),
     # LC-P2-09. The feedback chain's four events: they are annotations, they
     # carry a registered payload schema naming the row they are about, and
