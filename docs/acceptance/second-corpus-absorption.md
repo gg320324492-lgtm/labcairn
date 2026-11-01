@@ -113,6 +113,28 @@ holds is not that advisor's habit on one manuscript.** That is what "the
 rules get more precise" has to be measured against, and it is a
 different claim from the first corpus's own confirmation.
 
+**And the sixteen rules are sixteen rules, not eight rules counted twice.**
+Read against each other, **no rule's sources cross the two papers** — every
+source of every rule comes from the paper it was distilled from. **Six
+standards were independently found on both papers**, and each pair says
+something *different* about the same standard:
+
+| the standard | the first paper's rule says | the second paper's rule says |
+|---|---|---|
+| figures | a figure answers to the experiment and to the whole, in one format | the axes and the labels are legible, in the type the text is written in |
+| introduction_and_storyline | the layout answers the question's chain of evidence; the explanation belongs in the discussion | the metrics and the new discussion paragraphs are joined, and each says what it is for |
+| language_and_format | the numbering and the references follow one convention, editable | the sentences that carry no argument are cut, and the comparisons are quantitative |
+| method_and_hypothesis | the method is described concretely, not pointed at | a tool is introduced with what it is, what it gave, and what it was for |
+| research_question_and_motivation | the question and the conclusion are focused, and the comparison is relative | the significance lands on a testable scientific question, not on a list of groups |
+| statistical_conclusion | the conclusion matches the trend and the comparability | a claim about synergy carries the statistics, and says what the difference could mean |
+
+**So the standard crossed and the wording did not** — which is the finding:
+**the two advisors hold the same standard and say it in their own words.**
+That is why the memory's rule store is keyed by the rule and not by the
+label, and why **one rule per standard per paper** is the right shape: a
+rule that merged the two would have to say one thing and would be wrong
+in one paper's terms.
+
 **And the one rule with no counterpart is not a rule that failed.** The
 second corpus holds two advisors' remarks on one manuscript, and a
 standard can be absent from it because the manuscript did not raise it.
