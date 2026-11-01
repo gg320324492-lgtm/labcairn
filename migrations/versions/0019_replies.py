@@ -1,7 +1,7 @@
 """the reply: one party's answer to another's objection
 
 Revision ID: 0019
-Revises: 0017
+Revises: 0018
 Create Date: 2026-11-01
 
 **The chain holds the mentor's exchange, and a reply is not that
@@ -56,8 +56,8 @@ not put the reply in the mentor's chain: the chain's issue keys, its
 a different kind of speech act.
 
 **On ``Revises:``.** This revision was written while ``0018`` had not
-landed, and it chains to the head that was there -- ``0017``. When
-``0018`` lands, this line is the one that changes: a migration that
+landed, and it chained to the head that was there -- ``0017``. **``0018``
+has since landed, and this revision chains to it**: a migration that
 chains to a revision that does not exist breaks the chain, and one that
 chains to a revision that is not its parent leaves two heads.
 
@@ -80,7 +80,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0019"
-down_revision: str | None = "0017"
+down_revision: str | None = "0018"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
