@@ -80,6 +80,16 @@ class RoleRefusal(StrEnum):
     #: action, the uncertainty's own statement — is empty. A card with
     #: nothing in it advises nothing.
     CARD_FIELD_EMPTY = "card_field_empty"
+    #: The card's evidence names no comment in the chain, so the card has
+    #: **no address of its own**. The address is minted from the comment
+    #: the card is about, and a card that names no comment names nothing
+    #: a person could find.
+    CARD_WITHOUT_AN_ADDRESS = "card_without_an_address"
+    #: The chain holds several comments under the key the card names, or
+    #: the card's evidence names several comments, and the card does not
+    #: say which one it is about. **An address that could be two
+    #: addresses is not an address.**
+    CARD_ADDRESS_AMBIGUOUS = "card_address_ambiguous"
     #: The card's evidence list is empty. **A card without evidence is
     #: an opinion wearing a card's clothes.**
     CARD_WITHOUT_EVIDENCE = "card_without_evidence"
@@ -109,8 +119,10 @@ class RoleRefusal(StrEnum):
     #: the verdict offered would claim it was checked. **The honest
     #: answer is cannot_assess, not a verdict that pretends.**
     UNVERIFIABLE_EVIDENCE_ACCEPTED = "unverifiable_evidence_accepted"
-    #: A chain reference names a key the chain does not hold. **The
-    #: review does not take the card's word about its own evidence.**
+    #: A chain reference names a key the chain does not hold, or the
+    #: card's address is not the address of the comment its evidence
+    #: names. **The review does not take the card's word about its own
+    #: evidence.**
     EVIDENCE_NOT_IN_THE_CHAIN = "evidence_not_in_the_chain"
     #: A verdict that refuses the card carries no reason for the
     #: hand-over. A hand-over nobody can act on is not a hand-over.

@@ -118,6 +118,7 @@ Operation  The permission that governs it
 ``read_response_states``              the material's — asked where it is named
 ``read_material_paths``               the material's — asked where it is named
 ``read_project_graph``                the material's — asked where it is named
+``read_issue_keys``                   the material's — asked where it is named
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
 ``write_guidance_rule_version``       the material's — asked where it is named
@@ -163,6 +164,7 @@ from labcairn.application.chain import (
     ProjectGraph,
     read_comments,
     read_edits,
+    read_issue_keys,
     read_material_paths,
     read_project_graph,
     read_response_states,
@@ -347,6 +349,7 @@ __all__ = [
     "read_events",
     "read_guidance_rule",
     "read_guidance_rules",
+    "read_issue_keys",
     "read_material_paths",
     "read_plan",
     "read_project",

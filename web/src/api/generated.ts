@@ -325,6 +325,11 @@ export type Health = {
   task_id: string
 }
 
+export type IssueKeys = {
+  project_id: string
+  issue_keys: string[]
+}
+
 export type JsonValue = unknown
 
 export type MissingPolicy = 'exclude' | 'refuse'

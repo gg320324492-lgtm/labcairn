@@ -15,11 +15,16 @@ that says what was missing, and the rule cited with its counterexamples.
      a card invents nothing                                a claim without
                                                           declared evidence, a
                                                           voice without a source
+     a card carries an address of its own                  minted by the
+                                                          product, the card's
+                                                          own, and not a
+                                                          caller's to write
 ====================================================  =========================
 """
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -147,7 +152,6 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
     card = build_card(
         guidance.context,
         spec=guidance.spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="major",
         reason="the comparison's baseline is nowhere in the paragraph.",
@@ -166,7 +170,7 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
         counterexamples_or_limits=("the rule does not hold where the baseline is present.",),
     )
     assert (card.role_id, card.role_version) == ("guidance", 1)
-    assert card.target_locator.startswith("docx:")
+    assert card.target_locator.startswith("card:")
     assert card.severity == "major"
     assert card.reason and card.suggested_next_action
     assert card.evidence_refs == ("chain:" + guidance.key,)
@@ -180,7 +184,6 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="major",
                 reason="the comparison's baseline is nowhere in the paragraph.",
@@ -196,7 +199,6 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="catastrophic",
                 reason="a degree the vocabulary does not close.",
@@ -212,10 +214,9 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="   ",
                 issue_type="method_and_hypothesis",
                 severity="major",
-                reason="a card that points nowhere.",
+                reason="   ",
                 evidence_refs=("chain:" + guidance.key,),
                 suggested_next_action="name the baseline.",
                 uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
@@ -223,6 +224,192 @@ def test_a_card_carries_its_fields_and_one_without_evidence_is_refused(
         )
     )
     assert refused is RoleRefusal.CARD_FIELD_EMPTY
+
+
+def test_a_card_carries_an_address_of_its_own_and_a_caller_cannot_supply_it(
+    guidance: Guidance,
+) -> None:
+    """The address is minted by the product, and it is the card's own.
+
+    **Three pieces, and each is a name the chain holds**: the issue the
+    card is about, the comment under it, and the manuscript state the
+    comment was written against. The address is spelled in the card's own
+    namespace, so it cannot be mistaken for a source address in the
+    ledger's sense — the ledger's anchors name body paragraphs, and the
+    advisor's words are in ``word/comments.xml``.
+
+    **And there is no parameter to fill it in.** A caller that could
+    write the address could point the card at a comment it is not about.
+    """
+    card = build_card(
+        guidance.context,
+        spec=guidance.spec,
+        issue_type="method_and_hypothesis",
+        severity="major",
+        reason="the comparison's baseline is nowhere in the paragraph.",
+        evidence_refs=("chain:" + guidance.key,),
+        suggested_next_action="name the baseline.",
+        uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+    )
+    assert card.target_locator == (
+        f"card:{guidance.key}@{guidance.event.feedback_id}@{guidance.chain.version_id}"
+    )
+    assert not card.target_locator.startswith("docx:"), (
+        "a card's address is not a place in the manuscript"
+    )
+    assert not card.target_locator.startswith("k="), (
+        "a card's address is not a source anchor in the ledger's sense"
+    )
+
+    # **A caller may not supply the address.** The shape refuses it
+    # before the body runs, so the pretending is not a mistake a caller
+    # can make.
+    assert "target_locator" not in inspect.signature(build_card).parameters
+    with pytest.raises(TypeError):
+        inspect.signature(build_card).bind(
+            guidance.context,
+            spec=guidance.spec,
+            target_locator="docx:word/document.xml#para=12",
+            issue_type="method_and_hypothesis",
+            severity="major",
+            reason="a card that points nowhere.",
+            evidence_refs=("chain:" + guidance.key,),
+            suggested_next_action="name the baseline.",
+            uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+        )
+
+    # **A card that names no comment in the chain has no address**, and
+    # a card nobody can find advises nobody.
+    refused = _refusal(
+        _capture(
+            lambda: build_card(
+                guidance.context,
+                spec=guidance.spec,
+                issue_type="method_and_hypothesis",
+                severity="major",
+                reason="a card about nothing the chain holds.",
+                evidence_refs=("study:nowhere",),
+                suggested_next_action="name the baseline.",
+                uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+            )
+        )
+    )
+    assert refused is RoleRefusal.CARD_WITHOUT_AN_ADDRESS
+
+    # **A card that names two comments does not say which one it is
+    # about**, and an address that could be two addresses is not an
+    # address.
+    refused = _refusal(
+        _capture(
+            lambda: build_card(
+                guidance.context,
+                spec=guidance.spec,
+                issue_type="method_and_hypothesis",
+                severity="major",
+                reason="a card about two comments at once.",
+                evidence_refs=("chain:" + guidance.key, "chain:iss-other"),
+                suggested_next_action="name the baseline.",
+                uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+            )
+        )
+    )
+    assert refused is RoleRefusal.CARD_ADDRESS_AMBIGUOUS
+
+
+def test_a_recurring_issue_is_addressed_by_the_comment_the_card_quotes(
+    env: StoreEnv,
+    tmp_path: Path,
+) -> None:
+    """One key can hold two comments, and the card's own words say which.
+
+    **A recurrence is a fact about two versions**, and both comments wear
+    the same key — so the key alone is not an address. The card quotes
+    one of them, and the quote is the advisor's own words in the chain,
+    so the address names the comment the card is about.
+    """
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    store = env.store()
+    chain = build_chain(
+        store,
+        workspace_root,
+        comments=(a_comment("201"),),
+        second_comments=(a_comment("202", text="Name the quantity."),),
+    )
+    first = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )[0]
+    second = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        now=MOMENT,
+    )[0]
+    set_issue_key(chain.context, feedback_id=first.feedback_id, issue_key=KEY, now=MOMENT)
+    set_issue_key(chain.context, feedback_id=second.feedback_id, issue_key=KEY, now=MOMENT)
+    spec = define_role_spec(
+        chain.context,
+        role_id="guidance",
+        role_version=1,
+        objective="Turn the trajectory's candidates into a card a student can act on.",
+        input_schema="GuidanceCardInput",
+        output_schema="GuidanceCard",
+        allowed_capabilities=(CapabilityId.MODEL_REQUEST,),
+        forbidden_actions=FORBIDDEN_ACTIONS,
+        allowed_data_purposes=("guidance_review",),
+        provider_routing_policy="single-provider-per-call",
+        cost_budget=None,
+        token_budget=4000,
+        timeout_seconds=120,
+        retry_policy="no-retry",
+        fallback_policy="abstain",
+        abstain_conditions=("material_under_two_comments",),
+        escalation_conditions=("a_conflict_between_two_rules",),
+        prompt_template_version="guidance-card-v1",
+        model_config_ref="configs/model.json",
+        now=MOMENT,
+    )
+
+    card = build_card(
+        chain.context,
+        spec=spec,
+        issue_type="method_and_hypothesis",
+        severity="major",
+        reason="the advisor asked for the quantity, in the advisor's own words.",
+        evidence_refs=("chain:" + KEY,),
+        suggested_next_action="name the quantity.",
+        uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+        claims=(
+            CardClaim(
+                text="the advisor asked for the quantity",
+                kind="advisor",
+                issue_key=KEY,
+                advisor_quote="Name the quantity.",
+            ),
+        ),
+    )
+    assert card.target_locator == f"card:{KEY}@{second.feedback_id}@{chain.second_version_id}"
+
+    # **A card that quotes neither of them cannot be addressed**, because
+    # the key alone would be two addresses.
+    refused = _refusal(
+        _capture(
+            lambda: build_card(
+                chain.context,
+                spec=spec,
+                issue_type="method_and_hypothesis",
+                severity="major",
+                reason="a card that says which comment nowhere.",
+                evidence_refs=("chain:" + KEY,),
+                suggested_next_action="name the quantity.",
+                uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
+            )
+        )
+    )
+    assert refused is RoleRefusal.CARD_ADDRESS_AMBIGUOUS
 
 
 def test_a_card_cites_a_rule_with_its_counterexamples(guidance: Guidance) -> None:
@@ -244,7 +431,6 @@ def test_a_card_cites_a_rule_with_its_counterexamples(guidance: Guidance) -> Non
     card = build_card(
         guidance.context,
         spec=guidance.spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="major",
         reason="the comparison's baseline is nowhere in the paragraph.",
@@ -301,7 +487,6 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="major",
                 reason="a finding nobody measured.",
@@ -324,7 +509,6 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="major",
                 reason="a reference nothing declares.",
@@ -349,7 +533,6 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="major",
                 reason="a voice nobody wrote down.",
@@ -373,7 +556,6 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="major",
                 reason="a voice without a source.",
@@ -393,7 +575,6 @@ def test_a_card_invents_no_experiment_reference_or_opinion(
     card = build_card(
         guidance.context,
         spec=guidance.spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="major",
         reason="the advisor's own words, carried verbatim.",
@@ -424,7 +605,6 @@ def test_facts_and_style_are_recorded_separately(guidance: Guidance) -> None:
     card = build_card(
         guidance.context,
         spec=guidance.spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="moderate",
         reason="the comparison's baseline is nowhere in the paragraph.",
@@ -449,7 +629,6 @@ def test_facts_and_style_are_recorded_separately(guidance: Guidance) -> None:
             lambda: build_card(
                 guidance.context,
                 spec=guidance.spec,
-                target_locator="docx:word/document.xml#para=12",
                 issue_type="method_and_hypothesis",
                 severity="moderate",
                 reason="a style note smuggled in as a claim.",

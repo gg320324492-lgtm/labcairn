@@ -28,12 +28,23 @@ facts are. A caller wants *a comment* — the advisor's words, the anchored
 text, the version it was written against — and not a row it has to know the
 shape of. The same is true of a change and of an accepted edge.
 
-**What these operations refuse.** Nothing, beyond what the store itself
-refuses: a row that is not there is reported as an empty answer, and the
-*rule* that says what may be done with what was found is the caller's —
+**What these operations refuse.** Almost nothing, beyond what the store
+itself refuses: a row that is not there is reported as an empty answer, and
+the *rule* that says what may be done with what was found is the caller's —
 :mod:`labcairn.guidance.retrieval` and :mod:`labcairn.roles.trajectory`
 hold those rules, and they ask the permission layer themselves where the
 material is named.
+
+**The one exception is the issue-key listing, and it refuses two things.**
+:func:`read_issue_keys` answers *which issues there are to look at*, and an
+answer about a chain that is not the one asked for is an answer about
+something else: **a project the chain does not hold, and a version that does
+not belong to it, are refused by name** rather than answered about
+silently. The rest of the module's operations report what they did not find
+as an empty answer, and this one refuses because its answer is a *list of
+what there is* — an empty list for a project nobody holds would be a
+statement that the project has no issues, and that is a different fact from
+"there is no such project".
 
 **And why there is no capability check here.** The capability model judges
 *resources*, and a resource is a path in a workspace. The chain's rows are
@@ -56,8 +67,10 @@ from datetime import datetime
 from typing import Final
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from labcairn.application.context import ApplicationContext
+from labcairn.application.refusal import chain_refused
 from labcairn.db.models import (
     EditActionRow,
     FeedbackEventRow,
@@ -67,6 +80,7 @@ from labcairn.db.models import (
     VersionEdgeRow,
 )
 from labcairn.db.repository import load_source
+from labcairn.papers.chain import ChainRefusal, project_row, project_version_rows
 
 
 @dataclass(frozen=True)
@@ -352,6 +366,95 @@ def read_comments(
     )
 
 
+def read_issue_keys(
+    context: ApplicationContext, *, project_id: str, version_ids: Sequence[str] = ()
+) -> tuple[str, ...]:
+    """The issue keys the chain holds for a project.
+
+    **Which keys.** The keys the chain's own rows carry. **A key is a
+    person's judgement and it is given, never derived** — the same wording
+    is not the same issue — so a comment nobody keyed is *uncategorised*:
+    it is not in this list, and it is not keyed by similarity to one that
+    is. **A key nobody has given is not in the chain**, and so it is not in
+    this list either: the chain's rows are the only source, and a key that
+    lives in some other table is a name about the chain, not a key of it.
+
+    **How the list is ordered.** **Sorted, and sorted because the chain's
+    rows carry no time and no sequence.** There is no chronology in the
+    chain to read an order out of, so an order taken from the rows would
+    be the *storage engine's* and not the chain's — and the same chain
+    would then be two lists. **Sorting is an order of the names
+    themselves**: the same set of keys answers the same list, on every
+    machine, however the rows happened to come back. A reader that draws
+    the list twice draws the same thing.
+
+    **What it refuses.** **A project the chain does not hold**, and **a
+    version that does not belong to it**. The second is refused rather
+    than ignored: a version outside the project would widen the answer to
+    a chain that is not this one, and the caller who named it would be
+    answered about something else without being told.
+
+    **What the list carries, and what it does not.** **The keys, and
+    nothing else.** A key says *which problem*, not *what the advisor
+    wrote*: no comment's words, no anchored text, no author, no date and
+    no grade travel with it. The layer's own comment — which does carry
+    them — is a different answer to a different question, and a caller
+    that wants the words asks for the comments under the key.
+
+    :param project_id: the project whose chain is read.
+    :param version_ids: the versions to narrow the answer to. **Naming
+        none means the whole project** — every version of it. Blanks name
+        nothing, as they do everywhere else in this module.
+    :raises ApplicationRefusedError: the chain holds no such project, or
+        one of the versions named does not belong to it.
+    """
+    session = context.store.session
+    if project_row(session, project_id) is None:
+        raise chain_refused(
+            ChainRefusal.PROJECT_NOT_FOUND,
+            f"the store holds no paper project with the id {project_id!r}, so the chain "
+            "holds no issue key for it.",
+        )
+    named = _the_versions_named(session, project_id, version_ids)
+    conditions = [
+        FeedbackEventRow.project_id == project_id,
+    ]
+    if named is not None:
+        conditions.append(FeedbackEventRow.version_id.in_(named))
+    keys = {
+        str(key)
+        for key in session.scalars(select(FeedbackEventRow.issue_key).where(*conditions))
+        if key
+    }
+    return tuple(sorted(keys))
+
+
+def _the_versions_named(
+    session: Session, project_id: str, version_ids: Sequence[str]
+) -> tuple[str, ...] | None:
+    """The versions the issue-key answer is about, or ``None`` for all of them.
+
+    **The versions named narrow the answer, and they must belong to the
+    project.** Naming none means the project's whole chain, which is the
+    one scope a caller reaches before it knows which versions it wants.
+
+    :raises ApplicationRefusedError: a version named does not belong to the
+        project.
+    """
+    wanted = tuple(dict.fromkeys(version_id for version_id in version_ids if version_id))
+    if not wanted:
+        return None
+    held = {row.version_id for row in project_version_rows(session, project_id)}
+    outside = tuple(version_id for version_id in wanted if version_id not in held)
+    if outside:
+        raise chain_refused(
+            ChainRefusal.VERSION_NOT_FOUND,
+            f"the project {project_id!r} holds no version with the id {outside[0]!r}, so the "
+            "issue keys of that version are not the issue keys of this chain.",
+        )
+    return wanted
+
+
 def read_edits(
     context: ApplicationContext, *, feedback_ids: Sequence[str]
 ) -> tuple[ChainEdit, ...]:
@@ -599,6 +702,7 @@ __all__ = [
     "classify_revision_change",
     "read_comments",
     "read_edits",
+    "read_issue_keys",
     "read_material_paths",
     "read_project_graph",
     "read_response_states",

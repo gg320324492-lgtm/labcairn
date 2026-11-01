@@ -22,6 +22,13 @@ chain; a reference in no form C can check makes a ``supported`` verdict
 a lie, and the module refuses it — C's honest answer to evidence it
 cannot reach is ``cannot_assess``, with the reason a person needs.
 
+**And it checks the card's address, because the review does not take the
+card's word about where its evidence is.** The card's address is minted
+by the product from the comment the card's evidence names; so C mints it
+again, from the same evidence, and compares — **a card whose address
+names a comment the chain does not hold is a card nobody can act on**,
+and the review says so by name rather than passing it on.
+
 **The chain's rows are reached through the application layer.** The
 comments a verdict checks its evidence against come from
 :mod:`labcairn.application.chain`, so the review reads no table of its
@@ -37,7 +44,12 @@ from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import role_refused
 from labcairn.guidance.retrieval import search_rules
-from labcairn.roles.guidance import GuidanceCard, RuleCitation
+from labcairn.roles.guidance import (
+    CHAIN_REFERENCE_PREFIX,
+    GuidanceCard,
+    RuleCitation,
+    the_card_address,
+)
 from labcairn.roles.models import AgentRoleSpec, RoleOutput
 from labcairn.roles.refusals import RoleRefusal
 
@@ -76,10 +88,44 @@ class ReviewVerdict(RoleOutput):
 
 def _chain_key_of(evidence_ref: str) -> str | None:
     """The chain key a reference names, when it names one C can check."""
-    prefix = "chain:"
+    prefix = CHAIN_REFERENCE_PREFIX
     if not evidence_ref.startswith(prefix):
         return None
     return evidence_ref[len(prefix) :]
+
+
+def _check_the_card_address(context: ApplicationContext, card: GuidanceCard) -> None:
+    """The card's address must be the address of the comment it names.
+
+    **The review does not take the card's word about where its evidence
+    is.** The card's address is minted by the product from the comment
+    the card's evidence names; so C mints it again, from the same
+    evidence, and compares. **A card whose address names a comment the
+    chain does not hold — or names a different comment from the one its
+    evidence names — is a card nobody can act on**, and the review says
+    so by name instead of passing it on.
+
+    **A card that declares no evidence is an abstention**, and it names
+    no comment; so there is no address to check, and the review of it is
+    about what it could not answer.
+
+    :raises ApplicationRefusedError: the card's address is not the
+        address of the comment its evidence names.
+    """
+    if not card.evidence_refs:
+        return
+    expected = the_card_address(
+        context,
+        evidence_refs=card.evidence_refs,
+        claims=card.claims,
+    ).render()
+    if card.target_locator != expected:
+        raise role_refused(
+            RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN,
+            f"the card's address {card.target_locator!r} is not the address of the"
+            f" comment its evidence names ({expected!r}), and the review does not"
+            " take the card's word about where its evidence is",
+        )
 
 
 def review_card(
@@ -94,13 +140,17 @@ def review_card(
     """One independent review: the card checked against the chain and the memory.
 
     The card's ``chain:`` evidence references are verified against the
-    store; the counter-evidence is retrieved here, by this role's own
-    query, and travels in the verdict whether the card survives or not.
+    store; the card's **address** is verified against the same comment,
+    because the review does not take the card's word about where its
+    evidence is; the counter-evidence is retrieved here, by this role's
+    own query, and travels in the verdict whether the card survives or
+    not.
 
     :raises ApplicationRefusedError: the verdict is outside the four;
         the repair advice is empty; a chain reference names a key the
-        chain does not hold; a reference C cannot check is offered to
-        a verdict that claims the card stands; or a verdict that
+        chain does not hold; the card's address is not the address of the
+        comment its evidence names; a reference C cannot check is offered
+        to a verdict that claims the card stands; or a verdict that
         refuses the card carries no reason for the hand-over.
     """
     if verdict not in VERDICTS:
@@ -131,6 +181,7 @@ def review_card(
                 f"the evidence {evidence_ref!r} names a key the chain does"
                 " not hold, and the review does not take the card's word",
             )
+    _check_the_card_address(context, card)
     if verdict in {"needs_revision", "unsupported", "cannot_assess"} and not (
         handover_reason and handover_reason.strip()
     ):

@@ -346,6 +346,7 @@ def test_the_origin_check_covers_every_route(client: TestClient) -> None:
         "/events",
         "/trajectory",
         "/trajectory/graph",
+        "/trajectory/issue-keys",
         "/guidance/rules",
         "/records",
     ):
@@ -1556,6 +1557,7 @@ def test_the_api_package_calls_the_layer_and_nothing_else(
         "read_edits",
         "read_response_states",
         "read_project_graph",
+        "read_issue_keys",
         "read_guidance_rule",
         "read_guidance_rules",
         "list_task_records",
@@ -2175,6 +2177,155 @@ def test_the_graph_route_carries_only_the_accepted_edges(
     assert sorted(body["version_ids"]) == sorted([chain.version_id, chain.second_version_id])
 
 
+@pytest.fixture
+def keyed_chain(env: StoreEnv, workspace_root: Path) -> ChainEnv:
+    """A chain with three comments: two of them keyed, and one nobody keyed.
+
+    **The comments are the product's own** — read out of the manuscript by
+    the reader — so the rows the route lists are rows the product wrote.
+    """
+    return build_chain(
+        env.store(),
+        workspace_root,
+        comments=(
+            a_comment("201", text="Define the parameter."),
+            a_comment("202", text="Name the core."),
+            a_comment("203", text="Give the units."),
+        ),
+    )
+
+
+@pytest.fixture
+def keyed_client(keyed_chain: ChainEnv) -> Iterator[TestClient]:
+    """A client over the chain whose comments are keyed.
+
+    **Its own chain, and not the one above**: the scaffolding writes the
+    project row itself, so two chains in one store would be two rows
+    wearing one name.
+    """
+    app = create_app(keyed_chain.context, event_source=_StoreEventSource())
+    with TestClient(app) as wired:
+        yield wired
+
+
+def _the_keyed_comments(chain: ChainEnv) -> None:
+    """The chain's comments, recorded, and two of them keyed.
+
+    **The keys are given out of order on purpose**, so a list that came
+    back in the order the rows were written would not pass: the list is
+    sorted, and the sort is the point.
+
+    **And one comment is left uncategorised**, because a comment nobody
+    keyed is not an issue and must not become one.
+    """
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=_MOMENT,
+    )
+    by_text = {event.comment_text: event for event in events}
+    set_issue_key(
+        chain.context,
+        feedback_id=by_text["Define the parameter."].feedback_id,
+        issue_key="iss-b",
+        now=_MOMENT,
+    )
+    set_issue_key(
+        chain.context,
+        feedback_id=by_text["Name the core."].feedback_id,
+        issue_key="iss-a",
+        now=_MOMENT,
+    )
+
+
+def test_the_issue_keys_route_lists_what_there_is_to_look_at(
+    keyed_chain: ChainEnv, keyed_client: TestClient
+) -> None:
+    """The outlet the panel needed: the chain's issue keys, and nothing else.
+
+    **The list is the chain's own keys, sorted.** The keys are given out of
+    order on purpose — the chain holds ``iss-b`` before ``iss-a`` — and the
+    answer is sorted, because **the chain's rows carry no time and no
+    sequence**: there is no chronology to read an order out of, so an order
+    taken from the rows would be the storage engine's and not the chain's.
+    A panel that draws the list twice must draw the same thing.
+
+    **And the comment nobody keyed is not in it.** A key is a person's
+    judgement and it is given; a comment with no key is uncategorised, and
+    the list does not turn it into an issue.
+
+    **And the body carries names and nothing else.** No comment's words, no
+    anchored text, no author, no date: **a key says which problem, not what
+    the advisor wrote**, and a panel that drew more than the names would be
+    drawing a second spelling of the chain.
+    """
+    _the_keyed_comments(keyed_chain)
+
+    response = keyed_client.get(
+        "/trajectory/issue-keys", params={"project_id": keyed_chain.project_id}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["issue_keys"] == ["iss-a", "iss-b"], (
+        "the list is the chain's own keys, sorted, and the comment nobody keyed is not in it"
+    )
+    assert body["project_id"] == keyed_chain.project_id
+    assert set(body) == {"project_id", "issue_keys"}, (
+        f"the body carries names and nothing else, and it carries {sorted(body)}"
+    )
+
+
+def test_the_issue_keys_route_refuses_a_project_the_chain_does_not_hold(
+    chain: ChainEnv, chain_client: TestClient
+) -> None:
+    """A project nobody holds is refused by name, not answered with an empty list.
+
+    **An empty list would say the project has no issues**, and that is a
+    different fact from *"there is no such project"*: the first is a
+    statement about the chain, and the second is a statement about the
+    question. A reader who was told the first would believe the project
+    exists and has nothing to say.
+    """
+    _the_advisor_s_comment(chain, issue_key="iss-1")
+
+    response = chain_client.get("/trajectory/issue-keys", params={"project_id": "proj-absent"})
+
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND.value
+
+
+def test_the_issue_keys_route_refuses_a_version_that_is_not_the_project_s(
+    chain: ChainEnv, chain_client: TestClient
+) -> None:
+    """A version outside the project is refused rather than ignored.
+
+    **Ignoring it would answer about a chain that is not this one.** The
+    caller named a version the project does not hold, and a list that
+    quietly dropped it would be a list of a narrower question than the one
+    asked — and the caller would not know that.
+
+    **And the project's own version is served.** The refusal is about the
+    version that does not belong, not about the route.
+    """
+    _the_advisor_s_comment(chain, issue_key="iss-1")
+
+    refused = chain_client.get(
+        "/trajectory/issue-keys",
+        params={"project_id": chain.project_id, "version_id": "ver-of-another-project"},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["reason"] == ApplicationRefusal.CHAIN_VERSION_NOT_FOUND.value
+
+    served = chain_client.get(
+        "/trajectory/issue-keys",
+        params={"project_id": chain.project_id, "version_id": chain.version_id},
+    )
+    assert served.status_code == 200, served.text
+    assert served.json()["issue_keys"] == ["iss-1"]
+
+
 def test_the_guidance_route_carries_the_state_the_scope_the_sources_and_the_cases(
     context: ApplicationContext, client: TestClient
 ) -> None:
@@ -2419,6 +2570,7 @@ def test_the_service_carries_the_mentor_line_s_routes(
     for path in (
         "/trajectory",
         "/trajectory/graph",
+        "/trajectory/issue-keys",
         "/guidance/rules",
         "/guidance/rules/{rule_id}",
         "/guidance/rules/{rule_id}/confirm",
@@ -2448,6 +2600,8 @@ def test_the_contract_carries_the_mentor_line_s_shapes() -> None:
         # The one shape the API composes, and the tie it adds.
         "Trajectory",
         "CommentResponses",
+        # The list of names the panel draws, and the scope it is about.
+        "IssueKeys",
     ):
         assert name in schemas, f"{name} is not in the contract"
 

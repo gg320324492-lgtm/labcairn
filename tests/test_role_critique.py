@@ -18,13 +18,17 @@ verdict that never promotes anything.
                                                           confirmation
      a hand-over carries its reason                      a refusing verdict
                                                           without one is refused
+     the review checks the card's address                the card's own word
+                                                          about where its
+                                                          evidence is, checked
+                                                          against the chain
 ====================================================  =========================
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -79,7 +83,6 @@ def _card(context: ApplicationContext, spec: AgentRoleSpec, key: str) -> Guidanc
     return build_card(
         context,
         spec=spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="major",
         reason="the comparison's baseline is nowhere in the paragraph.",
@@ -218,7 +221,11 @@ def test_role_c_reads_the_sources_and_its_own_counterevidence(
     assert verdict.counter_evidence[0].rule_id == critique.rule_id
     assert verdict.counter_evidence[0].counterexamples
 
-    bad_card = _card(critique.context, critique.spec, "iss-nowhere")
+    # **A card whose evidence names a key the chain does not hold.** The
+    # card is tampered with rather than minted, because the product
+    # refuses to mint one — and the review does not take the card's word
+    # about its own evidence either.
+    bad_card = replace(critique.card, evidence_refs=("chain:iss-nowhere",))
     refused = _refusal(
         _capture(
             lambda: review_card(
@@ -232,14 +239,18 @@ def test_role_c_reads_the_sources_and_its_own_counterevidence(
     )
     assert refused is RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN
 
+    # **A card with a reference the review cannot check** — and the card
+    # still names a comment, so it has an address of its own. The
+    # reference the review cannot reach is the point: it makes a
+    # ``supported`` verdict a lie, and the honest answer is
+    # ``cannot_assess``.
     unverifiable = build_card(
         critique.context,
         spec=critique.spec,
-        target_locator="docx:word/document.xml#para=12",
         issue_type="method_and_hypothesis",
         severity="major",
         reason="the comparison's baseline is nowhere in the paragraph.",
-        evidence_refs=("study:nowhere",),
+        evidence_refs=("chain:" + KEY, "study:nowhere"),
         suggested_next_action="name the baseline.",
         uncertainty=Uncertainty(kind="low", what_is_uncertain="nothing"),
     )
@@ -265,6 +276,71 @@ def test_role_c_reads_the_sources_and_its_own_counterevidence(
     )
     assert honest.verdict == "cannot_assess"
     assert honest.handover_reason
+
+
+def test_the_review_checks_the_card_address_and_not_its_word(critique: Critique) -> None:
+    """The card's address must name the comment the chain holds.
+
+    **The review does not take the card's word about where its evidence
+    is.** The card's address is minted by the product from the comment
+    the card's evidence names; so the review mints it again, from the
+    same evidence, and compares. **A card whose address names a comment
+    the chain does not hold is a card nobody can act on**, and the review
+    says so by name instead of passing it on.
+
+    **And the refusal does not wait for the verdict.** A card that lies
+    about where it came from is refused whatever the review would have
+    concluded about it — including by ``cannot_assess``, which is the
+    honest answer to evidence the review cannot reach, and not the answer
+    to a card that is not what it says it is.
+    """
+    card = critique.card
+    assert card.target_locator.startswith("card:")
+
+    # **An address that names a comment the chain does not hold.**
+    refused = _refusal(
+        _capture(
+            lambda: review_card(
+                critique.context,
+                spec=critique.spec,
+                card=replace(card, target_locator="card:iss-nowhere@fb-nowhere@ver-nowhere"),
+                verdict="supported",
+                repair_advice="none needed",
+            )
+        )
+    )
+    assert refused is RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN
+
+    # **An address that borrows a place in the manuscript** — the
+    # spelling the card used to carry, and one the ledger cannot
+    # resolve for a comment in ``word/comments.xml``.
+    refused = _refusal(
+        _capture(
+            lambda: review_card(
+                critique.context,
+                spec=critique.spec,
+                card=replace(card, target_locator="docx:word/document.xml#para=12"),
+                verdict="supported",
+                repair_advice="none needed",
+            )
+        )
+    )
+    assert refused is RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN
+
+    # **And the honest verdict is not a way past it.**
+    refused = _refusal(
+        _capture(
+            lambda: review_card(
+                critique.context,
+                spec=critique.spec,
+                card=replace(card, target_locator="card:iss-nowhere@fb-nowhere@ver-nowhere"),
+                verdict="cannot_assess",
+                repair_advice="name the evidence in a form the chain holds",
+                handover_reason="the card's evidence is in no form the review can check",
+            )
+        )
+    )
+    assert refused is RoleRefusal.EVIDENCE_NOT_IN_THE_CHAIN
 
 
 def test_a_verdict_does_not_promote_a_proposal(critique: Critique) -> None:
