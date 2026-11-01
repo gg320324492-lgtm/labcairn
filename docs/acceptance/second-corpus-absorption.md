@@ -171,6 +171,36 @@ scope is part of a versioned record the owner confirmed, and correcting a
 confirmed record is a person's act — the confirmation door's, not the
 product's. The product's next distillation produces a truthful scope.
 
+### 4.3 And the first chain held the same false address
+
+**The pilot's chain was written before the fix, so it still held the old
+rows.** Three of the first project's forty-six comments carried the false
+address — and **three of the owner's eight confirmed rules cite those
+three comments as their cases**: the rule about the manuscript's
+numbering, the rule about the method section, and the rule about the
+figures.
+
+**The repair rewrote exactly those three rows** with what the fixed
+reader reports, and the repair **checked itself**:
+
+| | |
+|---|---|
+| rows holding an address that names no text | **3 → 0** |
+| rows changed | **exactly those three**, and no other |
+| the rules, their states, their confirmations and their eighteen sources | **exactly what they were** |
+| the comments' own words, authors, dates and issue keys | **untouched** |
+
+**And the anchor's text hash is the same before and after** — the range
+covers no text either way — so `record_feedback` would have **kept** the
+old row rather than rewriting it. **A chain that holds an address its own
+reader would not produce is a chain that says something false**, so the
+rows were rewritten deliberately, with the rules left alone: **the rule's
+statement is the owner's, and the anchor is the reader's.**
+
+**And after the repair the first project's comments are told apart the
+same way the second's are**: 28 placed on a passage, 15 placed on a point,
+and 3 the reader could not place — each with its reason named.
+
 ## 5. What was measured, and how
 
 | | |
