@@ -30,6 +30,7 @@ import type {
   GuidanceRule,
   GuidanceRuleVerdictBody,
   Health,
+  IssueKeys,
   ProjectGraph,
   Selection,
   SessionInfo,
@@ -89,6 +90,8 @@ export interface FakeApiState {
   trajectory: Trajectory
   /** The project's versions and the accepted edges between them. */
   trajectoryGraph: ProjectGraph
+  /** The issue keys the chain holds for the project, and the project they are about. */
+  issueKeys: IssueKeys
   /** The guidance rules the memory holds. */
   guidanceRules: GuidanceRule[]
   /** The ledger's records for this task. */
@@ -209,6 +212,21 @@ export function projectGraphFixture(): ProjectGraph {
   return {
     version_ids: ['v1', 'v2'],
     edges: [{ edge_id: 'edge-1', parent_version_id: 'v1', child_version_id: 'v2' }],
+  }
+}
+
+/**
+ * The chain's issue keys, as the mentor line's route serves them.
+ *
+ * **Two keys, and only one of them has comments in the trajectory
+ * fixture.** The list is what there is to look at, and the service sorts
+ * it — so the answer arrives in the service's order and the panel draws
+ * that order rather than one of its own.
+ */
+export function issueKeysFixture(): IssueKeys {
+  return {
+    project_id: PROJECT_ID,
+    issue_keys: [ISSUE_KEY, 'issue-units'],
   }
 }
 
@@ -464,6 +482,7 @@ export function initialState(): FakeApiState {
     artefactContent: `<html><body><p>${ARTEFACT_CONTENT_MARKER}</p></body></html>`,
     trajectory: trajectoryFixture(),
     trajectoryGraph: projectGraphFixture(),
+    issueKeys: issueKeysFixture(),
     guidanceRules: guidanceRulesFixture(),
     records: recordsFixture(),
   }
@@ -761,6 +780,10 @@ export class FakeApi {
       return this.settleTheRule(path, init)
     }
 
+    if (method === 'GET' && path.startsWith('/trajectory/issue-keys')) {
+      return this.answerTheIssueKeys(path)
+    }
+
     if (method === 'GET' && path.startsWith('/trajectory/graph')) {
       return this.answerTheGraph(path)
     }
@@ -867,6 +890,28 @@ export class FakeApi {
       rule.resolution_reason = body.reason ?? null
     }
     return jsonResponse(200, rule)
+  }
+
+  /**
+   * The chain's issue keys for the project named.
+   *
+   * **The service refuses a project the chain does not hold**, by name and
+   * not with an empty list — so the fake refuses one too, in the service's
+   * own vocabulary. A fake that answered every project with the same list
+   * would let a panel that asked about the wrong project look right.
+   */
+  private answerTheIssueKeys(path: string): Response {
+    const query = queryOf(path)
+    const projectId = query.get('project_id')
+    if (projectId !== this.state.issueKeys.project_id) {
+      return jsonResponse(403, {
+        reason: 'chain_project_not_found',
+        message:
+          'application refused (chain_project_not_found): the store holds no paper project ' +
+          `with the id ${projectId ?? ''}, so the chain holds no issue key for it.`,
+      })
+    }
+    return jsonResponse(200, this.state.issueKeys)
   }
 
   /**

@@ -48,6 +48,7 @@ from labcairn.api.contracts import (
     CommentResponses,
     GuidanceRuleVerdictBody,
     Health,
+    IssueKeys,
     ReportBody,
     SessionInfo,
     StageBody,
@@ -100,6 +101,7 @@ from labcairn.application import (
     run_stage,
 )
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse
+from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageRequest, StageWork
@@ -714,6 +716,49 @@ def get_trajectory(
         for comment in comments
     )
     return Trajectory(comments=tuple(comments), edits=edits, responses=responses)
+
+
+@router.get("/trajectory/issue-keys", response_model=IssueKeys, tags=["mentor"])
+def get_trajectory_issue_keys(
+    context: Annotated[ApplicationContext, Depends(_context)],
+    project_id: Annotated[str, Query(min_length=1)],
+    version_id: Annotated[list[str], Query(default_factory=list)],
+) -> IssueKeys:
+    """The issue keys the chain holds for a project.
+
+    **The outlet the trajectory panel needed and did not have.** The
+    chain holds its comments under keys a person gave, and until this route
+    the contract could ask for the comments under a key the caller already
+    knew — **so a panel could draw one issue and could not say what there
+    was to look at.** This route is that list.
+
+    **The list is names, and the names are all it carries.** A key says
+    *which problem*, not *what the advisor wrote*: the comments' words, the
+    anchored text, the author and the date are **not** in this body. A
+    panel that draws this draws names, and a reader who wants the words
+    asks for the trajectory under the key.
+
+    **The order is the service's, and the service's is stable.** The
+    chain's rows carry no time and no sequence, so the layer sorts the keys
+    rather than inventing a chronology, and the panel draws them in the
+    order the service answered.
+
+    **And the project is named, and the versions may narrow it.** A
+    project the chain does not hold is refused by name — **an empty list
+    would say the project has no issues, which is a different fact from
+    "there is no such project"** — and a version that does not belong to
+    the project is refused rather than ignored, because it would answer
+    about a chain that is not this one. Naming no version means the
+    project's whole chain.
+    """
+    return IssueKeys(
+        project_id=project_id,
+        issue_keys=read_issue_keys(
+            context,
+            project_id=project_id,
+            version_ids=tuple(version_id),
+        ),
+    )
 
 
 @router.get("/trajectory/graph", response_model=ProjectGraph, tags=["mentor"])
