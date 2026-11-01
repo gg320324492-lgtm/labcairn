@@ -152,6 +152,14 @@ EXPECTED_TABLES = frozenset(
         # decider and no evidence, because a reply is a record of what was
         # said and not a verdict on anything.
         "replies",
+        # LC-P2-13. The judgement over that record: did the authors'
+        # answer settle the reviewer's point. **The verdict is a row of
+        # its own, never a column on the reply** -- a record of what was
+        # said must not be readable as a ruling -- and a settled
+        # settlement names the claim terms the operation found in the
+        # manuscript's accepted text and the place in the manuscript they
+        # live at, or says unknown that the change could not be placed.
+        "reply_settlements",
     }
 )
 
