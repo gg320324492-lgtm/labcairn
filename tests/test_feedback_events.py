@@ -2764,3 +2764,60 @@ def test_a_disagreement_between_the_chain_and_a_settlement_is_shown_as_two_sides
     assert set(listed[0].chain_states) == {"not_addressed", "addressed"}, (
         "the chain's side is on the listing beside the settlement's, whole"
     )
+
+
+def test_a_judgement_the_door_refuses_never_reaches_the_store(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The door refuses an undisciplined judgement before the store sees it.
+
+    **The schema holds the same line the operation does** -- a judgement
+    with no decider and no evidence, a model's verdict, a hold with no
+    reason are all refused by the database too -- **and the operation
+    refuses them first, saying why**, because a refusal that reaches a
+    caller as an ``IntegrityError`` is a refusal nobody can act on.
+
+    **What breaks it:** the door's own discipline checks short-circuited
+    and the refusal left to the schema -- which would still refuse, but
+    would say so in SQLite's words and not the product's.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            decided_by=None,
+            decided_at=None,
+            evidence_refs=(),
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_NEEDS_EVIDENCE
+    rows = reply_env.chain.context.store.session.scalars(
+        select(ReplySettlementRow)
+    ).all()
+    assert not rows, "the refused judgement wrote nothing"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(reply_env, reply.reply_id, decided_by="model", grade="inferred")
+    assert (
+        caught.value.reason
+        is ApplicationRefusal.CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            state="held",
+            claim_terms=(),
+            change_version_id=None,
+            change_paragraph=None,
+            anchor_status="unknown",
+            evidence_refs=("the reviewer's own confirmation",),
+            hold_reason=None,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "nobody can lift" in caught.value.detail, (
+        "the hold's refusal says why a hold names what it holds"
+    )
