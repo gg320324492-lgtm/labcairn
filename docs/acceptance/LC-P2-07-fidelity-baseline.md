@@ -22,7 +22,10 @@ number *about this corpus, on this machine*.
 `29-comment-spanning-two-paragraphs`, a comment whose range spans two
 paragraphs, which is the case the owner's real material turned out to hold
 and this corpus did not have. **Every number below was re-measured on that
-date and none was carried forward.**
+date and none was carried forward.** On the same date the reader itself
+was fixed for the double-read real material exposed — one tracked change
+reported as two events across a drawing's text box — and §5.6 records the
+defect, the fix, the mutations and what the fix moves downstream.
 
 **The re-measurement also corrected four things the first record got
 wrong**, and they are worth naming because each is a way a record drifts
@@ -452,12 +455,112 @@ a measurement that can be wrong."* The same holds for a mutation that was
 never applied. Both were caught by asking what the number actually
 measured.
 
-### 5.5 The three cases the corpus cannot reach
+### 5.5 The four cases the corpus cannot reach
 
 They are tested against documents built in the test file, and the corpus's
 `KNOWN_GAPS` says why they are not there: **a revision nested inside
-another revision**, **a part that declares a DTD**, and **a corrupt
-archive**.
+another revision**, **a revision inside a drawing's text box** (§5.6), **a
+part that declares a DTD**, and **a corrupt archive**.
+
+### 5.6 The double-read: one tracked change, two events
+
+**Found by real material, on 2026-11-01.** One of the corpus's
+advisor-marked drafts — a pilot review copy, kept out of the tree with the
+rest of the real material — held **239 revision elements** counted straight
+from `word/document.xml`, and the reader reported **243** events. Four
+tracked changes were read a second time, and each of the four collided
+with its own address: two events, one `(part, element_path)`, one derived
+row id.
+
+**The shape, and why the reader doubled it.** A paragraph's run carried a
+figure — Word's routine `mc:AlternateContent`, whose `Choice` carries the
+modern drawing and whose `Fallback` carries the VML copy, **each branch
+wrapping a text box of paragraphs of its own**. `read_document` scans
+every paragraph `iter` finds, and `iter` finds the text box's paragraphs
+as readily as the body's; the outer paragraph's walk then crossed the
+drawing containers on its way down and reported the box's `w:ins`
+elements a second time. Two scanners, one element, two events.
+
+**The fix names the reporter.** A revision is reported by **the paragraph
+that contains it** — the nearest one. The outer walk still advances the
+offset through the box (the outer paragraph's text counts the box's text
+either way, and `_scan_paragraph`'s two coordinate systems must agree),
+but from the first nested `w:p` downward it reports no revision and no
+comment marker: the box's paragraphs are scanned as paragraphs, and they
+report their own. Nested revisions inside one paragraph's run content are
+untouched — `test_a_revision_nested_inside_another_is_reported_separately`
+stayed green throughout.
+
+**What the double-read never did, and why the fix is still owed.** The
+chain's writer (`record_revision_events`) skips an event whose id and
+text hash match an existing row, and the four duplicates collided only
+with **themselves** — same element, same path, same text — so the pilot's
+chain holds no row the double-read wrote: **measured on the pilot's
+`revision_events`, the affected version holds 239 rows against 239
+distinct addresses, zero surplus**. But that is a coincidence wearing a
+contract: had two *different* revisions ever shared one address, the
+second would have been dropped silently as a replay of the first. After
+the fix the reader's addresses are unique by construction —
+`_element_path` indexes same-tag siblings, and one element is reported
+once — so `_revision_event_id`'s claim (*the element's path is unique
+inside a part*) is true because the reader makes it true, and its
+docstring says so.
+
+**The verification, on the real file and on every review copy the corpus
+holds.** After the fix the affected draft reads **239 events against 239
+distinct addresses and 239 elements**; every other review copy that holds
+revisions (384, 349, 311, 225, 219, 219, 210, 203, 114, 52, 27 and 8
+elements respectively) read event-for-event identical to before. The
+corpus's witness is
+`test_a_revision_inside_a_drawing_textbox_is_reported_once`, built on the
+real shape (Choice and Fallback, a text box each, two revisions in each),
+and `test_the_reader_reports_each_revision_element_exactly_once` holds the
+reader to the count over the whole synthetic corpus.
+
+**The mutations, numbered on from §5.4's eight:**
+
+| # | The mutation | What went red |
+|---|---|---|
+| 9 | the walk reports inside nested paragraphs again — the defect restored | `test_a_revision_inside_a_drawing_textbox_is_reported_once` — **and only it**, because the synthetic corpus holds no drawing, which is why the corpus-level witness alone was never enough |
+| 10 | `_element_path` stops indexing same-tag siblings (`index = 1` always) | all three new witnesses: the drawing test, the per-element count, and the id witness |
+| 11 | `_revision_event_id` drops the element path from its digest | `test_the_derived_revision_event_id_names_one_change_per_address` |
+| 12 | `_revision_event_id` mixes the wall clock into its digest | **survived** — on Windows two calls land inside one clock tick, and the id came out the same; re-applied as *every call counts itself* (`itertools.count`), and the id's determinism witness went red |
+
+Mutation 12's first form is recorded because it is how a mutation can be
+real and still survive: the property ("the same inputs, the same id") and
+the mutation ("the clock is in the digest") were both true, and the tick
+boundaries decided the outcome. A survivor is re-measured with a mutation
+that cannot be so timing-lucky before it is believed.
+
+**The extraction version moved.** `derive_extraction_version` hashes the
+reader's own source, so the fix moves the version the way it is designed
+to: **`d375f3a81242e9cbbd6075155d67f365` before, `38e0d9591c8e2a9a13c913b5f2b5f0f3`
+after** (measured on this machine; the after value is the hash of
+`src/labcairn/material/ooxml.py` at the fix's commit `f4a7e94`, and a
+later change to that file moves it again).
+
+**What that means for the pilot's chain.** The chain's rows are snapshots
+written by the reader that was running — *the chain is written by the
+reader's version* — and the pilot's `revision_events` carry the old
+parser version. Re-running the operator's recording step against the
+fixed reader is **idempotent, not a rewrite**: the same file yields the
+same addresses, the same derived ids and the same texts, and every row
+matches the row already there — the four duplicates are simply gone
+before they reach the writer. What changes is only what a **new**
+ingestion writes: its rows will carry the new parser version. The pilot's
+existing rows are not invalidated by the fix (the fix changes how many
+*events* a read reports, not what any one address holds), but they are
+not refreshed by it either.
+
+**And one defect this work found and did not fix.** Counting revision
+elements straight from the package also exposed a file where the reader
+reports **fewer** events than the part holds revision elements: a table
+row's insertion marker (`w:trPr/w:ins`, an empty element **outside** any
+paragraph) is invisible to a scan that walks paragraphs. That is the
+opposite failure from §5.6's — a revision the reader never reports, not
+one it reports twice — and it is **not fixed here**; it belongs to its
+own work order, and the count that found it is recorded so it cannot be
+forgotten.
 
 ## 6. The numbers this does **not** establish
 
@@ -520,7 +623,7 @@ archive**.
 | Corpus test | `tests/test_docx_fixture_corpus.py` (100 cases) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
 | **The reader** | `src/labcairn/material/ooxml.py` |
-| **The reader's test** | `tests/test_ooxml_revisions.py` (24 cases) |
+| **The reader's test** | `tests/test_ooxml_revisions.py` (27 cases; 24 measured here, 3 added with §5.6) |
 | **The migration** | `migrations/versions/0009_docx_locator.py` — **unchanged**: the anchor vocabulary is `'resolved' \| 'unknown'` and this change adds a *reason*, not a value |
 | pandoc | 3.10 (installed on the machine; GPL-2.0, used as a comparison only) |
 | python-docx | the project's own declared dependency, 1.2.0 |

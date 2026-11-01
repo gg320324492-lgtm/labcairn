@@ -713,7 +713,6 @@ def test_the_reader_reports_each_revision_element_exactly_once(tmp_path: Path) -
     rule, not the rule the reader runs.
     """
     import io
-
     from xml.etree import ElementTree
 
     from labcairn.material.ooxml import _element_path, _revision_kind
