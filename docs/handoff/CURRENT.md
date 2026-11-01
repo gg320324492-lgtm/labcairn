@@ -97,6 +97,18 @@ test functions.
 because a branch that outlives its work is a second place to look for
 the same code. `main` is the only branch left.
 
+**Two more bindings the material pointed at, merged as PR #139.**
+**The rules name the checks that decide them** — a check is a decidable
+question and its pass criterion, two fields and both required; it lives
+beside the rules it decides and **not in the chain**, because a checklist
+written down in advance is not the mentor's material; the binding names
+the rule's *version*, because a rewording is not a carry-over; and
+**what a model proposes, a person confirms**, so a rule may name only a
+confirmed check. **And the reply holds the objection and the answer** —
+the fourth shape of feedback the chain could not hold, one row with
+both halves so the schema can insist on both, **and no address into the
+manuscript, because the material has none**.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 real request went through, and the pilot's readers are three independent
 sessions.**
