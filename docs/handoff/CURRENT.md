@@ -74,6 +74,25 @@ carries the counts, the two fixes, the guide's five unsettled places,
 and the numbers **re-measured against the store rather than carried
 forward**.
 
+**The two pieces the owner asked for on top of that are on
+`claude/p2-17-issues-and-card-address`, PR #136.** **The chain's issue
+keys have an outlet** — `read_issue_keys` is the layer's own read, it
+answers with the chain's own keys and nothing else, it refuses a
+project the chain does not hold and a version that does not belong to
+it, and the order is sorted because the chain's rows carry no time and
+no sequence. **And a card has an address of its own**: made of the
+issue key, the feedback id and the version id, minted by the product
+from the chain, with no parameter through which a caller could supply
+one — and the review checks it, so a card whose address names a
+comment the chain does not hold is refused by name.
+
+**Three of the mutations were re-applied independently** and each
+reddened exactly the witness that holds the property. **The suite, run
+on the tree and compared with the base commit's**: every failure is
+one the base has too, and **4410 pass against the base's 4324**. The
+**delivery branch was deleted** — locally and on the remote — as soon
+as its work landed.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **the first
 real request went through, and the pilot's readers are three independent
 sessions.**
