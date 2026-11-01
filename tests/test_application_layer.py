@@ -371,6 +371,14 @@ _ALLOWED_STORE_READERS = frozenset(
         "labcairn.papers.chain",
         "labcairn.papers.edits",
         "labcairn.papers.feedback",
+        # The reply's writer: one row per exchange a response document
+        # holds -- a reviewer's objection and the authors' answer. It is
+        # the paper domain's operation rather than a surface, and like the
+        # chain's operations beside it **it asks the policy about the
+        # material before it reads a byte of it** -- which is the property
+        # this guard exists to protect. It is recorded here because a
+        # module that reaches the store must be named.
+        "labcairn.papers.replies",
         "labcairn.papers.responses",
         # ADR-0014's document model, and the writer that closes the seam
         # between LC-P2-07's reader and the store: one row per tracked

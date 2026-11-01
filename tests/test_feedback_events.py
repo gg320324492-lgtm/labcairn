@@ -1,7 +1,9 @@
 """The feedback row: a comment found in a manuscript, and its two addresses.
 
 **What is under test.** LC-P2-09 T01: ``feedback_events``, and the
-acceptance clauses that carry it.
+acceptance clauses that carry it — and, at the end of the file, the fifth
+table the work order's material held and the chain did not: ``replies``,
+the exchange a *reviewer's* objection and *the authors'* answer make.
 
 ===========================  ===================================================
 A1   both addresses          a comment becomes a row with both of them
@@ -30,21 +32,27 @@ did not carry a comment's anchored text at all — ``CommentAnchor.text``
 was ``""`` on every path — and the chain's first link was empty. The
 reader now carries it, and the witness is that the text it carries is
 the text at the offsets it reports.
+
+**And the reply's witnesses do not use any material of the owner's.** The
+four paragraphs the reply section reads are written here, in this file,
+because the repository is public and the paper is not.
 """
 
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import pytest
+from docx_fixtures import Fixture, write_fixture
 from feedback_chain_fixtures import (
     MOMENT,
     ChainEnv,
     a_comment,
     build_chain,
 )
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from test_store_support import StoreEnv
@@ -57,7 +65,13 @@ from labcairn.application.refusal import (
     ApplicationRefusedError,
     chain_refusal_name,
 )
-from labcairn.db.models import FeedbackEventRow, PaperProjectRow, PaperVersionRow
+from labcairn.application.sources import list_sources
+from labcairn.db.models import (
+    FeedbackEventRow,
+    PaperProjectRow,
+    PaperVersionRow,
+    ReplyRow,
+)
 from labcairn.material.ooxml import read_document
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.feedback import (
@@ -66,6 +80,12 @@ from labcairn.papers.feedback import (
     list_feedback_events,
     record_feedback,
     set_issue_key,
+)
+from labcairn.papers.replies import (
+    Reply,
+    ReplyExchange,
+    list_replies,
+    record_replies,
 )
 
 pytestmark = pytest.mark.integration
@@ -804,3 +824,535 @@ def test_the_layers_comment_carries_the_anchors_status_and_its_reason(
         "the reason is the chain's own, not a guess made here"
     )
     assert unplaced.anchor_text == "", "an unplaced comment carries no anchored text"
+
+
+# --------------------------------------------------------------------------- #
+# the reply -- one party's answer to another's objection
+# --------------------------------------------------------------------------- #
+#
+# **The chain holds the mentor's exchange, and a reply is not that
+# exchange.** These witnesses are about the fifth thing the feedback work
+# order's material holds: a *reviewer's* objection and *the authors'*
+# answer, read out of a response document.
+#
+# **The words in this section are invented.** No material of the owner's
+# enters the repository -- not the reviewer's words, not the authors'
+# answer, not the lines they cite, and not the file they came from.
+
+#: The paragraphs of the response document the reply witnesses use.
+#:
+#: **Four paragraphs: two exchanges, each an objection and an answer.**
+REPLY_LETTER: tuple[str, ...] = (
+    "Comment 1: The unit of the second figure is not stated.",
+    "Response 1: We have stated the unit in the caption and in the text.",
+    "Comment 2: The third paragraph repeats the first.",
+    "Response 2: We have removed the repetition.",
+)
+
+
+@dataclass(frozen=True)
+class ReplyEnv:
+    """A project holding a manuscript and a response document beside it."""
+
+    chain: ChainEnv
+    #: The version of the response document -- the one a reply is read
+    #: out of.
+    version_id: str
+    #: The response document on disk.
+    document: Path
+    #: Where the documents are built.
+    built: Path
+
+
+def _reply_project(env: StoreEnv, tmp_path: Path) -> ReplyEnv:
+    """A project holding a manuscript and a response document beside it.
+
+    **The response document is written before the chain is built**, so it
+    is ingested with the rest of the material, and it is registered as a
+    version of its own -- **because a reply is read out of a document, and
+    the document is a material of the project like any other.**
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    materials = workspace / "materials"
+    materials.mkdir(parents=True)
+    built = workspace / "built"
+    built.mkdir()
+    document = materials / "responses.docx"
+    document.write_bytes(
+        write_fixture(
+            Fixture(name="responses", paragraphs=REPLY_LETTER, purpose="The reply letter."),
+            built,
+        ).read_bytes()
+    )
+    chain = build_chain(env.store(), workspace)
+    source = next(
+        view.source
+        for view in list_sources(chain.context)
+        if view.source.relative_path.endswith("responses.docx")
+    )
+    chain.context.store.session.add(
+        PaperVersionRow(
+            version_id="ver-letter",
+            project_id=chain.project_id,
+            source_id=str(source.source_id),
+            source_content_sha256=str(source.content_sha256),
+            version_label_raw="responses.docx",
+            stage_candidate="unknown",
+            status="resolved",
+            created_at=MOMENT,
+        )
+    )
+    chain.context.store.session.commit()
+    return ReplyEnv(chain=chain, version_id="ver-letter", document=document, built=built)
+
+
+def _exchange(
+    *,
+    objection_paragraph: int = 0,
+    objection_party: str = "reviewer",
+    answer_paragraph: int = 1,
+    answer_party: str = "author",
+    pairing_grade: str = "observed",
+) -> ReplyExchange:
+    """One exchange, named by the two places in the document it was read from.
+
+    **There is no text parameter**, and that is the point: a caller never
+    types a reply's words.
+    """
+    return ReplyExchange(
+        objection_paragraph=objection_paragraph,
+        objection_party=objection_party,
+        answer_paragraph=answer_paragraph,
+        answer_party=answer_party,
+        pairing_grade=pairing_grade,
+    )
+
+
+def _record_replies(reply_env: ReplyEnv, *exchanges: ReplyExchange) -> tuple[Reply, ...]:
+    return record_replies(
+        reply_env.chain.context,
+        project_id=reply_env.chain.project_id,
+        version_id=reply_env.version_id,
+        exchanges=exchanges,
+        now=MOMENT,
+    )
+
+
+def _raw_reply(session: Session, **overrides: object) -> None:
+    """Write a reply row directly, so the schema is what is under test."""
+    objection = REPLY_LETTER[0]
+    answer = REPLY_LETTER[1]
+    values: dict[str, object] = {
+        "reply_id": "rp-raw",
+        "project_id": "proj-1",
+        "version_id": "ver-letter",
+        "objection_party": "reviewer",
+        "objection_text": objection,
+        "objection_text_sha256": hashlib.sha256(objection.encode()).hexdigest(),
+        "objection_paragraph": 0,
+        "answer_party": "author",
+        "answer_text": answer,
+        "answer_text_sha256": hashlib.sha256(answer.encode()).hexdigest(),
+        "answer_paragraph": 1,
+        "pairing_grade": "observed",
+        "created_at": "2026-04-01T09:00:00+00:00",
+    }
+    values.update(overrides)
+    columns = ", ".join(values)
+    placeholders = ", ".join(f":{key}" for key in values)
+    session.execute(
+        text(f"INSERT INTO replies ({columns}) VALUES ({placeholders})"),
+        values,
+    )
+    session.commit()
+
+
+def test_a_reply_row_carries_the_objection_and_the_answer(env: StoreEnv, tmp_path: Path) -> None:
+    """A reply is one row holding both halves, and each half names its author.
+
+    **Both halves travel together.** The objection is somebody's words and
+    the answer is somebody else's, and the answer is the half that carries
+    the reasoning -- so a row that kept only the objection would throw
+    away the part a reader came for.
+
+    **And the two halves say who wrote them.** The vocabulary is the
+    reply's own: ``reviewer`` and ``author``.
+
+    **What breaks it:** the writer storing one half only, storing the
+    halves under the other party's names, or storing a constant instead of
+    the document's words.
+    """
+    reply_env = _reply_project(env, tmp_path)
+
+    recorded = _record_replies(
+        reply_env,
+        _exchange(),
+        _exchange(objection_paragraph=2, answer_paragraph=3),
+    )
+
+    assert len(recorded) == 2, "the two exchanges are two rows"
+    first = recorded[0]
+    assert first.objection_text == REPLY_LETTER[0], "the objection is the document's words"
+    assert first.answer_text == REPLY_LETTER[1], "the answer is the document's words"
+    assert first.objection_party == "reviewer", "the objection says who wrote it"
+    assert first.answer_party == "author", "the answer says who wrote it"
+    assert first.objection_paragraph == 0, "the objection says where it was read"
+    assert first.answer_paragraph == 1, "the answer says where it was read"
+    assert first.version_id == reply_env.version_id, "the reply names the document it was read from"
+    assert first.objection_text_sha256 == hashlib.sha256(REPLY_LETTER[0].encode()).hexdigest()
+    assert first.answer_text_sha256 == hashlib.sha256(REPLY_LETTER[1].encode()).hexdigest()
+
+    second = recorded[1]
+    assert second.objection_text == REPLY_LETTER[2]
+    assert second.answer_text == REPLY_LETTER[3]
+
+    # And the listing is in the document's order.
+    listed = list_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [reply.reply_id for reply in listed] == [first.reply_id, second.reply_id], (
+        "the exchanges come back in the order the document has them"
+    )
+
+
+def test_a_reply_without_both_halves_is_refused(env: StoreEnv, tmp_path: Path) -> None:
+    """One half alone is not a reply, and **the schema** refuses it.
+
+    **The refusal is the database's, not the writer's.** The row is
+    written with a raw ``INSERT`` that bypasses the ORM, so what refuses
+    it is the constraint and not the code that would have caught it.
+
+    **And "not empty" means "not entirely whitespace."** SQLite's ``trim``
+    removes the space character only, so a reply whose half is three
+    spaces would pass a naive check and be a reply with nothing in it.
+
+    **What breaks it:** a constraint that lets one half be empty, or one
+    that reads emptiness as "not the empty string".
+    """
+    reply_env = _reply_project(env, tmp_path)
+    session = reply_env.chain.context.store.session
+
+    # A reply with no answer.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-no-answer", answer_text="")
+    session.rollback()
+
+    # A reply with no objection.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-no-objection", objection_text="")
+    session.rollback()
+
+    # A reply whose answer is three spaces.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-blank-answer", answer_text="   ")
+    session.rollback()
+
+    # And a hash that is not a hash.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-bad-hash", answer_text_sha256="not-a-hash")
+    session.rollback()
+
+
+def test_the_parties_are_the_replies_own_and_the_chain_cannot_say_them(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The parties are ``reviewer`` and ``author``, and the chain's vocabulary
+    cannot say what these two are.
+
+    **The chain's ``actor_kind`` is closed** -- ``student``, ``advisor``,
+    ``model``, ``human`` -- and it answers *who acted in the mentor's
+    chain*. **A peer reviewer of a submitted manuscript is neither the
+    mentor nor the student**, so a value coerced out of that vocabulary
+    would be a wrong value. And ``human`` on both halves would be worse
+    than wrong: it would say "two people spoke" and be unable to say
+    which was which, which is the whole content of a reply.
+
+    **And a reply is one party's answer to *another's* objection**, so a
+    row whose two halves are the same party is a monologue, and the schema
+    refuses it.
+
+    **What breaks it:** the party vocabulary widened to take the chain's
+    values, the "two parties" rule dropped, or the pairing's grade opened.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    session = reply_env.chain.context.store.session
+
+    for party in ("advisor", "student", "model", "human"):
+        with pytest.raises(IntegrityError):
+            _raw_reply(session, reply_id=f"rp-{party}", objection_party=party)
+        session.rollback()
+
+    # The same party on both halves.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-monologue", answer_party="reviewer")
+    session.rollback()
+
+    # A pairing graded outside its vocabulary.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-pending", pairing_grade="pending")
+    session.rollback()
+
+    # And the paragraphs are in the document's order.
+    with pytest.raises(IntegrityError):
+        _raw_reply(session, reply_id="rp-backwards", objection_paragraph=3, answer_paragraph=1)
+    session.rollback()
+
+    # The writer refuses the same party, before it reaches the database.
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_replies(reply_env, _exchange(objection_party="advisor"))
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+
+def test_a_reply_is_recorded_without_a_caller_writing_the_text(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The caller names the two places; the product reads the words.
+
+    **A caller never types a reply's text.** Deciding that one paragraph
+    answers another is a judgement, and the project asks a judgement to
+    name its decider -- so the caller makes it, and the *words* are a fact
+    about the file that the product supplies. **The exchange carries no
+    field that could hold a word**, and what the row ends up holding is
+    the document's own text, read out of the document.
+
+    **What breaks it:** the writer taking the words from anywhere but the
+    document, or the exchange growing a field a caller could type into.
+    """
+    reply_env = _reply_project(env, tmp_path)
+
+    recorded = _record_replies(reply_env, _exchange())
+
+    letter = read_document(reply_env.document.read_bytes())
+    assert recorded[0].objection_text == letter.paragraphs[0], (
+        "the objection is the response document's own words"
+    )
+    assert recorded[0].answer_text == letter.paragraphs[1], (
+        "the answer is the response document's own words"
+    )
+    assert recorded[0].objection_text != letter.paragraphs[1], (
+        "the two halves are the document's two paragraphs and not one of them twice"
+    )
+
+    named = {field.name for field in fields(ReplyExchange)}
+    assert "objection_text" not in named and "answer_text" not in named, (
+        f"the exchange carries a field a caller could type a word into: {sorted(named)}"
+    )
+
+
+def test_a_reply_is_a_record_and_not_a_verdict(env: StoreEnv, tmp_path: Path) -> None:
+    """The table has no state, no decider and no evidence, and no comment either.
+
+    **A reply is a record of what was said.** ``response_links`` has the
+    machinery of a verdict -- a state, a decider, a moment and the
+    evidence behind it -- because it answers "did the change answer the
+    comment", and that question needs a verdict. **A reply answers
+    "what did the author say, and why", and the answer is the content.**
+    So the row's columns are exactly the record's, and nothing else.
+
+    **And it holds no reference to the chain's comments.** The objection
+    in a reply is not a comment the chain holds -- it names no version,
+    and the place it points at is a rendering the corpus does not hold --
+    so a row that pointed at one would have to name a version and an
+    address the material does not have. **Recording a reply therefore
+    creates no comment.**
+
+    **What breaks it:** a column added for a judgement, or the writer
+    writing a comment row beside the reply.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    session = reply_env.chain.context.store.session
+
+    assert set(ReplyRow.__table__.columns.keys()) == {
+        "reply_id",
+        "project_id",
+        "version_id",
+        "objection_party",
+        "objection_text",
+        "objection_text_sha256",
+        "objection_paragraph",
+        "answer_party",
+        "answer_text",
+        "answer_text_sha256",
+        "answer_paragraph",
+        "pairing_grade",
+        "created_at",
+    }, "the table holds the record and nothing else"
+
+    _record_replies(reply_env, _exchange())
+
+    comments = session.scalars(select(FeedbackEventRow)).all()
+    assert not comments, "recording a reply creates no comment"
+
+
+def test_the_reply_names_the_document_it_was_read_from(env: StoreEnv, tmp_path: Path) -> None:
+    """The reply's address is into the response document, and nowhere else.
+
+    **The material's own extraction says the addresses do not resolve**:
+    the objections in this family address lines in a rendering the corpus
+    does not hold. **So a reply names no place in the manuscript under
+    review** -- the place the objection points at lives in the
+    objection's own words, and there is no column that could hold it.
+
+    **The address the row does carry is the reader's own**: the paragraph
+    of the response document each half was read from. **So the reply names
+    the document it was read from, and the manuscript under review is a
+    different document whose words the row does not hold.**
+
+    **What breaks it:** the reply naming the wrong version, or its words
+    coming from somewhere other than the document its version names.
+    """
+    reply_env = _reply_project(env, tmp_path)
+
+    recorded = _record_replies(reply_env, _exchange())
+    reply = recorded[0]
+
+    letter = read_document(reply_env.document.read_bytes())
+    manuscript = read_document(reply_env.chain.manuscript.read_bytes())
+    assert letter.paragraphs[0] != manuscript.paragraphs[0], (
+        "the response document is not the manuscript under review"
+    )
+    assert reply.objection_text == letter.paragraphs[0], (
+        "the reply's words are the response document's, and the reply names that "
+        "document as the version it was read from"
+    )
+    assert reply.version_id != reply_env.chain.version_id, (
+        "the reply names the document it was read from, not the manuscript under review"
+    )
+
+
+def test_the_layer_reads_the_replies(env: StoreEnv, tmp_path: Path) -> None:
+    """The layer's read returns the exchanges, with both halves and both parties.
+
+    **And a version nobody named is not among them.** The exchanges are
+    read by the version they were read from, so a caller that named the
+    manuscript under review gets nothing -- and a caller that named the
+    response document gets the exchanges and not the words of anything
+    else.
+
+    **And they come back in the document's order**, which is the order a
+    person reading the response document would meet them in.
+
+    **What breaks it:** the layer dropping a half, dropping a party,
+    answering about the versions the caller did not name, or answering in
+    whatever order the rows happened to come back.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    recorded = _record_replies(
+        reply_env,
+        _exchange(),
+        _exchange(objection_paragraph=2, answer_paragraph=3),
+    )
+
+    replies = chain_layer.read_replies(reply_env.chain.context, version_ids=(reply_env.version_id,))
+    assert len(replies) == 2, "the layer reads the exchanges the chain holds"
+    read = replies[0]
+    assert read.reply_id == recorded[0].reply_id
+    assert read.objection_text == REPLY_LETTER[0], "the objection travels out"
+    assert read.answer_text == REPLY_LETTER[1], "the answer travels out"
+    assert read.objection_party == "reviewer", "the objection's party travels out"
+    assert read.answer_party == "author", "the answer's party travels out"
+
+    assert [reply.reply_id for reply in replies] == [
+        recorded[0].reply_id,
+        recorded[1].reply_id,
+    ], "the exchanges come back in the document's order"
+
+    other = chain_layer.read_replies(
+        reply_env.chain.context, version_ids=(reply_env.chain.version_id,)
+    )
+    assert other == (), "a version nobody named an exchange for holds none"
+
+
+def test_recording_the_same_exchange_twice_is_the_same_row(env: StoreEnv, tmp_path: Path) -> None:
+    """Recording the same document twice is the same rows.
+
+    **A version is a fixed set of bytes**, so the exchange's id is a
+    function of the version and the two paragraphs, and a second reading
+    finds the rows that are already there. **Recording the same fact
+    twice is one fact.**
+
+    **What breaks it:** an id that depends on the order the exchanges
+    were read in, so a second reading writes a second row.
+    """
+    reply_env = _reply_project(env, tmp_path)
+
+    first = _record_replies(reply_env, _exchange())
+    second = _record_replies(reply_env, _exchange())
+
+    assert first[0].reply_id == second[0].reply_id, "the same exchange has the same id"
+    rows = reply_env.chain.context.store.session.scalars(select(ReplyRow)).all()
+    assert len(rows) == 1, "recording the same exchange twice is one exchange"
+
+
+def test_a_document_that_changed_under_the_name_records_nothing(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A response document whose bytes changed under the name is refused.
+
+    **The version names the document *and* the bytes it was recorded
+    with.** A document that has changed under the name is not the one the
+    paragraph numbers would name, so nothing is recorded against it --
+    and a reply read out of it would be an exchange the file does not
+    hold.
+
+    **What breaks it:** the drift check being skipped, so a reply would
+    claim the words of a document that is no longer the one that was read.
+    """
+    reply_env = _reply_project(env, tmp_path)
+
+    reply_env.document.write_bytes(
+        write_fixture(
+            Fixture(
+                name="responses",
+                paragraphs=("Comment 1: A different opening.", "Response 1: A different reply."),
+                purpose="The reply letter, changed.",
+            ),
+            reply_env.built,
+        ).read_bytes()
+    )
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_replies(reply_env, _exchange())
+    assert caught.value.reason is ApplicationRefusal.CHAIN_MATERIAL_DRIFTED
+
+    rows = reply_env.chain.context.store.session.scalars(select(ReplyRow)).all()
+    assert not rows, "nothing was recorded against the changed document"
+
+
+def test_a_reply_names_no_paragraph_the_document_does_not_have(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A paragraph number names a place in the document as it reads.
+
+    **A place the document does not have is not a place**, and an
+    exchange whose answer comes before its objection is not an exchange
+    the document states. **Both are refused before anything is
+    written** — and a valid exchange is recorded first, so the refusal has
+    something it could have half-written behind it.
+
+    **What breaks it:** the range check dropped, so a reply would carry an
+    address that resolves to nothing, or one that puts the answer before
+    the question; or the refusal arriving after the first row was added,
+    so a later commit would write it.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    session = reply_env.chain.context.store.session
+
+    # A valid exchange first, so the refusals below have something they
+    # could have left behind.
+    _record_replies(reply_env, _exchange())
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_replies(reply_env, _exchange(objection_paragraph=0, answer_paragraph=99))
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_replies(reply_env, _exchange(objection_paragraph=1, answer_paragraph=0))
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+    # And the same exchange twice in one call is refused too.
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_replies(reply_env, _exchange(), _exchange())
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+
+    rows = session.scalars(select(ReplyRow)).all()
+    assert len(rows) == 1, "a refused exchange writes nothing"

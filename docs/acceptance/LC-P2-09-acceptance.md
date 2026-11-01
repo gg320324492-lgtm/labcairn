@@ -2,14 +2,17 @@
 
 **Work order:** LC-P2-09 (feedback, response and follow-up) · **Subtasks:** T00–T07.
 **Task breakdown:** [`docs/plans/LC-P2-09-task-breakdown.md`](../plans/LC-P2-09-task-breakdown.md)
-**Status of the work order:** **implemented and measured**, and **not independently reviewed** — see §6.
+**Status of the work order:** **implemented and measured**, and **not independently reviewed** — see §7.
 **Measured:** 2026-10-30 on the tree this record was written at, on Windows 11 (AMD64),
-Python 3.12.13.
+Python 3.12.13. §6 (the reply) was measured on 2026-11-01.
 
 **What this is.** The second implementation of the mentor-trajectory line: the
 four tables a chain of feedback lives in, the contracts that hold them, the
 reader that carries the text a comment covers, the version graph's writer that
 was missing, and the four annotation events a stream-only reader can replay.
+**And a fifth table**, which the work order's own material asked for and the
+four could not hold: *a reply* — one party's answer to another's objection,
+read out of a document. §6.
 
 **What this is not.** It does not say whether the advisor was right; it does not
 render the chain; it does not identify people; and it does not let a model
@@ -119,7 +122,7 @@ rather than presented as a clean mutation.
 
 **The other eleven clauses' mutations are not in this record.** They are the
 reviewer's pass: the task breakdown's §7 asks for every claim in §2 to be
-mutation-checked, and this record covers the six above. §6 records the gap as a
+mutation-checked, and this record covers the six above. §7 records the gap as a
 limit, not as a completion.
 
 ## 5. What was measured
@@ -180,7 +183,144 @@ which run measured them.** The apportioned step is kept in the history rather
 than rewritten: it is what the table held before any runner had executed the
 files, and the difference between the two is the point of the process.
 
-## 6. Limits, and what is left for the reviewer
+## 6. The reply: the shape the chain held not at all
+
+**What this is.** The work order's material holds four shapes of feedback. The
+chain holds three of them — a comment, the change made in answer to it, the
+judgement that the change answered it — and a fourth is **a decision and its
+reasoning together**: *a reviewer's objection paired with the authors' answer*,
+read out of a response document. **Neither half was anywhere in the product**,
+and the answer is the half that carries the reasoning.
+
+**What this is not.** It is not a fifth link in the mentor's chain. The chain's
+four tables are the mentor's line with a student; these two halves are a
+*reviewer* and *the authors*, and they are the paper's own review history.
+**So the chain's issue keys, its `set_issue_key` and its judgements do not
+reach it** — and the table says so by its shape: it holds no state, no decider
+and no evidence, because a reply is a record of what was said and not a verdict
+on anything.
+
+### 6.1 The decisions, and where each is held
+
+| The decision | Held by | Witnessed by |
+|---|---|---|
+| **A reply is one row holding both halves** — one half alone is not a reply | `replies` carries the objection and the answer together, and the schema refuses a row whose half is empty. **Two tables, one half each, could not say so**: a CHECK sees one row and never another | `test_a_reply_without_both_halves_is_refused` |
+| **The objection is copied, not pointed at** — it is not a comment the chain holds | `replies` has no foreign key to `feedback_events`, and recording a reply creates no comment row | `test_a_reply_is_a_record_and_not_a_verdict` |
+| **The parties are the reply's own** — the chain's `actor_kind` cannot say what a reviewer and the authors are | `objection_party` and `answer_party` are closed to `reviewer` and `author`, and the schema refuses the chain's own values | `test_the_parties_are_the_replies_own_and_the_chain_cannot_say_them` |
+| **A reply is one party's answer to *another's*** — a row whose two halves are the same party is a monologue | the schema refuses it | `test_the_parties_are_the_replies_own_and_the_chain_cannot_say_them` |
+| **The address the row carries is the address it has** — the objections' own addresses do not resolve | `objection_paragraph` and `answer_paragraph` are the reader's own coordinates in the response document, and the row names no place in the manuscript under review | `test_the_reply_names_the_document_it_was_read_from` |
+| **A reply is a record, not a verdict** | the table's columns are exactly the record's — no state, no decider, no evidence, no `feedback_id` | `test_a_reply_is_a_record_and_not_a_verdict` |
+| **The pairing is the caller's and the words are the document's** | `record_replies` takes two paragraph numbers and reads the words itself; a caller never types a reply's text | `test_a_reply_is_recorded_without_a_caller_writing_the_text` |
+
+**And what the copy costs**, because a decision without its cost is a decision
+nobody has made. **The objection's words are held here and, in other cases, in
+the chain's comment table as well** — a second spelling of something the chain
+may also hold. The price is paid knowingly, and it is these three: the reply
+cannot be joined to `feedback_events` to say "this reply answers that
+comment"; it carries no issue key; and the chain's `set_issue_key` does not
+reach it.
+
+**And why the objection cannot be pointed at.** A `feedback_events` row is the
+*advisor's* remark *in a manuscript*: it names the version it was written
+against (ADR-0017 D1 refuses a feedback row without one), and a row that was
+read carries the locator in `word/comments.xml` that the reader read. **A
+reviewer's objection in a response letter names no version** — it is addressed
+to a manuscript that was submitted — and the place it points at is a line in a
+rendering the corpus does not hold. **Pointing at a comment would mean
+inventing a version and an address the material does not have.**
+
+**And the parties, said plainly.** The chain's `actor_kind` is closed —
+`student`, `advisor`, `model`, `human` — and it answers *who acted in the
+mentor's chain*. **A peer reviewer of a submitted manuscript is neither the
+mentor nor the student**, so a value coerced out of that vocabulary would be a
+wrong value; and `human` on both halves would be worse than wrong, because it
+would say "two people spoke" and be unable to say which was which, which is
+the whole content of a reply. **So the reply names its own parties**, and the
+schema refuses the chain's values rather than translating them.
+
+### 6.2 The operation, and where the reply sits
+
+`record_replies` in `src/labcairn/papers/replies.py` reads the document a
+version was made from, asks the policy about it, checks the bytes against the
+version's own hash, and writes one row per exchange. `read_replies` in
+`src/labcairn/application/chain.py` reads them back, and it is named in
+`application/__init__.py`'s table of the operations the layer owns.
+
+**The permission that governs a reply is the permission on the material the
+reply was read from** — the response document the version names — and it is
+asked where that material is named, exactly as the chain's own reads are.
+**It is neither the mentor's material nor the student's**, and the record says
+so rather than leaving a reader to assume the chain's rules reach it.
+
+**And the caller names the two places and the product reads the words.**
+Deciding that one paragraph answers another is a judgement, and the project
+asks a judgement to name its decider; the caller makes it, and the *words* are
+a fact about the file that the product supplies. **So a caller never types a
+reply's text**, and a reply cannot say something the document does not say.
+
+### 6.3 The mutations, and what each broke
+
+**Each schema mutation was applied to the model *and* to the migration**, so
+the parity test stayed green and the redness was the property's and not the
+drift's. **The files were restored byte for byte**, and their hashes were
+compared with the ones taken before the first mutation.
+
+| # | The mutation | What went red | What it tells you |
+|---|---|---|---|
+| 1 | the "both halves" constraint is gone from the model and the migration | `test_a_reply_without_both_halves_is_refused` — *"DID NOT RAISE IntegrityError"* | the refusal is the database's, and the parity test stayed green |
+| 2 | the "two parties" constraint is gone from the model and the migration | `test_the_parties_are_the_replies_own_and_the_chain_cannot_say_them` | a reply is an exchange and the schema says so |
+| 3 | the party vocabulary is widened to take the chain's values | `test_the_parties_are_the_replies_own_and_the_chain_cannot_say_them` | the reply's vocabulary is its own, and it is closed |
+| 4 | the writer takes the objection from somewhere other than the document | `test_a_reply_is_recorded_without_a_caller_writing_the_text` and `test_a_reply_row_carries_the_objection_and_the_answer` | **the words are the document's** |
+| 5 | the layer's read ignores the versions the caller named | `test_the_layer_reads_the_replies` | a version nobody named holds no exchange |
+| 6 | the drift check is gone | `test_a_document_that_changed_under_the_name_records_nothing` | a document that changed under the name records nothing |
+| 7 | the table grows a column that could hold a verdict | `test_a_reply_is_a_record_and_not_a_verdict` | the table holds the record and nothing else |
+| 8 | recording a reply also writes a comment | `test_a_reply_is_a_record_and_not_a_verdict` | a reply is not the chain's comment, and it creates none |
+| 9 | the paragraph range check is gone | `test_a_reply_names_no_paragraph_the_document_does_not_have` — *"DID NOT RAISE ApplicationRefusedError"* | a paragraph number names a place the document has |
+| 10 | the duplicate-exchange check is gone | `test_a_reply_names_no_paragraph_the_document_does_not_have` | one exchange is one row |
+
+**The mutations the record does not cover.** The reply's *shape* is witnessed
+by the column set and by the refusals above, and **no mutation was recorded
+against the hash shape, against the ordering of the two halves' paragraphs at
+the schema's level, or against the "the whole plan is made before anything is
+written" ordering in the writer** — the first two are witnessed by the same
+raw-`INSERT` test as the rest of the schema's rules, and the third rides on
+mutation 9, whose refusal happens before the plan is complete.
+
+### 6.4 What the reply does not do
+
+- **The reply's addresses into the manuscript under review do not resolve, and
+  the row carries none.** The objections in this family address lines in a
+  rendering the corpus does not hold. **A reply names no place in the paper
+  under review**, and the place an objection points at lives in the
+  objection's own words and nowhere else. **A reader must not assume that
+  `objection_paragraph` is a place in the paper**: it is a place in the
+  response document the version names, and it is the reader's own coordinate.
+- **A reply is not replayable from the event stream.** The revision adds no
+  event type — the chain's four objects are on the stream and this is a fifth
+  waiting for a fifth event — so a stream-only reader cannot reconstruct the
+  exchanges.
+- **A pairing's grade cannot be corrected in place.** The reply's id is a
+  function of the version and the two paragraphs, so a second recording of the
+  same exchange with a different grade is **refused** rather than applied: a
+  change of judgement is a correction, and this table holds one version of a
+  reply and has nowhere to put a second.
+- **One exchange is one row, and a document half-recorded is a document nobody
+  can count.** The whole plan — the words read, the rows already there
+  checked, every conflict found — is made **before** anything is written, so a
+  refusal leaves nothing behind for a later commit to pick up. The same
+  exchange named twice in one call is refused for the same reason.
+- **The reply's objection is not the chain's comment**, so the chain's
+  recurrence, its issue keys and its follow-up assessments do not reach it.
+- **Nothing of the material enters the repository.** The four paragraphs the
+  witnesses read are written in `tests/test_feedback_events.py`, because the
+  repository is public and the paper is the owner's.
+- **The migration chains to `0017`, not to `0018`.** `0018` had not landed on
+  `main` when this revision was written, and **a migration that chains to a
+  revision that does not exist breaks the chain**. The one line that changes
+  at merge time is `down_revision`; a revision that chains to a revision that
+  is not its parent leaves two heads.
+
+## 7. Limits, and what is left for the reviewer
 
 - **The mutation pass is six of seventeen.** The remaining clauses have named
   witnesses and no mutation recorded against them in this record (§4).
@@ -198,3 +338,7 @@ files, and the difference between the two is the point of the process.
   owns the promotion rules.
 - **The demonstration writes the grant row itself.** The product still has no
   writer for grants, which is LC-P2-06's gap and not this work order's.
+- **The reply has its own limits, and they are in §6.4.** The one a reader is
+  most likely to get wrong is the address: **`objection_paragraph` is a place
+  in the response document, not a place in the manuscript under review**, and
+  the latter does not resolve.
