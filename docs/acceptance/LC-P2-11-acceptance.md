@@ -3,8 +3,9 @@
 **Work order:** LC-P2-11 (the mentor guidance memory) · **Subtasks:**
 T00–T05 · **Task breakdown:**
 [`../plans/LC-P2-11-task-breakdown.md`](../plans/LC-P2-11-task-breakdown.md) ·
-**Status of the work order:** the schema, the migration, the lifecycle, the
-distillation, the retrieval, the demonstration and this record are landed.
+**Status of the work order:** **implemented and measured**, and **independently reviewed** — the review's weakest point is
+named at the end of this record. The schema, the migration, the lifecycle,
+the distillation, the retrieval, the demonstration and this record are landed.
 
 **What this is.** The mentor line's rule memory: one row per version of a
 rule, one per binding to the chain material it was learned from, one per

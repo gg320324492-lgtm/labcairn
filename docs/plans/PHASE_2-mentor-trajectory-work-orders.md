@@ -4,6 +4,14 @@
 Phase 2 execution design. **Nothing here is dispatched**: no branch, no ADR
 beyond the three drafts that accompany it, no board row.
 
+> **Superseded on 2026-11-01 by [`PHASE_2-work-orders.md`](PHASE_2-work-orders.md),
+> which folds the phase's two work-order lists into one ticket.** This draft
+> stays as the record of how the nine tickets were planned, and every
+> acceptance clause, dependency edge and file-ownership map below is still the
+> one its piece was built under. **What is built and what is left is in the
+> merged ticket**, and the ticket's numbering is retired.
+
+
 **What this document is.** The second of the two Phase 2 work-order lists.
 PR #125's `docs/plans/PHASE_2-work-orders-draft.md` holds six tickets,
 `LC-P2-00` … `LC-P2-05`, in the order they have to happen. This one holds
@@ -134,7 +142,7 @@ measurement established:
 | **Cost** | Large. |
 | **Acceptance** | A comment is clickable through to its anchor, the change it prompted, and the later outcome; **an unaddressed comment is not reported as addressed**, and neither is a wrong response or a partial one; a round in which the same issue recurs is visible as a recurrence rather than as two unrelated comments; the response state names **what evidence** decided it. |
 | **Must not** | Assert *"the advisor was right"* because the student's change was accepted — the design's §4.2 and the acceptance clause both forbid it. |
-| **Status** | **Designed, not dispatched.** [`ADR-0017`](../adr/ADR-0017-feedback-chain.md) and [`LC-P2-09-task-breakdown.md`](LC-P2-09-task-breakdown.md) were written on 2026-10-30: the four tables, the three decisions that shape them (a feedback is an observation with two addresses; a response is a judgement with evidence behind it; *"the change was accepted"* is not *"the advisor was right"*), and sixteen acceptance clauses. **Two gaps in the tree are recorded rather than assumed.** The DOCX reader's anchored text is **always empty** — `CommentAnchor.text` is `""` on every path — so the chain's first link has no content; and `paper_versions` and `version_edges` have **no writer at all**, so an edit would have nothing to name, which is why the version graph's writer is the first subtask rather than an afterthought. The design also records that **"a round" is a document and not a new entity**, and that a recurrence is an `issue_key` somebody gives rather than a similarity the system infers. |
+| **Status** | **Designed on 2026-10-30; implemented and measured since**, and **not independently reviewed** — see the acceptance record's §7. [`ADR-0017`](../adr/ADR-0017-feedback-chain.md) and [`LC-P2-09-task-breakdown.md`](LC-P2-09-task-breakdown.md) were written on 2026-10-30: the four tables, the three decisions that shape them (a feedback is an observation with two addresses; a response is a judgement with evidence behind it; *"the change was accepted"* is not *"the advisor was right"*), and sixteen acceptance clauses. **Two gaps in the tree were recorded rather than assumed.** The DOCX reader's anchored text is **always empty** — `CommentAnchor.text` is `""` on every path — so the chain's first link has no content; and `paper_versions` and `version_edges` have **no writer at all**, so an edit would have nothing to name, which is why the version graph's writer is the first subtask rather than an afterthought. The design also records that **"a round" is a document and not a new entity**, and that a recurrence is an `issue_key` somebody gives rather than a similarity the system infers. **Both gaps are closed**: the anchored text is no longer always empty, and the version graph has writers. **The chain's two middle rings were filled on 2026-11-01** — 1528 recorded changes, 1439 of them changes rather than marks, the owner's own judgements on ten correspondences — and **the memory serves one rule of sixteen and reports fifteen**. The record is [`LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md). |
 
 ### LC-P2-10 — Process annotation and the gold set
 
@@ -181,6 +189,16 @@ three readers, and the rule the manifest did not have about its arbiter.
 | **Acceptance** | Every retrieved rule reaches a **real comment and a real before/after difference**; a rule's source material withdrawn **invalidates the rule**; a counterexample stops the rule being served unconditionally; **two conflicting rules are both returned and neither wins by being newer**. |
 | **Must not** | Store *"an advisor prefers this style"*. Every rule has a problem, a context, a scope, a counterexample and a version. |
 
+**Status:** **implemented and measured.** The schema, the migration, the
+lifecycle (a candidate, a second reader's confirmation, a dispute, a
+withdrawal, a new version), the retrieval that serves a rule only on
+sources a judgement says were answered, and the rule-to-check binding.
+**Sixteen rules are confirmed and the retrieval serves one of them** — the
+owner judged ten correspondences on the pilot's own workspace on
+2026-11-01, two hold and eight do not, and **the memory reports the other
+fifteen with their reasons**. The record is
+[`LC-P2-11-acceptance.md`](../acceptance/LC-P2-11-acceptance.md).
+
 ### LC-P2-12 — The guided-revision agent
 
 | | |
@@ -190,6 +208,15 @@ three readers, and the rule the manifest did not have about its arbiter.
 | **Cost** | Large, **and it spends money** — the owner's authorisation is a precondition. |
 | **Acceptance** | A card carries an anchor into the current manuscript; **insufficient material produces an abstention record naming what was missing**, not an empty result; no card invents an experiment, a reference or an advisor's opinion; a card cites a rule **with its counterexamples**; a human can accept or reject a card and the decision is audited; **the model cannot modify a manuscript, create an artefact without consent, or execute code**. |
 | **Must not** | Let a model proposal become a verified record. ADR-0016's D2: the record model already refuses `user_attested` for a non-`USER` creator, and Phase 2's path must not bypass that by writing the creator field itself. |
+
+**Status:** **implemented and measured.** The role contract, the three
+roles, the card, the run, and the refusals — **and the card's own
+address**: minted by the product from the chain's issue key, the comment's
+id and the version's id, with **no parameter through which a caller could
+supply one**, and the review re-mints it to check it. **A card cites a
+rule with its counterexamples, and a rule is cited only while the chain
+says its source was answered.** The record is
+[`LC-P2-12-acceptance.md`](../acceptance/LC-P2-12-acceptance.md).
 
 ### LC-P2-13 — The peer-review loop
 
@@ -201,6 +228,18 @@ three readers, and the rule the manifest did not have about its arbiter.
 | **Acceptance** | A review point is located in the response and in the actual change; **a response that claims an experiment the manuscript does not contain is not marked done** — that is the negative case the design names, and it is the one a model is most likely to get wrong; an unanswered point stays unanswered; a conflict between an advisor's view and a reviewer's is **shown as two sides**, not resolved by recency. |
 | **Must not** | Treat acceptance as proof that the advice was scientifically right. |
 
+**Status:** **half built, and the half that is missing is the judgement.**
+The reply table is in the tree (`papers/replies.py`): **two parties, two
+texts, a pairing grade, and no verdict** — a reply is a record of what was
+said, and the decision that a change answered a comment belongs to
+`papers/responses.py`. The acceptance record is
+[`LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md) §6.
+**What is missing**: a review point located in the response *and* in the
+actual change; **a response that claims an experiment the manuscript does
+not contain not marked done**; an unanswered point staying unanswered; and
+**a conflict between an advisor's view and a reviewer's shown as two
+sides**, not resolved by recency.
+
 ### LC-P2-14 — Blind evaluation and ablation
 
 | | |
@@ -211,12 +250,27 @@ three readers, and the rule the manifest did not have about its arbiter.
 | **Acceptance** | A frozen evaluation set, split **by paper**; five arms (A: current draft + general model; B: + ordinary literature RAG; C: + version differences; D: + advisor comments and student responses; E: + review outcomes and confirmed rules) on the **same underlying model and a comparable budget**; the two contrasts that matter — **D vs C** and **E vs D** — are measured; the sample size, the confidence intervals and the failure cases are reported; **if the gain is not significant, that is reported as not significant**. |
 | **Must not** | Train on a paper and evaluate on its own final version. The split is by project, and the leak check is a test. |
 
+**Status:** **the protocol is written and it has not been run.** See
+[`LC-P2-14-ablation-protocol.md`](LC-P2-14-ablation-protocol.md), drafted
+2026-10-30 with the route change and **before the implementation**.
+**The results land in `docs/acceptance/LC-P2-14-acceptance.md`**, and that
+record does not exist. **This is the phase's exit gate**, so the phase
+cannot be closed until it is run — and it is the most expensive thing in
+the phase.
+
 ### LC-P2-15 (optional, not a Phase 2 deliverable) — Strategy optimisation
 
 Prompt optimisation or a small amount of fine-tuning, **only after**
 LC-P2-14 has established that the sample size, the consent, the data quality
 and the gain are all sound. A separate approval, on its own ticket. It is
 not on the critical path and nothing in this line waits for it.
+
+**Status: off the phase's critical path, and it was moved there on
+purpose.** P2-AMD-01's route change took the training out of the phase
+entirely — the learning is retrieval over confirmed rules, not a fitted
+model — and the phase's law (*"没有在未见论文上的对照实验，就不能宣称系统
+「学会了导师的科研思想」"*) is a **measurement** obligation, not a
+training one. **Nothing in the line waits for this.**
 
 ## 4. The dependency graph
 

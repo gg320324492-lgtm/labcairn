@@ -2,7 +2,7 @@
 
 **Research that leaves a trail. · 让每一步研究，都有迹可循。**
 
-> **Status: Design / Phase 1 under construction.** This repository is a new project. Features listed below are planned, not yet shipped. Do not use the current code for unsupported scientific or safety-critical decisions.
+> **Status: Phase 1 is through its six gates; Phase 2 is under construction.** The features listed below are planned, not yet shipped. Do not use the current code for unsupported scientific or safety-critical decisions.
 
 **Read this page in:** English · [中文](#中文版--chinese-version) · the standalone Chinese document is [README.zh-CN.md](README.zh-CN.md).
 
@@ -63,10 +63,11 @@ Tool execution and network disclosure are subject to explicit capabilities and p
 
 ## Project development status
 
-The project is currently at **Phase 1 / Foundation & MVP**. The research workflow is still under construction; the command line below is what exists today, and the rest arrives as its paths are implemented and verified.
+The project has **finished Phase 1's six gates** and is **in Phase 2**. The research workflow is still under construction; the command line below is what exists today, and the rest arrives as its paths are implemented and verified.
 
 - [Four-stage roadmap](docs/ROADMAP.md)
 - [Phase 1 development work orders and acceptance gates](docs/PHASE_1_WORKORDERS.md)
+- [Phase 2 — one work order: what is built, and what is left](docs/plans/PHASE_2-work-orders.md)
 - [Architecture and data boundaries](docs/ARCHITECTURE.md)
 - [Evaluation protocol](docs/EVALUATION.md)
 - [Threat model — what the product protects, and what it does not claim](docs/THREAT-MODEL.md)
@@ -114,7 +115,7 @@ pnpm format:check
 
 `labcairn` is a real console script, installed by `uv sync`, and it is the developer-facing surface on the same application layer the local API and the web workbench call — so what it reports is what they report.
 
-The research workflow behind these commands is still under construction, and most of what the Phase 1 work orders promise is still to come. The command line is here because the surface, its machine-readable form and its exit codes are settled, and the work that fills them in is still ahead.
+The research workflow behind these commands is still under construction, and what the work orders promise is still arriving. The command line is here because the surface, its machine-readable form and its exit codes are settled, and the work that fills them in is still ahead.
 
 ```bash
 uv run labcairn --help

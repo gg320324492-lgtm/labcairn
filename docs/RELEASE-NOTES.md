@@ -2,7 +2,7 @@
 
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
 been cut · **The tree this describes:** `main` at
-`dd08573650dd28b433c3aac387d88b4b71912cdc`, 2026-10-25
+`6cfc0c0`, 2026-11-01
 
 **Every limitation below names the document that measured it, and each of
 those documents names its own commit.** A number belongs to the commit it
@@ -30,7 +30,13 @@ alpha hands over what exists, measured rather than asserted:
 - **bounded deterministic analysis** and a **deterministic figure** whose
   editable source is a three-part recipe with no script beside it;
 - a **report path** that renders one document into Markdown, HTML, DOCX and
-  PDF, with revisions and staleness.
+  PDF, with revisions and staleness;
+- **the mentor-trajectory line** — a **feedback chain** whose four rings are
+  a comment, a change, a judgement and an assessment; a **rule memory** whose
+  rules are versioned rows and whose retrieval serves a rule only on the
+  sources a judgement says were answered; **a three-role loop** that writes a
+  guidance card and has it critiqued independently; and **a DOCX reader** that
+  reads revisions and comments out of the package itself, with locators.
 
 **What a reviewer can do with it:** follow the
 [quickstart](QUICKSTART.md) from a clean clone and get a report with source
@@ -351,6 +357,52 @@ to one request.
 exist yet".
 
 ### 2.18 A surface can enter doubt and refuse, but it cannot finish the bookkeeping
+
+### 2.19 The mentor's own material is in the chain, and it says something narrow
+
+**The rule memory serves one rule of sixteen.** The retrieval serves a
+confirmed rule on the sources a judgement says were answered, and the
+owner's own judgements on the pilot's ten correspondences came back **two
+holds, eight does not** — so **sixteen confirmed rules yield one served
+rule and fifteen reported as unserved**. **That is the material's answer,
+not a defect**: of the mentor's forty-six comments on the first paper, the
+ones a later version really answered are few. **A memory that served all
+sixteen would be serving rules the chain cannot show to have been
+applied.**
+[LC-P2-09 acceptance](acceptance/LC-P2-09-acceptance.md) §9 ·
+[the second corpus](acceptance/second-corpus-absorption.md).
+
+### 2.20 The second paper's rules are not in the chain's reach
+
+**The second pilot project has three versions and no version edge**, because
+the material does not say which came first and the chain does not order
+what it cannot order — and **a change travels an edge**, so the operation
+that records a change refuses every version in it. **Its eight rules are
+therefore unserved, and the memory reports them.** **This is a material
+gap and not a product one**: it is closed by material, not by code.
+
+### 2.21 The phase's exit gate has no denominator
+
+**The exit gate is *"measured capability gain against a frozen P1
+baseline"* — and there is no baseline document in the tree.** The harness
+can read one (`evaluation.comparison.load_baseline`) and nothing supplies
+it. **So the phase cannot be closed by measurement today**, and the
+comparison that would close it — the three tasks against selected upstream
+systems — has not been run either.
+[the phase's one work order](plans/PHASE_2-work-orders.md).
+
+### 2.22 The reader records one change twice in one file
+
+**On one version of the pilot's first paper the reader reports 243 changes
+and there are 239** — four are read a second time. **The chain does not
+lose anything**, because a revision event's id is derived from the
+element's path and the second reading lands on the row the first one
+wrote. **But the assumption that id rests on is false as written** — the
+element's path is *not* unique inside a part — and it holds today only
+because the four duplicates are the same change. **Two different changes
+sharing a path would lose one of them silently.**
+[LC-P2-07 fidelity baseline](acceptance/LC-P2-07-fidelity-baseline.md).
+
 
 **The surfaces run the recovery pass now.** `run_stage` calls it after the policy
 verdict and before any consent is spent, so a crash through the CLI or the service

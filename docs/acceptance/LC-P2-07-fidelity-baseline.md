@@ -3,6 +3,11 @@
 **Date:** 2026-10-29 · **Re-measured:** 2026-11-01 · **Base commit:**
 `66dde87` · **Measured by:** the executor, on the development machine
 
+**Status of the work order:** **implemented and measured**, and **not independently reviewed**. The reader is measured
+against a synthetic corpus and over 897 real tracked changes (§5), and
+**the project's rule is that a work order is accepted on an independent
+review at a named commit** — that review has not happened.
+
 **What this record is.** The fidelity measurement for LC-P2-07, run against
 the synthetic corpus in `tests/docx_corpus.py`. It answers one
 question: **when a reader opens a Word file with tracked changes, how much

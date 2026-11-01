@@ -3,8 +3,9 @@
 **Work order:** LC-P2-10 (process annotation and the gold set) · **Subtasks:**
 T00–T06 · **Task breakdown:**
 [`../plans/LC-P2-10-task-breakdown.md`](../plans/LC-P2-10-task-breakdown.md) ·
-**Status of the work order:** the code, the documents and **the annotations**
-are landed.
+**Status of the work order:** **implemented and measured**, and **not independently reviewed**. The code, the documents and
+**the annotations** are landed, and the limit of the agreement number is
+written down in §6.
 
 **What this is.** The label set an annotator chooses from, the guide that
 explains it, the synthetic corpus the annotations are read against, the

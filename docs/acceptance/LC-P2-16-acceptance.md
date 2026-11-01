@@ -6,6 +6,11 @@ panel's drawing of that list · **Task breakdown:**
 [`../plans/LC-P2-16-task-breakdown.md`](../plans/LC-P2-16-task-breakdown.md)
 · **Status:** landed in this branch.
 
+**Status of the work order:** **implemented and measured**, and **not independently reviewed**. The outlet answers the four
+questions its work order named, and **the project's rule is that a work
+order is accepted on an independent review at a named commit** — that
+review has not happened.
+
 **What this is.** The work order's T02 says, in its own words: *"there is
 **no outlet that lists the chain's keys**, so the view can draw only the
 trajectory of an issue the caller already names — **a panel that cannot list

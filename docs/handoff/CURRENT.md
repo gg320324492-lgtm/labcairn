@@ -50,6 +50,13 @@ comment stays on the listing either way.
 
 ---
 
+**And the phase's whole status is in one ticket.**
+[`docs/plans/PHASE_2-work-orders.md`](../plans/PHASE_2-work-orders.md) —
+**eight pieces merged**, **six left**, and **the exit gate's denominator
+does not exist yet**: the harness can read a frozen P1 baseline and no
+such document is in the tree.
+
+---
 **Date:** 2026-11-01 · **Branch:** `main` — **the guidance line is merged,
 and the second body of material is read and in the chain.**
 
