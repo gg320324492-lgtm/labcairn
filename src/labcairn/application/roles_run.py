@@ -37,6 +37,11 @@ or leave the ones it does not have to the model, and the model's answer is
 judged by the same roles. **There is one route to a judgement and one set
 of refusals on it.**
 
+**And the card's address is the product's.** The loop does not fill in the
+card's address: a card carries an address of its own, minted from the
+comment the card's evidence names, and the request has no field for it --
+so a caller cannot point the card at a comment it is not about.
+
 **The question is a function of the request.** :func:`the_role_run_question`
 is a pure read: it writes nothing, asks for nothing and mints nothing, so
 the same request against the same chain and the same memory gives the same
@@ -174,6 +179,11 @@ class RoleRunRequest:
     reaches no wire; a caller that has none has the model supply every one,
     and the roles judge the model's answers exactly as they judge the
     caller's.
+
+    **And there is no target locator to supply.** The card's address is
+    minted by the product from the comment the card's evidence names, and
+    a caller that could write it could point the card at a comment it is
+    not about.
     """
 
     roles: tuple[str, ...]
@@ -181,7 +191,6 @@ class RoleRunRequest:
     issue_key: str
     version_ids: tuple[str, ...] = ()
     rule_id: str | None = None
-    target_locator: str | None = None
     evidence_refs: tuple[str, ...] | None = None
     trajectory: TrajectoryJudgement | None = None
     guidance: GuidanceJudgement | None = None
@@ -1074,7 +1083,6 @@ def _run_the_roles(
             card = build_card(
                 context,
                 spec=contracts["guidance"],
-                target_locator=request.target_locator or f"chain:{request.issue_key}",
                 issue_type=guidance_judgement.issue_type,
                 severity=guidance_judgement.severity,
                 reason=guidance_judgement.reason,

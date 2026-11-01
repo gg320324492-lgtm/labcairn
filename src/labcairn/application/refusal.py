@@ -353,6 +353,13 @@ class ApplicationRefusal(StrEnum):
     ROLE_CARD_FIELD_EMPTY = "role_card_field_empty"
     #: The card's evidence list is empty.
     ROLE_CARD_WITHOUT_EVIDENCE = "role_card_without_evidence"
+    #: The card names no comment in the chain, so the card has no address
+    #: of its own.
+    ROLE_CARD_WITHOUT_AN_ADDRESS = "role_card_without_an_address"
+    #: The card's subject is not one comment: the chain holds several
+    #: comments under the key the card names, or the card's evidence names
+    #: several comments.
+    ROLE_CARD_ADDRESS_AMBIGUOUS = "role_card_address_ambiguous"
     #: The severity named is outside the vocabulary.
     ROLE_SEVERITY_UNKNOWN = "role_severity_unknown"
     #: A claim's kind is outside the vocabulary.
@@ -585,6 +592,8 @@ ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {
     RoleRefusal.VERSION_ORDER_AMBIGUOUS: (ApplicationRefusal.ROLE_VERSION_ORDER_AMBIGUOUS),
     RoleRefusal.CARD_FIELD_EMPTY: ApplicationRefusal.ROLE_CARD_FIELD_EMPTY,
     RoleRefusal.CARD_WITHOUT_EVIDENCE: ApplicationRefusal.ROLE_CARD_WITHOUT_EVIDENCE,
+    RoleRefusal.CARD_WITHOUT_AN_ADDRESS: (ApplicationRefusal.ROLE_CARD_WITHOUT_AN_ADDRESS),
+    RoleRefusal.CARD_ADDRESS_AMBIGUOUS: (ApplicationRefusal.ROLE_CARD_ADDRESS_AMBIGUOUS),
     RoleRefusal.SEVERITY_UNKNOWN: ApplicationRefusal.ROLE_SEVERITY_UNKNOWN,
     RoleRefusal.CLAIM_KIND_UNKNOWN: ApplicationRefusal.ROLE_CLAIM_KIND_UNKNOWN,
     RoleRefusal.CLAIM_WITHOUT_EVIDENCE: (ApplicationRefusal.ROLE_CLAIM_WITHOUT_EVIDENCE),

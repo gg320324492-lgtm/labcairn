@@ -38,6 +38,8 @@ authorisation**, which has not been asked for.
 | 7 | **A verdict enters the ledger at the grade its evidence supports** — every review verdict is `inferred`, and the review writes no store row at all (counted, not asserted); the counter-evidence is **C's own retrieval**, not a field B filled in | `REVIEW_GRADE`, `review_card`, `search_rules` | `test_a_verdict_does_not_promote_a_proposal`, `test_role_c_reads_the_sources_and_its_own_counterevidence` |
 | 8 | **The routing is data**: the tables are parameters, the kind vocabulary is closed (there is no swarm), and every role runs for a recorded reason; a cost ceiling that is not priced refuses, and a retry is the same plan | `ROUTING_TABLE`, `ESCALATION_TABLE`, `prepare_invocation`, `retry` | `test_the_roles_that_run_are_the_ones_the_request_needed`, `test_an_unmeasurable_cost_refuses_and_a_retry_does_not_pay_twice` |
 | 9 | **A person decides, and the decision is audited**: the ledger appends and cannot edit — a change of mind is a second record | `DecisionLedger`, `record_human_decision` | `test_a_human_decision_on_a_card_is_audited` |
+| 10 | **A card carries an address of its own** — the owner's decision of 2026-11-01: the address names the comment the card is about (the chain's issue key, the comment's row, the version the comment was written against), it is **minted by the product** from the card's own evidence, and **a caller may not supply it** — the shape refuses before the body runs | `CardAddress`, `the_card_address`, `build_card` | `test_a_card_carries_an_address_of_its_own_and_a_caller_cannot_supply_it`, `test_a_recurring_issue_is_addressed_by_the_comment_the_card_quotes` |
+| 11 | **And the review checks that address, and not the card's word about it**: the review mints the address again from the same evidence and compares, so a card whose address names a comment the chain does not hold is refused by name — and the refusal does not wait for the verdict | `_check_the_card_address` | `test_the_review_checks_the_card_address_and_not_its_word` |
 
 **And where the rows are reached.** The contract's table and the chain's own
 facts are read and written through the application layer —
@@ -79,6 +81,74 @@ cannot be empty. A constraint nobody has violated is a comment.
 | A16 | no role may write back to the manuscript, release unauthorised material, or execute code | `test_no_role_may_write_back_release_or_execute` | landed |
 | A17 | the demo is run by a test, and it sends nothing | `test_the_guidance_loop_demo_runs`, `test_the_demonstrations_exit_code_still_means_something` | landed |
 
+## 3a. The decision of 2026-11-01: a card has its own address
+
+**The problem it answers.** The orchestration's §7.3 wants "the model's
+answer enters the ledger as a proposal a person can settle", and
+ADR-0016's promotion path wants the proposal to carry a source address.
+**But the chain's comments live in the DOCX's `word/comments.xml` part,
+and the ledger's extracted text has no address in that part** — the
+ledger's own source anchors name the document's *body* paragraphs. So
+there was no address in the ledger that a proposal about a chain comment
+could point at, and the card's `target_locator` was either a body
+paragraph address the ledger could not resolve for a comment, or — as
+the loop filled it — the evidence reference's own spelling, `chain:<key>`,
+which is not an address at all.
+
+**What the card's address is made of, and what each piece is for.** It
+is made of three names the chain holds, and each answers a question of
+its own:
+
+| The piece | What it is for |
+|---|---|
+| the chain's **issue key** | *what* the card is about — and it is the key the card's evidence already carries, so the address and the evidence cannot disagree about the subject |
+| the comment's **row** (`feedback_id`) | *which* comment — one issue key can carry several comments, and an address that could be two addresses is not an address |
+| the **version** the comment was written against | *which round* — the advice is against a manuscript state, and a later state is a different manuscript |
+
+**Who mints it.** The product, from what the card already holds: the
+card's `evidence_refs` name the chain comment, and `build_card` reads
+the chain and mints the address. **There is no `target_locator`
+parameter to fill in** — the shape refuses a caller that offers one,
+before the body runs, the same way `TrajectoryCandidate` has no
+`comment_locator` field for role A. When one issue key holds several
+comments (a recurrence is a fact about two versions), **the card's own
+quoted words say which one it is about**; a card that quotes neither
+cannot be addressed, and is refused.
+
+**What it must never be.** Not a source address in the ledger's own
+sense: the ledger's anchors name body paragraphs, and a card about a
+comment in `comments.xml` is not one. So the address is spelled in its
+own namespace (`card:`), and it is **not** the comment's own locator
+borrowed and worn — the application layer does not hand that locator
+over, because `read_comments` does not carry it.
+
+**What the card's `target_locator` becomes.** It is the card's address,
+and nothing else. It no longer says "where in the manuscript this
+points" (the card is not a claim about the manuscript) and it is no
+longer the evidence reference's spelling. **It says where the advice
+came from**, so a person settling the proposal can find the comment
+behind it.
+
+**And the loop stopped filling it by hand.** The loop used to pass
+`request.target_locator or f"chain:{request.issue_key}"`; the request
+has no such field now, and the loop's card carries the address the
+product minted. The demonstration was changed with it, for the same
+reason: it used to fill the address in by hand, and it now uses the one
+the card carries — including as the key the person's decision is
+recorded under.
+
+**What the critique verifies, before and after.** Before: the card's
+`chain:` evidence references were checked against the chain, a reference
+in no form the review could check made a `supported` verdict a lie, and
+the review wrote nothing. After: **the same, and the card's address as
+well** — the review mints the address again from the card's own
+evidence and compares it with the one the card carries. A card whose
+address names a comment the chain does not hold, or borrows a place in
+the manuscript, is refused by name; **and the refusal does not wait for
+the verdict**, because `cannot_assess` is the honest answer to evidence
+the review cannot reach, and not the answer to a card that is not what
+it says it is.
+
 ## 4. The mutations, and what each one proved
 
 | # | The mutation | The witness it reddened |
@@ -89,6 +159,9 @@ cannot be empty. A constraint nobody has violated is a comment.
 | 4 | the critique's own retrieval discarded (`counter_evidence` built from nothing) | `test_role_c_reads_the_sources_and_its_own_counterevidence` — exactly one |
 | 5 | the high-risk escalation neutered (the `high_risk` branch no longer adds the critique) | `test_the_roles_that_run_are_the_ones_the_request_needed` — exactly one |
 | 6 | the demonstration's first claim planted false from outside the source, and then the planting itself neutered — the second mutation reddened `test_the_demonstrations_exit_code_still_means_something` alone, which is what proves the first | the exit-code witness — exactly one, both times |
+| 7 | **the card's address made supplyable** — a `target_locator` parameter added to `build_card` and used when given | `test_a_card_carries_an_address_of_its_own_and_a_caller_cannot_supply_it` — exactly one |
+| 8 | **the card made to borrow the chain's comment locator as its own** — the address built from the comment row's own `comment_locator` instead of the chain's names | `test_a_card_carries_an_address_of_its_own_and_a_caller_cannot_supply_it`, `test_a_recurring_issue_is_addressed_by_the_comment_the_card_quotes`, `test_the_loop_does_not_supply_the_card_address` |
+| 9 | **the review's address check removed** — the critique accepting a card whose address names a comment the chain does not hold | `test_the_review_checks_the_card_address_and_not_its_word` — exactly one |
 
 ## 5. What was measured, and on what tree
 
@@ -100,6 +173,17 @@ green, under the suite's environment rules (`TEMP`/`TMP`/`TMPDIR` at
 `E:\labcairn-local\tmp`, a fresh `--basetemp` per run, statuses read
 from the command and not from a pipe). `ruff`, `ruff format` and `mypy`
 are clean on every file the work order added.
+
+**The change of 2026-11-01 was measured on its own tree**, on this
+record's own commit: the three roles' files, the loop's file, the
+demonstration and the application layer's — **155 green**, under the
+same environment rules (`TEMP`/`TMP`/`TMPDIR` under
+`E:\labcairn-local\tmp`, a fresh `--basetemp` per run, statuses read
+from the command and not from a pipe), and `ruff`, `ruff format` and
+`mypy` clean on every file touched. **Each of the three mutations in
+§4 was applied, and each reddened the witness named there** — and the
+file was restored byte-for-byte after each, which the driver asserts
+rather than assumes.
 
 **The demonstration sends nothing.** Its one priced exchange runs
 through `FakeProvider` with a scripted transcript; no network call is
@@ -132,6 +216,18 @@ The incremental evidence above is local until a runner says otherwise.
 - **The guidance is not good; it is consents, budgets, records and
   refusals.** Whether it helps a student is LC-P2-14's question, and
   nothing here answers it.
+- **The card's address does not make the card writable into the ledger.**
+  It makes the card **locatable**: a person can follow it to the comment
+  behind it. **The ledger's `evidence_records` still require a source
+  anchor the ledger can resolve**, and the card's address is not one —
+  so §7.3's "the model's answer enters the ledger as a proposal a
+  person can settle" is still not wired, and nothing here pretends
+  otherwise. What changed is that the card is now *about* something a
+  person can find.
+- **And every card is now about a comment in the chain.** A card whose
+  evidence names no comment, or names several, is refused by name. The
+  abstention is untouched: it declares no evidence, so it has no
+  address, and it says what was missing instead.
 
 ## The weakest point an independent review found
 
