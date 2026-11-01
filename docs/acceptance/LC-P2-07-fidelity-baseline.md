@@ -25,7 +25,11 @@ and this corpus did not have. **Every number below was re-measured on that
 date and none was carried forward.** On the same date the reader itself
 was fixed for the double-read real material exposed — one tracked change
 reported as two events across a drawing's text box — and §5.6 records the
-defect, the fix, the mutations and what the fix moves downstream.
+defect, the fix, the mutations and what the fix moves downstream. The same
+re-measurement added `30-revision-in-drawing-textbox` to the corpus (§5.6
+says why: a corpus-wide witness can only catch what the corpus holds), and
+every count in §2 and §4 is the 30-fixture corpus, re-measured, not the
+29-fixture one.
 
 **The re-measurement also corrected four things the first record got
 wrong**, and they are worth naming because each is a way a record drifts
@@ -77,8 +81,8 @@ corpus itself, before any of this runs. 100 cases, all green.
 
 | | |
 |---|---|
-| Fixtures | **29** |
-| Revisions | 30 (8 deletions, 16 insertions, 6 moves) |
+| Fixtures | **30** |
+| Revisions | 35 (8 deletions, 21 insertions, 6 moves) |
 | Comments | 15 (5 of them deliberately un-anchorable) |
 | Paragraphs | 1–12 per fixture |
 
@@ -147,14 +151,14 @@ every fixture report an average over the fixtures it happened to read.
 ## 4. The result
 
 ```
-corpus: 29 fixtures, 30 revisions, 15 comments, 8 deletions
+corpus: 30 fixtures, 35 revisions, 15 comments, 8 deletions
 
 arm            rev found rev miss  rev rec cmt found cmt miss  cmt rec   del recov  accept ok  reject ok  attr
 --------------------------------------------------------------------------------------------------------------
-ooxml-native           0       30    0.000         0       15    0.000     0/8        0/29       0/29       no
-pandoc                 0       30    0.000         0       15    0.000     0/8       27/29      29/29       no
-python-docx            0       30    0.000         0       15    0.000     0/8       14/29      19/29       no
-docx2python            0       30    0.000         7        8    0.467     0/8       24/29      10/29       no
+ooxml-native           0       35    0.000         0       15    0.000     0/8        0/30       0/30       no
+pandoc                 0       35    0.000         0       15    0.000     0/8       27/30      30/30       no
+python-docx            0       35    0.000         0       15    0.000     0/8       14/30      20/30       no
+docx2python            0       35    0.000         7        8    0.467     0/8       24/30      10/30       no
 ```
 
 **Measured on 2026-11-01, on the development machine, against the corpus at
@@ -164,7 +168,7 @@ placeholder — see §5, where the reader's numbers are measured instead.
 
 ### 4.1 No arm reports a revision as an event
 
-**All three comparison arms report zero revisions out of thirty.** Not one
+**All three comparison arms report zero revisions out of thirty-five.** Not one
 of them says "this text was deleted on this date by this person".
 
 That is the measurement's central finding, and it is not a defect in the
@@ -186,14 +190,18 @@ signal"*, this is the number that matters most, and it is zero.
 
 ### 4.3 `pandoc` — the best text arm, and it still loses an edit
 
-pandoc's rejected view is **exactly right on all 29 fixtures**. Its
+pandoc's rejected view is **exactly right on all 30 fixtures**. Its
 accepted view is right on **27**.
 
-**The two it gets wrong are `06-insertion-without-author` and
-`08-insertion-without-author-or-date`, and the reason is specific: pandoc
-silently drops a tracked insertion that carries no `w:author`.** The two
-fixtures' XML differ in that attribute and in nothing else, and the
+**The three it gets wrong are `06-insertion-without-author`,
+`08-insertion-without-author-or-date`, and — since this re-measurement —
+`30-revision-in-drawing-textbox`.** The first two are a specific defect:
+pandoc silently drops a tracked insertion that carries no `w:author`. The
+two fixtures' XML differ in that attribute and in nothing else, and the
 inserted text is present in one accepted view and absent from the other.
+The third is the drawing's text box: pandoc renders the box's paragraphs
+into the accepted view **twice**, once per `mc:AlternateContent` branch,
+where the reader reports them once from the paragraphs they live in.
 
 This was found by measurement, not by reading pandoc's source, and it is
 the design's §7 case "a document with no author" — where the correct
@@ -205,7 +213,7 @@ difference is invisible in the output.
 
 `python-docx` is already a dependency of this project (LC-P1-11's report
 export). It is also the **worst** of the three text arms: its accepted view
-is right on 14 of 29 and its rejected view on 19.
+is right on 14 of 30 and its rejected view on 20.
 
 **The accepted view is worse than the rejected one, and that asymmetry is
 the finding.** `python-docx`'s `Run.text` reads `w:t` only, so a deleted
@@ -291,7 +299,7 @@ paragraph", which is a materially weaker claim.
 | The design asked | The measurement says |
 |---|---|
 | *"OOXML 原始 ZIP/XML 只读解析优先"* — read the XML directly | **Supported.** No text arm reports a revision as an event; none recovers a deletion. |
-| *"普通文本转换只能作为对照视图"* — plain-text conversion is a comparison view only | **Supported and sharpened.** pandoc's rejected view is exact on 29/29, which makes it a good *comparison* and a poor *source*. |
+| *"普通文本转换只能作为对照视图"* — plain-text conversion is a comparison view only | **Supported and sharpened.** pandoc's rejected view is exact on 30/30, which makes it a good *comparison* and a poor *source*. |
 | *"Docling/docx2python/Pandoc 与原始 XML 的保真率做对照报告"* | **Done here**, for three of the four; Docling is not installed and is not needed to make the finding, which is structural rather than specific to it. |
 | *"对缺失元数据输出 UNKNOWN，不伪造作者和时间"* | **Supported.** pandoc discards such an edit entirely, which is the failure this rule exists to prevent. |
 
@@ -310,7 +318,7 @@ than a row it did.
 
 | Property | The baseline | The reader |
 |---|---|---|
-| revision recall | 0 of 30 for every text arm | **30 of 30** |
+| revision recall | 0 of 35 for every text arm | **35 of 35** |
 | deletion recovery | 0 of 8 for every text arm | **8 of 8** — the text, not an empty run |
 | comment recall | 0.467 (docx2python), 0 for the rest | **15 of 15**, including the five un-anchorable |
 | the anchor is the comment's **range** | paragraph-granular (docx2python) | **the range** |
@@ -455,12 +463,18 @@ a measurement that can be wrong."* The same holds for a mutation that was
 never applied. Both were caught by asking what the number actually
 measured.
 
-### 5.5 The four cases the corpus cannot reach
+### 5.5 The cases the corpus cannot reach
 
 They are tested against documents built in the test file, and the corpus's
-`KNOWN_GAPS` says why they are not there: **a revision nested inside
-another revision**, **a revision inside a drawing's text box** (§5.6), **a
-part that declares a DTD**, and **a corrupt archive**.
+`KNOWN_GAPS` says why they are not there: **a part that declares a DTD**,
+and **a corrupt archive**. The other shapes this section once tested only
+by hand — a revision nested inside another revision, and a revision inside
+a drawing's text box (§5.6) — are in the corpus now: `19-nested-revision`
+carries the nesting in its XML, and `30-revision-in-drawing-textbox` was
+added with §5.6, because the corpus-wide witnesses can only catch what the
+corpus holds. The hand-built drawing test stays: it asserts what the
+fixture's gold does not — which paragraph reports a text-box revision, and
+that none of them is nested.
 
 ### 5.6 The double-read: one tracked change, two events
 
@@ -521,10 +535,18 @@ reader to the count over the whole synthetic corpus.
 
 | # | The mutation | What went red |
 |---|---|---|
-| 9 | the walk reports inside nested paragraphs again — the defect restored | `test_a_revision_inside_a_drawing_textbox_is_reported_once` — **and only it**, because the synthetic corpus holds no drawing, which is why the corpus-level witness alone was never enough |
+| 9 | the walk reports inside nested paragraphs again — the defect restored | `test_a_revision_inside_a_drawing_textbox_is_reported_once`, and — once `30-revision-in-drawing-textbox` joined the corpus — the corpus-wide witnesses too (`test_every_revision_in_the_corpus_is_reported`, `test_every_revision_carries_its_kind_text_author_and_date`, `test_the_reader_reports_each_revision_element_exactly_once`, `test_the_derived_revision_event_id_names_one_change_per_address`) |
 | 10 | `_element_path` stops indexing same-tag siblings (`index = 1` always) | all three new witnesses: the drawing test, the per-element count, and the id witness |
 | 11 | `_revision_event_id` drops the element path from its digest | `test_the_derived_revision_event_id_names_one_change_per_address` |
 | 12 | `_revision_event_id` mixes the wall clock into its digest | **survived** — on Windows two calls land inside one clock tick, and the id came out the same; re-applied as *every call counts itself* (`itertools.count`), and the id's determinism witness went red |
+
+Mutation 9 was first measured **before** fixture 30 existed, and only the
+hand-built test went red — the corpus held no shape for its count to
+catch, which is exactly why the fixture was added. The review that found
+the gap ran mutation 9 alone against the pre-fixture corpus and the
+corpus-wide count survived; re-measured against the corpus as it now
+stands, it does not. A corpus-wide witness is as good as the corpus's
+data, and the fixture exists to keep that true.
 
 Mutation 12's first form is recorded because it is how a mutation can be
 real and still survive: the property ("the same inputs, the same id") and
@@ -607,7 +629,7 @@ forgotten.
 
 | The requirement | Answered by | Measured |
 |---|---|---|
-| **The OOXML-native reader must recover every revision and every deletion on this corpus**, with the author and date reported as `UNKNOWN` where the file omits them. Zero of the comparison arms manage this. | `src/labcairn/material/ooxml.py` | 30 of 30 revisions, 8 of 8 deletions |
+| **The OOXML-native reader must recover every revision and every deletion on this corpus**, with the author and date reported as `UNKNOWN` where the file omits them. Zero of the comparison arms manage this. | `src/labcairn/material/ooxml.py` | 35 of 35 revisions, 8 of 8 deletions |
 | **The reader must report every comment, including the five whose anchor is unresolvable**, with an unknown anchor and a reason naming the unmatched marker. `docx2python` loses eight of fifteen; the requirement is fifteen of fifteen with five of them marked unknown. | the same | 15 of 15, five of them with a reason |
 | **The reader's anchor must be the comment's range, not the paragraph's.** Measured against `docx2python`'s paragraph-granular anchor. | the same | the range — with §6's stated limit on what this corpus can tell |
 | **The reader must not modify the original bytes.** | the same, and a source-level watch on the module | unchanged, and the module has no write path |
@@ -620,7 +642,7 @@ forgotten.
 |---|---|
 | Base commit | `66dde87` (first measurement); re-measured on 2026-11-01 on the development machine, against the corpus with `29-comment-spanning-two-paragraphs` added |
 | Corpus | `tests/docx_corpus.py`, `tests/docx_fixtures.py` |
-| Corpus test | `tests/test_docx_fixture_corpus.py` (100 cases) |
+| Corpus test | `tests/test_docx_fixture_corpus.py` (103 cases; 100 measured here, 3 added with fixture `30-revision-in-drawing-textbox`) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
 | **The reader** | `src/labcairn/material/ooxml.py` |
 | **The reader's test** | `tests/test_ooxml_revisions.py` (27 cases; 24 measured here, 3 added with §5.6) |

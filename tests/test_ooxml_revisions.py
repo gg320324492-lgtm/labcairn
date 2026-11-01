@@ -12,17 +12,19 @@ synthetic corpus in ``tests/docx_corpus.py``:
 * the original bytes are unchanged;
 * the two views are the texts ADR-0014 D4 names.
 
-**And three things the corpus cannot reach**, which are tested here
-against documents built in this file: a revision **nested inside another
-revision**, a part that declares a **DTD**, and a **corrupt archive**.
-The corpus's ``KNOWN_GAPS`` says why they are not there.
+**And two things the corpus cannot reach**, which are tested here
+against documents built in this file: a part that declares a **DTD**, and
+a **corrupt archive**. The corpus's ``KNOWN_GAPS`` says why they are not
+there, and the corpus's other unreachable shapes are representable in it
+(``19-nested-revision`` states the nesting in its XML) or were added once
+real material named them (``30-revision-in-drawing-textbox``).
 
-**And one thing the corpus's factory cannot model**: a revision inside a
-drawing's text box, tested here against a document built in this file.
-Real material holds one -- a run whose ``mc:AlternateContent`` carries a
-``Choice`` and a ``Fallback``, each with a text box of paragraphs -- and
-the first reader reported every revision inside it twice, once from the
-box's own paragraph and once through the outer paragraph's walk.
+**The drawing's text box.** That fixture is in the corpus **because the
+corpus-wide witnesses need its data**: a witness that loops over
+``FIXTURES`` can only catch what the corpus holds, and the double-read
+survived the corpus-wide count for exactly that reason. The hand-built
+case below stays: it asserts what the fixture's gold does not -- which
+paragraph reports a text-box revision, and that none of them is nested.
 
 **The witnesses must fail for the property.** Each test below names what
 it would take for the reader to stop holding it, and the mutation that
@@ -131,7 +133,7 @@ def test_every_revision_in_the_corpus_is_reported(corpus: dict[str, RevisionDocu
     """Revision recall is 1.0 over the whole corpus.
 
     **What breaks it:** a reader that skips a revision kind, or that drops
-    one when a document holds several. The corpus has 30 revisions across
+    one when a document holds several. The corpus has 35 revisions across
     the four kinds, and the two paragraphs that carry a revision *and* a
     comment are the ones where a reader that loses one while collecting the
     other shows up.

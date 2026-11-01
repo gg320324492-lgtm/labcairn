@@ -64,7 +64,7 @@ from docx_fixtures import Comment, Fixture, Revision
 #: what the gold says.
 _DRAWING_DOCUMENT_XML = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    '<w:document'
+    "<w:document"
     ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
     ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
     ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
@@ -973,10 +973,7 @@ FIXTURES: list[Fixture] = [
                 # means when the element carries a figure, and the corpus's
                 # own test checks the written XML against exactly it.
                 text=(
-                    "caption choice one"
-                    "caption choice two"
-                    "caption fallback one"
-                    "caption fallback two"
+                    "caption choice onecaption choice twocaption fallback onecaption fallback two"
                 ),
                 author="Prof. Lin",
                 date="2026-03-02T09:45:00Z",
@@ -1027,13 +1024,11 @@ FIXTURES: list[Fixture] = [
             "revisions twice."
         ),
         expectations=(
-            "Five revision events: the outer insertion, and two in each of "
-            "the two text boxes.",
+            "Five revision events: the outer insertion, and two in each of the two text boxes.",
             "No two events share an element path.",
             "The text-box revisions are reported by their own paragraphs, "
             "not nested under the outer one.",
-            "The two baseline paragraphs of the text boxes are empty: their "
-            "text is all inserted.",
+            "The two baseline paragraphs of the text boxes are empty: their text is all inserted.",
         ),
         document_override=_DRAWING_DOCUMENT_XML,
     ),
