@@ -910,11 +910,7 @@ restored from the commit taken before the first mutation.
 | 7 | the migration's `reply_settlements_an_address_is_a_value_not_a_guess` CHECK is deleted | `test_the_store_refuses_a_settlement_the_schema_forbids` — *"DID NOT RAISE"*: the forbidden row was written | the schema holds the address to the status in both directions, and the parity test holds the model and the migration together |
 | 8 | the operation-layer `held`-reason check is short-circuited | **survived** — the schema's `reply_settlements_a_hold_names_what_it_holds` refuses the row instead, and the held witness (which records a well-formed hold) stays green | recorded rather than counted: the hold's *bottom line* is the schema's, and mutation 2's witness covers the door's own voice. **A hold without a reason is still unrecordable** |
 
-### 10.3 What was measured
-
-See §10.5.
-
-### 10.4 What was deliberately not done
+### 10.3 What was deliberately not done
 
 - **No trajectory event.** A chain judgement emits one
   (`emit_response_recorded`, `emit_followup_assessed`); a settlement
@@ -942,7 +938,45 @@ See §10.5.
   words will not be found — **and that failure is on the safe side**:
   it holds or refuses rather than settling.
 
-### 10.5 What was measured
+### 10.4 What was measured
 
-*pending the full suite run; filled in below.*
+**The suite on this tree**, run in one process, in the worktree this
+work order was carried out in:
+
+- **4,430 passed, 1 failed, 5 skipped** (36:25) at commit `6bfeeec`,
+  with `PYTHONPATH` pointing at the worktree's `src` — the way every
+  test in the tree except the clean-room ones must be run here, because
+  the editable install points at the main checkout and would shadow the
+  worktree. **The one failure was the wheel witness**,
+  `test_no_reference_leakage.py::test_wheel_installs_clean_and_imports`,
+  and it is an artefact of that environment, not of this work: the
+  probe's subprocess inherited the session's `PYTHONPATH`, so `labcairn`
+  resolved to the worktree's `src` instead of the clean venv, and the
+  assertion — *"the editable install of the working tree shadowed the
+  wheel"* — refused a shadow that the run itself had made.
+- **140 passed** (2:39) at commit `cde56e8`, across
+  `tests/test_no_reference_leakage.py`, `tests/test_readme_accuracy.py`
+  and `tests/test_outsider_path.py`, run **without** `PYTHONPATH`,
+  after the first two clean-room runs had failed: the walk's own record
+  showed the README's `uv run ruff format --check .` exiting 1 over one
+  reformatted assertion, the tree was formatted, and the walk then
+  passed whole. **The clean-room files are the evidence, and they are
+  evidence only in the environment they assert** — a lesson the run
+  demonstrated rather than merely repeated. `cde56e8` differs from
+  `6bfeeec` in `tests/test_feedback_events.py`'s whitespace and in this
+  document; **every byte under `src/` is the same**, so the 4,430
+  measured one tree's product code and the 140 measured the other's,
+  and the two numbers stand for the same source.
+- `ruff check .`, `ruff format --check .` and `mypy --strict` over the
+  touched modules and tests: clean.
+
+**The shard costs are stale by design.** `tests/test_feedback_events.py`
+grew by roughly five hundred lines, and the shard file records the
+commit its per-file seconds were measured at; the partition is rebuilt
+from a runner's log at merge time
+(`python .github/remeasure_shards.py <run-id>`), because the numbers
+must come from a runner. `tests/test_ci_shard_coverage.py` is green
+locally — it checks the partition's structure, and the structure has not
+changed: the file was in one shard before this work and is in the same
+shard after it.
 
