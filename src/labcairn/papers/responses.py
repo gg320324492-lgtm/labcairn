@@ -564,11 +564,18 @@ def list_unaddressed(
         states = {link.state for link in by_feedback.get(comment.feedback_id, [])}
         if "addressed" in states:
             continue
+        # **A judgement outranks a proposal.** The chain is append-only,
+        # so a proposal somebody put forward stays on it after somebody
+        # has judged it -- and the listing has to say what was decided,
+        # not that somebody is still waiting. **A comment judged
+        # unanswered is ``not_addressed``,** even though the proposal
+        # that led to the judgement is still there.
+        judged = states - {"pending"}
         if not states:
             reason = "no_response"
-        elif "pending" in states:
+        elif not judged:
             reason = "pending"
-        elif "not_addressed" in states:
+        elif "not_addressed" in judged:
             reason = "not_addressed"
         else:
             reason = "partially_addressed"

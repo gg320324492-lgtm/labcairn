@@ -41,7 +41,13 @@ from test_store_support import env as _shared_env
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.papers.edits import record_edit
 from labcairn.papers.feedback import record_feedback
-from labcairn.papers.responses import list_response_links, list_unaddressed, record_response
+from labcairn.papers.responses import (
+    AnswerProposal,
+    list_response_links,
+    list_unaddressed,
+    propose_responses,
+    record_response,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -392,3 +398,53 @@ def test_a_partial_answer_is_not_an_answer(chain: ChainEnv) -> None:
     unaddressed = list_unaddressed(chain.context, project_id=chain.project_id)
     assert [item.feedback.feedback_id for item in unaddressed] == [feedback_id]
     assert unaddressed[0].reason == "partially_addressed"
+
+
+# --------------------------------------------------------------------------- #
+# the listing says what was decided
+# --------------------------------------------------------------------------- #
+
+
+def test_a_judged_comment_is_listed_as_judged_and_not_as_waiting(chain: ChainEnv) -> None:
+    """A judgement outranks the proposal that led to it.
+
+    **The chain is append-only**, so a proposal somebody put forward
+    stays on it after somebody has judged it — and the listing has to say
+    **what was decided**, and not that somebody is still waiting. **A
+    comment judged unanswered is ``not_addressed``**, even though the
+    proposal that led to the judgement is still there.
+
+    **And the comment stays on the listing**: judged or not, it is
+    unaddressed, and the reason is the one a reader can act on.
+    """
+    feedback_id = _feedback_id(chain)
+
+    propose_responses(
+        chain.context,
+        proposals=[AnswerProposal(feedback_id=feedback_id, edit_action_id="ea-1")],
+        proposed_by="model",
+        now=MOMENT,
+    )
+    waiting = list_unaddressed(chain.context, project_id=chain.project_id)
+    assert waiting[0].reason == "pending", "somebody put it forward and nobody has judged it"
+
+    record_response(
+        chain.context,
+        response_link_id="rl-judged",
+        feedback_id=feedback_id,
+        edit_action_id="ea-1",
+        state="not_addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT,
+        evidence_refs=("attestation:1",),
+        now=MOMENT,
+    )
+
+    unaddressed = list_unaddressed(chain.context, project_id=chain.project_id)
+    assert [item.feedback.feedback_id for item in unaddressed] == [feedback_id], (
+        "the comment is still on the listing: it is still unaddressed"
+    )
+    assert unaddressed[0].reason == "not_addressed", (
+        "the listing says what was decided, and not that somebody is still waiting"
+    )
