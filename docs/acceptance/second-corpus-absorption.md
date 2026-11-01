@@ -141,6 +141,40 @@ and runs every time**: no remark is counted twice for the same rule.
 — the library, because the rule statements and the comments are the
 owner's.
 
+### 2.2 The distillation ran, and eight candidates came back
+
+**One request, four thousand tokens, under the owner's own approval** —
+the same ceiling the first distillation ran under. **Eight candidate rules
+came back**, one for each of the seven labels the case set covered, and
+**two of them are about the same label** — the model found two distinct
+standards in the language-and-format remarks, which is what the first
+corpus's case set showed too.
+
+**And every one of the eight scopes is truthful** — which is the fix
+measured on the material that produced it:
+
+| the scope's shape | how many |
+|---|---|
+| names the text the comment was written against | 5 |
+| names the cases whose anchor resolved to an **empty text** | 1 |
+| names the cases the reader **could not place**, with the chain's reason | 3 |
+
+**Not one scope quotes the empty string as the advisor's words** — which
+is exactly what the six of the pilot's eight confirmed rules do.
+
+**And three of the rules cite the cases that have no address at all** —
+the remark that the paper's significance never lands, the remark that the
+introduction shows no novelty, and the remark that the discussion's new
+paragraph does not say what it is for. **A rule distilled from a comment
+the reader could not place is still a rule, and its scope says so
+rather than pretending the comment was written against a passage.**
+
+**The candidates are candidates.** The proposer was `model_proposal`, a
+name no person signs, so **the owner's word is the only word that could
+move them** — and the confirmation door is where that word goes. **The
+second corpus's rules are not in the memory until the owner settles
+them.**
+
 ## 3. What the chain now holds
 
 **The second corpus is in the product, as a second project.** The first
