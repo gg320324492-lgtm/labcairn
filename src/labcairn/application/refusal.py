@@ -311,6 +311,14 @@ class ApplicationRefusal(StrEnum):
     GUIDANCE_RESOLUTION_WITHOUT_REASON = "guidance_resolution_without_reason"
     #: A counterexample with no case in it challenges nothing.
     GUIDANCE_COUNTEREXAMPLE_EMPTY = "guidance_counterexample_empty"
+    #: A check's question or its pass criterion is missing or empty.
+    GUIDANCE_CHECK_FIELD_EMPTY = "guidance_check_field_empty"
+    #: No check carries that id.
+    GUIDANCE_CHECK_NOT_FOUND = "guidance_check_not_found"
+    #: A rule may name only a check a person has confirmed. A candidate is
+    #: a proposal, and a rule that leans on a proposal leans on nothing
+    #: that has been decided.
+    GUIDANCE_CHECK_NOT_CONFIRMED = "guidance_check_not_confirmed"
     # -- the reasons the role contract says no ------------------------------ #
     #
     # **Why these are the contract's own.** The boundary exists to refuse a
@@ -564,6 +572,9 @@ GUIDANCE_REFUSALS: Mapping[GuidanceRefusal, ApplicationRefusal] = {
         ApplicationRefusal.GUIDANCE_RESOLUTION_WITHOUT_REASON
     ),
     GuidanceRefusal.COUNTEREXAMPLE_EMPTY: (ApplicationRefusal.GUIDANCE_COUNTEREXAMPLE_EMPTY),
+    GuidanceRefusal.CHECK_FIELD_EMPTY: (ApplicationRefusal.GUIDANCE_CHECK_FIELD_EMPTY),
+    GuidanceRefusal.CHECK_NOT_FOUND: (ApplicationRefusal.GUIDANCE_CHECK_NOT_FOUND),
+    GuidanceRefusal.CHECK_NOT_CONFIRMED: (ApplicationRefusal.GUIDANCE_CHECK_NOT_CONFIRMED),
 }
 
 ROLE_REFUSALS: Mapping[RoleRefusal, ApplicationRefusal] = {

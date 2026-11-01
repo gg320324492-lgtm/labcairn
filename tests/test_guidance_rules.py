@@ -55,7 +55,16 @@ from test_store_support import env as _shared_env
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.application.tasks import create_task
-from labcairn.db.models import GuidanceRuleRow
+from labcairn.db.models import GuidanceCheckRow, GuidanceRuleCheckRow, GuidanceRuleRow
+from labcairn.guidance.checks import (
+    bind_check,
+    confirm_check,
+    propose_check,
+    read_check_rules,
+    read_rule_checks,
+    withdraw_check,
+)
+from labcairn.guidance.models import GuidanceCheck
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.rules import (
     GuidanceRule,
@@ -118,6 +127,7 @@ def _propose(
     " for the baseline to be named in the same paragraph.",
     sources: tuple[str, ...] = ("iss-gold-a-r1",),
     proposed_by: str = "distil-run-7",
+    checks: tuple[str, ...] = (),
 ) -> GuidanceRule:
     return propose_rule(
         context,
@@ -129,7 +139,46 @@ def _propose(
         sources=sources,
         proposed_by=proposed_by,
         now=MOMENT,
+        checks=checks,
     )
+
+
+#: The check this file's witnesses use. **Invented, and not the group's
+#: wording**: what goes into the tree is the shape of a check, not a
+#: checklist somebody else wrote.
+QUESTION = "Does every paragraph that carries a comparison name what it compares against?"
+CRITERION = "The paragraph names the quantity the comparison is against, in absolute terms."
+
+
+def _propose_check(
+    context: ApplicationContext,
+    *,
+    question: str = QUESTION,
+    pass_criterion: str = CRITERION,
+    proposed_by: str = "the-group",
+) -> GuidanceCheck:
+    """A check as it is proposed: a candidate, and nobody has confirmed it."""
+    return propose_check(
+        context,
+        question=question,
+        pass_criterion=pass_criterion,
+        proposed_by=proposed_by,
+        now=MOMENT,
+    )
+
+
+def _confirmed_check(
+    context: ApplicationContext,
+    *,
+    question: str = QUESTION,
+    pass_criterion: str = CRITERION,
+    proposed_by: str = "the-group",
+) -> GuidanceCheck:
+    """A check a second reader has confirmed, and a rule may therefore name."""
+    proposed = _propose_check(
+        context, question=question, pass_criterion=pass_criterion, proposed_by=proposed_by
+    )
+    return confirm_check(context, check_id=proposed.check_id, confirmed_by="the-advisor", now=LATER)
 
 
 def _refusal(call: object) -> GuidanceRefusal:
@@ -408,3 +457,338 @@ def test_a_rule_that_is_not_there_is_refused(memory: ApplicationContext) -> None
     with pytest.raises(ApplicationRefusedError) as raised:
         read_rule(memory, rule_id="rule-nowhere")
     assert _refusal(raised.value) is GuidanceRefusal.RULE_NOT_FOUND, raised.value
+
+
+# --------------------------------------------------------------------------- #
+# the checks, and the binding
+# --------------------------------------------------------------------------- #
+
+
+def test_a_check_carries_its_question_and_its_criterion(memory: ApplicationContext) -> None:
+    """A check is decidable, and decidability is two things.
+
+    **The question is what the reader asks and the criterion is what would
+    pass**, and they are not the same field: a question with no criterion
+    cannot be answered, and a criterion with no question decides nothing.
+    So the check holds both, and a reader can see which is which.
+    """
+    check = _confirmed_check(memory)
+    assert check.question.strip()
+    assert check.pass_criterion.strip()
+    assert check.question != check.pass_criterion
+    assert check.state == "confirmed"
+    assert check.confirmed_by == "the-advisor"
+    assert check.confirmed_at == LATER
+    assert check.proposed_by == "the-group"
+
+
+def test_an_empty_check_field_is_refused(memory: ApplicationContext) -> None:
+    """The check's "must not" row: a check with nothing in it.
+
+    **Both of the two fields are refused by name**, because a check that
+    keeps one of them is half a check and the half is the part a reader
+    would act on.
+    """
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _propose_check(memory, question="   ")
+    assert _refusal(raised.value) is GuidanceRefusal.CHECK_FIELD_EMPTY, raised.value
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _propose_check(memory, pass_criterion="  ")
+    assert _refusal(raised.value) is GuidanceRefusal.CHECK_FIELD_EMPTY, raised.value
+
+
+def test_the_proposer_cannot_confirm_their_own_check(memory: ApplicationContext) -> None:
+    """the second-reader rule, on the check as well as on the rule.
+
+    **What a model proposes, a person confirms** — and the same person may
+    not do both. One person reading twice is one person reading once with
+    extra steps.
+    """
+    proposed = _propose_check(memory)
+    with pytest.raises(ApplicationRefusedError) as raised:
+        confirm_check(memory, check_id=proposed.check_id, confirmed_by="the-group", now=LATER)
+    assert _refusal(raised.value) is GuidanceRefusal.CONFIRMER_IS_PROPOSER, raised.value
+
+
+def test_a_rule_may_name_only_a_confirmed_check(memory: ApplicationContext) -> None:
+    """A candidate is a proposal, and a rule may not lean on one.
+
+    **And the refusal comes before the rule is written**, so a rule that
+    could not be bound is never half-written.
+    """
+    proposed = _propose_check(memory)
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _propose(memory, checks=(proposed.check_id,))
+    assert _refusal(raised.value) is GuidanceRefusal.CHECK_NOT_CONFIRMED, raised.value
+    assert memory.store.session.query(GuidanceRuleRow).all() == [], (
+        "a rule that could not name its check was written anyway"
+    )
+
+    rule = _propose(memory)
+    with pytest.raises(ApplicationRefusedError) as raised:
+        bind_check(memory, rule_id=rule.rule_id, check_id=proposed.check_id)
+    assert _refusal(raised.value) is GuidanceRefusal.CHECK_NOT_CONFIRMED, raised.value
+    assert read_rule(memory, rule_id=rule.rule_id).checks == ()
+
+
+def test_a_rule_names_the_checks_that_decide_it(memory: ApplicationContext) -> None:
+    """The binding, in both directions.
+
+    **This is what the binding was made for.** A student holding a
+    checklist item asks which rule it is checking, and the memory answers
+    — and a rule the reader reads back carries the checks that decide it,
+    so the two documents are one.
+    """
+    check = _confirmed_check(memory)
+    rule = _propose(memory, checks=(check.check_id,))
+
+    assert [bound.check_id for bound in rule.checks] == [check.check_id]
+    assert read_rule(memory, rule_id=rule.rule_id).checks == (check,)
+
+    decided = read_check_rules(memory, check_id=check.check_id)
+    assert [ruled.rule_id for ruled in decided] == [rule.rule_id]
+    assert decided[0].checks == (check,)
+    assert [bound.check_id for bound in read_rule_checks(memory, rule_id=rule.rule_id)] == [
+        check.check_id
+    ]
+
+
+def test_two_rules_may_share_one_check(memory: ApplicationContext) -> None:
+    """The checklist is generic, and one item may decide more than one rule.
+
+    **A check that could be named by only one rule would have to be written
+    once per rule**, and the memory would hold two different questions with
+    the same answer.
+    """
+    check = _confirmed_check(memory)
+    first = _propose(memory, checks=(check.check_id,))
+    second = _propose(
+        memory,
+        statement="When the claim rests on a comparison, the advisor asks"
+        " for the effect size beside the baseline.",
+        sources=("iss-gold-b-r1",),
+        checks=(check.check_id,),
+    )
+    decided = read_check_rules(memory, check_id=check.check_id)
+    assert [ruled.rule_id for ruled in decided] == sorted([first.rule_id, second.rule_id])
+    assert [bound.check_id for bound in first.checks] == [check.check_id]
+    assert [bound.check_id for bound in second.checks] == [check.check_id]
+
+
+def test_a_withdrawn_rule_names_no_check(memory: ApplicationContext) -> None:
+    """A rule that is out of force decides nothing, so it holds no check.
+
+    **And the check is free for another rule to name** — which is what
+    makes "a check no rule names" an answerable question at all.
+    """
+    check = _confirmed_check(memory)
+    rule = _propose(memory, checks=(check.check_id,))
+    withdrawn = withdraw_rule(
+        memory,
+        rule_id=rule.rule_id,
+        reason="The advisor stopped asking for the baseline to be named.",
+        now=LATER,
+    )
+    assert withdrawn.checks == ()
+    assert read_rule(memory, rule_id=rule.rule_id).checks == ()
+    assert read_check_rules(memory, check_id=check.check_id) == ()
+
+
+def test_a_new_version_starts_with_no_check(memory: ApplicationContext) -> None:
+    """The binding belongs to the version, and a new version is a new claim.
+
+    **The old version keeps what it was bound against** — the memory does
+    not edit its past — **and the new version names no check until a
+    person binds one.** The check that decided the old words is not
+    automatically the check that decides the new ones.
+    """
+    check = _confirmed_check(memory)
+    rule = _propose(memory, checks=(check.check_id,))
+    confirm_rule(memory, rule_id=rule.rule_id, confirmed_by="the-advisor", now=LATER)
+
+    replacement = supersede_rule(
+        memory,
+        rule_id=rule.rule_id,
+        statement="When the claim rests on a comparison, the advisor names the"
+        " baseline and the effect size in the same paragraph.",
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        issue_type="method_and_hypothesis",
+        sources=("iss-gold-a-r1",),
+        proposed_by="distil-run-8",
+        now=LATER,
+    )
+    assert replacement.version == 2
+    assert replacement.checks == ()
+    assert read_rule(memory, rule_id=rule.rule_id).checks == ()
+
+    held = memory.store.session.query(GuidanceRuleCheckRow).all()
+    assert [(row.rule_id, row.version) for row in held] == [(rule.rule_id, 1)], (
+        "the old version's binding did not stay with the version it was made against"
+    )
+
+
+def test_a_withdrawn_check_is_named_by_no_rule(memory: ApplicationContext) -> None:
+    """A check that stopped being the test decides nothing.
+
+    **And the check itself stays**, with the reason it was retired, so a
+    rule that is still in force may name another check and a reader can
+    see what happened to this one.
+    """
+    check = _confirmed_check(memory)
+    rule = _propose(memory, checks=(check.check_id,))
+    withdrawn = withdraw_check(
+        memory,
+        check_id=check.check_id,
+        reason="The criterion was found not to be decidable from the text.",
+        now=LATER,
+    )
+    assert withdrawn.state == "withdrawn"
+    assert withdrawn.resolution_reason is not None
+    assert read_check_rules(memory, check_id=check.check_id) == ()
+    assert read_rule(memory, rule_id=rule.rule_id).checks == ()
+
+
+def _raw_insert_check(session: Session, **overrides: object) -> None:
+    """Write a check row directly, so the schema is what is under test."""
+    values: dict[str, object] = {
+        "check_id": "check-raw",
+        "question": "Does every comparison name what it compares against?",
+        "pass_criterion": "The paragraph names the quantity compared against.",
+        "state": "candidate",
+        "proposed_by": "the-group",
+        "proposed_at": MOMENT,
+    }
+    values.update(overrides)
+    session.add(GuidanceCheckRow(**values))
+    session.flush()
+
+
+def test_the_schema_refuses_what_the_api_refuses_about_the_checks(env: StoreEnv) -> None:
+    """At the schema: the check rows the database itself must refuse.
+
+    **Each refusal is witnessed by the database refusing**, for the reason
+    revision 0007 records: a constraint nobody has violated is a comment.
+    """
+    refusals: tuple[dict[str, object], ...] = (
+        {"question": ""},
+        {"question": "   "},
+        {"pass_criterion": ""},
+        {"pass_criterion": "   "},
+        {"proposed_by": "   "},
+        {"state": "proposed"},
+        {"state": "confirmed"},
+        {"state": "confirmed", "confirmed_by": "the-advisor"},
+        {"state": "confirmed", "confirmed_by": "", "confirmed_at": LATER},
+        {"state": "candidate", "confirmed_by": "the-advisor"},
+        {"state": "withdrawn"},
+        {"state": "withdrawn", "resolution_reason": "   "},
+        {"state": "candidate", "resolution_reason": "a reason on a live check"},
+    )
+    for overrides in refusals:
+        session = env.new_session()
+        try:
+            try:
+                _raw_insert_check(session, **overrides)
+            except IntegrityError:
+                pass
+            else:
+                pytest.fail(f"the schema accepted a check row it must refuse: {overrides}")
+        finally:
+            session.rollback()
+            session.close()
+
+
+def _raw_rule(session: Session, rule_id: str = "rule-bound", version: int = 1) -> None:
+    """Write the rule row a binding needs, so the check's key is what refuses."""
+    session.add(
+        GuidanceRuleRow(
+            rule_id=rule_id,
+            version=version,
+            issue_type="method_and_hypothesis",
+            statement="The advisor asks for the baseline to be named.",
+            context="A results section whose claim is comparative.",
+            scope="Empirical papers.",
+            example="The comment of 2026-03-02.",
+            state="candidate",
+            proposed_by="distil-run-7",
+            proposed_at=MOMENT,
+        )
+    )
+    session.flush()
+
+
+def _raw_check(session: Session, check_id: str = "check-bound") -> None:
+    """Write the check row a binding needs, so the rule's key is what refuses."""
+    session.add(
+        GuidanceCheckRow(
+            check_id=check_id,
+            question="Does every comparison name what it compares against?",
+            pass_criterion="The paragraph names the quantity compared against.",
+            state="confirmed",
+            proposed_by="the-group",
+            proposed_at=MOMENT,
+            confirmed_by="the-advisor",
+            confirmed_at=LATER,
+        )
+    )
+    session.flush()
+
+
+def test_the_schema_refuses_a_binding_to_a_check_that_is_not_there(env: StoreEnv) -> None:
+    """A rule may not name a check that does not exist.
+
+    **The rule is there and the check is not**, so the only thing that can
+    refuse the binding is the binding's own key on the check. **A witness
+    that cannot say which key refused catches a different thing**, which is
+    why the other half is written as its own witness.
+    """
+    session = env.new_session()
+    try:
+        _raw_rule(session)
+        assert session.get(GuidanceCheckRow, "check-nowhere") is None, (
+            "the check this binding names is there, so the refusal would be about something else"
+        )
+        try:
+            session.add(
+                GuidanceRuleCheckRow(rule_id="rule-bound", version=1, check_id="check-nowhere")
+            )
+            session.flush()
+        except IntegrityError:
+            pass
+        else:
+            pytest.fail("the schema accepted a binding to a check that does not exist")
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_the_schema_refuses_a_binding_to_a_rule_version_that_is_not_there(
+    env: StoreEnv,
+) -> None:
+    """A check may not be bound to a version of a rule that does not exist.
+
+    **The check is there and the rule version is not**, so the only thing
+    that can refuse the binding is the binding's own key on the rule.
+    """
+    session = env.new_session()
+    try:
+        _raw_check(session)
+        assert session.get(GuidanceRuleRow, ("rule-bound", 1)) is None, (
+            "the rule version this binding names is there, so the refusal would be"
+            " about something else"
+        )
+        try:
+            session.add(
+                GuidanceRuleCheckRow(rule_id="rule-bound", version=1, check_id="check-bound")
+            )
+            session.flush()
+        except IntegrityError:
+            pass
+        else:
+            pytest.fail("the schema accepted a binding to a rule version that does not exist")
+    finally:
+        session.rollback()
+        session.close()

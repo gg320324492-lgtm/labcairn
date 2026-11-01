@@ -128,6 +128,15 @@ EXPECTED_TABLES = frozenset(
         "guidance_rules",
         "guidance_rule_sources",
         "guidance_rule_counterexamples",
+        # LC-P2-11's next piece. The checks that decide the rules -- the
+        # questions a reader can run against a manuscript and answer yes or
+        # no -- and the binding that says which check decides which rule.
+        # The binding names the rule's *version*, because a rule is a
+        # versioned row and a new statement is a new version, so the check
+        # that decides one version's words is not the check that decides
+        # the next one's.
+        "guidance_checks",
+        "guidance_rule_checks",
         "agent_role_specs",
         # ADR-0014 D8. The third of that ADR's four tables, and the first
         # one that ever had a writer: one row per tracked change a
@@ -136,6 +145,13 @@ EXPECTED_TABLES = frozenset(
         # nothing stored it, so a marked-up manuscript was a file the
         # archive could cite but could not describe.
         "revision_events",
+        # LC-P2-09. The reply: one party's answer to another's objection,
+        # read out of a response document. **It is not the mentor's
+        # exchange** -- a reviewer's objection and the authors' answer
+        # are the paper's own review history -- and it holds no state, no
+        # decider and no evidence, because a reply is a record of what was
+        # said and not a verdict on anything.
+        "replies",
     }
 )
 

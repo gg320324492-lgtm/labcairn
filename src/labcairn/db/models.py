@@ -1,11 +1,12 @@
-"""The twenty-four tables that make SQLite the task authority.
+"""The thirty-one tables that make SQLite the task authority.
 
-Twenty-four is not a claim to be trusted: ``tests/test_evidence_schema.py``'s parity
-test walks ``Base.metadata`` and the migrated schema independently, and that is
-what catches a table added to one and not the other. It is written here so a
-reader knows the scope of the file, and it has been wrong before -- it still said
-"eight" after LC-P1-08 and T01 added six tables, and "fifteen" after LC-P2-08
-and LC-P2-06 added five more -- because nothing recomputed it.
+Thirty-one is not a claim to be trusted: ``tests/test_store_migrations.py``'s
+parity test walks ``Base.metadata`` and the migrated schema independently, and
+that is what catches a table added to one and not the other. It is written here
+so a reader knows the scope of the file, and it has been wrong before -- it said
+"eight" after LC-P1-08 and T01 added six tables, "fifteen" after LC-P2-08 and
+LC-P2-06 added five more, and "twenty-four" while the file held thirty --
+because nothing recomputed it.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -2475,6 +2476,209 @@ class FollowupAssessmentRow(Base):
     )
 
 
+# --------------------------------------------------------------------------- #
+# LC-P2-09: the reply -- one party's answer to another's objection
+# --------------------------------------------------------------------------- #
+#
+# **A fifth table of the feedback work order, and the only one that is not
+# the mentor's exchange.** The chain's four tables above are the mentor's
+# line with a student: a comment, a change made in answer to it, the
+# judgement that the change answered it, and a later assessment of the
+# issue. This one holds something the mentor's line does not hold at all --
+# a *reviewer's* objection and *the authors'* answer, read out of a
+# response document.
+#
+# It is written here, beside the chain's four tables, because it is about
+# the same manuscripts and because it is the table a reader of the chain
+# would look in first and not find. **It is not a fifth link in that
+# chain, and the schema says so**: there is no state, no decider and no
+# evidence here, because a reply is not a judgement.
+
+
+class ReplyRow(Base):
+    """One exchange read out of a document: an objection, and the answer to it.
+
+    **A reply is a record of what two parties said, and not a judgement.**
+    The chain already answers *"did the change answer the comment"*, and it
+    answers it with a state, a decider and the evidence behind the decider
+    -- ``response_links`` above. **A reply carries none of those, and the
+    absence is the design.** A reply is one party's answer to another
+    party's objection, and the answer *is* the content: it carries the
+    reasoning. **Nothing in the chain answers "what did the author say, and
+    why"**, and this row does.
+
+    **One row holds both halves, and that is what lets the schema enforce
+    it.** A reply without its objection is not a reply, and a reply without
+    its answer is not a reply either. **Two tables, one half each, could
+    not say so**: a CHECK constraint sees one row and never another, so
+    "an answer exists only where its objection exists" would be a
+    convention the writer was trusted to keep. In one row it is a
+    constraint the database holds.
+
+    **And the objection is copied here rather than pointed at.** The chain
+    already holds comments, and an objection is a kind of comment, so the
+    obvious design would be a foreign key to ``feedback_events``. **It is
+    not one, and the reason is that the objection in a reply is not a
+    comment the chain holds.** A ``feedback_events`` row is the *advisor's*
+    remark *in a manuscript*: it names the version it was written against
+    (ADR-0017 D1 refuses a feedback row without one), and a row that was
+    read carries the locator in ``word/comments.xml`` that the reader
+    read. A reviewer's objection in a response letter names **no version**
+    -- it is addressed to a manuscript that was submitted, and the place it
+    points at is a line in a rendering the corpus does not hold.
+    **Pointing at a comment would mean inventing a version and an address
+    the material does not have.**
+
+    **What that costs.** The objection's words are held here, and in other
+    cases they are held in the chain's comment table as well: a second
+    spelling of something the chain may also hold. The price is paid
+    knowingly, and it is these three: the reply cannot be joined to
+    ``feedback_events`` to say "this reply answers that comment"; it
+    carries no issue key; and the chain's ``set_issue_key`` does not reach
+    it. **A reply is a different kind of speech act**, and keeping the two
+    apart costs the join.
+
+    **Where the table sits.** **Neither the mentor's exchange nor the
+    student's.** The two halves here are a *reviewer* and *the authors*,
+    and they are the paper's own review history rather than anybody's
+    tutoring. **So the permission that governs a reply is the permission
+    on the material the reply was read from** -- the response document the
+    version names -- and it is asked where that material is named, exactly
+    as the chain's own reads are asked.
+
+    **And the address it carries is the address it has.** The row says
+    which paragraph of the document each half was read from, and the hash
+    of those words, so a later read can tell whether the same paragraph
+    still holds them. **It carries no address into the manuscript under
+    review, because there is none to carry**: the objections in this
+    family address lines in a rendering the corpus does not hold, and a
+    row that named one would be inventing an address the file does not
+    have. **The place the objection points at lives in the objection's own
+    words and nowhere else.**
+
+    **And the two halves are two parties.** A reply is one party's answer
+    to *another's* objection, so the row says who said each half, and the
+    schema refuses a row whose two halves are the same party. **The
+    vocabulary is the reply's own** -- ``reviewer`` and ``author`` -- and
+    not the chain's ``actor_kind``: that vocabulary answers "who acted in
+    the mentor's chain", and a peer reviewer of a submitted manuscript is
+    neither the mentor nor the student. **Forcing a value out of it would
+    be a wrong value**, and ``human`` on both halves would be worse than
+    wrong: it would say "two people spoke" and be unable to say which was
+    which, which is the whole content of a reply.
+
+    **``pairing_grade`` grades the pairing and not the words.** The words
+    are always the document's -- this table has no other source for them
+    -- so the chain's ``grade``, which says how a row's *content* was
+    obtained, has nothing to grade here. What varies is how the *pairing*
+    was established: by the document's own structure, by the system's
+    proposal, or by a person who confirmed it. **It is not called
+    ``grade``** because the same name meaning two things is how a reader
+    comes to believe the store holds one thing when it holds another.
+    """
+
+    __tablename__ = "replies"
+
+    #: Derived rather than caller-minted: the id is a function of the version
+    #: and the two paragraphs the exchange was read from, so recording the
+    #: same document twice finds the rows that are already there. A version
+    #: is a fixed set of bytes, so the derivation is stable for ever.
+    reply_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The project the exchange belongs to. The chain's own scope: a reply
+    #: about a manuscript means nothing outside the project that holds it.
+    project_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_projects.project_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: **The version whose material the reply was read from** -- the
+    #: response document, not the manuscript under review. The version
+    #: carries the file and the bytes, so the reply does not repeat them.
+    version_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: Who wrote the objection: ``reviewer`` or ``author``.
+    objection_party: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What the objection says, verbatim, as the document holds it.
+    objection_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of those words, so a later read can tell whether the same
+    #: paragraph still holds them.
+    objection_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: **The paragraph of the document the objection was read from** --
+    #: the reader's own coordinate, in the response document. **It is not
+    #: a place in the manuscript under review**, which the material does
+    #: not have.
+    objection_paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Who wrote the answer: ``reviewer`` or ``author``.
+    answer_party: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What the answer says, verbatim, as the document holds it. **The
+    #: answer is the point**: it carries the reasoning, and a reply that
+    #: kept only the objection would throw away the half that matters.
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The hash of those words.
+    answer_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The paragraph of the document the answer was read from.
+    answer_paragraph: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: How the pairing was established: ``observed`` (the document states
+    #: it), ``inferred`` (the system proposed it) or ``human_verified``
+    #: (a person confirmed it). **The words are the document's in all
+    #: three**; only the pairing is graded.
+    pairing_grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_replies_version", "version_id"),
+        Index("ix_replies_project", "project_id"),
+        CheckConstraint(
+            "length(reply_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0",
+            name="replies_ids_present",
+        ),
+        # **The parties are the reply's own, and the vocabulary is closed.**
+        # The chain's ``actor_kind`` cannot say what these two are, and a
+        # value coerced into it would be a wrong value.
+        CheckConstraint(
+            "objection_party IN ('reviewer', 'author')",
+            name="replies_objection_party_vocabulary",
+        ),
+        CheckConstraint(
+            "answer_party IN ('reviewer', 'author')",
+            name="replies_answer_party_vocabulary",
+        ),
+        # **A reply is one party's answer to *another's* objection.** A row
+        # whose two halves are the same party is a monologue, and the
+        # schema refuses it rather than the writer's discretion.
+        CheckConstraint(
+            "objection_party <> answer_party",
+            name="replies_the_two_halves_are_two_parties",
+        ),
+        CheckConstraint(
+            "pairing_grade IN ('observed', 'inferred', 'human_verified')",
+            name="replies_pairing_grade_vocabulary",
+        ),
+        # **The objection comes before the answer.** The exchange is read
+        # in the order the document has it, and a row whose answer comes
+        # first is not an exchange the document states.
+        CheckConstraint(
+            "objection_paragraph >= 0 AND answer_paragraph > objection_paragraph",
+            name="replies_the_paragraphs_are_ordered",
+        ),
+        CheckConstraint(
+            "length(objection_text_sha256) = 64 AND objection_text_sha256 NOT GLOB '*[^0-9a-f]*' "
+            "AND length(answer_text_sha256) = 64 AND answer_text_sha256 NOT GLOB '*[^0-9a-f]*'",
+            name="replies_the_hash_shape",
+        ),
+        # **A reply holds both halves or it is not a reply.** One half alone
+        # is not an exchange, and this is the constraint that says so --
+        # the database holding it, rather than the writer being trusted to.
+        CheckConstraint(
+            _has_content("objection_text") + " AND " + _has_content("answer_text"),
+            name="replies_both_halves_are_present",
+        ),
+    )
+
+
 class GuidanceRuleRow(Base):
     """A mentor's rule as the memory holds it: sourced, scoped, versioned.
 
@@ -2693,6 +2897,160 @@ class GuidanceRuleCounterexampleRow(Base):
             "length(trim(statement)) > 0 AND length(trim(recorded_by)) > 0",
             name="guidance_rule_counterexamples_a_counterexample_carries_its_case",
         ),
+    )
+
+
+class GuidanceCheckRow(Base):
+    """A check: the question a reader asks, and the criterion that answers it.
+
+    **A check is decidable, and decidability is two things.** The
+    ``question`` is what a reader asks of a piece of the manuscript, and the
+    ``pass_criterion`` is the condition under which the answer is yes. **The
+    two are not the same field**: a question with no criterion cannot be
+    answered, and a criterion with no question decides nothing. A checklist
+    that gives only a question leaves the reader to guess what would pass,
+    and a check that gives only a criterion leaves the reader to guess what
+    to run it on.
+
+    **The check is a norm, and a norm lives beside the rules it decides.**
+    It is not in the chain: the chain is the mentor's material, and a
+    checklist written down in advance is not the mentor's material. It is
+    not a counterexample either: a counterexample is a case *against* a
+    rule, and a check is a test *for* one.
+
+    **The state machine is closed, and it is the rule's.** A check is
+    proposed as a ``candidate``, and only a person moves it on — a second
+    reader, who may not be the proposer. **What a model proposes, a person
+    confirms**, and that rule is the same here as everywhere else in this
+    product: a check a model wrote is a proposal, and a rule may name only
+    a check a person has confirmed.
+
+    **A withdrawn check carries its reason**, for the reason the rule's own
+    withdrawal does: a retraction that says only "no" is a retraction
+    nobody can learn from.
+    """
+
+    __tablename__ = "guidance_checks"
+
+    #: The check's identity, derived from what it says and who said it.
+    check_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: What the reader asks of the manuscript.
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The condition under which the answer is yes. **Different from the
+    #: question, and required with it.**
+    pass_criterion: Mapped[str] = mapped_column(Text, nullable=False)
+    #: ``candidate``, ``confirmed`` or ``withdrawn``.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who proposed the check — a person, or a run whose proposal lands here
+    #: as a candidate.
+    proposed_by: Mapped[str] = mapped_column(Text, nullable=False)
+    #: When it was proposed.
+    proposed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+    #: Who confirmed the check. **A second reader**: the API refuses a
+    #: confirmation by the proposer, and this column is what that refusal
+    #: exists to protect.
+    confirmed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: When it was confirmed.
+    confirmed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: Why the check was withdrawn. Null on a live check.
+    resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        # **A check carries its question and its criterion, and neither may
+        # be empty.** Empty means blank as well as absent, so the check
+        # trims before it counts.
+        CheckConstraint(
+            "length(trim(question)) > 0 AND length(trim(pass_criterion)) > 0"
+            " AND length(trim(proposed_by)) > 0",
+            name="guidance_checks_a_check_carries_its_question_and_its_criterion",
+        ),
+        # **The state machine is closed.**
+        CheckConstraint(
+            "state IN ('candidate','confirmed','withdrawn')",
+            name="guidance_checks_the_state_machine_is_closed",
+        ),
+        # **A confirmed check names its confirmer.**
+        CheckConstraint(
+            "state != 'confirmed' OR (confirmed_by IS NOT NULL"
+            " AND length(trim(confirmed_by)) > 0 AND confirmed_at IS NOT NULL)",
+            name="guidance_checks_a_confirmed_check_names_its_confirmer",
+        ),
+        # **A candidate names nobody.**
+        CheckConstraint(
+            "state != 'candidate' OR (confirmed_by IS NULL AND confirmed_at IS NULL)",
+            name="guidance_checks_a_candidate_names_nobody",
+        ),
+        # **A withdrawn check carries its reason.**
+        CheckConstraint(
+            "state != 'withdrawn' OR (resolution_reason IS NOT NULL"
+            " AND length(trim(resolution_reason)) > 0)",
+            name="guidance_checks_a_withdrawal_carries_its_reason",
+        ),
+        # **And a live check carries no resolution.**
+        CheckConstraint(
+            "state = 'withdrawn' OR resolution_reason IS NULL",
+            name="guidance_checks_a_live_check_carries_no_resolution",
+        ),
+    )
+
+
+class GuidanceRuleCheckRow(Base):
+    """The binding: the check that decides this rule, at this version.
+
+    **A rule and a check are two things, and this is the row that says
+    they are the same.** The rule says what the advisor demands; the check
+    says what a reader would run to find out whether the manuscript meets
+    it. Without this row the two are two documents, and a student cannot
+    tell which rule a checklist item is checking.
+
+    **The binding is to the version, not to the rule.** A rule is a
+    versioned row and a new statement is a new version, so the check that
+    decides version 1's words is not automatically the check that decides
+    version 2's words. The binding therefore names the pair.
+
+    **The two foreign keys are the schema's own witnesses.** A binding to a
+    check that does not exist, or to a version of a rule that does not
+    exist, cannot be written: the database refuses the row.
+
+    **And one rule names one check once**, while two rules may name the
+    same check — the checklist item is generic, and several rules may be
+    decided by it.
+    """
+
+    __tablename__ = "guidance_rule_checks"
+
+    #: Table-wide identity, never used for ordering.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The rule and the version the binding belongs to. A binding is to a
+    #: version because a new statement may be decided by a different check.
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The version, with the rule, as a composite foreign key.
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The check that decides the rule at that version.
+    check_id: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["rule_id", "version"],
+            ["guidance_rules.rule_id", "guidance_rules.version"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["check_id"],
+            ["guidance_checks.check_id"],
+            ondelete="CASCADE",
+        ),
+        # **And the same check is bound to a version once.** A second row
+        # for the same pair says nothing a reader could not already read.
+        UniqueConstraint(
+            "rule_id",
+            "version",
+            "check_id",
+            name="guidance_rule_checks_one_binding_per_check",
+        ),
+        # The reverse question -- which rules does this check decide -- is
+        # asked by the check's own id, and the index is what answers it.
+        Index("ix_guidance_rule_checks_check", "check_id"),
     )
 
 

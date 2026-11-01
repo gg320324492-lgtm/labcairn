@@ -2,13 +2,14 @@
 
 **What this module is.** The mentor line reads the chain's rows — the
 comments the advisor wrote, the changes that were made, the judgements on
-them, the versions and the accepted edges between them, and the tracked
-changes a marked-up manuscript records — and it used to read them by
-importing ``labcairn.db.models`` and writing its own ``select(...)``
-statements. **That is the arrangement the application layer exists to
-prevent**: a reader that reaches the store directly is a reader the
-capability model does not reach, and a guard applied to an operation
-would apply to some of the callers and not the others.
+them, the versions and the accepted edges between them, the tracked
+changes a marked-up manuscript records, and the exchanges a response
+document holds — and it used to read them by importing
+``labcairn.db.models`` and writing its own ``select(...)`` statements.
+**That is the arrangement the application layer exists to prevent**: a
+reader that reaches the store directly is a reader the capability model
+does not reach, and a guard applied to an operation would apply to some of
+the callers and not the others.
 
 So the chain's reads live here, and the modules that reason over them call
 these operations instead of the store.
@@ -22,6 +23,14 @@ not joined**: the pairing of a comment with a change is a judgement, it
 carries its own evidence, and the chain asserts none that nobody made.
 A manuscript that holds hundreds of changes and no comment at all is a
 shape the chain can report and does not explain away.
+
+**And the replies are read here too, because they are read beside the
+comments — and because they are not the chain's own.** The ``replies``
+table holds a *reviewer's* objection and *the authors'* answer, read out
+of a response document: **the paper's own review history, and neither the
+mentor's exchange nor the student's.** So the chain's keys, its
+judgements and its issue keys do not reach a reply, and :func:`read_replies`
+is a read of what two parties said rather than a verdict on anything.
 
 **What these operations return.** Rows are not returned; the chain's own
 facts are. A caller wants *a comment* — the advisor's words, the anchored
@@ -75,6 +84,7 @@ from labcairn.db.models import (
     EditActionRow,
     FeedbackEventRow,
     PaperVersionRow,
+    ReplyRow,
     ResponseLinkRow,
     RevisionEventRow,
     VersionEdgeRow,
@@ -140,6 +150,43 @@ class ChainEdit:
     actor_kind: str
     #: ``observed``, ``inferred`` or ``human_verified``.
     grade: str
+
+
+@dataclass(frozen=True)
+class ChainReply:
+    """One exchange read out of a document: an objection and the answer to it.
+
+    **Both halves and both parties travel together.** A reader asking what
+    the authors said in answer to a reviewer wants the objection, the
+    answer and who said which — and the answer is the half that carries
+    the reasoning, so a row that kept only the objection would be half an
+    answer to the question.
+
+    **And the address is the reader's own.** The paragraph is where the
+    half was read in the document the version names — the response
+    document, **not** the manuscript under review, which the material
+    does not have. A reply carries no address into that manuscript, and
+    the place the objection points at lives in the objection's own words.
+    """
+
+    reply_id: str
+    #: The document the exchange was read from.
+    version_id: str
+    #: ``reviewer`` or ``author`` — **the reply's own vocabulary**, and
+    #: not the chain's ``actor_kind``, which cannot say what a peer
+    #: reviewer and the authors of a submitted paper are.
+    objection_party: str
+    objection_text: str
+    #: Where in the document the objection was read.
+    objection_paragraph: int
+    #: ``reviewer`` or ``author``.
+    answer_party: str
+    answer_text: str
+    #: Where in the document the answer was read.
+    answer_paragraph: int
+    #: How the pairing was established: ``observed``, ``inferred`` or
+    #: ``human_verified``.
+    pairing_grade: str
 
 
 @dataclass(frozen=True)
@@ -626,6 +673,64 @@ def read_revision_activity(
     return tuple(activities)
 
 
+def read_replies(
+    context: ApplicationContext, *, version_ids: Sequence[str]
+) -> tuple[ChainReply, ...]:
+    """The exchanges read out of the documents the chain holds.
+
+    **A reply is a record of what was said, and this read returns both
+    halves.** The objection and the answer travel together, and so do the
+    parties that wrote them: a caller that wanted only the objection
+    would throw away the half that carries the reasoning.
+
+    **A version nobody holds an exchange for is simply not among them.**
+    The exchanges are read by the version they were read from, and a
+    version with none is a version whose document holds none.
+
+    **And they come back in the document's order.** The exchanges are
+    ordered by the paragraph the objection was read from and then by the
+    paragraph the answer was read from, which is the order a person
+    reading the response document would meet them in -- and the same
+    answer on every machine, however the rows happened to come back.
+    **The second key is not decoration**: two exchanges may answer the
+    same objection, and an order that stopped at the objection would
+    leave their order to the storage engine's.
+
+    **And the reply is not the mentor's exchange**, so the chain's own
+    keys and judgements do not reach it: a reply is a reviewer's
+    objection and the authors' answer, read out of a response document,
+    and it is a record of what was said rather than a verdict on
+    anything.
+
+    **And the permission is asked where the material is named**, as this
+    module's rule says: the exchanges carry the reviewer's and the
+    authors' own words, so the caller asks about the material through
+    :func:`read_material_paths` before it shows any of them.
+    """
+    ids = tuple(version_id for version_id in version_ids if version_id)
+    if not ids:
+        return ()
+    rows = context.store.session.scalars(
+        select(ReplyRow)
+        .where(ReplyRow.version_id.in_(ids))
+        .order_by(ReplyRow.version_id, ReplyRow.objection_paragraph, ReplyRow.answer_paragraph)
+    ).all()
+    return tuple(
+        ChainReply(
+            reply_id=row.reply_id,
+            version_id=row.version_id,
+            objection_party=row.objection_party,
+            objection_text=row.objection_text,
+            objection_paragraph=row.objection_paragraph,
+            answer_party=row.answer_party,
+            answer_text=row.answer_text,
+            answer_paragraph=row.answer_paragraph,
+            pairing_grade=row.pairing_grade,
+        )
+        for row in rows
+    )
+
+
 def read_material_paths(
     context: ApplicationContext, *, version_ids: Sequence[str]
 ) -> Mapping[str, str]:
@@ -696,6 +801,7 @@ __all__ = [
     "ChainComment",
     "ChainEdge",
     "ChainEdit",
+    "ChainReply",
     "ChainRevision",
     "ChainRevisionActivity",
     "ProjectGraph",
@@ -705,6 +811,7 @@ __all__ = [
     "read_issue_keys",
     "read_material_paths",
     "read_project_graph",
+    "read_replies",
     "read_response_states",
     "read_revision_activity",
     "read_revision_events",

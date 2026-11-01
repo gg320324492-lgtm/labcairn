@@ -41,6 +41,18 @@ layer, so the transition that moves a rule out of ``candidate`` is the layer's
 to refuse — and :mod:`labcairn.guidance.rules` asks it rather than restating
 it. **The contract is asked, not restated.**
 
+**The checks, and the binding.** The memory also holds **checks** — the
+questions a reader can run against a manuscript and answer yes or no — and
+the **binding** that says which check decides which rule. The check is a
+norm, and it lives beside the rules it decides rather than in the chain:
+the chain is the mentor's material, and a checklist written down in
+advance is not the mentor's material. **The binding is to the version**,
+because a rule is a versioned row and a new statement is a new version —
+so the check that decides version 1's words is not automatically the check
+that decides version 2's. **And a binding is in force only while both of
+its ends are**: a withdrawn rule names no check, and a withdrawn check is
+named by no rule.
+
 **What these operations do not do.** They do not run a check, they do not
 accept a model's proposal, and they do not read the material a rule was
 learned from. **The permission that governs what a reader may be shown is
@@ -60,11 +72,13 @@ from sqlalchemy import select
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import guidance_refused
 from labcairn.db.models import (
+    GuidanceCheckRow,
+    GuidanceRuleCheckRow,
     GuidanceRuleCounterexampleRow,
     GuidanceRuleRow,
     GuidanceRuleSourceRow,
 )
-from labcairn.guidance.models import GuidanceRule, RuleCounterexample
+from labcairn.guidance.models import GuidanceCheck, GuidanceRule, RuleCounterexample
 from labcairn.guidance.refusals import GuidanceRefusal
 
 
@@ -92,6 +106,28 @@ class RuleDraft:
     proposed_by: str
     #: The chain material the rule is learned from, by the chain's own key.
     sources: tuple[str, ...]
+    proposed_at: datetime
+
+
+@dataclass(frozen=True)
+class CheckDraft:
+    """The fields a check carries, as the memory is about to hold it.
+
+    **The draft is what the layer writes, and it is whole** — the same
+    argument the rule's draft makes: a write that took the fields one at a
+    time could leave a check half-written, and a half-written check is a
+    row the schema refuses and a reader cannot interpret.
+
+    **And the question and the pass criterion travel together.** They are
+    different things — a question with no criterion cannot be answered,
+    and a criterion with no question decides nothing — so neither may be
+    written without the other.
+    """
+
+    check_id: str
+    question: str
+    pass_criterion: str
+    proposed_by: str
     proposed_at: datetime
 
 
@@ -241,6 +277,12 @@ def write_guidance_rule_withdrawal(
     *this stopped being true*, and a retraction that says only "no" is a
     retraction nobody can learn from.
 
+    **And the rule's checks are released.** A binding is in force only
+    while both of its ends are, so a withdrawn rule names no check: the
+    rule is out of force and there is nothing left for its instruments to
+    decide. The check rows themselves stay, and a rule that is still in
+    force may name them.
+
     **And a withdrawal is not twice.** The reason is already on the row,
     and overwriting it would lose the reason the first retraction gave.
 
@@ -255,6 +297,7 @@ def write_guidance_rule_withdrawal(
         )
     row.state = "withdrawn"
     row.resolution_reason = reason
+    _release_rule_bindings(context, rule_id=row.rule_id, version=row.version)
     context.store.session.flush()
     return _the_rule(context, row)
 
@@ -294,6 +337,237 @@ def write_guidance_counterexample(
 
 
 # --------------------------------------------------------------------------- #
+# the checks, and the binding
+# --------------------------------------------------------------------------- #
+
+
+def read_guidance_check(context: ApplicationContext, *, check_id: str) -> GuidanceCheck:
+    """The check, as the memory holds it.
+
+    :raises ApplicationRefusedError: no check carries that id.
+    """
+    return _the_check(_the_check_row(context, check_id))
+
+
+def read_guidance_checks(context: ApplicationContext) -> tuple[GuidanceCheck, ...]:
+    """Every check the memory holds, in the order the table holds them.
+
+    **A check nobody has read is still a check**, and this is where the
+    whole set is read: the checklist a group wrote down is a list of
+    checks, and a reader needs all of them to know what the norm is.
+    """
+    rows = context.store.session.scalars(select(GuidanceCheckRow)).all()
+    return tuple(_the_check(row) for row in rows)
+
+
+def write_guidance_check(context: ApplicationContext, draft: CheckDraft) -> GuidanceCheck:
+    """Write a check, as a candidate.
+
+    **A check is proposed the way a rule is proposed.** What a model
+    proposes, a person confirms, and the check lands here as a candidate
+    whatever wrote it — a person writing the group's checklist down and a
+    distillation run proposing one arrive the same way.
+
+    :param draft: the fields the check carries, whole.
+    """
+    session = context.store.session
+    row = GuidanceCheckRow(
+        check_id=draft.check_id,
+        question=draft.question,
+        pass_criterion=draft.pass_criterion,
+        state="candidate",
+        proposed_by=draft.proposed_by,
+        proposed_at=draft.proposed_at,
+    )
+    session.add(row)
+    session.flush()
+    return _the_check(row)
+
+
+def write_guidance_check_confirmation(
+    context: ApplicationContext, *, check_id: str, confirmed_by: str, confirmed_at: datetime
+) -> GuidanceCheck:
+    """Move the check to ``confirmed``.
+
+    **Only a candidate can be confirmed.** The state machine is the rule's
+    own, and a check that has already been confirmed is not a proposal
+    any more.
+
+    **The confirmer is whoever the caller named.** Whether that person is
+    allowed to confirm is the second-reader rule, and it belongs to
+    :mod:`labcairn.guidance.checks`: this operation records the
+    confirmation, and the caller that owns the check owns the rule about
+    who may give it.
+
+    :raises ApplicationRefusedError: no check carries that id, or the
+        check is not a candidate.
+    """
+    row = _the_check_row(context, check_id)
+    if row.state != "candidate":
+        raise guidance_refused(
+            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
+            f"a check in state {row.state!r} cannot be confirmed; only a candidate can",
+        )
+    row.state = "confirmed"
+    row.confirmed_by = confirmed_by
+    row.confirmed_at = confirmed_at
+    context.store.session.flush()
+    return _the_check(row)
+
+
+def write_guidance_check_withdrawal(
+    context: ApplicationContext, *, check_id: str, reason: str
+) -> GuidanceCheck:
+    """Withdraw a check, and release the bindings that named it.
+
+    **The reason is on the row**, for the reason the rule's own withdrawal
+    carries one: a retraction that says only "no" is a retraction nobody
+    can learn from.
+
+    **And the bindings go with it.** A binding is in force only while both
+    of its ends are, so a check that stopped being true decides nothing
+    and the rules that named it are unbound. The check itself stays, with
+    the reason it was retired — and a rule that named it may name another.
+
+    **And a withdrawal is not twice.** The reason is already on the row,
+    and overwriting it would lose the reason the first retraction gave.
+
+    :raises ApplicationRefusedError: no check carries that id, or the
+        check is already withdrawn.
+    """
+    row = _the_check_row(context, check_id)
+    if row.state == "withdrawn":
+        raise guidance_refused(
+            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
+            f"the check is already withdrawn, for {row.resolution_reason!r}",
+        )
+    row.state = "withdrawn"
+    row.resolution_reason = reason
+    _release_check_bindings(context, check_id=check_id)
+    context.store.session.flush()
+    return _the_check(row)
+
+
+def write_guidance_rule_check(
+    context: ApplicationContext, *, rule_id: str, check_id: str
+) -> GuidanceRule:
+    """Bind a check to the rule, at the rule's highest version.
+
+    **The binding is to the version, and the version is the rule's
+    latest.** A rule that is superseded gets a new version, and the new
+    version names no check until somebody binds one: **the check that
+    decided the old words is not automatically the check that decides the
+    new ones**, and a rewording is not a confirmation.
+
+    **Only a confirmed check may be bound.** A candidate is a proposal,
+    and a rule that leans on a proposal leans on nothing that has been
+    decided — which is the same rule the memory applies to a rule's own
+    confirmer.
+
+    **And a withdrawn rule names no check**, so a binding to one is
+    refused: the rule is out of force and there is nothing for the check
+    to decide.
+
+    **Binding the same check twice is a no-op, not an error.** The row
+    that says it is already there, and the schema's own uniqueness is what
+    settles a race between two callers.
+
+    :raises ApplicationRefusedError: no rule carries that id; no check
+        carries that id; the check is not confirmed; the rule is
+        withdrawn.
+    """
+    row = _latest(context, rule_id)
+    check = read_guidance_check(context, check_id=check_id)
+    if check.state != "confirmed":
+        raise guidance_refused(
+            GuidanceRefusal.CHECK_NOT_CONFIRMED,
+            f"the check {check_id!r} is in state {check.state!r}, and a rule may name"
+            " only a check a person has confirmed",
+        )
+    if row.state == "withdrawn":
+        raise guidance_refused(
+            GuidanceRefusal.TRANSITION_NOT_POSSIBLE,
+            f"the rule is withdrawn, for {row.resolution_reason!r}, and a withdrawn"
+            " rule names no check",
+        )
+    session = context.store.session
+    already = session.scalar(
+        select(GuidanceRuleCheckRow.id)
+        .where(
+            GuidanceRuleCheckRow.rule_id == row.rule_id,
+            GuidanceRuleCheckRow.version == row.version,
+            GuidanceRuleCheckRow.check_id == check_id,
+        )
+        .limit(1)
+    )
+    if already is None:
+        session.add(
+            GuidanceRuleCheckRow(
+                rule_id=row.rule_id,
+                version=row.version,
+                check_id=check_id,
+            )
+        )
+        session.flush()
+    return _the_rule(context, row)
+
+
+def read_guidance_rule_checks(
+    context: ApplicationContext, *, rule_id: str
+) -> tuple[GuidanceCheck, ...]:
+    """The checks that decide the rule, at its highest version.
+
+    **At the highest version, because that is the rule the memory
+    serves.** A rule that was superseded and whose new version names no
+    check has no checks, and saying so is the answer.
+
+    :raises ApplicationRefusedError: no rule carries that id.
+    """
+    row = _latest(context, rule_id)
+    return _the_checks(context, rule_id=row.rule_id, version=row.version)
+
+
+def read_guidance_check_rules(
+    context: ApplicationContext, *, check_id: str
+) -> tuple[GuidanceRule, ...]:
+    """The rules the check decides, at each rule's highest version.
+
+    **This is the question the binding was made for**: a student holding
+    a checklist item asks which rule it is checking, and the answer is
+    the rules that name it.
+
+    **At each rule's highest version.** A rule that named the check at an
+    older version does not appear, because the reader is asking about the
+    rule as it stands — and the memory serves the highest version.
+    """
+    session = context.store.session
+    rule_ids = tuple(
+        session.scalars(
+            select(GuidanceRuleCheckRow.rule_id)
+            .where(GuidanceRuleCheckRow.check_id == check_id)
+            .distinct()
+            .order_by(GuidanceRuleCheckRow.rule_id)
+        )
+    )
+    rules: list[GuidanceRule] = []
+    for bound_rule_id in rule_ids:
+        row = _latest(context, bound_rule_id)
+        bound = session.scalar(
+            select(GuidanceRuleCheckRow.id)
+            .where(
+                GuidanceRuleCheckRow.rule_id == bound_rule_id,
+                GuidanceRuleCheckRow.version == row.version,
+                GuidanceRuleCheckRow.check_id == check_id,
+            )
+            .limit(1)
+        )
+        if bound is None:
+            continue
+        rules.append(_the_rule(context, row))
+    return tuple(rules)
+
+
+# --------------------------------------------------------------------------- #
 # the store's answers
 # --------------------------------------------------------------------------- #
 
@@ -321,10 +595,13 @@ def _latest(context: ApplicationContext, rule_id: str) -> GuidanceRuleRow:
 
 
 def _the_rule(context: ApplicationContext, row: GuidanceRuleRow) -> GuidanceRule:
-    """One row, its sources and its cases, as the memory serves them.
+    """One row, its sources, its cases and its checks, as the memory serves them.
 
     **The sources are ordered by the chain's key and the cases by the order
     they were recorded**, so two reads of the same rule give the same rule.
+    **The checks are ordered by the check's own id**, for the same reason:
+    a reader that reads the rule twice reads the same list of instruments
+    twice.
     """
     session = context.store.session
     source_keys = tuple(
@@ -369,14 +646,115 @@ def _the_rule(context: ApplicationContext, row: GuidanceRuleRow) -> GuidanceRule
         resolution_reason=row.resolution_reason,
         sources=source_keys,
         counterexamples=cases,
+        checks=_the_checks(context, rule_id=row.rule_id, version=row.version),
     )
 
 
+def _the_check_row(context: ApplicationContext, check_id: str) -> GuidanceCheckRow:
+    """The check, or the refusal that says it is not there."""
+    row = context.store.session.scalar(
+        select(GuidanceCheckRow).where(GuidanceCheckRow.check_id == check_id).limit(1)
+    )
+    if row is None:
+        raise guidance_refused(
+            GuidanceRefusal.CHECK_NOT_FOUND,
+            f"no check carries the id {check_id!r}",
+        )
+    return row
+
+
+def _the_check(row: GuidanceCheckRow) -> GuidanceCheck:
+    """One row, as the memory serves it."""
+    return GuidanceCheck(
+        check_id=row.check_id,
+        question=row.question,
+        pass_criterion=row.pass_criterion,
+        state=row.state,
+        proposed_by=row.proposed_by,
+        proposed_at=row.proposed_at,
+        confirmed_by=row.confirmed_by,
+        confirmed_at=row.confirmed_at,
+        resolution_reason=row.resolution_reason,
+    )
+
+
+def _the_checks(
+    context: ApplicationContext, *, rule_id: str, version: int
+) -> tuple[GuidanceCheck, ...]:
+    """The checks bound to that version of the rule, ordered by their ids.
+
+    **At the version, and not at the rule.** The binding belongs to the
+    words it was made against, so a rule's older version keeps its own
+    checks and the newest version starts with none.
+    """
+    session = context.store.session
+    check_ids = tuple(
+        session.scalars(
+            select(GuidanceRuleCheckRow.check_id)
+            .where(
+                GuidanceRuleCheckRow.rule_id == rule_id,
+                GuidanceRuleCheckRow.version == version,
+            )
+            .order_by(GuidanceRuleCheckRow.check_id)
+        )
+    )
+    if not check_ids:
+        return ()
+    return tuple(
+        _the_check(row)
+        for row in session.scalars(
+            select(GuidanceCheckRow)
+            .where(GuidanceCheckRow.check_id.in_(check_ids))
+            .order_by(GuidanceCheckRow.check_id)
+        )
+    )
+
+
+def _release_check_bindings(context: ApplicationContext, *, check_id: str) -> None:
+    """The rows that bound this check, gone.
+
+    **A binding is in force only while both of its ends are**, so a check
+    that is withdrawn is named by no rule.
+    """
+    session = context.store.session
+    for row in session.scalars(
+        select(GuidanceRuleCheckRow).where(GuidanceRuleCheckRow.check_id == check_id)
+    ).all():
+        session.delete(row)
+
+
+def _release_rule_bindings(context: ApplicationContext, *, rule_id: str, version: int) -> None:
+    """The rows that bound this version of the rule, gone.
+
+    **A withdrawn rule names no check**: the rule is out of force, and the
+    instruments it held are released to the rules that are still in it.
+    The older versions keep their own bindings, because they are what
+    they were bound against.
+    """
+    session = context.store.session
+    for row in session.scalars(
+        select(GuidanceRuleCheckRow).where(
+            GuidanceRuleCheckRow.rule_id == rule_id,
+            GuidanceRuleCheckRow.version == version,
+        )
+    ).all():
+        session.delete(row)
+
+
 __all__ = [
+    "CheckDraft",
     "RuleDraft",
+    "read_guidance_check",
+    "read_guidance_check_rules",
+    "read_guidance_checks",
     "read_guidance_rule",
+    "read_guidance_rule_checks",
     "read_guidance_rules",
+    "write_guidance_check",
+    "write_guidance_check_confirmation",
+    "write_guidance_check_withdrawal",
     "write_guidance_counterexample",
+    "write_guidance_rule_check",
     "write_guidance_rule_confirmation",
     "write_guidance_rule_resolution",
     "write_guidance_rule_version",
