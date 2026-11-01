@@ -8,6 +8,9 @@ the operation and its record, the budget, the decoded-or-refused
 output, the proposal entry, the closed refusal vocabulary, the
 demonstration and this record are landed.
 
+**Status of the work order:** **implemented and measured**, and **independently reviewed** — see §6, where the review's
+weakest point is named.
+
 **What this is.** One operation, `request_model`, that turns "a model
 may be asked" into an actual ask — under the consent layer's two gates
 in their order, under a budget that fails closed, with the exchange

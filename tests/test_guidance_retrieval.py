@@ -58,8 +58,10 @@ from labcairn.guidance.rules import (
     propose_rule,
     record_counterexample,
     supersede_rule,
+    withdraw_rule,
 )
 from labcairn.papers.feedback import FeedbackEvent, record_feedback, set_issue_key
+from labcairn.papers.responses import record_response
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId
 from labcairn.security.paths import CanonicalPath
@@ -94,15 +96,6 @@ class Memory:
     context: ApplicationContext
     chain: ChainEnv
     events: tuple[FeedbackEvent, ...]
-
-
-def _rejudge(memory: Memory, response_link_id: str, state: str) -> None:
-    """Change one judgement's state — the row a re-judgement leaves behind."""
-    session = memory.context.store.session
-    row = session.get(ResponseLinkRow, response_link_id)
-    assert row is not None, f"the chain holds no response link {response_link_id!r}"
-    row.state = state
-    session.flush()
 
 
 def _propose(
@@ -154,13 +147,23 @@ def _denied_reader(memory: Memory) -> ApplicationContext:
 
 
 @pytest.fixture()
-def memory(env: StoreEnv, tmp_path: Path) -> Memory:
+def memory(
+    env: StoreEnv,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Memory:
     """A chain with two judged comments, under the keys the rules cite.
 
     **Both comments are judged ``addressed``,** so a rule over either
-    source stands until the test re-judges it — the default is a healthy
-    chain, and the witnesses change one thing each.
+    source stands until the witness changes one thing — the default is a
+    healthy chain, and the witnesses change one thing each.
+
+    **A witness that needs a source that does not stand asks for it
+    here.** ``request.param`` carries the two judgements' states, so a
+    source that was judged unanswered is judged so **from the start** —
+    the chain is append-only, and a judgement is not rewritten in place.
     """
+    judged = getattr(request, "param", ("addressed", "addressed"))
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir()
     store = env.store()
@@ -174,7 +177,7 @@ def memory(env: StoreEnv, tmp_path: Path) -> Memory:
     assert len(events) == 2, "the fixture's manuscript carries two comments"
     session = chain.context.store.session
     keyed: list[FeedbackEvent] = []
-    for event, key in zip(events, (KEY_ONE, KEY_TWO), strict=True):
+    for event, key, state in zip(events, (KEY_ONE, KEY_TWO), judged, strict=True):
         edit_action_id = f"edit-{event.feedback_id[-6:]}"
         session.add(
             EditActionRow(
@@ -191,7 +194,7 @@ def memory(env: StoreEnv, tmp_path: Path) -> Memory:
                 response_link_id=f"resp-{key[-2:]}",
                 feedback_id=event.feedback_id,
                 edit_action_id=edit_action_id,
-                state="addressed",
+                state=state,
                 grade="human_verified",
                 decided_by="user",
                 decided_at=LATER,
@@ -206,28 +209,22 @@ def memory(env: StoreEnv, tmp_path: Path) -> Memory:
     return Memory(context=chain.context, chain=chain, events=tuple(keyed))
 
 
-def test_a_withdrawn_source_invalidates_its_rule_and_says_so(memory: Memory) -> None:
+@pytest.mark.parametrize("memory", [("not_addressed", "addressed")], indirect=True)
+def test_a_source_judged_unanswered_invalidates_its_rule_and_says_so(
+    memory: Memory,
+) -> None:
     """T02: the chain's judgement, read at query time, decides the serving.
 
-    **And a re-judgement brings the rule back** — the memory was never
-    touched; what changed is the row that says whether the source stands,
-    and the retrieval reads it again on every query. An expired thing is
-    judged by its state, not by the clock.
+    **A source the chain judged unanswered does not stand**, and the rule
+    over it is not served — a rule whose source was judged unanswered is
+    not a rule a card may cite.
+
+    **And the withdrawal is not silent**: the rule is reported, with the
+    reason the dead source gives. An expired thing is judged by its
+    state, not by the clock, and the state is the chain's.
     """
     _confirm(memory.context)
-    served = search_rules(memory.context)
-    assert [hit.rule.statement for hit in served] == [BASELINE]
-    assert [
-        (source.issue_key, source.found, source.reachable, source.addressed)
-        for source in served[0].sources
-    ] == [(KEY_ONE, True, True, True)]
-
-    _rejudge(memory, "resp-r1", "not_addressed")
-    assert search_rules(memory.context) == (), (
-        "a rule whose source was judged unanswered is not a rule a card may cite"
-    )
-    # And the withdrawal is not silent: the rule is reported, with the
-    # reason the dead source gives.
+    assert search_rules(memory.context) == ()
     gone = invalidated_rules(memory.context)
     assert [item.rule.statement for item in gone] == [BASELINE]
     assert [
@@ -235,11 +232,95 @@ def test_a_withdrawn_source_invalidates_its_rule_and_says_so(memory: Memory) -> 
         for source in gone[0].reasons
     ] == [(KEY_ONE, True, True, False)]
 
-    _rejudge(memory, "resp-r1", "addressed")
-    served_back = search_rules(memory.context)
-    assert [hit.rule.statement for hit in served_back] == [BASELINE]
+
+def test_a_judgement_on_the_chain_is_a_fact_and_a_wrong_one_is_corrected_on_the_rule(
+    memory: Memory,
+) -> None:
+    """The chain keeps what was judged, and the rule is what gets corrected.
+
+    **The owner's decision, 2026-11-01.** A judgement on the chain is a
+    fact about what somebody decided, and the chain is append-only:
+    **a second judgement on the same correspondence does not undo the
+    first one**, so a source that was judged answered stands.
+
+    **And the correction is made on the rule.** The rule is withdrawn —
+    the rule layer's own vocabulary — and a new version stands again
+    once a second reader confirms it. **The chain's rows are not
+    touched**, because the chain says what was decided and the rule says
+    what may be served.
+    """
+    _confirm(memory.context)
+    assert len(search_rules(memory.context)) == 1, "the source stands"
+
+    # **A second judgement on the same correspondence**, and it says the
+    # change did not answer. The chain holds both, and the source still
+    # stands: a fact about what was decided is not rewritten in place.
+    edit_action_id = f"edit-{memory.events[0].feedback_id[-6:]}"
+    record_response(
+        memory.context,
+        response_link_id="resp-r1-again",
+        feedback_id=memory.events[0].feedback_id,
+        edit_action_id=edit_action_id,
+        state="not_addressed",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=LATER,
+        evidence_refs=("check:KEY_ONE",),
+        now=LATER,
+    )
+    assert len(search_rules(memory.context)) == 1, (
+        "a second judgement does not undo the first one — the chain is append-only"
+    )
+    rows = (
+        memory.context.store.session.query(ResponseLinkRow)
+        .filter_by(feedback_id=memory.events[0].feedback_id)
+        .count()
+    )
+    assert rows == 2, "both judgements are on the chain, and neither was rewritten"
+
+    # **And the correction is made on the rule.**
+    withdrawn = withdraw_rule(
+        memory.context,
+        rule_id=search_rules(memory.context)[0].rule.rule_id,
+        reason="The judgement was wrong, and the chain keeps it as it was.",
+        now=LATER,
+    )
+    assert withdrawn.state == "withdrawn"
+    assert search_rules(memory.context) == (), "a withdrawn rule is not served"
+    assert (
+        memory.context.store.session.query(ResponseLinkRow)
+        .filter_by(feedback_id=memory.events[0].feedback_id)
+        .count()
+        == 2
+    ), "correcting the rule did not touch the chain"
+
+    # **And a new version stands again** — once a second reader has
+    # confirmed it, because a rewording is not a confirmation.
+    new_version = supersede_rule(
+        memory.context,
+        rule_id=withdrawn.rule_id,
+        statement=BASELINE,
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        issue_type="method_and_hypothesis",
+        sources=(KEY_ONE,),
+        proposed_by="the-advisor",
+        now=LATER,
+    )
+    assert new_version.version == 2
+    assert search_rules(memory.context) == (), "a candidate is not served"
+    confirmed = confirm_rule(
+        memory.context,
+        rule_id=new_version.rule_id,
+        confirmed_by="the-second-reader",
+        now=LATER,
+    )
+    assert confirmed.state == "confirmed"
+    assert len(search_rules(memory.context)) == 1, "the new version stands on the same chain fact"
 
 
+@pytest.mark.parametrize("memory", [("not_addressed", "addressed")], indirect=True)
 def test_a_rule_with_two_sources_stands_on_the_one_that_lives(memory: Memory) -> None:
     """T02: one source withdrawn does not take the rule with it.
 
@@ -248,7 +329,6 @@ def test_a_rule_with_two_sources_stands_on_the_one_that_lives(memory: Memory) ->
     so the hit carries the sources that live and nothing else.
     """
     _confirm(memory.context, sources=(KEY_ONE, KEY_TWO))
-    _rejudge(memory, "resp-r1", "not_addressed")
     served = search_rules(memory.context)
     assert len(served) == 1
     assert [source.issue_key for source in served[0].sources] == [KEY_TWO]
@@ -304,6 +384,7 @@ def test_a_rule_outside_the_readers_consent_is_not_retrieved(memory: Memory) -> 
     )
 
 
+@pytest.mark.parametrize("memory", [("not_addressed", "addressed")], indirect=True)
 def test_a_rule_with_one_dead_source_is_not_invalidated(memory: Memory) -> None:
     """T03: partial invalidation is the living source's business.
 
@@ -312,7 +393,6 @@ def test_a_rule_with_one_dead_source_is_not_invalidated(memory: Memory) -> None:
     one source, and absent from the invalidation report.
     """
     _confirm(memory.context, sources=(KEY_ONE, KEY_TWO))
-    _rejudge(memory, "resp-r1", "not_addressed")
     served = search_rules(memory.context)
     assert len(served) == 1
     assert invalidated_rules(memory.context) == ()
@@ -522,21 +602,17 @@ def test_the_retrieval_returns_the_rule_with_its_source_and_its_conditions(
     assert hit.rule.counterexamples == ()
 
 
-def test_the_memory_reads_through_the_consent_layer(
-    memory: Memory, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A11: every read asks the permission layer, and nothing bypasses it.
+def _spy_on_the_permission_layer(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Watch every permission question the memory asks.
 
-    **The spy is the witness of "every"**: the memory's two read paths —
-    the search and the invalidation report — both go through
-    ``evaluate_each``, the same function a bulk listing goes through.
-    The mutation that discards the policy's answer reddens
-    ``test_a_rule_outside_the_readers_consent_is_not_retrieved``, which
-    is what keeps this spy from watching an unused call.
+    **The spy is the witness of "every"**: it stands in for
+    :func:`~labcairn.application.consent.evaluate_each` and records what
+    it was asked. **The mutation that discards the policy's answer
+    reddens** ``test_a_rule_outside_the_readers_consent_is_not_retrieved``,
+    which is what keeps this spy from watching an unused call.
     """
     from labcairn.application import consent as consent_module
 
-    _confirm(memory.context)
     asked: list[str] = []
     real = consent_module.evaluate_each
 
@@ -551,14 +627,44 @@ def test_the_memory_reads_through_the_consent_layer(
         return real(context, capability=capability, arguments=arguments, resources=resources)
 
     monkeypatch.setattr(consent_module, "evaluate_each", spy)
+    return asked
+
+
+def test_the_search_reads_through_the_consent_layer(
+    memory: Memory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A11: every read asks the permission layer, and nothing bypasses it.
+
+    **The memory's read path goes through** ``evaluate_each``, the same
+    function a bulk listing goes through, and it asks for the material
+    the source was written against.
+    """
+    _confirm(memory.context)
+    asked = _spy_on_the_permission_layer(monkeypatch)
+
     assert search_rules(memory.context), "the served rules exercise the read path"
     assert asked, "the memory answered without asking the permission layer"
     assert asked.count(CapabilityId.SOURCE_READ.value) == len(asked)
 
-    asked.clear()
-    _rejudge(memory, "resp-r1", "not_addressed")
-    assert invalidated_rules(memory.context)
+
+@pytest.mark.parametrize("memory", [("not_addressed", "addressed")], indirect=True)
+def test_the_invalidation_report_reads_through_the_consent_layer(
+    memory: Memory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A11: the report asks the permission layer too.
+
+    **A report that answered without asking** would say which sources
+    stand without knowing whether this reader may read them — so the
+    invalidation report asks as well, and it is watched separately
+    because a chain whose source does not stand is what makes it say
+    anything.
+    """
+    _confirm(memory.context)
+    asked = _spy_on_the_permission_layer(monkeypatch)
+
+    assert invalidated_rules(memory.context), "the rule's source does not stand"
     assert asked, "the invalidation report read the material without asking either"
+    assert asked.count(CapabilityId.SOURCE_READ.value) == len(asked)
 
 
 def test_a_new_comment_changes_the_retrieval_without_anything_trained(

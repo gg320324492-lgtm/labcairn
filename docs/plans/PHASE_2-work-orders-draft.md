@@ -8,6 +8,14 @@ implemented reality"* only after the previous phase closes
 owner ruling — §1.4.1b — landed at `16517e6`, so the ground is now real enough to
 write on.
 
+> **Superseded on 2026-11-01 by [`PHASE_2-work-orders.md`](PHASE_2-work-orders.md),
+> which folds the phase's two work-order lists into one ticket.** This draft
+> stays as the record of how the six tickets were planned, and every acceptance
+> clause and file-ownership map below is still the one its piece was built
+> under. **What is built and what is left is in the merged ticket**, and the
+> ticket's numbering is retired.
+
+
 **What this list is for.** Six tickets, in the order they have to happen, each
 with what it needs before it starts, what it costs, and how it is known to be
 done. Two of them are not Phase 2 features at all — they are Phase 1 debts the
@@ -90,6 +98,13 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Acceptance** | `python -m tests.evaluation --baseline <doc>` reports the comparison **comparable** with all six conditions met; the rendered section prints pairs and names no winner; the existing refusal witnesses stay red against a doctored basis. **Every figure in the frozen document names the commit and the working tree it was measured on** — the report already carries both, and the witness `test_the_report_says_when_the_tree_it_measured_was_dirty` is what makes a dirty-tree figure visible rather than implied. |
 | **What it must not do** | Carry a model name the run did not use, or a cost the offline run did not spend. Both are `NOT MEASURED` today and the baseline says so in those words. |
 
+**Status: not built, and it is the phase exit gate's denominator.** The
+harness can read a baseline document (`evaluation.comparison.load_baseline`)
+and **no such document is in the tree** -- so *"measured capability gain"*
+has nothing to measure against, and the phase's exit gate cannot be judged.
+**It is small**: one evaluation run, one JSON document naming its commit, its
+platform, its tree state, its model and its cost.
+
 ### LC-P2-02 — Restart-durable consent
 
 | | |
@@ -102,6 +117,10 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Acceptance** | A crash matrix case that kills the process between grant and consume and shows the **second** spend refused **from the row**, not from memory; the policy digest and the bound sources are read from the row rather than passed in; `ApprovalLedger` is either gone or is a cache that cannot outlive its row; and the single-use guarantee's existing witnesses stay red under the same mutations that make them red now. |
 | **What it must not do** | Soften ADR-0003 C4's eight refusal reasons (seven at G2's close; `capability_unregistered` joined on 2026-10-27 in `26ab4cb`), or let a restart turn a spent approval back into a grantable one. |
 
+**Status: implemented and measured**, and **not independently reviewed** -- see
+the acceptance record's section 5. The record is
+[`LC-P2-02-acceptance.md`](../acceptance/LC-P2-02-acceptance.md).
+
 ### LC-P2-01 — The model-call path in the product
 
 | | |
@@ -113,6 +132,13 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Acceptance** | The call is **consented** (an unapproved model call refuses with a machine-readable reason and does not spend); **budgeted** (a ceiling it cannot measure fails closed, which `test_cost_ceiling_fails_closed_when_price_unknown` already establishes for the layer); **recorded** (transcript and usage land in the store and in the report's hash chain); **refused** on an answer it cannot decode; and **any claim it makes is bound to a locator** before it can reach a report — the protocol's third blocker and ADR-0004 say a model's say-so is not evidence, and *"no scientific-claim inflation"* is half the phase's exit gate. |
 | **What it must not do** | Become a second consent path. The digest is recomputed at the moment of use over the capability's canonical arguments; a ticket that mints its own approval has shipped an authorisation bypass. |
 
+**Status: implemented and measured.** One operation, `request_model`, that is
+**consented, budgeted, recorded, refused on an answer it cannot decode, and
+binds every claim it makes to a locator before the claim can reach a report**.
+The record is [`LC-P2-01-acceptance.md`](../acceptance/LC-P2-01-acceptance.md).
+**And the product now has a real provider configured**: the pilot's
+distillation ran against one, under the owner's own approval.
+
 ### LC-P2-03 — The competitor baseline, three tasks
 
 | | |
@@ -122,6 +148,10 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Cost** | Money (provider spend on both sides of the comparison), a task corpus that is the same three tasks for every system, and the like-for-like basis the six conditions require. Upstream clones are already pinned by SHA in `UPSTREAM_REFERENCES.md`, with the standing force-push risk noted there. |
 | **Acceptance** | `assess` returns comparable on all six conditions; the rendered section names no winner and carries no ranking word (both watched); the baseline document names its commit, its tree state, its model and its cost; and a reader can re-run one side and get the same figure. |
 | **What it must not do** | Report a gain that is a difference in the corpus rather than in the system. That is what the six conditions exist to catch. |
+
+**Status: not built, and its precondition is now met.** LC-P2-01 landed, so a
+run basis naming a model is no longer a fabrication -- **the comparison the
+phase's gate needs can now be made at all.**
 
 ### LC-P2-04 — Citation identity and support
 
@@ -134,6 +164,10 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Acceptance** | An identifier can be recorded, is reported with its verification state, and **a claim may not rest on an identifier nothing resolved** — which is the same family as `test_a_claim_may_not_rest_on_a_conflicted_record`. C1/C2/C3 name the difference between "cited" and "supported". |
 | **What it must not do** | Let a model-supplied DOI count as a citation check. That is claim inflation wearing a locator. |
 
+**Status: not built.** The focus area is *"citation identity/support"*, and
+the gap is structural: **no record can carry an identifier, nothing resolves
+one, and ingestion records none.**
+
 ### LC-P2-05 — Retrieval quality beyond three papers
 
 | | |
@@ -144,6 +178,12 @@ LC-P2-03  Competitor baseline (3 tasks)      LC-P2-04  Citation identity & suppo
 | **Cost** | Labour: reading papers and recording addresses a human checked. Everything after that is cheap. |
 | **Acceptance** | The metric is **measured**, with its denominator named and its sample size stated in the row (the harness already says when a denominator is small); a retrieval change moves the figure and the frozen baseline shows it moved; and the miss path stays honest — a query the index cannot serve is reported as a miss, not as an answer. |
 | **What it must not do** | Report recall over a corpus the retriever was tuned on. |
+
+**Status: not built.** The corpus is a human reading of three papers, and the
+protocol's `evidence-locator-validity` metric is `NOT MEASURED` because the
+tree holds no human-checked citation-support sample over produced reports.
+**This is labour rather than compute**, and it waits on LC-P2-00 for the
+*before* it measures against.
 
 ---
 

@@ -323,6 +323,12 @@ mutation 9, whose refusal happens before the plan is complete.
 
 ## 7. Limits, and what is left for the reviewer
 
+- **The chain's middle rings were empty until §8.** The second ring
+  (`edit_actions`) and the third (`response_links`) had tables and
+  contracts and **no way to be filled**, and the guidance memory served
+  nothing because of it. **§8 adds the step that fills the second ring
+  from what a manuscript's file records, and the step that puts the third
+  ring forward without deciding it** — and §8.7 is where its limits are.
 - **The mutation pass is six of seventeen.** The remaining clauses have named
   witnesses and no mutation recorded against them in this record (§4).
 - **The review is not independent.** The agent that wrote most of the code also
@@ -343,3 +349,521 @@ mutation 9, whose refusal happens before the plan is complete.
   most likely to get wrong is the address: **`objection_paragraph` is a place
   in the response document, not a place in the manuscript under review**, and
   the latter does not resolve.
+
+## 8. The middle rings: the change that was made, and the link put forward
+
+**What this section is.** The step that fills the chain's **second ring**
+(`edit_actions`) from what a manuscript's file records, and the step that
+**puts the third ring forward** (`response_links`) **without deciding it**.
+The work order above landed the four tables and their contracts; **the
+rings themselves were empty**, and §8.1 says what that cost.
+
+**And the examples are invented.** No comment, no revision, no author name
+and no file name of the owner's manuscript is in this record or in the
+tree. The witnesses are written on two made-up names and made-up prose.
+
+### 8.1 The gap, measured
+
+**Read on the owner's own pilot workspace** (two projects, twenty versions,
+sixteen accepted edges):
+
+| | rows |
+|---|---|
+| `feedback_events` | **80** |
+| `revision_events` | **0** |
+| `edit_actions` | **0** |
+| `response_links` | **0** |
+
+**And the consequence was that the memory served nothing.**
+`labcairn.guidance.retrieval.search_rules` returned **no rule at all**, and
+`invalidated_rules` reported **every confirmed rule the memory holds** as
+withdrawn — each one saying its sources are *found, reachable, and **not
+addressed***. The retrieval asks whether a judgement says the change
+answered the comment, and there was no judgement. **The chain's own
+`list_unaddressed` said all eighty comments were unaddressed**, and could
+not say why: they were unaddressed because nobody had answered them *and*
+because nobody had said anything either.
+
+**So this section is not a feature.** It is the difference between a chain
+that is silent and a chain that says what it is waiting for.
+
+**And what the operator has to place, measured on the material itself.**
+The first corpus's Chinese versions directory holds **fourteen documents**:
+**eight of them carry tracked changes**, **1,532 tracked changes in all**,
+**by two author names** — and **forty-six comments**. The forty-six is
+the pilot's own first project, so the counts agree; and the two names are
+what the roster has to place. **Two names, and the chain refuses every
+author the roster does not name**, so a roster that names one of them
+fills half the ring and refuses the other half — **the refusal names the
+author, and nothing is written.**
+
+**And the row count that follows.** One row per tracked change means
+**1,532 rows for this one directory**, and the other corpora hold
+directories of the same shape. **That is the second ring's real size**,
+and it is why the table holds no text: the content is in the reader's own
+rows, and the chain's row names the change and the person.
+
+### 8.2 The questions, answered
+
+**What one row of `edit_actions` is.** **One tracked change**, and **not**
+one change-that-answers-a-comment. `EditActionRow`'s own docstring settles
+it: *"a change that answers nothing is not an error … so `feedback_id` is
+nullable and says so rather than forcing every edit into a feedback it
+does not answer."* A table that held only the answers would have nothing
+for that column to say. **So the ring holds every change the file records**,
+and the column names the comment a change answers **where the caller says
+it answers one**.
+
+**Where a change comes from.** **From the file, through the reader.** The
+reader produces the revision events — ADR-0014's `revision_events`, each
+with its own text, its own address and **the name the file records** — and
+the chain's second ring is that history read through the chain's own
+vocabulary: *who made this change, on which edge, answering which comment.*
+
+**Who made the change.** **The operator says, and the operator says it
+every time.** The vocabulary is closed and **there is no default**, because
+a default is how a model's change becomes the advisor's. The name in a
+file is a string somebody typed into a box: the same person is spelled two
+ways across two drafts, and **a change a model drafted and a person pasted
+into Word carries that person's name**. So the operation takes a **roster**
+— the file's name mapped to a kind and a plain id — and:
+
+- **a name the roster does not name is refused**, and the refusal names the
+  author. The whole operation stops, **before the first row**;
+- **the file's name is never copied into the row.** It is the *key* the
+  roster is looked up by and never the *value*: `actor_id` is the
+  operator's own handle for that person, and LC-P2-09's own boundary says
+  the chain records kinds of actor and plain ids and does not decide who a
+  person is;
+- a revision the file gives **no** author is refused too, because a roster
+  cannot name an author the file does not give.
+
+**What the correspondence is.** **The caller's, and the file's is not
+there.** Word does not record which change answers which comment, so the
+operation takes the correspondence as an argument, keyed by the change's
+own revision-event id. **A change that answers nothing is not an error** —
+the column is nullable for that reason — so a change the caller does not
+name a comment for is recorded with no comment.
+
+**And which of the two is the default.** **Both, and they are different
+defaults for different rings.** The *change* is the unit the second ring
+records, and the ring is filled from a fact, so **the change is what
+arrives and the correspondence is the exception**. The *comment* is what
+the third ring judges, and there is nothing in the file to judge, so
+**the comment waits**: it sits on the unaddressed listing with the reason
+that says whether nobody has answered it (`no_response`) or somebody has
+put a link forward and nobody has judged it (`pending`).
+
+**The judgement.** `record_response` takes a state, a decider and the
+evidence behind it, and **a model may not decide one**. So the third ring
+is filled by **a person or a rule**, and **the operator's step puts the
+link forward instead**: `propose_responses` writes a `pending` link and
+**has no state to decide it with**. That is structural, not a promise —
+the operation that the operator's script calls cannot express a decision.
+
+### 8.3 The two operations
+
+| | |
+|---|---|
+| **`record_edits_from_revisions`** (`labcairn.papers.edits`) | reads the version's material through the reader, and writes **one `edit_actions` row per tracked change** — the actor from the roster, the edge the change travelled, the comment from the caller's answer, and a derived id (`ea-<revision event id>`) that names the change the row records |
+| **`propose_responses`** (`labcairn.papers.responses`) | writes **one `pending` `response_links` row per proposed correspondence** — the id derived from the pair, so the same correspondence proposed twice is the same link |
+
+**And what each of them refuses.** The first refuses a project, a version
+or an edge that is not there, an edge that does not arrive at the version,
+a roster that names a kind outside its vocabulary or a model carrying a
+person's id, an author the roster does not name, an answer naming a
+change or a comment the chain does not hold, and **a recorded change
+whose actor, correspondence or edge contradicts what the roster now
+says**. The second refuses a proposer that is not a person or a model, a
+comment or a change the chain does not hold, a **correspondence that joins
+two manuscripts**, and a correspondence that has already been judged.
+
+**And the plan is made before anything is written.** Both operations check
+everything first, so a refusal leaves nothing behind for a later commit to
+pick up — the rule the reply's writer already follows.
+
+**And a cursor left behind is not a change.** Word writes a revision with
+no children under a run's or a paragraph's properties when an operation at
+a point leaves one behind; it carries no judgement, and the chain records
+changes and not marks. The rule that tells the two apart now lives in
+`labcairn.papers.chain` — **below both the read layer and the writer** —
+and both use that one copy.
+
+### 8.4 The witnesses, and the mutations
+
+**Thirteen mutations, and what each broke.** Each was applied to the source,
+watched, and reverted; the two files' hashes were compared with the ones
+taken before the first mutation and are equal.
+
+| # | The mutation | What went red | What it tells you |
+|---|---|---|---|
+| 1 | the check that an answer names a change this version records is removed | `test_an_answer_must_name_a_change_and_a_comment_the_chain_holds` — *"DID NOT RAISE"* | an answer names a change the chain holds, and not a name that matches nothing |
+| 2 | an author the roster does not name is given a default actor | `test_a_name_the_roster_does_not_name_is_refused_and_nothing_is_written` — *"DID NOT RAISE"* | **the default the design forbids**: a guess here is how a model's change becomes the advisor's |
+| 3 | the cursor left behind is counted as a change | `test_a_cursor_left_behind_is_not_a_change` — *"assert 2 == 1"* | the chain records changes and not marks |
+| 4 | the check that a recorded correspondence is not rewritten in place is removed | `test_a_recorded_change_is_not_rewritten_in_place` — *"DID NOT RAISE"* | a recorded fact is not rewritten in place, and the roster and the record cannot disagree |
+| 5 | the proposal writes an `addressed` link with a decider and evidence | `test_a_proposal_is_put_forward_and_decides_nothing` — *"assert 'addressed' == 'pending'"* | **the operation that puts a link forward cannot decide one** |
+| 6 | the check that a settled correspondence is not put forward again is removed | `test_a_settled_correspondence_is_not_put_forward_again` — *"DID NOT RAISE"* | a question that has an answer does not take a second one |
+| 7 | the proposal's own checks are removed, so each proposal is checked as it is written | `test_a_proposal_about_a_row_the_chain_does_not_hold_is_refused` — *"a refused proposal writes nothing"* | **the whole plan is checked before the first link is written**: with the mutation the good proposal beside the bad one *was* written |
+| 8 | the file's author name is copied into the row | `test_a_change_is_recorded_from_the_file_and_the_actor_is_the_roster_say` — *"assert 'Dr. Chen' == 'advisor-1'"* | the file's name is the key the roster is looked up by and never the value |
+| 9 | the row's id stops naming the change it records | `test_a_change_is_recorded_from_the_file_and_the_actor_is_the_roster_say` — *"the row's id names the change it is"* | the id is what joins the row to the file's record — and to the file's name, which is how ADR-0016's forgery is caught |
+| 10 | the retrieval's living states gain `pending` | `test_a_chain_of_pending_links_serves_no_rule_and_a_judged_one_serves_it` — *"a pending link is not an answer"* | **a pending link serves nothing** |
+| 11 | the check that a link does not join two manuscripts is removed | `test_a_link_does_not_join_two_manuscripts` — *"DID NOT RAISE"* | a link across manuscripts joins two archives, and a chain that does that is a chain about nothing |
+| 12 | the check that a recorded change keeps the edge it moved along is removed | `test_a_recorded_change_is_not_rewritten_in_place` — *"DID NOT RAISE"* | a change moves along one edge, and a version that is the child of two edges makes "the edge" a question with more than one answer |
+| 13 | a person's proposal is graded `human_verified` instead of `observed` | `test_a_proposal_is_put_forward_and_decides_nothing` — *"a person's proposal is not an inference"* | a person's proposal and a model's inference are two different things, and the row says which is which |
+
+**And mutation 10 was applied in memory, and this is said plainly because
+it matters.** The rule that decides it lives in
+`src/labcairn/guidance/retrieval.py` (`LIVING_STATES`), and
+**`src/labcairn/guidance/` is outside this task's ownership map** — so the
+file was **not edited**, and the mutation patched the module attribute the
+retrieval reads, from a plugin outside the tree. **The tree stayed
+byte-identical**; the witness went red on exactly the assertion it names.
+
+**And the reviewer's own pass, from outside the tree.** The thirteen
+mutations above were applied by the author of the code. **A second reader
+applied them again**, from outside the worktree, with the tree rebuilt from
+its own commit between each one — and the second pass found **four guards
+that nothing watched**:
+
+| The guard | What happens without it | The witness that watches it now |
+|---|---|---|
+| the edge must arrive at the version the change is in | a change is recorded on an edge that goes elsewhere | `test_a_change_must_travel_the_edge_it_is_recorded_on` |
+| the edge must be of the change's own project | a change is recorded on another manuscript's edge | `test_a_change_must_travel_an_edge_of_its_own_project` |
+| the version must belong to the project | a change is recorded under a project the manuscript is not part of | `test_a_change_is_recorded_against_the_project_its_manuscript_belongs_to` |
+| the comment an answer names must be of that project | a change in one manuscript answers a comment in another | `test_a_change_in_one_manuscript_cannot_answer_a_comment_in_another` |
+
+**With each guard made unable to fire, the whole file stayed green.** The
+four witnesses above are new, and each of them reddens when its own guard
+is gone — **one at a time, and each alone**.
+
+**And the retrieval's own rule was mutated on disk this time**, not in
+memory: `LIVING_STATES` in `src/labcairn/guidance/retrieval.py` was given
+`pending`, and the witness that says a pending link serves nothing went red
+on exactly its own assertion.
+
+**And the decision of 2026-11-01, which the second pass turned up.** The
+retrieval's own docstring said a re-judgement — *"the row's state,
+changed"* — brings the rule back, and **no writer does that**:
+`record_response` is insert-only. **The sentence had no carrying**, and the
+test helper that re-judged a row in place — which the product cannot do —
+was watching the product's absence rather than the product.
+
+**The owner's ruling.** A judgement on the chain is a fact about what
+somebody decided, and the chain is append-only: **a second judgement on
+the same correspondence does not undo the first one**, so a source that
+was judged answered stands. **A judgement that turns out to be wrong is
+corrected on the rule** — withdrawn, disputed or superseded — and not on
+the chain.
+
+**And three things followed from it, and each is watched:**
+
+| | |
+|---|---|
+| the retrieval's docstring | says that a judgement is a fact, that a second one does not undo the first, and that the correction is made on the rule |
+| the column `response_links.decided_by` | says what it holds: the proposer on a pending link, the decider on a judged one, `None` when nobody has put the link forward |
+| the witnesses | a source that does not stand is judged so **from the start** — the fixture asks for it — because the chain is append-only and a judgement is not rewritten in place |
+
+**And the helper that re-judged a row in place is gone**, because it did
+what the product cannot do and the witnesses it served were watching an
+absence. `test_a_judgement_on_the_chain_is_a_fact_and_a_wrong_one_is_corrected_on_the_rule`
+watches the behaviour that is real: a second judgement does not undo the
+first, a withdrawn rule is not served, and a new version stands again only
+once a second reader has confirmed it. **Four mutations were applied to it
+and each reddened it** — the retrieval reading the latest judgement, a
+withdrawn rule served again, a candidate served without a second reader,
+and the fixture's judgement state ignored.
+
+### 8.5 What filling the rings changes, and what the product says meanwhile
+
+**And the retrieval's rule still holds.** It serves a confirmed rule on the
+sources that are *addressed*, and reports the others with their reasons —
+and **nothing about filling the rings changes that rule**. **The rings
+change the chain's state, and the rule reads the chain's state**: a chain
+with no links and a chain full of pending links both serve nothing, and
+both are reported as withdrawn. **The difference between them is in the
+chain's own listing**, which says `no_response` for the first and
+`pending` for the second — and that difference is the whole of what this
+section buys.
+
+**What it changes.** Three things, and only the third is the one the work
+order's material asks for.
+
+1. **The chain can say who made the changes.** The second ring's rows name
+   the actor in the chain's own vocabulary, and the row's id names the
+   change it records — so a reader can join the chain's row to the file's
+   record and to the name the file gives it. **That is where ADR-0016's
+   forgery becomes visible**: a change recorded as the advisor's whose file
+   says otherwise is now a two-row disagreement rather than a row nobody
+   can check.
+2. **The chain can say what it is waiting for.** A comment with a proposal
+   and no judgement is on the unaddressed listing with the reason
+   `pending`, and the proposal is on `response_links` for a decider to
+   read. **A chain that is silent and a chain that is waiting are now two
+   different facts.**
+3. **The memory can serve the rule — once somebody decides.** That is the
+   only thing that makes a rule servable, and **the operator's step cannot
+   do it**.
+
+**What the product says while the judgements are pending.** **It says the
+comment is unaddressed, and it says why.** The chain's listing gives the
+reason (`pending` rather than `no_response`), and the guidance memory
+reports the rule as withdrawn with its source saying *found, reachable,
+not addressed*. **It does not say the advisor's advice was wrong, and it
+does not say it was right** — it says **nobody has judged it yet**, which
+is the only true thing about a chain whose judgements are pending.
+
+**And the honest limit: this does not make role B's card cite a rule by
+itself.** The retrieval serves a confirmed rule only when a judgement says
+`addressed` or `partially_addressed`, and **the operator's step writes
+`pending` and cannot write anything else**. Before this section the
+memory served nothing and said nothing; **now it serves nothing and says
+what it is waiting for**, and the deciding is a person's or a rule's work.
+
+### 8.6 What was deliberately not done
+
+- **No model was allowed to decide, and no script was given the power to.**
+  `propose_responses` has no state parameter; a proposal is `pending` and
+  the operation cannot express a judgement.
+- **No roster was persisted, and no name was inferred.** The roster is the
+  operator's own input, supplied every time the ring is filled. **The
+  chain stores the result of that judgement — the actor kind and a plain
+  id — and not the roster itself**, and it stores no name.
+- **No new table, no new migration, and no new test file.** The two
+  operations live in the modules that already own those tables, and the
+  witnesses extend `tests/test_feedback_events.py` — **so the shard table
+  is untouched** (`tests/test_ci_shard_coverage.py` stays green, and the
+  file's recorded cost is inside the partition's slack on both platforms).
+- **No rule was written, and no correspondence was invented.** The
+  material records *who* made a change; it does not record *which comment*
+  a change answers, and **the operation does not guess**: the caller names
+  the correspondence or the change is recorded answering nothing.
+- **The corpus was not touched.** Nothing of the owner's manuscript — no
+  comment, no revision, no author name, no file name — is in the tree or
+  in this record.
+
+### 8.7 The limits
+
+- **The roster has no table of its own.** Its natural home is a per-project
+  roster of the people a manuscript's files name — the thing that makes
+  "whose change is this?" answerable once instead of every time. **The
+  schema and the migrations are outside this task's ownership map**, so
+  the roster is an argument the operator passes each time instead. **The
+  chain holds the result of that judgement — the actor kind and a plain
+  id — and not the roster**, and a roster that contradicts a row already
+  written is refused rather than applied.
+- **The second project in the pilot workspace cannot hold a second ring at
+  all.** It has three versions and **no edge**, and an edit names the edge
+  it moved along — so until that graph has edges, the operation refuses
+  every version in it. **This is the graph's gap and not this section's**,
+  and it is measured, not guessed.
+- **A correspondence is fixed when the change is recorded.** The writer is
+  insert-only — a second write with the same id returns the row that is
+  there — so **the comment a change answers cannot be added later**. A
+  further correspondence can live in `response_links`, which is
+  many-to-many, but **the layer's `read_edits` reads the primary one only**,
+  and so the mentor-trajectory role sees the primary correspondence.
+- **A judgement is a second row, not an edit of the first — and that is
+  now the design, not only the writer's shape.** The pending link stays
+  pending, and the judgement is written under a caller's id. **The owner's
+  ruling of 2026-11-01** is that the chain keeps what was judged and the
+  correction is made on the rule, so the retrieval's docstring no longer
+  describes a row's state being *changed*: it says a judgement is a fact
+  and a second one does not undo the first. **What the ruling costs is
+  named in §8.4**: a source that was wrongly judged answered cannot be
+  withdrawn on the chain, and the rule that stands on it has to be
+  withdrawn instead.
+- **On a pending link, `decided_by` names who put it forward, and the
+  column now says so.** The model's candidate — which the writer already
+  had — carries `decided_by='model'`, and a person's proposal follows that
+  case. **The column's own docstring said `None` while the link is
+  pending**, and the writer wrote a proposer there anyway; the two
+  disagreed, and **the docstring is now the one that says what the row
+  holds**: the proposer on a pending link, the decider on a judged one,
+  and `None` when nobody has put the link forward.
+- **The guidance memory's invalidation does not say why a source died.**
+  It says *not addressed*; the chain's own listing says *pending* or *not
+  addressed*. **The two answers are at different levels and the product
+  shows both.**
+- **The layer's `read_edits` carries the actor's *kind* and not the
+  actor's handle.** The handle is the operator's own bookkeeping, and the
+  trajectory panel therefore shows *the student* and not *which* student.
+  **Adding the handle would change the shape of a published API response**,
+  and `src/labcairn/api/` is outside this task's ownership map — so it is
+  not added here, and it is the API's owner to ask for it.
+- **A revision the file gives no author cannot be recorded**, and the
+  operation refuses rather than guessing. A corpus with unattributable
+  revisions needs a different answer, and this one says so.
+- **The mutation pass covers the claims this section makes.** The clauses
+  of §3 above are the reviewer's (§4), and the eleven of them with no
+  mutation recorded are still not covered.
+
+### 8.8 What was measured
+
+**The whole suite**, on Windows 11 (AMD64), Python 3.12.13, on the tree this
+record was written at:
+
+```
+4454 passed, 5 skipped, 0 failed, in 38 minutes 39 seconds
+```
+
+**The five skips are the project's own accepted kinds** — a POSIX
+permission-bit case, the real-provider smoke that needs the owner's
+credential, a Windows drive form that is meaningless on POSIX, and two
+8.3 short-name cases this machine's volume cannot carry — **and none of
+them is about this section.**
+
+**The chain's own file**: `tests/test_feedback_events.py` — **39 tests,
+green**, 24.8 seconds on this machine.
+
+**And the lint and the types**: `ruff check .`, `ruff format --check .` and
+`mypy --strict` are clean.
+
+**And how the suite was launched, because in a worktree it matters.** A
+worktree's tests must import the *worktree's* code, and the editable
+install in this virtualenv points at the main checkout — so the worktree's
+``src`` goes first on ``sys.path`` **and on ``PYTHONPATH``**, so the
+nested pytest runs the suite spawns see it too. **Two end-to-end files
+must not see it**: the outsider's walk asserts that the *clone's* code
+runs, and the wheel test asserts that the *installed* wheel is what gets
+imported — **and a CI runner has no ``PYTHONPATH`` at all**. **Those two
+files were therefore run without the variable**, and they are green.
+
+**And this is said because it cost a run to find out.** **The first
+whole-suite run put the worktree on ``PYTHONPATH`` for everything, and six
+tests failed for that reason and no other** — the walk imported the
+worktree's ``src`` instead of the clone's, and the wheel test found the
+worktree's ``src`` instead of the wheel it had just installed. **Both
+failures name the worktree's own path**, which is what gave them away.
+**The second run reproduced a CI runner's environment** — the worktree on
+``sys.path`` and on the variable, and the two clean-room files without it
+— and it is green.
+
+**And the shard table is not touched.** The file's recorded cost is
+8.57s on Ubuntu and 66.65s on Windows, and the partition's slack is
+87.1s and 400.3s — **so the file is inside the slack on both platforms**
+and `tests/test_ci_shard_coverage.py` asks for no re-measurement. The
+recorded costs are runner-measured and **this section does not re-measure
+them**: it changes no test file's membership, only its content.
+
+
+---
+
+## 9. The rings filled on the pilot's own workspace
+
+**What this section is.** §8 says what the two operations are. **This
+section says what happened when the operator's step was actually run**,
+on the owner's own pilot workspace, and **what the memory serves
+afterwards** — which is the question §8 could not answer.
+
+**Nothing here is a claim about the owner's manuscript.** The counts, the
+issue keys and the states are facts about the chain; no comment's words
+and no manuscript's text appear in this record or in the tree.
+
+### 9.1 What the chain holds now
+
+| | rows |
+|---|---|
+| `feedback_events` | 80 |
+| `revision_events` | **1528** |
+| `edit_actions` | **1439** |
+| `response_links` | **32** — 2 `addressed`, 8 `not_addressed`, 22 `pending` |
+| `guidance_rules` | 16 (all confirmed) |
+| `guidance_rule_sources` | 32 |
+
+**The two middle rings were empty when this work order started, and they
+are not empty now.** The second ring holds **one row per change the
+files record**, and the third holds **the correspondences and the
+owner's judgements of them**.
+
+### 9.2 How the second ring was filled, and what it took
+
+**The facts come from the files, and the names come from the operator.**
+Every version of the first paper whose file records changes was
+recorded on the edge that arrives at that version, with the actor the
+roster names — **and the change rows carry no comment of their own**,
+because the correspondence is a judgement and it lives in
+`response_links`, which is many-to-many. **A paragraph of forty-three
+changes can answer four comments, and the change row has one column for
+it.**
+
+**And the empty markers are not in the count.** Of the 1528 recorded
+changes, **89 are `empty_marker`** — the marks an operation at a point
+leaves behind — and the chain records changes and not marks.
+
+### 9.3 What the operator could put forward, and what the owner judged
+
+**Twenty-two correspondences** were put forward, each a `pending` link:
+a comment and the change in its own paragraph. **That is the whole of
+what the material supports** — the file does not say which change
+answers which comment, and a paragraph is the finest address both sides
+have.
+
+**And the owner judged the ten that a confirmed rule was waiting on.**
+Two hold, eight do not:
+
+| | |
+|---|---|
+| `iss-v03-copy-chinese-draft-116` | **addressed** — the comment asked for the background to bring out the bubbles' features, and the change moved that passage away |
+| `iss-v04b-variant-2-copy-chinese-draft-60` | **addressed** — the comment said the passage does not apply before the data, and the change deleted the words that put it there |
+| the other eight | **not_addressed** — the change in the same paragraph was not an answer to the comment |
+
+**The twelve proposals no rule was waiting on were not put to the
+owner**, and they stay `pending`, which is exactly what the chain says
+about them: somebody put them forward and nobody has judged them yet.
+
+### 9.4 What the memory serves, and what it does not
+
+**Before this, the memory served nothing**: `search_rules` returned no
+rule at all, and `invalidated_rules` reported every one of the sixteen
+confirmed rules as withdrawn.
+
+**After the owner's judgements it serves one** —
+`rule-6cc14b60015b7945` (`introduction_and_storyline`), on the two
+sources that were genuinely answered — **and it reports the other
+fifteen**, each with its sources' reasons.
+
+**One rule out of sixteen, and that is the honest number.** The material
+says that of the mentor's forty-six comments on the first paper, the
+ones a later version really answered are few. **The retrieval asks
+whether a judgement says the change answered the comment, and on this
+material most of them did not.** A memory that served all sixteen would
+be serving rules the chain cannot show to have been applied — which is
+the difference between **absorbing** the mentor's judgement and
+**arranging** it.
+
+**And the second paper contributes none of them.** Its three versions
+have **no version edge** — the material does not say which came first,
+so the chain does not order them — and a change travels an edge, so the
+operation refuses every version in it. **Its fourteen rule sources have
+no candidate either**: the changes in its files sit in paragraphs its
+comments do not. **So the eight rules distilled from it stay unserved,
+and the memory says so.**
+
+### 9.5 A defect the ruling exposed, and the fix
+
+**The owner's ruling made the listing lie.** The chain is append-only,
+so the proposal that led to a judgement stays on the chain after
+somebody has judged it — and the listing read the states in the order
+they arrived, so **a comment somebody had judged unanswered was
+reported as "a judgement is outstanding"**. **On the pilot's workspace,
+eight judged comments were called pending.**
+
+**A judgement now outranks a proposal**: the reason is `not_addressed`
+when somebody has judged the correspondence and not answered, and
+`pending` only when nobody has. **The comment stays on the listing
+either way** — judged or not, it is unaddressed. The witness is
+`test_a_judged_comment_is_listed_as_judged_and_not_as_waiting`, and the
+mutation that puts the old order back makes it red.
+
+### 9.6 A finding that belongs to the reader, not to this section
+
+**The reader records one change twice in one file.** On the first
+paper's fourth version, the reader reports **243 changes and there are
+239** — four of them are read a second time. **The chain does not lose
+anything**: the revision event's id is derived from the element's path,
+so the second reading lands on the row the first one wrote, and the
+table holds 239. **But the assumption the id rests on is false as
+written** — *the element's path is unique inside a part* — and it holds
+only because the four duplicates are the same change. **Two different
+changes sharing a path would lose one of them silently**, and the
+witness for that belongs to LC-P2-07.

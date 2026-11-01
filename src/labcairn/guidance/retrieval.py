@@ -152,8 +152,16 @@ def _living_sources(
     whose material the policy denies is a source this reader cannot
     check, and the memory does not serve what it cannot show. A key whose
     judgement says ``not_addressed`` is material withdrawn from under the
-    rule, and a re-judgement — the row's state, changed — brings it back
-    without the memory being touched at all.
+    rule.
+
+    **And a judgement on the chain is a fact, not a field.** The chain
+    is append-only, so **a judgement is never rewritten in place**: a
+    second judgement on the same correspondence does not undo the first
+    one, and a source that was judged answered stands. **A judgement that
+    turns out to be wrong is corrected on the rule** — withdrawn,
+    disputed or superseded — and not on the chain, which says what was
+    decided and the rule says what may be served. (The owner's decision,
+    2026-11-01.)
     """
     living: list[SourceState] = []
     for key in issue_keys:

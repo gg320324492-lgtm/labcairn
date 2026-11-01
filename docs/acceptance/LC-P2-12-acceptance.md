@@ -3,7 +3,8 @@
 **Work order:** LC-P2-12 (the guided-revision agent) · **Subtasks:**
 T00–T05 · **Task breakdown:**
 [`../plans/LC-P2-12-task-breakdown.md`](../plans/LC-P2-12-task-breakdown.md) ·
-**Status of the work order:** the role contract, the three roles, the
+**Status of the work order:** **implemented and measured**, and **independently reviewed** — the review's weakest point is
+named at the end of this record. The role contract, the three roles, the
 arrangement, the demonstration and this record are landed.
 
 **What this is.** The guidance loop as three roles — A proposes the

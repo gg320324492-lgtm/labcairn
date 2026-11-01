@@ -20,6 +20,30 @@ The links are the records.
 
 **Added**
 
+- **The mentor's own material, in the product — and the chain's four
+  rings.** The second corpus is a second paper with a second advisor, and
+  the two of them are in the product as two pilot projects: **twenty
+  versions, eighty comments, 1528 recorded changes** and the owner's own
+  judgements on ten of the correspondences the operator put forward. **The
+  chain's second ring holds one row per change a manuscript's file
+  records** — `edit_actions`, 1439 of them, because the other 89 are the
+  marks an operation at a point leaves behind and **the chain records
+  changes and not marks** — and **the third ring holds the
+  correspondences and their judgements**: the operation that puts a link
+  forward **has no state to decide it with**, because the third ring is
+  filled by a person or a rule. **The memory serves one rule of sixteen
+  and reports the other fifteen**, and the reason it serves one is the
+  material's own answer: of the mentor's forty-six comments on the first
+  paper, the ones a later version really answered are few. **A memory that
+  served all sixteen would be serving rules the chain cannot show to have
+  been applied** — which is the difference between absorbing a mentor's
+  judgement and arranging it. The owner ruled twice on what the material
+  forced: **a judgement on the chain is a fact** (a second judgement does
+  not undo the first, and a wrong judgement is corrected on the rule), and
+  **the retrieval's threshold does not move**.
+  [LC-P2-09 acceptance](docs/acceptance/LC-P2-09-acceptance.md) ·
+  [the second corpus](docs/acceptance/second-corpus-absorption.md).
+
 - **The consent machinery — the grant table, the two gates, and the
   refusals.** `access_grants` and `derived_copies` (migration
   `0011_access_grants.py`), the permission check that answers whether a use
@@ -56,21 +80,17 @@ The links are the records.
   mutations applied to prove the witnesses fail for their properties.
   [LC-P2-07 fidelity baseline](docs/acceptance/LC-P2-07-fidelity-baseline.md).
 
-- **The first Phase 2 work-order list, as a draft.**
-  [`docs/plans/PHASE_2-work-orders-draft.md`](docs/plans/PHASE_2-work-orders-draft.md):
-  six tickets with prerequisites, cost and acceptance clauses, in the order they
-  have to happen — freeze the Phase 1 baseline (the exit gate's
-  *"measured capability gain"* has no denominator until then), restart-durable
-  consent (whose blocker is measured: `ApprovalRow` holds no grant-time policy
-  digest and no bound-source column, so `ApprovalStore.consume` is not itself
-  restart-durable for the two checks that make a consent mean something), the
-  product's first model call, the competitor baseline **gated on that call** (our
-  compared figures come from the deterministic corpus layer, so naming a model in
-  the run basis would fabricate the comparison — a wall already witnessed),
-  citation identity, and retrieval beyond three papers. **Nothing is dispatched.**
-  Five carried Phase 1 debts are listed with what inheriting each one costs, and
-  the licence, the spending authorisation and the G1/G2 human reviewer are named
-  as **not tickets**.
+- **The phase's work orders, folded into one ticket.**
+  [`docs/plans/PHASE_2-work-orders.md`](docs/plans/PHASE_2-work-orders.md)
+  merges the phase's two work-order lists into one ticket: **what is built,
+  where each piece's record is, and the six pieces that are left** — the
+  frozen P1 baseline the exit gate's denominator needs and does not have,
+  the blind evaluation that is written and not run, the peer-review loop's
+  judgement half, citation identity, retrieval quality beyond three papers,
+  and the competitor comparison whose precondition has now been met. The two
+  drafts it came from stay in the tree as the record of how the phase was
+  planned, and every acceptance clause and file-ownership map in them is
+  still the one its piece was built under.
 
 - **The G1/G2 human review has a checklist.**
   [`docs/acceptance/G1-G2-human-review-checklist.md`](docs/acceptance/G1-G2-human-review-checklist.md)
