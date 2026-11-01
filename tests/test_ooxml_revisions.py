@@ -12,10 +12,19 @@ synthetic corpus in ``tests/docx_corpus.py``:
 * the original bytes are unchanged;
 * the two views are the texts ADR-0014 D4 names.
 
-**And three things the corpus cannot reach**, which are tested here
-against documents built in this file: a revision **nested inside another
-revision**, a part that declares a **DTD**, and a **corrupt archive**.
-The corpus's ``KNOWN_GAPS`` says why they are not there.
+**And two things the corpus cannot reach**, which are tested here
+against documents built in this file: a part that declares a **DTD**, and
+a **corrupt archive**. The corpus's ``KNOWN_GAPS`` says why they are not
+there, and the corpus's other unreachable shapes are representable in it
+(``19-nested-revision`` states the nesting in its XML) or were added once
+real material named them (``30-revision-in-drawing-textbox``).
+
+**The drawing's text box.** That fixture is in the corpus **because the
+corpus-wide witnesses need its data**: a witness that loops over
+``FIXTURES`` can only catch what the corpus holds, and the double-read
+survived the corpus-wide count for exactly that reason. The hand-built
+case below stays: it asserts what the fixture's gold does not -- which
+paragraph reports a text-box revision, and that none of them is nested.
 
 **The witnesses must fail for the property.** Each test below names what
 it would take for the reader to stop holding it, and the mutation that
@@ -124,7 +133,7 @@ def test_every_revision_in_the_corpus_is_reported(corpus: dict[str, RevisionDocu
     """Revision recall is 1.0 over the whole corpus.
 
     **What breaks it:** a reader that skips a revision kind, or that drops
-    one when a document holds several. The corpus has 30 revisions across
+    one when a document holds several. The corpus has 35 revisions across
     the four kinds, and the two paragraphs that carry a revision *and* a
     comment are the ones where a reader that loses one while collecting the
     other shows up.
@@ -571,6 +580,198 @@ def test_a_revision_nested_inside_another_is_reported_separately() -> None:
     # And the nesting is disclosed, because a reader that reports it
     # silently has flattened it as far as the caller can tell.
     assert "docx_nested_revision" in {problem.code for problem in document.problems}
+
+
+_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+_V = "urn:schemas-microsoft-com:vml"
+
+
+def _document_with_drawing_namespaces(body: str) -> str:
+    """A ``w:document`` whose root also declares the drawing namespaces.
+
+    The drawing the body below carries is the shape real material holds:
+    an ``mc:AlternateContent`` with a modern ``Choice`` and a VML
+    ``Fallback``, each wrapping a text box of paragraphs.
+    """
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:document xmlns:w="{W}" xmlns:mc="{_MC}" xmlns:wp="{_WP}" '
+        f'xmlns:a="{_A}" xmlns:wps="{_WPS}" xmlns:v="{_V}">'
+        f"<w:body>{body}</w:body></w:document>"
+    )
+
+
+def test_a_revision_inside_a_drawing_textbox_is_reported_once() -> None:
+    """One tracked change, one event -- even across a drawing's text box.
+
+    Real material holds a paragraph whose run carries a figure, and the
+    figure carries a text box of its own paragraphs, and ``iter`` finds
+    those paragraphs just as it finds the body's. A walk that crosses
+    into a text box after the box's own paragraphs have been scanned
+    reports the same ``w:ins`` twice -- four changes became six events
+    on the file that found this. The reporter is the **nearest
+    paragraph**: the outer walk keeps advancing the offset through the
+    box (the outer paragraph's text counts the box's text either way,
+    and the two coordinate systems must agree), but it reports nothing
+    there.
+
+    **What breaks it:** a walk that reports a revision inside a nested
+    paragraph's subtree as well as the nested paragraph's own scan.
+    """
+    body = (
+        # A plain paragraph: the ordinary case, untouched by the drawing.
+        "<w:p>"
+        '<w:ins w:id="1" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        '<w:r><w:t xml:space="preserve">plain insert</w:t></w:r>'
+        "</w:ins>"
+        "</w:p>"
+        # The drawing paragraph: one revision whose run carries the
+        # AlternateContent, whose two branches each carry a text box
+        # holding one paragraph of two revisions.
+        "<w:p>"
+        '<w:ins w:id="2" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        "<w:r>"
+        "<mc:AlternateContent>"
+        '<mc:Choice Requires="wps">'
+        "<w:drawing>"
+        "<wp:anchor><a:graphic><a:graphicData>"
+        "<wps:wsp><wps:txbx><w:txbxContent>"
+        "<w:p>"
+        '<w:ins w:id="3" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        '<w:r><w:t xml:space="preserve">choice first</w:t></w:r></w:ins>'
+        '<w:ins w:id="4" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        '<w:r><w:t xml:space="preserve">choice second</w:t></w:r></w:ins>'
+        "</w:p>"
+        "</w:txbxContent></wps:txbx></wps:wsp>"
+        "</a:graphicData></a:graphic></wp:anchor>"
+        "</w:drawing>"
+        "</mc:Choice>"
+        "<mc:Fallback>"
+        "<w:pict>"
+        "<v:shape><v:textbox><w:txbxContent>"
+        "<w:p>"
+        '<w:ins w:id="5" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        '<w:r><w:t xml:space="preserve">fallback first</w:t></w:r></w:ins>'
+        '<w:ins w:id="6" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+        '<w:r><w:t xml:space="preserve">fallback second</w:t></w:r></w:ins>'
+        "</w:p>"
+        "</w:txbxContent></v:textbox></v:shape>"
+        "</w:pict>"
+        "</mc:Fallback>"
+        "</mc:AlternateContent>"
+        "</w:r>"
+        "</w:ins>"
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document_with_drawing_namespaces(body)))
+
+    # The file holds six revision elements and six is what comes back:
+    # the outer one, and the two pairs inside the two text boxes.
+    assert len(document.revisions) == 6, (
+        f"expected one event per revision element, got {len(document.revisions)}"
+    )
+
+    # And no two events share an address -- the four text-box revisions
+    # were the four whose paths collided with themselves.
+    paths = [revision.locator.element_path for revision in document.revisions]
+    assert len(set(paths)) == len(paths), "two events share one element path"
+
+    # The text-box revisions are reported by their own paragraphs (the
+    # document order puts both boxes' paragraphs after the two body
+    # ones), with their own text, and not as the outer revision's
+    # nested revision.
+    by_paragraph: dict[int, list[str]] = {}
+    for revision in document.revisions:
+        by_paragraph.setdefault(revision.paragraph, []).append(revision.text)
+    assert sorted(by_paragraph) == [0, 1, 2, 3]
+    assert by_paragraph[0] == ["plain insert"]
+    assert sorted(by_paragraph[2]) == ["choice first", "choice second"]
+    assert sorted(by_paragraph[3]) == ["fallback first", "fallback second"]
+    assert all(not revision.nested for revision in document.revisions), (
+        "a revision in its own paragraph is not a nested revision"
+    )
+    assert "docx_nested_revision" not in {problem.code for problem in document.problems}
+
+
+def test_the_reader_reports_each_revision_element_exactly_once(tmp_path: Path) -> None:
+    """Over the whole corpus, the events' addresses are the elements' addresses.
+
+    The file holds what it holds: counted straight from ``document.xml``,
+    the revision elements are exactly the events the reader reports, one
+    address each, no more and no fewer. This is the property the chain's
+    writer rests on -- ``_revision_event_id`` derives a row's identity
+    from the element's path, and it can only do that while one path
+    names one element.
+
+    **What breaks it:** a walk that reports an element twice (the
+    drawing-text-box defect), a walk that skips one, or an
+    ``_element_path`` that gives two elements one address.
+
+    The two private functions are imported because this witness is
+    about them: counting with anything else would measure a copy of the
+    rule, not the rule the reader runs.
+    """
+    import io
+    from xml.etree import ElementTree
+
+    from labcairn.material.ooxml import _element_path, _revision_kind
+
+    for fixture in FIXTURES:
+        raw = write_fixture(fixture, tmp_path).read_bytes()
+        document = read_document(raw)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+        elements = [element for element in root.iter() if _revision_kind(element.tag) is not None]
+        addresses = [_element_path(element, root) for element in elements]
+        event_addresses = [revision.locator.element_path for revision in document.revisions]
+        assert sorted(event_addresses) == sorted(addresses), fixture.name
+        assert len(set(event_addresses)) == len(event_addresses), fixture.name
+
+
+def test_the_derived_revision_event_id_names_one_change_per_address(
+    tmp_path: Path,
+) -> None:
+    """The writer's derived id distinguishes what the reader distinguishes.
+
+    ``_revision_event_id`` hashes the version, the part and the element's
+    path, and its docstring claims the path is unique inside a part. The
+    reader witnesses that uniqueness one test above; this witness holds
+    the id to it: two events that differ in address get different ids
+    (a writer that drops the path from the digest would fold two
+    revisions into one row), the same address always gets the same id
+    (recording the same file twice is the same rows, and an id that
+    depends on when it was made is not an identity), and so two
+    different revisions at one address cannot both land -- which is why
+    the reader's own uniqueness is the property that matters.
+
+    The private function is imported because the witness is about it.
+    """
+    from labcairn.papers.revisions import _revision_event_id
+
+    for fixture in FIXTURES:
+        raw = write_fixture(fixture, tmp_path).read_bytes()
+        document = read_document(raw)
+        if not document.revisions:
+            continue
+        ids = [
+            _revision_event_id(
+                "version-under-test",
+                revision.locator.part or "",
+                revision.locator.element_path or "",
+            )
+            for revision in document.revisions
+        ]
+        assert len(ids) == len(set(ids)), (
+            f"two revisions of {fixture.name} derive the same revision_event_id"
+        )
+        first = document.revisions[0]
+        again = _revision_event_id(
+            "version-under-test", first.locator.part or "", first.locator.element_path or ""
+        )
+        assert again == ids[0], fixture.name
 
 
 def test_a_part_that_declares_a_dtd_is_refused() -> None:

@@ -444,6 +444,20 @@ def _scan_paragraph(
     **A revision nested inside another has no separate place.** Its text
     is the enclosing revision's own text, so it is reported at the
     enclosing revision's place.
+
+    **And a revision is reported by the paragraph that contains it.** A
+    run's content is not limited to text: it can carry a drawing, and a
+    drawing carries a text box, and a text box holds paragraphs of its
+    own -- real material holds exactly that, inside a
+    ``mc:AlternateContent`` whose ``Choice`` and ``Fallback`` each carry
+    one. Those inner paragraphs are paragraphs (``iter`` finds them and
+    :func:`read_document` scans each one), so the outer paragraph's walk
+    reports them a second time if it crosses into them. This walk does
+    not: from the first nested ``w:p`` downward it still advances the
+    offset -- the outer paragraph's text counts the box's text either
+    way, and the two coordinate systems must agree -- but it reports no
+    revision and no comment marker there. One tracked change, one
+    event, and the reporter is the nearest paragraph.
     """
     revisions: list[tuple[ElementTree.Element, str, int, int, bool]] = []
     markers: list[tuple[str, str, str, int]] = []
@@ -453,36 +467,43 @@ def _scan_paragraph(
         offset: int,
         depth: int,
         enclosing: tuple[int, int] | None,
+        reports: bool,
     ) -> int:
         """Walk ``element``'s children, returning the new baseline offset.
 
         ``enclosing`` is the baseline place of the revision this element
-        sits inside, or ``None`` at the top level.
+        sits inside, or ``None`` at the top level. ``reports`` is False
+        once the walk has crossed into a nested paragraph: the offsets
+        are still this paragraph's, but the revision and the comment
+        marker belong to the nested paragraph's own scan.
         """
         for child in element:
+            child_reports = reports and child.tag != _TAG["paragraph"]
             kind = _revision_kind(child.tag)
             if kind is not None:
                 if enclosing is None:
                     width = len(_text_in(child, "rejected")) if kind in _REJECTED_KINDS else 0
                     start = offset
                     offset += width
-                    revisions.append((child, kind, start, offset, depth > 0))
-                    walk(child, offset, depth + 1, (start, offset))
+                    if child_reports:
+                        revisions.append((child, kind, start, offset, depth > 0))
+                    walk(child, offset, depth + 1, (start, offset), child_reports)
                 else:
-                    revisions.append((child, kind, enclosing[0], enclosing[1], depth > 0))
-                    walk(child, offset, depth + 1, enclosing)
+                    if child_reports:
+                        revisions.append((child, kind, enclosing[0], enclosing[1], depth > 0))
+                    walk(child, offset, depth + 1, enclosing, child_reports)
                 continue
-            if child.tag == _TAG["comment_start"]:
+            if child_reports and child.tag == _TAG["comment_start"]:
                 markers.append(
                     ("start", child.get(f"{{{W}}}id", ""), _element_path(child, paragraph), offset)
                 )
                 continue
-            if child.tag == _TAG["comment_end"]:
+            if child_reports and child.tag == _TAG["comment_end"]:
                 markers.append(
                     ("end", child.get(f"{{{W}}}id", ""), _element_path(child, paragraph), offset)
                 )
                 continue
-            if child.tag == _TAG["comment_reference"]:
+            if child_reports and child.tag == _TAG["comment_reference"]:
                 markers.append(
                     (
                         "reference",
@@ -494,7 +515,7 @@ def _scan_paragraph(
                 continue
             if enclosing is not None:
                 # The text inside a revision is already counted by it.
-                walk(child, offset, depth, enclosing)
+                walk(child, offset, depth, enclosing, child_reports)
                 continue
             if child.tag in (_TAG["text"], _TAG["deleted_text"]):
                 offset += len(child.text or "")
@@ -505,10 +526,10 @@ def _scan_paragraph(
             if child.tag in (_TAG["break"], _TAG["carriage_return"]):
                 offset += 1
                 continue
-            offset = walk(child, offset, depth, None)
+            offset = walk(child, offset, depth, None, child_reports)
         return offset
 
-    walk(paragraph, 0, 0, None)
+    walk(paragraph, 0, 0, None, True)
     return revisions, markers
 
 

@@ -135,6 +135,19 @@ def _revision_event_id(version_id: str, part: str, element_path: str) -> str:
     together are unique inside a document — so the version and the path
     name one change for ever, and identity does not depend on insertion
     order.
+
+    **The uniqueness is the reader's guarantee, and it is witnessed.**
+    ``_element_path`` names an element by its chain of same-tag sibling
+    indexes, and the reader's scan reports each revision element once --
+    from the paragraph that contains it, and not a second time through a
+    drawing's text box, which the first scan did and which made four
+    revisions collide with their own addresses on real material
+    (``tests/test_ooxml_revisions.py`` holds both ends: the reader
+    reports each revision element exactly once, and two events that
+    differ in address derive different ids). Two different revisions at
+    one address therefore cannot arise from this reader; the writer's
+    refusal when an existing row holds a different text under the same
+    id is the second half of the guarantee.
     """
     digest = hashlib.sha256(f"{version_id}\x00{part}\x00{element_path}".encode()).hexdigest()
     return f"rv-{digest[:16]}"

@@ -234,6 +234,17 @@ class Fixture:
     #: therefore state rather than imply — for example "this document has a
     #: comment with no anchor, and the correct answer is UNKNOWN".
     expectations: tuple[str, ...] = field(default_factory=tuple)
+    #: A complete ``document.xml``, for the one shape the paragraph
+    #: assembler cannot reach: a run that carries a figure, whose text box
+    #: holds paragraphs of its own. The paragraph assembler's model is
+    #: "one paragraph, one slice of baseline text, its revisions and its
+    #: markers", and a nested paragraph of a text box is not a slice of
+    #: any body paragraph. The override is written by hand **against the
+    #: same gold** — :attr:`paragraphs` and the :class:`Revision`
+    #: declarations still state everything the gold derives, and the
+    #: corpus's own tests check the written XML against them — so the
+    #: override changes where the elements sit, never what the gold says.
+    document_override: str | None = None
 
 
 def _locate(baseline: str, anchor_text: str, after_text: str) -> tuple[int, int]:
@@ -328,6 +339,11 @@ def _build_document(fixture: Fixture) -> str:
     Each paragraph is emitted with its revisions and comment markers woven
     into it.
 
+    **The override comes first.** A fixture that carries
+    :attr:`Fixture.document_override` is written by hand, and the
+    assembler's paragraph model cannot reach it — see the field's note.
+    Every other fixture is assembled below, from the declarations alone.
+
     **How a revision is placed.** A paragraph has a *baseline* text — the
     text as it would read if every revision were rejected. A revision's
     range is the baseline text it replaces:
@@ -346,6 +362,9 @@ def _build_document(fixture: Fixture) -> str:
     ``--track-changes`` modes answer wrongly, which is exactly how this
     corpus found its own first bug.
     """
+    if fixture.document_override is not None:
+        return fixture.document_override
+
     revisions_by_para: dict[int, list[Revision]] = {}
     for rev in fixture.revisions:
         revisions_by_para.setdefault(rev.paragraph, []).append(rev)
