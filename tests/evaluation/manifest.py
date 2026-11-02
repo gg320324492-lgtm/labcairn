@@ -226,6 +226,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # clause is numerical extraction because that is the task the adapter
     # translates; the file declares the unit marker, as its neighbours do.
     "test_paperqa_adapter.py": ("unit", "numeric-extraction"),
+    # LC-P2-18's comparison driver: two sides, the six conditions, the
+    # dry-run disclosures, and the real mode's refusals. Unit, because the
+    # witnesses build the sides offline and read the frozen baseline; the
+    # clause is numerical extraction, the task both sides carry.
+    "test_competitor_comparison.py": ("unit", "numeric-extraction"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
     "test_fake_provider_determinism.py": ("unit", "typed-contracts"),

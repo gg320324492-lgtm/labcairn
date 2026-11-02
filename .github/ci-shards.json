@@ -44,7 +44,8 @@
         "tests/test_material_regressions.py",
         "tests/test_provider_adapter.py",
         "tests/test_intake_guards.py",
-        "tests/test_baseline_document.py"
+        "tests/test_baseline_document.py",
+        "tests/test_competitor_comparison.py"
       ],
       [
         "tests/test_outsider_path.py",
@@ -196,7 +197,8 @@
         "tests/test_analysis_selection.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_material_adapters.py",
-        "tests/test_security_approval.py"
+        "tests/test_security_approval.py",
+        "tests/test_competitor_comparison.py"
       ],
       [
         "tests/test_application_layer.py",
