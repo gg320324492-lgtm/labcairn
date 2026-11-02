@@ -168,6 +168,12 @@ EXPECTED_TABLES = frozenset(
         # consent an outbound lookup.
         "identifier_records",
         "evidence_identifiers",
+        # LC-P1-06's G2 debt, paid after the fact. The artifact ledger has
+        # re-hashed every read since LC-P1-07, but it kept the entries in the
+        # process that made them; this table is where they live now. There is
+        # no UNIQUE on `stage` -- a re-run appends a second row, and the
+        # current view is the latest entry per stage.
+        "artifact_ledger_entries",
     }
 )
 

@@ -28,6 +28,17 @@ Neither is a substitute for the other. The write-time check catches a forgery
 before it becomes part of the record; the read-time check catches tampering with
 a record that was legitimately made.
 
+**The record outlives the process.** ``ArtifactLedger`` is a thin facade over an
+:class:`ArtifactLedgerStore`; the default store keeps entries in a list, and
+:class:`labcairn.db.ledger.SqliteArtifactLedgerStore` keeps the same entries in
+SQLite. A second ledger instance on the same database — what a restarted process
+constructs — sees the same history and the same current artifact per stage, and
+:meth:`ArtifactLedger.load` re-hashes the bytes it read from the store, not an
+object it remembered. The two properties above therefore hold unchanged across a
+restart; what changes is only where the bytes are between reads. An in-memory
+ledger is still a valid ledger for a caller that does not need the record to
+survive, and it stays the default so no existing caller changes behaviour.
+
 Why the digest covers ``derived_from``
 -------------------------------------
 The canonical payload includes ``derived_from``, so two artifacts with identical
@@ -40,7 +51,7 @@ claim's identity.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol, cast
 
@@ -147,7 +158,64 @@ class LedgerMismatch:
     actual_digest: str
 
 
-@dataclass
+class ArtifactLedgerStore(Protocol):
+    """Where a ledger keeps what it has recorded.
+
+    The store answers two questions and one command: every entry in the order it
+    was recorded, the current entry per stage, and append one entry. It does **no
+    verification** — the digest and lineage checks live in
+    :class:`ArtifactLedger`, so every store gets the same guards and a store that
+    returns bytes is not a store that vouches for them.
+
+    ``current`` is a method rather than something derived here because the
+    in-memory store keeps its mapping live: a caller that replaces an entry
+    (which the substitution witnesses do on purpose) is changing the store, and
+    the next read must see that. A database store computes the mapping from the
+    rows on every call, so a row edited behind the ledger's back is seen at the
+    next read — which is the property :meth:`ArtifactLedger.verify_all` is for.
+
+    A store is also the unit of isolation. Two stores on two databases are two
+    ledgers; two stores on one database with different ``ledger_id`` values are
+    two ledgers as well.
+    """
+
+    def append(self, entry: RecordedArtifact) -> None:
+        """Store *entry*, which becomes the latest for its stage."""
+        ...
+
+    def entries(self) -> list[RecordedArtifact]:
+        """Every entry, oldest first; the list is never rewritten."""
+        ...
+
+    def current(self) -> dict[StageName, RecordedArtifact]:
+        """The latest entry for each stage, in first-production order."""
+        ...
+
+
+class InMemoryLedgerStore:
+    """The default store: entries live in this process and die with it.
+
+    The lists are exposed through :meth:`entries` and :meth:`current` **live,
+    not copied**. That is deliberate: the substitution witnesses replace an
+    entry in ``current()`` to simulate tampering, and a defensive copy here
+    would hide the very thing they are checking.
+    """
+
+    def __init__(self) -> None:
+        self._history: list[RecordedArtifact] = []
+        self._by_stage: dict[StageName, RecordedArtifact] = {}
+
+    def append(self, entry: RecordedArtifact) -> None:
+        self._history.append(entry)
+        self._by_stage[entry.stage] = entry
+
+    def entries(self) -> list[RecordedArtifact]:
+        return self._history
+
+    def current(self) -> dict[StageName, RecordedArtifact]:
+        return self._by_stage
+
+
 class ArtifactLedger:
     """Append-only record of verified artifacts, with a current view by stage.
 
@@ -156,10 +224,25 @@ class ArtifactLedger:
     while moving ``by_stage`` forward. Keeping both is what lets a reader ask
     "what did this stage produce the first time?" — the question a plan that is
     discarded and regenerated would otherwise destroy.
+
+    :param store: where entries live. Omitted means :class:`InMemoryLedgerStore`,
+        which is the behaviour every caller had before the store existed. A
+        caller that needs the record to survive the process passes a store —
+        :class:`labcairn.db.ledger.SqliteArtifactLedgerStore` for SQLite.
     """
 
-    history: list[RecordedArtifact] = field(default_factory=list)
-    by_stage: dict[StageName, RecordedArtifact] = field(default_factory=dict)
+    def __init__(self, store: ArtifactLedgerStore | None = None) -> None:
+        self._store: ArtifactLedgerStore = InMemoryLedgerStore() if store is None else store
+
+    @property
+    def history(self) -> list[RecordedArtifact]:
+        """Every entry, oldest first, read from the store on every access."""
+        return self._store.entries()
+
+    @property
+    def by_stage(self) -> dict[StageName, RecordedArtifact]:
+        """The current entry per stage, read from the store on every access."""
+        return self._store.current()
 
     def record(
         self,
@@ -197,8 +280,7 @@ class ArtifactLedger:
             derived_from=artifact_lineage(artifact),
             recorded_at=now,
         )
-        self.history.append(recorded)
-        self.by_stage[stage] = recorded
+        self._store.append(recorded)
         return recorded
 
     def load(self, stage: StageName, kind: ArtifactKind) -> RecordedArtifact:
@@ -276,6 +358,8 @@ def utc_now() -> datetime:
 __all__ = [
     "DIGEST_ALGORITHM",
     "ArtifactLedger",
+    "ArtifactLedgerStore",
+    "InMemoryLedgerStore",
     "LedgerMismatch",
     "RecordedArtifact",
     "artifact_digest",

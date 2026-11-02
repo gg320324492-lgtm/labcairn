@@ -438,6 +438,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_skill_contracts.py": ("unit", "typed-contracts"),
     "test_skill_execution.py": ("unit", "state-transitions"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
+    # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
+    # against the table instead of a list. The read-time check is the property,
+    # so the tamper is written into the stored bytes and the reopened ledger is
+    # what has to catch it.
+    "test_artifact_ledger_persistence.py": ("integration", "artifact-hashes"),
     "test_skill_plan.py": ("unit", "typed-contracts"),
     "test_skill_quality.py": ("unit", "report-serialization"),
     "test_skill_support.py": ("unit", "report-serialization"),

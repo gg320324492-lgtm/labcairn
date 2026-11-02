@@ -3,7 +3,8 @@
   "shards": {
     "ubuntu-latest": [
       [
-        "tests/test_cli.py"
+        "tests/test_cli.py",
+        "tests/test_artifact_ledger_persistence.py"
       ],
       [
         "tests/test_material_pdf.py",
@@ -200,7 +201,8 @@
         "tests/test_store_support.py",
         "tests/test_analysis_descriptive.py",
         "tests/test_material_regressions.py",
-        "tests/test_outbound_consent_bridge.py"
+        "tests/test_outbound_consent_bridge.py",
+        "tests/test_artifact_ledger_persistence.py"
       ],
       [
         "tests/test_application_layer.py",

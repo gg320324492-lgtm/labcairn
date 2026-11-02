@@ -298,10 +298,16 @@ a difference in *how many spellings are refused*, not an escape. The
 document does not quote a number for the refused set.
 *Evidence:* [threat model §1.3a and §6.11](THREAT-MODEL.md).
 
-### 2.12 One limitation in the product's own code
+### 2.12 Two limitations in the product's own code, both now closed
 
-- **`ArtifactLedger` is in memory** — so the ledger does not survive a
-  process restart the way the SQLite store does.
+- ~~**`ArtifactLedger` is in memory** — so the ledger does not survive a
+  process restart the way the SQLite store does.~~ — **closed since the
+  gate.** `SqliteArtifactLedgerStore` records every entry in
+  `artifact_ledger_entries` (migration 0022), and a new instance on the same
+  database loads the stored artifact and re-checks its digest. Witnessed by
+  `tests/test_artifact_ledger_persistence.py`; see
+  [LC-P1-06-artifact-ledger](acceptance/LC-P1-06-artifact-ledger.md). The
+  in-memory default remains for callers that do not pass a store.
 - ~~**`ApprovalLedger.consume()` does not resolve the capability against the
   registry**~~ — **closed since the gate.** `consume()` asks the registry and
   refuses an id it does not hold with `capability_unregistered`

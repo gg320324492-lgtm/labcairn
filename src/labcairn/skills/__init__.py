@@ -76,6 +76,7 @@ from labcairn.skills.errors import (
     ArtifactSubstitutedError,
     ArtifactTypeError,
     DerivationClosureError,
+    LedgerAlgorithmError,
     LineageError,
     PlaceholderError,
     SkillBudgetError,
@@ -98,6 +99,8 @@ from labcairn.skills.execution import (
 )
 from labcairn.skills.ledger import (
     ArtifactLedger,
+    ArtifactLedgerStore,
+    InMemoryLedgerStore,
     RecordedArtifact,
     artifact_digest,
 )
@@ -126,6 +129,7 @@ __all__ = [
     "ApprovalRequiredError",
     "ArtifactKind",
     "ArtifactLedger",
+    "ArtifactLedgerStore",
     "ArtifactSubstitutedError",
     "ArtifactTypeError",
     "BudgetView",
@@ -138,8 +142,10 @@ __all__ = [
     "EvidenceLedgerView",
     "GateVerdict",
     "GoalChange",
+    "InMemoryLedgerStore",
     "InventoryAnchor",
     "InventoryMaterial",
+    "LedgerAlgorithmError",
     "LineageError",
     "Materiality",
     "Orchestrator",

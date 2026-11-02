@@ -1,8 +1,24 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-02 · **the outbound-consent bridge is built, the blind
-evaluation's preparation is mutation-verified twice, and five acceptance
-records carry an independent review.**
+**Date:** 2026-11-02 · **the artifact ledger and the outbound-consent
+bridge are durable, the blind evaluation's preparation is
+mutation-verified twice, and five acceptance records carry an
+independent review.**
+
+**The artifact ledger is durable, closing a G2 debt.**
+`ArtifactLedger` was a list in the process that made it: the read-time digest
+check was real, but a restart lost the record. It now writes through
+`SqliteArtifactLedgerStore` into `artifact_ledger_entries` (migration 0022), and
+a new instance on the same database reads the stored canonical payload back and
+re-hashes it. `ArtifactLedger()` stays in memory and `Orchestrator` gained an
+optional `ledger=` parameter, so no existing caller changed behaviour. Seven
+witnesses — new instance, engine restart, tampered payload, re-run history,
+canonical payload, foreign digest algorithm, ledger isolation — and six
+mutations, each caught by its own test; four further mutations were applied
+independently by the coordinator, all caught. **The shard cost for the new test
+file is not measured: it belongs to a runner**, and
+`test_the_recorded_costs_cover_every_test_file` is red for that reason alone.
+Record: [LC-P1-06 artifact ledger](../acceptance/LC-P1-06-artifact-ledger.md).
 
 **ADR-0006's outbound-consent bridge closes a Phase 1 debt.** The
 provider layer could send without the permission layer's decision;
@@ -11,7 +27,13 @@ provider layer could send without the permission layer's decision;
 the decision is missing, pending, expired or already spent. The
 decision crosses as a **value**, not an import — the vocabularies stay
 disjoint. 8 witnesses; 5 self-reported mutations and 4 independent
-ones, all caught. [LC-P1-03 outbound bridge](acceptance/LC-P1-03-outbound-bridge.md).
+ones, all caught. [LC-P1-03 outbound bridge](../acceptance/LC-P1-03-outbound-bridge.md).
+
+---
+
+**Date:** 2026-11-02 · **the blind evaluation's preparation is built and
+mutation-verified twice, and five acceptance records carry an
+independent review.**
 
 **LC-P2-14's mechanical preparation is built.** Four pieces
 (`tests/evaluation/arms.py`, `split_check.py`, `blind_sheet.py`,
@@ -1515,7 +1537,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
 - **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
 - **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.
-- **G2:** `ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.
+- **G2:** ~~`ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.~~ **Closed 2026-11-02**: `SqliteArtifactLedgerStore` writes the ledger to `artifact_ledger_entries` (migration 0022) and a new instance on the same database reads it back; the [acceptance record](../acceptance/LC-P1-06-artifact-ledger.md) lists the witnesses and the one measurement still owed to a runner (the shard cost).
 - **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
 - **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
 - **Cross-gate:** copyright ownership is unresolved and there is still **no `LICENSE` file**. The project describes itself as in development with open-source licensing pending.

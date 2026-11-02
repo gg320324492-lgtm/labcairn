@@ -120,7 +120,7 @@ All six LC-P1-06 acceptance clauses, all five LC-P1-07 clauses and all six LC-P1
 
 | Item | Owner | Note |
 |---|---|---|
-| `ArtifactLedger` is in-memory | G3 or later | LC-P1-07's ledger does not survive a restart; the store does |
+| ~~`ArtifactLedger` is in-memory~~ | LC-P1-06 | **RESOLVED 2026-11-02** — the ledger now records through `SqliteArtifactLedgerStore` into `artifact_ledger_entries` (migration 0022), and a new instance on the same database reads the same history. `ArtifactLedger()` remains in memory for callers that do not opt in. See [LC-P1-06-artifact-ledger](LC-P1-06-artifact-ledger.md). |
 | `ApprovalLedger.consume()` does not resolve the capability against the registry | an ADR | Carried from G1. Only `policy.evaluate()` turns an unknown id into DENY, and nothing enforces that a caller evaluates first |
 | Path-guard tests ran on Windows only | G3 | POSIX ADS and case semantics unverified. One test of this class was already fixed when CI found it on Ubuntu |
 | ADR-0006's outbound-consent bridge | G3 | Both modules exist; the bridge is not built |

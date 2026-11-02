@@ -772,13 +772,19 @@ recorded here because a reviewer who tested only on Windows would have seen
 a refusal where POSIX admits the write, and would have drawn a conclusion
 about the product that is true of one platform and not the other.
 
-### 6.12 Two independent limitations in the product's own code
+### 6.12 Two limitations in the product's own code, both now closed
 
-Stated here because they are real and because the code flags them itself:
+Stated here because they were real and because the code flagged them itself:
 
-- **`ArtifactLedger` is in memory** — so the ledger does not survive a
+- ~~**`ArtifactLedger` is in memory** — so the ledger does not survive a
   process restart the way the SQLite store does
-  (`docs/PHASE_1_WORKORDERS.md:42`).
+  (`docs/PHASE_1_WORKORDERS.md:42`).~~ — **closed 2026-11-02.**
+  `SqliteArtifactLedgerStore` writes every entry to
+  `artifact_ledger_entries` (migration 0022), and a new ledger instance on the
+  same database re-reads the stored payload and re-checks its digest; see
+  [LC-P1-06-artifact-ledger](acceptance/LC-P1-06-artifact-ledger.md). The
+  in-memory `ArtifactLedger()` default remains for callers that do not opt in,
+  so the limitation survives only where a caller chooses it.
 - ~~**`ApprovalLedger.consume()` does not resolve the capability against the
   registry**~~ — **closed 2026-10-28.** `consume()` asks the registry and
   refuses with `capability_unregistered`
