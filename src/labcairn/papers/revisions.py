@@ -44,6 +44,7 @@ nothing is recorded against it.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -53,8 +54,8 @@ from labcairn.application import consent
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import chain_refused
 from labcairn.db.models import RevisionEventRow
+from labcairn.material.ooxml import RevisionDocument, read_document
 from labcairn.material.ooxml import RevisionEvent as ReadRevision
-from labcairn.material.ooxml import read_document
 from labcairn.material.units import adapter_for
 from labcairn.material.version import derive_extraction_version
 from labcairn.papers.chain import (
@@ -470,11 +471,121 @@ def _material_or_none(context: ApplicationContext, version_id: str) -> Canonical
     return context.resource_for(relative_path)
 
 
+def read_paragraph_context(
+    context: ApplicationContext,
+    *,
+    version_id: str,
+    paragraphs: Sequence[int],
+) -> Mapping[int, str]:
+    """The text of the paragraphs named, in the view each revision sits in.
+
+    **A revision's context is the paragraph around it.** A change is a
+    fact about a file, and the paragraph is where the reviewer put it —
+    **and the paragraph is what a reader needs in order to judge whether
+    the change means anything.** A rule distilled from a change carries
+    the change's own words; the paragraph is the applicability condition
+    those words were written into.
+
+    **And the view follows the change.** An insertion belongs to the
+    **accepted** text (the manuscript with the change kept) and a deletion
+    to the **rejected** text (the manuscript as it was). **A paragraph
+    read in the wrong view is a different paragraph**, and quoting one as
+    the other would put words in the reviewer's mouth that the file does
+    not hold.
+
+    **And the paragraph is read from the bytes, not from the ledger.**
+    The revision events' own table holds the *change*; the paragraph it
+    sits in is only in the document, and the document is the manuscript.
+    So this reads the material, checks the bytes against the version's
+    own hash **exactly as :func:`record_revision_events` does**, and
+    refuses a drifted manuscript rather than quoting text that is no
+    longer the one the revision was recorded against.
+
+    **A paragraph the reader could not find is absent, not empty.** The
+    mapping holds no entry for it, and the caller says so in the scope —
+    the same way a comment the reader could not place is named as
+    unplaced rather than quoted as empty.
+
+    :raises ApplicationRefusedError: the material is missing, unreadable,
+        drifted, or the policy denied reading it.
+    """
+    wanted = tuple(sorted({index for index in paragraphs if index >= 0}))
+    if not wanted:
+        return {}
+    resource = _material(context, version_id)
+    consent.evaluate(
+        context,
+        capability=CapabilityId.SOURCE_READ,
+        arguments={"max_bytes": MAX_MANUSCRIPT_BYTES},
+        resource=resource,
+    )
+    data = _read_material(context, version_id)
+    document = read_document(data)
+    return _the_paragraphs(document, wanted)
+
+
+def _the_paragraphs(document: RevisionDocument, wanted: Sequence[int]) -> Mapping[int, str]:
+    """The paragraphs named, in the view the change sits in.
+
+    **Both views are read, and the caller says which one it wants.** A
+    deletion is addressed in the rejected view and an insertion in the
+    accepted one (ADR-0014 D4a), so a paragraph's two texts are two
+    different paragraphs and the caller must pick — this returns the
+    **accepted** text, and the caller that needs the rejected one asks
+    :func:`read_rejected_paragraph_context` instead.
+    """
+    found: dict[int, str] = {}
+    for index in wanted:
+        if index < len(document.paragraphs):
+            found[index] = document.paragraphs[index]
+    return found
+
+
+def read_rejected_paragraph_context(
+    context: ApplicationContext,
+    *,
+    version_id: str,
+    paragraphs: Sequence[int],
+) -> Mapping[int, str]:
+    """The text of the paragraphs named, **as the manuscript was**.
+
+    **The rejected view is the manuscript before the changes were kept.**
+    A deletion is addressed there — its text is *removed* text, and the
+    words around it are the words it was removed from. Reading the
+    accepted text instead would show the reviewer quoting a sentence that
+    the change is in the middle of removing.
+
+    **The bytes are checked against the version's own hash**, exactly as
+    :func:`record_revision_events` does, so the text quoted is the text
+    the revision was recorded against and not the text a later file
+    happens to hold.
+    """
+    wanted = tuple(sorted({index for index in paragraphs if index >= 0}))
+    if not wanted:
+        return {}
+    resource = _material(context, version_id)
+    consent.evaluate(
+        context,
+        capability=CapabilityId.SOURCE_READ,
+        arguments={"max_bytes": MAX_MANUSCRIPT_BYTES},
+        resource=resource,
+    )
+    data = _read_material(context, version_id)
+    document = read_document(data)
+    found: dict[int, str] = {}
+    for index in wanted:
+        if index < len(document.baseline_paragraphs):
+            found[index] = document.baseline_paragraphs[index]
+    return found
+
+
 __all__ = [
     "MAX_MANUSCRIPT_BYTES",
     "REVISION_GRADES",
     "REVISION_KINDS",
     "RevisionRecord",
     "list_revision_events",
+    "read_paragraph_context",
+    "read_rejected_paragraph_context",
     "record_revision_events",
 ]

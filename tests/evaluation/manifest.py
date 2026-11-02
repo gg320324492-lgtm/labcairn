@@ -352,6 +352,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # says so. Its clause is insufficient evidence, because the refusal is
     # about a rule the cases do not support.
     "test_guidance_distillation.py": ("integration", "insufficient-evidence"),
+    # The distillation's second case: a rule learned from a tracked change
+    # rather than from a comment, for the manuscript that carries changes
+    # and no comment at all. Its clause is insufficient evidence, because
+    # the refusal is about a rule the cases do not support -- a revision
+    # nobody holds, or no revision at all.
+    "test_guidance_revision_distillation.py": ("integration", "insufficient-evidence"),
     # The retrieval: a source that stands or falls by its state, the
     # reader's consent, and a hit that carries its source and its
     # conditions. Its clause is the dataset locators, because the property
