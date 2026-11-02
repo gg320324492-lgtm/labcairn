@@ -298,3 +298,22 @@ thing judged by its state rather than by its clock.
 **The remedy:** a seed where the two rules differ in version or in
 timestamp, still asserting the id order. One line of fixture closes
 it.
+
+## An addition: the distillation's second case
+
+**This record covers T01 as it was first landed**, where a rule's case
+had to resolve to a **comment** under an issue key. On 2026-11-03 that
+was widened: **a rule may also be learned from a tracked change**, and
+the third pilot's material — 23 versions, 208 revisions, **not one
+comment** — is the shape that needed it.
+
+**That addition has its own record**, because the decisions it carries
+are different ones and its witnesses are different files:
+[`LC-P2-11-revision-distillation.md`](LC-P2-11-revision-distillation.md).
+
+**What it changes here:** the distillation has **two** entry points and
+**two** proposer names, and the retrieval resolves **two** kinds of
+source. What it does not change: the state machine, the second-reader
+rule, the vocabulary, and the refusal of a rule whose cases do not
+support it.
+
