@@ -30,8 +30,8 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import text as sql_text
 from skill_support import build_inventory, make_objective
+from sqlalchemy import text as sql_text
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
