@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint, Table, UniqueConstraint, inspect, text
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     db_path,
     frozen_clock,
@@ -30,7 +30,7 @@ from test_store_support import (  # noqa: F401
     make_task,
     migrated_db,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.db.base import Base
 from labcairn.db.migrations import (
@@ -168,6 +168,12 @@ EXPECTED_TABLES = frozenset(
         # consent an outbound lookup.
         "identifier_records",
         "evidence_identifiers",
+        # LC-P1-06's G2 debt, paid after the fact. The artifact ledger has
+        # re-hashed every read since LC-P1-07, but it kept the entries in the
+        # process that made them; this table is where they live now. There is
+        # no UNIQUE on `stage` -- a re-run appends a second row, and the
+        # current view is the latest entry per stage.
+        "artifact_ledger_entries",
     }
 )
 

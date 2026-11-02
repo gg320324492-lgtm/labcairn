@@ -298,10 +298,16 @@ a difference in *how many spellings are refused*, not an escape. The
 document does not quote a number for the refused set.
 *Evidence:* [threat model §1.3a and §6.11](THREAT-MODEL.md).
 
-### 2.12 One limitation in the product's own code
+### 2.12 Two limitations in the product's own code, both now closed
 
-- **`ArtifactLedger` is in memory** — so the ledger does not survive a
-  process restart the way the SQLite store does.
+- ~~**`ArtifactLedger` is in memory** — so the ledger does not survive a
+  process restart the way the SQLite store does.~~ — **closed since the
+  gate.** `SqliteArtifactLedgerStore` records every entry in
+  `artifact_ledger_entries` (migration 0022), and a new instance on the same
+  database loads the stored artifact and re-checks its digest. Witnessed by
+  `tests/test_artifact_ledger_persistence.py`; see
+  [LC-P1-06-artifact-ledger](acceptance/LC-P1-06-artifact-ledger.md). The
+  in-memory default remains for callers that do not pass a store.
 - ~~**`ApprovalLedger.consume()` does not resolve the capability against the
   registry**~~ — **closed since the gate.** `consume()` asks the registry and
   refuses an id it does not hold with `capability_unregistered`
@@ -346,15 +352,19 @@ own docstring, and **cannot be closed with this signal**.
 *Evidence:* [docs/handoff/CURRENT.md](handoff/CURRENT.md) §"Carried
 limitations" · `docs/adr/ADR-0008-pdf-ingestion-library.md`.
 
-### 2.17 A read still takes SQLite's write lock
+### 2.17 A read took SQLite's write lock — closed 2026-11-02
 
-`src/labcairn/db/session.py` opens every transaction with `BEGIN IMMEDIATE`. That
-is right for a write; a read is a transaction too, so a read takes the write
-lock for as long as it is open. The per-request session bounds that window
+`src/labcairn/db/session.py` opened every transaction with `BEGIN IMMEDIATE`. That
+is right for a write; a read is a transaction too, so a read took the write
+lock for as long as it was open. The per-request session bounded that window
 to one request.
 
-*Evidence:* [docs/handoff/CURRENT.md](handoff/CURRENT.md) §"What does not
-exist yet".
+**Closed by a read-only engine.** A read-only engine opens a plain deferred
+`BEGIN` and sets `PRAGMA query_only=ON`; the CLI's four read commands use it,
+and the write engine still opens `BEGIN IMMEDIATE` before its first read
+(ADR-0003 C3). Measured behind a held writer: the read went from failing after
+0.40025 s with `database is locked` to completing in 0.00015 s.
+[LC-P1-06 read-lock record](acceptance/LC-P1-06-sqlite-read-lock.md).
 
 ### 2.18 A surface can enter doubt and refuse, but it cannot finish the bookkeeping
 

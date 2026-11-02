@@ -1,8 +1,57 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-02 · **the artifact ledger and the outbound-consent
+bridge are durable, the blind evaluation's preparation is
+mutation-verified twice, and five acceptance records carry an
+independent review.**
+
+**The artifact ledger is durable, closing a G2 debt.**
+`ArtifactLedger` was a list in the process that made it: the read-time digest
+check was real, but a restart lost the record. It now writes through
+`SqliteArtifactLedgerStore` into `artifact_ledger_entries` (migration 0022), and
+a new instance on the same database reads the stored canonical payload back and
+re-hashes it. `ArtifactLedger()` stays in memory and `Orchestrator` gained an
+optional `ledger=` parameter, so no existing caller changed behaviour. Seven
+witnesses — new instance, engine restart, tampered payload, re-run history,
+canonical payload, foreign digest algorithm, ledger isolation — and six
+mutations, each caught by its own test; four further mutations were applied
+independently by the coordinator, all caught. **The shard cost for the new test
+file is not measured: it belongs to a runner**, and
+`test_the_recorded_costs_cover_every_test_file` is red for that reason alone.
+Record: [LC-P1-06 artifact ledger](../acceptance/LC-P1-06-artifact-ledger.md).
+
+**ADR-0006's outbound-consent bridge closes a Phase 1 debt.** The
+provider layer could send without the permission layer's decision;
+`PydanticAiModelProvider` now **cannot be constructed without an
+`OutboundConsent` port**, and `send` refuses before the transport when
+the decision is missing, pending, expired or already spent. The
+decision crosses as a **value**, not an import — the vocabularies stay
+disjoint. 8 witnesses; 5 self-reported mutations and 4 independent
+ones, all caught. [LC-P1-03 outbound bridge](../acceptance/LC-P1-03-outbound-bridge.md).
+
+---
+
 **Date:** 2026-11-02 · **the blind evaluation's preparation is built and
 mutation-verified twice, and five acceptance records carry an
 independent review.**
+
+**CI: lint is one job of its own, and the Ubuntu slow file is diagnosed.**
+The three static checks (`ruff check .`, `ruff format --check .`,
+`mypy --strict`) moved out of the ten shard jobs into one `lint` job on
+Ubuntu; `python-quality` jobs now run pytest only. The witness in
+`tests/test_ci_shard_coverage.py` checks the new job's name, its absence of
+a matrix, that all three commands live there, that no shard job repeats
+them, and that no two jobs share a check name. **`lint` is not a required
+check until the owner adds it in GitHub branch protection**; until then it
+reports without blocking. **The wall-clock expectation is unchanged** — the
+wait is the slowest shard, and lint finishes before it; the split removes
+ten duplicate runs, not minutes. None of it is measured on a runner yet.
+`tests/test_cli.py` is Ubuntu shard 0's only file (325.8s against four
+264.7s shards at `cf081e4`); it is slow because 95 end-to-end tests start
+real console-script processes, in the fixture setup as well, and it is not
+the wall-clock bottleneck — Windows shards cost 844s each. The diagnosis
+and the options, with their risks, are in `.github/CI.md`; the test file
+was not changed.
 
 **LC-P2-14's mechanical preparation is built.** Four pieces
 (`tests/evaluation/arms.py`, `split_check.py`, `blind_sheet.py`,
@@ -1287,7 +1336,7 @@ thing the tree can fix, the numbers are a thing only a runner can produce.
 
 **Three limits are known and recorded.** The API's event stream is **not consumed by the workbench** — the service offers `/events` and `/events/stream`, and the workbench reads neither — and the workbench **cannot switch the selected project**, because the API has no such operation. And the **workbench is never driven against the live service**: its tests use a fake at the `fetch` boundary, so *"CLI and UI show identical Task state"* is discharged **through the API** rather than measured between the two.
 
-**A read still takes SQLite's write lock.** `db/session.py` opens every transaction with `BEGIN IMMEDIATE`, which is right for a write and is ADR-0003 C3's clause; a read is a transaction too, so a read takes the write lock for as long as it is open. The per-request session bounds that window to one request, where before it was the life of the process, and the code's own comment — *"Readers do not block the writer"* — is true of WAL and **not of the application's own reads**. A deferred read connection would be the proper fix, and it was considered and not taken while the gate was closing: it is structural, it re-opens G2's accepted code, and nothing about the gate's exit test needs it.
+**A read took SQLite's write lock — closed 2026-11-02.** `db/session.py` opened every transaction with `BEGIN IMMEDIATE`, which is right for a write and is ADR-0003 C3's clause; a read is a transaction too, so a read took the write lock for as long as it was open. The per-request session bounded that window to one request, where before it was the life of the process, and the code's own comment — *"Readers do not block the writer"* — is true of WAL and **was not of the application's own reads**. **The deferred read connection this paragraph named is now the fix:** `create_db_engine(readonly=True)` opens a plain `BEGIN` and sets `PRAGMA query_only=ON`, `application_context(readonly=True)` builds it, and the four read-only CLI commands — `task status`, `sources inspect`, `sources addresses`, `artifacts list` — use it. The write engine is unchanged and still takes the write lock before its first read (C3). Measured behind a held writer: the read went from failing after 0.40025 s with `database is locked` to completing in 0.00015 s. [LC-P1-06 read-lock record](../acceptance/LC-P1-06-sqlite-read-lock.md). The service's own read requests still use its long-lived write context; that half is not claimed here.
 
 **The report's reproducible form is Markdown and HTML.** A DOCX is a ZIP whose entries carry timestamps and a PDF carries a creation date, so neither is byte-reproducible by default; the report says so on its own face.
 
@@ -1506,7 +1555,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **G1:** path-guard tests ran on Windows only. POSIX ADS and case semantics are unverified.
 - **G1:** ADR-0006's outbound-consent bridge is not built. Both modules exist.
 - **G1:** structured-output capability is unmeasured — both probes fail in pydantic-ai's client layer before a request is sent.
-- **G2:** `ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.
+- **G2:** ~~`ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.~~ **Closed 2026-11-02**: `SqliteArtifactLedgerStore` writes the ledger to `artifact_ledger_entries` (migration 0022) and a new instance on the same database reads it back; the [acceptance record](../acceptance/LC-P1-06-artifact-ledger.md) lists the witnesses and the one measurement still owed to a runner (the shard cost).
 - **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
 - **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
 - **Cross-gate:** copyright ownership is unresolved and there is still **no `LICENSE` file**. The project describes itself as in development with open-source licensing pending.

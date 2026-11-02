@@ -33,8 +33,8 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.application import (
     ApplicationContext,

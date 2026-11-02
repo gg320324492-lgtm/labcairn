@@ -119,7 +119,7 @@ _LOAD_BEARING: Final[tuple[Anchor, ...]] = (
         "verified by opening the LICENSE files at the pinned commit",
         3,
     ),
-    Anchor("32", 32, "local shallow-clone snapshot taken on **2026-10-15**", 2),
+    Anchor("32", 32, "On 2026-11-02 all five pins were verified against the remote", 2),
     Anchor("34", 34, "resolved all five commits against GitHub at review time", 2),
     Anchor("38-48", 38, "| ID | GitHub | Study areas |", 1),
     Anchor("45-48", 45, "| `opencode` | https://github.com/anomalyco/opencode |", 1),

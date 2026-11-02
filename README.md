@@ -2,7 +2,7 @@
 
 **Research that leaves a trail. · 让每一步研究，都有迹可循。**
 
-> **Status: Phase 1 is through its six gates; Phase 2 is under construction.** The features listed below are planned, not yet shipped. Do not use the current code for unsupported scientific or safety-critical decisions.
+> **Status: Phase 1 is through its six gates; Phase 2 is in progress.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are **prepared and not yet run**. The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
 
 **Read this page in:** English · [中文](#中文版--chinese-version) · the standalone Chinese document is [README.zh-CN.md](README.zh-CN.md).
 
@@ -63,7 +63,15 @@ Tool execution and network disclosure are subject to explicit capabilities and p
 
 ## Project development status
 
-The project has **finished Phase 1's six gates** and is **in Phase 2**. The research workflow is still under construction; the command line below is what exists today, and the rest arrives as its paths are implemented and verified.
+The project has **finished Phase 1's six gates** and is **in Phase 2**. What is in the tree today:
+
+- **The evidence chain** — comments, tracked changes, correspondences and judgements as separate rings, with the pilot corpus in the product rather than in a folder.
+- **The DOCX reader and the version graph** — revisions, comments and anchors reported once, and version edges built from the timestamps inside the material itself.
+- **The guidance memory** — rules as versioned rows; retrieval serves a rule only on sources a judgement says were answered.
+- **The frozen P1 baseline and citation identity** — the phase's comparison denominator, and identifiers recorded with their provenance and resolution state.
+- **The blind evaluation and the competitor comparison are prepared, not run** — their machinery, witnesses and task briefs exist; the runs spend provider money and wait for the owner.
+
+The command line below is what exists today, and the rest arrives as its paths are implemented and verified. The full list of what is built and what is left is the [Phase 2 work order](docs/plans/PHASE_2-work-orders.md).
 
 - [Four-stage roadmap](docs/ROADMAP.md)
 - [Phase 1 development work orders and acceptance gates](docs/PHASE_1_WORKORDERS.md)

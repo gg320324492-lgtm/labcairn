@@ -166,6 +166,74 @@ def test_the_workflow_names_every_shard_distinctly(repo_root: Path) -> None:
         )
 
 
+def test_the_lint_job_is_one_job_and_the_shards_do_not_repeat_it(
+    repo_root: Path,
+) -> None:
+    """The static checks run once, in a job named ``lint``, and nowhere else.
+
+    **The property.** ``ruff check .``, ``ruff format --check .`` and
+    ``mypy`` are steps of one job, and that job has no matrix. They used to
+    run inside every shard job: one lint error turned all ten checks red,
+    and the same three commands were paid for ten times over. A shard job
+    that ran them again would bring both costs back.
+
+    **The name is the gate.** ``lint`` must be a name no other job shares,
+    because branch protection identifies a check by name. This test can
+    watch only that the workflow *offers* a job of that name and that no
+    other job shares it. **Whether GitHub requires it is a branch-protection
+    setting the owner controls**, and no workflow file can assert it.
+    """
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict) and jobs, "the workflow declares no jobs"
+
+    job_names = [str(job.get("name", key)) for key, job in jobs.items()]
+    duplicates = sorted({name for name in job_names if job_names.count(name) > 1})
+    assert not duplicates, (
+        f"these job names are shared by more than one job: {duplicates}. "
+        "Branch protection identifies a check by its name, so jobs sharing "
+        "one are one check, and a required check would be satisfied by "
+        "whichever job reported first."
+    )
+
+    assert "lint" in jobs, (
+        "the workflow has no job named `lint`. The static checks are a job "
+        "of their own, and branch protection is asked to require that name."
+    )
+    lint = jobs["lint"]
+    assert lint.get("name") == "lint", (
+        f"the lint job's name is {lint.get('name')!r}, not `lint`; the check "
+        "branch protection names would be a different one"
+    )
+    assert lint.get("runs-on") == "ubuntu-latest", (
+        "the lint job must run on one runner; a matrix here would multiply "
+        "the checks this job exists to run once"
+    )
+    assert "matrix" not in lint.get("strategy", {}), (
+        "the lint job has a matrix, so the three static checks run more than "
+        "once and report under more than one name"
+    )
+
+    def commands(job: Any) -> str:
+        return "\n".join(str(step.get("run", "")) for step in job.get("steps", []))
+
+    lint_commands = commands(lint)
+    for command in ("ruff check .", "ruff format --check .", "mypy"):
+        assert command in lint_commands, (
+            f"the lint job does not run `{command}`. A check that moved out "
+            "of the shard jobs and not into this one is a check CI no longer "
+            "runs at all."
+        )
+
+    shard_commands = commands(jobs["python-quality"])
+    for command in ("ruff check", "ruff format", "mypy"):
+        assert command not in shard_commands, (
+            f"a shard job runs `{command}`. The static checks are the lint "
+            "job's, and repeating them here pays for them ten times and turns "
+            "one lint error into ten red checks."
+        )
+
+
 def test_the_shards_are_balanced(repo_root: Path) -> None:
     """The shards should cost about the same, and the cost is recorded.
 

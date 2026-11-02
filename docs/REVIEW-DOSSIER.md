@@ -69,13 +69,13 @@ been caught out.
 
 All five were cloned as shallow single-branch snapshots on **2026-10-15**
 (`docs/UPSTREAM_REFERENCES.md:32`). The SHA column was read from each local
-object store rather than resolved from the remote, so a fresh `git clone` of a
-default branch does not necessarily reproduce it
-(`docs/UPSTREAM_REFERENCES.md:32`); all five were resolved against GitHub at the
-LC-P1-00 review and found present upstream
-(`docs/UPSTREAM_REFERENCES.md:34`). **The local snapshot is not permanent and
-neither is upstream's retention of the commit** — the honest statement is
-two-sided, and it is the one this dossier repeats rather than improves on.
+object store rather than resolved from the remote, so at pin time a fresh
+`git clone` of a default branch was not guaranteed to reproduce it
+(`docs/UPSTREAM_REFERENCES.md:32`); all five were also resolved against GitHub
+at the LC-P1-00 review and again on **2026-11-02**, when each was verified
+as an ancestor of its remote default branch (`docs/UPSTREAM_REFERENCES.md:34`).
+**The local snapshot is not permanent and neither is upstream's retention of
+the commit**; the two-sided statement is repeated here, not improved on.
 
 | # | Repository | URL | Commit SHA | Licence at that revision | Study areas |
 |---|---|---|---|---|---|

@@ -207,7 +207,7 @@ it.
 | M19 | the structural case reports nothing | `test_the_structural_case_re_asks_the_bottleneck_and_not_the_rest` |
 | M20 | the slack is treated as already reached | `test_a_partition_inside_the_limit_asks_about_the_slack` |
 | M21 | the writer stops pinning the archive's timestamps | `test_the_archive_entries_carry_no_clock` |
-| M22 | the completion check stops counting the readings | `test_the_completion_check_agrees_with_the_manifests_own_state` |
+| M22 | the completion check stops counting the readings | `test_every_item_has_two_annotations_and_a_resolution` — the deleted-count form. `test_the_completion_check_agrees_with_the_manifests_own_state` is reddened only by the *mis*-counting form (`!= 1`), because this tree's manifest is finished and that witness takes its finished branch and never reaches the count (re-measured 2026-11-02) |
 | M23 | the manifest records a hash the bytes do not have | `test_the_corpus_section_records_the_bytes_that_are_written` |
 | M24 | an item names a comment the corpus does not have | `test_every_item_names_a_comment_the_corpus_has` |
 | M25 | an item records a feedback id the chain would not mint | `test_the_feedback_ids_are_the_chains_own` |

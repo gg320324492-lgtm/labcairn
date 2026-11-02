@@ -19,9 +19,9 @@ import os
 from pathlib import Path
 
 import pytest
+from recovery_support import SCENARIO_NOW, Scenario, build_scenario
 from sqlalchemy import select
-from test_recovery_support import SCENARIO_NOW, Scenario, build_scenario
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.core.ids import RunId, StageId, new_id
 from labcairn.db.models import EventRow
@@ -392,7 +392,7 @@ def test_stop_is_terminal_and_a_resume_makes_a_new_run(env, tmp_path):  # type: 
 
 def test_a_run_cannot_be_paused_through_another_task(env, tmp_path):  # type: ignore[no-untyped-def]
     """Run control is scoped by task, and the scope check is explicit."""
-    from test_store_support import make_task
+    from store_support import make_task
 
     scenario = build_scenario(env, tmp_path)
     other = make_task(title="Not this one", now=SCENARIO_NOW)

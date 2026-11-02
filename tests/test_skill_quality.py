@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 import pytest
-from test_skill_support import (
+from skill_support import (
     DATA_SHA,
     FOREIGN_SHA,
     PAPER_SHA,
@@ -261,7 +261,7 @@ class TestClosure:
         )
 
     def test_a_correct_inventory_closes(self) -> None:
-        from test_skill_support import make_objective
+        from skill_support import make_objective
 
         objective = make_objective(
             "t", materials=(("paper.pdf", PAPER_SHA), ("data.csv", DATA_SHA))
@@ -276,7 +276,7 @@ class TestClosure:
         )
 
     def test_an_inventory_that_omits_a_declared_material_is_refused(self) -> None:
-        from test_skill_support import make_objective
+        from skill_support import make_objective
 
         objective = make_objective(
             "t", materials=(("paper.pdf", PAPER_SHA), ("data.csv", DATA_SHA))
@@ -293,7 +293,7 @@ class TestClosure:
             )
 
     def test_an_inventory_that_drops_a_declared_material_is_refused(self) -> None:
-        from test_skill_support import make_objective
+        from skill_support import make_objective
 
         objective = make_objective(
             "t", materials=(("paper.pdf", PAPER_SHA), ("data.csv", DATA_SHA))
@@ -422,7 +422,7 @@ class TestClosure:
 
     def test_a_stage_with_no_closure_rule_closes_vacuously(self) -> None:
         """``intake`` reads nothing; that is a stated fact, not an omission."""
-        from test_skill_support import make_objective
+        from skill_support import make_objective
 
         require_closure(StageName.INTAKE, make_objective("t"), Upstream())
 

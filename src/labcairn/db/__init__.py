@@ -18,6 +18,7 @@ logic reads them back yet.
 from __future__ import annotations
 
 from labcairn.db.base import Base
+from labcairn.db.ledger import DEFAULT_LEDGER_ID, SqliteArtifactLedgerStore
 from labcairn.db.models import (
     LOCAL_USER_ID,
     ApprovalRow,
@@ -47,6 +48,7 @@ from labcairn.db.session import (
 )
 
 __all__ = [
+    "DEFAULT_LEDGER_ID",
     "LOCAL_USER_ID",
     "ApprovalRow",
     "ArtifactRow",
@@ -55,6 +57,7 @@ __all__ = [
     "EventRow",
     "OperationRow",
     "RunRow",
+    "SqliteArtifactLedgerStore",
     "StageRow",
     "StoreError",
     "StoredApprovalLedger",

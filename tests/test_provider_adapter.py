@@ -25,7 +25,7 @@ import asyncio
 from decimal import Decimal
 
 import pytest
-from provider_fakes import FakeEndpoint, Reply, sync_runner
+from provider_fakes import FakeEndpoint, PermissiveConsent, Reply, sync_runner
 
 from labcairn.core.providers.protocol import ModelRequest
 from labcairn.core.providers.usage import Known, Unknown, UnknownReason
@@ -83,6 +83,10 @@ def _provider(endpoint: FakeEndpoint, **kwargs: object) -> PydanticAiModelProvid
     kwargs.setdefault("runner", sync_runner)
     kwargs.setdefault("clock", FakeClock())
     kwargs.setdefault("usage_capture", endpoint.capture)
+    # ADR-0006's port is required; this file's subject is the other gates.
+    # The refusals the port can produce are witnessed in
+    # ``test_outbound_consent_bridge.py``.
+    kwargs.setdefault("consent", PermissiveConsent())
     return PydanticAiModelProvider(model=endpoint, **kwargs)  # type: ignore[arg-type]
 
 
@@ -501,7 +505,11 @@ def test_a_default_provider_without_a_capture_reports_everything_unknown() -> No
     """
     endpoint = FakeEndpoint(replies=(_OK_REPLY,))
     provider = PydanticAiModelProvider(
-        model=endpoint, runner=sync_runner, clock=FakeClock(), capabilities=_capabilities()
+        model=endpoint,
+        consent=PermissiveConsent(),
+        runner=sync_runner,
+        clock=FakeClock(),
+        capabilities=_capabilities(),
     )
 
     response = provider.send(ModelRequest(prompt="summarise"))

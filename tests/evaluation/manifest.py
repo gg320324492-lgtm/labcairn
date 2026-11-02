@@ -220,6 +220,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_evidence_store.py": ("integration", "event-append"),
     "test_event_payload_vocabulary.py": ("integration", "event-append"),
     "test_paper_fixtures.py": ("unit", "dataset-locators"),
+    # LC-P2-18. The competitor adapter: corpus files in, answers out, and
+    # the witnesses holding the brief's rule that the translation carries
+    # no task logic and that scoring reads only the answer and the key. The
+    # clause is numerical extraction because that is the task the adapter
+    # translates; the file declares the unit marker, as its neighbours do.
+    "test_paperqa_adapter.py": ("unit", "numeric-extraction"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
     "test_fake_provider_determinism.py": ("unit", "typed-contracts"),
@@ -393,6 +399,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # rather than accepted. Its clause is the approvals, because the
     # approval is spent exactly once and only after every gate permitted.
     "test_model_request_path.py": ("integration", "approvals"),
+    # ADR-0006's bridge: the provider is handed a permission decision, and
+    # ``send`` refuses before the transport when that decision is missing,
+    # expired or already spent. The clause is the approvals, because the
+    # property is the approval's single use — now enforced at the provider
+    # boundary and measured on a recording upstream.
+    "test_outbound_consent_bridge.py": ("integration", "approvals"),
     # The demonstration: consented, budgeted, recorded, and refused before a
     # socket exists. Its clause is the provider redaction, because what it
     # checks about the record is that no key and no text can be in it.
@@ -413,7 +425,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
     "test_recovery_resume.py": ("integration", "restart-recovery"),
     "test_recovery_stage_bridge.py": ("unit", "typed-contracts"),
-    "test_recovery_support.py": ("integration", "restart-recovery"),
     # -- security -----------------------------------------------------------
     "test_security_approval.py": ("integration", "approvals"),
     "test_security_injection.py": ("negative", "untrusted-instructions"),
@@ -426,9 +437,13 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_skill_contracts.py": ("unit", "typed-contracts"),
     "test_skill_execution.py": ("unit", "state-transitions"),
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
+    # LC-P1-06's G2 debt: the same clause as `test_skill_ledger.py`, witnessed
+    # against the table instead of a list. The read-time check is the property,
+    # so the tamper is written into the stored bytes and the reopened ledger is
+    # what has to catch it.
+    "test_artifact_ledger_persistence.py": ("integration", "artifact-hashes"),
     "test_skill_plan.py": ("unit", "typed-contracts"),
     "test_skill_quality.py": ("unit", "report-serialization"),
-    "test_skill_support.py": ("unit", "report-serialization"),
     # -- the runtime and the store ------------------------------------------
     "test_id_aliases_are_nominal.py": ("unit", "typed-contracts"),
     "test_runtime_contracts.py": ("unit", "typed-contracts"),
@@ -440,7 +455,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
-    "test_store_support.py": ("integration", "event-append"),
     # -- the smoke path and the repository's own gates ----------------------
     "test_refusal_witnesses.py": ("negative", "insufficient-evidence"),
     "test_smoke_path.py": ("e2e", "fresh-install"),

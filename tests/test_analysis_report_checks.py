@@ -44,10 +44,10 @@ from typing import Any
 import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
+from store_support import StoreEnv
+from store_support import env as _shared_env
 from test_application_layer import report_world as _report_world_fixture
 from test_application_layer import workspace_root as _workspace_root_fixture
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
 
 from labcairn.analysis.manifest import (
     FileRef,
@@ -110,7 +110,7 @@ from labcairn.sources.locators import ComputationLocator, PdfLocator
 
 #: The store fixture, re-exported under the name pytest looks for.
 #:
-#: It lives in ``test_store_support`` because LC-P1-05 owns it, and a
+#: It lives in ``store_support`` because LC-P1-05 owns it, and a
 #: fixture that has to be imported under another name is a fixture this
 #: file cannot reason about; so it is imported once, here, and named.
 env = _shared_env

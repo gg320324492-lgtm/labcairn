@@ -9,8 +9,8 @@ truth, and everything the ledger records would eventually disagree with it.
 from __future__ import annotations
 
 import pytest
-from test_skill_support import build_proposal as significant
-from test_skill_support import make_objective, make_orchestrator
+from skill_support import build_proposal as significant
+from skill_support import make_objective, make_orchestrator
 
 from labcairn.core.schema import LabCairnModel
 from labcairn.runtime.lifecycle import StageStatus
@@ -190,7 +190,7 @@ class TestThePlanIsNotAuthoritative:
         ran: list[str] = []
 
         def counting(context: StageContext) -> LabCairnModel:
-            from test_skill_support import inventory_handler
+            from skill_support import inventory_handler
 
             ran.append("inventory")
             return inventory_handler(context)

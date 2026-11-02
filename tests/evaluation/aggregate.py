@@ -239,10 +239,11 @@ class OutcomeIndex:
     by_file: Mapping[str, tuple[TestOutcome, ...]]
     files_run: frozenset[str]
     #: The files the run *asked* pytest for, whether or not a case came out of
-    #: them. A support module named `test_*.py` is selected and collects
-    #: nothing, and that is a different fact from a file no class holds — the
-    #: first says a required test checked nothing here, the second says only
-    #: that this run did not look.
+    #: them. A required file that is selected and collects nothing is a
+    #: different fact from a file no class holds — the first says a required
+    #: test checked nothing here, the second says only that this run did not
+    #: look. (The tree carried three such files until 2026-11-02: support
+    #: modules named `test_*.py`, since renamed out of the glob.)
     files_selected: frozenset[str]
 
     def of(self, files: tuple[str, ...]) -> tuple[TestOutcome, ...]:

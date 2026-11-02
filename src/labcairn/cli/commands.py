@@ -994,7 +994,7 @@ def task_status(
     with _refusals(as_json):
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
-        with application_context(location, config, task_id) as context:
+        with application_context(location, config, task_id, readonly=True) as context:
             if plan:
                 model: TaskState | TaskPlan = read_plan(context)
             else:
@@ -1761,7 +1761,7 @@ def sources_inspect(
     with _refusals(as_json):
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
-        with application_context(location, config, task_id) as context:
+        with application_context(location, config, task_id, readonly=True) as context:
             model: SourceView = inspect_source(context, source)
     if as_json:
         emit_model(model)
@@ -1794,7 +1794,7 @@ def sources_addresses(
     with _refusals(as_json):
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
-        with application_context(location, config, task_id) as context:
+        with application_context(location, config, task_id, readonly=True) as context:
             addresses = list_source_addresses(context, source)
     if as_json:
         emit_models(addresses, SourceAddress)
@@ -1907,7 +1907,7 @@ def artifacts_list(
     with _refusals(as_json):
         config = _require_workspace(location, as_json=as_json)
         task_id = _select_task(config, task, as_json=as_json)
-        with application_context(location, config, task_id) as context:
+        with application_context(location, config, task_id, readonly=True) as context:
             models = list_artifacts(context)
     if as_json:
         emit_models(models, ArtifactView)

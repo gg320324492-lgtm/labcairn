@@ -98,6 +98,18 @@ class ArtifactSubstitutedError(SkillError):
     """
 
 
+class LedgerAlgorithmError(SkillError):
+    """A stored entry was hashed under a different digest algorithm.
+
+    A durable ledger outlives a release, and the digest algorithm is free to
+    change between releases. Comparing a stored digest against a digest computed
+    by a different algorithm would not be a check — it would be two numbers that
+    happen not to match, reported as tampering. So the row says which algorithm
+    produced it, and a reader refuses a row it cannot re-check rather than
+    guessing what the old number means.
+    """
+
+
 class ApprovalRequiredError(SkillError):
     """A stage requiring an approval was entered without one.
 
@@ -132,6 +144,7 @@ __all__ = [
     "ArtifactSubstitutedError",
     "ArtifactTypeError",
     "DerivationClosureError",
+    "LedgerAlgorithmError",
     "LineageError",
     "PlaceholderError",
     "SkillBudgetError",

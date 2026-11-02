@@ -1,0 +1,119 @@
+# The CI, and what each job is for
+
+This record belongs to `.github/workflows/python.yml` and
+`.github/ci-shards.json`. It says what runs, why the jobs are arranged this
+way, and — where a number is a runner measurement — which run it came from.
+
+## The shape of a run
+
+Two kinds of job:
+
+| job | runner | what it runs |
+| --- | --- | --- |
+| `lint` | `ubuntu-latest`, one runner, no matrix | `ruff check .`, `ruff format --check .`, `mypy --strict` |
+| `python-quality (${{ matrix.os }}, shard N)` | 2 platforms × 5 shards = 10 jobs | `pytest` on that shard's files only |
+
+The shard partition and its measured per-file costs live in
+`.github/ci-shards.json`; `tests/test_ci_shard_coverage.py` watches that
+every test file is in exactly one shard on every platform, that the shard
+count matches the workflow's matrix, and that the names branch protection
+identifies are distinct.
+
+## 2026-11-02 — lint split out of the shard jobs
+
+**What changed.** The three static checks moved out of the ten `python-quality`
+jobs and into one `lint` job. The shard jobs now run `pytest` only.
+
+**Why.** The same three commands ran in every shard job, so one lint error
+turned all ten checks red, and the work was paid for ten times. A separate
+`lint` job is one check to read, one place to fix, and one run of each
+command.
+
+**The witness.** `tests/test_ci_shard_coverage.py` now also asserts that
+`lint` exists, is named exactly `lint`, has no matrix, runs all three
+commands, that no shard job runs any of them, and that no two jobs share a
+check name. It cannot assert that GitHub *requires* `lint` — that is not in
+the repository.
+
+**Wall-clock expectation, and what is not verified.** The split does not
+shorten the wait. The shard jobs' wall clock is set by the slowest shard, and
+`lint` finishes well before them (its work is seconds-to-a-minute against a
+shard's minutes). What it removes is ten duplicate lint runs and nine red
+checks to read. **The numbers are not measured on a runner yet**: this change
+has only been checked locally (YAML parse, the witness, and the three
+commands run from this checkout). The first pull request after it lands is
+the measurement.
+
+**Branch protection is the owner's step.** `lint` is a check the workflow
+reports; it is **not a required status check**. Only the owner can add it in
+GitHub's branch-protection settings. Until that is done, a failing `lint` is
+visible but does not block a merge. No file in this repository can make it
+required.
+
+**C-6, stated plainly.** C-6 says *"Python lint/type/test CI on Ubuntu and
+Windows"*. Lint and type checking now run on Ubuntu only. The test suite
+still runs on both platforms, and the CLI is still exercised as a real
+subprocess on Windows. What is lost is `mypy`'s judgement of Windows-only
+branches on a Windows interpreter. If C-6 is to be kept literally, `lint`
+needs a two-platform matrix instead of one runner; that is an owner's
+decision, and it trades the duplicate-work saving for the second platform.
+
+## The Ubuntu slow file: `tests/test_cli.py`
+
+**What it is.** On Ubuntu, shard 0 is one file: `tests/test_cli.py`. The
+partition is not broken — the other four shards are balanced at 264.7s each
+against the file's 325.8s (measured at `cf081e4`, the commit recorded in
+`ci-shards.json`), a balance factor of 1.176 inside the 1.6 limit. The file
+is simply the floor: no arrangement of the remaining files makes the shard
+that holds it any shorter.
+
+**Why it is slow.** It is an end-to-end subprocess file, on purpose: every
+test starts a real console-script process and reads its exit code and two
+streams (the module docstring says why — an in-process `CliRunner` would not
+exercise option parsing, exit codes, or the bytes that reach a terminal). The
+file collects 95 tests and calls `run_cli()` at 105 sites; the `workspace`
+and `task_id` fixtures each start another process (`init` and `task create`)
+per test that uses them. There are no sleeps in the file; `timeout=300` is
+an upper bound, not a wait.
+
+**Measured locally, to see the shape, not to predict the runner.** On this
+Windows development machine, `python -m pytest tests/test_cli.py
+--durations=0` is 95 passed in 655.4s. The duration report splits it:
+**setup 352.5s (53.9%) across the 79 tests that use a fixture**, and call
+302.0s (46.1%) across 90 tests; the mean setup is 4.46s per test. The most
+expensive single test is 16.2s. A bare `labcairn --help` costs 0.58–0.82s
+here (five runs), almost all interpreter start and imports, so the fixture's
+`init` and `task create` processes cost more than a bare start — they also
+create the workspace and write the store. **More than half the file's time
+is rebuilding the same workspace and task per test**, which is the shape the
+fixture-sharing option below addresses. The absolute number is a dev-machine
+number and is not comparable to the runner's; only the split is the finding.
+
+**It is not the wall-clock bottleneck.** The same commit measures
+`tests/test_cli.py` at 690.0s on Windows, and each Windows shard costs 844s
+against Ubuntu's 325.8s. Windows sets the wait. Splitting or speeding up the
+Ubuntu file improves the Ubuntu balance and does not shorten the run.
+
+**Directions, with risks — for the owner to choose.**
+
+1. **Split the file by command group** into several `test_cli_*.py` files.
+   Low risk: the tests and what they exercise do not change, and the shard
+   list can spread the pieces. It needs `python .github/make_ci_shards.py`
+   (with runner-measured costs from the next run, per the project's rule)
+   and gives an Ubuntu-only gain; the Windows wall clock stays.
+2. **Share one CLI-made workspace and copy it per test** instead of running
+   `init` and `task create` for every test. Saves roughly two process
+   starts per test, but changes what the fixture proves: today the workspace
+   is made by the CLI in that test. It needs a witness that a copied
+   workspace is byte-for-byte usable by every test, and a check that no test
+   mutates shared state.
+3. **Make the CLI's imports cheaper** (lazy-load the heavy subcommands).
+   Changes product code, not tests; the file already has a test that
+   `labcairn --help` is cheap, so the change would have to keep it cheap.
+4. **Run the CLI in-process.** Not an option: it changes the property the
+   file exists to test (a real process's exit code and streams). Listed here
+   only so it is not proposed again.
+
+**What was not done.** No change was made to `tests/test_cli.py` in this
+piece. Every direction above either changes a measured property or needs a
+runner measurement first, and the owner decides.

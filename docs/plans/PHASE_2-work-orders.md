@@ -69,12 +69,17 @@ difference between absorbing the mentor's judgement and arranging it.
 | **The second corpus** | another paper, another advisor, thirty-four more comments | [`second-corpus-absorption.md`](../acceptance/second-corpus-absorption.md) |
 
 **And the material is in the product, not in a folder.** Two pilot
-projects, twenty versions, eighty comments, **1528 recorded changes**,
-**1439 of them changes rather than marks**, and **32 judgements** of which
-**two hold** — the owner's own. **The memory serves one rule and reports
-fifteen**, and the chain's own listing says which of the eighty comments
-nobody answered, which are waiting for a judgement, and which were
-judged and did not answer.
+projects, twenty versions, **eighteen version edges** (the second
+paper's edges built from the timestamps inside the material itself —
+the advisor's comments of 03-07, the author's revision of 03-12, the
+second advisor's both of 03-16), eighty comments, **1819 recorded
+changes** — the whole of what the files record, the marks an operation
+at a point leaves behind having been shown to be absent from the
+count —, **36 correspondences** of which **2 hold, 8 do not and 26
+wait for a judgement**, and one reply settlement. **The memory serves
+one rule and reports fifteen**, and the chain's own listing says which
+of the eighty comments nobody answered, which are waiting for a
+judgement, and which were judged and did not answer.
 
 **The owner ruled on two things the material forced** (2026-11-01), and
 both are in the code, the record and the review points:
@@ -140,15 +145,15 @@ inherited silently:
 
 | Item | Where it is recorded | What leaving it costs |
 |---|---|---|
-| **Three files in the CI shard list collect no test case** — `test_store_support.py`, `test_recovery_support.py`, `test_skill_support.py` | the evaluation record §8 | CI pays to collect them on every shard on both platforms, and the partition's witnesses ask *"is every test file in a class?"* and never *"is there a test in it?"* |
+| ~~**Three files in the CI shard list collect no test case** — `test_store_support.py`, `test_recovery_support.py`, `test_skill_support.py`~~ | the evaluation record §8 | **Closed 2026-11-02.** They are not placeholders and nothing supersedes them: 47 test files import them (41 store, 4 recovery, 6 skill), so deleting them would break every importer, and folding them into their siblings would copy 1,244 lines of fixtures. They were **renamed out of the `test_*` glob** — the first of the two routes the Phase 1 board named — to `tests/store_support.py`, `tests/recovery_support.py` and `tests/skill_support.py`. Their shard entries (both platforms), cost entries and evaluation-manifest rows are gone; `test_evaluation_harness.py` still witnesses *collected nothing* with a synthetic selected-and-empty run; `python .github/make_ci_shards.py` re-balanced both partitions from the existing runner costs (Ubuntu 1.231, Windows 1.000), so no CI run was spent. |
 | **Nothing in CI runs the evaluation harness** | `python.yml` runs plain sharded pytest | the blocker table and the metrics exist only when somebody runs them locally. **Wiring them in is a gate decision and it is the owner's** — after the Phase 1 ruling the run exits 2 because the fifth gate class cannot run offline, so a naive gate would be permanently red |
 | **The workbench's four limits** — the event stream is not consumed by the UI; it cannot switch the selected project; it is never driven against the live service; the product has no operation that extracts a claim or accepts a model's proposal | LC-P1-12's board row | *"CLI and UI show identical Task state"* stays discharged through the API rather than measured |
-| **ADR-0006's outbound-consent bridge is not built** — both modules exist, nothing joins them | the G1 entry | *unapproved outbound transmission* is a Phase 1 boundary the bridge would enforce rather than describe |
+| ~~**ADR-0006's outbound-consent bridge is not built** — both modules exist, nothing joins them~~ **CLOSED (2026-11-02)**: the provider is handed an `OutboundConsent` decision and cannot be constructed without one; `send` refuses before the transport when the decision is missing, expired or already spent — [`LC-P1-03-outbound-bridge.md`](../acceptance/LC-P1-03-outbound-bridge.md) | the G1 entry | *unapproved outbound transmission* is now enforced at the provider boundary, not described |
 | **`ArtifactLedger` is in memory** — the store does not survive it | the G2 entry | an artefact recorded before a restart is not the artefact a report reads after it |
 | **A read still takes SQLite's write lock** — every transaction opens with `BEGIN IMMEDIATE` | the release notes §2.17 | bounds how long a forked per-request session may be held |
 | **The report's second revision is not recomputed from the revised material**, and the DOCX and PDF are not byte-reproducible | the release notes §2.3 and §2.15 | two limits any higher-fidelity rendering ticket is measured against |
 | **Path-guard tests ran on Windows only** | the G1 entry | a platform skip is **accepted and named** rather than fatal, which makes an unverified half easy to mistake for a covered one |
-| **The Gitleaks allowlist guard is textual**, and the README capability-claim detector has known holes | the G1/G2 entries | both are stated floors, not truth-checkers |
+| **The Gitleaks allowlist guard parsed only the top-level `allowlists` array**, and the README capability-claim detector had the holes LC-P1-01 listed | `docs/acceptance/LC-P2-25-guard-of-the-guards.md` | **CLOSED 2026-11-02** — both carry witnesses now; the qualifier whitewash named in the same row is still open and is stated in the record |
 | **The G1/G2 human review is prepared and unexecuted** | [`G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md) | the board's independence rule stays unsatisfied for the two oldest gates, and every gate after them inherits their contracts |
 | **The upstream pin SHAs came from a shallow local clone** | the board's carried-issues row | contradicts the competitor baseline's acceptance that *a reader can re-run one side* |
 

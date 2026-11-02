@@ -45,6 +45,8 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from sqlalchemy.exc import IntegrityError
+from store_support import StoreEnv, make_source_id
+from store_support import env as _shared_env
 from test_analysis_report_render import (
     _read_docx,
     _read_html,
@@ -52,8 +54,6 @@ from test_analysis_report_render import (
     _read_pdf,
     _the_snapshot_a_form_states,
 )
-from test_store_support import StoreEnv, make_source_id
-from test_store_support import env as _shared_env
 
 from labcairn.analysis.manifest import (
     FileRef,
@@ -329,6 +329,11 @@ _ALLOWED_STORE_READERS = frozenset(
     {
         # The store itself.
         "labcairn.db",
+        # The artifact ledger's storage. A store module like `materials`: the
+        # ledger's facade reaches it through the ``ArtifactLedgerStore`` seam,
+        # so a surface still goes through the ledger — and the skills layer's
+        # write-time and read-time checks — rather than reaching the table.
+        "labcairn.db.ledger",
         "labcairn.db.materials",
         "labcairn.db.models",
         "labcairn.db.repository",
