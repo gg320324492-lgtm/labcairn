@@ -69,12 +69,17 @@ difference between absorbing the mentor's judgement and arranging it.
 | **The second corpus** | another paper, another advisor, thirty-four more comments | [`second-corpus-absorption.md`](../acceptance/second-corpus-absorption.md) |
 
 **And the material is in the product, not in a folder.** Two pilot
-projects, twenty versions, eighty comments, **1528 recorded changes**,
-**1439 of them changes rather than marks**, and **32 judgements** of which
-**two hold** — the owner's own. **The memory serves one rule and reports
-fifteen**, and the chain's own listing says which of the eighty comments
-nobody answered, which are waiting for a judgement, and which were
-judged and did not answer.
+projects, twenty versions, **eighteen version edges** (the second
+paper's edges built from the timestamps inside the material itself —
+the advisor's comments of 03-07, the author's revision of 03-12, the
+second advisor's both of 03-16), eighty comments, **1819 recorded
+changes** — the whole of what the files record, the marks an operation
+at a point leaves behind having been shown to be absent from the
+count —, **36 correspondences** of which **2 hold, 8 do not and 26
+wait for a judgement**, and one reply settlement. **The memory serves
+one rule and reports fifteen**, and the chain's own listing says which
+of the eighty comments nobody answered, which are waiting for a
+judgement, and which were judged and did not answer.
 
 **The owner ruled on two things the material forced** (2026-11-01), and
 both are in the code, the record and the review points:
