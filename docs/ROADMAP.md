@@ -95,16 +95,18 @@ deliver:** the labels were written by sessions rather than by people, and
 the pilot corpus is still the owner's.
 
 **And what the mentor's own material settled, on 2026-11-01.** Two
-projects, eighty comments, **1528 recorded changes** and **the owner's own
+projects, eighty comments, **1819 recorded changes** and **the owner's own
 judgements** on ten correspondences: **two hold, eight do not**, so **the
 memory serves one rule of sixteen and reports fifteen**. **The retrieval's
 threshold did not move** — a rule is served on a source a judgement says
 was answered — and **the chain's judgement is a fact**: a second judgement
 on the same correspondence does not undo the first, and a wrong judgement is
-corrected **on the rule**. **What is left** is in the merged ticket: the
-blind
-evaluation that is written and not run, citation identity, retrieval
-quality beyond three papers, and the competitor comparison.
+corrected **on the rule**. The second paper's **eighteen version edges**
+were built from the timestamps inside the material itself, on 2026-11-02.
+**What is left** is in the merged ticket: the blind
+evaluation's real run (its machinery is built and mutation-verified
+twice), retrieval quality beyond three papers, and the competitor
+comparison.
 
 **Where Line B stands (2026-11-02, later).** Everything the 2026-11-01
 entry lists is merged, and more has landed since: **the reader reports
