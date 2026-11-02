@@ -23,7 +23,6 @@ checked by breaking the property it names and watching it go red.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -110,7 +109,10 @@ def test_the_question_depends_on_the_keys_structure_and_not_its_values() -> None
 
     renamed = {
         **key,
-        "selections": [{**key["selections"][0], "name": "a different selection"}, *key["selections"][1:]],
+        "selections": [
+            {**key["selections"][0], "name": "a different selection"},
+            *key["selections"][1:],
+        ],
     }
     assert question_for(renamed) != original, (
         "renaming a selection did not change the question, so this witness "
@@ -139,9 +141,7 @@ def test_the_question_names_every_selection_and_group_but_no_statistic_value() -
     ]
     assert values, "units.csv carries no statistics, so this witness measures nothing"
     for value in values:
-        assert str(value) not in question, (
-            f"the question contains the expected value {value!r}"
-        )
+        assert str(value) not in question, f"the question contains the expected value {value!r}"
 
 
 def test_refused_selections_are_asked_but_not_scored() -> None:
@@ -153,12 +153,20 @@ def test_refused_selections_are_asked_but_not_scored() -> None:
     selections and ``ok`` groups.
     """
     key = _numeric_key()
-    refused = [selection for selection in key["selections"] if selection["expect"]["outcome"] == "refused"]
-    assert refused, "units.csv no longer carries a refused selection, so this witness measures nothing"
+    refused = [
+        selection for selection in key["selections"] if selection["expect"]["outcome"] == "refused"
+    ]
+    assert refused, (
+        "units.csv no longer carries a refused selection, so this witness measures nothing"
+    )
     assert refused[0]["name"] in question_for(key)
 
     expected_values = sum(
-        sum(1 for value in (selection["expect"].get("statistics") or {}).values() if value is not None)
+        sum(
+            1
+            for value in (selection["expect"].get("statistics") or {}).values()
+            if value is not None
+        )
         for selection in key["selections"]
         if selection["expect"]["outcome"] == "ok"
     ) + sum(
@@ -206,20 +214,25 @@ def test_scoring_reads_only_the_answer_and_the_key() -> None:
     that read them would score it higher.
     """
     key = load_expected("basic.csv")
-    answer = "sum 55, min 1, max 10, mean 5.5, median 5.5, population stdev 2.87, sample stdev 3.03"
-    bare = build_artifact("basic.csv", question_for(key), answer)
+    wrong_answer = "the sum cannot be determined from this document"
+    correct_numbers = "sum 55, min 1, max 10, mean 5.5, median 5.5"
+    bare = build_artifact("basic.csv", question_for(key), wrong_answer)
     decorated = {
-        **build_artifact("basic.csv", "a different question", answer),
+        **build_artifact("basic.csv", "a different question", wrong_answer),
         "system": "paper-qa",
-        "contexts": ["sum 55, min 1, max 10, mean 5.5, median 5.5, population stdev 2.87, sample stdev 3.03"],
+        "contexts": [correct_numbers],
         "note": "arbitrary metadata",
     }
-    assert score_artifact(bare, key) == score_artifact(decorated, key)
+    assert score_artifact(bare, key).matched == 0
+    assert score_artifact(bare, key) == score_artifact(decorated, key), (
+        "the contexts changed the score, so scoring is reading something "
+        "other than the answer and the key"
+    )
 
-    changed_answer = {**decorated, "answer": "no numbers here"}
-    assert score_artifact(changed_answer, key) != score_artifact(bare, key), (
-        "changing the answer did not change the score, so this witness "
-        "cannot see what the scorer reads"
+    answered = {**decorated, "answer": correct_numbers}
+    assert score_artifact(answered, key).matched > 0, (
+        "correct numbers in the answer did not raise the score, so this "
+        "witness cannot see what the scorer reads"
     )
 
 
@@ -236,6 +249,6 @@ def test_the_score_is_recall_over_the_answers_numbers_and_extra_numbers_are_not_
         for name in STAT_ORDER
         if name in statistics and statistics[name] is not None
     )
-    with_extras = f"row 2 holds 42; a year 2024; {correct}"
+    with_extras = f"row 2, row 3, columns 4 and 5, a year 2024; {correct}"
     score = score_artifact(build_artifact("single.csv", "q", with_extras), key)
     assert score.exact, f"extra numbers lowered the score: {score}"

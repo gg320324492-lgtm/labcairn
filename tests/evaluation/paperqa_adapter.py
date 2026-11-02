@@ -61,9 +61,10 @@ from __future__ import annotations
 import io
 import math
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Final, Mapping
+from typing import Any, Final
 
 from analysis_fixtures import (
     CORPUS_DIR,
@@ -72,9 +73,9 @@ from analysis_fixtures import (
 )
 
 __all__ = [
-    "CaseScore",
     "STAT_ORDER",
     "STAT_PHRASES",
+    "CaseScore",
     "build_artifact",
     "extract_numbers",
     "question_for",
@@ -119,9 +120,7 @@ _NUMBER: Final[re.Pattern[str]] = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[e
 Document = str
 
 
-def render_fixture(
-    fixture: str, *, spreadsheets: Mapping[str, bytes] | None = None
-) -> str:
+def render_fixture(fixture: str, *, spreadsheets: Mapping[str, bytes] | None = None) -> str:
     """The text paper-qa ingests for one corpus fixture.
 
     A CSV is its own bytes decoded; a spreadsheet is read cell by cell and
@@ -229,9 +228,7 @@ def build_artifact(
     }
 
 
-def build_failure(
-    fixture: str, question: str, *, stage: str, error: str
-) -> dict[str, Any]:
+def build_failure(fixture: str, question: str, *, stage: str, error: str) -> dict[str, Any]:
     """The artifact of a case the system could not complete.
 
     The case is a **reported fact with its reason** (brief §3): it is
@@ -265,7 +262,7 @@ def run_case(
     document = render_fixture(fixture, spreadsheets=spreadsheets)
     try:
         answer = system(question, document)
-    except Exception as error:  # noqa: BLE001 - every failure is a reported case
+    except Exception as error:
         return build_failure(
             fixture,
             question,
@@ -359,7 +356,9 @@ def score_artifact(artifact: Mapping[str, Any], expected: Mapping[str, Any]) -> 
     numbers = extract_numbers(answer)
     matched = 0
     for value in _expected_statistics(expected):
-        if any(math.isclose(value, number, rel_tol=tolerance, abs_tol=tolerance) for number in numbers):
+        if any(
+            math.isclose(value, number, rel_tol=tolerance, abs_tol=tolerance) for number in numbers
+        ):
             matched += 1
     return CaseScore(expected=len(_expected_statistics(expected)), matched=matched)
 
