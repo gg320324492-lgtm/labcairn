@@ -99,8 +99,12 @@ def _load_approvals(path: Path) -> tuple[blind_runner.ApprovalGrant, ...]:
     if not isinstance(document, Mapping):
         raise ValueError("the approval file is not an object")
     raw = document.get("approvals")
-    if not isinstance(raw, list) or not raw:
-        raise ValueError("the approval file carries no approvals")
+    if not isinstance(raw, list):
+        raise ValueError("the approval file's approvals are not a list")
+    # An empty list is a refusal, not a malformed file: it reaches the run's
+    # own approval-count check, which says how many requests the run has and
+    # how many the owner supplied. Raising a format error here would report a
+    # missing authorisation as a bad document.
     grants: list[blind_runner.ApprovalGrant] = []
     for one in raw:
         if not isinstance(one, Mapping):

@@ -261,9 +261,10 @@ the numbers are not a measurement. The two contrasts are the
 not-significant path by rule (every case tied), which is what makes the
 pipeline's wiring visible without dressing a fixture up as a result.
 
-**The witnesses added, and the one that matters most.** Eleven tests were
-appended to `tests/test_blind_evaluation_preparation.py`; no new test
-file was created, so the shard partition and the manifest are unchanged.
+**The witnesses added, and the one that matters most.** Thirteen tests
+were appended to `tests/test_blind_evaluation_preparation.py`; no new
+test file was created, so the shard partition and the manifest are
+unchanged.
 
 | | The property | The witness |
 |---|---|---|
@@ -278,6 +279,8 @@ file was created, so the shard partition and the manifest are unchanged.
 | W9 | the command runs the dry run | `test_the_command_runs_a_dry_run` |
 | W10 | no approval means the command constructs nothing | `test_a_real_run_without_approvals_is_refused_before_a_provider` |
 | W11 | approvals without a ceiling are also refused | `test_a_real_run_without_a_budget_is_refused_before_a_provider` |
+| W12 | the consent port refuses an empty grant list at construction | `test_an_empty_approval_grant_list_is_refused_at_construction` |
+| W13 | an approvals file that parses to no grants reaches the refusal path | `test_a_real_run_with_an_empty_approvals_file_is_refused_before_a_provider` |
 
 W1 is the one the work order names: it monkeypatches
 `build_real_provider` to raise, runs the whole dry-run pipeline, and
@@ -305,10 +308,21 @@ each labelled `[synthetic fixture]` in its own material. A real run's
 per-request approvals are the owner's to create; the driver does not
 request them, mint them or widen them.
 
-**Two of the eleven were mutation-checked on 2026-11-02, and each went
-red for its own reason.** Making `run_dry` call `build_real_provider`
-turned W1 red (the witness's planted `AssertionError` fired); adding
-`arm_id` to the blind packet turned W2 red (the packet's key set was no
-longer disjoint from `ARM_KEY_VARIANTS`). The remaining nine await a
-pass, and the §4 table covers the four preparation modules rather than
-the driver.
+**Mutation checks, including an independent review's four.** On
+2026-11-02, making `run_dry` call `build_real_provider` turned W1 red
+(the witness's planted `AssertionError` fired), and adding `arm_id` to
+the blind packet turned W2 red (the packet's key set was no longer
+disjoint from `ARM_KEY_VARIANTS`). An independent review then ran four
+mutations against `blind_runner.py`: dry-run `provider_calls`, missing
+consent and missing budget were caught; the fourth — replacing
+`if not grants` in `ConsumingApprovals.__init__` with `if False` —
+**survived**, because the CLI witness stopped at the argument-level
+check before the port was constructed.
+
+That is the gap W12 closes. With the direct-construction witness in
+place, the same mutation now fails with `DID NOT RAISE`. W13 covers the
+adjacent real path — an approvals file that parses to an empty list — but
+it does **not** hold that branch: the run's approval-count check refuses
+first. The two witnesses are kept as two properties, not counted as one.
+The remaining witnesses await a pass, and the §4 table covers the four
+preparation modules rather than the driver.
