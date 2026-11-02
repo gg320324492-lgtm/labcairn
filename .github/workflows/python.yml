@@ -72,6 +72,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The evaluation harness runs on a schedule, not on every pull request.
+  # A full offline run costs about 24 minutes on an Ubuntu runner (measured
+  # per-file costs in `.github/ci-shards.json`, anchored at 49e81f2), and
+  # the ten shard jobs already run the same files; adding it to
+  # `pull_request` would make it the wall-clock bottleneck for a report that
+  # can be produced periodically instead. The job is `evaluation`, below.
+  #
+  # **GitHub fires a schedule only from the default branch.** The first run
+  # is therefore the first one after this workflow reaches `main`; a branch
+  # run of a scheduled workflow silently never happens.
+  schedule:
+    - cron: "17 3 * * 1"
 
 permissions:
   contents: read
@@ -90,6 +102,10 @@ jobs:
     # by name, and a name that carries an expression would be a different
     # check on every run. The owner adds this name to the required list.
     name: lint
+    # The schedule spends one job — `evaluation` — not the thirteen that a
+    # pull-request event spends. Without this guard, every scheduled run
+    # would also repeat the static checks and all ten shards.
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -131,6 +147,10 @@ jobs:
     # check satisfied by *any one* of them is a gate that only one shard has
     # to pass. The names are the gate, so they are made distinct.
     name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }})
+    # A scheduled run spends `evaluation` only. The shards are the
+    # pull-request gate, and repeating all ten of them on a schedule would
+    # multiply the cost this workflow exists to keep measurable.
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ${{ matrix.os }}
     strategy:
       # Both operating systems report independently. C-6 wants an early
@@ -247,7 +267,74 @@ jobs:
           files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
           uv run pytest $files --durations=0
 
-      # No artifact is uploaded from this workflow, so there is no
-      # `actions/upload-artifact` step whose `path:` could sweep the working
-      # tree into a downloadable bundle. Reference material cannot leave CI
-      # from here because CI never produces a bundle here.
+      # The shard jobs upload no artifact, so none of their steps has a
+      # `path:` that could sweep the working tree into a downloadable
+      # bundle. The only artifact in this workflow is uploaded by the
+      # `evaluation` job below, and its path is the harness's own report
+      # directory under the runner's temp — outside the checkout.
+
+  # ==========================================================================
+  # THE EVALUATION HARNESS — a scheduled report, not a pull-request gate
+  # ==========================================================================
+  #
+  # `python -m tests.evaluation` runs the protocol's gate classes and writes
+  # the Phase 1 blocker table with its denominators. It is not on
+  # `pull_request` because a full offline run costs about 24 minutes on an
+  # Ubuntu runner (the measured per-file costs in `.github/ci-shards.json`,
+  # anchored at 49e81f2, sum to 1450.0 s over the five offline classes), and
+  # the ten shard jobs already run the same files. A pull-request job would
+  # become the wall-clock bottleneck for a report that can be produced
+  # periodically instead.
+  #
+  # **The five offline classes, and not four.** A blocker is held only when
+  # every one of its witnesses was collected and passed, and the witnesses
+  # span all five classes. `--classes unit` passed 1789/1789 and still
+  # exited 1, because five of the six blockers became NOT_EVALUATED; that
+  # was measured on 2026-11-03. The fifth protocol class, `real_model_smoke`,
+  # is NOT SELECTED here: it is discharged by `provider-smoke.yml`, on the
+  # owner's 2026-10-28 ruling.
+  #
+  # **No `continue-on-error`.** If the harness fails, the job is red and the
+  # report is in the log; that is the signal. The job is not a required
+  # check, and a scheduled job cannot satisfy a pull-request required check
+  # in any case.
+  evaluation:
+    name: evaluation
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - run: uv sync --frozen
+
+      - name: the evaluation harness over the offline classes
+        run: |
+          uv run python -m tests.evaluation \
+            --classes unit,integration,negative,e2e,repository \
+            --out "$RUNNER_TEMP/evaluation-report"
+
+      # The report is the product, so it is printed whether the harness
+      # passed or failed. If the harness did not write it, this step fails —
+      # a run whose report is missing is not a run whose result can be read.
+      - name: print the report to the log
+        if: always()
+        shell: bash
+        run: cat "$RUNNER_TEMP/evaluation-report/evaluation-report.md"
+
+      - name: upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evaluation-report
+          path: ${{ runner.temp }}/evaluation-report
+          if-no-files-found: error

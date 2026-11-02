@@ -43,6 +43,7 @@ from typing import Any, Final
 
 import pytest
 import yaml
+from evaluation import manifest
 
 #: The shard file, next to the workflow that uses it.
 SHARD_FILE: Final[Path] = Path(".github") / "ci-shards.json"
@@ -622,4 +623,123 @@ def test_both_platforms_run_the_same_tests(repo_root: Path, platform: str) -> No
         "the two platforms run different tests: "
         f"only on ubuntu {sorted(sets[0] - sets[1])}, "
         f"only on windows {sorted(sets[1] - sets[0])}"
+    )
+
+
+def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
+    repo_root: Path,
+) -> None:
+    """The evaluation harness is in CI without making a pull request red.
+
+    **The property.** A job named ``evaluation`` runs
+    ``python -m tests.evaluation`` over **exactly** the classes the harness
+    can run offline, on a schedule event only. The fifth protocol class is
+    named nowhere in the command: it cannot run offline, and the owner's
+    2026-10-28 ruling gives it a different workflow (``provider-smoke.yml``).
+
+    **Why the class list is computed and not spelled.** The offline set is
+    ``manifest.OFFLINE_CLASSES``; a second literal in the workflow would
+    drift from it. The list must not be shortened either: a blocker is held
+    only when every one of its witnesses was collected and passed, and the
+    witnesses span all five offline classes. ``--classes unit`` passed
+    1789/1789 and still exited 1, because five of the six blockers became
+    NOT_EVALUATED; that was measured on 2026-11-03.
+
+    **Why the trigger and the guards are watched.** The five classes cost
+    1450.0 s on an Ubuntu runner at ``49e81f2`` (the costs in
+    ``.github/ci-shards.json``), so a pull-request job would add about ten
+    minutes to the wall clock on top of the ten shard jobs that already run
+    the same files. A schedule that also ran ``lint`` and the ten shards
+    would multiply the cost instead of moving it. The guards on those jobs
+    are part of the property, not incidental.
+
+    **What this cannot watch.** GitHub fires a schedule only from the
+    default branch, and branch protection is configured outside the
+    repository. The test can watch what the workflow offers; it cannot watch
+    what GitHub does with it.
+    """
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+
+    # PyYAML reads the YAML 1.1 bare `on` as the boolean True.
+    triggers = workflow.get("on", workflow.get(True))
+    assert isinstance(triggers, dict), "the workflow has no trigger mapping"
+    assert "schedule" in triggers, (
+        "the evaluation job is gated on a schedule event, and the workflow "
+        "declares no schedule trigger"
+    )
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    assert "evaluation" in jobs, "the workflow has no evaluation job"
+    job = jobs["evaluation"]
+    assert isinstance(job, dict)
+    assert job.get("name") == "evaluation", (
+        "the evaluation job's check name is not exactly `evaluation`; branch "
+        "protection identifies a check by its name"
+    )
+    assert job.get("if") == "${{ github.event_name == 'schedule' }}", (
+        "the evaluation job does not say it runs only on the schedule event"
+    )
+    assert job.get("runs-on") == "ubuntu-latest", (
+        "the evaluation job must run on one Ubuntu runner; the five classes "
+        "cost about 72 minutes on Windows against about 24 on Ubuntu"
+    )
+    assert "strategy" not in job, "the evaluation job must not have a matrix"
+
+    offline = [key for key, (runnable, _) in manifest.OFFLINE_CLASSES.items() if runnable]
+    expected = "--classes " + ",".join(offline)
+    commands = [
+        str(step.get("run", ""))
+        for step in job["steps"]
+        if isinstance(step, dict) and "run" in step
+    ]
+    harness = [command for command in commands if "python -m tests.evaluation" in command]
+    assert len(harness) == 1, (
+        "the evaluation job must run the harness exactly once, "
+        f"and it runs it {len(harness)} time(s)"
+    )
+    command = harness[0]
+    assert expected in command, (
+        f"the harness command does not select the offline classes: {expected!r} "
+        f"is not in {command!r}"
+    )
+    assert "real_model_smoke" not in command, (
+        "the harness command names the fifth protocol class, which cannot run "
+        "offline; provider-smoke.yml is its ruled shape"
+    )
+    assert '--out "$RUNNER_TEMP/evaluation-report"' in command, (
+        "the harness report must be written to the directory the artifact "
+        "step uploads, under the runner's temp and outside the checkout"
+    )
+
+    uploads = [
+        step
+        for step in job["steps"]
+        if isinstance(step, dict) and "upload-artifact" in str(step.get("uses", ""))
+    ]
+    assert len(uploads) == 1, (
+        f"the evaluation job must upload its report exactly once, and it uploads {len(uploads)}"
+    )
+    upload = uploads[0]
+    assert upload.get("if") == "always()", (
+        "the report must be uploaded whether the harness passed or failed; "
+        "a failed run is exactly when the blocker table is read"
+    )
+    settings = upload["with"]
+    assert settings["path"] == "${{ runner.temp }}/evaluation-report", (
+        "the artifact path is not the harness report directory under the "
+        "runner's temp; a path over the checkout could sweep the tree into a "
+        "downloadable bundle"
+    )
+
+    for guarded in ("lint", "python-quality"):
+        guard = str(jobs[guarded].get("if", ""))
+        assert "github.event_name != 'schedule'" in guard, (
+            f"{guarded} would also run on the schedule event, so a scheduled "
+            "run would spend thirteen jobs instead of one"
+        )
+
+    names = [str(entry.get("name", "")) for entry in jobs.values()]
+    assert len(names) == len(set(names)), (
+        f"two jobs share a check name, and branch protection cannot tell them apart: {names}"
     )
