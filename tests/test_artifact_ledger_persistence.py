@@ -31,9 +31,9 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import text as sql_text
-from test_skill_support import build_inventory, make_objective
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from skill_support import build_inventory, make_objective
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.db.ledger import DEFAULT_LEDGER_ID, SqliteArtifactLedgerStore
 from labcairn.db.session import create_db_engine, create_session_factory
