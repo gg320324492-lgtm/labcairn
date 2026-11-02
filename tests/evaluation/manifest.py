@@ -220,6 +220,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_evidence_store.py": ("integration", "event-append"),
     "test_event_payload_vocabulary.py": ("integration", "event-append"),
     "test_paper_fixtures.py": ("unit", "dataset-locators"),
+    # LC-P2-18. The competitor adapter: corpus files in, answers out, and
+    # the witnesses holding the brief's rule that the translation carries
+    # no task logic and that scoring reads only the answer and the key. The
+    # clause is numerical extraction because that is the task the adapter
+    # translates; the file declares the unit marker, as its neighbours do.
+    "test_paperqa_adapter.py": ("unit", "numeric-extraction"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
     "test_fake_provider_determinism.py": ("unit", "typed-contracts"),
