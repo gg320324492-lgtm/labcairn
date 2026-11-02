@@ -10,7 +10,9 @@ endpoint** instead of looking up a model name.
 Module                        Responsibility
 ============================  ====================================================
 :mod:`~labcairn.providers.adapter`          gated ``ModelProvider``; the order of
-                                            the four pre-flight checks
+                                            the five pre-flight checks
+:mod:`~labcairn.providers.consent`          the port the permission decision is
+                                            handed through (ADR-0006)
 :mod:`~labcairn.providers.probe`             the probes that issue real requests
 :mod:`~labcairn.providers.capabilities`      the fail-closed capability set
 :mod:`~labcairn.providers.budget`            ceilings, and fail-closed enforcement
@@ -87,6 +89,7 @@ from labcairn.providers.capabilities import (
     CapabilityOutcome,
     ProviderCapabilities,
 )
+from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.credentials import (
     Credential,
     MissingCredentialError,
@@ -155,6 +158,7 @@ __all__ = [
     "LedgerSnapshot",
     "MissingCredentialError",
     "NullUsageCapture",
+    "OutboundConsent",
     "OutboundDisclosure",
     "OutboundRefusedError",
     "ProbeCache",
