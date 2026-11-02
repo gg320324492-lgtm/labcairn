@@ -101,10 +101,21 @@ did not leave" is made on `FakeEndpoint.calls`, the recording upstream.
 | `test_the_same_approval_cannot_authorise_two_sends` | The second `send` is refused by the ledger; upstream count stays one. |
 | `test_the_provider_cannot_be_built_without_a_consent_port` | There is no construction path that omits the hand-off. |
 
-**Mutation-checked.** Each witness was run against a deliberately broken tree
-and was observed red; the mutations and their results are recorded in the
-session that produced this file. A witness that could not be made to fail was
-not counted.
+**Mutation-checked**, on this tree, one mutation at a time, each observed red
+and then reverted:
+
+| Mutation | Observed |
+|---|---|
+| Remove `self._consent.require(request)` from `send` | 6 of 8 red; the budget-order and construction witnesses stay green, correctly |
+| `OutboundApproval.require` swallows the refusal and returns | 5 red |
+| Evaluate the policy but do **not** consume the approval | 5 red, including the happy path (row not `CONSUMED`) and double spend (second send goes out) |
+| Move the consent check **before** the budget pre-flight | budget witness red — **after it was strengthened**: the first version asserted only `peek(...) is not None`, which a spent row also satisfies. It is now `state is GRANTED` |
+| Default `consent=None` and skip the call | construction witness red |
+
+The fourth row is the reason the exercise is here: the first version of the
+ordering witness passed on a tree where the order was wrong. A witness that
+cannot be made to fail is not a witness, and "peek is not None" was a check
+that could not tell granted from consumed.
 
 ## Callers updated (a behaviour change, not a regression)
 

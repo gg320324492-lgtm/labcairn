@@ -255,7 +255,11 @@ def test_a_policy_refusal_does_not_spend_the_approval(context: ApplicationContex
         provider.send(ModelRequest(prompt="Question the approved material."))
 
     assert endpoint.calls == []
-    assert context.ledger.peek(granted.approval.approval_id) is not None
+    # ``peek`` returns the row whichever state it is in, so "not None" would
+    # pass even after a spend. The property is the state: still GRANTED.
+    unspent = context.ledger.peek(granted.approval.approval_id)
+    assert unspent is not None
+    assert unspent.approval.state is ApprovalState.GRANTED
 
 
 def test_a_budget_refusal_does_not_spend_the_approval(context: ApplicationContext) -> None:
@@ -287,7 +291,9 @@ def test_a_budget_refusal_does_not_spend_the_approval(context: ApplicationContex
         provider.send(ModelRequest(prompt="Question the approved material."))
 
     assert endpoint.calls == []
-    assert context.ledger.peek(granted.approval.approval_id) is not None
+    unspent = context.ledger.peek(granted.approval.approval_id)
+    assert unspent is not None
+    assert unspent.approval.state is ApprovalState.GRANTED
 
 
 # --- 2. a granted request is sent, exactly once ----------------------------
