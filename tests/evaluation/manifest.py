@@ -472,6 +472,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # -- G5's own work ------------------------------------------------------
     "test_fault_injection_e2e.py": ("e2e", "cli-task"),
     "test_outsider_path.py": ("e2e", "fresh-install"),
+    # The workbench's first live-service witness: the CLI and the API the UI
+    # reads, driven against one running service.
+    "test_workbench_live_service.py": ("e2e", "web-task"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),

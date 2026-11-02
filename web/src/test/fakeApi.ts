@@ -25,6 +25,8 @@ import type {
   ApprovalRequested,
   ArtifactReceipt,
   ArtifactView,
+  Event,
+  EventStreamPage,
   EvidenceRecord,
   FigureRun,
   GuidanceRule,
@@ -513,6 +515,33 @@ export function initialState(): FakeApiState {
   }
 }
 
+/** One stream the fake should answer with when it is asked. */
+export interface FakeStreamAttempt {
+  /** The frames to send before the body ends, or before it is held open. */
+  readonly frames?: readonly string[]
+  /** Keep the body open after the frames, until a test closes it. */
+  readonly hold?: boolean
+  /** Refuse the attempt with this status instead of streaming. */
+  readonly status?: number
+}
+
+/** A page of events, as the service's stream frame carries it. */
+export function eventPage(events: readonly Event[], taskId = TASK_ID): EventStreamPage {
+  const last = events.length === 0 ? 0 : (events[events.length - 1]?.seq ?? 0)
+  return {
+    schema_version: 1,
+    task_id: taskId,
+    events: [...events],
+    next_after_seq: last,
+    caught_up: true,
+  }
+}
+
+/** One server-sent frame, in the service's own spelling. */
+export function sseFrame(body: unknown): string {
+  return `data: ${JSON.stringify(body)}\n\n`
+}
+
 /**
  * The fake service.
  *
@@ -525,6 +554,21 @@ export class FakeApi {
 
   /** Every request the client has made. */
   readonly requests: RecordedRequest[] = []
+
+  /** The events the stream reports, in the order the fake's log holds them. */
+  events: Event[] = []
+
+  /** What the next stream connections should answer with, in order. */
+  streamScript: FakeStreamAttempt[] = []
+
+  /** How many event streams have been opened. */
+  streamAttempts = 0
+
+  /** The task states a selection can choose from, keyed by task id. */
+  readonly taskStates = new Map<string, TaskState>()
+
+  /** The bodies held open, so a test can close one as a disconnect would. */
+  private readonly openStreams: ReadableStreamDefaultController<Uint8Array>[] = []
 
   /** How many times the artefact's bytes have been asked for as a value. */
   artefactContentReads = 0
@@ -614,6 +658,7 @@ export class FakeApi {
       ['/records', () => this.state.records],
       ['/guidance/rules', () => this.state.guidanceRules],
     ])
+    this.taskStates.set(this.state.health.task_id, this.state.task)
   }
 
   /** The fetch the client calls. Bound, so it can be handed to a stub. */
@@ -629,6 +674,26 @@ export class FakeApi {
       credentials: init?.credentials ?? null,
       referrerPolicy: init?.referrerPolicy ?? null,
     })
+
+    if (method === 'POST' && path === '/task/select') {
+      const body = JSON.parse(init?.body as string) as { task_id: string }
+      const selected = this.taskStates.get(body.task_id)
+      if (selected === undefined) {
+        return jsonResponse(403, {
+          reason: 'task_not_found',
+          message: `no Task row for ${body.task_id}`,
+        })
+      }
+      // The service's answer is the binding, and the reads after it see the
+      // new task — the fake changes the same two answers for the same reason.
+      this.state.task = selected
+      this.state.health = { ...this.state.health, task_id: body.task_id }
+      return jsonResponse(200, this.state.health)
+    }
+
+    if (method === 'GET' && path.startsWith('/events/stream')) {
+      return this.eventStream(path)
+    }
 
     if (method === 'POST' && path.endsWith('/grant')) {
       const approvalId = path.replace('/approvals/', '').replace('/grant', '')
@@ -981,6 +1046,68 @@ export class FakeApi {
       feedbackIds.includes(response.feedback_id),
     )
     return jsonResponse(200, { comments, edits, responses })
+  }
+
+  /**
+   * One event-stream connection.
+   *
+   * **A scripted attempt wins; otherwise the stream is held open.** The
+   * default is the service's own behaviour for `follow=true` — the events
+   * after the cursor, then nothing until something happens — and holding it
+   * open means a test that does not care about disconnects sees no
+   * reconnects.
+   */
+  private eventStream(path: string): Response {
+    const scripted = this.streamScript[this.streamAttempts]
+    this.streamAttempts += 1
+
+    if (scripted?.status !== undefined) {
+      return jsonResponse(scripted.status, {
+        reason: 'not_implemented',
+        message: `the fake event stream refused attempt ${this.streamAttempts}.`,
+      })
+    }
+
+    let frames: readonly string[]
+    let hold: boolean
+    if (scripted === undefined) {
+      const query = new URLSearchParams(path.split('?')[1] ?? '')
+      const after = Number(query.get('after_seq') ?? '0')
+      const pending = this.events.filter((event) => event.seq > after)
+      frames = pending.length === 0 ? [] : [sseFrame(eventPage(pending))]
+      hold = true
+    } else {
+      frames = scripted.frames ?? []
+      hold = scripted.hold === true
+    }
+
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(frame))
+        }
+        if (hold) {
+          this.openStreams.push(controller)
+        } else {
+          controller.close()
+        }
+      },
+    })
+    return new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+
+  /** Close the most recently held-open stream, the way a dropped service does. */
+  closeStream(): boolean {
+    const controller = this.openStreams.pop()
+    if (controller === undefined) {
+      return false
+    }
+    controller.close()
+    return true
   }
 
   /** The requests the client made to one path. */

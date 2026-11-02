@@ -11,14 +11,14 @@
  * `/task/plan` — because a path the service does not serve is a 404 that
  * looks like an empty workspace.
  *
- * **The event stream is not among them.** The service offers `/events` and
- * `/events/stream`, and the workbench reads neither. The workbench shows the
- * task's state and reads it again when something changes; a long-lived
- * stream would be a second way to watch the task move, and the workbench's
- * rule is that the screen shows what the API says rather than what the page
- * has been told. The omission is a decision, and it is named here because a
- * missing path in this list is exactly where a reader would look for a
- * forgotten one.
+ * **The event stream is among them, and it is a second way to read the
+ * same log, not a second source of truth.** The service's stream carries
+ * events — facts about what happened — and never commands, so a reconnecting
+ * client can ask for what it missed and cannot ask for anything to be done.
+ * The workbench's state panel still reads `/task` on every render; the
+ * events panel reads the stream and shows the cursor it resumed from, so a
+ * reader can tell the two apart: one is the task as it stands, the other is
+ * how it got there.
  */
 
 /** The paths the workbench reads, keyed by what they are for. */
@@ -39,6 +39,10 @@ export const API_PATHS = {
   sources: '/sources',
   /** The artefacts this task has produced. */
   artifacts: '/artifacts',
+  /** The task's events, delivered as a server-sent event stream. */
+  eventsStream: '/events/stream',
+  /** Bind the service to another task in this workspace. */
+  taskSelect: '/task/select',
   /** The ledger's records for this task, each saying whose words it is. */
   records: '/records',
   /** The guidance rules the memory holds, each with its counterexamples. */
@@ -82,6 +86,28 @@ export function artifactContentPath(receiptId: string): string {
 /** The path of one approval's grant. */
 export function approvalGrantPath(approvalId: string): string {
   return APPROVAL_GRANT_PATH.replace('{approval_id}', encodeURIComponent(approvalId))
+}
+
+/**
+ * One event-stream request, resuming after *afterSeq*.
+ *
+ * **The cursor is the whole point.** A client that reconnects without one
+ * either repeats events it already has or starts from zero and misses
+ * nothing only by luck; the service's page carries `next_after_seq`, and
+ * this is where the client says it. `poll_seconds` is the stream's own pace
+ * and is left to the service's default when the caller does not say.
+ */
+export function eventsStreamPath(afterSeq: number, pollSeconds?: number): string {
+  const query = [`after_seq=${afterSeq}`, 'follow=true']
+  if (pollSeconds !== undefined) {
+    query.push(`poll_seconds=${pollSeconds}`)
+  }
+  return `${API_PATHS.eventsStream}?${query.join('&')}`
+}
+
+/** Which task the service should be bound to. */
+export function taskSelectBody(taskId: string): { task_id: string } {
+  return { task_id: taskId }
 }
 
 /**

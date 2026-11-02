@@ -181,6 +181,17 @@ class ClaimBody(Result):
     tolerance: float | None = None
 
 
+class TaskSelectBody(Result):
+    """Which task the service should be bound to, as the API accepts it.
+
+    The id is a string and not a parsed id type here, because the refusal for
+    a malformed id belongs to the same vocabulary as the refusal for an id the
+    store does not hold — and the layer is where that vocabulary lives.
+    """
+
+    task_id: str = Field(min_length=1)
+
+
 class GuidanceRuleVerdictBody(Result):
     """A person's verdict on a rule, as the API accepts it.
 

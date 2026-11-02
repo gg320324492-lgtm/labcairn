@@ -8,15 +8,15 @@
  * database's state, and a reload recovers that state rather than a copy of
  * it.
  *
- * **What it changes.** Three things, and each is a write the service asks the
+ * **What it changes.** Four things, and each is a write the service asks the
  * session token for: granting a pending approval, asking for the consent an
- * analysis needs, and rendering a report. The figure's run is the fourth, and
- * it spends the consent the Figure panel asked for. The token goes in a header
- * the client builds — this component never holds it and never shows it. Every
- * button is disabled while its request is in flight, because the plan's rule
- * is that the operation that follows is applied **once**: a double click that
- * sent two grants would be two operations, and one of them would be a grant
- * nobody asked for.
+ * analysis needs, rendering a report, and moving the service's selection to
+ * another task. The figure's run is the fifth, and it spends the consent the
+ * Figure panel asked for. The token goes in a header the client builds — this
+ * component never holds it and never shows it. Every button is disabled while
+ * its request is in flight, because the plan's rule is that the operation that
+ * follows is applied **once**: a double click that sent two grants would be
+ * two operations, and one of them would be a grant nobody asked for.
  *
  * **What it does not do.** It does not decide whether a report is ready, and
  * it does not draw the report's wording. The report says what it says; the
@@ -36,10 +36,17 @@ import type { JSX } from 'react'
 import { useCallback, useState } from 'react'
 
 import { api, describeError } from '../api/client'
-import type { ApprovalGranted, ReportRendered } from '../api/generated'
-import { approvalGrantPath, REPORT_RENDER_PATH, reportRenderBody } from '../api/paths'
+import type { ApprovalGranted, Health, ReportRendered } from '../api/generated'
+import {
+  API_PATHS,
+  approvalGrantPath,
+  REPORT_RENDER_PATH,
+  reportRenderBody,
+  taskSelectBody,
+} from '../api/paths'
 import { ApprovalView } from '../views/ApprovalView'
 import { ArtefactsView } from '../views/ArtefactsView'
+import { EventsView } from '../views/EventsView'
 import { EvidenceView } from '../views/EvidenceView'
 import { FigureView } from '../views/FigureView'
 import { GuidanceView } from '../views/GuidanceView'
@@ -58,11 +65,13 @@ interface ActionState {
   readonly granting: boolean
   /** Whether a report render is on its way to the service. */
   readonly rendering: boolean
+  /** Whether a task selection is on its way to the service. */
+  readonly selecting: boolean
   /** Why the last request was refused, when it was. */
   readonly refusal: string | null
 }
 
-const IDLE: ActionState = { granting: false, rendering: false, refusal: null }
+const IDLE: ActionState = { granting: false, rendering: false, selecting: false, refusal: null }
 
 export function Workbench(): JSX.Element {
   const { reads, readAgain, readCycle } = useWorkbench(api)
@@ -106,7 +115,28 @@ export function Workbench(): JSX.Element {
     )
   }, [readAgain])
 
+  const onSelectTask = useCallback(
+    (taskId: string) => {
+      setAction({ ...IDLE, selecting: true })
+      void api.post<Health>(API_PATHS.taskSelect, taskSelectBody(taskId)).then(
+        () => {
+          setAction(IDLE)
+          // Read everything again rather than marking the task selected here:
+          // the service's answer is the binding, and the page's guess at it is
+          // not. The event panel is keyed by the bound task, so this also
+          // restarts its stream against the task now selected.
+          readAgain()
+        },
+        (error: unknown) => {
+          setAction({ ...IDLE, refusal: describeError(error).message })
+        },
+      )
+    },
+    [readAgain],
+  )
+
   const task = reads.state.data?.task ?? null
+  const boundTaskId = reads.health.data?.task_id ?? null
 
   return (
     <main className="workbench">
@@ -141,7 +171,13 @@ export function Workbench(): JSX.Element {
         </button>
       </p>
 
-      <ProjectsView health={reads.health} tasks={reads.tasks} />
+      <ProjectsView
+        health={reads.health}
+        tasks={reads.tasks}
+        onSelect={onSelectTask}
+        selecting={action.selecting}
+      />
+      {boundTaskId !== null ? <EventsView key={boundTaskId} /> : null}
       <PlanView plan={reads.plan} />
       <StepsView steps={reads.steps} />
       <ApprovalView state={reads.state} onGrant={onGrant} granting={action.granting} />
@@ -165,8 +201,9 @@ export function Workbench(): JSX.Element {
           script and no analytics.
         </p>
         <p>
-          The service&rsquo;s event stream is not read here. This page shows the task&rsquo;s state
-          and reads it again when something changes.
+          The Events panel reads the service&rsquo;s event stream and says whether it is connected;
+          everything else on this page shows the task as the service says it stands, read again when
+          something changes.
         </p>
       </footer>
     </main>
