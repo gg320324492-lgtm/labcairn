@@ -59,6 +59,7 @@ from labcairn.providers.budget import RunBudget
 from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.errors import BudgetExceededError, OutboundRefusedError
 from labcairn.runtime.lifecycle import TaskGoal
+from labcairn.runtime.operation import ApprovalState
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.capabilities import CapabilityId, ModelRequestArgs
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
@@ -311,6 +312,12 @@ def test_a_granted_request_is_sent_and_the_approval_moves_to_consumed(
     assert response.text == "the answer"
     assert len(endpoint.calls) == 1
     assert endpoint.calls[0].prompt_text == "Question the approved material."
+    # The name of this test promises "moves to consumed"; that promise is this
+    # assertion. Without it, a bridge that only evaluated the policy would
+    # pass — and the approval would still be spendable a second time.
+    spent = context.ledger.peek(granted.approval.approval_id)
+    assert spent is not None
+    assert spent.approval.state is ApprovalState.CONSUMED
 
 
 # --- 3. the same approval cannot be spent twice ----------------------------
