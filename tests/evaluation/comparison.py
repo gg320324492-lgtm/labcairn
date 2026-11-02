@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
-from .model import ComparisonOutcome
+from .model import ComparisonOutcome, ConditionCheck
 
 #: The requirements the protocol names, and the word each one is checked by.
 REQUIREMENTS: Final[tuple[tuple[str, str], ...]] = (
@@ -130,46 +130,109 @@ class BaselineDocument:
 
 
 def assess(run: ComparisonBasis, baseline: ComparisonBasis) -> ComparisonOutcome:
-    """Decide whether the two may be compared, and say why not when they may not."""
-    reasons: list[str] = []
+    """Decide whether the two may be compared, and say why not when they may not.
 
-    if run.fixture_labels != baseline.fixture_labels:
-        reasons.append(
-            "the tasks are not matched: the run covers "
-            f"{list(run.fixture_labels)} and the baseline covers "
-            f"{list(baseline.fixture_labels)}"
+    The six conditions are evaluated **once**, here. The returned
+    :class:`~tests.evaluation.model.ConditionCheck` rows are what a report
+    renders; a report that re-derived the comparisons would be a second
+    answer to the same question, and the two could disagree.
+    """
+    checks: list[ConditionCheck] = []
+
+    labels_met = run.fixture_labels == baseline.fixture_labels
+    checks.append(
+        ConditionCheck(
+            name="matched_task",
+            met=labels_met,
+            detail=(
+                f"both sides cover {len(baseline.fixture_labels)} tasks, by name"
+                if labels_met
+                else (
+                    "the tasks are not matched: the run covers "
+                    f"{list(run.fixture_labels)} and the baseline covers "
+                    f"{list(baseline.fixture_labels)}"
+                )
+            ),
         )
-    if run.fixture_versions != baseline.fixture_versions:
-        reasons.append(
-            "the task versions are not matched: the run's versions are "
-            f"{dict(run.fixture_versions)} and the baseline's are "
-            f"{dict(baseline.fixture_versions)}"
+    )
+
+    versions_met = run.fixture_versions == baseline.fixture_versions
+    checks.append(
+        ConditionCheck(
+            name="matched_task_versions",
+            met=versions_met,
+            detail=(
+                "both sides pin the same version for every task"
+                if versions_met
+                else (
+                    "the task versions are not matched: the run's versions are "
+                    f"{dict(run.fixture_versions)} and the baseline's are "
+                    f"{dict(baseline.fixture_versions)}"
+                )
+            ),
         )
-    if run.model != baseline.model:
-        reasons.append(
+    )
+
+    model_met = run.model == baseline.model
+    if not model_met:
+        model_detail = (
             "the models are not matched: the run declares "
             f"{run.model!r} and the baseline declares {baseline.model!r}"
         )
-    if run.budget != baseline.budget:
-        reasons.append(
+    elif run.model:
+        model_detail = f"both sides declare the model {run.model!r}"
+    else:
+        model_detail = "both sides declare no model (the empty string)"
+    checks.append(ConditionCheck(name="matched_model", met=model_met, detail=model_detail))
+
+    budget_met = run.budget == baseline.budget
+    if not budget_met:
+        budget_detail = (
             f"the budgets are not matched: the run declares {run.budget!r} and "
             f"the baseline declares {baseline.budget!r}"
         )
-    if not baseline.verified_capabilities:
-        reasons.append(
-            "the baseline declares no verified capabilities, so the two sides "
-            "are not known to be capable of the same thing"
+    elif run.budget:
+        budget_detail = f"both sides declare the budget {run.budget!r}"
+    else:
+        budget_detail = "both sides declare no budget (the empty string)"
+    checks.append(ConditionCheck(name="matched_budget", met=budget_met, detail=budget_detail))
+
+    capabilities_met = bool(baseline.verified_capabilities)
+    checks.append(
+        ConditionCheck(
+            name="verified_capabilities",
+            met=capabilities_met,
+            detail=(
+                "the baseline declares the capabilities it verified: "
+                + ", ".join(baseline.verified_capabilities)
+                if capabilities_met
+                else (
+                    "the baseline declares no verified capabilities, so the two "
+                    "sides are not known to be capable of the same thing"
+                )
+            ),
         )
-    if not baseline.limitations and not baseline.confidence_intervals:
-        reasons.append(
+    )
+
+    limits_met = bool(baseline.limitations or baseline.confidence_intervals)
+    if limits_met and baseline.confidence_intervals:
+        limits_detail = "the baseline documents confidence intervals"
+    elif limits_met:
+        limits_detail = "the baseline documents its limitations"
+    else:
+        limits_detail = (
             "the baseline documents neither confidence intervals nor "
             "limitations, so its numbers cannot be read with any stated "
             "uncertainty"
         )
+    checks.append(ConditionCheck(name="documented_limits", met=limits_met, detail=limits_detail))
 
-    if reasons:
-        return ComparisonOutcome(comparable=False, reasons=tuple(reasons))
-    return ComparisonOutcome(comparable=True, reasons=())
+    reasons = tuple(check.detail for check in checks if not check.met)
+    return ComparisonOutcome(
+        comparable=not reasons,
+        reasons=reasons,
+        conditions=tuple(checks),
+    )
 
 
 def load_baseline(path: Path) -> BaselineDocument:

@@ -3,7 +3,8 @@
   "shards": {
     "ubuntu-latest": [
       [
-        "tests/test_cli.py"
+        "tests/test_cli.py",
+        "tests/test_competitor_comparison.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -197,7 +198,8 @@
         "tests/test_fake_provider_determinism.py",
         "tests/test_real_provider_smoke.py",
         "tests/test_security_listing_canonical.py",
-        "tests/test_security_approval.py"
+        "tests/test_security_approval.py",
+        "tests/test_competitor_comparison.py"
       ],
       [
         "tests/test_application_layer.py",

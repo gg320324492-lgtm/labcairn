@@ -298,6 +298,24 @@ class MetricRow:
 
 
 @dataclass(frozen=True, slots=True)
+class ConditionCheck:
+    """One of the six conditions a side must meet, and whether it did.
+
+    The six conditions are the protocol's own; :func:`tests.evaluation.
+    comparison.assess` is the only place they are evaluated. A report that
+    lists them reads this result rather than re-deriving the comparisons,
+    so the report and the refusal cannot disagree.
+    """
+
+    #: The protocol's short name for the condition.
+    name: str
+    #: Whether this side meets it.
+    met: bool
+    #: What satisfied it, or what is missing — the sentence a reader gets.
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
 class ComparisonOutcome:
     """Whether a baseline may be compared against this run, and what was said."""
 
@@ -307,6 +325,9 @@ class ComparisonOutcome:
     reasons: tuple[str, ...] = ()
     #: The per-metric differences, when the comparison is comparable.
     deltas: tuple[tuple[str, str], ...] = ()
+    #: Every condition that was checked, in the protocol's order. A report
+    #: renders these rows; it never re-runs the comparison itself.
+    conditions: tuple[ConditionCheck, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
