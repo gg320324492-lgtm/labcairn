@@ -317,6 +317,18 @@ def _check_segments(value: str, *, separators: str) -> None:
                 f"it on Windows, where ':' is alternate-data-stream syntax. The key "
                 f"character set excludes it.",
             )
+        # `*` and `?` are the other two characters the key pattern excludes.
+        # POSIX allows both in a filename; Win32 allows neither in a real one,
+        # so a declared spelling containing them names nothing there either.
+        # In both cases the key cannot carry them, and that is the reason.
+        if "*" in segment or "?" in segment:
+            raise PathRefusedError(
+                PathRejection.UNREPRESENTABLE_KEY_CHARACTER,
+                f"segment {raw_segment!r} contains '*' or '?'. POSIX allows them in "
+                f"a filename, but a resource key cannot carry them, and on Windows "
+                f"they are not legal filename characters at all. The key character "
+                f"set excludes them.",
+            )
 
 
 def _check_prefixes(value: str) -> None:

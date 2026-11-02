@@ -723,6 +723,28 @@ def test_case_variant_cannot_escape_a_case_insensitive_check(
 
 
 # ---------------------------------------------------------------------------
+# The resource-key character set
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["draft?.txt", "draft*.txt"])
+def test_star_and_question_mark_cannot_be_resource_keys(
+    roots: tuple[Path, tuple[AllowedRoot, ...]], name: str
+) -> None:
+    """``*`` and ``?`` are excluded from ``ResourceKey`` on every platform.
+
+    On POSIX they are ordinary filename characters; on Windows neither is a
+    legal filename character at all. The key is a cross-platform identity, so
+    a spelling carrying either is refused for the key's character set — the
+    same reason a POSIX colon is refused, and not a Windows alias rule.
+    """
+    _, bound = roots
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(name, bound)
+    assert caught.value.rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
+
+
+# ---------------------------------------------------------------------------
 # POSIX semantics
 #
 # These are not "the Windows tests again". Each one asserts the behaviour the
@@ -840,6 +862,27 @@ def test_posix_windows_namespace_spellings_are_not_namespaces(
         PathRejection.DEVICE_NAMESPACE.value,
         PathRejection.REMOTE_ROOT.value,
     }
+
+
+@requires_posix
+def test_posix_star_and_question_mark_are_ordinary_characters(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``draft?.txt`` and ``draft*.txt`` are real POSIX files, not globs.
+
+    They are refused for the key character set, not because the guard expanded
+    them as patterns. The files are created and read back first, so the test
+    cannot pass because the name failed to resolve.
+    """
+    allowed, bound = roots
+    for name in ("draft?.txt", "draft*.txt"):
+        path = allowed / name
+        path.write_text("ordinary", encoding="utf-8")
+        assert path.is_file(), "POSIX stores '?' and '*' literally"
+
+        with pytest.raises(PathRefusedError) as caught:
+            canonicalize(path, bound)
+        assert caught.value.rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
 
 
 @requires_posix
