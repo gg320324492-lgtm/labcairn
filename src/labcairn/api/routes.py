@@ -46,10 +46,12 @@ from labcairn.api.contracts import (
     ApprovalBody,
     ApprovalUseBody,
     ClaimBody,
+    ClaimExtractionBody,
     CommentResponses,
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
+    ProposalAcceptanceBody,
     ReportBody,
     SessionInfo,
     StageBody,
@@ -66,11 +68,14 @@ from labcairn.application import (
     ApprovalGranted,
     ApprovalRequested,
     ArtifactView,
+    ClaimExtractionBackend,
     ClaimRecorded,
     ClaimRequest,
+    ExtractClaimRequest,
     FigureRequest,
     FigureRun,
     ProjectGraph,
+    ProposalSettled,
     ReportRendered,
     ReportRequest,
     SourceAddress,
@@ -79,7 +84,9 @@ from labcairn.application import (
     TaskPlan,
     TaskState,
     TaskStep,
+    confirm_proposal,
     consume_approval,
+    extract_claim,
     grant_approval,
     inspect_source,
     list_artifacts,
@@ -371,6 +378,97 @@ def post_claim(
             unit=body.unit,
             tolerance=body.tolerance,
         ),
+    )
+
+
+def _parsed_approval_id(value: str) -> ApprovalId:
+    """The approval id a caller presented, or the layer's refusal naming why not.
+
+    A malformed id and an id the store does not hold are different refusals
+    with different remedies, and both belong to the layer's vocabulary rather
+    than to FastAPI's validation error.
+    """
+    try:
+        return ApprovalId(uuid.UUID(value))
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{value!r} is not an approval id: approval ids are UUIDs.",
+        ) from error
+
+
+@router.post("/claims/extract", response_model=ClaimRecorded, status_code=201, tags=["evidence"])
+def post_claim_extraction(
+    body: ClaimExtractionBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ClaimRecorded:
+    """Ask a model for one claim, and record its answer as a proposal.
+
+    **The route writes a proposal and never a person's claim**, even though a
+    person pressed the button. The person's act is acceptance, which is a
+    different route; keeping the two apart is what lets the ledger say whose
+    words each record carries.
+
+    **A service with no provider invocation refuses and writes nothing.** The
+    refusal is ``claim_extraction_no_provider`` and it is the honest answer to
+    a request this service cannot serve: an empty or invented proposal would
+    put words in a model's mouth that no model said. The same rule makes a
+    missing approval a refusal before anything leaves the machine.
+
+    The proposal is bound to the locator it names, and the model's quotation
+    is checked against the ledger's stored text before the record is written;
+    a quotation the material does not contain is refused with
+    ``claim_extraction_not_grounded``.
+    """
+    backend = cast(ClaimExtractionBackend | None, request.app.state.claim_extraction)
+    return extract_claim(
+        context,
+        ExtractClaimRequest(
+            source_id=body.source_id,
+            locator_key=body.locator_key,
+            user_id=body.user_id,
+            provider=body.provider,
+            model=body.model,
+            destination=body.destination,
+            subject_ref=body.subject_ref,
+            purpose=body.purpose,
+        ),
+        approval_id=_parsed_approval_id(body.approval_id) if body.approval_id else None,
+        grants=() if backend is None else backend.grants,
+        send=None if backend is None else backend.send,
+        capabilities=None if backend is None else backend.capabilities,
+    )
+
+
+@router.post(
+    "/records/{evidence_id}/accept",
+    response_model=ProposalSettled,
+    tags=["evidence"],
+)
+def post_record_acceptance(
+    evidence_id: str,
+    body: ProposalAcceptanceBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ProposalSettled:
+    """A person confirms or disputes a model's proposal.
+
+    The layer's own operation and the layer's own result, so the record this
+    route writes is the record the CLI's ``task proposal-confirm`` writes.
+    **The proposal is not promoted**: the person's own record is written at the
+    same address, carrying the proposal's words unchanged (acceptance is
+    as-is), and the proposal is superseded and kept.
+
+    ``note`` is required for a dispute and refused for a confirmation; the
+    layer enforces both, and the refusal it gives is the one this route
+    renders. ``user_id`` is a self-reported string — no account is checked.
+    """
+    return confirm_proposal(
+        context,
+        evidence_id,
+        user_id=body.user_id,
+        verdict=body.verdict,
+        note=body.note,
     )
 
 

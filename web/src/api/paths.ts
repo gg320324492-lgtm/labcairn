@@ -73,6 +73,15 @@ export const ARTIFACT_CONTENT_PATH = '/artifacts/{artifact_id}/content'
 export const APPROVAL_GRANT_PATH = '/approvals/{approval_id}/grant'
 
 /**
+ * The template of one proposal's acceptance.
+ *
+ * A change, so it needs the session token. The route settles the proposal by
+ * the layer's own operation: the person's record is written, the proposal is
+ * superseded and kept, and the service's answer is what the panel shows.
+ */
+export const PROPOSAL_ACCEPT_PATH = '/records/{evidence_id}/accept'
+
+/**
  * The path of one artefact's bytes.
  *
  * The id is encoded, because a path segment that carries a slash would
@@ -86,6 +95,11 @@ export function artifactContentPath(receiptId: string): string {
 /** The path of one approval's grant. */
 export function approvalGrantPath(approvalId: string): string {
   return APPROVAL_GRANT_PATH.replace('{approval_id}', encodeURIComponent(approvalId))
+}
+
+/** The path of one proposal's acceptance. */
+export function proposalAcceptPath(evidenceId: string): string {
+  return PROPOSAL_ACCEPT_PATH.replace('{evidence_id}', encodeURIComponent(evidenceId))
 }
 
 /**

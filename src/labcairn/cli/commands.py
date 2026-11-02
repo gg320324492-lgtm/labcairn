@@ -1283,8 +1283,13 @@ def task_proposal_confirm(
     ],
     note: Annotated[
         str,
-        typer.Option("--note", help="What that person says about the proposal."),
-    ],
+        typer.Option(
+            "--note",
+            help="What the person says about a disputed proposal. Required for "
+            "'disputed' and refused for 'confirmed': acceptance is as-is, and a "
+            "correction is a dispute or a new record.",
+        ),
+    ] = "",
     task: TaskOption = None,
     as_json: JsonOption = False,
 ) -> None:
@@ -1292,10 +1297,17 @@ def task_proposal_confirm(
 
     **The proposal is not promoted; the person's own word replaces it.** The
     proposal's log gains a C4 entry naming the person and their verdict, the
-    person's own record is written at the same address, and the proposal is
-    superseded by it — **kept, not deleted**, because a record that was wrong
-    is worth more in the ledger than outside it. The thing a report may cite
-    is then a person's word and not a model's.
+    person's own record is written at the same address carrying the proposal's
+    words **unchanged** (acceptance is as-is), and the proposal is superseded
+    by it — **kept, not deleted**, because a record that was wrong is worth
+    more in the ledger than outside it. The thing a report may cite is then a
+    person's word and not a model's.
+
+    **The note belongs to the verdict.** ``--verdict disputed`` requires one,
+    because a disagreement nobody states is an accusation with no content;
+    ``--verdict confirmed`` refuses one, because a confirmation with a
+    correction would be an amendment wearing acceptance's name. The person's
+    name is a self-reported string: the product keeps no accounts.
     """
     from labcairn.application import confirm_proposal
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model

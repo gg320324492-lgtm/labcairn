@@ -34,6 +34,8 @@ import type {
   Health,
   IssueKeys,
   ProjectGraph,
+  ProposalAcceptanceBody,
+  ProposalSettled,
   Selection,
   SessionInfo,
   Source,
@@ -609,6 +611,9 @@ export class FakeApi {
   /** How many verdicts the service has been asked for. */
   ruleConfirmations = 0
 
+  /** How many proposals the fake has settled. */
+  proposalSettlements = 0
+
   /**
    * Whether the service refuses the verdict in the route's own vocabulary.
    *
@@ -878,6 +883,10 @@ export class FakeApi {
       return this.answerTheGraph(path)
     }
 
+    if (method === 'POST' && path.startsWith('/records/') && path.endsWith('/accept')) {
+      return this.settleTheProposal(path, init)
+    }
+
     if (method === 'GET' && path.startsWith('/trajectory')) {
       return this.answerTheTrajectory(path)
     }
@@ -898,6 +907,97 @@ export class FakeApi {
       })
     }
     return jsonResponse(200, route())
+  }
+
+  /**
+   * The settlement of one proposal, and the two records it leaves.
+   *
+   * **The service's own three moves**: the person's record is written with
+   * the proposal's text unchanged (acceptance is as-is), the proposal is
+   * marked superseded and kept, and the answer is the pair. The refusals are
+   * the layer's — a dispute carries a note, a confirmation carries none, and
+   * a proposal is settled once.
+   */
+  private settleTheProposal(path: string, init?: RequestInit): Response {
+    const evidenceId = decodeURIComponent(path.slice('/records/'.length, -'/accept'.length))
+    const body = JSON.parse(init?.body as string) as ProposalAcceptanceBody
+    const proposal = this.state.records.find((record) => record.evidence_id === evidenceId)
+    if (proposal === undefined || proposal.created_by !== 'model_proposal') {
+      return jsonResponse(404, {
+        reason: 'evidence_not_found',
+        message: `the ledger holds no model's proposal with the id ${JSON.stringify(evidenceId)}.`,
+      })
+    }
+    if (proposal.superseded_by !== null && proposal.superseded_by !== undefined) {
+      return jsonResponse(403, {
+        reason: 'proposal_already_settled',
+        message:
+          `the proposal ${JSON.stringify(evidenceId)} was already settled by ` +
+          `${JSON.stringify(proposal.superseded_by)}. A proposal is settled once.`,
+      })
+    }
+    if (body.verdict !== 'confirmed' && body.verdict !== 'disputed') {
+      return jsonResponse(403, {
+        reason: 'proposal_verdict_unknown',
+        message: `${JSON.stringify(body.verdict)} is not a verdict a person can return about a proposal.`,
+      })
+    }
+    if (body.user_id.trim() === '') {
+      return jsonResponse(403, {
+        reason: 'attestation_identity_empty',
+        message: 'an attestation nobody signs is not an attestation.',
+      })
+    }
+    if (body.verdict === 'disputed' && (body.note ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'proposal_note_missing',
+        message:
+          "a dispute must say what is disputed. The note is the disagreement's " +
+          'content, and a disagreement nobody states is an accusation with none.',
+      })
+    }
+    if (body.verdict === 'confirmed' && (body.note ?? '').trim() !== '') {
+      return jsonResponse(403, {
+        reason: 'proposal_note_unexpected',
+        message:
+          'a confirmation carries no note: acceptance is as-is, and a confirmation ' +
+          "with a correction would be an amendment wearing acceptance's name.",
+      })
+    }
+    this.proposalSettlements += 1
+    const confirmation: EvidenceRecord = {
+      ...proposal,
+      evidence_id: `rec-person-${this.proposalSettlements}`,
+      status: 'user_attested',
+      created_by: 'user',
+      created_by_id: body.user_id,
+      verification_log: [
+        {
+          schema_version: 1,
+          check: 'c4',
+          checker_id: body.user_id,
+          outcome: 'not_checked',
+          detail: body.verdict === 'disputed' ? `disputed. ${body.note}` : 'confirmed',
+          checked_at: '2026-11-02T09:00:00+00:00',
+        },
+      ],
+      superseded_by: null,
+      created_at: '2026-11-02T09:00:00+00:00',
+    }
+    const settled: EvidenceRecord = {
+      ...proposal,
+      superseded_by: confirmation.evidence_id,
+    }
+    this.state.records = this.state.records
+      .map((record) => (record.evidence_id === evidenceId ? settled : record))
+      .concat(confirmation)
+    const answer: ProposalSettled = {
+      proposal: settled,
+      confirmation,
+      verdict: body.verdict,
+      user_id: body.user_id,
+    }
+    return jsonResponse(200, answer)
   }
 
   /**

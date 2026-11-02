@@ -2938,8 +2938,6 @@ def test_task_proposal_confirm_settles_a_models_proposal_through_the_console(
         "confirmed",
         "--user",
         "the-advisor",
-        "--note",
-        "I read the table; the number is the one it carries.",
         "--json",
     )
 

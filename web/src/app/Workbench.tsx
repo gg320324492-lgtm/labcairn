@@ -188,7 +188,7 @@ export function Workbench(): JSX.Element {
       <RevisionsView artifacts={reads.artifacts} />
       <TrajectoryView cycle={readCycle} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
-      <ProposalsView cycle={readCycle} />
+      <ProposalsView cycle={readCycle} onChanged={readAgain} />
 
       <footer className="workbench__footer">
         <p>

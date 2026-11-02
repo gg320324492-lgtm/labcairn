@@ -749,7 +749,7 @@ def test_a_person_settles_a_models_proposal_and_the_proposal_is_kept(
         proposed.record.evidence_id,
         user_id="the-advisor",
         verdict="confirmed",
-        note="I read the table; the number is the one it carries.",
+        note="",
         now=_MOMENT,
     )
 
@@ -797,7 +797,7 @@ def test_a_proposal_is_settled_once(env: StoreEnv, workspace_root: Path) -> None
         proposed.record.evidence_id,
         user_id="the-advisor",
         verdict="confirmed",
-        note="I read the table.",
+        note="",
         now=_MOMENT,
     )
 

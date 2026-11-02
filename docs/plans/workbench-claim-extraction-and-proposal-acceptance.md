@@ -1,12 +1,12 @@
 # The workbench's two missing evidence operations — design note
 
-**Status:** written 2026-11-02. **Design only — nothing here is implemented.**
-It covers the fourth carried limitation in
-[`PHASE_2-work-orders.md`](PHASE_2-work-orders.md) §5: *"the product has no
-operation that extracts a claim or accepts a model's proposal."* That phrase
-bundles two operations with different semantics, so they are separated below,
-and the points that need the owner's decision are listed rather than decided
-here.
+**Status:** written 2026-11-02; **built 2026-11-02**. It covers the fourth
+carried limitation in [`PHASE_2-work-orders.md`](PHASE_2-work-orders.md) §5:
+*"the product has no operation that extracts a claim or accepts a model's
+proposal."* That phrase bundles two operations with different semantics, so
+they are separated below. **The owner decided the eight points in §3 on
+2026-11-02**, and §4 records where each decision landed and which witness
+reddens when it is broken.
 
 ---
 
@@ -71,52 +71,76 @@ The Proposals panel gains two buttons and a field for the person's id; the
 write goes through the route and the panel re-reads `/records`, exactly as
 the Approval panel re-reads `/task` after a grant.
 
-## 3. What the owner has to decide
+## 3. The owner's decisions, taken 2026-11-02
 
-1. **Does extraction ever write a person's claim?** Recommended: no —
-   always a proposal, even when a person pressed the button. The person's
-   act is acceptance, and the two records stay distinguishable.
-2. **Who is the proposal's `created_by_id`?** A stable provider+model string
-   (`anthropic:claude-…`)? The record's `created_by_id` is shown nowhere
-   today; if it is to be shown, its spelling becomes a contract.
-3. **May the person amend the text before accepting?** The current
-   `confirm_proposal` writes the person's record at the same span; an amend
-   would need a different operation (and `uq_evidence_task_span` makes the
-   same words one claim). Recommended: accept-as-is in this batch;
-   amendment is a separate operation with its own semantics.
-4. **Is acceptance reversible?** The schema settles a proposal once. An
-   undo would have to say what happens to the person's record, the
-   attestation and the `superseded_by` link. Recommended: no undo; a
-   correction is a new record, as the chain's judgements are.
-5. **What identity does `user_id` carry, and may it be typed?** There are no
-   accounts in the product; the CLI takes a string. If the workbench takes a
-   typed name, is that the same trust level as the CLI's? (It is: both are
-   self-asserted. The owner should confirm the product says so.)
-6. **Which provider, model and budget does extraction use, and is it on by
-   default?** The Phase 1 route is "a cloud model behind three roles"; an
-   extraction call spends money and needs a `model.request` approval. What
-   happens on a fresh workspace with no provider? Recommended: the act is
-   absent (or refuses with the layer's reason), never silently simulated.
-7. **What provenance must the acceptance keep?** The proposal already
-   carries the source hash and span hash. If the source changed between
-   extraction and acceptance, does acceptance proceed (the person read the
-   text) or refuse (C1's question is now about different bytes)?
-8. **May an accepted record be cited, and does the panel say which record a
-   report cites after settlement?** Existing rule says a report cites the
-   person's record; the owner should confirm that acceptance is enough or
-   whether a report-level check must also run.
+1. **Does extraction ever write a person's claim?** **Decided: no.** Every
+   extraction writes a `model_proposal`, even when a person pressed the
+   button. The person's act is acceptance, and the two records stay
+   distinguishable.
+2. **Who is the proposal's `created_by_id`?** **Decided: a stable
+   provider+model string**, `"<provider>:<model>"` (for example
+   `"anthropic:claude-sonnet-5-5"`), built from the invocation's own fields.
+   It is shown nowhere today; if it is shown, its spelling is already a
+   contract.
+3. **May the person amend the text before accepting?** **Decided: no —
+   accept-as-is in this batch.** Amendment is a separate operation with its
+   own semantics; `uq_evidence_task_span` makes the same words one claim.
+4. **Is acceptance reversible?** **Decided: no undo.** A correction is a new
+   record, as a correction to a judgement on the chain is.
+5. **What identity does `user_id` carry?** **Decided: a self-reported
+   string**, the CLI's trust level. The product keeps no accounts and proves
+   no identity, and the surfaces say so.
+6. **Which provider, model and budget does extraction use?** **Decided: the
+   service's assembly supplies a provider invocation and grants; with no
+   provider the act refuses with the layer's reason and writes nothing.**
+   Never silently simulated.
+7. **What provenance must the acceptance keep?** **Decided: refuse if the
+   source changed between extraction and acceptance.** C1's question is then
+   about different bytes, and accepting would attest words the proposal was
+   not written about.
+8. **May an accepted record be cited?** **Decided: yes.** A report cites the
+   person's record; the proposal is kept and never promoted.
 
-## 4. Witnesses this design would require (none exist yet)
+## 4. What was built, and the witnesses
 
-- A model-free test that `extract_claim` writes `created_by=model_proposal`
-  and never `user`; a mutation that swaps the call to `record_claim` must
-  fail it.
-- A test that `POST /records/{id}/accept` and `task proposal-confirm`
-  produce the same `ProposalSettled` shape from the same store.
-- A guard test for the accept route (foreign origin, missing token) and for
-  the extract route (the same, plus a missing provider).
-- A web test that the Proposals panel's accept button posts, re-reads
-  `/records`, and draws the person's record beside the marked proposal —
-  with the refusal path visible, as the grant button's is.
-- A test that extraction on a workspace with no provider refuses with a
-  reason and writes nothing.
+**The application operations.** `extract_claim`
+(`src/labcairn/application/extraction.py`) reads the ledger's stored text at
+the address, asks the model through `request_model` for a claim and its
+quotation, checks the quotation against the material, and records the answer
+through `record_model_proposal` with `created_by_id="<provider>:<model>"`.
+`claim_extraction_use` is the one derivation of the approval's arguments, so
+the question asked and the request made cannot disagree.
+`confirm_proposal` (`src/labcairn/application/evidence.py`) now accepts
+as-is: the person's record carries the proposal's text unchanged, a dispute
+requires a note and a confirmation refuses one, and acceptance is refused
+when the source has drifted.
+
+**The routes.** `POST /claims/extract` (body:
+`source_id`, `locator_key`, `user_id`, `provider`, `model`, `destination`,
+`subject_ref`, `purpose`, `approval_id`) and
+`POST /records/{evidence_id}/accept` (body: `user_id`, `verdict`, `note`).
+The accept route calls `confirm_proposal` unchanged, so the CLI's
+`task proposal-confirm` and the route produce the same `ProposalSettled`.
+The extract route spends the provider invocation and grants the service was
+assembled with; with none it refuses with `claim_extraction_no_provider`.
+
+**The witnesses.**
+
+| Property | Witness |
+|---|---|
+| Extraction writes a proposal, never a person's claim | `tests/test_api.py::test_an_extraction_writes_a_model_proposal_and_never_a_persons_claim` |
+| The proposal names the model that answered | the same test (`created_by_id == "fake:scripted"`) |
+| Acceptance supersedes the proposal and attests the person's record | `tests/test_api.py::test_accepting_a_proposal_supersedes_it_and_attests_the_persons_record` |
+| A dispute without a note is refused and writes nothing | `tests/test_api.py::test_a_dispute_without_a_note_is_refused_and_writes_nothing` |
+| A confirmation carrying a note is refused | `tests/test_api.py::test_a_confirmation_that_carries_a_note_is_refused` |
+| A source that drifted is refused at acceptance | `tests/test_api.py::test_a_proposal_whose_source_changed_is_refused_at_acceptance` |
+| No provider: refusal, nothing written | `tests/test_api.py::test_an_extraction_with_no_provider_is_refused_and_writes_nothing` |
+| No approval: refusal, nothing asked or written | `tests/test_api.py::test_an_extraction_with_no_approval_is_refused_before_anything_is_asked` |
+| The panel posts both verdicts, re-reads `/records`, shows the person's record | `web/src/views/ProposalsView.test.tsx` — "confirms as-is through the route, then reads the ledger again" and "refuses a dispute with no note before sending…" |
+| The CLI's settlement still speaks the same shape | `tests/test_cli.py::test_task_proposal_confirm_settles_a_models_proposal_through_the_console` |
+
+**What is not built.** A CLI command that starts an extraction (the route and
+the application operation exist; the console's half is acceptance, as before),
+and a production assembly that constructs a provider for `serve` — the
+service refuses the act until an operator wires one, which is decision 6's
+"absent, never simulated".
