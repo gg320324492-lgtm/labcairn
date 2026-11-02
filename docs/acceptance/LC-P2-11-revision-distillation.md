@@ -215,26 +215,38 @@ an empty string as though it were the reviewer's surroundings.
 5. **The mentor's nine changes are nine changes in one version of one
    draft.** They are not a cross-version pattern, and **a rule that holds
    on one paragraph of one draft has not been shown to hold anywhere else.**
-6. **The deletion without a replacement is the interesting negative case,
-   and it is not solved.** The chain records what was removed and not what
+6. **The deletion without a replacement was the interesting negative case,
+   and §6 recovers it.** The chain records what was removed and not what
    the mentor wanted instead — **which is exactly the missing half of the
-   rule**, and no amount of reading the tracked change recovers it. **This
-   is the seam the third pilot exposes**: a mentor who revises without
-   writing leaves the chain holding the "before" and no "after".
-7. **Nothing was measured on a runner.** The shard cost for the new test
-   file is **apportioned**, not measured: the local whole-file cost
-   (10.21 s on Windows) scaled by the platform ratio the record already
-   holds (`ubuntu = 0.473 × windows`), which is the same two-step the
-   LC-P2-09 record used. **The next CI run replaces it with a
-   measurement.**
+   rule**, and no amount of reading *one* tracked change recovers it.
+   **What recovered it was reading the change beside its neighbours**: the
+   deletion and the insertion that replaced it are two fragments of one
+   edit, and a run that groups by fragment cannot see the edit. The seam
+   the third pilot exposes is real — a mentor who revises without writing
+   leaves the chain holding the "before" — but the "after" was in the
+   chain all along, in a different row.
+7. **Nothing was measured on a runner, and the cost in the table is not
+   the one this record first described.** The shard tool does not scale a
+   local number by a platform ratio: `remeasure_shards.py` reads the
+   per-file seconds out of a run's `--durations=0` log and **divides the
+   unaccounted residual among the files the run never saw, by test count**,
+   saying so in its own output ("the 35 fast files share 31 s"). At
+   `3d1487e` the revision-distillation file therefore carries an
+   apportioned 0.92 s (ubuntu) and 1.66 s (windows) against **14.9 s
+   measured locally on Windows** — the same direction LC-P2-06 wrote
+   down ("apportioned at 0.13 s and measured at 1.16 s, nine times
+   larger"). **The next CI run replaces both numbers with measurements**,
+   and until it does, the partition is balanced on figures known to be
+   low.
 
 ---
 
 ## 5. What was not done
 
-- **No second reader was found, and none was simulated.** The candidates
-  are `candidate`, and the confirmation door was exercised only by the
-  witnesses.
+- **No second reader was found at the time, and none was simulated.** The
+  candidates stayed `candidate` and the confirmation door was exercised
+  only by the witnesses. **A second reader arrived afterwards** — see §6,
+  which is the second pass over these same two rules.
 - **The comment path was not changed.** `distil_candidate` and
   `MODEL_PROPOSER` are as they were; the two paths share the rule
   lifecycle, the retrieval and the vocabulary, and nothing else.
@@ -250,3 +262,135 @@ an empty string as though it were the reviewer's surroundings.
   there is no comment for a change to answer, so **a revision source has
   no "was this answered" judgement** — and the retrieval's revision route
   does not ask for one, because a revision source *is* the change.
+
+## 6. The second pass: the two rules were re-read, and one door was added
+
+**This section is the record of what happened to the two candidates after
+§3, on 2026-11-03.** It changes nothing in §3's description of the first
+run — the first run did what §3 says — but §3's outcome did not survive a
+second reading, and a record that stops at the flattering half is not a
+record.
+
+### 6.1 What was wrong, and what caused it
+
+**Both statements described a rule instead of stating one.** "When the
+mentor replaces the mechanism a sentence names, the rule states the
+mechanism the mentor chose and the one it replaced" says nothing about a
+manuscript: it says what a rule would contain. **A reader holding the
+draft learns no standard from it.**
+
+**The cause was the grouping, and it is worth naming precisely because it
+is reproducible.** The first run grouped the mentor's changes by *which
+fragment of text each one carried*. One edit — a mechanism replaced by
+another — arrived in the file as several tracked changes: the phrase
+deleted, the connective "or" deleted, and the replacement written in as
+two insertions (Word records what a writer typed at two moments as two
+events). Split that way, each fragment looks like a separate act, and
+**an operator who cannot see the act writes about the fragment**. That is
+how a circular statement gets written: it is what is left to say about a
+piece of a sentence.
+
+**So the grouping was redone by act, not by fragment**, and the two groups
+grew: the mechanism rule went from 2 sources to 4 (it now carries the
+deletion and the connective as parts of the same act), and the
+causal-chain rule keeps its 2. **The brackets are deliberately outside
+both groups** — they are the punctuation of the replacement, and a bracket
+is not a case any statement could be learned from.
+
+### 6.2 The door the product did not have
+
+**Fixing a thin rule needed a product capability, not a hand-written
+record.** Two ways existed and both were wrong:
+
+- `distil_candidate_from_revisions` mints a **new** rule id every time, so
+  the corrected rule would have stood beside the thin one and the memory
+  would hold two answers to one question.
+- `supersede_rule` keeps the id but takes `scope` and `example` **from the
+  caller** — and the whole reason the revision path exists is that a
+  caller must not write a scope. Using it would have meant hand-copying
+  what the product computes, which is the door this module was built to
+  keep shut.
+
+**`distil_revision_version_of` is that door**: the rule keeps its id, the
+version increments, the scope and the example are built from the cases
+exactly as on the first version, the proposer is still
+`operator_proposal`, and **the new version starts as a candidate — a
+rewording is not a confirmation**.
+
+**And disputing alone would not have been enough, which is the part the
+retrieval decides.** `search_rules` serves `confirmed` **and** `disputed`
+rules by default, so a disputed empty statement **keeps reaching readers'
+cards**, carrying its reason beside it. The pair that actually removes it
+from service is dispute **plus** a new version: `read_guidance_rules`
+returns only the highest version, so once the candidate v2 exists, the
+disputed v1 is no longer what a query answers with — and v2 is itself not
+served until a person confirms it.
+
+**Seven witnesses**, and four mutations measured against them: minting a
+fresh rule id fails 3; not reading the old rule fails 7; taking the scope
+from the rule rather than the cases fails 18; not incrementing the version
+fails 5.
+
+### 6.3 The example showed the words the mentor rejected
+
+**A defect in the product, found by the second pass and not by the
+witnesses that were already there.** `_revision_example_of` picks the
+**longest** change among the cases — right when one insertion is split in
+two, because the longer half is the fuller one. It is wrong when an edit
+*replaces* a phrase: the mentor deleted a twenty-character mechanism and
+wrote an eight-character one in its place, so the longest case was the
+deletion, **and the rule telling a reader what to write was illustrated
+by the words the reader is being told not to write**.
+
+**An insertion is now chosen before a deletion, whatever their lengths**,
+and length decides only among insertions. One witness builds the shape
+deliberately (a deletion longer than the insertion) and asserts both
+halves: the example must carry the written words, and must not carry the
+removed phrase. Dropping the insertion preference turns that witness red
+and no other.
+
+### 6.4 What the second reader decided
+
+**The owner read both statements and confirmed both**, as `confirmed_by =
+"owner"` — **not** `operator_proposal`, because the proposer cannot
+confirm their own rule and the run that wrote them was the proposer. Both
+rows are `confirmed` at version 2, and a query on the issue type serves
+them with all their sources standing.
+
+**The issue kind moved from `language_and_format` to
+`method_and_hypothesis`.** The first run's label was a misreading of its
+own axis: the vocabulary names *what problem the advisor pointed at*, not
+*what transformation of the text was made*, and a mentor replacing one
+chemical mechanism with another is pointing at the method as described.
+The old label stays on the disputed version 1, which is what the memory
+keeping its past looks like in a row.
+
+### 6.5 What this still does not show
+
+- **Two rules, each resting on one act, in one paragraph of one draft.**
+  §4's objection stands in full: this is not a pattern, and re-reading the
+  acts does not manufacture cases that were never there.
+- **The statements name this paper's chemistry.** They are usable by a
+  reader of *this* group's manuscripts and are not a general writing
+  standard. That is what the memory holds a rule to be — one advisor's
+  standard, traceable to the moment it was learned — but it means these
+  two will not transfer to a different subject.
+- **No check was bound to either rule.** A rule may name the question a
+  reader runs against a manuscript and what answers it, and neither does
+  yet: both are served as statements with sources, not as statements with
+  a test. **This is the remaining gap LC-P2-11's checks column exists to
+  close**, and it is a judgement about this material, not a defect in the
+  door.
+- **Nothing was measured on a runner** for the new witnesses; see §4 item
+  7.
+
+---
+
+**And §6's second pass was run through the product's own doors.** The
+dispute, the new version and the confirmation each went through
+`dispute_rule`, `distil_revision_version_of` and `confirm_rule`; the
+operator's script names the acts and the statements and nothing else, and
+**it does not build a scope, a key or a state**. That is the property the
+whole module exists for, and the second pass is the first time a real
+corpus exercised it end to end: read, propose, dispute, rewrite,
+confirm — five acts, four of them the memory's own.
