@@ -106,6 +106,25 @@ class ChainRefusal(StrEnum):
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
     ISSUE_KEY_MAY_NOT_BE_INFERRED = "issue_key_may_not_be_inferred"
+    #: The store holds no reply with that id. A settlement judges an
+    #: exchange, and a settlement of an exchange nobody holds is a
+    #: settlement about nothing.
+    REPLY_NOT_FOUND = "reply_not_found"
+    #: A settlement state other than ``pending`` was asked for with no
+    #: evidence behind it.
+    SETTLEMENT_NEEDS_EVIDENCE = "settlement_needs_evidence"
+    #: A model may put a settlement forward, but it may not decide one.
+    #: Only a rule or a person settles whether an answer settled a point.
+    SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL = "settlement_may_not_be_decided_by_a_model"
+    #: A reply that has already been judged was judged again. A judgement
+    #: is a fact, and a second judgement over the same reply is a revision
+    #: of a fact, which the store does not hold.
+    SETTLEMENT_ALREADY_DECIDED = "settlement_already_decided"
+    #: A settlement claimed a reply settled because the manuscript holds
+    #: what the answer claims, and the claimed thing is not in the
+    #: manuscript's accepted text. **Refused by name, never silently
+    #: accepted** -- the refusal says which term was not found.
+    CLAIM_NOT_IN_MANUSCRIPT = "claim_not_in_manuscript"
 
 
 def project_row(session: Session, project_id: str) -> PaperProjectRow | None:

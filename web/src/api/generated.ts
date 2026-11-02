@@ -260,6 +260,7 @@ export type EvidenceRecord = {
   unit?: string | null
   tolerance?: StrictNonNegFloat | null
   anchor_ids?: string[]
+  identifier_ids?: string[]
   extracted_span?: string | null
   extracted_span_sha256?: string | null
   status: VerificationStatus

@@ -20,6 +20,64 @@ The links are the records.
 
 **Added**
 
+- **The blind evaluation's mechanical preparation (LC-P2-14).** Four
+  pieces under `tests/evaluation/`: the protocol's five arms as data a
+  configuration is measured against; a by-paper leak check that names
+  every leak shape it knows (a paper on both sides, an entry with no
+  side, an entry on the wrong side, a rule built on an evaluated paper,
+  a side the checker does not know); an anonymous blind sheet that
+  **refuses** a document carrying an arm key rather than cleaning it;
+  and an exact paired sign test whose **not-significant verdict is a
+  first-class outcome** — a small denominator is not significant by
+  rule with no p-value computed, all-ties says "no evidence either
+  way", and every significant row carries its denominator. 64
+  witnesses; 47 mutations self-reported and all caught; 4 further
+  mutations applied independently, all caught.
+  [LC-P2-14 preparation](docs/acceptance/LC-P2-14-preparation.md).
+
+- **Five acceptance records carry an independent review.** Every
+  mutation in the reviewed records re-applied by a session that built
+  none of them, every witness watched: LC-P2-02/07/09 hold;
+  LC-P2-10/16 hold with notes. The reviews are records of the checking
+  (`docs/acceptance/LC-P2-{02,07,09,10,16}-review.md`), not of new
+  work.
+
+- **The P1 baseline is frozen.** The phase's exit gate — *"measured
+  capability gain against a frozen P1 baseline"* — had no denominator:
+  the harness could read a baseline document and nothing supplied one.
+  The baseline is now committed at
+  [`docs/acceptance/LC-P2-00-baseline.json`](docs/acceptance/LC-P2-00-baseline.json),
+  measured on `main` at `81babd5` (Windows 11, offline): five gate
+  classes, four measured metrics, the real-provider smoke honestly
+  recorded as NOT RUN, and `model: ""` rather than an invented name.
+  **A run on the same tree compares on all six conditions**, a doctored
+  run and a doctored baseline are each refused by name, and the record
+  says what the numbers do not establish.
+  [LC-P2-00 baseline](docs/acceptance/LC-P2-00-baseline.md).
+
+- **The settlement over a reply — the peer-review loop's judgement
+  half.** The reply was a record of what was said and nothing judged it;
+  `reply_settlements` (migration `0020`) and `settle_reply` add the
+  judgement. **A response whose claimed experiment the manuscript does
+  not contain is refused or held, by name**; an unjudged reply stays on
+  the unsettled listing; the change is placed in the manuscript or the
+  settlement says it could not be; and a disagreement between the
+  chain's judgement and a settlement is shown as **two sides**, not
+  resolved by recency. A model may put a settlement forward and may not
+  decide one.
+  [LC-P2-09 acceptance](docs/acceptance/LC-P2-09-acceptance.md) §10.
+
+- **The reader reports one tracked change once.** A paragraph whose run
+  carries a drawing — Word's `mc:AlternateContent`, a `Choice` and a
+  `Fallback` each wrapping a text box — had its inner revisions reported
+  a second time by the outer paragraph's walk: **243 events where the
+  file holds 239 addresses**. The walk now reports a revision only from
+  the nearest containing paragraph, and **the corpus carries the shape**
+  (fixture 30), so the corpus-wide witnesses catch the defect by
+  construction. Verified on the real file both ways: 243 before, 239
+  after; the pilot's chain was checked unpolluted.
+  [LC-P2-07 fidelity baseline](docs/acceptance/LC-P2-07-fidelity-baseline.md).
+
 - **The mentor's own material, in the product — and the chain's four
   rings.** The second corpus is a second paper with a second advisor, and
   the two of them are in the product as two pilot projects: **twenty

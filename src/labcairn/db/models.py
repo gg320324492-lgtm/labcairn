@@ -1,4 +1,4 @@
-"""The thirty-one tables that make SQLite the task authority.
+"""The thirty-two tables that make SQLite the task authority.
 
 Thirty-one is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
@@ -66,6 +66,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
 from labcairn.db.base import Base, sql_string_list
+from labcairn.evidence.identifiers import (
+    IdentifierProvenance,
+    IdentifierScheme,
+    ResolutionState,
+)
 from labcairn.evidence.states import (
     CheckKind,
     CheckOutcome,
@@ -1162,6 +1167,109 @@ class SourceAnchorRow(Base):
         ),
         # C1 resolves by id on every check, so this is the table's only hot path.
         Index("ix_source_anchors_source", "source_id"),
+    )
+
+
+class IdentifierRow(Base):
+    """A scholarly identifier a task holds, with its provenance and its state.
+
+    The registry LC-P1-09's acceptance review named as missing: a record could
+    cite an anchor but had nowhere to put the DOI it was citing. This table is
+    the shelf. Three closed vocabularies live in
+    :mod:`labcairn.evidence.identifiers`, which is also where the model-level
+    halves of these CHECK constraints are validated; here they are repeated for
+    the same reason the evidence tables repeat theirs -- the store is a
+    *boundary*, and a row written by a SQL client skips the Pydantic model
+    entirely.
+
+    The three state rules below are one idea in three rows: a resolution state
+    carries the evidence of what it names. ``unresolved`` carries nothing,
+    because nothing has happened; ``not_attempted`` carries the reason and
+    nothing else, because a refusal with no reason is the one thing worse than
+    no refusal; ``resolved`` carries who answered, what they found and when.
+    """
+
+    __tablename__ = "identifier_records"
+
+    identifier_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    scheme: Mapped[str] = mapped_column(String(32), nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    supplied_by: Mapped[str] = mapped_column(String(32), nullable=False)
+    supplied_by_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    resolution_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    resolution_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        # One identifier, one row per task: a second row for the same triple
+        # would make "is it resolved" answerable two ways.
+        UniqueConstraint("task_id", "scheme", "value", name="uq_identifier_task_scheme_value"),
+        CheckConstraint(
+            f"scheme IN {sql_string_list(v.value for v in IdentifierScheme)}",
+            name="identifier_scheme_vocabulary",
+        ),
+        CheckConstraint(
+            f"supplied_by IN {sql_string_list(v.value for v in IdentifierProvenance)}",
+            name="identifier_provenance_vocabulary",
+        ),
+        CheckConstraint(
+            f"resolution_state IN {sql_string_list(v.value for v in ResolutionState)}",
+            name="identifier_resolution_vocabulary",
+        ),
+        CheckConstraint(
+            "length(identifier_id) > 0 AND length(task_id) > 0"
+            " AND length(value) > 0 AND length(supplied_by_id) > 0",
+            name="identifier_fields_present",
+        ),
+        CheckConstraint(
+            "resolution_state != 'unresolved' OR (resolution_detail IS NULL"
+            " AND resolved_by IS NULL AND resolved_at IS NULL)",
+            name="identifier_unresolved_carries_nothing",
+        ),
+        CheckConstraint(
+            "resolution_state != 'not_attempted' OR (resolution_detail IS NOT NULL"
+            " AND resolved_by IS NULL AND resolved_at IS NULL)",
+            name="identifier_not_attempted_says_why",
+        ),
+        CheckConstraint(
+            "resolution_state != 'resolved' OR (resolution_detail IS NOT NULL"
+            " AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)",
+            name="identifier_resolved_says_who",
+        ),
+        Index("ix_identifier_records_task", "task_id"),
+    )
+
+
+class EvidenceIdentifierRow(Base):
+    """One identifier cited by one evidence record.
+
+    A join table rather than a column, for the same reason ``evidence_anchors``
+    is one: ``identifier_ids`` is an ordered tuple, the first identifier is the
+    primary one, and ``position`` is that order, dense from 0. And like
+    ``evidence_anchors``, no foreign key -- an identifier id naming nothing is
+    a finding for the ledger's checks to report, not a constraint error to
+    replace them.
+    """
+
+    __tablename__ = "evidence_identifiers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evidence_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    identifier_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("evidence_id", "position", name="uq_evidence_identifiers_position"),
+        UniqueConstraint("evidence_id", "identifier_id", name="uq_evidence_identifiers_identifier"),
+        CheckConstraint("position >= 0", name="evidence_identifiers_position_non_negative"),
+        CheckConstraint(
+            "length(identifier_id) > 0 AND length(evidence_id) > 0",
+            name="evidence_identifiers_ids_present",
+        ),
+        Index("ix_evidence_identifiers_identifier", "identifier_id"),
     )
 
 
@@ -2678,6 +2786,195 @@ class ReplyRow(Base):
         CheckConstraint(
             _has_content("objection_text") + " AND " + _has_content("answer_text"),
             name="replies_both_halves_are_present",
+        ),
+    )
+
+
+class ReplySettlementRow(Base):
+    """The judgement that an author's answer settled a reviewer's point.
+
+    **The reply is a record, and the settlement is a judgement.**
+    :class:`ReplyRow` holds what two parties said and holds no verdict --
+    that absence is the design, and it stays. The settlement is the
+    judgement over that record: *did the authors' answer settle the
+    point, and on what evidence*. It lives in its own table for the same
+    reason the reply does: **a verdict bolted onto the row that holds the
+    words would let a record of what was said be read as a ruling**.
+
+    **And it goes through the same door as ``response_links``.** A state
+    other than ``pending`` needs a decider and the evidence behind it,
+    and a model may put a settlement forward -- ``pending``,
+    ``inferred``, ``model`` -- but may not decide one. A status anybody
+    can set is not a status, so the schema refuses one.
+
+    **And a settled judgement points at the manuscript.** The whole point
+    of settling is that what the answer claims can be found in the
+    manuscript's accepted text: ``settled`` carries ``claim_terms`` -- the
+    words the answer claims are there -- and a ``resolved`` address, and
+    a settled settlement without either is refused by the schema, not
+    merely discouraged. **Acceptance says the claimed thing is findable;
+    it does not say the science was right** -- that is a claim no row in
+    this table can carry, and none tries.
+
+    **And a hold names what it holds.** An answer whose claim cannot be
+    found is ``held`` with the reason named on the row -- never silently
+    accepted, and never a bare "no".
+
+    **And a point is settled once.** ``reply_id`` is unique: a judgement
+    is a fact, and a second judgement over the same reply is a revision
+    of a fact, which the store does not hold.
+    """
+
+    __tablename__ = "reply_settlements"
+
+    #: Caller-minted, so a settlement may be cited from an earlier run.
+    settlement_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    #: The exchange the judgement is over.
+    reply_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("replies.reply_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``pending``, ``settled``, ``held`` or ``unresolved``. Only
+    #: ``pending`` says nobody has judged.
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Whose judgement this is: ``observed``, ``human_verified`` or
+    #: ``inferred``. A model's candidate is ``inferred``.
+    grade: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Who put the settlement forward, and who decided it: ``rule``,
+    #: ``user`` or ``model``. ``None`` while nobody has put it forward at
+    #: all, and the proposer's name while it is pending.
+    decided_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: When the judgement was made.
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    #: **What decided it** -- the evidence rows, the check log, or the
+    #: person. Empty only while the settlement is pending.
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    #: **The words a settled judgement vouches for.** Each is a term the
+    #: answer claims the manuscript contains, and the operation checked
+    #: every one of them against the manuscript's accepted text before
+    #: the row was written. Empty for every state but ``settled``.
+    claim_terms: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    #: **Where the change the answer claims lives** -- the manuscript
+    #: version that carries it. The reply names a place in the response
+    #: document only; the place in the manuscript is this judgement's to
+    #: give, and it is ``None`` when the judgement says the point could
+    #: not be placed.
+    change_version_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("paper_versions.version_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    #: The paragraph of the manuscript the change lives in -- the
+    #: reader's own coordinate. ``None`` with ``unknown``.
+    change_paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: ``resolved`` -- the change was placed, and the two columns above
+    #: say where -- or ``unknown``: **the place could not be given, and
+    #: the row says so instead of guessing one.** A missing address is a
+    #: value.
+    anchor_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: The chain comment the judgement says this reply is about, when the
+    #: decider judged them the same point. **The correspondence is part
+    #: of the judgement, not an inference**: the reply carries no issue
+    #: key, and nobody derived one -- a person said these two are the
+    #: same point, on the evidence the row names.
+    feedback_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("feedback_events.feedback_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    #: What a ``held`` settlement is holding for. Named, because a hold
+    #: that says only "held" is a hold nobody can lift.
+    hold_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_reply_settlements_feedback", "feedback_id"),
+        # **One point, one judgement.** A judgement is a fact, and a second
+        # judgement over the same reply is a revision of a fact, which the
+        # store does not hold.
+        UniqueConstraint("reply_id", name="uq_reply_settlements_reply"),
+        CheckConstraint(
+            "length(settlement_id) > 0 AND length(reply_id) > 0",
+            name="reply_settlements_ids_present",
+        ),
+        CheckConstraint(
+            "state IN ('pending', 'settled', 'held', 'unresolved')",
+            name="reply_settlements_state_vocabulary",
+        ),
+        CheckConstraint(
+            "grade IN ('observed', 'human_verified', 'inferred')",
+            name="reply_settlements_grade_vocabulary",
+        ),
+        CheckConstraint(
+            "decided_by IS NULL OR decided_by IN ('rule', 'user', 'model')",
+            name="reply_settlements_decider_vocabulary",
+        ),
+        # **A pending settlement carries no decision.** It has no moment
+        # and no evidence, because nothing has been decided yet.
+        CheckConstraint(
+            "state <> 'pending' OR (decided_at IS NULL AND json_array_length(evidence_refs) = 0)",
+            name="reply_settlements_a_pending_settlement_carries_no_decision",
+        ),
+        # **And a judged settlement names its decider and its evidence.**
+        # The decider is compared with ``IS NOT NULL`` as well, because
+        # SQLite treats a constraint expression that is ``NULL`` as
+        # satisfied -- a row whose ``decided_by`` read ``NULL`` would
+        # otherwise pass the ``IN`` without being in it.
+        CheckConstraint(
+            "state = 'pending' OR (decided_by IS NOT NULL"
+            " AND decided_by IN ('rule', 'user') AND decided_at IS NOT NULL"
+            " AND json_array_length(evidence_refs) > 0)",
+            name="reply_settlements_a_judgement_names_its_decider_and_its_evidence",
+        ),
+        # **A model may not settle a point.** It may put one forward --
+        # that is a candidate -- but only a rule or a person says an
+        # author's answer settled it.
+        CheckConstraint(
+            "state = 'pending' OR decided_by <> 'model'",
+            name="reply_settlements_a_model_may_not_settle",
+        ),
+        # **An inferred settlement is a model's candidate.** The grade and
+        # the proposer agree, or the row does not hold.
+        CheckConstraint(
+            "(COALESCE(decided_by, 'none') <> 'model' AND grade <> 'inferred')"
+            " OR (COALESCE(decided_by, 'none') = 'model' AND grade = 'inferred')",
+            name="reply_settlements_an_inferred_settlement_is_a_candidates",
+        ),
+        CheckConstraint(
+            "anchor_status IN ('resolved', 'unknown')",
+            name="reply_settlements_anchor_status_vocabulary",
+        ),
+        # **An address is a value, never a guess.** ``resolved`` and the
+        # two address columns agree in both directions: a settlement that
+        # says resolved while naming no place, and one that names a place
+        # while claiming it could not, are both refused by the schema.
+        CheckConstraint(
+            "(anchor_status = 'resolved') = (change_version_id IS NOT NULL"
+            " AND change_paragraph IS NOT NULL)",
+            name="reply_settlements_an_address_is_a_value_not_a_guess",
+        ),
+        # **A settled judgement points at the manuscript.** The whole
+        # point of settling is that what the answer claims is findable in
+        # the manuscript's accepted text, and a settled settlement that
+        # names no place in it has settled nothing.
+        CheckConstraint(
+            "state <> 'settled' OR anchor_status = 'resolved'",
+            name="reply_settlements_a_settled_judgement_points_at_the_manuscript",
+        ),
+        # **A settled judgement names what it found.** The claim terms are
+        # what was checked against the manuscript, and a settled
+        # settlement that checked nothing has no check behind it.
+        CheckConstraint(
+            "state <> 'settled' OR json_array_length(claim_terms) > 0",
+            name="reply_settlements_a_settled_judgement_names_what_it_found",
+        ),
+        # **A hold names what it holds.** A hold that says only "held" is
+        # a hold nobody can lift, and a state that is not held carrying a
+        # hold reason is a reason in search of a decision.
+        CheckConstraint(
+            "(state = 'held') = (hold_reason IS NOT NULL AND length(trim(hold_reason)) > 0)",
+            name="reply_settlements_a_hold_names_what_it_holds",
         ),
     )
 

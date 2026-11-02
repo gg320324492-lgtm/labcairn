@@ -42,10 +42,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, fields
+from datetime import datetime
 from pathlib import Path
 
 import pytest
-from docx_fixtures import Fixture, Revision, write_fixture
+from docx_fixtures import Comment, Fixture, Revision, write_fixture
 from feedback_chain_fixtures import (
     MOMENT,
     ChainEnv,
@@ -72,6 +73,7 @@ from labcairn.db.models import (
     PaperProjectRow,
     PaperVersionRow,
     ReplyRow,
+    ReplySettlementRow,
     ResponseLinkRow,
     VersionEdgeRow,
 )
@@ -90,8 +92,12 @@ from labcairn.papers.feedback import (
 from labcairn.papers.replies import (
     Reply,
     ReplyExchange,
+    ReplySettlement,
     list_replies,
+    list_reply_settlements,
+    list_unsettled_replies,
     record_replies,
+    settle_reply,
 )
 from labcairn.papers.responses import (
     AnswerProposal,
@@ -877,13 +883,18 @@ class ReplyEnv:
     built: Path
 
 
-def _reply_project(env: StoreEnv, tmp_path: Path) -> ReplyEnv:
+def _reply_project(
+    env: StoreEnv, tmp_path: Path, *, comments: tuple[Comment, ...] = ()
+) -> ReplyEnv:
     """A project holding a manuscript and a response document beside it.
 
     **The response document is written before the chain is built**, so it
     is ingested with the rest of the material, and it is registered as a
     version of its own -- **because a reply is read out of a document, and
     the document is a material of the project like any other.**
+
+    **The comments are a parameter**, because a settlement that says which
+    chain comment a reply is about needs the chain to hold one.
     """
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -898,7 +909,7 @@ def _reply_project(env: StoreEnv, tmp_path: Path) -> ReplyEnv:
             built,
         ).read_bytes()
     )
-    chain = build_chain(env.store(), workspace)
+    chain = build_chain(env.store(), workspace, comments=comments)
     source = next(
         view.source
         for view in list_sources(chain.context)
@@ -2185,3 +2196,623 @@ def test_a_change_in_one_manuscript_cannot_answer_a_comment_in_another(
     assert "proj-2" in caught.value.detail, "the refusal names the two projects"
     rows = marked_up.context.store.session.scalars(select(EditActionRow)).all()
     assert not rows, "a refused answer writes nothing"
+
+
+# --------------------------------------------------------------------------- #
+# The settlement: the judgement that an answer settled a reviewer's point     #
+#                                                                             #
+# The reply is a record of what was said. The settlement is the judgement     #
+# over that record -- did the authors' answer settle the point, on what       #
+# evidence, and where in the manuscript the change it claims lives -- and     #
+# it goes through the same door as ``record_response``: a state other than    #
+# ``pending`` needs a decider and the evidence behind it, and a model may     #
+# put a settlement forward but may not decide one.                            #
+# --------------------------------------------------------------------------- #
+
+
+def _settle(
+    reply_env: ReplyEnv,
+    reply_id: str,
+    *,
+    state: str = "settled",
+    settlement_id: str = "st-1",
+    grade: str = "observed",
+    decided_by: str | None = "user",
+    decided_at: datetime | None = MOMENT,
+    evidence_refs: tuple[str, ...] = ("the reviewer's own confirmation",),
+    claim_terms: tuple[str, ...] = ("single observation",),
+    change_version_id: str | None = "ver-1",
+    change_paragraph: int | None = 0,
+    anchor_status: str = "resolved",
+    feedback_id: str | None = None,
+    hold_reason: str | None = None,
+) -> ReplySettlement:
+    """Settle one reply, with a settled judgement's defaults filled in.
+
+    **The defaults are a passing settled judgement** -- a decider, a
+    moment, evidence, a claim term the manuscript holds and a resolved
+    address -- so a test about a refusal says what is *wrong* by passing
+    one argument, and a test about the pending path passes the empty
+    judgement's fields and nothing else.
+    """
+    return settle_reply(
+        reply_env.chain.context,
+        settlement_id=settlement_id,
+        reply_id=reply_id,
+        state=state,
+        grade=grade,
+        decided_by=decided_by,
+        decided_at=decided_at,
+        evidence_refs=evidence_refs,
+        claim_terms=claim_terms,
+        change_version_id=change_version_id,
+        change_paragraph=change_paragraph,
+        anchor_status=anchor_status,
+        feedback_id=feedback_id,
+        hold_reason=hold_reason,
+        now=MOMENT,
+    )
+
+
+def _raw_settlement(session: Session, **overrides: object) -> None:
+    """Write a settlement row directly, so the schema is what is under test."""
+    values: dict[str, object] = {
+        "settlement_id": "st-raw",
+        "reply_id": "rp-raw",
+        "state": "pending",
+        "grade": "observed",
+        "decided_by": None,
+        "decided_at": None,
+        "evidence_refs": "[]",
+        "claim_terms": "[]",
+        "change_version_id": None,
+        "change_paragraph": None,
+        "anchor_status": "unknown",
+        "feedback_id": None,
+        "hold_reason": None,
+        "created_at": "2026-04-01T09:00:00+00:00",
+    }
+    values.update(overrides)
+    columns = ", ".join(values)
+    placeholders = ", ".join(f":{key}" for key in values)
+    session.execute(
+        text(f"INSERT INTO reply_settlements ({columns}) VALUES ({placeholders})"),
+        values,
+    )
+    session.commit()
+
+
+def test_a_settlement_whose_claim_the_manuscript_does_not_hold_is_refused_by_name(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """An answer that claims what the manuscript does not contain is not done.
+
+    **A settled settlement has found what the answer claims.** The whole
+    point of settling is that what the answer claims can be found in the
+    manuscript's accepted text, so the operation reads the manuscript and
+    checks every claim term before the row is written. **A claim the
+    manuscript does not hold is refused, by name** -- the refusal says
+    which term was not found -- and never silently accepted.
+
+    **What breaks it:** the findability check short-circuited, a claim
+    matched against the response letter instead of the manuscript, or the
+    row written and the mismatch reported beside it.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(reply_env, reply.reply_id, claim_terms=("Gibbs sampler",))
+
+    assert caught.value.reason is ApplicationRefusal.CHAIN_CLAIM_NOT_IN_MANUSCRIPT
+    assert "Gibbs sampler" in caught.value.detail, "the refusal names the claim"
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert not rows, "a refused settlement writes nothing"
+
+
+def test_a_settled_judgement_records_the_terms_it_found_in_the_manuscript(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A settled settlement says what it vouched for, and where it lives.
+
+    **The claim terms are the settlement's evidence**, and they are on the
+    row so the judgement can be re-checked when the manuscript changes:
+    the terms were found in the version the settlement names, at the
+    paragraph it names. **And what ``settled`` says is narrow by design**
+    -- the claimed thing is findable in the manuscript. It does not say
+    the science was right, and nothing in the settlement carries that.
+
+    **What breaks it:** the terms not stored, or stored without the
+    address they were found at.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    settlement = _settle(reply_env, reply.reply_id)
+
+    assert settlement.state == "settled"
+    assert settlement.claim_terms == ("single observation",)
+    assert settlement.anchor_status == "resolved"
+    assert settlement.change_version_id == "ver-1"
+    assert settlement.change_paragraph == 0
+    row = reply_env.chain.context.store.session.get(ReplySettlementRow, settlement.settlement_id)
+    assert row is not None
+    assert row.claim_terms == ["single observation"]
+
+
+def test_an_answer_whose_claim_cannot_be_found_is_held_by_name(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A hold is a judgement, and it names what it is holding for.
+
+    **The refusal is not the only honest path past a claim the manuscript
+    does not bear out.** The caller may record the hold instead -- state
+    ``held``, and name the claim that could not be found -- and the hold
+    is on the listing with its reason, because a hold that says only
+    "held" is a hold nobody can lift.
+
+    **What breaks it:** a hold accepted without a reason, a hold kept off
+    the listing, or a hold that carried an address it never checked.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    settlement = _settle(
+        reply_env,
+        reply.reply_id,
+        state="held",
+        claim_terms=(),
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+        hold_reason=(
+            "the manuscript's accepted text names no Gibbs sampler; the claim "
+            "may land in a later revision"
+        ),
+    )
+
+    assert settlement.state == "held"
+    assert settlement.hold_reason is not None
+    assert "Gibbs sampler" in settlement.hold_reason
+    assert settlement.anchor_status == "unknown", "a hold that found nothing places nothing"
+    listed = list_unsettled_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [(item.reply.reply_id, item.reason) for item in listed] == [(reply.reply_id, "held")]
+
+
+def test_an_unjudged_reply_stays_on_the_unsettled_listing(env: StoreEnv, tmp_path: Path) -> None:
+    """An answer that was never judged does not make the point answered.
+
+    **The answer's words are on the record from the moment the reply is
+    recorded** -- and the point is still open, because nothing has judged
+    whether what the authors said settled it. A reply the store holds no
+    settlement for is listed as ``unjudged``; a reply whose settlement is
+    pending is listed as ``pending``; **and only a settled settlement
+    keeps a reply off the listing.**
+
+    **What breaks it:** the listing treating the answer's presence as an
+    answer, or dropping a reply whose judgement is still pending.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+    listing = list_unsettled_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [(item.reply.reply_id, item.reason) for item in listing] == [
+        (reply.reply_id, "unjudged")
+    ]
+
+    _settle(
+        reply_env,
+        reply.reply_id,
+        state="pending",
+        grade="observed",
+        decided_by="user",
+        decided_at=None,
+        evidence_refs=(),
+        claim_terms=(),
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+    )
+    listing = list_unsettled_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [(item.reply.reply_id, item.reason) for item in listing] == [
+        (reply.reply_id, "pending")
+    ], "the answer is on the record and the point is still open"
+
+    _settle(reply_env, reply.reply_id)
+    listing = list_unsettled_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert listing == (), "a settled point is not on the unsettled listing"
+
+
+def test_a_settlement_places_the_change_or_says_it_could_not(env: StoreEnv, tmp_path: Path) -> None:
+    """A review point is located in the response and, if it can be, in the change.
+
+    **The reply already names a place in the response document.** The
+    settlement's own address is the other one: where in the manuscript
+    the change the answer claims lives. A settlement either places it --
+    ``resolved``, with the version and the paragraph -- or says
+    ``unknown``, and **a missing address is a value, never a guess**: a
+    status and an address that disagree are refused, and an address the
+    manuscript does not have is refused.
+
+    **What breaks it:** a ``resolved`` that names no place, an ``unknown``
+    that names one anyway, or a paragraph number beyond the manuscript's
+    own.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            change_version_id=None,
+            change_paragraph=None,
+            anchor_status="resolved",
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "resolved" in caught.value.detail
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert not rows, "the first attempt wrote nothing"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            change_paragraph=None,
+            anchor_status="unknown",
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "names a place for it anyway" in caught.value.detail, (
+        "the refusal says the status and the address disagree"
+    )
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert not rows, "the second attempt wrote nothing"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(reply_env, reply.reply_id, change_paragraph=7)
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "7" in caught.value.detail, "the refusal names the paragraph it saw"
+
+    settlement = _settle(
+        reply_env,
+        reply.reply_id,
+        state="held",
+        claim_terms=(),
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+        hold_reason="the change could not be placed; the letter names no section",
+    )
+    assert settlement.anchor_status == "unknown", (
+        "the explicit unknown is on the row, not a guess in its place"
+    )
+
+
+def test_the_store_refuses_a_settlement_the_schema_forbids(env: StoreEnv, tmp_path: Path) -> None:
+    """Every row the schema refuses is refused by the schema.
+
+    **A status anybody can set is not a status**, and neither is an
+    address, a claim or a hold that exists only by the writer's
+    discretion. So the forbidden rows are written raw -- through the
+    database, past every check the application layer makes -- and the
+    database refuses them, and leaves nothing behind.
+
+    **What breaks it:** a constraint dropped from the model or from the
+    migration, or one written into one and not the other -- which is what
+    the parity test holds together, and what a text comparison alone
+    cannot catch.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    session = reply_env.chain.context.store.session
+    _raw_reply(session)
+
+    def refuses(**overrides: object) -> None:
+        """One forbidden row: the store refuses it and holds no trace."""
+        with pytest.raises(IntegrityError):
+            _raw_settlement(session, **overrides)
+        session.rollback()
+        rows = session.scalars(select(ReplySettlementRow)).all()
+        assert not rows, "a refused row leaves nothing behind"
+
+    # A settled settlement that names no claim it checked.
+    refuses(
+        state="settled",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT.isoformat(),
+        evidence_refs='["the reviewer\'s own confirmation"]',
+        claim_terms="[]",
+        change_version_id="ver-1",
+        change_paragraph=0,
+        anchor_status="resolved",
+    )
+    # A settled settlement with no place in the manuscript.
+    refuses(
+        state="settled",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT.isoformat(),
+        evidence_refs='["the reviewer\'s own confirmation"]',
+        claim_terms='["single observation"]',
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="resolved",
+    )
+    # An unknown that names a place anyway.
+    refuses(
+        state="pending",
+        grade="observed",
+        decided_by=None,
+        decided_at=None,
+        evidence_refs="[]",
+        claim_terms="[]",
+        change_version_id="ver-1",
+        change_paragraph=0,
+        anchor_status="unknown",
+    )
+    # A hold that names nothing.
+    refuses(
+        state="held",
+        grade="human_verified",
+        decided_by="user",
+        decided_at=MOMENT.isoformat(),
+        evidence_refs='["the reviewer\'s own confirmation"]',
+        claim_terms="[]",
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+        hold_reason=None,
+    )
+    # A judgement that names no decider.
+    refuses(
+        state="unresolved",
+        grade="human_verified",
+        decided_by=None,
+        decided_at=None,
+        evidence_refs="[]",
+        claim_terms="[]",
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+    )
+    # A model settling a point.
+    refuses(
+        state="settled",
+        grade="observed",
+        decided_by="model",
+        decided_at=MOMENT.isoformat(),
+        evidence_refs='["the model\'s own account"]',
+        claim_terms='["single observation"]',
+        change_version_id="ver-1",
+        change_paragraph=0,
+        anchor_status="resolved",
+    )
+    # A pending settlement carrying a decision's trappings.
+    refuses(
+        state="pending",
+        grade="observed",
+        decided_by=None,
+        decided_at=MOMENT.isoformat(),
+        evidence_refs='["the reviewer\'s own confirmation"]',
+        claim_terms="[]",
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+    )
+    # An anchor status outside its vocabulary.
+    refuses(
+        state="pending",
+        grade="observed",
+        decided_by=None,
+        decided_at=None,
+        evidence_refs="[]",
+        claim_terms="[]",
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="placed",
+    )
+    # A state outside its vocabulary.
+    refuses(
+        state="won",
+        grade="observed",
+        decided_by=None,
+        decided_at=None,
+        evidence_refs="[]",
+        claim_terms="[]",
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+    )
+    # A second judgement over the same reply.
+    _raw_settlement(session)
+    with pytest.raises(IntegrityError):
+        _raw_settlement(session, settlement_id="st-second")
+    session.rollback()
+    rows = session.scalars(select(ReplySettlementRow)).all()
+    assert [row.settlement_id for row in rows] == ["st-raw"], (
+        "one reply holds one settlement, and the store says so"
+    )
+
+
+def test_a_reply_that_has_already_been_judged_is_not_judged_again(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A judgement is a fact, and the store holds no revisions of facts.
+
+    **One point, one judgement.** A reply that stands judged is refused
+    rather than judged again, and a pending settlement is completed by
+    the judgement that decides it -- under the name it was put forward
+    with, and no other.
+
+    **What breaks it:** a second settlement row over the same reply, or a
+    judgement that renames the settlement it completes.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (first, second) = _record_replies(
+        reply_env,
+        _exchange(objection_paragraph=0, answer_paragraph=1),
+        _exchange(objection_paragraph=2, answer_paragraph=3),
+    )
+
+    _settle(reply_env, first.reply_id)
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            first.reply_id,
+            state="unresolved",
+            settlement_id="st-again",
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_ALREADY_DECIDED
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert len(rows) == 1, "the refused judgement wrote no second row"
+
+    _settle(
+        reply_env,
+        second.reply_id,
+        state="pending",
+        grade="observed",
+        decided_by="user",
+        decided_at=None,
+        evidence_refs=(),
+        claim_terms=(),
+        change_version_id=None,
+        change_paragraph=None,
+        anchor_status="unknown",
+        settlement_id="st-forward",
+    )
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            second.reply_id,
+            settlement_id="st-elsewhere",
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "st-forward" in caught.value.detail, (
+        "the refusal names the settlement the record already holds"
+    )
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert {row.settlement_id for row in rows} == {"st-1", "st-forward"}
+
+
+def _a_judged_chain(reply_env: ReplyEnv, *, states: tuple[str, ...]) -> str:
+    """The chain's judgement on one comment, and the reply beside it.
+
+    **The chain's judgement is real rows**, not a shorthand: a comment
+    the advisor wrote, a change made in answer to it, and one link per
+    state -- each link on an edit of the chain's own, because a state
+    that no change backs is a status and not a judgement.
+    """
+    chain = reply_env.chain
+    session = chain.context.store.session
+    (event,) = _record(chain)
+    for index, state in enumerate(states):
+        edit_action_id = f"ea-{index}"
+        session.add(
+            EditActionRow(
+                edit_action_id=edit_action_id,
+                feedback_id=event.feedback_id,
+                version_edge_id=chain.edge_id,
+                actor_kind="student",
+                actor_id=None,
+                grade="observed",
+                created_at=MOMENT,
+            )
+        )
+        session.commit()
+        record_response(
+            chain.context,
+            response_link_id=f"rl-{index}",
+            feedback_id=event.feedback_id,
+            edit_action_id=edit_action_id,
+            state=state,
+            grade="human_verified",
+            decided_by="user",
+            decided_at=MOMENT,
+            evidence_refs=("the mentor's own account",),
+            now=MOMENT,
+        )
+    return event.feedback_id
+
+
+def test_a_disagreement_between_the_chain_and_a_settlement_is_shown_as_two_sides(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A conflict between the mentor's view and the settlement shows both.
+
+    **The chain's judgement on a comment and the settlement's judgement on
+    the reply about the same point may disagree**, and the product reports
+    both rather than picking the newer: the listing joins every state the
+    chain holds for the comment the settlement names, and a reader asking
+    "does the chain agree?" gets the whole of the chain's side.
+
+    **What breaks it:** the listing keeping only the newest link's state
+    -- which would be deciding a disagreement by recency -- or dropping
+    the chain's side when the two disagree.
+    """
+    reply_env = _reply_project(env, tmp_path, comments=(a_comment("201"),))
+    (reply,) = _record_replies(reply_env, _exchange())
+    feedback_id = _a_judged_chain(reply_env, states=("not_addressed", "addressed"))
+
+    settlement = _settle(reply_env, reply.reply_id, feedback_id=feedback_id)
+    assert settlement.state == "settled"
+    listed = list_reply_settlements(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert [(row.settlement_id, row.state) for row in listed] == [
+        (settlement.settlement_id, "settled")
+    ]
+    assert len(listed[0].chain_states) == 2, (
+        "both of the chain's verdicts are shown, and the newer one is not picked"
+    )
+    assert set(listed[0].chain_states) == {"not_addressed", "addressed"}, (
+        "the chain's side is on the listing beside the settlement's, whole"
+    )
+
+
+def test_a_judgement_the_door_refuses_never_reaches_the_store(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The door refuses an undisciplined judgement before the store sees it.
+
+    **The schema holds the same line the operation does** -- a judgement
+    with no decider and no evidence, a model's verdict, a hold with no
+    reason are all refused by the database too -- **and the operation
+    refuses them first, saying why**, because a refusal that reaches a
+    caller as an ``IntegrityError`` is a refusal nobody can act on.
+
+    **What breaks it:** the door's own discipline checks short-circuited
+    and the refusal left to the schema -- which would still refuse, but
+    would say so in SQLite's words and not the product's.
+    """
+    reply_env = _reply_project(env, tmp_path)
+    (reply,) = _record_replies(reply_env, _exchange())
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            decided_by=None,
+            decided_at=None,
+            evidence_refs=(),
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_NEEDS_EVIDENCE
+    rows = reply_env.chain.context.store.session.scalars(select(ReplySettlementRow)).all()
+    assert not rows, "the refused judgement wrote nothing"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(reply_env, reply.reply_id, decided_by="model", grade="inferred")
+    assert caught.value.reason is ApplicationRefusal.CHAIN_SETTLEMENT_MAY_NOT_BE_DECIDED_BY_A_MODEL
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _settle(
+            reply_env,
+            reply.reply_id,
+            state="held",
+            claim_terms=(),
+            change_version_id=None,
+            change_paragraph=None,
+            anchor_status="unknown",
+            evidence_refs=("the reviewer's own confirmation",),
+            hold_reason=None,
+        )
+    assert caught.value.reason is ApplicationRefusal.ARGUMENTS_INVALID
+    assert "nobody can lift" in caught.value.detail, (
+        "the hold's refusal says why a hold names what it holds"
+    )

@@ -95,17 +95,41 @@ deliver:** the labels were written by sessions rather than by people, and
 the pilot corpus is still the owner's.
 
 **And what the mentor's own material settled, on 2026-11-01.** Two
-projects, eighty comments, **1528 recorded changes** and **the owner's own
+projects, eighty comments, **1819 recorded changes** and **the owner's own
 judgements** on ten correspondences: **two hold, eight do not**, so **the
 memory serves one rule of sixteen and reports fifteen**. **The retrieval's
 threshold did not move** — a rule is served on a source a judgement says
 was answered — and **the chain's judgement is a fact**: a second judgement
 on the same correspondence does not undo the first, and a wrong judgement is
-corrected **on the rule**. **What is left** is in the merged ticket: the
-frozen P1 baseline the exit gate needs and does not have, the blind
-evaluation that is written and not run, the peer-review loop's judgement
-half, citation identity, retrieval quality beyond three papers, and the
-competitor comparison whose precondition has now been met.
+corrected **on the rule**. The second paper's **eighteen version edges**
+were built from the timestamps inside the material itself, on 2026-11-02.
+**What is left** is in the merged ticket: the blind
+evaluation's real run (its machinery is built and mutation-verified
+twice), retrieval quality beyond three papers, and the competitor
+comparison.
+
+**Where Line B stands (2026-11-02, later).** Everything the 2026-11-01
+entry lists is merged, and more has landed since: **the reader reports
+one tracked change once** (the drawing-text-box double-read, with the
+shape in the corpus so the witnesses catch it by construction), **the
+peer-review loop has its judgement half** (the settlement over a reply,
+LC-P2-13), **the P1 baseline is frozen** (the exit gate's denominator,
+measured on `81babd5`, six conditions verified comparable end to end),
+**citation identity is built** (a record can carry a scholarly
+identifier with its provenance, a claim may not rest on one nothing
+resolved, and `not_attempted` is recorded rather than silently sent —
+LC-P2-17), **the blind evaluation's mechanical preparation is built and
+mutation-verified twice** (five arms as data, the by-paper leak check
+that names every shape, the anonymous sheet that refuses an arm key,
+the paired sign test whose not-significant verdict is first-class —
+LC-P2-14's machinery, **written and not run**), and **five acceptance
+records carry an independent review** (every mutation re-applied by a
+session that built none of them, every witness watched). **Of the
+merged ticket's six, four are built and two are left**: the blind
+evaluation's real run (unseen papers and a budget — the owner's call),
+and the competitor comparison (brief written, preconditions met, budget
+and final pick the owner's call). Retrieval quality beyond three
+papers waits on a corpus read by a human, per LC-P2-14's own protocol.
 
 ## Phase 1 upstream research
 

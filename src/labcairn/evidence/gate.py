@@ -47,7 +47,6 @@ trap for whoever reads it next.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
 
 from sqlalchemy.engine import Connection
 
@@ -55,8 +54,12 @@ from labcairn.evidence.checks.c1 import check_source_exists
 from labcairn.evidence.checks.c2 import quotation_match
 from labcairn.evidence.checks.c3 import check_numeric_consistency
 from labcairn.evidence.cite_support import SourceIndex, Verdict
+from labcairn.evidence.identifiers import load_identifier
 from labcairn.evidence.record import EvidenceRecord
-from labcairn.evidence.states import CheckKind, CheckOutcome, VerificationStatus
+from labcairn.evidence.states import (
+    CITABLE_STATUSES as CITABLE_STATUSES,
+)
+from labcairn.evidence.states import CheckKind, CheckOutcome
 from labcairn.evidence.store import detect_conflicts, load_record, load_task_records
 from labcairn.sources.locators import describe_locator
 
@@ -68,14 +71,6 @@ __all__ = [
     "conflict_between",
     "evaluate_task",
 ]
-
-#: The states a report may cite from. ``verified_by_rule`` is a rule's pass and
-#: ``user_attested`` is a person's word; the other four are all "not yet" or
-#: "not any more", and citing them would put an unexamined claim in front of a
-#: reader as though it had been examined.
-CITABLE_STATUSES: Final[frozenset[VerificationStatus]] = frozenset(
-    {VerificationStatus.VERIFIED_BY_RULE, VerificationStatus.USER_ATTESTED}
-)
 
 
 @dataclass(frozen=True)
@@ -186,6 +181,7 @@ def evaluate_task(
     findings: list[Finding] = []
     for record in records:
         findings.extend(_judge_status(record))
+        findings.extend(_judge_identifiers(connection, record))
         findings.extend(_reverify(record, index))
     findings.extend(_conflicts(connection, records, index))
     return GateResult(
@@ -208,6 +204,55 @@ def _judge_status(record: EvidenceRecord) -> list[Finding]:
             f"a person has attested to it; this one is neither",
         )
     ]
+
+
+def _judge_identifiers(connection: Connection, record: EvidenceRecord) -> list[Finding]:
+    """A citeable record resting on an identifier nothing resolved.
+
+    LC-P1-09's rule, at the report's last door. The store refuses such a
+    record at write time, so a finding here means the write went around the
+    store -- a SQL client, a future code path that forgot -- and the gate
+    catches it anyway, which is what a last door is for.
+
+    The reason names the identifier, its state and its provenance, because
+    "an identifier is unresolved" without naming which one sends the reader
+    hunting, and because a model-supplied identifier is the case the work
+    order is about: **proposing is not checking**, and a reader seeing a DOI
+    behind a verified claim deserves to be told that no resolution stands
+    behind it either.
+    """
+    if not record.identifier_ids or record.status not in CITABLE_STATUSES:
+        return []
+    findings: list[Finding] = []
+    for identifier_id in record.identifier_ids:
+        identifier = load_identifier(connection, identifier_id)
+        if identifier is None:
+            findings.append(
+                Finding(
+                    evidence_id=record.evidence_id,
+                    kind="unresolved_identifier",
+                    reason=f"the record cites identifier {identifier_id!r}, which the "
+                    f"ledger holds no row for: nobody recorded it, so nothing "
+                    f"resolved it",
+                )
+            )
+            continue
+        if identifier.resolution_state.value == "resolved":
+            continue
+        findings.append(
+            Finding(
+                evidence_id=record.evidence_id,
+                kind="unresolved_identifier",
+                reason=f"the record rests on the {identifier.scheme.value} identifier "
+                f"{identifier.value!r} (recorded as {identifier.identifier_id!r}, "
+                f"supplied by {identifier.supplied_by.value}, "
+                f"{identifier.resolution_state.value}): a model may propose an "
+                f"identifier and a person may still be looking for it, but "
+                f"proposing is not checking, and a claim a report cites may not "
+                f"rest on an identifier nothing resolved",
+            )
+        )
+    return findings
 
 
 def _reverify(record: EvidenceRecord, index: SourceIndex) -> list[Finding]:

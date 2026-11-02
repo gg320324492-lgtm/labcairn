@@ -88,6 +88,12 @@ Operation                  Capability
 ``describe_abandoned``     — (the task's own operations)
 ``reconcile_abandoned``    — (the task's own operations)
 ``resolve_abandoned``      — (the task's own operations)
+``record_identifier``      ``fs.write``
+``request_outbound_resolution``
+                           ``fs.write``
+``confirm_identifier_resolution``
+                           ``fs.write``
+``list_task_identifiers``  ``fs.read``
 =========================  ===========================================
 
 **The mentor line's own rows.** The operations below reach rows that belong
@@ -228,6 +234,14 @@ from labcairn.application.guidance import (
     write_guidance_rule_version,
     write_guidance_rule_withdrawal,
 )
+from labcairn.application.identifiers import (
+    IdentifierRecorded,
+    IdentifierRequest,
+    confirm_identifier_resolution,
+    list_task_identifiers,
+    record_identifier,
+    request_outbound_resolution,
+)
 from labcairn.application.material_ingestion import (
     IngestedFile,
     IngestFailure,
@@ -333,6 +347,8 @@ __all__ = [
     "FigureRequest",
     "FigureRun",
     "GuidanceJudgement",
+    "IdentifierRecorded",
+    "IdentifierRequest",
     "IngestFailure",
     "IngestedFile",
     "MaterialAddress",
@@ -365,6 +381,7 @@ __all__ = [
     "VersionRequest",
     "VersionStored",
     "attest_claim",
+    "confirm_identifier_resolution",
     "confirm_proposal",
     "consume_approval",
     "create_task",
@@ -377,6 +394,7 @@ __all__ = [
     "list_rejections",
     "list_source_addresses",
     "list_sources",
+    "list_task_identifiers",
     "list_task_records",
     "list_tasks",
     "list_versions",
@@ -406,11 +424,13 @@ __all__ = [
     "record_claim",
     "record_confirmation",
     "record_edge",
+    "record_identifier",
     "record_model_proposal",
     "record_project",
     "record_version",
     "render_report",
     "request_approval",
+    "request_outbound_resolution",
     "request_role_run",
     "resolve_abandoned",
     "run_figure",

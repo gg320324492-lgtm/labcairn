@@ -1,0 +1,86 @@
+{
+  "label": "phase-1-baseline",
+  "model": "",
+  "budget": "",
+  "fixtures": {
+    "names": [
+      "basic.csv",
+      "declared.csv",
+      "empty.csv",
+      "groups.csv",
+      "holes.csv",
+      "missing.csv",
+      "single.csv",
+      "typed.csv",
+      "units.csv",
+      "holes.xlsx",
+      "numeric.xlsx"
+    ],
+    "versions": {
+      "basic.csv": "47ba1515246df4748973827d19eed5b73e22770fb07aa7d92f431bf4bc7152b5",
+      "declared.csv": "c1aec94a140bb0449dee35d10bbb9378afbcb5c5dd66d4af9a2e62c693816525",
+      "empty.csv": "f35ef0c8f288bb5f71e73d831b200d0de2af14701a0f7ccd114105aeaf591cfb",
+      "groups.csv": "5b27eafb78145e88a82452beab80ebb116fd6104add7d1c4a72cd54caa739369",
+      "holes.csv": "9e44862aed59c77308fb90c018a7814489658ebb7f96fd46c56eeeafaf13b462",
+      "missing.csv": "53ffd6bc8963156c4a3bbcc59ac48c15c720a2629dada4b9ee8e94776725eae3",
+      "single.csv": "20e7617095e503fec621999de76657875859333bf6f7eb3fa34e38319cc3161c",
+      "typed.csv": "0d07e20c40f5de2a629a2d4ae1157885c7406c491f023180b3f5f382f6289f7f",
+      "units.csv": "24fcfd6dd5b518beb16e0d10162ec859286515e6d8b562983c874977ec176a4e",
+      "holes.xlsx": "240dea4bdfcecef3f9cdb0167fe7bddb435d65c3632513d1d4f1b41d77003619",
+      "numeric.xlsx": "1ad92eda4eaa3659445bdcbec9ec9d424b83b7aa0464851ae3248778e343d2c6"
+    }
+  },
+  "verified_capabilities": [
+    "unit",
+    "integration",
+    "negative",
+    "e2e",
+    "repository"
+  ],
+  "limitations": "the offline run used the deterministic FakeProvider, so its numbers are a measurement of the repository's own tests and not of a model's behaviour",
+  "confidence_intervals": "",
+  "metrics": {
+    "numeric-extraction-exactness": {
+      "numerator": 84,
+      "denominator": 84
+    },
+    "unsupported-claim-detection": {
+      "numerator": 1,
+      "denominator": 1
+    },
+    "recovery-correctness": {
+      "numerator": 4,
+      "denominator": 4
+    },
+    "latency-usage-cost": {
+      "numerator": 2208406,
+      "denominator": 4467
+    }
+  },
+  "run": {
+    "commit": "81babd51685c5dc72152fb424b1543e74c787140",
+    "working_tree": "clean \u2014 the commit is the tree that was measured",
+    "platform": "Windows 11 Pro 10.0.26300 x64 (AMD64)",
+    "python": "3.12.13",
+    "command": "python -m tests.evaluation --out E:\\labcairn-local\\evaluation-baseline-freeze-canonical",
+    "exit_code": 2,
+    "exit_code_meaning": "2 is the code the harness gives when a selected class could not run: the real-model smoke needs a provider credential this environment does not have, and the run is not faked.",
+    "not_run": [
+      {
+        "class": "real_model_smoke",
+        "reason": "the protocol requires at least one real supported provider under a declared model, version and parameter set, and to record its cost; no real provider credential is configured in this environment, and the run would spend money. A mock-only success is insufficient under the protocol, so this class is reported as NOT RUN and is not counted as a pass."
+      }
+    ],
+    "verified_capabilities": [
+      "unit",
+      "integration",
+      "negative",
+      "e2e",
+      "repository"
+    ],
+    "limitations": "the offline run used the deterministic FakeProvider, so its numbers are a measurement of the repository's own tests and not of a model's behaviour",
+    "duration_seconds": 2208.406,
+    "measured_on": "2026-11-02",
+    "report": "the full report lives outside the repository, at E:\\labcairn-local\\evaluation-baseline-freeze-canonical (runtime artefacts do not live in the tree)"
+  }
+}
