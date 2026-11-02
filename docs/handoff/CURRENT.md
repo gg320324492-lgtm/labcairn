@@ -35,6 +35,24 @@ ones, all caught. [LC-P1-03 outbound bridge](../acceptance/LC-P1-03-outbound-bri
 mutation-verified twice, and five acceptance records carry an
 independent review.**
 
+**CI: lint is one job of its own, and the Ubuntu slow file is diagnosed.**
+The three static checks (`ruff check .`, `ruff format --check .`,
+`mypy --strict`) moved out of the ten shard jobs into one `lint` job on
+Ubuntu; `python-quality` jobs now run pytest only. The witness in
+`tests/test_ci_shard_coverage.py` checks the new job's name, its absence of
+a matrix, that all three commands live there, that no shard job repeats
+them, and that no two jobs share a check name. **`lint` is not a required
+check until the owner adds it in GitHub branch protection**; until then it
+reports without blocking. **The wall-clock expectation is unchanged** — the
+wait is the slowest shard, and lint finishes before it; the split removes
+ten duplicate runs, not minutes. None of it is measured on a runner yet.
+`tests/test_cli.py` is Ubuntu shard 0's only file (325.8s against four
+264.7s shards at `cf081e4`); it is slow because 95 end-to-end tests start
+real console-script processes, in the fixture setup as well, and it is not
+the wall-clock bottleneck — Windows shards cost 844s each. The diagnosis
+and the options, with their risks, are in `.github/CI.md`; the test file
+was not changed.
+
 **LC-P2-14's mechanical preparation is built.** Four pieces
 (`tests/evaluation/arms.py`, `split_check.py`, `blind_sheet.py`,
 `significance.py`): the protocol's five arms as data a configuration is

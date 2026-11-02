@@ -162,6 +162,17 @@ together came to under two minutes, so the suite was the whole of the wait.
 One runner doing everything is the worst possible arrangement for a suite
 whose cost is spread unevenly.
 
+**Lint and type checking are one job of their own; the shard jobs run pytest
+only.** The `lint` job runs `ruff check .`, `ruff format --check .` and
+`mypy --strict` on Ubuntu with no matrix. The same three commands used to run
+inside all ten shard jobs: one lint error turned ten checks red, and the work
+was paid for ten times. **`lint` is not a required check until the owner adds
+it to branch protection on GitHub** — no workflow file can make a check
+required, and until it is added a failing `lint` is reported but blocks no
+merge. The wall clock does not change: lint finishes before the shards, and
+the wait is still the slowest shard (Windows). What the split removes is ten
+duplicate runs, not minutes.
+
 **And the count is measured as well.** Six shards were tried on 2026-10-25,
 and the best arrangement their costs allow was a balance factor of 1.603;
 five is better, and a sixth shard only adds a job without shortening the
@@ -193,8 +204,9 @@ parallelism that is left is the parallelism between the jobs.
 **A job's name is the gate, so it must say which job it is.** GitHub
 identifies a check by its name, so several jobs sharing a name are *one*
 check as far as branch protection is concerned, and a required check naming
-one of them is satisfied by whichever reports first. The names carry the
-platform and the shard, and a test watches that they do.
+one of them is satisfied by whichever reports first. The shard jobs' names
+carry the platform and the shard, the lint job's name is plain `lint`, and a
+test watches that every job's name is distinct.
 
 ## Claims are measured, not asserted
 
