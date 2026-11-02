@@ -1102,36 +1102,54 @@ def _docstring_constants(tree: ast.AST) -> set[int]:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_workbench_does_not_read_the_event_stream() -> None:
-    """C14 — the omission is a decision, and it is still a decision.
+def test_the_workbench_reads_the_event_stream() -> None:
+    """C14 — the stream is consumed, and the reader says when it is not.
 
-    The threat model says the workbench consumes neither ``/events`` nor
-    ``/events/stream``. If it started consuming one, the sentence would be
-    false — and the sentence is load-bearing, because it tells a reviewer
-    that a change to the event stream alone will not show up in the UI.
+    The threat model used to say the workbench read neither ``/events`` nor
+    ``/events/stream``. That sentence described the tree, and the tree
+    changed; what replaces it is not "trust the panel" but three facts the
+    tree must keep:
 
-    The check is on the **paths the workbench declares**, not on the file's
-    text: ``paths.ts`` names the stream in its own docstring precisely to
-    record that it is *not* read, so a search for ``/events`` in the whole
-    file would find the sentence that says so.
+    * the path is **declared** in the workbench's own list, so the drift check
+      covers it like every other route the page asks for;
+    * the reader **reads a body and carries a cursor** — it parses frames,
+      resumes from ``next_after_seq``, and has a state for a connection it has
+      lost, because a panel that silently stopped updating would be a stopped
+      clock;
+    * it does **not** use ``EventSource``. The stream goes through the client's
+      own ``fetch``, which is where the relative-path check, the base and the
+      token boundary live; an ``EventSource`` would be a second boundary with
+      none of those rules.
     """
-    paths = (_repo_root() / "web" / "src" / "api" / "paths.ts").read_text(encoding="utf-8")
-    declared = _declared_api_paths(paths)
-    assert declared, "the workbench's path list could not be read"
-    for path in declared:
-        assert not path.startswith("/events"), (
-            f"the workbench now declares {path!r}, so the threat model's "
-            f"statement that it reads neither /events nor /events/stream is false"
-        )
+    repo = _repo_root()
+    declared = _declared_api_paths(
+        (repo / "web" / "src" / "api" / "paths.ts").read_text(encoding="utf-8")
+    )
+    assert "/events/stream" in declared, (
+        "the workbench no longer declares /events/stream, so the threat model's "
+        "statement that it reads the stream is false"
+    )
 
-    for source in (_repo_root() / "web" / "src").rglob("*"):
+    reader = (repo / "web" / "src" / "api" / "events.ts").read_text(encoding="utf-8")
+    assert "getReader" in reader, "the stream reader does not read a response body"
+    assert "next_after_seq" in reader, "the stream reader does not resume from its cursor"
+    assert "'disconnected'" in reader, (
+        "the stream reader has no disconnected state, so a lost connection would be "
+        "indistinguishable from a quiet one"
+    )
+
+    for source in (repo / "web" / "src").rglob("*"):
         if source.suffix not in {".ts", ".tsx"} or ".test." in source.name:
             continue
         text = source.read_text(encoding="utf-8")
         assert "EventSource" not in text, (
-            f"{source.name} constructs an EventSource, so the workbench now "
-            f"consumes the stream and the threat model is wrong"
+            f"{source.name} constructs an EventSource, so the stream has left the "
+            f"client that holds the path, base and token rules"
         )
+
+    model = (repo / "docs" / "THREAT-MODEL.md").read_text(encoding="utf-8")
+    assert "### 6.2 The workbench reads the API's event stream" in model
+    assert "/events/stream" in model
 
 
 def _declared_api_paths(source: str) -> tuple[str, ...]:
@@ -1148,20 +1166,37 @@ def _declared_api_paths(source: str) -> tuple[str, ...]:
     return tuple(re.findall(r":\s*'([^']+)'", match.group("body")))
 
 
-def test_the_api_has_no_operation_that_selects_a_workspace() -> None:
-    """C14 — the workbench cannot switch the selected project.
+def test_the_api_selects_a_task_and_the_document_says_so() -> None:
+    """C14 — the workbench can switch tasks, and only inside its workspace.
 
-    Because the API has no such operation. If a route appeared that selected
-    or switched a workspace, the threat model's statement would be false and
-    a reviewer would be misled about what the UI can do.
+    The old sentence was *"the API has no such operation"*. The operation now
+    exists, so the sentence changed; what this witness holds is what remains
+    load-bearing:
+
+    * ``POST /task/select`` exists and is a POST, so the session guard covers
+      it — a GET that moved the selection would be a write no token protects;
+    * **no route selects a workspace.** Selecting a task inside the workspace
+      the service was started in is not selecting the workspace itself, and a
+      route whose path named one would be a different, broader operation;
+    * the threat model names the route and the pointer it writes, so the
+      document and the tree cannot disagree about what the page can do.
     """
-    for route in router.routes:
-        if not isinstance(route, APIRoute):
-            continue
+    routes = [route for route in router.routes if isinstance(route, APIRoute)]
+    selecting = [route for route in routes if route.path == "/task/select"]
+    assert selecting, "POST /task/select is gone; the workbench cannot switch tasks"
+    assert all("POST" in (route.methods or set()) for route in selecting), (
+        "the selection route is not a POST, so the session guard does not cover it"
+    )
+    for route in routes:
         assert "workspace" not in route.path, (
-            f"the API now has a route at {route.path!r}; if it selects a "
-            f"workspace, the threat model must say so"
+            f"the API now has a route at {route.path!r}; selecting a workspace is "
+            f"broader than selecting a task, and the threat model must say so"
         )
+
+    model = (_repo_root() / "docs" / "THREAT-MODEL.md").read_text(encoding="utf-8")
+    assert "### 6.3 The workbench can switch the selected project" in model
+    assert "POST /task/select" in model
+    assert "current_task" in model
 
 
 def test_no_product_operation_runs_the_ledger_checks() -> None:

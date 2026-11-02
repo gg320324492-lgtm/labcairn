@@ -143,6 +143,7 @@ from labcairn.api.guards import (
     SessionGuard,
 )
 from labcairn.api.routes import router
+from labcairn.api.selection import TaskSelector, UnwiredTaskSelector
 from labcairn.api.session import (
     SESSION_DIR_NAME,
     SESSION_FILE_NAME,
@@ -245,6 +246,7 @@ def create_app(
     extra_origins: Sequence[str] = (),
     session_file: Path | None = None,
     event_source: EventSource | None = None,
+    select_task: TaskSelector | None = None,
     stage_work: StageWork | None = None,
     static_dir: Path | None = None,
 ) -> FastAPI:
@@ -262,6 +264,10 @@ def create_app(
     :param event_source: where the event stream reads from. Without one the
         stream refuses in the layer's vocabulary rather than pretending to be
         empty.
+    :param select_task: how the service moves its binding to another task.
+        Without one ``POST /task/select`` refuses in the layer's vocabulary,
+        because a service that answered it without persisting the workspace's
+        selection would be a service that said it had switched and had not.
     :param stage_work: the effect a stage run performs.
     :param static_dir: the built web app to serve, so that the browser and the
         API share one origin.
@@ -287,6 +293,7 @@ def create_app(
     app.state.session = token
     app.state.session_guard = SessionGuard(token=token)
     app.state.event_source = event_source if event_source is not None else UnwiredEventSource()
+    app.state.select_task = select_task if select_task is not None else UnwiredTaskSelector()
     app.state.stage_work = stage_work
     app.include_router(router)
     _install_guards(app)

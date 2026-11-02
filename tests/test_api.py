@@ -1116,7 +1116,7 @@ def test_the_stream_endpoint_takes_no_request_body(client: TestClient) -> None:
 
 
 def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -> None:
-    """What this service can be *asked to do* is eight routes and no more.
+    """What this service can be *asked to do* is nine routes and no more.
 
         Every other route reads. That is the whole of the "the stream carries
         events and never commands" claim at the level of the contract: a browser
@@ -1150,6 +1150,14 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
     nothing citable to work from"*, and the door is this route — the same
     operation the CLI runs, with the second-reader rule enforced by the memory
     and not by the route.
+
+    **The selection route is the one write that does not touch the task's
+    rows.** It moves the workspace's ``current_task`` — the pointer
+    ``labcairn task create`` already writes and ``task status`` reads without
+    ``--task`` — so it is not a permission the other surface lacks: it is the
+    same selection, reached from the page. It still presents the session
+    token, because a page that could move the pointer could make every later
+    write land on a task nobody chose.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1167,6 +1175,7 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /analysis",
         "POST /claims",
         "POST /guidance/rules/{rule_id}/confirm",
+        "POST /task/select",
     }
 
 
@@ -2956,6 +2965,172 @@ def test_the_guidance_door_is_refused_from_a_foreign_origin(
     response = client.post(
         f"/guidance/rules/{candidate_rule.rule_id}/confirm",
         json={"verdict": "confirmed", "user_id": "the-advisor"},
+        headers={"Origin": FOREIGN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == GuardRefusal.ORIGIN_REFUSED.value
+
+
+# --------------------------------------------------------------------------- #
+# selecting the task the service is bound to
+# --------------------------------------------------------------------------- #
+
+
+def _another_task(env: StoreEnv, workspace_root: Path) -> Any:
+    """A second task in the same store, so a selection has somewhere to go."""
+    created = create_task(
+        store=env.store(),
+        policy=_allow_all(),
+        workspace_root=workspace_root,
+        title="The other task",
+        goal=TaskGoal(
+            objective="Check the second observation.",
+            success_criterion="A cited answer, or an honest 'not established'.",
+        ),
+        source_dirs=(workspace_root / "materials",),
+    )
+    return created.task
+
+
+def _selecting() -> Any:
+    """A selector that binds the workspace and validates the task.
+
+    The same shape the CLI wires to the service, without the workspace file:
+    the route's property is that it asks the port and adopts what the port
+    returns, and the port's own persistence is watched in the live-service
+    test where a real workspace exists.
+    """
+
+    def select(
+        base: ApplicationContext,
+        request_context: ApplicationContext,
+        task_id: TaskId,
+    ) -> ApplicationContext:
+        workspace = replace(request_context.workspace, task_id=task_id)
+        read_task_state(replace(request_context, workspace=workspace))
+        return replace(base, workspace=workspace)
+
+    return select
+
+
+def test_selecting_a_task_binds_the_service_to_it(
+    env: StoreEnv,
+    workspace_root: Path,
+    context: ApplicationContext,
+) -> None:
+    """The service answers about the task the selection named.
+
+    The response is the service's own binding, and the reads after it are
+    about the new task — so the property is checked on the wire and not on
+    the context the test handed in.
+    """
+    other = _another_task(env, workspace_root)
+    app = create_app(context, select_task=_selecting())
+    with TestClient(app) as wired:
+        token = str(wired.get("/session").json()["token"])
+        response = wired.post(
+            "/task/select",
+            json={"task_id": str(other.task_id)},
+            headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["task_id"] == str(other.task_id)
+
+        state = wired.get("/task").json()
+        assert state["task"]["task_id"] == str(other.task_id)
+        assert state["task"]["title"] == "The other task"
+        assert wired.get("/health").json()["task_id"] == str(other.task_id)
+
+        # The other task is still in the store, and still listed: a selection
+        # decides which one is current, and does not hide or remove the rest.
+        listed = {task["task_id"] for task in wired.get("/tasks").json()}
+        assert listed == {str(other.task_id), str(context.task_id)}
+
+
+def test_selecting_a_task_the_store_does_not_hold_is_refused(
+    env: StoreEnv,
+    workspace_root: Path,
+    context: ApplicationContext,
+) -> None:
+    """A mistyped id moves nothing.
+
+    **The binding is read back after the refusal**, because the property is
+    that the service is still bound to the task it was bound to — a route
+    that answered 403 after already moving would pass a test that only read
+    the status code.
+    """
+    del env, workspace_root
+    app = create_app(context, select_task=_selecting())
+    with TestClient(app) as wired:
+        token = str(wired.get("/session").json()["token"])
+        response = wired.post(
+            "/task/select",
+            json={"task_id": str(new_id())},
+            headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["reason"] == ApplicationRefusal.TASK_NOT_FOUND.value
+        assert wired.get("/health").json()["task_id"] == str(context.task_id)
+
+
+def test_selecting_a_malformed_task_id_is_the_layers_refusal(
+    client: TestClient,
+    token: str,
+) -> None:
+    """A string that is not a task id is ``arguments_invalid``.
+
+    The reason is the layer's and not the schema's: the caller supplied one
+    field, and a caller that branches on the service's reasons should not
+    have to branch on a second shape for it.
+    """
+    response = client.post(
+        "/task/select",
+        json={"task_id": "not-a-task-id"},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == ApplicationRefusal.ARGUMENTS_INVALID.value
+
+
+def test_an_unwired_selection_refuses_rather_than_pretending(
+    client: TestClient,
+    token: str,
+    context: ApplicationContext,
+) -> None:
+    """A service with no selector says so, in the layer's vocabulary.
+
+    The fixture's app is built without one. The refusal is ``not_implemented``
+    and not a 200: a service that said it had selected a task and stayed on
+    the old one would be lying about its own binding.
+    """
+    response = client.post(
+        "/task/select",
+        json={"task_id": str(new_id())},
+        headers={"Origin": OWN_ORIGIN, **_authorization(token)},
+    )
+    assert response.status_code == 403
+    assert response.json()["reason"] == ApplicationRefusal.NOT_IMPLEMENTED.value
+    assert client.get("/health").json()["task_id"] == str(context.task_id)
+
+
+def test_selecting_a_task_needs_the_session_token(client: TestClient) -> None:
+    """The selection changes what later requests are about, so it is a change."""
+    response = client.post(
+        "/task/select",
+        json={"task_id": str(new_id())},
+        headers={"Origin": OWN_ORIGIN},
+    )
+    assert response.status_code == 401
+    assert response.json()["reason"] == GuardRefusal.SESSION_REQUIRED.value
+
+
+def test_selecting_a_task_from_a_foreign_origin_is_refused(client: TestClient, token: str) -> None:
+    """A page on another site cannot move the workspace's selection."""
+    response = client.post(
+        "/task/select",
+        json={"task_id": str(new_id())},
         headers={"Origin": FOREIGN_ORIGIN, **_authorization(token)},
     )
     assert response.status_code == 403

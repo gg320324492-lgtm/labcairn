@@ -31,12 +31,13 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from labcairn.application import ApplicationContext
+from labcairn.api.selection import TaskSelector
+from labcairn.application import ApplicationContext, read_task_state
 from labcairn.application.models import Result
 from labcairn.core.ids import TaskId
 from labcairn.db import (
@@ -608,6 +609,49 @@ def bind_workspace(
         raise WorkspaceSetupError(
             f"the workspace at {location.root} could not be bound: {error}"
         ) from error
+
+
+def task_selector(location: WorkspaceLocation, config: WorkspaceConfig) -> TaskSelector:
+    """The service's selection operation, wired to this workspace.
+
+    ``POST /task/select`` calls this; the service holds no way to move its
+    binding without it. Three things happen, and the order is the property:
+
+    1. **Bind the workspace for the requested task.** A workspace that cannot
+       be bound for it — a missing source directory, a root that no longer
+       canonicalises — is refused here.
+    2. **Read the task through the layer on the request's session.** A task
+       the store does not hold is ``task_not_found``. This happens *before*
+       the selection is written, so a mistyped id cannot leave the workspace
+       pointing at a task that does not exist.
+    3. **Write ``current_task`` and return the new base context.** The write
+       is what makes the switch visible to the other surfaces: ``labcairn
+       task status`` without ``--task`` reads the same field, so the CLI and
+       the workbench agree about which task they are looking at.
+
+    The configuration is re-read before it is written rather than assumed to
+    be the copy this process started with. A service that ran while somebody
+    ran ``task create`` would otherwise write the startup copy back and undo
+    that command's selection.
+
+    The returned context is built from ``base`` — the service's own
+    request-independent context — and not from the request's, because the
+    request's session is about to be closed. Later requests fork from the
+    value returned here.
+    """
+
+    def select(
+        base: ApplicationContext,
+        request_context: ApplicationContext,
+        task_id: TaskId,
+    ) -> ApplicationContext:
+        workspace = bind_workspace(location, config, task_id)
+        read_task_state(replace(request_context, workspace=workspace))
+        current = read_config(location)
+        write_config(location, current.model_copy(update={"current_task": str(task_id)}))
+        return replace(base, workspace=workspace)
+
+    return select
 
 
 @contextmanager

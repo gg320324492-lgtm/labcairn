@@ -32,6 +32,7 @@ refusal as well.
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -52,10 +53,12 @@ from labcairn.api.contracts import (
     ReportBody,
     SessionInfo,
     StageBody,
+    TaskSelectBody,
     Trajectory,
 )
 from labcairn.api.events import EventSource, sse_frame
 from labcairn.api.guards import OriginPolicy
+from labcairn.api.selection import TaskSelector
 from labcairn.api.session import SessionToken
 from labcairn.application import (
     ApplicationContext,
@@ -105,7 +108,7 @@ from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageRequest, StageWork
-from labcairn.core.ids import ApprovalId
+from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.rules import confirm_rule, dispute_rule
@@ -235,6 +238,57 @@ def get_task_state(context: Annotated[ApplicationContext, Depends(_context)]) ->
     which is the same value the CLI's ``task status --json`` prints.
     """
     return read_task_state(context)
+
+
+def _selected_task_id(raw: str) -> TaskId:
+    """The task id a selection names, or the layer's refusal.
+
+    The same validation the CLI's ``--task`` does, in the same vocabulary: a
+    malformed id is ``arguments_invalid`` and not a schema error, because a
+    caller that branches on the service's reasons should not have to branch
+    on a second shape for the one field it supplied.
+    """
+    try:
+        parsed = uuid.UUID(raw)
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{raw!r} is not a task id: task ids are UUIDv7.",
+        ) from error
+    if not is_uuid7(parsed):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{raw!r} is not a task id: task ids are UUIDv7.",
+        )
+    return TaskId(parsed)
+
+
+@router.post("/task/select", response_model=Health, tags=["task"])
+def post_task_select(
+    body: TaskSelectBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> Health:
+    """Bind the service to another task in this workspace, and return the binding.
+
+    **This is a change, so it presents the session token** — the guard asks
+    for it on every method that is not a read, and this route is a POST for
+    exactly that reason. What it changes is the workspace's selection, not the
+    store: the task's own rows are left alone, and the next request is about
+    the task this one named.
+
+    **A task the store does not hold is refused before anything moves.** The
+    selector validates through the request's own session, and only then
+    persists the selection, so a typo cannot leave the workspace pointing at
+    a task that does not exist.
+
+    **Already-open streams are not re-bound.** Each stream reads the task it
+    was opened for; a selection decides what requests made after it are about.
+    """
+    selector = cast(TaskSelector, request.app.state.select_task)
+    base = cast(ApplicationContext, request.app.state.context)
+    request.app.state.context = selector(base, context, _selected_task_id(body.task_id))
+    return get_health(request)
 
 
 @router.get("/plan", response_model=TaskPlan, tags=["task"])

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '../App'
 import { apiUrl } from '../api/base'
-import type { AnalysisBody, ApprovalBody } from '../api/generated'
+import type { AnalysisBody, ApprovalBody, Task } from '../api/generated'
 import { forgetSessionToken } from '../api/session'
 import { REPORT_FIRST_PASS_NOTICE } from '../report/firstPassNotice'
 import { ARTEFACT_CONTENT_MARKER, FakeApi, FAKE_TOKEN } from '../test/fakeApi'
@@ -36,6 +36,7 @@ describe('the views', () => {
 
     for (const heading of [
       'Projects',
+      'Events',
       'Plan',
       'Steps',
       'Approval',
@@ -69,13 +70,18 @@ describe('the views', () => {
     expect(screen.getAllByText('retrieve').length).toBeGreaterThan(0)
   })
 
-  it('says that the event stream is not read', async () => {
+  it('reads the event stream, and says how it is connected', async () => {
     render(<App />)
 
-    // The service offers a stream and the workbench does not read it. A
-    // reader who found the omission and no note about it would assume it
-    // had been forgotten, so the note is on the screen and watched here.
-    expect(await screen.findByText(/event stream is not read/)).toBeInTheDocument()
+    // The work order's carried limitation was that the service offered a
+    // stream and the workbench read none of it. The panel is the answer: it
+    // is drawn, and its status line is the reader's connection reported and
+    // not assumed.
+    expect(await screen.findByRole('heading', { name: 'Events' })).toBeInTheDocument()
+    expect(
+      await screen.findByText(/The event stream is live; the service has sent no event/),
+    ).toBeInTheDocument()
+    expect(fake.streamAttempts).toBe(1)
   })
 })
 
@@ -437,5 +443,63 @@ describe('the figure the workbench draws', () => {
 
     expect(await screen.findByText(/no figure/)).toBeInTheDocument()
     expect(fake.analysisRuns).toBe(1)
+  })
+})
+
+describe('the selected project', () => {
+  const OTHER_TASK_ID = '0193f0a1-0000-7000-8000-000000000002'
+
+  /** The fake with a second task in the store and a state for it. */
+  function withSecondTask(): FakeApi {
+    const switching = new FakeApi()
+    const other: Task = {
+      ...switching.state.task.task,
+      task_id: OTHER_TASK_ID,
+      title: 'The second task',
+      goal: {
+        objective: 'Check the second observation.',
+        success_criterion: 'An answer that names its records.',
+      },
+    }
+    switching.state.tasks = [...switching.state.tasks, other]
+    switching.taskStates.set(OTHER_TASK_ID, { ...switching.state.task, task: other })
+    return switching
+  }
+
+  it('moves the service binding, and then shows the task the service named', async () => {
+    fake = withSecondTask()
+    vi.stubGlobal('fetch', fake.fetch)
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }))
+
+    // The page asked the service, and the heading is the service's answer
+    // read again — not a class the page put on a row.
+    expect(await screen.findByRole('heading', { name: 'The second task' })).toBeInTheDocument()
+    expect(fake.state.health.task_id).toBe(OTHER_TASK_ID)
+    const post = fake.requests.find(
+      (request) =>
+        request.method === 'POST' && request.url.replace(/^\/api/, '') === '/task/select',
+    )
+    expect(post?.body).toBe(JSON.stringify({ task_id: OTHER_TASK_ID }))
+    expect(post?.headers['authorization']).toBe(`Bearer ${FAKE_TOKEN}`)
+    expect(await screen.findByText('selected')).toBeInTheDocument()
+  })
+
+  it('does not change the bound task when the service refuses the selection', async () => {
+    fake = withSecondTask()
+    vi.stubGlobal('fetch', fake.fetch)
+    render(<App />)
+    await screen.findByRole('button', { name: 'Select' })
+
+    // The row is stale: the store no longer holds the task it names.
+    fake.taskStates.delete(OTHER_TASK_ID)
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+
+    expect(await screen.findByText(/The service refused that/)).toBeInTheDocument()
+    expect(screen.getByText(/no Task row for/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'What the sediment record says about the winter' }),
+    ).toBeInTheDocument()
   })
 })

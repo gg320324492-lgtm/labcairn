@@ -579,6 +579,10 @@ export type TaskPlan = {
   steps: PlanStage[]
 }
 
+export type TaskSelectBody = {
+  task_id: string
+}
+
 export type TaskState = {
   task: Task
   runs: Run[]
