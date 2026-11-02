@@ -310,6 +310,12 @@ class Orchestrator:
         not minted here — identity belongs to
         :class:`~labcairn.runtime.lifecycle.Task`.
     :param run_id: this attempt's Run. A resume creates a new one.
+    :param ledger: where the run's artifacts are recorded. Omitted means an
+        in-memory ledger — the behaviour every caller had before the ledger could
+        be durable. A caller that needs the record to survive the process passes
+        ``ArtifactLedger(store=SqliteArtifactLedgerStore(...))``; the orchestrator
+        then records through the same write-time checks, and a later process can
+        read the same entries back. The ledger is not opened or closed here.
     :param clock: the time source, injected so tests do not read a wall clock.
     """
 
@@ -320,6 +326,7 @@ class Orchestrator:
         *,
         task_id: TaskId,
         run_id: RunId,
+        ledger: ArtifactLedger | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         missing = [stage.value for stage in declaration.order() if stage not in handlers]
@@ -333,7 +340,7 @@ class Orchestrator:
         self.handlers = dict(handlers)
         self.task_id = task_id
         self.run_id = run_id
-        self.ledger = ArtifactLedger()
+        self.ledger = ArtifactLedger() if ledger is None else ledger
         self.gate = ApprovalGate()
         self.clock = clock or (lambda: datetime.now(UTC))
         self._statuses: dict[StageName, StageStatus] = dict.fromkeys(

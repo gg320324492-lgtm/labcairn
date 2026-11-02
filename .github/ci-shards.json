@@ -166,7 +166,8 @@
         "tests/test_skill_support.py",
         "tests/test_refusal_witnesses.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_security_injection.py"
+        "tests/test_security_injection.py",
+        "tests/test_artifact_ledger_persistence.py"
       ]
     ],
     "windows-latest": [
@@ -334,7 +335,8 @@
         "tests/test_security_injection.py",
         "tests/test_recovery_support.py",
         "tests/test_material_regressions.py",
-        "tests/test_material_addressing.py"
+        "tests/test_material_addressing.py",
+        "tests/test_artifact_ledger_persistence.py"
       ]
     ]
   },

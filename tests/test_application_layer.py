@@ -329,6 +329,11 @@ _ALLOWED_STORE_READERS = frozenset(
     {
         # The store itself.
         "labcairn.db",
+        # The artifact ledger's storage. A store module like `materials`: the
+        # ledger's facade reaches it through the ``ArtifactLedgerStore`` seam,
+        # so a surface still goes through the ledger — and the skills layer's
+        # write-time and read-time checks — rather than reaching the table.
+        "labcairn.db.ledger",
         "labcairn.db.materials",
         "labcairn.db.models",
         "labcairn.db.repository",

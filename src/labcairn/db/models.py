@@ -1,12 +1,14 @@
-"""The thirty-two tables that make SQLite the task authority.
+"""The thirty-seven tables that make SQLite the task authority.
 
-Thirty-one is not a claim to be trusted: ``tests/test_store_migrations.py``'s
+Thirty-seven is not a claim to be trusted: ``tests/test_store_migrations.py``'s
 parity test walks ``Base.metadata`` and the migrated schema independently, and
 that is what catches a table added to one and not the other. It is written here
 so a reader knows the scope of the file, and it has been wrong before -- it said
 "eight" after LC-P1-08 and T01 added six tables, "fifteen" after LC-P2-08 and
-LC-P2-06 added five more, and "twenty-four" while the file held thirty --
-because nothing recomputed it.
+LC-P2-06 added five more, "twenty-four" while the file held thirty, and
+"thirty-two" by the time the feedback chain and the identifier registry had
+outgrown it -- because nothing recomputed it. The count above was re-derived
+from the ``__tablename__`` lines when the artifact ledger was made durable.
 
 Three decisions in this file are load bearing, and two of them were corrections
 rather than design:
@@ -80,6 +82,7 @@ from labcairn.evidence.states import (
     VerificationStatus,
 )
 from labcairn.runtime.event import EventType, event_requires_operation_context, event_requires_run
+from labcairn.skills.artifacts import ArtifactKind, StageName
 
 #: The single Phase-1 principal. See :data:`OWNER_SCOPE_NOTE`.
 LOCAL_USER_ID: Final[str] = "local-user"
@@ -3481,5 +3484,81 @@ class AgentRoleSpecRow(Base):
         CheckConstraint(
             "token_budget > 0 AND timeout_seconds > 0",
             name="agent_role_specs_a_role_works_under_a_ceiling",
+        ),
+    )
+
+
+class ArtifactLedgerEntryRow(Base):
+    """One artifact a skill run recorded, with the bytes the digest is over.
+
+    **The table is append-only by construction, not by convention.** A stage
+    that runs twice adds a second row; nothing updates the first. ``by_stage``
+    is therefore a query over the rows — the latest entry per stage — and not a
+    second table that could disagree with history about what happened.
+
+    **``payload`` holds the canonical JSON the digest was computed over**, the
+    same bytes :meth:`labcairn.core.schema.LabCairnModel.json_canonical` emits.
+    Storing the model's ordinary JSON instead would still parse, but it would
+    make the stored bytes and the hashed bytes two different documents, and the
+    read-time check would then be checking a re-serialisation rather than what
+    was written. `digest_algorithm` is stored beside it for the same reason: a
+    digest is only a check against another digest from the same algorithm, and
+    a durable row outlives the release that wrote it.
+
+    **``ledger_id`` is the unit of isolation.** The orchestrator is one ledger
+    per run, so a database shared by several runs stores several ledgers; the
+    column is what keeps their histories from being read as one. The default
+    ledger id is for callers that have one ledger per database, which is the
+    arrangement the persistence witnesses use.
+    """
+
+    __tablename__ = "artifact_ledger_entries"
+
+    #: Local insertion order. Not an artifact identity and not exposed as one;
+    #: it is what makes "oldest first" and "latest per stage" answerable after
+    #: the process that wrote them is gone.
+    entry_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ledger_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Canonical JSON of the artifact, exactly the bytes ``artifact_digest``
+    #: hashes. Text, not JSON: SQLite's JSON type is a string with a CHECK, and
+    #: the value must round-trip byte-for-byte.
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    digest_algorithm: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: ``NULL`` means the artifact was installed by ``adopt_artifact`` rather
+    #: than produced by a stage. The difference is kept, not erased.
+    produced_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            f"kind IN {sql_string_list(value.value for value in ArtifactKind)}",
+            name="artifact_ledger_entry_kind_vocabulary",
+        ),
+        CheckConstraint(
+            f"stage IN {sql_string_list(value.value for value in StageName)}",
+            name="artifact_ledger_entry_stage_vocabulary",
+        ),
+        CheckConstraint(
+            f"produced_by IS NULL OR produced_by IN "
+            f"{sql_string_list(value.value for value in StageName)}",
+            name="artifact_ledger_entry_producer_vocabulary",
+        ),
+        CheckConstraint("length(ledger_id) > 0", name="artifact_ledger_entry_ledger_id_present"),
+        CheckConstraint("length(payload) > 0", name="artifact_ledger_entry_payload_present"),
+        CheckConstraint("length(digest) = 64", name="artifact_ledger_entry_digest_length"),
+        CheckConstraint(
+            "length(digest_algorithm) > 0",
+            name="artifact_ledger_entry_algorithm_present",
+        ),
+        # Reads are always one ledger in insertion order. The index makes the
+        # scan ordered without a sort, and it is composite because a ledger id
+        # alone would still make SQLite sort the entries.
+        Index(
+            "ix_artifact_ledger_entries_ledger",
+            "ledger_id",
+            "entry_id",
         ),
     )
