@@ -1413,6 +1413,12 @@ _FIGURE_BYTES = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='10' heigh
 #: The table's bytes, on disk.
 _TABLE_BYTES = b"run,yield\n1,4.253\n"
 
+#: The material after the researcher's correction, and what a run over it draws.
+_REVISED_MATERIAL_TEXT = "The yield across the five runs was 30.0%.\n"
+_REVISED_MATERIAL_HASH = hashlib.sha256(_REVISED_MATERIAL_TEXT.encode("utf-8")).hexdigest()
+_REVISED_FIGURE_BYTES = b"<svg xmlns='http://www.w3.org/2000/svg'><text>30.0</text></svg>"
+_REVISED_TABLE_BYTES = b"run,yield\n1,30.0\n"
+
 #: The caption the recipe carries: the author's words about what is plotted.
 #:
 #: Without a full stop, because the Markdown writer escapes one and the test
@@ -2120,6 +2126,171 @@ def test_a_second_render_writes_a_second_revision_and_leaves_the_first_alone(
     assert {path.name: path.read_bytes() for path in first.iterdir()} == before
 
 
+def test_a_second_revision_is_recomputed_from_the_revised_material(
+    env: StoreEnv, report_world: _ReportWorld
+) -> None:
+    """The second revision carries the run drawn over the bytes now in the ledger.
+
+    The first render is followed by the researcher's edit, the re-ingest that
+    moves the source row's hash, and a second run over the revised bytes. The
+    second run's figure and table are recorded the way ``run_figure`` records
+    them — a manifest, a figure whose chain runs through it, and a table whose
+    upstream names the material — and then the report is rendered again.
+
+    **The content is what is asserted, not the absence of a refusal.** The
+    revised figure's bytes carry the revised number, the report names that
+    figure and no other, and the report's chain names the material under the
+    hash the ledger records now. The first revision's six files are compared
+    byte for byte afterwards: a revision that rewrote v1 would not be a
+    revision.
+    """
+    context = report_world.context
+    render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT,
+    )
+    first = _report_dir(context) / "v1"
+    before = {path.name: path.read_bytes() for path in first.iterdir()}
+
+    # The researcher's edit, and the ledger learning about it. Re-ingest moves
+    # the source row's hash; it does not refresh anything derived from it.
+    revised_bytes = _REVISED_MATERIAL_TEXT.encode("utf-8")
+    (context.workspace.selected_root / "materials" / "one.txt").write_bytes(revised_bytes)
+    put_source(
+        env.session,
+        Source(
+            source_id=make_source_id("materials/one.txt"),
+            kind=SourceKind.TEXT,
+            display_name="one.txt",
+            relative_path="materials/one.txt",
+            content_sha256=_REVISED_MATERIAL_HASH,
+            size_bytes=len(revised_bytes),
+            readability=SourceReadability.READABLE,
+            ingested_at=_MOMENT + timedelta(minutes=1),
+        ),
+    )
+    env.session.flush()
+
+    # The second run's artefacts, shaped as the analysis service records them.
+    revised_output: dict[str, Any] = {"mean": 30.0, "n_used": 5}
+    manifest = ReproducibilityManifest(
+        input_file=FileRef(
+            relative_path="materials/one.txt",
+            content_sha256=_REVISED_MATERIAL_HASH,
+        ),
+        operator="labcairn.analysis.mean@1.0.0",
+        locator=ComputationLocator(
+            operator_id="labcairn.analysis.mean",
+            operator_version="1.0.0",
+            parameters={
+                "selection": {
+                    "source_id": make_source_id("materials/one.txt"),
+                    "content_sha256": _REVISED_MATERIAL_HASH,
+                    "columns": ["group", "value"],
+                    "rows": {"kind": "range", "start": 1, "end": 5},
+                    "missing": "exclude",
+                }
+            },
+            input_hashes=(_REVISED_MATERIAL_HASH,),
+        ),
+        recipe=FileRef(
+            relative_path=report_world.recipe_path,
+            content_sha256=hashlib.sha256(
+                _recipe_text(_INTERPRETATION).encode("utf-8")
+            ).hexdigest(),
+        ),
+        output=revised_output,
+        output_sha256=canonical_digest(revised_output),
+        environment=RenderEnvironment(
+            matplotlib_version="3.11.2",
+            svg_hashsalt="labcairn",
+            font_families=("sans-serif",),
+            platform="TestOS-1.0",
+        ),
+    )
+    manifest_receipt = write_manifest(
+        context.workspace,
+        key="figures/manifest-2.json",
+        manifest=manifest,
+        receipt_id="manifest-2",
+        created_at=_MOMENT + timedelta(minutes=1),
+    )
+
+    figure_relative = f"output/{context.task_id}/figures/fig-2.svg"
+    figure_file = context.workspace.selected_root / figure_relative
+    figure_file.parent.mkdir(parents=True, exist_ok=True)
+    figure_file.write_bytes(_REVISED_FIGURE_BYTES)
+    figure_receipt = build_figure_receipt(
+        manifest_receipt=manifest_receipt,
+        relative_path=figure_relative,
+        content_sha256=hashlib.sha256(_REVISED_FIGURE_BYTES).hexdigest(),
+        size_bytes=len(_REVISED_FIGURE_BYTES),
+        receipt_id="figure-2",
+        created_at=_MOMENT + timedelta(minutes=1),
+    )
+
+    table_relative = f"output/{context.task_id}/tables/tab-2.csv"
+    table_file = context.workspace.selected_root / table_relative
+    table_file.parent.mkdir(parents=True, exist_ok=True)
+    table_file.write_bytes(_REVISED_TABLE_BYTES)
+    table_receipt = ArtifactReceipt(
+        receipt_id="table-2",
+        task_id=str(context.task_id),
+        kind=ArtifactKind.TABLE,
+        relative_path=table_relative,
+        content_sha256=hashlib.sha256(_REVISED_TABLE_BYTES).hexdigest(),
+        size_bytes=len(_REVISED_TABLE_BYTES),
+        produced_by=ArtifactProducerKind.ANALYSIS_OPERATOR,
+        producer_id="labcairn.analysis.mean@1.0.0",
+        derived_from=(
+            DerivationRef(
+                target_kind=DerivationTargetKind.MATERIAL_FILE,
+                target_id="materials/one.txt",
+                content_sha256=_REVISED_MATERIAL_HASH,
+            ),
+        ),
+        media_type="text/csv",
+        created_at=_MOMENT + timedelta(minutes=1),
+    )
+
+    with context.store.unit(context.task_id) as work:
+        work.put_artifact(manifest_receipt)
+        work.put_artifact(figure_receipt)
+        work.put_artifact(table_receipt)
+
+    second = render_report(
+        context,
+        ReportRequest(path="report", template_id="default"),
+        now=_MOMENT + timedelta(minutes=2),
+    )
+
+    second_dir = _report_dir(context) / "v2"
+    document = json.loads((second_dir / "report.json").read_text(encoding="utf-8"))
+    assert [figure["figure_id"] for figure in document["figures"]] == ["fig-figure-2"]
+    assert [table["relative_path"] for table in document["tables"]] == [table_relative]
+    assert (
+        document["figures"][0]["content_sha256"]
+        == hashlib.sha256(_REVISED_FIGURE_BYTES).hexdigest()
+    )
+    on_disk = (
+        context.workspace.selected_root / document["figures"][0]["relative_path"]
+    ).read_bytes()
+    assert b"30.0" in on_disk, "the report names a figure the revised run did not draw"
+
+    markdown = (second_dir / "report.md").read_text(encoding="utf-8")
+    assert hashlib.sha256(_REVISED_FIGURE_BYTES).hexdigest() in markdown
+    assert hashlib.sha256(_FIGURE_BYTES).hexdigest() not in markdown
+
+    named = {
+        (link.target_kind.value, link.target_id): link.content_sha256
+        for link in second.receipt.derived_from
+    }
+    assert named[("material_file", "materials/one.txt")] == _REVISED_MATERIAL_HASH
+
+    assert {path.name: path.read_bytes() for path in first.iterdir()} == before
+
+
 # --------------------------------------------------------------------------- #
 # the event log
 # --------------------------------------------------------------------------- #
@@ -2723,9 +2894,8 @@ def test_the_four_forms_the_layer_writes_are_the_canonical_document(
     from any other document would not match it.
 
     **All four forms are compared, and each is read by the reader its own
-    test reads it with.** The DOCX and the PDF are not byte-reproducible, so
-    a claim about them is measured by reading them back and not by comparing
-    bytes.
+    test reads it with.** The PDF is not byte-reproducible, so a claim about
+    it is measured by reading it back and not by comparing bytes.
 
     The comparison is an **equality** rather than a containment, so a form
     that carries another document's caption, or another document's

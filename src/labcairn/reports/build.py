@@ -322,6 +322,7 @@ def build_report_document(
         manifests=manifests,
         captions=captions,
         interpretations=readings,
+        source_by_path={source.relative_path: source for source in sources},
     )
 
     if not claims and not disclosures and not figure_parts and not tables:
@@ -566,6 +567,7 @@ def _parts_from_artifacts(
     manifests: Mapping[str, ReproducibilityManifest],
     captions: Mapping[str, str],
     interpretations: Mapping[str, str],
+    source_by_path: Mapping[str, Source],
 ) -> tuple[tuple[_FigurePart, ...], tuple[ReportTable, ...]]:
     """The figures and the tables, from the task's artefacts.
 
@@ -573,6 +575,17 @@ def _parts_from_artifacts(
     is unique on (task, path, revision), so two receipts at one path are two
     emissions of one artefact, and a report that carried both would show the
     same figure twice.
+
+    **Only artefacts whose material is still current are carried.** A figure
+    computed over bytes that have since been re-ingested is a part of an
+    earlier report, not of this one: the report is a view of the material the
+    ledger holds now, and the artefact's own chain names the hash its run
+    read. Carrying both the old figure and a new one would put one file under
+    two hashes in the report's chain — the refusal that made a second
+    revision impossible — and choosing one hash for the chain while drawing
+    the other figure would be worse. So the stale part is left out. It is
+    not refreshed: the artefact is the ledger's record of what that run
+    produced, and redrawing it over new bytes would be a figure nobody drew.
 
     The artefacts of the kinds the report model has no part for — the report
     itself, the report's own manifest, a dataset — are not carried. A part
@@ -582,6 +595,8 @@ def _parts_from_artifacts(
     tables: list[ReportTable] = []
 
     for receipt in _current_artifacts(artifacts):
+        if not _rests_on_current_material(receipt, source_by_path=source_by_path):
+            continue
         if receipt.kind is ArtifactKind.FIGURE:
             figures.append(
                 _figure_for(
@@ -636,6 +651,32 @@ def _refuse_readings_that_name_no_figure(
                 "figure's interpretation are the figure's own, and a reading for "
                 "something else would be ignored."
             )
+
+
+def _rests_on_current_material(
+    receipt: ArtifactReceipt, *, source_by_path: Mapping[str, Source]
+) -> bool:
+    """Whether every material file this artefact names still has the bytes it read.
+
+    An artefact's ``derived_from`` is the chain it was made under, and each
+    material link carries the hash the run read. The source row carries the
+    hash the ledger records **now**; ADR-0004 I4 requires the row's hash to
+    move when the file is re-ingested and never to refresh itself. Two hashes
+    that differ therefore mean the file moved after the artefact was made.
+
+    A link to a material the task no longer binds is not current either: the
+    report cannot say the part rests on material it does not carry.
+
+    An artefact that names no material link is not judged here: the manifest
+    builder already refuses a part whose chain names nothing.
+    """
+    for link in receipt.derived_from:
+        if link.target_kind is not DerivationTargetKind.MATERIAL_FILE:
+            continue
+        source = source_by_path.get(link.target_id)
+        if source is None or source.content_sha256 != link.content_sha256:
+            return False
+    return True
 
 
 def _current_artifacts(artifacts: Sequence[ArtifactReceipt]) -> tuple[ArtifactReceipt, ...]:

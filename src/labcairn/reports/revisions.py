@@ -22,20 +22,19 @@ path that carries its revision, so ``report/v1/report.md`` and
 what "without altering originals" means, and it is why the receipt carries a
 revision rather than a path that is overwritten.
 
-**A revision is immutable once written.** The DOCX is a ZIP whose entries carry
-timestamps and the PDF carries a creation date, so re-rendering revision 1
-produces *different bytes* for the same revision number. Two artefacts
-claiming to be revision 1 with different hashes is exactly the ambiguity the
-revision number exists to prevent, so a revision that has been written is
-refused rather than rewritten.
+**A revision is immutable once written.** The PDF carries a creation date, so
+re-rendering revision 1 produces *different bytes* for the same revision
+number. Two artefacts claiming to be revision 1 with different hashes is
+exactly the ambiguity the revision number exists to prevent, so a revision
+that has been written is refused rather than rewritten.
 
 **A revision is written in six writes, and a crash between them leaves a
 partial directory.** The next write of that revision is refused rather than
-completed: the DOCX and the PDF are not byte-reproducible, so a re-render
-would produce different bytes for a revision number that already has bytes on
-disk, which is the ambiguity above wearing a different hat. The operator
-removes the directory and writes again. The ledger holds no receipt for an
-unfinished revision, so what happened is visible there.
+completed: the PDF is not byte-reproducible, so a re-render would produce
+different bytes for a revision number that already has bytes on disk, which
+is the ambiguity above wearing a different hat. The operator removes the
+directory and writes again. The ledger holds no receipt for an unfinished
+revision, so what happened is visible there.
 
 The chain, and why it is flat
 -----------------------------
