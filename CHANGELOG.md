@@ -20,6 +20,19 @@ The links are the records.
 
 **Added**
 
+- **ADR-0006's outbound-consent bridge — a Phase 1 debt closed.** The
+  provider layer can no longer send without a permission decision: an
+  `OutboundConsent` port is a **required constructor argument**, and
+  `send` calls it after the local pre-flights and **before the
+  transport**, so an approval that is missing, pending, expired or
+  already spent refuses the request with the wire never reached. The
+  permission decision crosses the boundary **as a value, not as an
+  import** — the two capability vocabularies stay disjoint (ADR-0006
+  statement 1), and the approval's single use is spent only by a call
+  that will actually be made. 8 witnesses; 5 self-reported mutations
+  and 4 independent ones, all caught.
+  [LC-P1-03 outbound bridge](docs/acceptance/LC-P1-03-outbound-bridge.md).
+
 - **The blind evaluation's mechanical preparation (LC-P2-14).** Four
   pieces under `tests/evaluation/`: the protocol's five arms as data a
   configuration is measured against; a by-paper leak check that names

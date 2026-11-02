@@ -1,8 +1,17 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-02 · **the blind evaluation's preparation is built and
-mutation-verified twice, and five acceptance records carry an
-independent review.**
+**Date:** 2026-11-02 · **the outbound-consent bridge is built, the blind
+evaluation's preparation is mutation-verified twice, and five acceptance
+records carry an independent review.**
+
+**ADR-0006's outbound-consent bridge closes a Phase 1 debt.** The
+provider layer could send without the permission layer's decision;
+`PydanticAiModelProvider` now **cannot be constructed without an
+`OutboundConsent` port**, and `send` refuses before the transport when
+the decision is missing, pending, expired or already spent. The
+decision crosses as a **value**, not an import — the vocabularies stay
+disjoint. 8 witnesses; 5 self-reported mutations and 4 independent
+ones, all caught. [LC-P1-03 outbound bridge](acceptance/LC-P1-03-outbound-bridge.md).
 
 **LC-P2-14's mechanical preparation is built.** Four pieces
 (`tests/evaluation/arms.py`, `split_check.py`, `blind_sheet.py`,
