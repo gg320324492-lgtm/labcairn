@@ -46,7 +46,9 @@ from test_store_support import env as _shared_env
 
 from labcairn.application import ApplicationContext, create_task
 from labcairn.application.approvals import (
+    ApprovalGranted,
     ApprovalRequest,
+    ApprovalRequested,
     ApprovalUse,
     grant_approval,
     request_approval,
@@ -122,7 +124,9 @@ def _the_use() -> ApprovalUse:
     )
 
 
-def _asked(context: ApplicationContext, *, expires_at: datetime | None = None):
+def _asked(
+    context: ApplicationContext, *, expires_at: datetime | None = None
+) -> ApprovalRequested:
     """An approval asked for but not yet granted."""
     return request_approval(
         context,
@@ -134,7 +138,9 @@ def _asked(context: ApplicationContext, *, expires_at: datetime | None = None):
     )
 
 
-def _granted(context: ApplicationContext, *, expires_at: datetime | None = None):
+def _granted(
+    context: ApplicationContext, *, expires_at: datetime | None = None
+) -> ApprovalGranted:
     """An approval a human granted at :data:`MOMENT`."""
     asked = _asked(context, expires_at=expires_at)
     return grant_approval(context, asked.approval.approval_id, now=MOMENT)
