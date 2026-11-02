@@ -16,9 +16,17 @@ every leak shape the protocol names and watch each one come back named.
 
 from __future__ import annotations
 
+import importlib.util
+import json
+from collections.abc import Mapping
+from functools import lru_cache
+from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
+from uuid import UUID
 
 import pytest
+from evaluation import blind_runner
 from evaluation.arms import (
     ARM_IDS,
     EXPECTED_INPUTS,
@@ -56,6 +64,11 @@ from evaluation.split_check import (
     check_case,
     check_split,
 )
+
+from labcairn.core.providers.protocol import ModelRequest, UsageReport
+from labcairn.core.providers.usage import Known
+from labcairn.providers.budget import RunBudget
+from labcairn.providers.credentials import Protocol, ProviderSettings
 
 pytestmark = pytest.mark.unit
 
@@ -880,3 +893,294 @@ class TestContrastReport:
         rendered = render_report(report)
         assert rendered.count("SIGNIFICANT") == len(DIMENSIONS)
         assert "not a phase gate" in rendered
+
+
+@lru_cache(maxsize=1)
+def _cli_module() -> ModuleType:
+    """The executable entry point, loaded once for the command-line witnesses."""
+    path = Path(__file__).resolve().parent.parent / "scripts" / "run_blind_evaluation.py"
+    spec = importlib.util.spec_from_file_location("run_blind_evaluation_for_tests", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_case_set(directory: Path) -> Path:
+    """Write the dry run's synthetic case set as a real-mode input file."""
+    path = directory / "cases.json"
+    document = {"cases": [case.to_document() for case in blind_runner.synthetic_cases()]}
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _write_approvals(directory: Path, *, count: int) -> Path:
+    """Write owner approval records, one per request."""
+    path = directory / "approvals.json"
+    document = {
+        "approvals": [
+            {
+                "approval_id": str(UUID(int=index + 1)),
+                "capability": "model.request",
+                "root_id": "task",
+                "resource_key": "output",
+                "arguments": {},
+            }
+            for index in range(count)
+        ]
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _provider_settings() -> ProviderSettings:
+    """Settings that construct without I/O; no credential is read until build_model."""
+    return ProviderSettings(protocol=Protocol.OPENAI, model="test-model, params fixed")
+
+
+class _Consent:
+    """A consent port that grants everything, for the refusal tests.
+
+    The tests that use it stop before a provider is built, so nothing is sent.
+    """
+
+    def require(self, request: ModelRequest) -> None:
+        return None
+
+
+class _Capture:
+    """A usage capture that reports a measured count, for the refusal tests."""
+
+    def observe(self, body: Mapping[str, object]) -> None:
+        return None
+
+    def report(self) -> UsageReport:
+        return UsageReport(input_tokens=Known(1), output_tokens=Known(1))
+
+
+class TestTheRunDriver:
+    """The driver's two modes, and the line between them.
+
+    The dry run's witnesses hold three things at once: the whole pipeline runs,
+    every request lands on the stub, and the record claims no model. The real
+    witnesses hold the boundary that makes a real run the owner's: no consent,
+    no ceiling, no capture, no provider — and a real run that has finished its
+    requests **stops at awaiting ratings** rather than inventing a comparison.
+    """
+
+    def test_a_dry_run_never_constructs_a_provider(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every request lands on the stub; the real-provider path is never entered."""
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the dry run tried to construct a real provider")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        summary = blind_runner.run_dry(out_dir=tmp_path)
+        assert summary.provider_calls == 0
+        assert summary.stub_calls == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        assert {artifact.provider for artifact in summary.artifacts} == {
+            blind_runner.DRY_RUN_PROVIDER
+        }
+        assert summary.model == ""
+
+    def test_a_dry_run_writes_the_shapes_the_scoring_stage_reads(self, tmp_path: Path) -> None:
+        """Artefacts, packet, sheets and verdicts all have the shapes they claim."""
+        summary = blind_runner.run_dry(out_dir=tmp_path)
+        assert len(summary.artifacts) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        artifact_files = sorted((tmp_path / "artifacts").glob("*.json"))
+        assert len(artifact_files) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+
+        packet = json.loads((tmp_path / "blind_packet.json").read_text(encoding="utf-8"))
+        assert len(packet["items"]) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        expected_item_ids = [item["item_id"] for item in packet["items"]]
+        for item in packet["items"]:
+            assert not set(ARM_KEY_VARIANTS) & set(item)
+            assert item["output"].startswith("[dry-run synthetic output]")
+
+        for name in ("rater-a.json", "rater-b.json"):
+            sheet = load_blind_sheet(
+                json.loads((tmp_path / "ratings" / name).read_text(encoding="utf-8")),
+                expected_item_ids,
+            )
+            assert len(sheet.items) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+
+        record = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+        assert record["model"] == ""
+        assert record["provider_calls"] == 0
+        assert record["stub_calls"] == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        assert record["status"] == blind_runner.STATUS_DRY_RUN_COMPLETE
+        assert "stub" in record["limitations"]
+        assert record["significance"]["synthetic"] is True
+        assert len(record["significance"]["contrasts"]) == 2
+        for contrast in record["significance"]["contrasts"]:
+            assert len(contrast["rows"]) == len(DIMENSIONS)
+            for row in contrast["rows"]:
+                assert row["significant"] is False
+                assert row["p_value"] is None
+                assert row["ties"] == blind_runner.DRY_RUN_CASE_COUNT
+
+        report = (tmp_path / "report.md").read_text(encoding="utf-8")
+        assert "DRY RUN" in report
+        assert "measurement of a model" in report.lower()
+
+    def test_scoring_a_completed_run_uses_the_production_loader(self, tmp_path: Path) -> None:
+        """The score mode loads real sheets, unblinds, and judges both contrasts."""
+        run_dir = tmp_path / "run"
+        blind_runner.run_dry(out_dir=run_dir)
+        scored = blind_runner.run_score(
+            run_dir=run_dir,
+            rater_a=run_dir / "ratings" / "rater-a.json",
+            rater_b=run_dir / "ratings" / "rater-b.json",
+            arbiter=run_dir / "ratings" / "arbiter.json",
+            out_dir=tmp_path / "scored",
+        )
+        assert scored.status == blind_runner.STATUS_EVALUATED
+        assert len(scored.contrasts) == 2
+        for report in scored.contrasts:
+            for row in report.rows:
+                assert row.verdict.significant is False
+                assert row.verdict.p_value is None
+        record = json.loads((tmp_path / "scored" / "run.json").read_text(encoding="utf-8"))
+        assert record["mode"] == blind_runner.MODE_SCORE
+        assert record["status"] == blind_runner.STATUS_EVALUATED
+        assert record["significance"]["synthetic"] is False
+
+    def test_a_real_run_stops_before_it_claims_a_comparison(self, tmp_path: Path) -> None:
+        """A finished real run is AWAITING RATINGS, and its record says NOT RUN."""
+        summary = blind_runner.run_real(
+            provider=blind_runner.DryRunProvider(),
+            out_dir=tmp_path,
+            model="test-model, params fixed",
+            budget="max_model_requests=80",
+            cases=blind_runner.synthetic_cases(),
+        )
+        assert summary.status == blind_runner.STATUS_AWAITING_RATINGS
+        assert summary.provider_calls == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        record = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+        assert record["status"] == blind_runner.STATUS_AWAITING_RATINGS
+        assert record["significance"]["status"] == "NOT RUN"
+        assert record["significance"]["reason"]
+        report = (tmp_path / "report.md").read_text(encoding="utf-8")
+        assert "AWAITING RATINGS" in report
+        assert "significance was not computed" in report.lower()
+
+    def test_a_real_provider_cannot_be_built_without_consent(self) -> None:
+        """ADR-0006's port is a constructor argument, and this driver keeps it so."""
+        with pytest.raises(blind_runner.RealRunRefusedError, match="outbound consent"):
+            blind_runner.build_real_provider(
+                _provider_settings(),
+                consent=None,
+                budget=RunBudget(max_total_tokens=Known(100)),
+                usage_capture=_Capture(),
+            )
+
+    def test_a_real_provider_cannot_be_built_without_a_budget_ceiling(self) -> None:
+        """An unbounded budget is not an authorisation to spend."""
+        for budget in (None, RunBudget()):
+            with pytest.raises(blind_runner.RealRunRefusedError, match="budget ceiling"):
+                blind_runner.build_real_provider(
+                    _provider_settings(),
+                    consent=_Consent(),
+                    budget=budget,
+                    usage_capture=_Capture(),
+                )
+
+    def test_a_real_provider_cannot_be_built_without_a_usage_capture(self) -> None:
+        """Without a capture every token is Unknown and the first ceiling refuses."""
+        with pytest.raises(blind_runner.RealRunRefusedError, match="usage capture"):
+            blind_runner.build_real_provider(
+                _provider_settings(),
+                consent=_Consent(),
+                budget=RunBudget(max_total_tokens=Known(100)),
+                usage_capture=None,
+            )
+
+    def test_missing_real_requirements_names_every_missing_piece(self) -> None:
+        """The command can explain everything that is missing in one refusal."""
+        problems = blind_runner.missing_real_requirements(
+            approvals=None,
+            budget=None,
+            model="",
+            usage_capture=None,
+        )
+        assert len(problems) == 4
+        text = " ".join(problems)
+        assert "owner approval" in text
+        assert "budget ceiling" in text
+        assert "no model" in text
+        assert "usage capture" in text
+
+
+class TestTheRunDriverCommand:
+    """The executable entry point: it runs the dry run and refuses the real one."""
+
+    def test_the_command_runs_a_dry_run(self, tmp_path: Path) -> None:
+        """The default mode completes and leaves a run record behind."""
+        module = _cli_module()
+        assert module.main(["--mode", "dry-run", "--out", str(tmp_path)]) == 0
+        assert (tmp_path / "run.json").exists()
+
+    def test_a_real_run_without_approvals_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No owner approval means no provider is constructed at all."""
+        cases = _write_case_set(tmp_path)
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider without an approval")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+            ]
+        )
+        assert code == 2
+        assert "approval" in capsys.readouterr().err.lower()
+
+    def test_a_real_run_without_a_budget_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Approvals are not enough: the run also needs a ceiling."""
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider without a budget")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+            ]
+        )
+        assert code == 2
+        assert "budget ceiling" in capsys.readouterr().err
