@@ -316,6 +316,7 @@ def record_model_proposal(
     context: ApplicationContext,
     request: ClaimRequest,
     *,
+    creator_id: str | None = None,
     now: datetime | None = None,
 ) -> ClaimRecorded:
     """Record a model's answer as a proposal, bound to the locator it names.
@@ -327,6 +328,17 @@ def record_model_proposal(
     something parsed out of the answer afterwards: the anchor lands with
     the record, and the record enters the ledger already pinned to the
     material it claims to speak for.
+
+    ``creator_id`` names **which model** wrote the proposal, and its spelling
+    is a contract once it is read anywhere: the extraction path writes
+    ``"<provider>:<model>"`` (for example ``"anthropic:claude-sonnet-5-5"``),
+    built from the invocation's own fields rather than from the caller's
+    request, so the record says which model actually answered. It is
+    deliberately **not** the person who pressed the button: the person's act
+    is acceptance, and a proposal that carried their name would be the second
+    spelling of "whose words this is" that ADR-0016 exists to prevent.
+    ``None`` keeps the historical local-user string for callers that do not
+    have a model identity to report.
 
     The constructor, not this path, holds the line the proposal cannot
     cross: the record is built through ``EvidenceRecord``'s validators,
@@ -346,6 +358,7 @@ def record_model_proposal(
         now=now,
         creator=EvidenceCreator.MODEL_PROPOSAL,
         status=VerificationStatus.PLANNED,
+        creator_id=creator_id if creator_id is not None else LOCAL_USER_ID,
     )
 
 
@@ -471,9 +484,12 @@ def confirm_proposal(
     operation does three things, and one transaction:
 
     1. **the person's own record** is written at the same address, carrying
-       their words as its span — a confirmation is a claim in its own right,
-       and ``uq_evidence_task_span`` holds that the same words are one
-       claim.
+       the proposal's text **unchanged** — this operation accepts as-is, and
+       an amendment would be a different operation with its own semantics.
+       ``uq_evidence_task_span`` holds that the same words are one claim, so
+       a proposal whose text is also its extracted span cannot be accepted
+       a second time; the refusal says so rather than inventing a way around
+       the store's rule.
     2. **the proposal is superseded** by it. The old row is kept, not
        deleted: its history is the evidence of what was claimed and when.
     3. **the settlement is attested on the person's own record**, and the
@@ -482,6 +498,30 @@ def confirm_proposal(
        old row is *marked* and the new one carries the attestation, and a
        product module writing the ledger's verification row is what the
        threat model's C14 forbids.
+
+    **The note is the verdict's, not the record's.** ``disputed`` requires
+    one — a disagreement nobody states is an accusation with no content —
+    and ``confirmed`` refuses one, because a confirmation that carried a
+    correction would be an amendment wearing acceptance's name. The note is
+    written on the attestation and never becomes the person's record text:
+    the text is the proposal's, unchanged.
+
+    **Acceptance is not reversible.** A proposal is settled once
+    (``PROPOSAL_ALREADY_SETTLED``); a correction is a new record, as a
+    correction to a judgement on the chain is. There is no undo that would
+    have to say what happens to the person's record, the attestation and the
+    ``superseded_by`` link.
+
+    **``user_id`` is a self-reported string, not an identity.** The product
+    keeps no accounts and performs no authentication; the name is what the
+    caller says it is, exactly as on the CLI, and the record says that it
+    was reported rather than proven.
+
+    **The source must still be the bytes the proposal was written against.**
+    C1 asks whether the material is still the bytes the record names, and an
+    acceptance of a proposal whose source has drifted would attest words the
+    proposal was not written about. The check is here because this is the
+    act that makes the person's record citable.
 
     **The proposal's status and its creator are untouched throughout**,
     because a model's say-so never becomes a person's.
@@ -492,8 +532,10 @@ def confirm_proposal(
 
     :raises ApplicationRefusedError: no such record; the record is not a
         model's proposal; the proposal has already been settled; the verdict
-        is outside the vocabulary; the person signed nothing; or the ledger
-        refused the move.
+        is outside the vocabulary; the person signed nothing; a dispute has
+        no note; a confirmation carries one; the proposal's text is not one
+        a person's record can carry; the source has drifted since the
+        proposal was written; or the ledger refused the move.
     """
     moment = now if now is not None else datetime.now(UTC)
     if verdict not in PROPOSAL_VERDICTS:
@@ -506,6 +548,19 @@ def confirm_proposal(
         raise ApplicationRefusedError(
             ApplicationRefusal.ATTESTATION_IDENTITY_EMPTY,
             "an attestation nobody signs is not an attestation. Name the person whose word it is.",
+        )
+    if verdict == "disputed" and not note.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PROPOSAL_NOTE_MISSING,
+            "a dispute must say what is disputed. The note is the disagreement's "
+            "content, and a disagreement nobody states is an accusation with none.",
+        )
+    if verdict == "confirmed" and note.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.PROPOSAL_NOTE_UNEXPECTED,
+            "a confirmation carries no note: acceptance is as-is, and a "
+            "confirmation with a correction would be an amendment wearing "
+            "acceptance's name. Dispute the proposal if its words are wrong.",
         )
     session = context.store.session
     connection = session.connection()
@@ -550,24 +605,46 @@ def confirm_proposal(
             f"the ledger holds no source with the id {anchor.source_id!r}.",
         )
     _require_inventory(context, source)
+    if anchor.bound_source_sha256 != source.content_sha256:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_DRIFTED,
+            f"the source {source.source_id!r} is no longer the bytes the proposal "
+            f"was written against: the anchor was bound to "
+            f"{anchor.bound_source_sha256} and the ledger now holds "
+            f"{source.content_sha256}. C1 asks whether the material is still the "
+            "bytes the record names, and it is not, so accepting would attest "
+            "words the proposal was not written about. Nothing was written.",
+        )
+    if proposal.text is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the proposal {proposal_id!r} carries no text, so there is nothing "
+            "to accept as-is. A numeric proposal needs its own acceptance "
+            "operation, and that operation is not this one.",
+        )
 
-    span = note
+    # Accept-as-is: the person's record carries the proposal's words, not a
+    # paraphrase. ``uq_evidence_task_span`` makes the same words one claim, so
+    # a proposal whose text is also its extracted span is refused rather than
+    # written under a second id.
+    span = proposal.text
     span_sha256 = _sha256(span)
     existing = record_for_span(connection, str(context.task_id), span_sha256)
     if existing is not None:
         raise ApplicationRefusedError(
             ApplicationRefusal.CLAIM_ALREADY_RECORDED,
             f"the task already holds the record {existing!r}, whose extracted span "
-            f"hashes to {span_sha256}. uq_evidence_task_span permits one record "
-            "per span per task, so the same words are one claim; a person's word "
-            "about the same material has to be their own words.",
+            f"hashes to {span_sha256}. Acceptance is as-is, so the person's record "
+            "must carry the proposal's own words; uq_evidence_task_span permits "
+            "one record per span per task, and these words already have one. "
+            "Nothing was written.",
         )
 
     request = ClaimRequest(
         source_id=anchor.source_id,
         locator_key=render_locator_key(anchor.locator),
         kind=EvidenceKind.CLAIM,
-        text=note,
+        text=proposal.text,
         span=span,
     )
     record = _the_record(
@@ -600,7 +677,7 @@ def confirm_proposal(
             connection,
             record.evidence_id,
             user_id=user_id,
-            note=f"{verdict}. {note}",
+            note=f"{verdict}. {note}" if note.strip() else verdict,
             checked_at=moment,
         )
         session.commit()
@@ -631,6 +708,7 @@ def _record_against_material(
     now: datetime | None,
     creator: EvidenceCreator,
     status: VerificationStatus,
+    creator_id: str = LOCAL_USER_ID,
 ) -> ClaimRecorded:
     """The one flow both writes run: check, anchor, locate, judge, commit.
 
@@ -728,6 +806,7 @@ def _record_against_material(
         moment=moment,
         creator=creator,
         status=status,
+        creator_id=creator_id,
     )
 
     session = context.store.session

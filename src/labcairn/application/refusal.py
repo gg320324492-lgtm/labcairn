@@ -104,6 +104,21 @@ class ApplicationRefusal(StrEnum):
     #: vocabulary is closed, because "the person had a look" is not a verdict
     #: a record can carry.
     PROPOSAL_VERDICT_UNKNOWN = "proposal_verdict_unknown"
+    #: A dispute carried no note. The note is the disagreement's content, and
+    #: a disagreement nobody states is an accusation with none.
+    PROPOSAL_NOTE_MISSING = "proposal_note_missing"
+    #: A confirmation carried a note. Acceptance is as-is; a confirmation with
+    #: a correction would be an amendment wearing acceptance's name.
+    PROPOSAL_NOTE_UNEXPECTED = "proposal_note_unexpected"
+    #: An extraction was asked for and this service has no provider
+    #: invocation wired. **Refused, never simulated**: an extractor that
+    #: returned an empty or invented proposal would put words in a model's
+    #: mouth that no model said.
+    CLAIM_EXTRACTION_NO_PROVIDER = "claim_extraction_no_provider"
+    #: The model's answer quoted text that is not in the address it was asked
+    #: about. A proposal is bound to the material it claims to speak for, and
+    #: a quotation the material does not contain binds nothing.
+    CLAIM_EXTRACTION_NOT_GROUNDED = "claim_extraction_not_grounded"
     #: The ledger holds no identifier with that id.
     IDENTIFIER_NOT_FOUND = "identifier_not_found"
     #: The confirmation named nobody. A resolution is a person's word about an

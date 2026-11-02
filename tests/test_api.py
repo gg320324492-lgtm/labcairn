@@ -70,9 +70,12 @@ from labcairn.api.typescript import render_types
 from labcairn.application import (
     ApplicationContext,
     ApplicationRefusedError,
+    ClaimExtractionBackend,
     ClaimRequest,
+    ExtractClaimRequest,
     RuleDraft,
     attest_claim,
+    claim_extraction_use,
     create_task,
     ingest_material,
     list_source_addresses,
@@ -84,6 +87,12 @@ from labcairn.application import (
     write_guidance_counterexample,
     write_guidance_rule_version,
 )
+from labcairn.application.approvals import (
+    ApprovalRequest,
+    grant_approval,
+    request_approval,
+)
+from labcairn.application.model_request import ModelInvocation
 from labcairn.application.refusal import ApplicationRefusal
 from labcairn.core.ids import TaskId, new_id
 from labcairn.db import create_db_engine
@@ -96,10 +105,17 @@ from labcairn.db.models import (
 from labcairn.db.repository import events_after
 from labcairn.guidance.models import GuidanceRule
 from labcairn.papers.feedback import record_feedback, set_issue_key
+from labcairn.providers.capabilities import (
+    ALL_CAPABILITIES,
+    Capability,
+    CapabilityOutcome,
+    ProviderCapabilities,
+)
 from labcairn.reports.receipt import ArtifactKind, ArtifactProducerKind, ArtifactReceipt
 from labcairn.runtime.event import EventStreamPage, EventStreamRequest, EventType
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
+from labcairn.security.permissions import Grant
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
 pytestmark = pytest.mark.integration
@@ -1158,6 +1174,12 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
     same selection, reached from the page. It still presents the session
     token, because a page that could move the pointer could make every later
     write land on a task nobody chose.
+
+    **The two evidence acts are writes too.** ``POST /claims/extract`` spends
+    a model call and writes a proposal; ``POST /records/{id}/accept`` writes
+    the person's record and marks the proposal superseded. Both are the
+    layer's own operations, and both present the token — an extraction a page
+    could start without it would be a model call nobody authorised.
     """
     document = contract_app().openapi()
     mutating = {
@@ -1174,6 +1196,8 @@ def test_the_mutating_surface_of_the_service_is_exactly_the_routes_it_admits() -
         "POST /report",
         "POST /analysis",
         "POST /claims",
+        "POST /claims/extract",
+        "POST /records/{evidence_id}/accept",
         "POST /guidance/rules/{rule_id}/confirm",
         "POST /task/select",
     }
@@ -2507,6 +2531,414 @@ def test_the_records_route_carries_whose_words_each_record_is(
     assert by_creator["model_proposal"]["status"] == "planned"
     assert by_creator["user"]["verification_log"][0]["checker_id"] == "reader-2"
     assert by_creator["model_proposal"]["verification_log"] == []
+
+
+# --------------------------------------------------------------------------- #
+# the two evidence acts: extraction and acceptance
+# --------------------------------------------------------------------------- #
+
+_EXTRACTION_DESTINATION = "https://model.example"
+_EXTRACTION_SUBJECT = "proj-extract-1"
+
+
+def _the_first_address_text(context: ApplicationContext, source_id: str, locator_key: str) -> str:
+    """The ledger's stored text at the first address, for a grounded quotation."""
+    return next(
+        address.text
+        for address in list_source_addresses(context, source_id)
+        if address.locator_key == locator_key
+    )
+
+
+def _extraction_request(context: ApplicationContext) -> ExtractClaimRequest:
+    source_id, locator_key = _the_first_address(context)
+    return ExtractClaimRequest(
+        source_id=source_id,
+        locator_key=locator_key,
+        user_id="the-advisor",
+        provider="fake",
+        model="scripted",
+        destination=_EXTRACTION_DESTINATION,
+        subject_ref=_EXTRACTION_SUBJECT,
+    )
+
+
+def _the_material_grant() -> Grant:
+    return Grant(
+        grant_id="g-extract-1",
+        subject_ref=_EXTRACTION_SUBJECT,
+        permission="external_transmit",
+        purpose="transmit",
+        scope="groups.csv",
+        destination=_EXTRACTION_DESTINATION,
+        granted_by="Dr. Chen",
+        granted_at=_MOMENT,
+        expires_at=None,
+        state="active",
+        withdrawn_at=None,
+        withdrawn_by=None,
+        withdrawal_reason=None,
+    )
+
+
+def _approved_extraction(context: ApplicationContext, request: ExtractClaimRequest) -> str:
+    """An approval asked for with the extraction's own arguments, and granted."""
+    asked = request_approval(
+        context,
+        ApprovalRequest(use=claim_extraction_use(context, request), expires_at=_FUTURE),
+        now=_MOMENT,
+    )
+    grant_approval(context, asked.approval.approval_id, now=_MOMENT)
+    return str(asked.approval.approval_id)
+
+
+def _probed_for_extraction() -> ProviderCapabilities:
+    """A probe record that licenses prompted structured output and nothing else.
+
+    An extraction asks for a schema, so an unprobed provider is refused with
+    ``model_schema_unprobed`` before anything is sent — the capability gate's
+    own rule, not this test's.
+    """
+    outcomes = {
+        capability: (
+            CapabilityOutcome.OK
+            if capability is Capability.STRUCTURED_OUTPUT_PROMPTED
+            else CapabilityOutcome.UNSUPPORTED
+        )
+        for capability in ALL_CAPABILITIES
+    }
+    return ProviderCapabilities.from_outcomes(
+        endpoint_fingerprint="fp-" + "e" * 16,
+        model="scripted",
+        protocol="openai-chat",
+        outcomes=outcomes,
+        unsupported_reason=dict.fromkeys(
+            ALL_CAPABILITIES, "the probe asked and it did not do the thing"
+        ),
+    )
+
+
+def _invocation(claim: str, quote: str) -> ModelInvocation:
+    """One call's record, in the provider layer's wire form."""
+    return ModelInvocation(
+        answer=claim,
+        provider="fake",
+        model="scripted",
+        exchanges=(
+            {
+                "provider": "fake",
+                "model": "scripted",
+                "transcript_step": "claim-extraction",
+                "prompt_digest": "a" * 64,
+                "tool_names": [],
+                "outbound": {"destination": _EXTRACTION_DESTINATION, "digest": "b" * 64},
+                "provider_attempts": 1,
+                "observed_at": _MOMENT.isoformat(),
+                "usage_input": {"kind": "known", "tokens": 120},
+                "usage_output": {"kind": "known", "tokens": 40},
+            },
+        ),
+        credential_fingerprint="fp-" + "c" * 16,
+        cost_micros=1200,
+        structured={"text": claim, "quote": quote},
+    )
+
+
+def _scripted_backend(claim: str, quote: str) -> ClaimExtractionBackend:
+    """A provider that answers with the claim and the quotation it was asked for."""
+
+    def send(prompt: str) -> ModelInvocation:
+        assert quote in prompt, "the material the approval covers is what was sent"
+        return _invocation(claim, quote)
+
+    return ClaimExtractionBackend(
+        send=send,
+        grants=(_the_material_grant(),),
+        capabilities=_probed_for_extraction(),
+    )
+
+
+def _extraction_body(request: ExtractClaimRequest, approval_id: str | None) -> dict[str, str]:
+    body = {
+        "source_id": request.source_id,
+        "locator_key": request.locator_key,
+        "user_id": request.user_id,
+        "provider": request.provider,
+        "model": request.model,
+        "destination": request.destination,
+        "subject_ref": request.subject_ref,
+    }
+    if approval_id is not None:
+        body["approval_id"] = approval_id
+    return body
+
+
+def test_an_extraction_writes_a_model_proposal_and_never_a_persons_claim(
+    ledger_context: ApplicationContext,
+) -> None:
+    """The owner's first decision: extraction is always a proposal.
+
+    **Even when a person pressed the button, the record is the model's.** The
+    proposal says ``created_by=model_proposal``, names the model that answered
+    in ``created_by_id``, and stays ``planned``; no record with
+    ``created_by=user`` is written. A proposal that carried the person's name
+    would be the second spelling of "whose words this is" that ADR-0016
+    exists to prevent.
+    """
+    request = _extraction_request(ledger_context)
+    quote = _the_first_address_text(ledger_context, request.source_id, request.locator_key)
+    approval_id = _approved_extraction(ledger_context, request)
+    app = create_app(
+        ledger_context,
+        event_source=_StoreEventSource(),
+        claim_extraction=_scripted_backend("The control group measured 4.253.", quote),
+    )
+    with TestClient(app) as client:
+        authorization = _authorization(client.get("/session").json()["token"])
+        response = client.post(
+            "/claims/extract",
+            json=_extraction_body(request, approval_id),
+            headers=authorization,
+        )
+        assert response.status_code == 201, response.text
+        records = client.get("/records").json()
+
+    record = response.json()["record"]
+    assert record["created_by"] == "model_proposal"
+    assert record["created_by_id"] == "fake:scripted", (
+        "the proposal names the model that answered, not the person who pressed the button"
+    )
+    assert record["status"] == "planned"
+    assert record["text"] == "The control group measured 4.253."
+    assert record["extracted_span"] == quote, "the proposal is bound to the quotation"
+    assert [item["created_by"] for item in records] == ["model_proposal"], (
+        "the extraction wrote no person's claim"
+    )
+
+
+def test_accepting_a_proposal_supersedes_it_and_attests_the_persons_record(
+    ledger_context: ApplicationContext, ledger_client: TestClient
+) -> None:
+    """The route calls the layer's own settlement, and the layer's own result is served.
+
+    **The proposal is kept and marked, and the person's record is what a report
+    may cite.** ``user_id`` is a self-reported string: this one names an
+    account that does not exist, and the settlement still happens — the
+    product keeps no accounts and proves no identity.
+    """
+    source_id, locator_key = _the_first_address(ledger_context)
+    proposed = record_model_proposal(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The control group measured 4.253.",
+        ),
+        now=_MOMENT,
+    )
+    ledger_context.store.session.commit()
+
+    authorization = _authorization(ledger_client.get("/session").json()["token"])
+    response = ledger_client.post(
+        f"/records/{proposed.record.evidence_id}/accept",
+        json={"user_id": "an-account-that-does-not-exist", "verdict": "confirmed", "note": ""},
+        headers=authorization,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["verdict"] == "confirmed"
+    assert body["proposal"]["superseded_by"] == body["confirmation"]["evidence_id"]
+    assert body["proposal"]["status"] == "planned", "the proposal is not promoted"
+    assert body["confirmation"]["created_by"] == "user"
+    assert body["confirmation"]["created_by_id"] == "an-account-that-does-not-exist"
+    assert body["confirmation"]["status"] == "user_attested"
+    assert body["confirmation"]["text"] == "The control group measured 4.253.", (
+        "acceptance is as-is: the person's record carries the proposal's words"
+    )
+
+
+def test_a_dispute_without_a_note_is_refused_and_writes_nothing(
+    ledger_context: ApplicationContext, ledger_client: TestClient
+) -> None:
+    """A disagreement nobody states is an accusation with no content."""
+    source_id, locator_key = _the_first_address(ledger_context)
+    proposed = record_model_proposal(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The control group measured 4.253.",
+        ),
+        now=_MOMENT,
+    )
+    ledger_context.store.session.commit()
+
+    authorization = _authorization(ledger_client.get("/session").json()["token"])
+    response = ledger_client.post(
+        f"/records/{proposed.record.evidence_id}/accept",
+        json={"user_id": "the-advisor", "verdict": "disputed", "note": "  "},
+        headers=authorization,
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.PROPOSAL_NOTE_MISSING.value
+
+    kept = next(
+        record
+        for record in ledger_client.get("/records").json()
+        if record["evidence_id"] == proposed.record.evidence_id
+    )
+    assert kept["superseded_by"] is None, "a refused settlement leaves the proposal unsettled"
+
+
+def test_a_confirmation_that_carries_a_note_is_refused(
+    ledger_context: ApplicationContext, ledger_client: TestClient
+) -> None:
+    """Acceptance is as-is; a confirmation with a correction is an amendment."""
+    source_id, locator_key = _the_first_address(ledger_context)
+    proposed = record_model_proposal(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The control group measured 4.253.",
+        ),
+        now=_MOMENT,
+    )
+    ledger_context.store.session.commit()
+
+    authorization = _authorization(ledger_client.get("/session").json()["token"])
+    response = ledger_client.post(
+        f"/records/{proposed.record.evidence_id}/accept",
+        json={"user_id": "the-advisor", "verdict": "confirmed", "note": "I would say 4.2."},
+        headers=authorization,
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.PROPOSAL_NOTE_UNEXPECTED.value
+
+
+def test_a_proposal_whose_source_changed_is_refused_at_acceptance(
+    ledger_context: ApplicationContext, ledger_client: TestClient
+) -> None:
+    """C1's question, asked at the act that makes the person's record citable.
+
+    The proposal was written against one set of bytes; the source is
+    re-ingested with different bytes; accepting would attest words the
+    proposal was not written about, so the settlement is refused and the
+    proposal stays unsettled.
+    """
+    source_id, locator_key = _the_first_address(ledger_context)
+    proposed = record_model_proposal(
+        ledger_context,
+        ClaimRequest(
+            source_id=source_id,
+            locator_key=locator_key,
+            text="The control group measured 4.253.",
+        ),
+        now=_MOMENT,
+    )
+    ledger_context.store.session.commit()
+    before = next(
+        view.source.content_sha256
+        for view in list_sources(ledger_context)
+        if view.source.source_id == source_id
+    )
+
+    material = ledger_context.workspace.selected_root / "materials" / "groups.csv"
+    material.write_text("group,mean\ncontrol,9.999\ntreated,9.999\n", encoding="utf-8")
+    ingest_material(ledger_context)
+    ledger_context.store.session.commit()
+    after = next(
+        view.source.content_sha256
+        for view in list_sources(ledger_context)
+        if view.source.source_id == source_id
+    )
+    assert after != before, "the source's recorded bytes moved"
+    ledger_context.store.session.rollback()
+
+    authorization = _authorization(ledger_client.get("/session").json()["token"])
+    response = ledger_client.post(
+        f"/records/{proposed.record.evidence_id}/accept",
+        json={"user_id": "the-advisor", "verdict": "confirmed", "note": ""},
+        headers=authorization,
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.SOURCE_DRIFTED.value
+
+    kept = next(
+        record
+        for record in ledger_client.get("/records").json()
+        if record["evidence_id"] == proposed.record.evidence_id
+    )
+    assert kept["superseded_by"] is None
+
+
+def test_an_extraction_with_no_provider_is_refused_and_writes_nothing(
+    ledger_context: ApplicationContext,
+) -> None:
+    """No provider, no extraction — never an empty or invented proposal."""
+    request = ExtractClaimRequest(
+        source_id="src-0000000000000000",
+        locator_key="k=0:csv",
+        user_id="the-advisor",
+        provider="fake",
+        model="scripted",
+        destination=_EXTRACTION_DESTINATION,
+        subject_ref=_EXTRACTION_SUBJECT,
+    )
+    app = create_app(ledger_context, event_source=_StoreEventSource())
+    with TestClient(app) as client:
+        authorization = _authorization(client.get("/session").json()["token"])
+        response = client.post(
+            "/claims/extract",
+            json=_extraction_body(request, None),
+            headers=authorization,
+        )
+        records = client.get("/records").json()
+
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.CLAIM_EXTRACTION_NO_PROVIDER.value
+    assert records == []
+
+
+def test_an_extraction_with_no_approval_is_refused_before_anything_is_asked(
+    ledger_context: ApplicationContext,
+) -> None:
+    """A model call may only be spent with an approval; this operation asks for none."""
+    request = ExtractClaimRequest(
+        source_id="src-0000000000000000",
+        locator_key="k=0:csv",
+        user_id="the-advisor",
+        provider="fake",
+        model="scripted",
+        destination=_EXTRACTION_DESTINATION,
+        subject_ref=_EXTRACTION_SUBJECT,
+    )
+    quote = "a quotation the provider would have been asked about"
+    asked: list[str] = []
+
+    def send(prompt: str) -> ModelInvocation:
+        asked.append(prompt)
+        return _invocation("unused", quote)
+
+    app = create_app(
+        ledger_context,
+        event_source=_StoreEventSource(),
+        claim_extraction=ClaimExtractionBackend(send=send, grants=(_the_material_grant(),)),
+    )
+    with TestClient(app) as client:
+        authorization = _authorization(client.get("/session").json()["token"])
+        response = client.post(
+            "/claims/extract",
+            json=_extraction_body(request, None),
+            headers=authorization,
+        )
+        records = client.get("/records").json()
+
+    assert response.status_code == 403, response.text
+    assert response.json()["reason"] == ApplicationRefusal.APPROVAL_MISSING.value
+    assert asked == [], "nothing was asked of the provider"
+    assert records == []
 
 
 def test_the_records_route_is_refused_when_the_policy_denies_the_task_s_area(

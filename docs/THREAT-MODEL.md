@@ -133,7 +133,7 @@ Writes outside that path, in the whole of `src/`:
 | **Session token file** | `src/labcairn/api/session.py:88-107` | The service's own secret, under `<workspace>/.labcairn/`. Not a task artefact — an artefact is something a report may cite, and a session secret must never be counted as a finding (`src/labcairn/api/session.py:28-37`). |
 | **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:284-304` | The user's own configuration, written by `labcairn init`. |
-| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. |
+| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. **The API's evidence routes write through it** — `POST /claims`, `POST /claims/extract` and `POST /records/{evidence_id}/accept` — so a record's write is the store's transaction, not a file a route names. |
 | **The workspace directories** | `src/labcairn/cli/commands.py:380-384`, `src/labcairn/workspace/roots.py:104` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
@@ -669,7 +669,7 @@ names one, and the service stays bound to the workspace it was started in. It
 selects a task inside that workspace. A stream already open keeps reading the
 task it was opened for; the selection decides what later requests are about.
 
-### 6.4 A claim is recorded by the product, but not proposed or verified by it
+### 6.4 A claim is recorded and proposed by the product, but not verified by it
 
 **The product writes evidence records and anchors now.** The layer's
 `record_claim` (`src/labcairn/application/evidence.py`) writes an anchor and
@@ -683,18 +683,31 @@ the tree.
 **What no surface does is run the ledger's checks.** `evidence.store.advance`
 is the only path to a verified state, and no module under `src/labcairn/`
 calls it — the records the product writes stay `extracted` until a test
-advances them. **Nor does any route accept a model's proposal:** the CLI can
-settle one (`labcairn task proposal-confirm`, which calls `confirm_proposal`
-and writes the person's own record beside the marked proposal), and the
-workbench's Proposals panel draws the settlement, but the contract carries no
-route for it — and no surface starts an extraction at all. The two missing
-operations, and the owner decisions they need, are designed in
-[`plans/workbench-claim-extraction-and-proposal-acceptance.md`](plans/workbench-claim-extraction-and-proposal-acceptance.md).
+advances them.
+
+**Both evidence acts now have routes.** `POST /claims/extract` asks a model
+for one claim and records the answer as a `model_proposal` — never as a
+person's claim, even when a person pressed the button — with
+`created_by_id="<provider>:<model>"` naming what answered. The route's write
+entry is the application's `extract_claim`
+(`src/labcairn/application/extraction.py`), which reads the ledger's stored
+text, spends a `model.request` approval through `request_model`, and refuses
+with `claim_extraction_no_provider` when the service was assembled without a
+provider: **the act is absent rather than simulated**, and no record is
+written. `POST /records/{evidence_id}/accept` settles a proposal by calling
+`confirm_proposal` unchanged — the operation `labcairn task proposal-confirm`
+also calls — so the CLI and the route cannot drift. The person's record
+carries the proposal's text unchanged (acceptance is as-is), a dispute
+requires a note and a confirmation refuses one, and acceptance is refused
+when the source has drifted since the proposal was written (C1's question
+about different bytes). `user_id` is a self-reported string on both
+surfaces; no account is checked.
 
 **What this means for a reviewer:** a report can be produced end to end from
-a record the product wrote, but the *words* of that record are the caller's.
-An extractor that proposes a claim from the material, and a surface that runs
-C1, C2 or C3, are not demonstrated.
+a record the product wrote, and the *words* of a proposal now come from a
+model rather than from the caller. A surface that runs C1, C2 or C3 is still
+not demonstrated — `advance` remains the only path to a verified state and no
+product module calls it.
 
 ### 6.5 G1's and G2's exit demonstrations were not run by a test — until now
 
@@ -930,7 +943,7 @@ drifts from the tree goes red.
 | C11 | The credential cannot be printed by accident | `test_threat_model.py` |
 | C12 | The declared outbound policy forbids sending document excerpts | `test_threat_model.py` |
 | C13 | Every path out of the machine is a provider request | `test_threat_model.py` — a scan of `src/labcairn/` for network-capable calls |
-| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench does not read the event stream; the API has no workspace-selection route; no product operation runs the ledger's checks |
+| C14 | This document's own limits are true of the tree | `test_threat_model.py` — the workbench consumes the event stream and can switch tasks; the API's two evidence acts have routes; no product operation runs the ledger's checks |
 | C15 | Every write in `src/labcairn/` is enumerated in §1.2 | `test_threat_model.py` — a scan of `src/labcairn/` for write primitives, compared with the lines §1.2 cites |
 | C16 | A revision event records what changed, where and who — and **the schema cannot say why** | `test_threat_model.py` — `test_the_revision_events_cannot_carry_a_reason`; and `tests/test_version_store.py::test_the_schema_cannot_express_why_a_change_was_made` |
 | C17 | The chain holds other people's words — comments, rewrites and judgements about them — and **the product does not take on their correctness** | `test_threat_model.py` — `test_the_threat_model_says_what_the_chain_holds` |

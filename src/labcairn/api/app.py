@@ -151,7 +151,7 @@ from labcairn.api.session import (
     mint_token,
     write_token_file,
 )
-from labcairn.application import ApplicationContext
+from labcairn.application import ApplicationContext, ClaimExtractionBackend
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.application.stages import StageWork
 
@@ -247,6 +247,7 @@ def create_app(
     session_file: Path | None = None,
     event_source: EventSource | None = None,
     select_task: TaskSelector | None = None,
+    claim_extraction: ClaimExtractionBackend | None = None,
     stage_work: StageWork | None = None,
     static_dir: Path | None = None,
 ) -> FastAPI:
@@ -268,6 +269,10 @@ def create_app(
         Without one ``POST /task/select`` refuses in the layer's vocabulary,
         because a service that answered it without persisting the workspace's
         selection would be a service that said it had switched and had not.
+    :param claim_extraction: the provider invocation and grants an extraction
+        may spend. Without one ``POST /claims/extract`` refuses with
+        ``claim_extraction_no_provider`` and writes nothing, because an
+        extraction this service cannot ask for is not one it may simulate.
     :param stage_work: the effect a stage run performs.
     :param static_dir: the built web app to serve, so that the browser and the
         API share one origin.
@@ -294,6 +299,7 @@ def create_app(
     app.state.session_guard = SessionGuard(token=token)
     app.state.event_source = event_source if event_source is not None else UnwiredEventSource()
     app.state.select_task = select_task if select_task is not None else UnwiredTaskSelector()
+    app.state.claim_extraction = claim_extraction
     app.state.stage_work = stage_work
     app.include_router(router)
     _install_guards(app)

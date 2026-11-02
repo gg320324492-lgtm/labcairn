@@ -14,6 +14,7 @@ import {
   APPROVAL_REQUEST_PATH,
   ARTIFACT_CONTENT_PATH,
   GUIDANCE_RULE_CONFIRM_PATH,
+  PROPOSAL_ACCEPT_PATH,
   REPORT_RENDER_PATH,
 } from './paths'
 
@@ -133,6 +134,7 @@ describe('the paths the workbench asks for', () => {
       ANALYSIS_RUN_PATH,
       REPORT_RENDER_PATH,
       GUIDANCE_RULE_CONFIRM_PATH,
+      PROPOSAL_ACCEPT_PATH,
     ].map(anonymous)
 
     const missing = asked.filter((path) => !routes.has(path))
