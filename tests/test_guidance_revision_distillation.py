@@ -55,6 +55,7 @@ from labcairn.guidance.distil import (
     MODEL_PROPOSER,
     OPERATOR_PROPOSER,
     distil_candidate_from_revisions,
+    distil_revision_version_of,
 )
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
@@ -628,3 +629,239 @@ def test_a_confirmed_rule_on_a_revision_is_served_with_its_source(
     assert served, "a confirmed rule on a revision must be served"
     assert [source.issue_key for source in served[0].sources] == list(rule.sources)
     assert all(source.found for source in served[0].sources)
+
+
+# --------------------------------------------------------------------------- #
+# The third way a rule is written: a new version of it, from revision cases.
+# --------------------------------------------------------------------------- #
+
+#: The statement of the **first** version of the rule — the thin one, the
+#: kind a run that split an edit into its fragments writes.
+_FIRST_STATEMENT = "The rule states what the mentor's change says."
+
+#: The statement of the **second** version — the one a reader could apply.
+_SECOND_STATEMENT = (
+    "When the mechanism a sentence names is quantified, the rule states the "
+    "causal chain the quantity belongs to."
+)
+
+
+def _version(context: ApplicationContext, rule_id: str, **overrides: Any) -> GuidanceRule:
+    """Write a new version of *rule_id* from the mentor's change."""
+    kwargs: dict[str, Any] = {
+        "rule_id": rule_id,
+        "issue_type": "method_and_hypothesis",
+        "statement": _SECOND_STATEMENT,
+        "rule_context": CONTEXT,
+        "revision_event_ids": (),
+        "now": LATER,
+    }
+    kwargs.update(overrides)
+    return distil_revision_version_of(context, **kwargs)
+
+
+def test_a_new_version_keeps_the_rule_it_replaces(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**The rule keeps its place.** A new rule under a new id would be a
+    second rule about the same thing, and the memory would hold two
+    answers to one question.
+
+    So the new version is written under the same ``rule_id``, as the next
+    version of it — **and the reader gets the newest words and nothing
+    else.**
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    second = _version(
+        marked_up.context,
+        first.rule_id,
+        revision_event_ids=(the_changes[_ADVISOR_NAME],),
+    )
+
+    assert second.rule_id == first.rule_id, "the version must keep the rule's place"
+    assert second.version == first.version + 1, "the version must be the next one"
+    assert second.statement == _SECOND_STATEMENT
+    assert second.state == "candidate", "a rewording is not a confirmation"
+
+
+def test_the_old_version_keeps_the_state_it_had(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**The memory does not rewrite its past.**
+
+    The old version's row keeps its own state and its own words, so a
+    reader who looks at the past finds the past — **and a rule that
+    outlives its work is not a second place to look for the same code.**
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+    confirm_rule(
+        marked_up.context,
+        rule_id=first.rule_id,
+        confirmed_by="reviewer-2",
+        now=MOMENT,
+    )
+
+    _version(
+        marked_up.context,
+        first.rule_id,
+        revision_event_ids=(the_changes[_ADVISOR_NAME],),
+    )
+
+    rows = marked_up.context.store.session.execute(
+        __import__("sqlalchemy").text(
+            "SELECT version, state, statement FROM guidance_rules "
+            "WHERE rule_id = :r ORDER BY version"
+        ),
+        {"r": first.rule_id},
+    ).all()
+    assert len(rows) == 2, "the version must be a new row, not a rewrite"
+    assert rows[0].statement == STATEMENT, "the old version keeps its own words"
+    assert rows[0].state == "confirmed", "the old version keeps the state it had"
+    assert rows[1].statement == _SECOND_STATEMENT
+    assert rows[1].state == "candidate"
+
+
+def test_the_scope_and_the_example_are_the_cases_not_the_callers(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**A caller cannot write a scope the cases do not support.**
+
+    The scope is the paragraph the change sits in and the example is the
+    reviewer's own change — **so a caller that had to hand-write them
+    would have had to go around the product to do it**, and a rule whose
+    scope the cases do not support is a rule bound to material that does
+    not exist.
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    second = _version(
+        marked_up.context,
+        first.rule_id,
+        revision_event_ids=(the_changes[_ADVISOR_NAME],),
+    )
+
+    assert "estimatescarefully the parameter" in second.scope, (
+        "the scope is the paragraph the change sits in, read in the change's own view"
+    )
+    assert second.example.startswith("The reviewer's change ("), "the example is the change"
+    assert the_changes[_ADVISOR_NAME] in second.example, "and it names the case's own key"
+
+
+def test_a_new_version_is_not_confirmed_by_its_own_proposer(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**A rewording is not a confirmation**, and the second-reader door
+    does not open for the hand that wrote the words.
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+    second = _version(
+        marked_up.context,
+        first.rule_id,
+        revision_event_ids=(the_changes[_ADVISOR_NAME],),
+    )
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        confirm_rule(
+            marked_up.context,
+            rule_id=second.rule_id,
+            confirmed_by=second.proposed_by,
+            now=LATER,
+        )
+    assert _refusal(raised.value) is GuidanceRefusal.CONFIRMER_IS_PROPOSER
+
+    assert read_rule(marked_up.context, rule_id=second.rule_id).state == "candidate"
+
+
+def test_only_the_newest_version_is_served(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**The reader gets the newest words and nothing else.**
+
+    The memory keeps its past, and a reader sees each rule's newest
+    version — **so a rule written twice is one rule to a query, never
+    two.** And because the newest version is a candidate until a second
+    reader confirms it, **a rule whose newest version is unconfirmed is
+    not served at all**: a proposal reaching a card would be a proposal
+    dressed as a record.
+
+    **Both halves are the point, and they are different halves.** A
+    memory that served the old words while the new ones waited would be
+    serving words its author has already rewritten; a memory that served
+    both would be answering one question twice.
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+    confirm_rule(
+        marked_up.context,
+        rule_id=first.rule_id,
+        confirmed_by="reviewer-2",
+        now=MOMENT,
+    )
+    second = _version(
+        marked_up.context,
+        first.rule_id,
+        revision_event_ids=(the_changes[_ADVISOR_NAME],),
+    )
+
+    served = [hit for hit in search_rules(marked_up.context) if hit.rule.rule_id == first.rule_id]
+    assert not served, (
+        "the newest version is a candidate, and a candidate is not served — even"
+        " though an older version of the same rule was confirmed"
+    )
+
+    # **Once the second reader confirms the new version, it is the one
+    # served** — and it is served once, not twice.
+    confirm_rule(
+        marked_up.context,
+        rule_id=second.rule_id,
+        confirmed_by="reviewer-3",
+        now=LATER,
+    )
+    served = [hit for hit in search_rules(marked_up.context) if hit.rule.rule_id == first.rule_id]
+    assert len(served) == 1, "a rule written twice must not answer a query twice"
+    assert served[0].rule.version == second.version, "and it must be the newest words"
+    assert served[0].rule.statement == _SECOND_STATEMENT, "and the newest words are the new ones"
+
+
+def test_a_version_of_a_rule_that_is_not_there_is_refused(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**A rule that is not there cannot be given a version.**
+
+    The new version is written under a rule's own id, so the rule is
+    read first — and a rule nobody holds is refused before anything is
+    written.
+    """
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _version(
+            marked_up.context,
+            "rule-does-not-exist",
+            revision_event_ids=(the_changes[_ADVISOR_NAME],),
+        )
+    assert raised.value is not None
+
+
+def test_a_version_with_no_case_is_refused(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """**A version with no source behind it is not a version.**
+
+    The new version's sources are the cases, so a version naming no
+    revision is a rule bound to material that does not exist.
+    """
+    first = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _version(marked_up.context, first.rule_id, revision_event_ids=())
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_WITHOUT_SOURCE
+
+    assert read_rule(marked_up.context, rule_id=first.rule_id).version == first.version, (
+        "a refused version must leave the rule where it was"
+    )

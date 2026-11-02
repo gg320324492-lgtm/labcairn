@@ -453,3 +453,89 @@ def distil_candidate_from_revisions(
             proposed_at=now,
         ),
     )
+
+
+def distil_revision_version_of(
+    context: ApplicationContext,
+    *,
+    rule_id: str,
+    issue_type: str,
+    statement: str,
+    rule_context: str,
+    revision_event_ids: Sequence[str],
+    now: datetime,
+) -> GuidanceRule:
+    """Write a **new version** of a rule, from revision cases, keeping its place.
+
+    **The third way a rule is written, and it exists because a rule read
+    once is often a rule read from too little.** A distillation run over a
+    mentor's tracked changes may split one edit into its fragments and
+    write a rule about a fragment — a statement that describes what a rule
+    should say rather than a standard a reader could apply. **The rule is
+    then not wrong; it is thin**, and a thin rule is fixed by writing it
+    again, not by leaving it beside a better one.
+
+    **And the new version keeps the old one's place.** A new rule under a
+    new id would be a second rule about the same thing, and the memory
+    would hold two answers to one question — **a rule that outlives its
+    work is a second place to look for the same code.** So the version is
+    written under the same ``rule_id``, as the next version of it: **the
+    old version keeps the state it had**, and the reader gets the newest
+    words and nothing else.
+
+    **And the scope and the example are the cases', not the caller's.**
+    Exactly as on the first version — the scope is the paragraph each
+    change sits in, and the example is the reviewer's own change — so
+    **the caller cannot write a scope the cases do not support**, and a
+    caller that had to hand-write one would have had to go around the
+    product to do it.
+
+    **And the proposer is the operator's, as on the first version.** A
+    person read the mentor's tracked changes and wrote down what they add
+    up to, and the record says so where a caller cannot talk around it.
+
+    **And the version starts as a candidate.** A rewording is not a
+    confirmation: the new words need a second reader as much as the old
+    ones did, and **the confirmer cannot be the proposer**, so the rule
+    cannot be confirmed by the same hand that wrote it.
+
+    :raises ApplicationRefusedError: the rule is not there; the problem is
+        outside the closed vocabulary; the statement or its context is
+        empty; no revisions were named, or a named revision the chain holds
+        nothing under.
+    """
+    if issue_type not in ISSUE_LABELS:
+        raise guidance_refused(
+            GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY,
+            f"{issue_type!r} is not one of the closed vocabulary's labels",
+        )
+    # **The rule is read first**, so a rule that is not there is refused
+    # before anything is written. The layer raises on its own.
+    old = guidance_layer.read_guidance_rule(context, rule_id=rule_id)
+    cases = _revision_cases_of(context, revision_event_ids)
+    scope = _revision_scope_of(cases)
+    example = _revision_example_of(cases)
+    issue_type, statement, rule_context, scope, example, proposer, keys = _validated_fields(
+        issue_type=issue_type,
+        statement=statement,
+        rule_context=rule_context,
+        scope=scope,
+        example=example,
+        proposed_by=OPERATOR_PROPOSER,
+        sources=tuple(case.source_key for case in cases),
+    )
+    return guidance_layer.write_guidance_rule_version(
+        context,
+        guidance_layer.RuleDraft(
+            rule_id=old.rule_id,
+            version=old.version + 1,
+            issue_type=issue_type,
+            statement=statement,
+            rule_context=rule_context,
+            scope=scope,
+            example=example,
+            proposed_by=proposer,
+            sources=keys,
+            proposed_at=now,
+        ),
+    )
