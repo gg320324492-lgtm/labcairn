@@ -359,6 +359,18 @@ files exist, shard count matches the matrix, balance not shortened, job
 names distinct) are green. The fix after the next runner run is
 `python .github/remeasure_shards.py <run-id>`.
 
+**The full suite on this worktree, measured at `4cf0634`:** 4661 passed,
+5 skipped, 6 failed in 2399.27 s. One failure is the expected shard-cost
+red above. The other five are `test_outsider_path.py` (4) and
+`test_no_reference_leakage.py::test_wheel_installs_clean_and_imports`
+(1): their own messages say the clone or wheel resolved
+`...\worktrees\...\src\labcairn\__init__.py` instead of the clone's own
+code, because this run put the worktree's `src` on `PYTHONPATH` — the
+worktree measurement effect §4 records. None of the five exercises the
+comparison driver, and the driver's 13 witnesses are green in the same
+run. The base-commit comparison was not re-run; the failures' own
+messages name the environment, not the change.
+
 **What this section does not cover.** The paper-qa real provider, our
 side's real-model frozen run, a metric pair, and competitor artifacts
 for tasks 2 and 3 (unsupported-claim detection and recovery) — the
