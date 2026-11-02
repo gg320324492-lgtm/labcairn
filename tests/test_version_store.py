@@ -1718,10 +1718,13 @@ def test_two_different_changes_on_one_element_path_are_recorded_as_two_events(
     first = _revision_on_one_path("alpha", "ins")
     second = _revision_on_one_path("beta", "ins")
 
+    # A collision is RECORDED, not refused: the writer must not raise
+    # ANCHOR_STALE here (that is the drift case, held by the test named below).
+    # The two -- collision recorded as two events, drift refused as stale -- are
+    # the collision-versus-drift distinction, and they are decided apart.
     recorded = _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
 
     assert len(recorded) == 2, "two changes at one address collapsed to one record"
-    assert {r.revision_event_id for r in recorded} == {r.revision_event_id for r in recorded}
     assert len({r.revision_event_id for r in recorded}) == 2
     assert {r.text for r in recorded} == {"alpha", "beta"}
     assert _count(marked_up.context, "revision_events") == 2
@@ -1757,6 +1760,48 @@ def test_two_changes_on_one_path_that_share_their_text_are_still_two_events(
     assert len(recorded) == 2, "two same-text changes at one address folded into one"
     assert len({r.revision_event_id for r in recorded}) == 2
     assert _count(marked_up.context, "revision_events") == 2
+
+
+def test_a_stale_anchor_is_still_refused_on_an_occurrence_bearing_id(
+    marked_up: ChainEnv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The occurrence rule dissolves a collision; it does not blunt the drift guard.
+
+    The collision and the drift are two different failures and they must be
+    decided apart. **A collision** -- two changes at one address in one read --
+    is a NEW row, not a refusal: that is the two witnesses just above, and the
+    ``occ ≡ 0`` mutation proves it (with the occurrence dropped the
+    different-text pair is refused as ``ANCHOR_STALE``, reporting a collision as
+    if the bytes had drifted). **A drift** -- a stored row whose text no longer
+    agrees with what the manuscript now reads -- is still ``ANCHOR_STALE``.
+
+    This witness runs the drift on an id that *carries an occurrence*, which is
+    the case the single-change stale test never reaches: a second change at one
+    address is recorded, then that stored row is corrupted, then the same
+    version is re-read. **What breaks it:** an identity that refuses to
+    re-derive the occurrence on re-read, or a writer that replays a
+    text-mismatched occurrence-bearing row as a harmless skip instead of a
+    stale anchor -- both let a drifted change pass unnoticed among the
+    multi-change addresses.
+    """
+    first = _revision_on_one_path("alpha", "ins")
+    second = _revision_on_one_path("beta", "ins")
+    _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+    assert _count(marked_up.context, "revision_events") == 2
+
+    session = marked_up.context.store.session
+    second_row = next(
+        row
+        for row in session.query(RevisionEventRow).filter_by(version_id=marked_up.version_id)
+        if row.text == "beta"
+    )
+    second_row.text_sha256 = "0" * 64
+    session.commit()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+    assert caught.value.reason is ApplicationRefusal.CHAIN_ANCHOR_STALE
 
 
 def test_a_revision_event_is_not_recorded_when_the_policy_denies_the_material(

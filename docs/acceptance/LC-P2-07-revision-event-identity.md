@@ -1,14 +1,17 @@
 # LC-P2-07 — the revision event's identity, per change rather than per path
 
-**What this record is.** The OOXML revision reader's event id was derived
-from the element's path alone, and the claim that the path identifies a
-change was written as though it were a fact about OOXML. It is not: it is a
-fact about one reader's scan, and a reader is code. This record measures the
-current state of the defect (which is not the state the earlier records
-describe), fixes the identity so it cannot collide, and reports the blast
-radius on live rule bindings. Every number here is re-measured against the
-tree this work lands on — `docs/debt-closures` at `0a8b6e6` plus the commits
-that follow — not carried forward.
+**What this record is.** It closes the one assumption
+`docs/acceptance/LC-P2-09-acceptance.md` §9.6 named and left standing — *the
+element's path is unique inside a part*, the claim the revision event's id
+rested on — and it is **not** a restatement of the double-read that
+`docs/acceptance/LC-P2-07-fidelity-baseline.md` §5.6 already records as fixed
+by `f4a7e94`. That §5.6 measured 239 events against 239 distinct addresses;
+this record re-confirms it and then deals with what §5.6 explicitly deferred:
+the identity itself, which assumed path-uniqueness as a fact about OOXML when
+it is only a fact about one reader's scan. A reader is code, and the id should
+not rest on the scan staying narrow. Every number here is re-measured against
+the tree this work lands on — `docs/debt-closures` at `0a8b6e6` plus the
+commits that follow — not carried forward.
 
 ## 1. The two records that named this, and what changed since
 
@@ -132,6 +135,7 @@ thing.
 | `test_the_revision_event_id_is_re_derivable_not_position_dependent` | the same `(version, part, path, occurrence)` gives the same id every time | the digest mixes in a clock or a per-call counter |
 | `test_two_different_changes_on_one_element_path_are_recorded_as_two_events` | two changes at one address with different text → two rows, distinct ids, and re-record is the same two rows | occurrence ignored: they collide on one id and the writer raises `ANCHOR_STALE`, recording neither |
 | `test_two_changes_on_one_path_that_share_their_text_are_still_two_events` | two changes at one address with **identical** text → still two rows | occurrence ignored: the replay branch matches the text and silently drops the second |
+| `test_a_stale_anchor_is_still_refused_on_an_occurrence_bearing_id` | the collision and the drift are decided apart: a collision is recorded as two events, a drift on an *occurrence-bearing* id is still refused as `ANCHOR_STALE` | an occurrence that is not re-derived on re-read, or a writer that skips a text-mismatched occurrence-bearing row instead of calling it stale |
 
 The existing `test_the_derived_revision_event_id_names_one_change_per_address`
 stays green and is *not* the witness for this defect: over the corpus every
@@ -154,8 +158,49 @@ that mutant moves **every one of them** — the precise number that makes the
 `occurrence == 0 → no suffix` rule load-bearing for not orphaning the live
 rule bindings.
 
+**Mutation 3 — the writer forces `occurrence = 0` (the digest left intact).**
+This is the mutation the work order asked for specifically — *an occurrence
+that is always zero*. All three writer witnesses went red, and the failure is
+the mislabel named in §5: the different-text pair and the drift-on-occurrence
+pair are both refused as `chain_anchor_stale` (measured id `rv-73506d9c5e31a27a`
+on the marked-up fixture), reporting a collision as if the bytes had drifted,
+and the same-text pair folds to one row. The unit witnesses stayed green —
+they call `_revision_event_id` directly, where the `occ` argument still works;
+it is the writer not *passing* it that this mutation tests. Together Mutations
+1 and 3 bracket the two places the identity could fail: the digest, and the
+count handed to it.
+
+## 7. There is no separate "collision" refusal, and that is the fix
+
+The work order asked whether a same-address collision should carry its own
+named refusal, distinct from `ANCHOR_STALE`. Measured on the fixed tree, the
+answer is that it should **not**, for two reasons, and both are checked.
+
+**A collision is no longer a refusal at all.** The two changes at one address
+get different occurrences, so different ids, and both land as rows
+(`test_two_different_changes_on_one_element_path_are_recorded_as_two_events`).
+Refusing them -- even with a well-named reason -- would drop a change, which
+is the very loss this work removes. The collision-versus-drift distinction is
+therefore decided by *outcome*, not by label: a collision is recorded, a drift
+is refused, and `test_a_stale_anchor_is_still_refused_on_an_occurrence_bearing_id`
+holds the two apart on an id that carries an occurrence. `ANCHOR_STALE` now
+fires **only** when a row already in the store disagrees with what the same
+address re-reads -- genuine drift -- never on a within-file collision.
+
+**A new enum could not be witnessed and is out of the file map.** `ChainRefusal`
+lives in `chain.py`, but every member must be mapped in
+`application/refusal.py` (`CHAIN_REFUSALS`) or
+`test_feedback_events.py::test_every_chain_refusal_has_a_layer_name` goes red --
+both outside the files this work order owns. An unreachable reason would be
+dead code that violates the project's own rule that a claim stated and not
+watched is not held. So the collision is closed by construction (the occurrence)
+and witnessed by the outcome, and the drift guard stays named and reachable.
+
 *Anchored to:* `docs/debt-closures` @ `0a8b6e6` (the tree this was measured
 on after a clean fast-forward merge into the working branch). The 2164-row
 re-derivation was run read-only against
 `E:\labcairn-local\pilot-ws\labcairn.db`; the file counts against
-`E:\labcairn-local\materials-library\`.
+`E:\labcairn-local\materials-library\`. The `w:trPr/w:ins` row-marker gap
+(`v06b`, 223 direct against 222 read) is already named on the tree in
+`LC-P2-07-fidelity-baseline.md` §5.6 ("one defect this work found and did not
+fix"); this record cites it rather than re-adding it.
