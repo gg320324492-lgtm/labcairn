@@ -117,7 +117,12 @@ _CLASSIFICATION: Mapping[FailureKind, _Classification] = {
     FailureKind.OUTBOUND_REFUSED: _Classification(
         retryable=False,
         user_action=ACTION_SETTINGS,
-        message="The request carried material the outbound disclosure policy does not permit.",
+        # General enough for both refusals this kind carries: a disclosure
+        # policy that forbids the material (the kind's original use) and a
+        # permission decision that has not been granted (ADR-0006's bridge,
+        # which raises the same kind). The specific reason is on the error's
+        # own ``reason`` field; this sentence is what a surface renders.
+        message="The outbound request was refused before it was sent.",
     ),
     FailureKind.CANCELLED: _Classification(
         retryable=False,

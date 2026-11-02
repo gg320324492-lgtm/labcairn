@@ -8,10 +8,11 @@ one names facts about a model, the other names grants to this process.
 These tests make that a property rather than a coincidence. A merge fails the
 first test instead of being discovered during a security review.
 
-The third test deliberately asserts a **limitation**: today the provider layer
-does not consult the permission layer at all. That is expected to break when
-the LC-P1-05 bridge lands, and that is the point — the bridge should be a
-visible edit, not drift nobody notices.
+The third test pins the **shape** of the bridge that landed: the permission
+layer hands the provider a decision object, and ``providers/`` still imports
+nothing from ``labcairn.security``. The bridge's enforcement — denial before
+upstream, single use, expiry — is witnessed in
+``test_outbound_consent_bridge.py``.
 """
 
 from __future__ import annotations
@@ -85,17 +86,26 @@ def _imports_security() -> bool:
 
 
 def test_providers_does_not_import_the_permission_layer() -> None:
-    """Pins a known limitation rather than pretending it is solved.
+    """Pins the *shape* of the bridge, not a limitation.
 
-    ADR-0006 decides that an outbound transmission is ``MODEL_REQUEST`` and
-    must be gated. That coupling is **not yet enforced**: a caller can still
-    reach ``provider.send()`` without a permission decision.
+    When this test was written, ADR-0006's coupling was not enforced at all,
+    and the test said so. The bridge has since landed, and it landed the way
+    ADR-0006 words it: the permission layer's **decision** crosses the
+    boundary as a caller-supplied object
+    (:class:`~labcairn.providers.consent.OutboundConsent`), implemented on the
+    application side by :class:`labcairn.application.outbound.OutboundApproval`.
+    What does not cross is a vocabulary: ``providers/`` still imports nothing
+    from ``labcairn.security``, so ``tool_calls`` and ``model.request`` remain
+    answers to different questions.
 
-    When the LC-P1-05 bridge lands, this test is expected to fail. That failure
-    is correct — it should be a visible change to a decision, not a silent one.
+    A bridge that imported the permission layer would have made one side able
+    to answer the other's question. The witnesses for the enforcement itself —
+    denial before upstream, single use, expiry — are in
+    ``test_outbound_consent_bridge.py``; this test keeps the alternative from
+    creeping in while fixing that defect.
     """
     assert not _imports_security(), (
-        "providers/ now imports the permission layer. If this is the LC-P1-05 "
-        "outbound-consent bridge landing, update ADR-0006 and move this test to "
-        "assert the bridge exists rather than that it is absent."
+        "providers/ now imports the permission layer. ADR-0006's bridge crosses "
+        "as a caller-supplied OutboundConsent object, not as an import; a merge "
+        "of the vocabularies is a design regression."
     )

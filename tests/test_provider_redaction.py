@@ -384,7 +384,7 @@ def test_no_log_record_from_a_failing_call_contains_a_key_or_a_prompt(
     research material; a real one would be a document excerpt, and the test
     asserts the same thing about both.
     """
-    from provider_fakes import FakeEndpoint
+    from provider_fakes import FakeEndpoint, PermissiveConsent
 
     secret_in_prompt = f"[EXCERPT] {FAKE_EXCERPT}"
 
@@ -400,6 +400,7 @@ def test_no_log_record_from_a_failing_call_contains_a_key_or_a_prompt(
     redactor = Redactor([FAKE_KEY])
     provider = PydanticAiModelProvider(
         model=endpoint,
+        consent=PermissiveConsent(),
         usage_capture=endpoint.capture,
         redactor=redactor,
         runner=lambda awaitable: __import__("asyncio").run(awaitable),
@@ -432,7 +433,7 @@ def test_a_successful_call_logs_a_digest_and_never_the_prompt(
     """The happy path has the same obligation: provenance, not content."""
     import asyncio
 
-    from provider_fakes import FakeEndpoint, Reply
+    from provider_fakes import FakeEndpoint, PermissiveConsent, Reply
 
     from labcairn.core.providers.protocol import ModelRequest
 
@@ -441,6 +442,7 @@ def test_a_successful_call_logs_a_digest_and_never_the_prompt(
     )
     provider = PydanticAiModelProvider(
         model=endpoint,
+        consent=PermissiveConsent(),
         usage_capture=endpoint.capture,
         runner=asyncio.run,
         capabilities=_capabilities(),
@@ -465,7 +467,7 @@ def test_an_exchange_record_is_safe_to_export_verbatim() -> None:
     """
     import asyncio
 
-    from provider_fakes import FakeEndpoint, Reply
+    from provider_fakes import FakeEndpoint, PermissiveConsent, Reply
 
     from labcairn.core.providers.protocol import ModelRequest
 
@@ -480,6 +482,7 @@ def test_an_exchange_record_is_safe_to_export_verbatim() -> None:
     )
     provider = PydanticAiModelProvider(
         model=endpoint,
+        consent=PermissiveConsent(),
         usage_capture=endpoint.capture,
         runner=asyncio.run,
         capabilities=_capabilities(),

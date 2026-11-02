@@ -399,6 +399,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # rather than accepted. Its clause is the approvals, because the
     # approval is spent exactly once and only after every gate permitted.
     "test_model_request_path.py": ("integration", "approvals"),
+    # ADR-0006's bridge: the provider is handed a permission decision, and
+    # ``send`` refuses before the transport when that decision is missing,
+    # expired or already spent. The clause is the approvals, because the
+    # property is the approval's single use — now enforced at the provider
+    # boundary and measured on a recording upstream.
+    "test_outbound_consent_bridge.py": ("integration", "approvals"),
     # The demonstration: consented, budgeted, recorded, and refused before a
     # socket exists. Its clause is the provider redaction, because what it
     # checks about the record is that no key and no text can be in it.

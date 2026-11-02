@@ -47,6 +47,7 @@ from typing import Any
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.usage import RequestUsage
 
+from labcairn.core.providers.protocol import ModelRequest
 from labcairn.providers.usage_capture import RecordingUsageCapture
 
 
@@ -200,6 +201,23 @@ class FakeEndpoint:
 
 #: One fixed instant for every fake reply, so transcripts are byte-stable.
 _FIXED_TIMESTAMP = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+
+
+class PermissiveConsent:
+    """A consent port that permits every request, and records being asked.
+
+    The provider requires a port (ADR-0006), so every test that builds one
+    supplies a port; this is the one for tests whose subject is a *different*
+    gate — the capability probe, the budget, redaction. The refusal path has
+    its own witnesses in ``test_outbound_consent_bridge.py``; a fake that
+    refused by default would make every provider test about consent instead.
+    """
+
+    def __init__(self) -> None:
+        self.requests: list[ModelRequest] = []
+
+    def require(self, request: ModelRequest) -> None:
+        self.requests.append(request)
 
 
 def sync_runner(awaitable: Any) -> Any:

@@ -107,17 +107,27 @@ pair would let one side's answer stand in for the other's.
   boundary. It is expected to fail **when the LC-P1-05 bridge lands**, and that
   is deliberate: the bridge should be a visible change, not a drift.
 
-The last one is worth stating plainly: it asserts a *limitation*. That is
-unusual, and it is the honest form here. An alternative was to delete the test,
-which would leave the gap invisible and identical.
+The last one was written to assert a *limitation*. That was unusual, and it
+was the honest form while the gap existed. **The bridge landed on 2026-11-02**
+(see below), and the test did not have to move: the bridge crosses as a
+caller-supplied value, so `providers/` still imports nothing from
+`labcairn.security`. The test now pins that shape rather than a limitation.
 
 ## Risks, tradeoffs and reversibility
 
-**The bridge is not built.** `CapabilityId.MODEL_REQUEST` is decided and
-enforceable, but nothing yet forces `provider.send()` to consult it. LC-P1-05,
-which owns tool dispatch, is where that must happen. Until then a caller can
-send without consent, and the test above says so in code rather than leaving
-it to be rediscovered.
+**The bridge was built on 2026-11-02**, as the LC-P1-03/04 cross-cutting debt
+(the acceptance record is `docs/acceptance/LC-P1-03-outbound-bridge.md`).
+`PydanticAiModelProvider` now requires an
+`~labcairn.providers.consent.OutboundConsent` port and `send` calls it after
+the local pre-flights and before the transport; the approval-backed
+implementation is `~labcairn.application.outbound.OutboundApproval`, which
+spends one approval through `consume_approval`. The enforcement's witnesses
+are in `tests/test_outbound_consent_bridge.py`, and the disjointness test
+above still holds because the decision crosses as a value rather than as an
+import. **One outbound path is still outside it**: `PydanticAiProbe` issues
+requests through its own model object, not through `provider.send()`, and
+statement 3 above says a probe requires consent too. That is recorded as not
+done rather than left to be rediscovered.
 
 **A disjoint pair invites a third vocabulary.** Someone facing a third question
 may add a bridge enum that both import. The disjointness test catches a merge;

@@ -2,7 +2,7 @@
 
 Order of operations, and why it is this order
 ---------------------------------------------
-:meth:`PydanticAiModelProvider.send` runs four checks before a request exists,
+:meth:`PydanticAiModelProvider.send` runs five checks before a request exists,
 in this sequence:
 
 1. **Cancellation** — cheapest, and an operator pressing stop should not wait on
@@ -15,7 +15,20 @@ in this sequence:
 3. **Budget pre-flight** — ADR-0002 §OpenHands obs 13 and pydantic-ai's
    ``check_before_request`` (``usage.py:568``) agree: a ceiling checked only
    afterwards bounds nothing, because the overshoot is already paid.
-4. **The call itself**, bounded by a timeout.
+4. **Outbound consent** — ADR-0006 §Decision: an outbound transmission *is*
+   ``CapabilityId.MODEL_REQUEST``, and the permission layer's decision must be
+   in hand before the request exists. The provider does not evaluate it (the
+   vocabularies stay disjoint); it calls the injected
+   :class:`~labcairn.providers.consent.OutboundConsent` port, which raises
+   ``OutboundRefusedError`` when the request may not leave.
+5. **The call itself**, bounded by a timeout.
+
+The consent check comes **after** the three local pre-flights, deliberately:
+those checks can refuse without any effect, and an approval is single-use, so
+spending it on a call that the capability gate or the budget was about to
+refuse would cost a person a new approval for nothing. Once ``require``
+returns, the call is made and cannot be repeated — the ledger moves the
+approval to ``CONSUMED`` before the transport is reached.
 
 Then usage is folded into the ledger, an exchange record is appended, and the
 budget is checked **again** — so a single response that overshoots stops the run
@@ -90,6 +103,7 @@ from labcairn.core.providers.usage import Known, UsageValue
 from labcairn.providers.budget import BudgetGuard, RunBudget
 from labcairn.providers.cancel import CancellationToken
 from labcairn.providers.capabilities import Capability, ProviderCapabilities
+from labcairn.providers.consent import OutboundConsent
 from labcairn.providers.errors import (
     FailureKind,
     ProviderError,
@@ -329,6 +343,7 @@ class PydanticAiModelProvider:
     __slots__ = (
         "_budget",
         "_capabilities",
+        "_consent",
         "_exchanges",
         "_label",
         "_ledger",
@@ -349,6 +364,7 @@ class PydanticAiModelProvider:
         self,
         *,
         model: UpstreamModel,
+        consent: OutboundConsent,
         usage_capture: UsageCapture | None = None,
         ledger: RunLedger | None = None,
         budget: RunBudget | None = None,
@@ -365,6 +381,7 @@ class PydanticAiModelProvider:
         priced: bool = False,
     ) -> None:
         self._model = model
+        self._consent = consent
         self._usage_capture = usage_capture if usage_capture is not None else NullUsageCapture()
         self._redactor = redactor if redactor is not None else Redactor()
         self._token = token if token is not None else CancellationToken()
@@ -440,6 +457,10 @@ class PydanticAiModelProvider:
         # `pending_requests=1`: the call about to be made counts against the
         # ceiling now, so the overshoot is zero requests rather than one.
         self._budget.require(self._ledger.snapshot(), pending_requests=1)
+        # ADR-0006: the permission layer's decision must exist before the
+        # request does. Local pre-flights run first so their refusals do not
+        # spend a single-use approval; this is the last check before the wire.
+        self._consent.require(request)
         return self._send_ungated(request)
 
     # --- the gate ---------------------------------------------------------

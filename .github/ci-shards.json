@@ -167,7 +167,8 @@
         "tests/test_real_provider_smoke.py",
         "tests/test_skill_support.py",
         "tests/test_capability_namespaces.py",
-        "tests/test_ci_shard_coverage.py"
+        "tests/test_ci_shard_coverage.py",
+        "tests/test_outbound_consent_bridge.py"
       ]
     ],
     "windows-latest": [
@@ -198,7 +199,8 @@
         "tests/test_security_listing_canonical.py",
         "tests/test_store_support.py",
         "tests/test_analysis_descriptive.py",
-        "tests/test_material_regressions.py"
+        "tests/test_material_regressions.py",
+        "tests/test_outbound_consent_bridge.py"
       ],
       [
         "tests/test_application_layer.py",
