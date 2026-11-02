@@ -34,6 +34,31 @@
 # FastAPI's test client, and no Windows runner binds a socket. Do not
 # describe this matrix as a Windows smoke test, and do not let a green run
 # here stand in for one.
+#
+# ============================================================================
+# TWO KINDS OF JOB — one `lint`, ten shard jobs
+# ============================================================================
+# `lint` runs the three static checks once: `ruff check .`,
+# `ruff format --check .` and `mypy --strict`, on Ubuntu, with no matrix.
+# The ten `python-quality` jobs run pytest only.
+#
+# **Why they were split.** The three checks used to run inside every shard
+# job. That made one lint error turn all ten checks red, and paid for the
+# same three commands ten times over. A lint job of its own is one check to
+# read and one place to fix.
+#
+# **`lint` is a check, not yet a required check.** Branch protection is
+# configured on GitHub, not in this file: until the owner adds `lint` to the
+# required-status-check list, a failing `lint` job is reported but does not
+# block a merge. Nothing in this workflow can make it required.
+#
+# **What this costs, stated plainly.** C-6's sentence names lint/type on
+# Ubuntu and Windows. Lint and type checking now run on Ubuntu only; a
+# Windows-only branch that `mypy` would judge differently is no longer
+# judged on Windows. The shard jobs still run the whole test suite on both
+# platforms, and the CLI is still exercised as a subprocess on Windows. If
+# C-6 is to be kept literally, `lint` needs a two-platform matrix instead of
+# one runner — that is an owner's decision, not a refactor.
 name: python
 
 on:
@@ -56,10 +81,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    # One job, one check, one place for a lint error to be read. No matrix:
+    # a matrix here would multiply the same three commands again, which is
+    # the cost this job exists to remove.
+    #
+    # The name is plain `lint` because branch protection identifies a check
+    # by name, and a name that carries an expression would be a different
+    # check on every run. The owner adds this name to the required list.
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The interpreter comes from the committed `.python-version` rather than
+      # a literal, so CI cannot drift away from the pin that
+      # `requires-python = ">=3.12,<3.13"` in pyproject.toml declares
+      # (approved amendment C-2, task-breakdown D-4).
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      # uv is pinned to the version that produced and last validated uv.lock.
+      # Pinned rather than "whatever is newest" so this gate stays reproducible
+      # across weeks; [tool.uv] required-version in pyproject.toml carries the same pin.
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - run: uv sync --frozen
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      # `strict = true` is set in pyproject.toml, and `files` is set there too,
+      # so no path argument is needed or wanted here.
+      - name: mypy --strict
+        run: uv run mypy
+
   python-quality:
     # **The name carries the shard and the worker count, and it has to.**
-    # GitHub identifies a check by its name, so four jobs with the same name
-    # are one check as far as branch protection is concerned — and a required
+    # GitHub identifies a check by its name, so jobs that share a name are
+    # one check as far as branch protection is concerned — and a required
     # check satisfied by *any one* of them is a gate that only one shard has
     # to pass. The names are the gate, so they are made distinct.
     name: python-quality (${{ matrix.os }}, shard ${{ matrix.shard }})
@@ -134,16 +202,9 @@ jobs:
       # silently rewriting it. Lockfile drift is reported by `lockfiles.yml`.
       - run: uv sync --frozen
 
-      - name: ruff check
-        run: uv run ruff check .
-
-      - name: ruff format --check
-        run: uv run ruff format --check .
-
-      # `strict = true` is set in pyproject.toml, and `files` is set there too,
-      # so no path argument is needed or wanted here.
-      - name: mypy --strict
-        run: uv run mypy
+      # Lint and type checking run once, in the `lint` job above. They used
+      # to be repeated here, in all ten shard jobs: one lint error turned
+      # ten checks red, and the same three commands were paid for ten times.
 
       # This shard's files, and only this shard's. The shard list is read
       # from the file the workflow and the witness test both read, so the
