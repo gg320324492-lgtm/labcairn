@@ -2090,22 +2090,25 @@ def test_a_required_test_the_run_did_not_select_is_not_called_a_skip(
 def test_a_required_test_that_collected_nothing_is_named_as_that(repo_root: Path) -> None:
     """Selected-and-empty is neither "not selected" nor a pass.
 
-    **Three of the CI's own required test files are support modules** that
-    define no ``test_*`` function — ``test_store_support.py`` and its two
-    siblings, which other test files import for their fixtures. They are in the
-    shard list, CI pays to collect them, and nothing in them is collected. The
-    row has to say that, because the two things a reader might otherwise infer
-    are both wrong: that the run skipped the file, or that the file checked
-    something and passed.
+    **The tree used to carry three support modules named ``test_*.py``** that
+    defined no ``test_*`` function — other test files imported them for their
+    fixtures, and CI paid to collect them on every shard. They were renamed out
+    of the glob on 2026-11-02, so no real file exercises this branch any more.
+    The mechanism still has to hold if one comes back: the row has to say
+    *"collected nothing"*, because the two things a reader might otherwise
+    infer are both wrong — that the run skipped the file, or that the file
+    checked something and passed. The synthetic run selects a real required
+    file and carries no outcome for it.
     """
     from evaluation.aggregate import COLLECTED_NOTHING, _excluded_required_tests
 
     run = _skip_blocker_run(
         "test_security_paths.py", "this machine's volume has no 8.3 short names"
     )
+    empty = "test_recovery_approvals.py"
     selected = ClassRun(
         key="unit",
-        files=(*run.files, "tests/test_store_support.py"),
+        files=(*run.files, f"tests/{empty}"),
         outcomes=run.outcomes,
         exit_code=0,
         duration_seconds=0.0,
@@ -2113,15 +2116,13 @@ def test_a_required_test_that_collected_nothing_is_named_as_that(repo_root: Path
         stderr="",
     )
     index = index_outcomes((selected,))
-    entry = next(
-        e for e in _excluded_required_tests(index, repo_root) if e.name == "test_store_support.py"
-    )
+    entry = next(e for e in _excluded_required_tests(index, repo_root) if e.name == empty)
     assert entry.category == COLLECTED_NOTHING, (
         "a file the run asked for is reported as one it never selected"
     )
     blocker = _sixth_blocker(repo_root, selected)
     assert "no case was collected" in blocker.reason
-    assert "test_store_support.py" in blocker.reason
+    assert empty in blocker.reason
 
 
 def test_one_file_with_three_skips_is_counted_as_one_file(repo_root: Path) -> None:

@@ -35,8 +35,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select, text
-from test_recovery_support import (
+from recovery_support import (
     RecordingSink,
     Scenario,
     WriteCounter,
@@ -45,7 +44,8 @@ from test_recovery_support import (
     workspace_digest,
     workspace_entries,
 )
-from test_recovery_support import env as _shared_env
+from recovery_support import env as _shared_env
+from sqlalchemy import select, text
 
 from labcairn.core.ids import OperationId
 from labcairn.db.models import ArtifactRow, EventRow, OperationRow, StageRow
@@ -664,8 +664,8 @@ from uuid import UUID
 sys.path.insert(0, {tests_dir!r})
 sys.path.insert(0, {src!r})
 
-from test_store_support import StoreEnv
-from test_recovery_support import Scenario
+from store_support import StoreEnv
+from recovery_support import Scenario
 from labcairn.core.ids import RunId, StageId, TaskId
 from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.recovery import CrashPoint

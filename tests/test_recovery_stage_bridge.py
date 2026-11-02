@@ -13,7 +13,7 @@ the wrong thing.
 from __future__ import annotations
 
 import pytest
-from test_store_support import env  # noqa: F401 - registers the fixture for this module
+from store_support import env  # noqa: F401 - registers the fixture for this module
 
 from labcairn.core.ids import RunId, StageId, TaskId, new_id
 from labcairn.db.repository import TaskStore

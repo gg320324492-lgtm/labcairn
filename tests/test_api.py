@@ -52,8 +52,8 @@ from sqlalchemy import Connection, Engine, select, text
 from sqlalchemy import event as sa_event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from test_store_support import StoreEnv, make_receipt
-from test_store_support import env as _shared_env
+from store_support import StoreEnv, make_receipt
+from store_support import env as _shared_env
 
 from labcairn.api import (
     BindRefusedError,

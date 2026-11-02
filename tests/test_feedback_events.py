@@ -56,8 +56,8 @@ from feedback_chain_fixtures import (
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.application import chain as chain_layer
 from labcairn.application.refusal import (

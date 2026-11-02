@@ -20,6 +20,29 @@ The links are the records.
 
 **Added**
 
+- **Two acceptance records now name the witness the mutation actually
+  reddens.** LC-P2-10's M22 row names
+  `test_every_item_has_two_annotations_and_a_resolution` for the
+  deleted-count form; the completion-check witness it used to name reddens
+  only under the *mis*-counting form (`!= 1`), because this tree's manifest
+  is finished and that witness takes its finished branch. LC-P2-16's
+  mutation-8 row now says the fixed project must be one the store **holds**:
+  a nonexistent id is refused by the same 403 as the absent caller id and
+  leaves the witness green. Both forms were re-applied and measured before
+  the records were corrected; both review files carry a resolved note.
+
+- **Three support modules no longer wear the `test_*` glob.**
+  `tests/test_store_support.py`, `tests/test_recovery_support.py` and
+  `tests/test_skill_support.py` were shared fixture modules — 47 test files
+  import them — that pytest collected and found no case in, on every shard
+  of both platforms. They are now `tests/store_support.py`,
+  `tests/recovery_support.py` and `tests/skill_support.py`; their shard and
+  cost entries and their evaluation-manifest rows are gone, and the
+  collected-nothing mechanism keeps its witness through a synthetic
+  selected-and-empty run. `python .github/make_ci_shards.py` re-balanced
+  both partitions from the existing runner costs (Ubuntu 1.231, Windows
+  1.000) without a CI run.
+
 - **The blind evaluation's mechanical preparation (LC-P2-14).** Four
   pieces under `tests/evaluation/`: the protocol's five arms as data a
   configuration is measured against; a by-paper leak check that names

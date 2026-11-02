@@ -43,8 +43,8 @@ from typing import Final
 
 import pytest
 from pydantic import ValidationError
-from test_store_support import StoreEnv, make_task
-from test_store_support import env as _shared_env
+from store_support import StoreEnv, make_task
+from store_support import env as _shared_env
 
 from labcairn.core.ids import RunId, TaskId, new_id
 from labcairn.core.schema import LabCairnModel

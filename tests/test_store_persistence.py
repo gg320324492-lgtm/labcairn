@@ -26,7 +26,7 @@ from typing import Any, NamedTuple
 import pytest
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     frozen_clock,
     make_approval,
@@ -37,7 +37,7 @@ from test_store_support import (  # noqa: F401
     make_stage,
     make_task,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.db.models import TaskRow
 from labcairn.db.repository import (

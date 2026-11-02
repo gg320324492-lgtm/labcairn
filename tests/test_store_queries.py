@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
-from test_store_support import (
+from store_support import (
     StoreEnv,
     make_approval,
     make_operation,
@@ -45,7 +45,7 @@ from test_store_support import (
     make_stage,
     make_task,
 )
-from test_store_support import (
+from store_support import (
     env as _shared_env,
 )
 

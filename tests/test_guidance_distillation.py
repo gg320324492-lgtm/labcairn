@@ -34,8 +34,8 @@ from pathlib import Path
 import pytest
 from docx_fixtures import Comment
 from feedback_chain_fixtures import PARAGRAPH, a_comment, build_chain
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext

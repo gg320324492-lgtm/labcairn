@@ -1,7 +1,7 @@
 """Shared builders for the LC-P1-06 recovery tests.
 
 Not a test module — it defines no ``test_*`` functions. The store fixtures and
-the contract builders come from :mod:`test_store_support`, which LC-P1-05 owns
+the contract builders come from :mod:`store_support`, which LC-P1-05 owns
 and which this ticket does not touch; what is here is only the machinery
 specific to crash recovery.
 
@@ -39,7 +39,7 @@ import pytest
 # pytest only sees a fixture that is present in the test module's namespace,
 # which is why the shared environment lives in an importable module rather than
 # a conftest this ticket does not own.
-from test_store_support import (
+from store_support import (
     StoreEnv,
     env,
     frozen_clock,

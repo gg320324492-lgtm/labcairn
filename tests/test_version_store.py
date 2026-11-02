@@ -57,7 +57,7 @@ from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_store_support import StoreEnv
+from store_support import StoreEnv
 
 from conftest import migrated_database_from
 from labcairn.application import (

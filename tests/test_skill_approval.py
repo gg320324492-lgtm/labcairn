@@ -13,7 +13,7 @@ from datetime import timedelta
 
 import pytest
 from pydantic import ValidationError
-from test_skill_support import (
+from skill_support import (
     SKILL_NOW,
     build_proposal,
     grant_approval,

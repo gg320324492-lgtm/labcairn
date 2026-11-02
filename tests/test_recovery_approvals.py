@@ -25,11 +25,11 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from recovery_support import SCENARIO_NOW, Scenario, build_scenario
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from test_recovery_support import SCENARIO_NOW, Scenario, build_scenario
-from test_store_support import StoreEnv, make_task
-from test_store_support import env as _shared_env
+from store_support import StoreEnv, make_task
+from store_support import env as _shared_env
 
 from labcairn.core.ids import ApprovalId, OperationId, TaskId, new_id
 from labcairn.db.models import ApprovalRow

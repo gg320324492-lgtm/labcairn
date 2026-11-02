@@ -413,7 +413,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
     "test_recovery_resume.py": ("integration", "restart-recovery"),
     "test_recovery_stage_bridge.py": ("unit", "typed-contracts"),
-    "test_recovery_support.py": ("integration", "restart-recovery"),
     # -- security -----------------------------------------------------------
     "test_security_approval.py": ("integration", "approvals"),
     "test_security_injection.py": ("negative", "untrusted-instructions"),
@@ -428,7 +427,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_skill_ledger.py": ("unit", "artifact-hashes"),
     "test_skill_plan.py": ("unit", "typed-contracts"),
     "test_skill_quality.py": ("unit", "report-serialization"),
-    "test_skill_support.py": ("unit", "report-serialization"),
     # -- the runtime and the store ------------------------------------------
     "test_id_aliases_are_nominal.py": ("unit", "typed-contracts"),
     "test_runtime_contracts.py": ("unit", "typed-contracts"),
@@ -440,7 +438,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_store_migrations.py": ("integration", "migrations"),
     "test_store_persistence.py": ("integration", "restart-recovery"),
     "test_store_queries.py": ("integration", "event-append"),
-    "test_store_support.py": ("integration", "event-append"),
     # -- the smoke path and the repository's own gates ----------------------
     "test_refusal_witnesses.py": ("negative", "insufficient-evidence"),
     "test_smoke_path.py": ("e2e", "fresh-install"),

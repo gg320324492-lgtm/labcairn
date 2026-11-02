@@ -24,14 +24,14 @@ from sqlalchemy import event as sa_event
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     frozen_clock,
     make_run,
     make_stage,
     make_task,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.core.ids import TaskId
 from labcairn.db.repository import count_events, events_after, last_seq
@@ -347,7 +347,7 @@ def test_events_precede_the_state_rows_they_describe(env: StoreEnv) -> None:
     the foreign key were immediate this insert could not happen at all — so the
     fact that this test passes is the proof that deferral is doing its job.
     """
-    from test_store_support import make_operation
+    from store_support import make_operation
 
     session = env.session
     store = env.store()
