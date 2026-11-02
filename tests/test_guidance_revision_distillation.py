@@ -41,6 +41,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from docx_fixtures import Revision
@@ -55,6 +56,7 @@ from labcairn.guidance.distil import (
     OPERATOR_PROPOSER,
     distil_candidate_from_revisions,
 )
+from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.retrieval import search_rules
 from labcairn.guidance.rules import confirm_rule, read_rule
@@ -186,7 +188,9 @@ def the_changes(marked_up: ChainEnv) -> dict[str, str]:
         version_id=marked_up.second_version_id,
         now=MOMENT,
     )
-    by_author = {record.author: record.revision_event_id for record in recorded}
+    by_author = {
+        record.author: record.revision_event_id for record in recorded if record.author is not None
+    }
     record_edits_from_revisions(
         marked_up.context,
         project_id=marked_up.project_id,
@@ -199,7 +203,7 @@ def the_changes(marked_up: ChainEnv) -> dict[str, str]:
 
 
 @pytest.fixture()
-def halves(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, tuple[str, str]]:
+def halves(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, tuple[str, ...]]:
     """A chain whose mentor wrote **one clause in two moments**.
 
     **Word records a change the writer made in one go as two events** —
@@ -376,8 +380,8 @@ def test_a_paragraph_that_cannot_be_read_is_named_not_quoted(
     )
 
 
-def _distil(context: ApplicationContext, **overrides: object):
-    kwargs: dict[str, object] = {
+def _distil(context: ApplicationContext, **overrides: Any) -> GuidanceRule:
+    kwargs: dict[str, Any] = {
         "issue_type": "method_and_hypothesis",
         "statement": STATEMENT,
         "rule_context": CONTEXT,
@@ -385,7 +389,7 @@ def _distil(context: ApplicationContext, **overrides: object):
         "now": MOMENT,
     }
     kwargs.update(overrides)
-    return distil_candidate_from_revisions(context, **kwargs)  # type: ignore[arg-type]
+    return distil_candidate_from_revisions(context, **kwargs)
 
 
 def test_a_manuscript_with_no_comment_can_still_yield_a_candidate(
@@ -403,9 +407,12 @@ def test_a_manuscript_with_no_comment_can_still_yield_a_candidate(
     So the mentor's own change is a case, and a rule is distilled from
     it and lands as a candidate.
     """
-    assert not marked_up.context.store.session.execute(
-        __import__("sqlalchemy").text("SELECT COUNT(*) FROM feedback_events")
-    ).scalar_one(), "the fixture must carry no comment at all"
+    assert (
+        marked_up.context.store.session.execute(
+            __import__("sqlalchemy").text("SELECT COUNT(*) FROM feedback_events")
+        ).scalar_one()
+        == 0
+    ), "the fixture must carry no comment at all"
 
     rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
 
@@ -519,7 +526,7 @@ def test_the_caller_cannot_write_the_key(
     the one the product minted**, whatever the caller passed.
     """
     with pytest.raises(TypeError):
-        _distil(marked_up.context, issue_keys=("iss-forged",))  # type: ignore[call-arg]
+        _distil(marked_up.context, issue_keys=("iss-forged",))
 
     event_id = the_changes[_ADVISOR_NAME]
     rule = _distil(marked_up.context, revision_event_ids=(event_id,))

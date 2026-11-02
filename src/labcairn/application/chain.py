@@ -661,8 +661,7 @@ def read_revision_sources(
             ChainRevisionSource(
                 source_key=revision_source_key(row.revision_event_id),
                 revision_event_id=row.revision_event_id,
-                version_id=row.version_id,
-                kind=row.kind,
+                version_id=row.version_id,                kind=row.kind,
                 change_kind=classify_revision_change(row.text, row.element_path),
                 text=row.text,
                 paragraph=row.paragraph,
