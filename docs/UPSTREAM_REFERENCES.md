@@ -1,7 +1,7 @@
 # Upstream References — LabCairn Phase 1
 
 **Version:** LC-P1-v1.1  
-**Updated:** 2026-10-15  
+**Updated:** 2026-11-02  
 **Status:** Design reference inventory / LC-P1-00.  
 **Authority:** references are study materials only. The LabCairn source code and its ADRs, tests and own task records are authoritative for LabCairn implementation.
 
@@ -29,13 +29,13 @@ If local IDE constraints require it, use `labcairn/_references/` as an *ignored*
 
 For the five repositories that are cloned, the license column below was **verified by opening the LICENSE files at the pinned commit**, not by reading GitHub repository metadata. Subdirectories were walked separately — see [Verified license boundaries](#verified-license-boundaries-measured-2026-10-15). These labels are still not a legal assessment, and transitive dependencies may carry other licenses.
 
-The commit SHA column records the local shallow-clone snapshot taken on **2026-10-15**. Because the clones were made with `--depth 1 --single-branch`, each SHA was read from a **local** object store rather than resolved from the remote — so a fresh `git clone` of the default branch is not guaranteed to reproduce it, and upstream force-push or garbage collection can invalidate it at any time. Treat each SHA as valid for the snapshot on this machine.
+The commit SHA column records the pin taken on **2026-10-15**. The clones are `--depth 1 --filter=blob:none` partial clones, so at pin time each SHA was read from a **local** object store rather than resolved from the remote. **On 2026-11-02 all five pins were verified against the remote:** their commit graphs were completed and each pin was found in the history of the remote default branch — see [Remote verification of the five pins](#remote-verification-of-the-five-pins-measured-2026-11-02) for the commands, the remote tips and the transfer sizes. A pin can still disappear if upstream force-pushes or garbage-collects, so this is a dated statement, not a permanent guarantee.
 
-This is a statement about **how the pin was obtained**, not a claim that the commits are unreachable. The LC-P1-00 independent review resolved all five commits against GitHub at review time and found them present upstream. Neither guarantee is permanent: the local snapshot can be deleted, and the upstream commits can disappear independently. Re-verify with `git ls-remote <url>` before relying on a pin for anything load-bearing.
+This is a statement about **how the pin was obtained**, not a claim that the commits are unreachable. The LC-P1-00 independent review resolved all five commits against GitHub at review time and found them present upstream, and the 2026-11-02 verification repeated the check with a complete commit graph (`git merge-base --is-ancestor <pin> origin/main`). Neither guarantee is permanent: the local snapshot can be deleted, and the upstream commits can disappear independently. Re-verify by completing the commit graph and testing ancestry; `git ls-remote <url>` alone is not sufficient, because it lists refs rather than arbitrary commits.
 
 The source of record is the local `snapshot.json` written beside the clones, which also keys its license field `license_hint_not_verified` — the pin was automatic, the license was not.
 
-| ID | GitHub | Study areas | Root license (verified) | Commit SHA (local shallow snapshot) | Priority |
+| ID | GitHub | Study areas | Root license (verified) | Commit SHA (pinned 2026-10-15; remote-verified 2026-11-02) | Priority |
 |---|---|---|---|---|---|
 | `pydantic-ai` | https://github.com/pydantic/pydantic-ai | typed tools, model adapters, tests, streaming | MIT | `9ac853bb84ffed7ba0edccb026c5b4f3228c1de7` | must-study |
 | `openhands-sdk` | https://github.com/OpenHands/software-agent-sdk | events, tools, execution environment, SDK seams | MIT | `8efff8d3cf1a5a3fcf7ce5e3b97c7f00684d9547` | must-study |
@@ -107,9 +107,9 @@ git -C ../labcairn-upstreams/pydantic-ai rev-parse HEAD
 
 Cross-platform helper: `python scripts/checkout_upstreams.py --group essential` clones the 5 must-study repos to the sibling folder; `--repo opencode` selects the large codebase when needed. `--list` shows the catalog. The helper never updates or deletes an existing clone and never executes upstream code. It writes local `snapshot.json` including pinned commit SHAs, not to the public repository.
 
-`--depth 1` and `--filter=blob:none` reduce initial transfer where supported, but cloning can still consume significant disk and bandwidth. The measured footprint of the five essential clones is **approximately 700 MB** (re-measure locally; block allocation and Git packing shift this), and it is badly skewed: `pydantic-ai` alone is **421 MB — 60% of the total** — followed by `paperspine` 94 MB, `deepagents` 94 MB, `paper-qa` 60 MB and `openhands-sdk` 32 MB. Check available space before cloning, and treat `pydantic-ai` as the one to justify when disk is tight.
+`--depth 1` and `--filter=blob:none` reduce initial transfer where supported, but cloning can still consume significant disk and bandwidth. The measured footprint of the five essential clones is **approximately 734 MB** (measured on 2026-11-02, after the history completion described below; block allocation and Git packing shift this), and it is badly skewed: `pydantic-ai` alone is **434 MB — 59% of the total** — followed by `deepagents` 105 MB, `paperspine` 94 MB, `paper-qa` 63 MB and `openhands-sdk` 38 MB. Completing the five commit graphs changed this total by roughly 31 MB. Check available space before cloning, and treat `pydantic-ai` as the one to justify when disk is tight.
 
-`--depth 1` and `--single-branch` mean **the pin was obtained locally, not that it is unreachable.** A shallow single-branch clone stores exactly one commit from one branch, so the SHA came from the local object store rather than from a remote lookup, and GitHub may still force-push or garbage-collect it. **All five were resolved against GitHub at LC-P1-00 review time and were present upstream.** The honest statement is two-sided: the commit is reachable now, and neither reachability nor the local snapshot is permanent. **A shallow clone of a moving branch is not reproducible unless the SHA is recorded** — and, more precisely, recording the SHA is necessary but not sufficient: it fixes what you inspected, it does not let anyone else re-fetch that exact tree. Keep existing snapshots pinned for reviews; deliberately make a new snapshot when studying updates.
+`--depth 1` and `--single-branch` mean **the pin was obtained locally, not that it is unreachable.** A shallow single-branch clone stores exactly one commit from one branch, so the SHA came from the local object store rather than from a remote lookup, and GitHub may still force-push or garbage-collect it. **All five were resolved against GitHub at LC-P1-00 review time and were present upstream; all five were verified again on 2026-11-02 with a completed commit graph** (see [Remote verification of the five pins](#remote-verification-of-the-five-pins-measured-2026-11-02)). The honest statement is two-sided: the commit is reachable now, and neither reachability nor the local snapshot is permanent. **A shallow clone of a moving branch is not reproducible unless the SHA is recorded** — and, more precisely, recording the SHA is necessary but not sufficient on its own: it fixes what you inspected, but it lets someone else re-fetch that exact tree only when the commit is still reachable from the remote, which the 2026-11-02 check established for these five pins. Keep existing snapshots pinned for reviews; deliberately make a new snapshot when studying updates.
 
 ## Reference → decision → test workflow
 
@@ -230,3 +230,77 @@ failure is recorded in its own study.
 The clones were made with `git clone --filter=blob:none` into a directory
 outside the repository, and no install script, container, network service or
 model weight was touched.
+
+---
+
+## Remote verification of the five pins (measured 2026-11-02)
+
+The pins themselves are unchanged. This section records a dated check of a
+different property: **whether each pinned commit is still reachable from its
+repository's default branch**, so that a reader who clones the upstream can
+check out the exact tree this project studied.
+
+**Method.** Each existing partial clone was completed from `origin` with its
+commit graph intact — `git fetch --unshallow origin` where the clone's
+`remote.origin.partialclonefilter=blob:none` was already configured
+(`paper-qa`, `openhands-sdk`, `paperspine`), and
+`git fetch --filter=blob:none --unshallow origin` where the filter was named
+explicitly (`deepagents`, `pydantic-ai`). The clones were already
+`--depth 1 --filter=blob:none`, so this fetched commits and trees, not
+historical file contents: the five `.git` directories grew by approximately
+31 MB in total, not by the repository sizes GitHub reports for the two largest
+(`deepagents` 370 MB, `pydantic-ai` 351 MB). No working-tree file was changed
+and none of the five checkouts was moved off its pinned commit. The host's
+broken proxy was bypassed for the network commands with
+`git -c http.proxy= -c https.proxy=`; that is a local network condition, not
+part of the procedure.
+
+**What was checked, for each repository:**
+
+1. `git ls-remote --symref origin HEAD` — the remote's default branch and its
+   tip at verification time.
+2. `git cat-file -t <pin>` and `git cat-file -t <pin>^{tree}` — the pin
+   resolves to a commit whose tree object is present (`commit` and `tree` in
+   all five).
+3. `git branch -r --contains <pin>` — the pin is contained in the
+   remote-tracking default branch (`origin/main` in all five).
+4. `git merge-base --is-ancestor <pin> origin/main` — exit status 0 in all
+   five, i.e. the pin is an ancestor of the remote head rather than a
+   dangling object that happens to exist locally.
+5. `git rev-parse origin/main` — equal to the `ls-remote` tip in all five, so
+   the ancestry test ran against the remote's current head rather than a
+   stale tracking ref.
+
+| ID | Pin (unchanged) | Remote default branch | Remote tip at 2026-11-02 | Pin in default-branch history | Commits after pin | History completion | `.git` before → after | Verification |
+|---|---|---|---|---|---|---|---|---|
+| `paper-qa` | `57e89f7223b0960d5ee5ea048c69e3c47e088572` | `main` | `c692d0dfeac4a0296599f7fe21a253a58b7ac12a` | yes | 2 | `git fetch --unshallow origin` (existing `blob:none` filter honoured) | 24 MB → 25 MB | verified against remote on 2026-11-02 |
+| `openhands-sdk` | `8efff8d3cf1a5a3fcf7ce5e3b97c7f00684d9547` | `main` | `98849457621881ae2414719b82b8bc1cf535b4ab` | yes | 178 | `git fetch --unshallow origin` (existing `blob:none` filter honoured) | 6 MB → 12 MB | verified against remote on 2026-11-02 |
+| `deepagents` | `825acb3ca03bd103e4df6013b122eca8475d1982` | `main` | `2b33a4c0cf60bc4927f27eae8b86f84e7a897b99` | yes | 326 | `git fetch --filter=blob:none --unshallow origin` | 30 MB → 41 MB | verified against remote on 2026-11-02 |
+| `paperspine` | `42312b8d9c76ab25990cddfd76e3622276854118` | `main` | `42312b8d9c76ab25990cddfd76e3622276854118` (the pin is the tip) | yes | 0 | `git fetch --unshallow origin` (existing `blob:none` filter honoured) | 32 MB → 32 MB | verified against remote on 2026-11-02 |
+| `pydantic-ai` | `9ac853bb84ffed7ba0edccb026c5b4f3228c1de7` | `main` | `129c94ef2940565af3bc9f638196fcc994d1ed4d` | yes | 959 | `git fetch --filter=blob:none --unshallow origin` | 124 MB → 137 MB | verified against remote on 2026-11-02 |
+
+`Commits after pin` is `git rev-list --count <pin>..origin/main`, so it counts
+the commits that landed on the default branch after the pinned snapshot,
+excluding the pin itself. The completed graphs also report these default-branch
+history sizes: `paper-qa` 939 commits, `openhands-sdk` 2,769, `deepagents`
+4,551, `paperspine` 132 and `pydantic-ai` 5,112.
+
+**Result: all five pins were verified against the remote on 2026-11-02.** None
+had been force-pushed out of the default branch's history, so none required the
+fallback of recording a different reachable SHA.
+
+**What this does not establish.** The check is a statement about 2026-11-02,
+not a permanent guarantee: an upstream force-push or garbage collection can
+make a pin unreachable later, and the local snapshots can be deleted
+independently. It also does not fetch or verify historical file contents — the
+clones remain `blob:none` partial clones with `remote.origin.promisor=true`, so
+checking out an old commit fetches its blobs on demand from the configured
+promisor remote. Re-run the five checks above before relying on a pin for
+anything load-bearing; `git ls-remote <url>` alone cannot answer the question,
+because it lists refs rather than arbitrary commits, which is why the earlier
+wording in this file recommended a check that could not establish ancestry.
+
+**Scope.** This verification covers the five Phase 1 clones in this catalogue.
+The six Phase 2 study clones recorded under
+[`docs/research/upstream-study/`](./research/upstream-study/) are outside it,
+and the four `not cloned` rows have no pin to verify.
