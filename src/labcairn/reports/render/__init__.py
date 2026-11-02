@@ -9,14 +9,16 @@ package is written to: a number, a caption and a label all come from the
 model, and a renderer that had to compute one would be a renderer that
 could disagree with the ledger.
 
-**Two of the four are byte-reproducible and two are not, and that is the
+**Three of the four are byte-reproducible and one is not, and that is the
 design rather than a defect.** The owner decided on 2026-10-20 (the
-breakdown's §1.4.3, Option A, and ADR-0013) that the report's reproducible
-forms are Markdown and HTML, and that the DOCX and the PDF are exports
-whose bytes are recorded but not claimed reproducible: a DOCX is a ZIP
-whose entries carry timestamps, and a PDF carries a creation date. The
-renderers here do not pretend otherwise, and :data:`REPRODUCIBILITY_NOTICE`
-says so on the face of every export.
+breakdown's §1.4.3, Option A, and ADR-0013) that the **PDF**'s bytes are
+recorded but not claimed reproducible, because a PDF carries a creation
+date that is the moment of the render; pinning it would be a false
+statement about when the file was made. The DOCX's entries are stamped
+with the report's own ``as_of``, so it is reproducible too — see
+:mod:`labcairn.reports.render.docx`. The renderers here do not pretend
+otherwise, and :data:`REPRODUCIBILITY_NOTICE` says so on the face of every
+export.
 
 **The two writable forms are LabCairn's own code, and the standard
 library's.** ADR-0013 measured the alternatives: a Markdown *parser* is the

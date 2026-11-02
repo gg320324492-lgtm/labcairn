@@ -277,14 +277,13 @@ What the walk then shows, in this order:
    byte-identical afterwards**.
 4. The analysis runs again over the revised bytes and draws a **different**
    figure.
-5. **The report is then rendered again, and the layer refuses**:
-
-   > the report was refused before it could be written as a revision: the
-   > chain names 'materials/measurements.csv' twice with different hashes.
-
-   **So the second revision still rests on the material the claims were read
-   from.** The report's content is not recomputed from the revised bytes.
-   This is a Phase 2 finding, and the acceptance record says why.
+5. **The report is then rendered again, and it succeeds**, as a new revision.
+   The document carries the figure the second run drew over the revised bytes,
+   and the chain names `materials/measurements.csv` under the hash the ledger
+   records now. The old figure stays in the ledger and `v1`'s files do not move.
+   (The report's **claims** are still the records they were read from: the
+   product does not re-extract a record from moved bytes — see
+   [`RELEASE-NOTES.md`](RELEASE-NOTES.md) §2.2.)
 
 ### 4.9 The restart
 
@@ -396,9 +395,12 @@ The run says this in its own output, and the report carries it:
   the run is made against the repository's own fixtures, with no network call
   to a model.
 - **The claims were written by the walk**, not by the product (§4.7).
-- **The DOCX and the PDF are not byte-reproducible.** Their bytes are
-  compared as stored against served, not across two renders. The report's
-  reproducible forms are Markdown and HTML.
+- **The PDF is not byte-reproducible.** Its bytes are compared as stored
+  against served, not across two renders: a PDF carries the creation date of
+  the render, and the owner decided on 2026-10-20 that its bytes are recorded
+  but not claimed reproducible. The report's reproducible forms are Markdown,
+  HTML and DOCX — the DOCX's entries are stamped with the report's own
+  `as_of`.
 
 ---
 

@@ -125,19 +125,31 @@ demonstration's. A model-driven extractor is still not demonstrated.
 `tests/test_api.py::test_a_claim_recorded_through_the_service_makes_the_task_reportable` ·
 [acceptance record §7.3](acceptance/LC-P1-14-outsider-path.md).
 
-### 2.3 The report's second revision is not recomputed from the revised material
+### 2.3 The report's second revision is not recomputed from the revised material — closed 2026-11-02
 
-A revision **is** generated, and v1's bytes are unchanged afterwards. But the
-attempt to render the report again from the revised bytes is **refused**:
+A revision **was** generated, and v1's bytes were unchanged afterwards, but
+the attempt to render the report again from the revised bytes was **refused**:
 
 > the report was refused before it could be written as a revision: the chain
 > names 'materials/measurements.csv' twice with different hashes.
 
-*Consequence:* **the second revision still rests on the material the claims
-were read from.** The report's content is not recomputed from the revised
-bytes.
-*Evidence:* [acceptance record §7.2](acceptance/LC-P1-14-outsider-path.md).
-**This is a Phase 2 finding, recorded rather than fixed.**
+**Closed by carrying only the parts computed over the current material.** A
+report's document gathered every figure the ledger held; after a re-ingest
+the old figure and the new one both remained, naming one file under two
+hashes. The document builder now leaves out a figure or a table whose own
+``derived_from`` names a material hash the source row no longer records — the
+stale part is a record of an earlier run, not a part of this report. The chain
+then names one material under the hash the ledger holds now, and the second
+revision is recomputed from the revised bytes. The old part stays in the
+ledger, and v1's bytes stay untouched.
+
+*Consequence:* the second revision's figures and tables rest on the material
+the ledger holds now; its **claims** still rest on the records they were read
+from, because the product does not re-extract a record from moved bytes —
+that is the separate limit §2.2 names.
+*Evidence:* `tests/test_application_layer.py::test_a_second_revision_is_recomputed_from_the_revised_material` ·
+`tests/test_analysis_report_build.py::test_the_part_carried_is_the_one_computed_over_the_current_material` ·
+[acceptance record §7.2](acceptance/LC-P1-14-outsider-path.md).
 
 ### 2.4 The workbench has never run against a real service
 
@@ -334,13 +346,26 @@ so they say nothing about the endpoint.
 
 *Evidence:* [threat model §6.9](THREAT-MODEL.md).
 
-### 2.15 The DOCX and the PDF are not byte-reproducible
+### 2.15 The DOCX is byte-reproducible; the PDF is recorded, not claimed — DOCX closed 2026-11-02
 
-A DOCX is a ZIP whose entries carry timestamps and a PDF carries a creation
-date. **The report's reproducible forms are Markdown and HTML.** The DOCX
-and the PDF are compared as stored against served, not across two renders.
+A PDF carries a creation date and a document id from the render, and the
+owner decided on 2026-10-20 (the breakdown's §1.4.3, Option A) that its
+bytes are recorded but **not claimed reproducible**: pinning the creation
+date would be a false statement about when the file was made. That decision
+stands, and the PDF is not changed.
 
-*Evidence:* [acceptance record §6](acceptance/LC-P1-14-outsider-path.md).
+The DOCX is now reproducible. python-docx writes a ZIP whose entries carry
+the writer's clock; after it saves, the package is rewritten once with every
+entry stamped at the report's own ``as_of`` — the same date ``core.created``
+and ``core.modified`` already carry, and the date the document states on its
+face. Entry order, bytes, compression and attributes are preserved. Two
+renders of one document are byte-identical; a different moment or different
+content renders to different bytes. The report's own notice says so.
+
+*Evidence:* `tests/test_analysis_report_render.py::test_the_docx_is_byte_reproducible` ·
+`...::test_the_docx_bytes_change_with_the_document` ·
+`...::test_the_pdf_is_not_byte_reproducible` ·
+[acceptance record §6](acceptance/LC-P1-14-outsider-path.md).
 
 ### 2.16 Rotated PDF text is not detected, and the two-column detector is bracketed
 

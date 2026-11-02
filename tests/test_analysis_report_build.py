@@ -70,6 +70,7 @@ from labcairn.reports.manifest import (
     ReportManifest,
     ReportManifestRefusedError,
     build_report_manifest,
+    manifest_chain,
 )
 from labcairn.reports.model import (
     BlockKind,
@@ -257,7 +258,9 @@ def _record(
     )
 
 
-def _manifest(*, mean: float = LEDGER_VALUE) -> ReproducibilityManifest:
+def _manifest(
+    *, mean: float = LEDGER_VALUE, content_hash: str = SOURCE_HASH
+) -> ReproducibilityManifest:
     """A valid reproducibility manifest for the figure.
 
     Built through the manifest's own fields rather than through
@@ -268,19 +271,19 @@ def _manifest(*, mean: float = LEDGER_VALUE) -> ReproducibilityManifest:
     output: dict[str, Any] = {"mean": mean, "n_used": 5}
     selection: dict[str, Any] = {
         "source_id": "src-1",
-        "content_sha256": SOURCE_HASH,
+        "content_sha256": content_hash,
         "columns": ["yield"],
         "rows": {"kind": "range", "start": 1, "end": 5},
         "missing": "exclude",
     }
     return ReproducibilityManifest(
-        input_file=FileRef(relative_path="material/exp1.csv", content_sha256=SOURCE_HASH),
+        input_file=FileRef(relative_path="material/exp1.pdf", content_sha256=content_hash),
         operator="labcairn.analysis.mean@1.0.0",
         locator=ComputationLocator(
             operator_id="labcairn.analysis.mean",
             operator_version="1.0.0",
             parameters={"selection": selection, "column": "yield"},
-            input_hashes=(SOURCE_HASH,),
+            input_hashes=(content_hash,),
         ),
         recipe=FileRef(relative_path="recipes/mean.py", content_sha256=RECIPE_HASH),
         output=output,
@@ -315,7 +318,7 @@ def _manifest_receipt(
         derived_from=(
             DerivationRef(
                 target_kind=DerivationTargetKind.MATERIAL_FILE,
-                target_id="material/exp1.csv",
+                target_id="material/exp1.pdf",
                 content_sha256=SOURCE_HASH,
             ),
         ),
@@ -784,6 +787,90 @@ def test_the_newest_revision_of_an_artefact_is_the_one_carried(task: dict[str, A
 
     assert [figure.figure_id for figure in document.figures] == ["fig-figure-2"]
     assert document.figures[0].content_sha256 == _hash("figure-v2")
+
+
+def test_the_part_carried_is_the_one_computed_over_the_current_material(
+    task: dict[str, Any],
+) -> None:
+    """The report is a view of the material the ledger holds now.
+
+    Two figures name the same file under two hashes: one was drawn before the
+    researcher's correction and one after. Which one the document carries is
+    decided by the bytes the source row records now, not by which receipt is
+    newer — the artefact ledger holds both, and both are legitimate records of
+    a run. Carrying both would name one upstream twice with different hashes,
+    and no chain could say which of them the report means.
+    """
+    old_manifest = _manifest()
+    old_manifest_receipt = _manifest_receipt(manifest=old_manifest)
+    old_figure = _figure_receipt(manifest_receipt=old_manifest_receipt)
+
+    revised_manifest = _manifest(mean=30.0, content_hash=DRIFTED_HASH)
+    revised_manifest_receipt = _manifest_receipt(
+        receipt_id="manifest-2", manifest=revised_manifest
+    ).model_copy(
+        update={
+            "relative_path": "analysis/mean/run2.manifest.json",
+            "derived_from": (
+                DerivationRef(
+                    target_kind=DerivationTargetKind.MATERIAL_FILE,
+                    target_id="material/exp1.pdf",
+                    content_sha256=DRIFTED_HASH,
+                ),
+            ),
+        }
+    )
+    revised_figure = _figure_receipt(
+        receipt_id="figure-2",
+        manifest_receipt=revised_manifest_receipt,
+        relative_path="analysis/mean/run2.figure.svg",
+        content_sha256=_hash("revised-figure"),
+    )
+
+    artifacts = [
+        old_manifest_receipt,
+        old_figure,
+        revised_manifest_receipt,
+        revised_figure,
+    ]
+    manifests = {
+        old_manifest_receipt.receipt_id: old_manifest,
+        revised_manifest_receipt.receipt_id: revised_manifest,
+    }
+    captions = {"figure-1": FIGURE_CAPTION, "figure-2": FIGURE_CAPTION}
+
+    before = _build(task, artifacts=artifacts, manifests=manifests, captions=captions)
+    after = _build(
+        task,
+        artifacts=artifacts,
+        manifests=manifests,
+        captions=captions,
+        sources=[_source(content_sha256=DRIFTED_HASH)],
+    )
+
+    assert [figure.figure_id for figure in before.figures] == ["fig-figure-1"]
+    assert [figure.figure_id for figure in after.figures] == ["fig-figure-2"]
+    assert after.figures[0].content_sha256 == _hash("revised-figure")
+    assert before.canonical_bytes() != after.canonical_bytes()
+
+    # The chain the refusal was about: one material, one hash. The old figure
+    # is not in the document, so the old hash is not in the chain.
+    by_id = {receipt.receipt_id: receipt for receipt in artifacts}
+    manifest = build_report_manifest(
+        document=after,
+        document_relative_path="output/task-1/report/v2/report.json",
+        upstreams={
+            figure.figure_id: by_id[figure.figure_id.removeprefix("fig-")].derived_from
+            for figure in after.figures
+        },
+    )
+    hashes = {
+        link.content_sha256
+        for link in manifest_chain(manifest)
+        if link.target_kind is DerivationTargetKind.MATERIAL_FILE
+        and link.target_id == "material/exp1.pdf"
+    }
+    assert hashes == {DRIFTED_HASH}
 
 
 def test_an_artefact_of_a_kind_the_report_has_no_part_for_is_not_carried(
