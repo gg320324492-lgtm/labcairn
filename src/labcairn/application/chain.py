@@ -654,6 +654,14 @@ def read_revision_sources(
         )
     }
 
+    # **The paragraphs are read once per version, not once per change.**
+    # A marked-up manuscript holds hundreds of changes in a handful of
+    # paragraphs, and the paragraph is read out of the **document** —
+    # so a read that opened the file per change would parse the same
+    # manuscript hundreds of times. **The file is read once per version
+    # and per view, and the changes in it are looked up afterwards.**
+    paragraphs = _the_paragraph_texts(context, rows)
+
     found: list[ChainRevisionSource] = []
     for row in rows:
         edit = edits.get(edit_action_id_for(row.revision_event_id))
@@ -661,11 +669,16 @@ def read_revision_sources(
             ChainRevisionSource(
                 source_key=revision_source_key(row.revision_event_id),
                 revision_event_id=row.revision_event_id,
-                version_id=row.version_id,                kind=row.kind,
+                version_id=row.version_id,
+                kind=row.kind,
                 change_kind=classify_revision_change(row.text, row.element_path),
                 text=row.text,
                 paragraph=row.paragraph,
-                paragraph_text=_paragraph_text(context, row),
+                paragraph_text=(
+                    paragraphs.get((row.version_id, row.view, row.paragraph), "")
+                    if row.paragraph is not None
+                    else ""
+                ),
                 actor_kind=edit.actor_kind if edit is not None else None,
                 actor_id=edit.actor_id if edit is not None else None,
                 edit_action_id=edit.edit_action_id if edit is not None else None,
@@ -674,31 +687,42 @@ def read_revision_sources(
     return tuple(found)
 
 
-def _paragraph_text(context: ApplicationContext, row: RevisionEventRow) -> str:
-    """The text of the paragraph a change sits in, in the change's view.
+def _the_paragraph_texts(
+    context: ApplicationContext, rows: Sequence[RevisionEventRow]
+) -> Mapping[tuple[str, str | None, int], str]:
+    """The text of every paragraph a change sits in, read once per file.
 
-    **A paragraph that cannot be read is an empty string, and the caller
-    says so in the scope.** A case whose context could not be read is
-    still a case — the change's own words are in the chain — but a scope
-    that quoted the empty string as though it were the reviewer's
-    surroundings would say the reviewer changed something in a paragraph
-    that does not exist, which is not what happened. **The same reasoning
-    the comment case uses**, for the same reason.
+    **Keyed by the version, the view and the paragraph** — the three
+    facts that name a paragraph's text. **A version is read once for the
+    accepted view and once for the rejected one**, because the two views
+    are two different manuscripts (ADR-0014 D4a).
+
+    **And a version that cannot be read is absent, not empty.** The
+    caller says so in the scope; the empty string is never quoted as
+    the reviewer's surroundings.
     """
-    if row.paragraph is None:
-        return ""
-    try:
-        if row.view == "rejected":
-            texts = read_rejected_paragraph_context(
-                context, version_id=row.version_id, paragraphs=(row.paragraph,)
-            )
-        else:
-            texts = read_paragraph_context(
-                context, version_id=row.version_id, paragraphs=(row.paragraph,)
-            )
-    except ApplicationRefusedError:
-        return ""
-    return texts.get(row.paragraph, "")
+    wanted: dict[tuple[str, str | None], set[int]] = {}
+    for row in rows:
+        if row.paragraph is None:
+            continue
+        wanted.setdefault((row.version_id, row.view), set()).add(row.paragraph)
+
+    texts: dict[tuple[str, str | None, int], str] = {}
+    for (version_id, view), paragraphs in wanted.items():
+        try:
+            if view == "rejected":
+                read = read_rejected_paragraph_context(
+                    context, version_id=version_id, paragraphs=tuple(sorted(paragraphs))
+                )
+            else:
+                read = read_paragraph_context(
+                    context, version_id=version_id, paragraphs=tuple(sorted(paragraphs))
+                )
+        except ApplicationRefusedError:
+            continue
+        for paragraph, text in read.items():
+            texts[(version_id, view, paragraph)] = text
+    return texts
 
 
 def read_revision_activity(
