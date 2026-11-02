@@ -153,7 +153,7 @@ inherited silently:
 | **A read still takes SQLite's write lock** — every transaction opens with `BEGIN IMMEDIATE` | the release notes §2.17 | bounds how long a forked per-request session may be held |
 | **The report's second revision is not recomputed from the revised material**, and the DOCX and PDF are not byte-reproducible | the release notes §2.3 and §2.15 | two limits any higher-fidelity rendering ticket is measured against |
 | **Path-guard tests ran on Windows only** | the G1 entry | a platform skip is **accepted and named** rather than fatal, which makes an unverified half easy to mistake for a covered one |
-| **The Gitleaks allowlist guard is textual**, and the README capability-claim detector has known holes | the G1/G2 entries | both are stated floors, not truth-checkers |
+| **The Gitleaks allowlist guard parsed only the top-level `allowlists` array**, and the README capability-claim detector had the holes LC-P1-01 listed | `docs/acceptance/LC-P2-25-guard-of-the-guards.md` | **CLOSED 2026-11-02** — both carry witnesses now; the qualifier whitewash named in the same row is still open and is stated in the record |
 | **The G1/G2 human review is prepared and unexecuted** | [`G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md) | the board's independence rule stays unsatisfied for the two oldest gates, and every gate after them inherits their contracts |
 | **The upstream pin SHAs came from a shallow local clone** | the board's carried-issues row | contradicts the competitor baseline's acceptance that *a reader can re-run one side* |
 

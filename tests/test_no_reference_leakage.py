@@ -1290,6 +1290,77 @@ def test_no_workflow_filters_pull_request_at_all(workflows_dir: Path) -> None:
     )
 
 
+def _gitleaks_allowlist_offenders(text: str) -> list[str]:
+    """Every path-scoped allowlist in a gitleaks config, in every shape.
+
+    Gitleaks 8.30.1 — measured against the pinned binary, not inferred — honours
+    a path allowlist in four places: the top-level ``[allowlist]`` /
+    ``[[allowlists]]``, ``[rules.allowlist]``, ``[[rules.allowlists]]``, and an
+    inline table assigned to either key.
+
+    The earlier guard enumerated only the top-level ``allowlists`` array and
+    then matched lines of the file for a path key beside a reference-family
+    stem. Two shapes defeated it: a top-level ``[allowlist]`` (singular) was
+    never looked at, and a multi-line ``[[rules.allowlists]]`` array put
+    ``paths`` and ``_references`` on different lines, so the line fallback saw
+    neither. Parsing reads all of them.
+    """
+    parsed: dict[str, Any] = tomllib.loads(text)
+
+    blocks: list[tuple[str, object]] = []
+
+    def collect(where: str, value: object) -> None:
+        if value is None:
+            return
+        if isinstance(value, dict):
+            blocks.append((where, value))
+        elif isinstance(value, list):
+            for index, item in enumerate(value, 1):
+                blocks.append((f"{where} #{index}", item))
+        else:
+            blocks.append((f"{where} (not a table: {type(value).__name__})", value))
+
+    collect("top-level allowlist", parsed.get("allowlist"))
+    collect("top-level allowlists", parsed.get("allowlists"))
+    rules = parsed.get("rules", [])
+    if not isinstance(rules, list):
+        blocks.append(("rules (not an array)", rules))
+    else:
+        for index, rule in enumerate(rules, 1):
+            if not isinstance(rule, dict):
+                blocks.append((f"rule #{index} (not a table)", rule))
+                continue
+            label = str(rule.get("id") or f"#{index}")
+            collect(f"rule {label} allowlist", rule.get("allowlist"))
+            collect(f"rule {label} allowlists", rule.get("allowlists"))
+
+    offenders: list[str] = []
+    for where, block in blocks:
+        if not isinstance(block, dict):
+            offenders.append(f"{where} is not a table")
+            continue
+        paths = block.get("paths") or []
+        if paths:
+            offenders.append(f"{where} carries paths={paths!r}")
+            continue
+        # A regex/commit-scoped exception is allowed, but it must say what it
+        # is for. An unexplained one is how an exemption quietly becomes a hole.
+        if not block.get("description"):
+            offenders.append(f"{where} has an exemption but no description")
+
+    # Independently of the parsed blocks: no non-comment line may pair a path
+    # key with a reference family. This is the fallback for a shape gitleaks
+    # understands that the walk above does not name yet.
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if stripped.startswith("#"):
+            continue
+        low = stripped.lower()
+        if "path" in low and any(stem in low for stem in REFERENCE_SEGMENT_PREFIXES):
+            offenders.append(f"line {lineno}: {stripped}")
+    return offenders
+
+
 def test_gitleaks_config_declares_no_path_allowlist(repo_root: Path) -> None:
     """C-4 forbids allowlisting the reference *paths* out of the secret scan.
 
@@ -1305,36 +1376,88 @@ def test_gitleaks_config_declares_no_path_allowlist(repo_root: Path) -> None:
     """
     config = repo_root / ".gitleaks.toml"
     assert config.exists(), ".gitleaks.toml is missing; C-4 has no configuration"
-    text = config.read_text(encoding="utf-8")
-    parsed = tomllib.loads(text)
-
-    offenders: list[str] = []
-    for index, block in enumerate(parsed.get("allowlists", []), 1):
-        paths = block.get("paths") or []
-        if paths:
-            offenders.append(f"allowlist #{index} carries paths={paths!r}")
-            continue
-        # A regex exception is allowed, but it must say what it is for. An
-        # unexplained one is how an exemption quietly becomes a hole.
-        if not block.get("description"):
-            offenders.append(f"allowlist #{index} has regexes but no description")
-
-    # Independently of the structured blocks: no non-comment line may pair a
-    # path key with a reference family, which is how a path exemption gets
-    # written if someone bypasses the table above.
-    for lineno, raw in enumerate(text.splitlines(), 1):
-        stripped = raw.strip()
-        if stripped.startswith("#"):
-            continue
-        low = stripped.lower()
-        if "path" in low and any(
-            stem in low for stem in ("_references", ".upstreams", "labcairn-upstreams")
-        ):
-            offenders.append(f"line {lineno}: {stripped}")
-
+    offenders = _gitleaks_allowlist_offenders(config.read_text(encoding="utf-8"))
     assert not offenders, (
         "C-4 forbids allowlisting the reference families out of the secret scan; "
         "they should be untracked, and a mistaken `git add -f` must stay visible "
         "to it. A regex-scoped per-finding exception is permitted; a path-scoped "
         "one is not:\n" + "\n".join(offenders)
     )
+
+
+#: A rule that produces a finding, so each probe below is a config gitleaks
+#: would otherwise run. The secret shape is synthetic and matches no real key.
+_GITLEAKS_PROBE_RULE: Final = """
+[[rules]]
+id = "t05probe"
+description = "probe"
+regex = '''SECRETTOKEN[0-9]+'''
+"""
+
+
+@pytest.mark.parametrize(
+    ("shape", "config"),
+    [
+        (
+            "top-level [[allowlists]] with a multi-line paths array",
+            _GITLEAKS_PROBE_RULE
+            + "\n[[allowlists]]\ndescription = 'd'\npaths = [\n  '''_references/''',\n]\n",
+        ),
+        (
+            "top-level [allowlist] with a multi-line paths array",
+            _GITLEAKS_PROBE_RULE
+            + "\n[allowlist]\ndescription = 'd'\npaths = [\n  '''_references/''',\n]\n",
+        ),
+        (
+            "[[rules.allowlists]] with a multi-line paths array",
+            _GITLEAKS_PROBE_RULE + "\n[[rules.allowlists]]\ndescription = 'd'\npaths = [\n"
+            "  '''_references/''',\n]\n",
+        ),
+        (
+            "[rules.allowlist] with paths",
+            _GITLEAKS_PROBE_RULE
+            + "\n[rules.allowlist]\ndescription = 'd'\npaths = ['''_references/''']\n",
+        ),
+        (
+            "rule allowlist as an inline table",
+            _GITLEAKS_PROBE_RULE
+            + "\nallowlist = { description = 'd', paths = ['''_references/'''] }\n",
+        ),
+        (
+            "top-level allowlist as an inline table (inert in 8.30.1; refused defensively)",
+            "allowlist = { description = 'd', paths = ['''_references/'''] }\n"
+            + _GITLEAKS_PROBE_RULE,
+        ),
+        (
+            "nested allowlist carrying regexes but no description",
+            _GITLEAKS_PROBE_RULE + "\n[[rules.allowlists]]\nregexes = ['''sk-proj-[a-z0-9]+''']\n",
+        ),
+    ],
+)
+def test_gitleaks_guard_sees_every_allowlist_shape(shape: str, config: str) -> None:
+    """The guard is a parser now, not a line matcher.
+
+    Every path-bearing shape gitleaks 8.30.1 honours must be rejected wherever
+    it is written, and the older guard passed the first three: the top-level
+    singular table was never enumerated, and the nested multi-line array kept
+    ``paths`` and ``_references`` on different lines, so the textual fallback
+    saw neither. The demonstrations against the unmodified tree are recorded in
+    ``docs/acceptance/LC-P2-25-guard-of-the-guards.md``.
+
+    A regex-scoped exception without a description is also an offender: an
+    undocumented exemption is how a hole starts looking like policy.
+    """
+    offenders = _gitleaks_allowlist_offenders(config)
+    assert offenders, f"guard missed a path allowlist written as: {shape}"
+
+
+def test_gitleaks_guard_still_accepts_the_repository_config(repo_root: Path) -> None:
+    """Hardening must not redden the live config.
+
+    It carries two narrow exceptions — fixture strings and one historical
+    commit — both described, neither path-scoped. The strengthened guard has to
+    keep accepting exactly that shape, or it would be a rule the project cannot
+    follow rather than one it enforces.
+    """
+    text = (repo_root / ".gitleaks.toml").read_text(encoding="utf-8")
+    assert _gitleaks_allowlist_offenders(text) == []

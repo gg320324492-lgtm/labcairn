@@ -673,10 +673,28 @@ def script_invocations(text: str, script: str) -> list[str]:
 
 #: Words that assert a capability the code does not have. English forms are
 #: word-bounded; CJK forms are matched literally because \b does not apply.
+#:
+#: The second group is the set LC-P1-01 recorded as *still open holes*
+#: ("The T07 overclaim detector has real holes"): passive voice ("is supported
+#: by"), "is capable of", "handles", "can", "has a built-in", "comes with", and
+#: the Chinese modals 可以 / 能 / 用于 / 现可使用. They are separate branches
+#: because none of them is an active trigger verb: "PDF parsing is supported by
+#: LabCairn" has no word the first group matches. 能 is excluded inside the
+#: compounds that make it a noun (能力 / 性能 / 功能 / 可能 / 智能 / 本能 / 能耗 /
+#: 能源) and in the negations 不能 / 能否, which is why its lookaround is
+#: narrower than the other CJK forms.
 _TRIGGER_RE = re.compile(
     r"(?:支持|提供|具备|内置|已实现|一键)"
     r"|(?<![A-Za-z])(?:supports?|provides?|offers?|offering|implements?|ships\s+with|delivers?"
-    r"|enables?|allows?\s+you\s+to|one[-\s]click)(?![A-Za-z])",
+    r"|enables?|allows?\s+you\s+to|one[-\s]click)(?![A-Za-z])"
+    r"|(?<![A-Za-z])(?:is|are|was|were)\s+"
+    r"(?:supported|provided|offered|implemented|enabled)(?![A-Za-z])"
+    r"|(?<![A-Za-z])(?:is|are)\s+capable\s+of(?![A-Za-z])"
+    r"|(?<![A-Za-z])handles?(?![A-Za-z])"
+    r"|(?<![A-Za-z])can(?![A-Za-z])"
+    r"|(?<![A-Za-z])(?:has|have)\s+(?:a\s+)?built-in(?![A-Za-z])"
+    r"|(?<![A-Za-z])comes?\s+with(?![A-Za-z])"
+    r"|可以|用于|现可使用|(?<![性功可智本能不])能(?!力|耗|源|见度|否)",
     re.IGNORECASE,
 )
 
@@ -789,6 +807,38 @@ def test_claim_detector_has_teeth() -> None:
     for sentence in must_not_flag:
         findings = find_unsupported_claims(sentence)
         assert not findings, f"detector false-positived on honest text {sentence!r}: {findings}"
+
+
+#: The forms LC-P1-01 recorded as still-open holes, one sentence per form.
+#: Each is an unqualified present-tense capability claim about LabCairn.
+_RECORDED_HOLE_CLAIMS = (
+    "PDF parsing is supported by LabCairn.",
+    "DOCX export is provided by the CLI.",
+    "LabCairn is capable of parsing PDFs.",
+    "The CLI handles DOCX export.",
+    "LabCairn can extract claims from papers.",
+    "The tool has a built-in PDF reader.",
+    "LabCairn comes with a web dashboard.",
+    "LabCairn 可以解析 PDF。",
+    "系统能自动提取批注。",
+    "本工具用于生成报告。",
+    "LabCairn 现可使用 PDF 导出。",
+)
+
+
+def test_claim_detector_catches_forms_recorded_as_open_holes() -> None:
+    """Close the detector's recorded floor, one sentence per listed form.
+
+    The list is Phase 1's own, not a fresh invention: passive voice, "is
+    capable of", "handles", "can", "has a built-in", "comes with", and the
+    Chinese modals 可以 / 能 / 用于 / 现可使用. Every sentence below was run
+    against the unmodified detector and returned no finding (11 of 11); that
+    demonstration is recorded in
+    ``docs/acceptance/LC-P2-25-guard-of-the-guards.md``.
+    """
+    for sentence in _RECORDED_HOLE_CLAIMS:
+        findings = find_unsupported_claims(sentence)
+        assert findings, f"detector missed a recorded over-claim form: {sentence!r}"
 
 
 def test_readme_makes_no_unqualified_capability_claim(repo_root: Path) -> None:
