@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-from test_skill_support import (
+from skill_support import (
     FOREIGN_SHA,
     PAPER_SHA,
     build_inventory,
@@ -241,7 +241,7 @@ class TestForgedUpstreamArtifactsAreRefused:
 
         def peeking_evidence(context: StageContext) -> LabCairnModel:
             seen.append("reached evidence")
-            from test_skill_support import evidence_handler
+            from skill_support import evidence_handler
 
             return evidence_handler(context)
 
@@ -581,7 +581,7 @@ class TestBoundedRetries:
 
         def stuck_retrieve(context: StageContext) -> LabCairnModel:
             executions.append(context.stage.value)
-            from test_skill_support import retrieve_handler
+            from skill_support import retrieve_handler
 
             return retrieve_handler(context).model_copy(update={"derived_from": ("f" * 64,)})
 
@@ -651,7 +651,7 @@ class TestCancellationPreservesVerifiedWork:
         def stop_after_propose(context: StageContext) -> LabCairnModel:
             reached.append(context.stage.value)
             control.cancel()
-            from test_skill_support import propose_handler
+            from skill_support import propose_handler
 
             return propose_handler(context)
 
@@ -666,7 +666,7 @@ class TestCancellationPreservesVerifiedWork:
 
         def stop_after_propose(context: StageContext) -> LabCairnModel:
             control.cancel()
-            from test_skill_support import propose_handler
+            from skill_support import propose_handler
 
             return propose_handler(context)
 
@@ -702,7 +702,7 @@ class TestCancellationPreservesVerifiedWork:
 
         def cancelling_validate(context: StageContext) -> LabCairnModel:
             control.cancel()
-            from test_skill_support import validate_handler
+            from skill_support import validate_handler
 
             return validate_handler(context)
 
@@ -717,7 +717,7 @@ class TestCancellationPreservesVerifiedWork:
 
         def stop_after_propose(context: StageContext) -> LabCairnModel:
             control.cancel()
-            from test_skill_support import propose_handler
+            from skill_support import propose_handler
 
             return propose_handler(context)
 
@@ -734,7 +734,7 @@ class TestCancellationPreservesVerifiedWork:
 
         def stop_after_propose(context: StageContext) -> LabCairnModel:
             control.cancel()
-            from test_skill_support import propose_handler
+            from skill_support import propose_handler
 
             return propose_handler(context)
 
@@ -753,7 +753,7 @@ class TestCancellationPreservesVerifiedWork:
 
         def stop_after_propose(context: StageContext) -> LabCairnModel:
             control.cancel()
-            from test_skill_support import propose_handler
+            from skill_support import propose_handler
 
             return propose_handler(context)
 
@@ -776,7 +776,7 @@ class TestPlanIsDerivedNotAuthoritative:
 
         def counting_inventory(context: StageContext) -> LabCairnModel:
             runs.append("inventory")
-            from test_skill_support import inventory_handler
+            from skill_support import inventory_handler
 
             return inventory_handler(context)
 
@@ -849,7 +849,7 @@ def test_build_plan_reports_a_pending_stage_as_pending() -> None:
 
 def test_an_artifact_type_mismatch_on_adoption_is_a_typed_error() -> None:
     """The seam reports the port type rather than a ``KeyError`` three stages later."""
-    from test_skill_support import make_objective as objective_for_task
+    from skill_support import make_objective as objective_for_task
 
     from labcairn.skills import StageBlockedError as Blocked
 
@@ -873,7 +873,7 @@ def test_the_happy_path_leaves_no_substitutions_behind() -> None:
 
 
 def test_the_objective_must_belong_to_this_run_s_task() -> None:
-    from test_skill_support import make_objective as objective_for_task
+    from skill_support import make_objective as objective_for_task
 
     from labcairn.skills import StageContractError
 
@@ -884,7 +884,7 @@ def test_the_objective_must_belong_to_this_run_s_task() -> None:
 
 def test_an_adopted_artifact_is_marked_as_externally_asserted() -> None:
     """Kept distinct from "this run made it", because an audit log needs both."""
-    from test_skill_support import make_objective as objective_for_task
+    from skill_support import make_objective as objective_for_task
 
     from labcairn.skills import StageBlockedError as Blocked
 

@@ -22,7 +22,7 @@ import dataclasses
 from datetime import UTC, datetime
 
 import pytest
-from test_skill_support import (
+from skill_support import (
     DATA_SHA,
     PAPER_SHA,
     StageBlockedError,

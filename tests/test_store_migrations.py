@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint, Table, UniqueConstraint, inspect, text
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     db_path,
     frozen_clock,
@@ -30,7 +30,7 @@ from test_store_support import (  # noqa: F401
     make_task,
     migrated_db,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.db.base import Base
 from labcairn.db.migrations import (

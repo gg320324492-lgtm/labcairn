@@ -41,9 +41,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_recovery_support import Scenario, build_scenario
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from recovery_support import Scenario, build_scenario
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.analysis.manifest import (
     FileRef,
@@ -90,7 +90,7 @@ from labcairn.workspace.roots import Workspace
 
 #: The store fixture, re-exported under the name pytest looks for.
 #:
-#: It lives in ``test_store_support`` because LC-P1-05 owns it, and a fixture
+#: It lives in ``store_support`` because LC-P1-05 owns it, and a fixture
 #: that has to be imported under another name is a fixture this file cannot
 #: reason about; so it is imported once, here, and named.
 env = _shared_env

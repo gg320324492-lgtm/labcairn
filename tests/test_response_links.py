@@ -35,8 +35,8 @@ from feedback_chain_fixtures import MOMENT, ChainEnv, a_comment, build_chain
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.papers.edits import record_edit

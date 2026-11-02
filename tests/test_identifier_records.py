@@ -42,8 +42,8 @@ from typing import Any
 import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Connection
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from conftest import migrated_database_from
 from labcairn.application import (

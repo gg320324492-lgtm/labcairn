@@ -8,7 +8,7 @@ crash in a **CLI process**, kills that process the way a crash kills one, and
 then asks the surfaces what they make of what was left behind on disk.
 
 **The product has no switch for injecting a crash from outside.** The fault
-injector lives in the test support module (``tests/test_recovery_support.py``),
+injector lives in the test support module (``tests/recovery_support.py``),
 not in ``src/``, so a crash cannot be *asked for* through the CLI or the
 service. What the product does offer is that its code runs in a process the
 test owns, and the test can decide **when** that process stops. So the crash

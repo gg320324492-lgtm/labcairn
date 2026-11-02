@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-from test_skill_support import (
+from skill_support import (
     DEFAULT_CRITERION,
     FOREIGN_SHA,
     PAPER_SHA,
@@ -248,7 +248,7 @@ class TestDeclarationRefusesInconsistency:
 
     def test_an_orchestrator_without_handlers_is_refused_at_construction(self) -> None:
         """A missing stage body is a wiring mistake, not a mid-run KeyError."""
-        from test_skill_support import make_run_id
+        from skill_support import make_run_id
 
         with pytest.raises(SkillDeclarationError, match="has no handler"):
             Orchestrator(
@@ -459,7 +459,7 @@ class TestContractTable:
 def test_the_support_handlers_satisfy_the_contract() -> None:
     """A guard set that cannot accept a well-behaved run proves nothing."""
     orchestrator = make_orchestrator()
-    from test_skill_support import make_objective
+    from skill_support import make_objective
 
     outcome = orchestrator.run(make_objective(str(orchestrator.task_id)))
     assert outcome.stop.value == "completed"

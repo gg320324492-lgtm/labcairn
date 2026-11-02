@@ -77,7 +77,7 @@ restored byte-for-byte.
 | 5 | an unknown project is no longer refused | `test_the_layer_refuses_a_project_the_chain_does_not_hold` — exactly one |
 | 6 | a version outside the project is no longer refused | `test_the_layer_refuses_a_version_that_is_not_the_project_s` — exactly one |
 | 7 | the route stops passing the versions the caller named | `test_the_issue_keys_route_refuses_a_version_that_is_not_the_project_s` — exactly one |
-| 8 | the route names a fixed project instead of the caller's | `test_the_issue_keys_route_refuses_a_project_the_chain_does_not_hold` — exactly one |
+| 8 | the route names a project the store **holds** instead of the caller's — a fixed id the store does not hold is refused by the same refusal and leaves the witness green | `test_the_issue_keys_route_refuses_a_project_the_chain_does_not_hold` — exactly one (re-measured 2026-11-02 with the fixture's `proj-1`) |
 | 9 | the panel draws a key of its own beside the contract's | `draws the keys the answer carried, and none it did not` and `draws the order the service answered in, and no order of its own` — two |
 | 10 | the panel sorts the list itself | `draws the order the service answered in, and no order of its own` — exactly one |
 | 11 | the panel draws the advisor's words in the issues panel | `draws no comment’s words, because the contract carries none` — exactly one |

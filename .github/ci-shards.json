@@ -84,7 +84,6 @@
         "tests/test_public_fixtures.py",
         "tests/test_ooxml_revisions.py",
         "tests/test_paperqa_adapter.py",
-        "tests/test_store_support.py",
         "tests/test_evidence_retrieval.py",
         "tests/test_docx_fixture_corpus.py"
       ],
@@ -125,7 +124,6 @@
         "tests/test_fake_provider_determinism.py",
         "tests/test_fake_provider_isolation.py",
         "tests/test_material_adapters.py",
-        "tests/test_recovery_support.py",
         "tests/test_analysis_selection.py",
         "tests/test_analysis_manifest.py",
         "tests/test_review_dossier.py"
@@ -166,7 +164,6 @@
         "tests/test_cite_c1.py",
         "tests/test_cite_c3.py",
         "tests/test_real_provider_smoke.py",
-        "tests/test_skill_support.py",
         "tests/test_capability_namespaces.py",
         "tests/test_ci_shard_coverage.py",
         "tests/test_outbound_consent_bridge.py"
@@ -198,7 +195,6 @@
         "tests/test_baseline_document.py",
         "tests/test_public_fixtures.py",
         "tests/test_security_listing_canonical.py",
-        "tests/test_store_support.py",
         "tests/test_analysis_descriptive.py",
         "tests/test_material_regressions.py",
         "tests/test_outbound_consent_bridge.py",
@@ -233,7 +229,6 @@
         "tests/test_workspace_boundaries.py",
         "tests/test_analysis_grouped.py",
         "tests/test_fake_provider_isolation.py",
-        "tests/test_skill_support.py",
         "tests/test_paperqa_adapter.py",
         "tests/test_security_policy.py"
       ],
@@ -337,7 +332,6 @@
         "tests/test_analysis_manifest.py",
         "tests/test_intake_guards.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_recovery_support.py",
         "tests/test_provider_adapter.py",
         "tests/test_analysis_selection.py",
         "tests/test_security_injection.py"

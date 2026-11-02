@@ -58,6 +58,11 @@ its baselines are larger. Nothing in this review depends on that difference.)
    form will report a survivor where the record reports a red. The property
    itself is witnessed and holds; the description of what broke it is one
    qualifier short of reproducible.
+   **Resolved 2026-11-02:** the record's mutation-8 row now says the fixed id
+   must be one the store **holds**. Re-applied on the tree at `c19a83d`
+   before the correction landed (source files byte-identical):
+   `"fixed-project"` left the witness green; the fixture's `proj-1` reddened
+   it with `200` and the absent project's list answered by `proj-1`'s keys.
 2. No claim was found with nothing behind it:
    - The `IssueKeys` contract is two fields
      (`src/labcairn/api/contracts.py:271`), and the body-shape claim

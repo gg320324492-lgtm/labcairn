@@ -29,14 +29,14 @@ from sqlalchemy.orm import Session
 # fixture that is present in the test module's namespace, which is why the
 # shared environment lives in an importable module rather than a conftest this
 # task does not own.
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     frozen_clock,
     make_run,
     make_stage,
     make_task,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.core.ids import TaskId
 from labcairn.core.schema import LabCairnModel
@@ -471,7 +471,7 @@ def test_every_frozen_event_type_reaches_the_database(env: StoreEnv, event_type:
 
     run = make_run(task.task_id)
     stage = make_stage(task.task_id, run.run_id)
-    from test_store_support import make_operation
+    from store_support import make_operation
 
     operation = make_operation(task.task_id, run.run_id, stage.stage_id)
 
@@ -572,7 +572,7 @@ def test_a_full_lifecycle_is_storable(env: StoreEnv) -> None:
     actually wired to the seven frozen contracts rather than only the two the
     sequence tests happen to touch.
     """
-    from test_store_support import (
+    from store_support import (
         make_approval,
         make_checkpoint,
         make_operation,

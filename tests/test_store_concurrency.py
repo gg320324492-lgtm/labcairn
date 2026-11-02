@@ -34,12 +34,12 @@ import pytest
 from sqlalchemy import event as sa_event
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from test_store_support import (  # noqa: F401
+from store_support import (  # noqa: F401
     StoreEnv,
     frozen_clock,
     make_task,
 )
-from test_store_support import env as _shared_env
+from store_support import env as _shared_env
 
 from labcairn.core.ids import TaskId
 from labcairn.db.repository import TaskStore, count_events, last_seq

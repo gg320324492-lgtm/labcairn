@@ -24,8 +24,8 @@ from collections.abc import Mapping
 
 import pytest
 from pydantic import ValidationError
-from test_store_support import StoreEnv, make_operation, make_run, make_stage, make_task
-from test_store_support import env as _shared_env
+from store_support import StoreEnv, make_operation, make_run, make_stage, make_task
+from store_support import env as _shared_env
 
 from labcairn.core.ids import OperationId, RunId, StageId, TaskId, new_id
 from labcairn.runtime.event import (

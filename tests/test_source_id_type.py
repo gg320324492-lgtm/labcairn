@@ -24,8 +24,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
-from test_store_support import StoreEnv
-from test_store_support import env as _shared_env
+from store_support import StoreEnv
+from store_support import env as _shared_env
 
 from labcairn.core.ids import SourceId
 from labcairn.db.materials import put_source

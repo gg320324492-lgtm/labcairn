@@ -94,6 +94,12 @@ the data witness — **green**; M31 (data broken) against the rule witness —
    mutations share), not the witness its row names. The named witness is
    reddened by the *mis*-counting form. One line in the record would make
    the row reproducible; as written, a re-applier reports a survivor.
+   **Resolved 2026-11-02:** the record's M22 row now names
+   `test_every_item_has_two_annotations_and_a_resolution` for the deleted-count
+   form and the completion-check witness only for the `!= 1` form. Both forms
+   were re-applied on the tree at `c19a83d` before the correction landed
+   (source files byte-identical): deleted count — completion-check witness
+   green, two-annotation witness red; `!= 1` — both red.
 2. **(Note) Six of the thirty-four rows are layer-sensitive** (M9, M11, M20,
    M21, M29, and M4/M5's copy spelling): each has exactly one spelling that
    reddens the named witness and at least one natural spelling that does
