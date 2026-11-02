@@ -234,6 +234,80 @@ def halves(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, tuple[str
     return chain.context, tuple(record.revision_event_id for record in recorded)
 
 
+#: A document part with **a deletion nested inside an insertion**, in a
+#: paragraph that is **nothing but that insertion**.
+#:
+#: **This is what the third pilot's mentor wrote**, and the fixture
+#: writer cannot say it: Word writes "inserted, then deleted" as a
+#: ``w:del`` inside a ``w:ins``, and a paragraph that holds only an
+#: insertion has **no baseline at all** — there is no manuscript before
+#: the change, so the rejected view of it is empty.
+#:
+#: **And the deletion's own view is the rejected one** — the text it
+#: removed — so the case's context is the rejected paragraph, and that
+#: paragraph is empty. **The scope has to say so.**
+_NESTED_DELETION_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+    "<w:body>\n"
+    "<w:p>"
+    '<w:ins w:id="401" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:r><w:t xml:space="preserve">The energy barrier </w:t></w:r>'
+    '<w:del w:id="402" w:author="Prof. Lin" w:date="2026-03-02T09:31:00Z">'
+    '<w:r><w:delText xml:space="preserve">of the surface reaction</w:delText></w:r>'
+    "</w:del>"
+    '<w:r><w:t xml:space="preserve"> concentrates.</w:t></w:r>'
+    "</w:ins>"
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+
+@pytest.fixture()
+def an_entirely_inserted_paragraph(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, str]:
+    """A chain whose paragraph **is nothing but an insertion**.
+
+    **This is the third pilot's shape, exactly.** The mentor's deletion
+    there sits **inside** an insertion — Word writes "inserted, then
+    deleted" as a ``w:del`` nested in a ``w:ins`` — and **a paragraph
+    that is entirely inserted has no baseline at all**. The rejected view
+    of such a paragraph is empty, because there is no manuscript before
+    the insertion.
+
+    **So the deletion has no context to be read in, and the scope has to
+    say so.** The empty string is not the reviewer's surroundings: it is
+    the absence of a manuscript that existed before the change.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    chain = build_chain(
+        env.store(),
+        workspace,
+        comments=(),
+        paragraphs=("The energy barrier concentrates.",),
+        document_xml=_NESTED_DELETION_DOCUMENT,
+    )
+    recorded = record_revision_events(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        now=MOMENT,
+    )
+    record_edits_from_revisions(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        version_edge_id=chain.edge_id,
+        actors=_ROSTER,
+        now=MOMENT,
+    )
+    deletions = [record for record in recorded if record.kind == "del"]
+    assert deletions, "the document must record the nested deletion"
+    return chain.context, deletions[0].revision_event_id
+
+
 def test_the_example_is_the_half_that_shows_the_change_best(
     halves: tuple[ApplicationContext, tuple[str, str]],
 ) -> None:
@@ -273,6 +347,33 @@ def test_the_example_names_the_key_of_the_case_it_shows(
     named = [source for source in rule.sources if source in rule.example]
     assert named, "the example must name the key of the case it shows"
     assert len(named) == 1, "the example names one case, and one key"
+
+
+def test_a_paragraph_that_cannot_be_read_is_named_not_quoted(
+    an_entirely_inserted_paragraph: tuple[ApplicationContext, str],
+) -> None:
+    """A case with no context says so, and does not quote an empty string.
+
+    **A paragraph that is entirely an insertion has no baseline at all** —
+    there is no manuscript before the change, so the rejected view of it
+    is empty. **Quoting that empty string as the reviewer's surroundings
+    would say the reviewer changed something in a paragraph that does not
+    exist**, which is not what happened.
+
+    **So the scope names the case as one whose paragraph could not be
+    read**, and the change's own words are still there in the example.
+    """
+    context, event_id = an_entirely_inserted_paragraph
+
+    rule = _distil(context, revision_event_ids=(event_id,))
+
+    assert "could not be read" in rule.scope, "the scope must say the paragraph could not be read"
+    assert '""' not in rule.scope, (
+        "the empty string must never be quoted as the reviewer's surroundings"
+    )
+    assert "of the surface reaction" in rule.example, (
+        "the change's own words are still the example, whatever the context"
+    )
 
 
 def _distil(context: ApplicationContext, **overrides: object):

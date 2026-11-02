@@ -67,7 +67,7 @@ source state would be about a case nobody could look up.
 
 ## 2. The witnesses
 
-`tests/test_guidance_revision_distillation.py` — 13 tests, and every one
+`tests/test_guidance_revision_distillation.py` — 14 tests, and every one
 of them was **mutation-checked**.
 
 | The witness | What it holds |
@@ -79,6 +79,7 @@ of them was **mutation-checked**.
 | `test_a_deletion_is_read_in_the_rejected_view` | a deletion's paragraph is the manuscript *as it was* |
 | `test_the_example_is_the_half_that_shows_the_change_best` | a tracked change is often a fragment of a sentence, and the example must be the half that shows most |
 | `test_the_example_names_the_key_of_the_case_it_shows` | the key beside the example is the example's own key |
+| `test_a_paragraph_that_cannot_be_read_is_named_not_quoted` | a case with no readable context says so, and the empty string is never quoted as the reviewer's surroundings |
 | `test_a_rule_with_no_case_is_refused` | no case behind a rule is refused |
 | `test_a_revision_the_chain_holds_no_case_for_is_refused` | a named revision the chain holds nothing under is refused, not skipped |
 | `test_the_candidate_is_not_confirmed_by_its_own_proposer` | the proposer cannot confirm their own rule |
@@ -89,7 +90,7 @@ of them was **mutation-checked**.
 ### 2.1 The mutations, and what each one turned red
 
 **A witness that does not fail when the property is broken is not a
-witness.** Seven mutations were applied, one at a time, and each was
+witness.** Eight mutations were applied, one at a time, and each was
 checked to turn the tree red:
 
 | # | The mutation | What it turned red |
@@ -101,6 +102,7 @@ checked to turn the tree red:
 | 5 | the retrieval loses the revision route | 10 tests |
 | 6 | a revision the chain holds no case for is **skipped** rather than refused | the refusal witness |
 | 7 | the example falls back to key order — **the fragment instead of the sentence** | the example witness |
+| 8 | an unreadable paragraph quoted as the **empty string** | the unread-paragraph witness |
 
 **Mutation 7 survived its first attempt, and the reason is worth
 recording.** The witness was built with the fragment's key sorting
@@ -109,6 +111,15 @@ mutation was invisible. **The fixture was rebuilt so the fragment's key
 sorts first** — which is the arrangement the real material has — and the
 mutation then turned the witness red. **A witness that cannot fail is a
 witness that has not been tried.**
+
+**And mutation 8 came out of the real run, not out of a thought.** The
+third pilot's mentor wrote a paragraph that is **nothing but an
+insertion**, with a deletion nested inside it — Word's "inserted, then
+deleted" — and **such a paragraph has no baseline at all**: there is no
+manuscript before the change, so its rejected view is empty. The
+implementation already named that case as unread, and **the fixture that
+reproduces it did not exist until the real material asked for it.** The
+real material and the witness found each other.
 
 ---
 
@@ -140,6 +151,8 @@ it. The output is on disk: the case set, the candidates, and the copy.
 **Both are live.** The retrieval resolves both sources against the chain
 and reports `found: True, reachable: True, addressed: True, kind:
 revision` — **a rule bound to a revision is served, not merely stored.**
+(Read back out of the pilot's own workspace after the run: `hits total:
+3`, of which `hits carrying a revision source: 2`.)
 
 ### 3.2 What was read and deliberately not distilled: five
 
@@ -147,7 +160,7 @@ revision` — **a rule bound to a revision is served, not merely stored.**
 |---|---|
 | 「）」 and 「（」 | **the change carries no word — only a mark.** A rule about a bracket is not a rule about the manuscript's argument |
 | 「或」 | one word with no rule in it on its own; the operator read it and found nothing a reader could be told to do differently |
-| 「诱导表面氢氧根离子产生自由基的能垒的变化」 | **a deletion with no replacement.** The mentor removed a phrase without saying what should be there instead, so the change says what is wrong and not what is right — **and a rule needs the second half** |
+| 「诱导表面氢氧根离子产生自由基的能垒的变化」 | **a deletion with no replacement.** The mentor removed a phrase without saying what should be there instead, so the change says what is wrong and not what is right — **and a rule needs the second half**. **It is also nested inside an insertion**, in a paragraph that is nothing but that insertion, so **the rejected view of the paragraph is empty** — there is no manuscript before the change to read it in |
 | 「因此」 | one connective word; read, and nothing in it |
 
 **Four of the mentor's nine changes carry no word, and one carries a
@@ -156,6 +169,22 @@ nine changes, and the record says which five it did not use and why. **A
 run that reported nine rules from nine changes would have been flattering
 and wrong**, and the count is the part of this record most likely to be
 quoted out of context — so it is here with the reasons attached.
+
+### 3.3 The shape the real material has, and the chain does not
+
+**The mentor's paragraph 4 is nothing but an insertion**, with a
+deletion nested inside it — Word's "inserted, then deleted". **Such a
+paragraph has no baseline at all**, so the rejected view of it is empty:
+there is no manuscript that existed before the change.
+
+**And that is not a defect in the reading — it is a fact about the
+material.** A mentor who writes a paragraph from scratch and then
+deletes two words inside it has left the chain holding a change whose
+"before" was never a manuscript. **The scope says the paragraph could
+not be read**, and the change's own words are still the example. **A rule
+distilled from that change rests on a case whose context does not
+exist**, and the record of the distillation says so rather than quoting
+an empty string as though it were the reviewer's surroundings.
 
 ---
 
@@ -194,7 +223,7 @@ quoted out of context — so it is here with the reasons attached.
    writing leaves the chain holding the "before" and no "after".
 7. **Nothing was measured on a runner.** The shard cost for the new test
    file is **apportioned**, not measured: the local whole-file cost
-   (6.83 s on Windows) scaled by the platform ratio the record already
+   (10.21 s on Windows) scaled by the platform ratio the record already
    holds (`ubuntu = 0.473 × windows`), which is the same two-step the
    LC-P2-09 record used. **The next CI run replaces it with a
    measurement.**
