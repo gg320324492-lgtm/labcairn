@@ -868,6 +868,13 @@ only because the four duplicates are the same change. **Two different
 changes sharing a path would lose one of them silently**, and the
 witness for that belongs to LC-P2-07.
 
+**Landed 2026-11-03** in
+[LC-P2-07 revision-event identity](LC-P2-07-revision-event-identity.md):
+the double-read is gone (`f4a7e94`) and the id is keyed by
+`(version, part, element_path, occurrence)` rather than the path — the
+occurrence-0 digest is byte-identical to the stored id, so the rows here and
+the rules bound to them do not move.
+
 ## 10. The settlement over a reply: the judgement that an answer settled a point
 
 **What this is.** LC-P2-13's half of the peer-review loop. The reply

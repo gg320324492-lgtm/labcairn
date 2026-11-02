@@ -134,29 +134,46 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _revision_event_id(version_id: str, part: str, element_path: str) -> str:
+def _revision_event_id(version_id: str, part: str, element_path: str, occurrence: int = 0) -> str:
     """The id of one tracked change, derived.
 
     **Derived, so recording the same manuscript twice is the same rows.**
-    The element's path is unique inside a part, and the part and the path
-    together are unique inside a document — so the version and the path
-    name one change for ever, and identity does not depend on insertion
-    order.
+    The identity is ``(version, part, element_path, occurrence)``. The first
+    change at an address is ``occurrence == 0``, and that digest is the one
+    every ``revision_events`` row already carries -- the seed string is
+    byte-for-byte what it was before an occurrence was ever needed, so no
+    stored id moves and no rule bound to one is re-pointed.
 
-    **The uniqueness is the reader's guarantee, and it is witnessed.**
-    ``_element_path`` names an element by its chain of same-tag sibling
-    indexes, and the reader's scan reports each revision element once --
-    from the paragraph that contains it, and not a second time through a
-    drawing's text box, which the first scan did and which made four
-    revisions collide with their own addresses on real material
-    (``tests/test_ooxml_revisions.py`` holds both ends: the reader
-    reports each revision element exactly once, and two events that
-    differ in address derive different ids). Two different revisions at
-    one address therefore cannot arise from this reader; the writer's
-    refusal when an existing row holds a different text under the same
-    id is the second half of the guarantee.
+    **The path is not the identity.** A change used to be identified by
+    ``(version, part, element_path)`` alone, on the claim that the element's
+    path is unique inside a part. That claim is not a fact about OOXML -- it
+    is a fact about *this reader's scan*, and a reader is code, not a
+    constraint. ``_element_path`` names a step by its local tag and indexes
+    it among the siblings that share the full namespace-qualified tag, so
+    two elements in one paragraph whose local names collide across
+    namespaces land on one path. Today that cannot be *read*:
+    :func:`labcairn.material.ooxml.read_document` reports each revision
+    element once, and a second element on a path already taken would have
+    to be an element the scan reaches twice. It is a latent collision, and
+    ``occurrence`` is what makes it impossible rather than merely absent.
+
+    **Why an occurrence, and why counted from the document.** When two
+    genuinely different changes do share an address, the second is
+    ``occurrence == 1``, the third ``2``, and so on, counted in the order
+    the read events arrive. The order is the document's own -- the reader
+    walks ``w:body`` top to bottom -- so re-reading the same bytes yields
+    the same count for the same change and the same ids: the identity is a
+    function of the manuscript, never of when or in what arrangement the
+    caller happened to pass the events. The reader's own uniqueness
+    (``tests/test_ooxml_revisions.py``: each revision element reported
+    exactly once) keeps every address at ``occurrence == 0``, which is why
+    the first-change digest above stays byte-stable; the occurrence is the
+    guarantee for the case the reader does not produce today.
     """
-    digest = hashlib.sha256(f"{version_id}\x00{part}\x00{element_path}".encode()).hexdigest()
+    seed = f"{version_id}\x00{part}\x00{element_path}"
+    if occurrence:
+        seed += f"\x00occ{occurrence}"
+    digest = hashlib.sha256(seed.encode()).hexdigest()
     return f"rv-{digest[:16]}"
 
 
@@ -283,6 +300,7 @@ def _row_for(
     *,
     parser_version: str,
     now: datetime,
+    occurrence: int = 0,
 ) -> RevisionEventRow:
     """The row one read event becomes.
 
@@ -290,11 +308,17 @@ def _row_for(
     ``None`` plus a named reason, never a guess — ADR-0014 D3 — and an
     *empty* author is not a missing one, so the empty string is kept as it
     was found and the reason stays absent.
+
+    ``occurrence`` is how many changes the same address has already been
+    given in this document, and it is the caller's to count -- see
+    :func:`_revision_event_id` for why the identity needs it and why the
+    first change at an address (``occurrence == 0``) keeps the digest every
+    stored row already carries.
     """
     part = event.locator.part
     element_path = event.locator.element_path
     return RevisionEventRow(
-        revision_event_id=_revision_event_id(version_id, part, element_path),
+        revision_event_id=_revision_event_id(version_id, part, element_path, occurrence),
         version_id=version_id,
         kind=event.kind,
         text=event.text,
@@ -336,8 +360,10 @@ def record_revision_events(
     and the table has nowhere to put it.
 
     **And recording the same version twice is the same rows.** The ids are
-    derived from the version and the element's path, so a second reading
-    of the same bytes finds the rows that are already there. **A row whose
+    derived from the version, the part, the element's path and how many
+    changes that address has already been given in this document, so a
+    second reading of the same bytes finds the rows that are already there.
+    **A row whose
     text no longer matches is a stale anchor, and it is refused** rather
     than silently re-pointed — the manuscript's bytes changed under the
     address, and re-pointing it would make the record say something the
@@ -381,10 +407,25 @@ def record_revision_events(
     document = read_document(data)
     parser_version = _parser_version()
 
+    # **The occurrence is counted from the document, not the store.** Each
+    # address -- a (part, element_path) pair -- is numbered in the order the
+    # read events arrive, which is the document's own top-to-bottom order, so
+    # re-reading the same bytes gives the same number to the same change and
+    # the same ids (:meth:`_revision_event_id`). The first change at an
+    # address is 0, whose digest is byte-for-byte what every stored row
+    # already carries; only a *second* change on one address -- which this
+    # reader does not produce today, and which is the collision the identity
+    # used to lose -- is given a number that changes the digest.
+    seen: dict[tuple[str | None, str | None], int] = {}
     recorded: list[RevisionRecord] = []
     fresh: list[RevisionEventRow] = []
     for event in document.revisions:
-        row = _row_for(version_id, event, parser_version=parser_version, now=now)
+        address = (event.locator.part, event.locator.element_path)
+        occurrence = seen.get(address, 0)
+        seen[address] = occurrence + 1
+        row = _row_for(
+            version_id, event, parser_version=parser_version, now=now, occurrence=occurrence
+        )
         existing = session.get(RevisionEventRow, row.revision_event_id)
         if existing is not None:
             if existing.text_sha256 != row.text_sha256:

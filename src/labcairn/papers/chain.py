@@ -138,9 +138,12 @@ def edit_action_id_for(revision_event_id: str) -> str:
     silently — the write would succeed and the read would find nothing.
 
     The derivation is the event's own id, because ``revision_events``
-    already mints that from the version and the element's path (recorded
-    twice, the same rows are found), and an edit is the same change
-    said in the chain's own vocabulary.
+    already mints that from the version, the part, the element's path and
+    how many changes that address has been given (recorded twice, the same
+    rows are found), and an edit is the same change said in the chain's own
+    vocabulary. It prefixes whatever id it is handed and derives nothing of
+    its own, so the event id's occurrence rule is the whole of the identity
+    here too.
     """
     return f"ea-{revision_event_id}"
 
