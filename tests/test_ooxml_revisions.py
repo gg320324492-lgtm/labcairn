@@ -774,6 +774,62 @@ def test_the_derived_revision_event_id_names_one_change_per_address(
         assert again == ids[0], fixture.name
 
 
+def test_the_revision_event_id_carries_an_occurrence_per_change_at_one_address() -> None:
+    """The identity is per change, not per path.
+
+    ``_revision_event_id`` used to hash ``(version, part, element_path)``
+    alone and its docstring asserted the path is unique inside a part -- a
+    claim about a *reader*, held up as if it were a constraint. This witness
+    holds the property that claim was standing in for, and the two halves of
+    it are both tested here because each fails a different mutation:
+
+    * **The first change at an address keeps the digest every stored row
+      already carries.** ``occurrence`` defaults to ``0`` and that path
+      hashes ``version|part|path`` with no suffix at all -- byte-for-byte the
+      pre-occurrence id. This is what lets the fix land without moving the
+      ``2164`` rows in the pilot's ``revision_events`` or re-pointing a rule
+      bound to one; a derivation that folded the occurrence in unconditionally
+      (``f"...\x00{occurrence}"`` with no ``if``) would change every id and
+      orphan every binding, and this assertion is red the moment it does.
+    * **A second and third genuinely different change at one address each get
+      a different id.** They are distinct events, so a writer that ignored the
+      occurrence -- the silent-loss defect itself -- would fold them onto the
+      first row, and the assertion ``len({id0, id1, id2}) == 3`` goes red.
+    """
+    import hashlib
+
+    from labcairn.papers.revisions import _revision_event_id
+
+    version, part, path = "ver-under-test", "word/document.xml", "/document[1]/body[1]/p[1]/ins[1]"
+
+    legacy = "rv-" + hashlib.sha256(f"{version}\x00{part}\x00{path}".encode()).hexdigest()[:16]
+    assert _revision_event_id(version, part, path) == legacy, "the first change at an address moved"
+    assert _revision_event_id(version, part, path, 0) == legacy
+
+    first = _revision_event_id(version, part, path, 0)
+    second = _revision_event_id(version, part, path, 1)
+    third = _revision_event_id(version, part, path, 2)
+    assert len({first, second, third}) == 3, "two changes at one address collide on one id"
+
+
+def test_the_revision_event_id_is_re_derivable_not_position_dependent() -> None:
+    """The occurrence is a function of the change, so re-reading is stable.
+
+    The writer numbers each address from the document's own order, not from
+    any caller's arrangement, so the same ``(version, part, path, occurrence)``
+    gives the same id every time it is asked. **What breaks it:** mixing the
+    wall clock or a per-call counter that starts elsewhere into the digest --
+    recording the same manuscript a second time would then mint new ids for
+    the same changes, and the rows already in the store would be found by
+    neither the replay check nor the reader.
+    """
+    from labcairn.papers.revisions import _revision_event_id
+
+    args = ("ver-a", "word/document.xml", "/document[1]/body[1]/p[3]/del[1]", 1)
+    assert _revision_event_id(*args) == _revision_event_id(*args)
+    assert _revision_event_id(*args) == _revision_event_id(*args)
+
+
 def test_a_part_that_declares_a_dtd_is_refused() -> None:
     """A DTD is refused, and the refusal says which part and why.
 

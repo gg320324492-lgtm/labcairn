@@ -438,6 +438,14 @@ because the four duplicates are the same change. **Two different changes
 sharing a path would lose one of them silently.**
 [LC-P2-07 fidelity baseline](acceptance/LC-P2-07-fidelity-baseline.md).
 
+**Closed 2026-11-03.** The double-read that produced the 243 was fixed by
+`f4a7e94` — that file now reads 239 events against 239 distinct addresses.
+The identity no longer rests on the path at all: a change is keyed by
+`(version, part, element_path, occurrence)`, the first change at an address
+keeping the id every stored row already carries, so the 2164 pilot rows and
+the rules bound to them do not move.
+[LC-P2-07 revision-event identity](acceptance/LC-P2-07-revision-event-identity.md).
+
 
 **The surfaces run the recovery pass now.** `run_stage` calls it after the policy
 verdict and before any consent is spent, so a crash through the CLI or the service
