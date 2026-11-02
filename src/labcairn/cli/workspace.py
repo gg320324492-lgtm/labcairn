@@ -615,6 +615,8 @@ def application_context(
     location: WorkspaceLocation,
     config: WorkspaceConfig,
     task_id: TaskId,
+    *,
+    readonly: bool = False,
 ) -> Iterator[ApplicationContext]:
     """The context every task-scoped command runs against.
 
@@ -624,13 +626,20 @@ def application_context(
     the *only* thing the surface constructs, and it is the thing the layer
     consumes.
 
+    ``readonly=True`` is for commands that only read. It builds a read-only
+    engine, whose reads take a snapshot instead of SQLite's write lock, and
+    whose connections refuse writes at SQLite (``PRAGMA query_only=ON``), so a
+    command that turns out to write under a read-only context fails rather than
+    quietly becoming a writer. A command that writes anything — an event, a
+    receipt, a row — must leave this at its default.
+
     The session is closed and the engine disposed on the way out, so a command
     that raises leaves nothing holding the database file open — which matters
     on Windows, where an open file cannot be deleted and a test's temporary
     directory would survive the run that made it.
     """
     workspace = bind_workspace(location, config, task_id)
-    engine = create_db_engine(location.root / config.database)
+    engine = create_db_engine(location.root / config.database, readonly=readonly)
     factory = create_session_factory(engine)
     try:
         with session_scope(factory) as session:

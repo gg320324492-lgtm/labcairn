@@ -44,6 +44,27 @@ meaningful rather than a test of ``SQLITE_BUSY``. ``busy_timeout`` turns lock
 contention into a wait rather than an immediate error, because ``BEGIN
 IMMEDIATE`` failing fast is correct behaviour but makes a concurrent writer look
 like a bug.
+
+**4. A read-only engine is deferred, and SQLite enforces that it stays read-only.**
+``BEGIN IMMEDIATE`` is a property of a *write* transaction, but the clause above
+is installed on the engine, and an engine serves reads too — so every read also
+took the write lock and waited behind any open writer. WAL was already doing its
+job (measured: a deferred read on a raw connection completed in 6 ms while a
+writer held ``BEGIN IMMEDIATE``); the lock came from the read's own ``BEGIN
+IMMEDIATE``, not from the journal mode.
+
+:func:`create_db_engine` therefore takes ``readonly=True`` for engines that only
+read. Such an engine issues a plain deferred ``BEGIN`` and sets ``PRAGMA
+query_only=ON`` on every connection. The two are deliberately redundant: the
+deferred ``BEGIN`` is what lets the read take a snapshot instead of the write
+lock, and ``query_only`` makes SQLite itself refuse a write on that connection,
+so a read-only session handed to code that writes fails loudly instead of
+silently upgrading to a write transaction. The write engine is unchanged and
+still takes the write lock before its first read, which is ADR-0003 C3.
+
+The pragma order here matters for the read-only engine as well: ``query_only``
+is set **after** ``journal_mode=WAL``, because switching a database out of
+rollback-journal mode writes the file header.
 """
 
 from __future__ import annotations
@@ -67,6 +88,7 @@ def create_db_engine(
     *,
     busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     echo: bool = False,
+    readonly: bool = False,
 ) -> Engine:
     """An engine configured for ADR-0003 C3's transaction boundary.
 
@@ -75,6 +97,13 @@ def create_db_engine(
     the concurrency tests legitimately use one engine from several threads; SQLAlchemy's
     pool still hands each thread its own connection, so this does not make a
     connection shared *within* a thread.
+
+    With ``readonly=True`` the engine opens deferred transactions (a read does
+    not take the write lock) and every connection carries ``PRAGMA
+    query_only=ON``, so a write is refused by SQLite rather than silently
+    turning the read into a write transaction. A read-only engine must not be
+    used to write, and cannot be; sessions that write belong on an engine built
+    with the default ``readonly=False``.
     """
     resolved = str(url)
     if "://" not in resolved:
@@ -114,14 +143,21 @@ def create_db_engine(
             # Readers do not block the writer. Persistent in the database file.
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
+            if readonly:
+                # After journal_mode: switching a database into WAL writes the
+                # file header, and query_only would refuse that write.
+                cursor.execute("PRAGMA query_only=ON")
         finally:
             cursor.close()
 
     @event.listens_for(engine, "begin")
-    def _begin_immediate(connection: Any) -> None:
+    def _begin(connection: Any) -> None:
         # Step 2 above. Deliberately raw: SQLAlchemy has no portable spelling
         # of "BEGIN IMMEDIATE", and the whole point of C3 is this exact clause.
-        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        # A read-only engine takes a deferred BEGIN instead, so its read is a
+        # snapshot and not a second claimant of the write lock; query_only is
+        # what keeps that deferred transaction from ever being upgraded.
+        connection.exec_driver_sql("BEGIN" if readonly else "BEGIN IMMEDIATE")
 
     return engine
 
