@@ -461,8 +461,6 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),
-    # -- arrived on the citation-identity branch, unfiled there; filed here --
-    "test_identifier_records.py": ("integration", "migrations"),
     "test_review_dossier.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_release_workflow.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_threat_model.py": (REPOSITORY_CLASS, "repository-gate"),
