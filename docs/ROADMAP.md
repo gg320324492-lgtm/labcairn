@@ -106,18 +106,28 @@ blind
 evaluation that is written and not run, citation identity, retrieval
 quality beyond three papers, and the competitor comparison.
 
-**Where Line B stands (2026-11-02).** Everything the 2026-11-01 entry
-lists is merged, and three more pieces have landed: **the reader reports
+**Where Line B stands (2026-11-02, later).** Everything the 2026-11-01
+entry lists is merged, and more has landed since: **the reader reports
 one tracked change once** (the drawing-text-box double-read, with the
 shape in the corpus so the witnesses catch it by construction), **the
 peer-review loop has its judgement half** (the settlement over a reply,
-LC-P2-13), and **the P1 baseline is frozen** — the exit gate's
-denominator exists, measured on `81babd5`, six conditions verified
-comparable end to end. **Of the merged ticket's six, two are done and
-four are left**: the blind evaluation (written, not run), citation
-identity, retrieval quality beyond three papers, and the competitor
-comparison, whose preconditions — the frozen baseline and the model-call
-path — are now both met.
+LC-P2-13), **the P1 baseline is frozen** (the exit gate's denominator,
+measured on `81babd5`, six conditions verified comparable end to end),
+**citation identity is built** (a record can carry a scholarly
+identifier with its provenance, a claim may not rest on one nothing
+resolved, and `not_attempted` is recorded rather than silently sent —
+LC-P2-17), **the blind evaluation's mechanical preparation is built and
+mutation-verified twice** (five arms as data, the by-paper leak check
+that names every shape, the anonymous sheet that refuses an arm key,
+the paired sign test whose not-significant verdict is first-class —
+LC-P2-14's machinery, **written and not run**), and **five acceptance
+records carry an independent review** (every mutation re-applied by a
+session that built none of them, every witness watched). **Of the
+merged ticket's six, four are built and two are left**: the blind
+evaluation's real run (unseen papers and a budget — the owner's call),
+and the competitor comparison (brief written, preconditions met, budget
+and final pick the owner's call). Retrieval quality beyond three
+papers waits on a corpus read by a human, per LC-P2-14's own protocol.
 
 ## Phase 1 upstream research
 

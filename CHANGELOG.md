@@ -20,6 +20,28 @@ The links are the records.
 
 **Added**
 
+- **The blind evaluation's mechanical preparation (LC-P2-14).** Four
+  pieces under `tests/evaluation/`: the protocol's five arms as data a
+  configuration is measured against; a by-paper leak check that names
+  every leak shape it knows (a paper on both sides, an entry with no
+  side, an entry on the wrong side, a rule built on an evaluated paper,
+  a side the checker does not know); an anonymous blind sheet that
+  **refuses** a document carrying an arm key rather than cleaning it;
+  and an exact paired sign test whose **not-significant verdict is a
+  first-class outcome** — a small denominator is not significant by
+  rule with no p-value computed, all-ties says "no evidence either
+  way", and every significant row carries its denominator. 64
+  witnesses; 47 mutations self-reported and all caught; 4 further
+  mutations applied independently, all caught.
+  [LC-P2-14 preparation](docs/acceptance/LC-P2-14-preparation.md).
+
+- **Five acceptance records carry an independent review.** Every
+  mutation in the reviewed records re-applied by a session that built
+  none of them, every witness watched: LC-P2-02/07/09 hold;
+  LC-P2-10/16 hold with notes. The reviews are records of the checking
+  (`docs/acceptance/LC-P2-{02,07,09,10,16}-review.md`), not of new
+  work.
+
 - **The P1 baseline is frozen.** The phase's exit gate — *"measured
   capability gain against a frozen P1 baseline"* — had no denominator:
   the harness could read a baseline document and nothing supplied one.

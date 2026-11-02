@@ -1,5 +1,38 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-02 · **the blind evaluation's preparation is built and
+mutation-verified twice, and five acceptance records carry an
+independent review.**
+
+**LC-P2-14's mechanical preparation is built.** Four pieces
+(`tests/evaluation/arms.py`, `split_check.py`, `blind_sheet.py`,
+`significance.py`): the protocol's five arms as data a configuration is
+measured against (`assess_configuration` refuses a wrong model, a
+missing budget, a broken additive chain, an arm that sees what its
+predecessor sees); a by-paper leak check over the whole corpus (a paper
+on both sides, an entry with no side, an entry on the wrong side, a
+rule built on an evaluated paper, a side the checker does not know —
+each named); an anonymous blind sheet that refuses a document carrying
+an arm key rather than cleaning it; and a paired sign test whose
+not-significant verdict is a **first-class outcome** — small
+denominator (below `MIN_PAIRS=10`) is not significant by rule with no
+p-value computed, all-ties says "no evidence either way", p at or above
+alpha renders with its numbers, and every significant row carries its
+denominator. 64 witnesses; **47 self-reported mutations, all caught
+after two survivors demanded dedicated witnesses; 4 more mutations
+independently applied by the coordinator, all caught.**
+
+**Five acceptance records carry an independent review**
+(`docs/acceptance/LC-P2-{02,07,09,10,16}-review.md`): every mutation in
+the reviewed records re-applied by a session that built none of them,
+every witness watched. LC-P2-02/07/09 hold; LC-P2-10/16 hold with
+notes (one witness's attribution was stated wrongly though its
+property holds; one mutation needs a qualifier that its evidence
+arrives through the store's refusal). The reviews are records of the
+checking, not of new work.
+
+---
+
 **Date:** 2026-11-02 · **the reader reports one change once, the
 peer-review loop has its judgement half, and the P1 baseline is frozen.**
 
