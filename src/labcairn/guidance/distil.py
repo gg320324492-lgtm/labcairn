@@ -363,10 +363,24 @@ def _revision_example_of(cases: Sequence[chain_layer.ChainRevisionSource]) -> st
     example is the longest change among the cases**, because the longest
     is the one that shows what the reviewer wrote; and the tie is broken
     by the key, so the choice is the same on every machine.
+
+    **And an insertion is shown before a deletion, whatever their
+    lengths.** A rule says what a manuscript *should* carry, so its
+    example has to be the words the reviewer wrote — **a deletion shows
+    what the reviewer took away**, and a rule illustrated by the thing it
+    tells a reader not to do is illustrated by its own counterexample.
+    This is not hypothetical: a mentor replacing one mechanism with
+    another deletes a phrase longer than the one they insert, and a reader
+    that picked by length alone would show the phrase the mentor rejected.
     """
     first = max(
         cases,
-        key=lambda case: (len(case.text), case.source_key, case.revision_event_id),
+        key=lambda case: (
+            case.kind == "ins",
+            len(case.text),
+            case.source_key,
+            case.revision_event_id,
+        ),
     )
     if first.change_kind == "with_text":
         what = first.text

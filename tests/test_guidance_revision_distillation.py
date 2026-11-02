@@ -336,6 +336,83 @@ def test_the_example_is_the_half_that_shows_the_change_best(
     )
 
 
+def test_an_insertion_is_the_example_before_a_longer_deletion(
+    env: StoreEnv,
+    tmp_path: Path,
+) -> None:
+    """**A rule's example is what to write, never what was taken away.**
+
+    A rule says what a manuscript should carry, so a rule illustrated by
+    the reviewer's *deletion* is illustrated by its own counterexample.
+
+    **And length cannot decide it.** A mentor replacing one mechanism with
+    another deletes a phrase longer than the one they insert — the third
+    pilot's mentor did exactly that — so a reader that picked the longest
+    change would show the phrase the mentor rejected.
+    """
+    # **The deletion is the longer change in this fixture**, which is the
+    # shape the third pilot's mentor produced: a phrase replaced by a
+    # shorter one.
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    chain = build_chain(
+        env.store(),
+        workspace,
+        comments=(),
+        paragraphs=("The method estimates the parameter roughly.",),
+        revisions=(
+            Revision(
+                kind="del",
+                text="the parameter roughly",
+                author=_ADVISOR_NAME,
+                date="2026-03-02T09:31:00Z",
+                element_id="301",
+                paragraph=0,
+                anchor_text="the parameter roughly",
+            ),
+            Revision(
+                kind="ins",
+                text="conservatively",
+                author=_ADVISOR_NAME,
+                date="2026-03-02T09:32:00Z",
+                element_id="302",
+                paragraph=0,
+                after_text="estimates",
+            ),
+        ),
+    )
+    recorded = record_revision_events(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        now=MOMENT,
+    )
+    record_edits_from_revisions(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        version_edge_id=chain.edge_id,
+        actors=_ROSTER,
+        now=MOMENT,
+    )
+
+    insertion = next(record.revision_event_id for record in recorded if record.kind == "ins")
+    deletion = next(record.revision_event_id for record in recorded if record.kind == "del")
+    assert len("the parameter roughly") > len("conservatively"), (
+        "the fixture must make the deletion the longer change, or the witness"
+        " would pass for the wrong reason"
+    )
+
+    rule = _distil(chain.context, revision_event_ids=(insertion, deletion))
+
+    assert "conservatively" in rule.example, (
+        "the example must be the words the reviewer wrote, not the phrase they took away"
+    )
+    assert "the parameter roughly" not in rule.example, (
+        "a rule illustrated by the reviewer's deletion is illustrated by its counterexample"
+    )
+
+
 def test_the_example_names_the_key_of_the_case_it_shows(
     halves: tuple[ApplicationContext, tuple[str, str]],
 ) -> None:
