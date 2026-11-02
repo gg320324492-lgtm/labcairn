@@ -127,6 +127,82 @@ class ChainRefusal(StrEnum):
     CLAIM_NOT_IN_MANUSCRIPT = "claim_not_in_manuscript"
 
 
+def edit_action_id_for(revision_event_id: str) -> str:
+    """The id one recorded change takes, derived from the event it records.
+
+    **It lives here, and not in the writer, because both sides need it.**
+    ``labcairn.papers.edits`` mints it when the row is written, and the
+    application layer derives it when it is asked for the change behind a
+    revision an operator names. **A second spelling of the derivation is
+    a second address for one row**, and the two would drift apart
+    silently — the write would succeed and the read would find nothing.
+
+    The derivation is the event's own id, because ``revision_events``
+    already mints that from the version and the element's path (recorded
+    twice, the same rows are found), and an edit is the same change
+    said in the chain's own vocabulary.
+    """
+    return f"ea-{revision_event_id}"
+
+
+#: The prefix the ids of ``revision_events`` carry. **It is the prefix
+#: the product's own derivation gives them**, and it is recorded here
+#: because a revision source's key is one of those ids.
+#:
+#: **It is not a namespace, and nothing may be decided by it.** A
+#: comment's issue key is a person's judgement and may be spelled any
+#: way at all — including with this prefix — so **a key that starts with
+#: it is not thereby a revision.** The chain tells the two apart by
+#: looking them up, not by reading their spelling, and a rule that
+#: decided a key's kind from its first letters would be a rule that
+#: guessed (ADR-0017 C10).
+REVISION_SOURCE_PREFIX: Final[str] = "rv-"
+
+
+def revision_source_key(revision_event_id: str) -> str:
+    """The key one revision case is filed under, minted by the product.
+
+    **The product mints it, and nobody else may.** A comment's issue key
+    is a person's judgement about what the same problem is (ADR-0017
+    C10), so it is given and never derived. **A revision has no such
+    judgement to give**: a tracked change is a fact about a file, and its
+    address already names it. So the key is *derived* — from the
+    revision event's own id, which is itself derived from the version and
+    the element's path — and a caller that wants a revision case names
+    the revision, never the key.
+
+    **And the derivation is here, beside :func:`edit_action_id_for`,
+    because the two are the same kind of thing.** Both are addresses the
+    product derives from an address the chain already has, and a second
+    spelling of either is a second name for one row.
+
+    **And the key *is* the revision event's id.** The revision events'
+    own ids already carry :data:`REVISION_SOURCE_PREFIX`, so prefixing
+    them again would spell the same address twice. **The chain holds the
+    event under that id**, and a reader who follows the key finds the
+    change itself — **which is what makes the key traceable**.
+    """
+    return revision_event_id
+
+
+def is_revision_source_key(key: str) -> bool:
+    """Whether *key* **spells** like a revision id.
+
+    **It is a spelling test and not a kind test, and it decides
+    nothing.** A comment's issue key is a person's judgement and may be
+    spelled any way at all, so this function cannot tell the two apart —
+    it says only what a key *looks* like. **The chain tells them apart
+    by looking them up**: a key the chain holds a revision under is a
+    revision's, and a key it holds a comment under is a comment's.
+
+    **It exists for the reader's benefit, and the reader must not trust
+    it alone.** A key spelled like a revision that the chain holds no
+    revision under is a key the chain holds nothing under, and it dies
+    as one.
+    """
+    return key.startswith(REVISION_SOURCE_PREFIX)
+
+
 def project_row(session: Session, project_id: str) -> PaperProjectRow | None:
     """The paper project row, or ``None`` when the store holds no such row."""
     return session.get(PaperProjectRow, project_id)
@@ -286,15 +362,19 @@ def classify_revision_change(text: str, element_path: str | None) -> str:
 
 __all__ = [
     "REVISION_CHANGE_KINDS",
+    "REVISION_SOURCE_PREFIX",
     "ChainRefusal",
     "classify_revision_change",
     "edge_row",
+    "edit_action_id_for",
     "edit_row",
     "feedback_row",
     "feedback_rows_for_issue",
+    "is_revision_source_key",
     "material_relative_path",
     "material_source",
     "project_row",
     "project_version_rows",
+    "revision_source_key",
     "version_row",
 ]

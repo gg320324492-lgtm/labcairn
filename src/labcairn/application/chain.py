@@ -78,7 +78,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from labcairn.application.context import ApplicationContext
-from labcairn.application.refusal import chain_refused
+from labcairn.application.refusal import ApplicationRefusedError, chain_refused
 from labcairn.db.models import (
     EditActionRow,
     FeedbackEventRow,
@@ -93,8 +93,14 @@ from labcairn.papers.chain import (
     REVISION_CHANGE_KINDS,
     ChainRefusal,
     classify_revision_change,
+    edit_action_id_for,
     project_row,
     project_version_rows,
+    revision_source_key,
+)
+from labcairn.papers.revisions import (
+    read_paragraph_context,
+    read_rejected_paragraph_context,
 )
 
 
@@ -293,6 +299,54 @@ class ChainRevisionActivity:
     most_events_in_a_paragraph: int
     #: How many comments the chain holds for the same version.
     comment_count: int
+
+
+@dataclass(frozen=True)
+class ChainRevisionSource:
+    """One revision case, as the chain holds it: the change and its place.
+
+    **A revision case is a change and the paragraph it sits in.** The
+    change's own words are what the reviewer wrote, and the paragraph is
+    where they wrote them — **and the paragraph is what makes the words
+    checkable**, the same way a comment's anchored text does for a comment
+    case. A change with no paragraph to sit in is a change with no
+    context, and a scope that quoted nothing would be a scope that
+    claimed the reviewer wrote about nothing.
+
+    **And the actor travels with it.** A change is a change *somebody
+    made*, and the chain records who: ``actor_kind`` is the kind of actor
+    and ``actor_id`` the operator's handle for them, or ``None`` for a
+    model, which has no id (ADR-0016). **A revision case whose actor is
+    a model is not the advisor's advice**, and a rule distilled from it
+    says so rather than borrowing the advisor's name.
+    """
+
+    #: The key the product minted for this case. **Not a parameter**: it
+    #: is derived from the revision event's own id.
+    source_key: str
+    #: The revision event the case is.
+    revision_event_id: str
+    #: The manuscript version whose document carries the change.
+    version_id: str
+    #: ``ins``, ``del``, ``moveFrom`` or ``moveTo``.
+    kind: str
+    #: **What kind of change this is** — one of
+    #: :data:`REVISION_CHANGE_KINDS`.
+    change_kind: str
+    #: The inserted or the deleted text. **Empty is a real value.**
+    text: str
+    #: The paragraph the change sits in, and the text of that paragraph
+    #: **as the change's own view reads it**: an insertion belongs to the
+    #: accepted text, a deletion to the rejected text. **Empty when the
+    #: paragraph holds no such text**, and then the scope says so.
+    paragraph: int | None
+    paragraph_text: str
+    #: Who made it, and of what kind. **``None`` for a model**, which has
+    #: no id.
+    actor_kind: str | None
+    actor_id: str | None
+    #: The edit action the chain recorded for this change.
+    edit_action_id: str | None
 
 
 @dataclass(frozen=True)
@@ -545,6 +599,109 @@ def read_revision_events(
     )
 
 
+def read_revision_sources(
+    context: ApplicationContext, *, revision_event_ids: Sequence[str]
+) -> tuple[ChainRevisionSource, ...]:
+    """The revision cases the chain holds, each with its key and its place.
+
+    **The caller names the revision, and the key is the product's.**
+    The caller passes the chain's own address for a change — the
+    revision event's id — and this read mints the key the case is filed
+    under. **A caller cannot hand in a key**, because a key that a caller
+    wrote is a key nobody can check: it would name a case the chain may
+    not hold, and the rule would be bound to material that does not
+    exist.
+
+    **And a revision nobody holds is absent here, not invented.** The
+    read returns only the changes the chain records, so a caller that
+    names an id the chain does not hold learns that by the empty answer
+    — and the distillation refuses a rule with no case behind it.
+
+    **The actor travels with the case.** A change is a change somebody
+    made, and the chain recorded who: the edit action carries the actor
+    the operator's roster named. **A change with no edit action has no
+    actor**, and a case with no actor says so rather than borrowing one.
+
+    **And the paragraph is read in the view the change sits in.** An
+    insertion belongs to the accepted text and a deletion to the rejected
+    one, so the context is read through
+    :func:`labcairn.papers.revisions.read_paragraph_context` or its
+    rejected counterpart, and the case carries the text of the paragraph
+    the change was written into.
+    """
+    ids = tuple(dict.fromkeys(event_id for event_id in revision_event_ids if event_id))
+    if not ids:
+        return ()
+    session = context.store.session
+    rows = session.scalars(
+        select(RevisionEventRow).where(RevisionEventRow.revision_event_id.in_(ids))
+    ).all()
+    if not rows:
+        return ()
+
+    # **The actor comes from the chain's own record of the change.**
+    # The edit action's id is derived from the revision event's, so the
+    # one is found from the other — and a change with no edit action has
+    # no actor, which the case says rather than guesses.
+    edits = {
+        row.edit_action_id: row
+        for row in session.scalars(
+            select(EditActionRow).where(
+                EditActionRow.edit_action_id.in_(
+                    tuple(edit_action_id_for(event_id) for event_id in ids)
+                )
+            )
+        )
+    }
+
+    found: list[ChainRevisionSource] = []
+    for row in rows:
+        edit = edits.get(edit_action_id_for(row.revision_event_id))
+        found.append(
+            ChainRevisionSource(
+                source_key=revision_source_key(row.revision_event_id),
+                revision_event_id=row.revision_event_id,
+                version_id=row.version_id,
+                kind=row.kind,
+                change_kind=classify_revision_change(row.text, row.element_path),
+                text=row.text,
+                paragraph=row.paragraph,
+                paragraph_text=_paragraph_text(context, row),
+                actor_kind=edit.actor_kind if edit is not None else None,
+                actor_id=edit.actor_id if edit is not None else None,
+                edit_action_id=edit.edit_action_id if edit is not None else None,
+            )
+        )
+    return tuple(found)
+
+
+def _paragraph_text(context: ApplicationContext, row: RevisionEventRow) -> str:
+    """The text of the paragraph a change sits in, in the change's view.
+
+    **A paragraph that cannot be read is an empty string, and the caller
+    says so in the scope.** A case whose context could not be read is
+    still a case — the change's own words are in the chain — but a scope
+    that quoted the empty string as though it were the reviewer's
+    surroundings would say the reviewer changed something in a paragraph
+    that does not exist, which is not what happened. **The same reasoning
+    the comment case uses**, for the same reason.
+    """
+    if row.paragraph is None:
+        return ""
+    try:
+        if row.view == "rejected":
+            texts = read_rejected_paragraph_context(
+                context, version_id=row.version_id, paragraphs=(row.paragraph,)
+            )
+        else:
+            texts = read_paragraph_context(
+                context, version_id=row.version_id, paragraphs=(row.paragraph,)
+            )
+    except ApplicationRefusedError:
+        return ""
+    return texts.get(row.paragraph, "")
+
+
 def read_revision_activity(
     context: ApplicationContext, *, version_ids: Sequence[str]
 ) -> tuple[ChainRevisionActivity, ...]:
@@ -755,6 +912,7 @@ __all__ = [
     "ChainReply",
     "ChainRevision",
     "ChainRevisionActivity",
+    "ChainRevisionSource",
     "ProjectGraph",
     "classify_revision_change",
     "read_comments",
@@ -766,4 +924,5 @@ __all__ = [
     "read_response_states",
     "read_revision_activity",
     "read_revision_events",
+    "read_revision_sources",
 ]

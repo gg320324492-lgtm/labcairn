@@ -1,0 +1,522 @@
+"""The distillation's second case: a rule learned from a revision.
+
+**What is under test.** The distillation's revision half: a rule
+distilled from the chain's **tracked changes** rather than from its
+comments, and the four properties that half has to hold.
+
+=====================================================  =========================
+A7  a distilled rule is a **candidate** until a person  the creator is
+    confirms it                                        ``operator_proposal``,
+                                                       and the proposer
+                                                       cannot confirm their
+                                                       own rule
+A9  a rule whose scope the cases do not support is     the scope is the
+    refused                                            cases', or there is
+                                                       no rule
+=====================================================  =========================
+
+**And A9 has a second half here too.** A revision case's scope is the
+**paragraph the change sits in**, read in the change's own view — an
+insertion belongs to the accepted text and a deletion to the rejected
+one, so a paragraph read in the wrong view is a different paragraph.
+And a paragraph that could not be read is **named as unread**, never
+quoted as the empty string: an empty string quoted as the reviewer's
+surroundings would say the reviewer changed something in a paragraph
+that does not exist.
+
+**And the key is the product's.** A comment's issue key is a person's
+judgement (ADR-0017 C10) and is given; **a revision has no such
+judgement to give** — a tracked change is a fact about a file whose
+address already names it. So the caller names the *revision* and the
+product mints the key. **A key a caller could write would name material
+the chain may not hold**, and a rule bound to that is not a rule.
+
+**And this is the shape the third pilot has.** 23 versions, 208
+revisions, **no comment at all** — so a distillation that reads only
+comments has no case in that manuscript. The fixture below is that
+shape: revisions, and not one comment.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+from docx_fixtures import Revision
+from feedback_chain_fixtures import ChainEnv, build_chain
+from store_support import StoreEnv
+from store_support import env as _shared_env
+
+from labcairn.application.context import ApplicationContext
+from labcairn.application.refusal import ApplicationRefusedError
+from labcairn.guidance.distil import (
+    MODEL_PROPOSER,
+    OPERATOR_PROPOSER,
+    distil_candidate_from_revisions,
+)
+from labcairn.guidance.refusals import GuidanceRefusal
+from labcairn.guidance.retrieval import search_rules
+from labcairn.guidance.rules import confirm_rule, read_rule
+from labcairn.papers.chain import REVISION_SOURCE_PREFIX, revision_source_key
+from labcairn.papers.edits import ActorClaim, record_edits_from_revisions
+from labcairn.papers.revisions import record_revision_events
+
+pytestmark = pytest.mark.integration
+
+env = _shared_env
+
+MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+LATER = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
+
+#: The advisor's name, as the file records it. **A name in a file is a
+#: string somebody typed**, so the roster names who it is.
+_ADVISOR_NAME = "Prof. Lin"
+#: The student's name, as the file records it.
+_STUDENT_NAME = "Wang"
+
+#: The paragraph the changes sit in.
+_PARAGRAPH = "The method estimates the parameter roughly from a single observation."
+
+#: **Two changes by two people**: the mentor's insertion and the
+#: student's deletion. **A rule distilled from the mentor's change must
+#: not carry the student's change as its own.**
+_REVISIONS = (
+    Revision(
+        kind="ins",
+        text="carefully",
+        author=_ADVISOR_NAME,
+        date="2026-03-02T09:30:00Z",
+        element_id="101",
+        paragraph=0,
+        after_text="estimates",
+    ),
+    Revision(
+        kind="del",
+        text="roughly",
+        author=_STUDENT_NAME,
+        date="2026-03-03T10:15:00Z",
+        element_id="102",
+        paragraph=0,
+        anchor_text="roughly",
+    ),
+)
+
+_ROSTER = {
+    _ADVISOR_NAME: ActorClaim(actor_kind="advisor", actor_id="advisor-1"),
+    _STUDENT_NAME: ActorClaim(actor_kind="student", actor_id="student-1"),
+}
+
+STATEMENT = "The mentor asks for the method's care to be visible in the wording."
+CONTEXT = "A methods section whose sentence hides how careful the estimate was."
+
+#: **Two halves of one parenthetical clause**, written in two moments —
+#: which is how Word records a change a writer made in one go.
+#:
+#: **The first half is a fragment**, and a rule illustrated by the
+#: fragment would not show what the reviewer wrote.
+#:
+#: **The order matters, and it is the order that makes the witness
+#: bite.** The revision event's id is derived from the element's path,
+#: and the fixture writer places a revision by **the point it follows**
+#: in the paragraph's text — so the fuller half is written at the point
+#: after "concentrates" and the fragment at the same point after it, and
+#: the fragment's derived id happens to sort **first**. **A reader that
+#: picked the example by key order would pick the fragment**, and the
+#: witness below would see it — which is the point of the fixture being
+#: built this way rather than the other way round.
+_HALF_PARAGRAPH = "The bubbles collapse and the energy concentrates."
+_HALF_REVISIONS = (
+    Revision(
+        kind="ins",
+        text=", the energy concentrates and attacks the algae)",
+        author=_ADVISOR_NAME,
+        date="2026-03-02T09:31:00Z",
+        element_id="202",
+        paragraph=0,
+        after_text="concentrates",
+    ),
+    Revision(
+        kind="ins",
+        text="(after the collapse",
+        author=_ADVISOR_NAME,
+        date="2026-03-02T09:30:00Z",
+        element_id="201",
+        paragraph=0,
+        after_text="concentrates",
+    ),
+)
+
+
+def _refusal(error: ApplicationRefusedError) -> GuidanceRefusal:
+    return GuidanceRefusal(error.reason.value.removeprefix("guidance_"))
+
+
+@pytest.fixture()
+def marked_up(env: StoreEnv, tmp_path: Path) -> ChainEnv:
+    """A chain whose manuscript carries **two changes and no comment at all**.
+
+    **This is the third pilot's shape.** A marked-up manuscript may hold
+    hundreds of tracked changes and not one comment, and **a distillation
+    that reads only comments has no case at all in such a manuscript.**
+    So the fixture records the changes and records **no feedback**.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    return build_chain(
+        env.store(),
+        workspace,
+        comments=(),
+        paragraphs=(_PARAGRAPH,),
+        revisions=_REVISIONS,
+    )
+
+
+@pytest.fixture()
+def the_changes(marked_up: ChainEnv) -> dict[str, str]:
+    """The changes the chain holds, by the name the file gave them.
+    **Keyed by the author, so a test may ask for the mentor's change
+    without reading the file.** The ids are derived from the version and
+    the element's path, so they are not written down here — **the ids are
+    read from the chain, not assumed.**
+    """
+    recorded = record_revision_events(
+        marked_up.context,
+        project_id=marked_up.project_id,
+        version_id=marked_up.second_version_id,
+        now=MOMENT,
+    )
+    by_author = {record.author: record.revision_event_id for record in recorded}
+    record_edits_from_revisions(
+        marked_up.context,
+        project_id=marked_up.project_id,
+        version_id=marked_up.second_version_id,
+        version_edge_id=marked_up.edge_id,
+        actors=_ROSTER,
+        now=MOMENT,
+    )
+    return by_author
+
+
+@pytest.fixture()
+def halves(env: StoreEnv, tmp_path: Path) -> tuple[ApplicationContext, tuple[str, str]]:
+    """A chain whose mentor wrote **one clause in two moments**.
+
+    **Word records a change the writer made in one go as two events** —
+    the half typed first and the half typed after — and the first half is
+    a fragment on its own. **A rule illustrated by the fragment would not
+    show what the reviewer wrote**, so the example has to be the half that
+    shows most.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    chain = build_chain(
+        env.store(),
+        workspace,
+        comments=(),
+        paragraphs=(_HALF_PARAGRAPH,),
+        revisions=_HALF_REVISIONS,
+    )
+    recorded = record_revision_events(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        now=MOMENT,
+    )
+    record_edits_from_revisions(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.second_version_id,
+        version_edge_id=chain.edge_id,
+        actors=_ROSTER,
+        now=MOMENT,
+    )
+    return chain.context, tuple(record.revision_event_id for record in recorded)
+
+
+def test_the_example_is_the_half_that_shows_the_change_best(
+    halves: tuple[ApplicationContext, tuple[str, str]],
+) -> None:
+    """The example is the case that shows most, not the first by key.
+
+    **Word records a change the writer made in one go as two events**,
+    and the first half is a fragment on its own. **A rule illustrated by
+    the fragment would not show what the reviewer wrote** — and the
+    example is the evidence the rule is checked against.
+    """
+    context, event_ids = halves
+
+    rule = _distil(context, revision_event_ids=event_ids)
+
+    assert "attacks the algae" in rule.example, (
+        "the example must be the change that shows what the reviewer wrote, "
+        "and the fragment on its own does not"
+    )
+    assert "(after the collapse" not in rule.example, (
+        "the first half by key order is the fragment, and it must not be the example"
+    )
+
+
+def test_the_example_names_the_key_of_the_case_it_shows(
+    halves: tuple[ApplicationContext, tuple[str, str]],
+) -> None:
+    """The key beside the example is **the example's own key**.
+
+    **A reader must be able to open the case the example came from** —
+    and a key beside a *different* case's words would send them to the
+    wrong place.
+    """
+    context, event_ids = halves
+
+    rule = _distil(context, revision_event_ids=event_ids)
+
+    named = [source for source in rule.sources if source in rule.example]
+    assert named, "the example must name the key of the case it shows"
+    assert len(named) == 1, "the example names one case, and one key"
+
+
+def _distil(context: ApplicationContext, **overrides: object):
+    kwargs: dict[str, object] = {
+        "issue_type": "method_and_hypothesis",
+        "statement": STATEMENT,
+        "rule_context": CONTEXT,
+        "revision_event_ids": (),
+        "now": MOMENT,
+    }
+    kwargs.update(overrides)
+    return distil_candidate_from_revisions(context, **kwargs)  # type: ignore[arg-type]
+
+
+def test_a_manuscript_with_no_comment_can_still_yield_a_candidate(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The point of the second case: **a comment is not the only case.**
+
+    **A marked-up manuscript with no comment in it is a shape the chain
+    can report and does not explain away** — 23 versions, 208 revisions
+    and not one comment. A distillation that reads only comments has
+    **no case at all** in such a manuscript, and a rule distilled from
+    nothing is not a rule.
+
+    So the mentor's own change is a case, and a rule is distilled from
+    it and lands as a candidate.
+    """
+    assert not marked_up.context.store.session.execute(
+        __import__("sqlalchemy").text("SELECT COUNT(*) FROM feedback_events")
+    ).scalar_one(), "the fixture must carry no comment at all"
+
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    assert rule.state == "candidate"
+    assert rule.proposed_by == OPERATOR_PROPOSER
+    assert rule.statement == STATEMENT
+    assert rule.sources, "a rule with no source is not a rule"
+
+
+def test_a_revision_case_is_bound_to_the_chain_address_and_the_key_is_the_products(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The rule is bound to the chain's own address, and the key is minted.
+
+    **The key is derived from the revision event's own id** — the id the
+    chain already has — so it is an address a reader can follow. **And the
+    caller cannot write one**: the caller named the revision, and the
+    product minted the key.
+    """
+    event_id = the_changes[_ADVISOR_NAME]
+    rule = _distil(marked_up.context, revision_event_ids=(event_id,))
+
+    expected = revision_source_key(event_id)
+    assert rule.sources == (expected,)
+    assert expected == event_id, (
+        "the key is the revision's own address, so a reader who follows it finds the change itself"
+    )
+
+    # **And the rule's example names the same key**, so the sentence
+    # traces back to the case it was derived from.
+    assert expected in rule.example
+
+
+def test_the_scope_is_the_paragraph_the_change_sits_in(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The scope is the applicability condition, and it is the paragraph.
+
+    **A revision's context is the paragraph around it** — a change is a
+    fact about a file, and the paragraph is where the reviewer put it.
+    **And the paragraph is read in the change's own view**: an insertion
+    belongs to the accepted text, so the accepted text is what the scope
+    quotes.
+    """
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    assert "estimates" in rule.scope, "the scope must quote the paragraph the change sits in"
+    assert "carefully" in rule.scope, (
+        "the accepted view is the manuscript with the insertion kept, so the scope "
+        "must show the mentor's own word in it"
+    )
+
+
+def test_a_deletion_is_read_in_the_rejected_view(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """A deletion's paragraph is the manuscript *as it was*.
+
+    **The view is part of the address** (ADR-0014 D4a), so a paragraph
+    read in the wrong view is a different paragraph. A deletion belongs
+    to the **rejected** text — the words it was removed from — and a
+    scope that quoted the accepted text instead would show the student
+    quoting a sentence the change is in the middle of removing.
+    """
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_STUDENT_NAME],))
+
+    assert "roughly" in rule.scope, (
+        "the rejected view is the manuscript before the deletion, so the deleted "
+        "word is still in it"
+    )
+    assert "carefully" not in rule.scope, (
+        "the rejected view is the manuscript before the deletion, so the mentor's "
+        "later insertion is not in it"
+    )
+
+
+def test_a_rule_with_no_case_is_refused(marked_up: ChainEnv) -> None:
+    """A rule with no case behind it has nothing to scope it."""
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _distil(marked_up.context, revision_event_ids=())
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_WITHOUT_SOURCE
+
+
+def test_a_revision_the_chain_holds_no_case_for_is_refused(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """A named revision the chain does not hold is refused, not skipped.
+
+    **A rule that cites a case the chain cannot show is a rule whose
+    scope the cases do not support** — the same refusal the comment case
+    raises, and for the same reason.
+    """
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _distil(marked_up.context, revision_event_ids=("rv-nobody-holds",))
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_WITHOUT_SOURCE
+
+
+def test_the_caller_cannot_write_the_key(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The key is the product's, and a caller has no way to supply one.
+
+    **The entry point takes revisions, not keys** — so a caller cannot
+    name a case the chain does not hold, and cannot bind a rule to
+    material of its own choosing. **And the key the rule ends up with is
+    the one the product minted**, whatever the caller passed.
+    """
+    with pytest.raises(TypeError):
+        _distil(marked_up.context, issue_keys=("iss-forged",))  # type: ignore[call-arg]
+
+    event_id = the_changes[_ADVISOR_NAME]
+    rule = _distil(marked_up.context, revision_event_ids=(event_id,))
+    for source in rule.sources:
+        assert source == revision_source_key(event_id)
+        assert source.startswith(REVISION_SOURCE_PREFIX), (
+            "a revision case is filed under the product's key"
+        )
+        assert source == event_id, (
+            "the key is the revision's own address, so a reader who follows it "
+            "finds the change itself"
+        )
+
+
+def test_the_candidate_is_not_confirmed_by_its_own_proposer(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """A7: the proposer cannot be the one who confirms it.
+
+    **The second-reader rule holds for this proposer too.** An operator's
+    proposal is a proposal like any other, and the operator cannot
+    confirm their own work by any name.
+    """
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        confirm_rule(
+            marked_up.context,
+            rule_id=rule.rule_id,
+            confirmed_by=rule.proposed_by,
+            now=LATER,
+        )
+    assert _refusal(raised.value) is GuidanceRefusal.CONFIRMER_IS_PROPOSER
+
+    assert read_rule(marked_up.context, rule_id=rule.rule_id).state == "candidate"
+
+
+def test_a_second_reader_confirms_the_revision_distillation(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The confirmation door is the same door, and it opens for a person.
+
+    **A revision case does not weaken the door.** The rule was proposed
+    by an operator; a person who did not propose it confirms it, and the
+    rule becomes confirmed — and the confirmer is written down.
+    """
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+
+    confirmed = confirm_rule(
+        marked_up.context,
+        rule_id=rule.rule_id,
+        confirmed_by="reviewer-2",
+        now=LATER,
+    )
+    assert confirmed.state == "confirmed"
+    assert confirmed.confirmed_by == "reviewer-2"
+
+
+def test_the_two_distillations_name_two_different_proposers(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """A corpus distillation is a model's work, and a revision one is not.
+
+    **The record must not claim a model did something a person did.** A
+    distillation run over a corpus of comments is a model's work and
+    says ``model_proposal``; an operator reading a mentor's tracked
+    changes is a person's work and says ``operator_proposal``.
+    """
+    assert MODEL_PROPOSER != OPERATOR_PROPOSER
+
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+    assert rule.proposed_by == OPERATOR_PROPOSER
+
+
+def test_a_confirmed_rule_on_a_revision_is_served_with_its_source(
+    marked_up: ChainEnv,
+    the_changes: dict[str, str],
+) -> None:
+    """The revision source is **live**, and the retrieval says so.
+
+    **A rule bound to a revision is not a dead rule.** The retrieval
+    resolves each source against the chain, and a revision's source is
+    the change itself — so it lives as long as the chain holds the
+    change and the reader may read the manuscript.
+    """
+    rule = _distil(marked_up.context, revision_event_ids=(the_changes[_ADVISOR_NAME],))
+    confirm_rule(
+        marked_up.context,
+        rule_id=rule.rule_id,
+        confirmed_by="reviewer-2",
+        now=LATER,
+    )
+
+    hits = search_rules(marked_up.context, query=STATEMENT)
+    served = [hit for hit in hits if hit.rule.rule_id == rule.rule_id]
+    assert served, "a confirmed rule on a revision must be served"
+    assert [source.issue_key for source in served[0].sources] == list(rule.sources)
+    assert all(source.found for source in served[0].sources)
