@@ -6,18 +6,61 @@ way, and — where a number is a runner measurement — which run it came from.
 
 ## The shape of a run
 
-Two kinds of job:
+Three kinds of job:
 
 | job | runner | what it runs |
 | --- | --- | --- |
 | `lint` | `ubuntu-latest`, one runner, no matrix | `ruff check .`, `ruff format --check .`, `mypy --strict` |
 | `python-quality (${{ matrix.os }}, shard N)` | 2 platforms × 5 shards = 10 jobs | `pytest` on that shard's files only |
+| `evaluation` | `ubuntu-latest`, one runner, no matrix, **schedule event only** | `python -m tests.evaluation --classes unit,integration,negative,e2e,repository` |
 
 The shard partition and its measured per-file costs live in
 `.github/ci-shards.json`; `tests/test_ci_shard_coverage.py` watches that
 every test file is in exactly one shard on every platform, that the shard
 count matches the workflow's matrix, and that the names branch protection
 identifies are distinct.
+
+## 2026-11-03 — the evaluation harness on a schedule
+
+**What changed.** `python.yml` gained a `schedule` trigger and an
+`evaluation` job. On the schedule event `lint` and `python-quality` are
+skipped, so the run spends one job, not thirteen. The job runs the harness
+over the five classes it can run offline and uploads the report.
+
+**Why not on pull requests.** The harness runs the same test files the ten
+shard jobs already run, and its measured cost on an Ubuntu runner is
+1450.0 s (about 24 minutes) over the five offline classes — the per-file
+costs in `.github/ci-shards.json`, anchored at `49e81f2`. On a pull request
+it would add about ten minutes to the wall clock and become the new
+bottleneck. A schedule produces the report without touching that clock.
+
+**Why exactly five classes.** A Phase 1 blocker is held only when every one
+of its witnesses was collected and passed, and the witnesses span all five
+offline classes. `--classes unit` passed 1789/1789 and still exited 1,
+because five of the six blockers became `NOT_EVALUATED`. That was measured
+on 2026-11-03, and it is why the job does not shorten the list. The fifth
+protocol class, `real_model_smoke`, is `NOT SELECTED` in the report; the
+owner's 2026-10-28 ruling gives it `provider-smoke.yml`.
+
+**Not a required check, and not `continue-on-error`.** The job is not in
+branch protection, and a schedule-only job cannot satisfy a pull-request
+required check. If the harness exits 1 the job is red and the report is in
+the log; hiding that would be the "green row that measured nothing" shape in
+reverse.
+
+**The witness.** `tests/test_ci_shard_coverage.py` gains
+`test_the_evaluation_job_runs_the_offline_classes_on_a_schedule`. It
+computes the class list from `tests.evaluation.manifest.OFFLINE_CLASSES`,
+asserts the fifth class is not named, watches the trigger and the two
+guards, and checks the artifact path is the runner's temp. Five mutations
+were applied and all five were caught (job renamed; `real_model_smoke`
+added; schedule removed; lint guard removed; artifact path moved over the
+checkout).
+
+**Not measured on a runner.** No run was pushed. GitHub fires a schedule
+only from the default branch, so the job first runs after this workflow
+reaches `main`; that run is the measurement. The local harness runs are in
+`docs/plans/LC-P1-13-evaluation-ci.md` §2.
 
 ## 2026-11-02 — lint split out of the shard jobs
 
