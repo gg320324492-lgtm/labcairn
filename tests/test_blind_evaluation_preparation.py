@@ -1112,6 +1112,17 @@ class TestTheRunDriver:
         assert "no model" in text
         assert "usage capture" in text
 
+    def test_an_empty_approval_grant_list_is_refused_at_construction(self) -> None:
+        """The consent port itself refuses a run with no approvals.
+
+        An independent review mutated the ``if not grants`` branch and this
+        witness did not exist, so the mutation survived. The CLI test below it
+        only exercised the argument-level refusal, which returns before the
+        port is constructed.
+        """
+        with pytest.raises(blind_runner.RealRunRefusedError, match="at least one owner approval"):
+            blind_runner.ConsumingApprovals(cast(Any, None), [])
+
 
 class TestTheRunDriverCommand:
     """The executable entry point: it runs the dry run and refuses the real one."""
@@ -1184,3 +1195,43 @@ class TestTheRunDriverCommand:
         )
         assert code == 2
         assert "budget ceiling" in capsys.readouterr().err
+
+    def test_a_real_run_with_an_empty_approvals_file_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An approvals document that parses to no grants reaches the refusal path.
+
+        This is the real-mode shape the review found unwitnessed: the file
+        exists, so the argument-level "no --approvals" check is passed, and the
+        run must still stop before a provider. It also holds the loader to
+        treating an empty list as a refusal rather than a malformed document.
+        """
+        cases = _write_case_set(tmp_path)
+        empty = tmp_path / "approvals-empty.json"
+        empty.write_text(json.dumps({"approvals": []}), encoding="utf-8")
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider from an empty approval list")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(empty),
+            ]
+        )
+        assert code == 2
+        assert "0 approvals" in capsys.readouterr().err
