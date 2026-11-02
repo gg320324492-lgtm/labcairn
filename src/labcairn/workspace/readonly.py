@@ -103,7 +103,7 @@ class SourceMaterial:
         *,
         root_id: str,
         capability: str,
-        max_bytes: int = 64_000_000,
+        max_bytes: int = 96_000_000,
     ) -> bytes:
         """Read a source file only if the policy permits this capability for it.
 

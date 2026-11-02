@@ -57,7 +57,16 @@ from labcairn.sources.locators import DocxLocator
 #: The ceiling on a manuscript this operation will read. **A ceiling, and
 #: not a hope**: the file's size is measured before the bytes are read, so
 #: a file that is too large is refused rather than read and then refused.
-MAX_MANUSCRIPT_BYTES = 64_000_000
+#:
+#: **Raised from 64 MB on 2026-11-03.** The third pilot's late drafts are
+#: 71.4 MB — the figures are embedded at full resolution — and the 64 MB
+#: ceiling refused seven versions of one real manuscript, including the
+#: final English one. The ceiling still exists: it bounds what a single
+#: operation reads, and 96 MB leaves room for the largest real material
+#: seen so far without admitting a file whose read would not fit the
+#: operation's own budget. The bound is measured on the file, not trusted
+#: from a caller.
+MAX_MANUSCRIPT_BYTES = 96_000_000
 
 #: The grades a feedback row may carry.
 #:

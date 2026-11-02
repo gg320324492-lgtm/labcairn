@@ -80,7 +80,13 @@ REVISION_GRADES: frozenset[str] = frozenset({"observed", "inferred", "human_veri
 #: The ceiling on a manuscript this operation will read. **A ceiling, and
 #: not a hope**: the file's size is measured before the bytes are read, so
 #: a file that is too large is refused rather than read and then refused.
-MAX_MANUSCRIPT_BYTES = 64_000_000
+#:
+#: **Raised from 64 MB on 2026-11-03**, with the same change in
+#: :mod:`labcairn.papers.feedback`: the third pilot's late drafts are
+#: 71.4 MB and the old ceiling refused seven versions of one real
+#: manuscript. The three ceilings (feedback, replies, revisions) are the
+#: same number deliberately.
+MAX_MANUSCRIPT_BYTES = 96_000_000
 
 #: The reason a revision carries no author.
 _NO_AUTHOR = "the revision records no author"
