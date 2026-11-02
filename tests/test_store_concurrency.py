@@ -22,17 +22,27 @@ Two things are asserted, and the second is what makes the first meaningful:
 ``BEGIN IMMEDIATE`` those results depend on is genuinely reaching SQLite rather
 than being silently downgraded to a deferred transaction, which would fail only
 under the contention a weaker test would not create.
+
+The read-only engine is the other half of the same boundary. Its tests live
+here because what they hold is a property of the transaction boundary: a
+deferred ``BEGIN`` takes a snapshot, ``PRAGMA query_only=ON`` makes SQLite
+refuse a write on that connection, and one CLI read command is run against a
+held writer so the wiring is measured rather than assumed.
 """
 
 from __future__ import annotations
 
+import sqlite3
 import threading
+import time
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import pytest
 from sqlalchemy import event as sa_event
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from store_support import (  # noqa: F401
     StoreEnv,
@@ -40,9 +50,11 @@ from store_support import (  # noqa: F401
     make_task,
 )
 from store_support import env as _shared_env
+from store_support import migrated_db as _shared_migrated_db
 
 from labcairn.core.ids import TaskId
 from labcairn.db.repository import TaskStore, count_events, last_seq
+from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.runtime.event import EventType
 
 pytestmark = pytest.mark.integration
@@ -53,6 +65,7 @@ pytestmark = pytest.mark.integration
 # redefinition; aliasing the import and rebinding it reads as a plain
 # assignment instead.
 env = _shared_env
+migrated_db = _shared_migrated_db
 
 WRITERS = 8
 UNITS_PER_WRITER = 6
@@ -265,3 +278,174 @@ def test_contention_scales_beyond_the_connection_pool(env: StoreEnv, writers: in
     failures = _run_concurrently(env, task.task_id, writers=writers, per_writer=2)
     assert failures == [], f"a writer thread failed: {failures!r}"
     assert last_seq(session, task.task_id) == 1 + writers * 2
+
+
+def test_the_read_only_engine_emits_a_deferred_begin(env: StoreEnv) -> None:
+    """A read-only engine asks for a snapshot, not the write lock.
+
+    The behavioural test below shows a read *completing* while a writer holds
+    the lock; this one shows the SQL that makes that true. ``BEGIN IMMEDIATE``
+    on this engine would be the old defect wearing the new constructor.
+    """
+    engine = create_db_engine(env.db_path, readonly=True)
+    statements: list[str] = []
+
+    def record(
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        statements.append(" ".join(statement.split()))
+
+    sa_event.listen(engine, "before_cursor_execute", record)
+    session = create_session_factory(engine)()
+    try:
+        session.execute(text("SELECT count(*) FROM tasks")).scalar_one()
+    finally:
+        session.rollback()
+        session.close()
+        sa_event.remove(engine, "before_cursor_execute", record)
+        engine.dispose()
+
+    begins = [s for s in statements if s.upper().startswith("BEGIN")]
+    assert begins == ["BEGIN"], f"a read-only engine must emit a plain BEGIN, saw: {begins}"
+
+
+def test_a_read_completes_while_a_write_transaction_holds_the_lock(env: StoreEnv) -> None:
+    """The defect, measured: a read is not a second claimant of the write lock.
+
+    WAL was already enabled on this file, so the writer does not block a
+    deferred reader. What made reads wait was their own ``BEGIN IMMEDIATE``:
+    they queued at the write lock and, with a busy timeout, failed with
+    ``database is locked`` instead of reading a snapshot. The writer below
+    holds the lock and has not committed; the read must complete without it.
+    """
+    task = make_task()
+    env.store().create_task(task)
+
+    writer = env.new_session()
+    reader_engine = create_db_engine(env.db_path, busy_timeout_ms=2_000, readonly=True)
+    reader = create_session_factory(reader_engine)()
+    try:
+        # Any statement on the write engine opens BEGIN IMMEDIATE and keeps it
+        # until commit or rollback.
+        writer.execute(text("SELECT count(*) FROM tasks"))
+        started = time.perf_counter()
+        value = int(reader.execute(text("SELECT count(*) FROM tasks")).scalar_one())
+        elapsed = time.perf_counter() - started
+        assert value == 1
+        assert elapsed < 1.0, (
+            f"the read took {elapsed:.2f}s while a writer held the write lock: it "
+            "is queueing behind the lock rather than reading a snapshot"
+        )
+    finally:
+        writer.rollback()
+        writer.close()
+        reader.rollback()
+        reader.close()
+        reader_engine.dispose()
+
+
+def test_a_read_only_session_refuses_a_write(env: StoreEnv) -> None:
+    """The read-only flag is enforced by SQLite, not by convention.
+
+    A read-only engine whose write path merely "was not meant to be used" is a
+    promise nothing keeps. ``PRAGMA query_only`` makes the write fail at
+    SQLite, so a command that turns out to write under a read-only context is
+    reported rather than silently upgrading to the write transaction the
+    engine exists to avoid.
+    """
+    engine = create_db_engine(env.db_path, readonly=True)
+    session = create_session_factory(engine)()
+    try:
+        assert session.execute(text("PRAGMA query_only")).scalar_one() == 1
+        with pytest.raises(OperationalError, match="readonly database"):
+            session.execute(text("CREATE TABLE a_write (x INTEGER)"))
+        session.rollback()
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_wal_survives_the_engine_that_set_it(migrated_db: Path) -> None:
+    """WAL is a database setting, and the read-only path depends on it.
+
+    A deferred reader is only non-blocking because the file is in WAL mode. If
+    the setting lived on a connection, a process that reopened the file would
+    lose it and reads would start queueing again. The mode is read through a
+    raw connection after every engine is disposed, so the engine that set it
+    is not the thing being asked whether it did.
+    """
+    engine = create_db_engine(migrated_db)
+    session = create_session_factory(engine)()
+    try:
+        session.execute(text("SELECT 1"))
+        session.rollback()
+    finally:
+        session.close()
+        engine.dispose()
+
+    connection = sqlite3.connect(str(migrated_db))
+    try:
+        mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+    finally:
+        connection.close()
+    assert mode == "wal", f"journal_mode after a restart is {mode!r}, not 'wal'"
+
+
+def test_a_read_only_cli_command_reads_while_a_writer_holds_the_lock(
+    tmp_path: Path,
+) -> None:
+    """Capability is not wiring: a read command must actually ask for it.
+
+    A read-only engine that no command uses changes nothing. This runs the
+    CLI's ``task status`` in-process against a workspace the CLI itself made,
+    while a writer on another connection holds ``BEGIN IMMEDIATE``. Before the
+    read commands were wired to the read-only context, the command's own
+    ``BEGIN IMMEDIATE`` waited out the busy timeout and the command failed;
+    now it completes.
+
+    The CLI is run in-process rather than through the console script because
+    the property is the context the command builds, not its argument parsing
+    (``tests/test_cli.py`` owns that).
+    """
+    from typer.testing import CliRunner
+
+    from labcairn.cli.commands import app
+
+    root = tmp_path / "workspace"
+    runner = CliRunner()
+    result = runner.invoke(app, ["--workspace", str(root), "init"])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(
+        app,
+        [
+            "--workspace",
+            str(root),
+            "task",
+            "create",
+            "--title",
+            "Read the literature",
+            "--objective",
+            "Establish what the corpus says about the question.",
+            "--criterion",
+            "A cited answer, or an honest 'not established'.",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    db_path = next(root.rglob("*.db"))
+    writer_engine = create_db_engine(db_path)
+    writer = create_session_factory(writer_engine)()
+    try:
+        writer.execute(text("SELECT count(*) FROM tasks"))
+        result = runner.invoke(app, ["--workspace", str(root), "task", "status", "--json"])
+        assert result.exit_code == 0, result.output
+    finally:
+        writer.rollback()
+        writer.close()
+        writer_engine.dispose()
