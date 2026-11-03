@@ -146,11 +146,44 @@ failure of this change.
 
 ## What this does not establish
 
-- **The qualifier whitewash is still open.** `_QUALIFIER_RE` exempts a whole
-  sentence that contains `target` / `intended` / `future` / `目标` / `拟` /
-  `将(?:会|要)?`, so a planning word can launder a present-tense claim. The
-  same LC-P1-01 row names it; making the qualifier scope-aware is a separate
-  change, and the false-positive cost of a narrower rule is not settled here.
+- **The qualifier whitewash was closed on 2026-11-03.** `_QUALIFIER_RE` used to
+  exempt a whole sentence that contained `target` / `intended` / `future` /
+  `目标` / `拟` / `将(?:会|要)?`, so a planning word could launder a
+  present-tense claim in the same sentence. The exemption is now
+  **clause-scoped**: a new `_CLAUSE_SPLIT_RE` splits a sentence on commas,
+  semicolons, colons (ASCII and full-width), em dashes, conditioned English
+  `and` / `or` / `but` (a subject or verb-like word must follow — an
+  unconditional split would cut the noun list in "DOCX and PDF support"), and
+  unconditioned Chinese adversatives 但 / 不过 / 然而, and
+  `_needle_clause_unqualified` exempts only clauses that carry the planning
+  word themselves. The qualifier table also gained the planning verbs it never
+  had (打算 / 试图) and the negated-assertion markers (不声称 / 不宣称 /
+  does not claim / makes no claim), because a sentence that denies the
+  capability is not claiming it. The capability check, the licence-grant check
+  and the released-status check now all go through the same helper, and
+  `test_a_planning_qualifier_covers_its_clause_not_the_whole_sentence`,
+  `test_a_qualifier_cannot_launder_a_licence_grant` and
+  `test_a_qualifier_cannot_launder_a_release_status_claim` are the witnesses.
+  Mutation checks: replacing the clause split with the whole sentence fails
+  all three; dropping the negated-assertion markers or the Chinese
+  adversative splits fails the capability witness.
+
+  **The false-positive cost was measured before the change, at commit
+  `15faa4bd6e5fc145ac34549c1ae4a2b2aaa10305`, on the surfaces the guard
+  actually reads** (the README prose and every synthetic witness sentence):
+  nine laundering probes the whole-sentence rule exempted are all reported by
+  the clause-scope rule; nine honest planning sentences all stay clear; the
+  grant and released-status surfaces take no new findings on the README; and
+  every existing synthetic witness keeps its verdict. The narrowing adds
+  **exactly one** README finding — the Chinese vision sentence whose
+  `让……能够` clause states a purpose, not a capability — judged a false
+  positive, and settled on the README side by the smallest equivalent wording
+  (`能够定位来源` → `可定位来源`, matching the 可检视 / 可复现 pattern the
+  next sentence already uses), in both README.md and README.zh-CN.md. The
+  adjusted README takes zero findings under the narrowed rule. The measured
+  residual: an unqualified laundering clause inside parentheses, or after a
+  connector the split does not know, still hides behind a plan word elsewhere
+  in its sentence — the split is a boundary list, not a parser.
 - **The detector remains a floor.** The eleven closed forms are the ones the
   Phase 1 record lists. A new phrasing outside both trigger groups is still
   invisible.

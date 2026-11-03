@@ -317,7 +317,7 @@ test that also covers `None`, `0`, `1.0` and `object()`.
 
 ## Still open — not fixed, and not claimed as fixed
 
-Resolved since the first draft of this document: the README's "open source" wording has been corrected to "under development, open-source licensing pending", the GitHub description and topics were updated to match, and the Linux gitleaks binary is now exercised by CI.
+Resolved since the first draft of this document: the README's "open source" wording has been corrected to "under development, open-source licensing pending", the GitHub description and topics were updated to match, and the Linux gitleaks binary is now exercised by CI. The trigger-word holes in the first row below were closed by LC-P2-25 (2026-11-02), and the qualifier whitewash in the same row — a planning word exempting a whole sentence — was closed by the clause-scoped qualifier rule (2026-11-03); both closures and their witnesses are recorded in `docs/acceptance/LC-P2-25-guard-of-the-guards.md`.
 
 | Finding | Why it is open |
 |---|---|
