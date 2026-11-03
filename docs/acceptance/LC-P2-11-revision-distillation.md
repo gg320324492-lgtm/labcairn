@@ -144,7 +144,7 @@ it. The output is on disk: the case set, the candidates, and the copy.
 | **Statement** | When the mentor replaces the mechanism a sentence names, the rule states the mechanism the mentor chose and the one it replaced. | When the mentor adds a parenthetical clause, the rule states what the clause explains. |
 | **Cases** | 2 | 2 |
 | **Sources** | `rv-d30278f57bec9599`, `rv-86f1b8152e74b208` | `rv-566ce379929a90a4`, `rv-a250681fef20b2c3` |
-| **The mentor's own words** | 「改成铜离子的极化」/「作用，活化臭氧等」 | 「（促进溃灭后，能量集中释放，加速」/「对藻的攻击）」 |
+| **The mentor's own words** | **not carried here** (2 fragments: 8 characters sha256 `f854a5ad4b7d`, 8 characters sha256 `512f50f9dcf0`) | **not carried here** (2 fragments: 15 characters sha256 `9f78fd828023`, 5 characters sha256 `28fd872a9eeb`) |
 | **State** | `candidate` | `candidate` |
 | **Proposer** | `operator_proposal` | `operator_proposal` |
 
@@ -159,9 +159,9 @@ revision` — **a rule bound to a revision is served, not merely stored.**
 | The change | Why it did not become a rule |
 |---|---|
 | 「）」 and 「（」 | **the change carries no word — only a mark.** A rule about a bracket is not a rule about the manuscript's argument |
-| 「或」 | one word with no rule in it on its own; the operator read it and found nothing a reader could be told to do differently |
-| 「诱导表面氢氧根离子产生自由基的能垒的变化」 | **a deletion with no replacement.** The mentor removed a phrase without saying what should be there instead, so the change says what is wrong and not what is right — **and a rule needs the second half**. **It is also nested inside an insertion**, in a paragraph that is nothing but that insertion, so **the rejected view of the paragraph is empty** — there is no manuscript before the change to read it in |
-| 「因此」 | one connective word; read, and nothing in it |
+| *a single conjunction* (**not carried here**: removed 1 fragment: 1 character sha256 `a2123d69506f`) | one word with no rule in it on its own; the operator read it and found nothing a reader could be told to do differently |
+| *a deleted mechanism clause* (**not carried here**: removed 1 fragment: 20 characters sha256 `e7749feb3f64`) | **a deletion with no replacement.** The mentor removed a phrase without saying what should be there instead, so the change says what is wrong and not what is right — **and a rule needs the second half**. **It is also nested inside an insertion**, in a paragraph that is nothing but that insertion, so **the rejected view of the paragraph is empty** — there is no manuscript before the change to read it in |
+| *a connective* (**not carried here**: removed 1 fragment: 2 characters sha256 `a07bd3196be5`) | one connective word; read, and nothing in it |
 
 **Four of the mentor's nine changes carry no word, and one carries a
 deletion without its replacement.** The run counted two candidates out of
@@ -398,7 +398,7 @@ keeping its past looks like in a row.
   above**: each check rests on one act, in one paragraph of one draft, and
   **neither criterion has been observed to *not* fire** — the material holds
   no sample where the mentor left a parallel set of mechanisms, or a bare
-  「促进」, alone. So both criteria are read out of what the mentor *did*,
+  a bare enhancement noun, alone. So both criteria are read out of what the mentor *did*,
   and are untested against what the mentor left be.
 - **One number in those rows is not a time.** Both checks carry
   `proposed_at = confirmed_at = 2026-11-03T18:00:00+00:00`, chosen as a

@@ -370,12 +370,21 @@ versions under descriptive names (`v03-chinese-draft.docx`,
 advisor's comments and the tracked revisions **extracted per version**
 with the product's own OOXML reader, the annotation guide beside them,
 the untouched archive, and a manifest recording every file's original
-name, size and SHA-256. **Nothing of the paper is in the repository, and
-the two stale Office lock files were kept rather than deleted.** The
+name, size and SHA-256. **Nothing of the paper is in the repository** — a sentence
+this file had no right to print as a plain fact: on 2026-11-03 an audit found it
+standing in this very paragraph while the file itself quoted two of the advisor's
+comments and named the group's own writing template in its words, and two acceptance
+records carried a distilled rule statement of 76 characters and the manuscript
+paragraph a tracked change was made in. The quotations are gone, replaced by their
+lengths and digests; **the claim is now watched** by a per-file pin and a policy cap
+in `tests/test_no_reference_leakage.py`, and what that machinery cannot see is stated
+in [LC-P2-11: the material's words out of the records](../acceptance/LC-P2-11-material-words-out-of-the-records.md).
+**The two stale Office lock files were kept rather than deleted.** The
 advisor's comments are where the pilot's work is: version 8's are
 pasted references, and versions 3, 4, 4(2) and 5(1) carry the real
-critique — *"缺少量化数据…一定要用数据体现"*, *"这部分不要放到这里了，放到讨论
-中吧"* — alongside a few whose reading is genuinely arguable, which is
+critique -- one asks for a quantity to be shown with its data, the other to move a
+passage into the discussion (**the words are not carried here**: removed 4 fragments: 6 characters sha256 `c76d441c2913`, 8 characters sha256 `9a9fa445787f`, 15 characters sha256 `7204c3f5aee6`, 2 characters sha256 `2908f90181d4`; the store
+keeps each under its own `feedback_id`) -- alongside a few whose reading is genuinely arguable, which is
 where a blind-reading number has meaning.
 
 **The pilot's readers are three independent sessions** — two blind
@@ -653,9 +662,10 @@ beside them.
 
 **And the second corpus carries the thing this project is for: the
 group's own writing-skills specification.** Two documents sit in its
-`advisor-guidance/` folder, and one of them is titled *组内论文写作 Skills
-模板* -- and says so in its own words: *"把它当成'默认写法规则'"* and *"默认
-执行流程（像 skills 一样用）"*. **The project set out to turn an advisor into
+`advisor-guidance/` folder, and one of them is the group's own writing-skills
+template -- and it says so in its own words, calling itself the default writing
+rules and giving a default execution flow (**those lines are not carried here**:
+removed 7 fragments: 6 characters sha256 `716ee4f190f0`, 2 characters sha256 `62b95daecb7f`, 4 characters sha256 `9b56439d2376`, 6 characters sha256 `8d7974b785da`, 2 characters sha256 `844b8cc8dff7`, 6 characters sha256 `f415fc001ba3`, 3 characters sha256 `ac92f3ba67fc`; the library holds the file). **The project set out to turn an advisor into
 skills, and the group had already written a skill down.** Its shape is a
 complete one: how to use it; three core principles (state the whole before
 the parts, data before mechanism, results apart from discussion); a
