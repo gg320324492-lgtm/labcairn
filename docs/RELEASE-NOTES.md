@@ -512,9 +512,15 @@ loose**: the scan witness asserts the ceiling's digits appear in **exactly
 those two files** and **once in `security/capabilities.py`** — so a *third*
 file, or a doubled definition in its home, turns it red — and the kept copy is
 pinned to the same value by `test_the_manuscript_readers_share_the_one_ceiling`.
-**What no witness yet constrains is a second literal inside `revisions.py`
-itself**: the set assertion allows that file to hold the digits twice, and the
-equality witness compares values, not counts.
+**And the gap that existed here for a few hours is closed, which is worth
+recording as the shape it took.** The set assertion alone allowed that file to
+hold the digits **twice** — measured: a second literal planted inside
+`papers/revisions.py` left **every** ceiling witness green, because the set of
+files was unchanged and the value still equalled the ceiling. The count is now
+pinned per file (`spelled["papers/revisions.py"] == 1`), and the same mutation
+turns exactly that one witness red. **A witness that pins a set is not a
+witness that pins a count**, and the difference only shows when the second
+copy is added inside a file already on the list.
 
 **And a claim this section used to make was wrong, so it is replaced with what
 was measured.** The earlier text said that raising the read doors past 64 MB
