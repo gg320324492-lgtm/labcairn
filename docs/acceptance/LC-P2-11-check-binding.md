@@ -238,6 +238,36 @@ prevent exactly that; the cost is that `proposed_at` stops being a time.
 instant to the draft rather than to the wall clock, so a re-run is the same
 row *and* the column means what its name says.
 
+**Closed 2026-11-03 at `437987b`.** Both mint doors — `_rule_id` and
+`_check_id` — now derive from the **whole draft**, length-prefixed so no field
+boundary can shift, with **no instant in the digest**; and the proposal doors
+**read before they write**, so a re-run of one draft returns the row already in
+the memory. `proposed_at` is the real clock from here on. Measured on the real
+pilot rows: **20 rule rows give 20 distinct new keys and 0 collisions**, the 2
+checks likewise, and the new derivation reproduces **0 of 20** stored ids.
+
+**And the migration boundary is stated rather than smoothed.** The 20 rules and
+2 checks already in the pilot database were minted under the old formula, which
+folded a chosen instant, so the new derivation **cannot reproduce those ids**
+(0/20, measured). A re-run of one of those historical distillations — same
+draft, same sources — would not find the stored row under the new id and would
+write a **sibling** under a new id: two rows answering one question, at the
+seam between the two formulas. **That is a consequence for rows already in the
+memory, not a property of the new door**; the pilot database is read-only here
+and untouched.
+
+**For an operator who needs to pair an old row with its draft**, both ids are
+computable from stored bytes and neither needs the memory to change: the
+pre-change id is `sha256(f"{issue_type}|{statement}|{proposed_by}|"
+f"{stored proposed_at.isoformat()}")[:16]` under the `rule-` / `check-`
+prefix, and the new id is the length-prefixed digest of the whole draft. **A
+content lookup was considered and rejected**: the layer exposes only
+highest-version reads, and the two pilot rules sit at v2 with a different
+statement from their v1 draft, so a content lookup against highest versions
+would miss exactly the rows this note is about — finding v1 needs a
+by-(id, version) content read the layer does not expose, which is a different
+design and not a fix.
+
 ---
 
 ## 4. The verification
