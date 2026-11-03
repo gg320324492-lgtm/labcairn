@@ -32,6 +32,24 @@ mentor's exchange nor the student's.** So the chain's keys, its
 judgements and its issue keys do not reach a reply, and :func:`read_replies`
 is a read of what two parties said rather than a verdict on anything.
 
+**And the six write doors are operations of the layer too.** The comment a
+chain holds was written by :func:`record_feedback`, the change by
+:func:`record_edit`, the tracked changes by :func:`record_revision_events`,
+the judgement on a comment by :func:`record_response`, the judgement on an
+exchange by :func:`settle_reply`, and the later assessment by
+:func:`record_assessment`. Those functions lived in :mod:`labcairn.papers`
+and the layer did not hold them, so a caller wrote to the chain by reaching
+past the layer into the domain package -- and **a chain the layer cannot
+write is a chain whose consent accounting depends on who thought to call
+which module**. Each operation here is thin: it delegates to the domain
+function it names, and the domain function's own `consent` call is what the
+capability table row is read from. The `source.read` doors ask permission on
+the manuscript they read; the `source.inventory` doors ask it on the
+materials their rows are drawn from. :func:`settle_reply` is the one
+operation whose permission is conditional: it asks nothing when the
+settlement is pending or its anchor is unknown, and asks `source.read` on
+the manuscript when it resolves an address there.
+
 **What these operations return.** Rows are not returned; the chain's own
 facts are. A caller wants *a comment* — the advisor's words, the anchored
 text, the version it was written against — and not a row it has to know the
@@ -73,6 +91,7 @@ import collections
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -98,6 +117,22 @@ from labcairn.papers.chain import (
     project_version_rows,
     revision_source_key,
 )
+
+if TYPE_CHECKING:
+    # **Only for the annotations below, and only because of the cycle.** The
+    # writers at :mod:`labcairn.papers.feedback` and its siblings import
+    # ``labcairn.application.consent`` at their top, and this module is loaded
+    # by this package's aggregator: a runtime import of them here is the edge
+    # the comment above :class:`ChainComment` records, and it breaks in the one
+    # order that a process imports the writer first. The annotation is a string
+    # -- ``from __future__ import annotations`` is in force -- so the name is
+    # needed for the reader and the type checker, and not at call time.
+    from labcairn.papers.assessments import FollowupAssessment
+    from labcairn.papers.edits import EditAction
+    from labcairn.papers.feedback import FeedbackEvent
+    from labcairn.papers.replies import ReplySettlement
+    from labcairn.papers.responses import ResponseLink
+    from labcairn.papers.revisions import RevisionRecord
 
 # **Not `from labcairn.papers.revisions import read_paragraph_context`.** That
 # name is reached for here, at line ~714, and only there — and a module-level
@@ -948,6 +983,279 @@ def read_project_graph(
     return ProjectGraph(version_ids=held, edges=edges)
 
 
+# --------------------------------------------------------------------------- #
+# the chain's write doors
+# --------------------------------------------------------------------------- #
+
+# **Every writer here imports its domain function inside the body, not at the
+# top of the module.** The reason is the one :class:`ChainComment` records: the
+# writers at :mod:`labcairn.papers.feedback` and its siblings ask
+# ``from labcairn.application import consent`` at their top, and this module is
+# loaded by this package's aggregator. A module-level import of the writer from
+# here closes that edge, and it breaks in exactly one order -- a process whose
+# first import is the writer asks this half-initialised module for a name its
+# body has not bound yet. ``tests/test_application_layer.py`` holds the witness
+# that settles it: every first-party module is imported first, alone, in a
+# fresh process.
+
+
+def record_feedback(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    version_id: str,
+    now: datetime,
+) -> tuple[FeedbackEvent, ...]:
+    """Record the comments one version's manuscript holds.
+
+    **The door is the layer's, the writing is the domain's.** This operation
+    delegates to :func:`labcairn.papers.feedback.record_feedback` and changes
+    nothing about it: the ids, the anchor check, the refusal of a stale anchor
+    and the trajectory event are all made there. What the door adds is that a
+    surface cannot reach it except through the layer.
+
+    **And the permission it answers to is** ``source.read`` **on the manuscript
+    the version was made from**, asked by that function's own
+    ``consent.evaluate(context, capability=CapabilityId.SOURCE_READ, ...)`` —
+    so a policy that denies the read denies the write, on this path as on any
+    other.
+
+    :raises ApplicationRefusedError: the project or the version is not there,
+        the material is missing, unreadable or drifted, the policy denied the
+        read, or an anchor no longer matches the text it was set in.
+    """
+    from labcairn.papers.feedback import record_feedback as _record_feedback
+
+    return _record_feedback(context, project_id=project_id, version_id=version_id, now=now)
+
+
+def record_edit(
+    context: ApplicationContext,
+    *,
+    edit_action_id: str,
+    version_edge_id: str,
+    actor_kind: str,
+    feedback_id: str | None = None,
+    actor_id: str | None = None,
+    grade: str = "observed",
+    now: datetime,
+) -> EditAction:
+    """Record the change made in answer to a comment.
+
+    **The id is the caller's, and the edge is the change's path.** A change is
+    recorded against the edge it moved along, and the row says who made it --
+    a person, or a model whose inference may not carry a name.
+
+    **And the permission it answers to is** ``source.inventory`` **on the
+    materials the row is drawn from**, asked by
+    :func:`labcairn.papers.edits.record_edit`'s own
+    ``consent.evaluate_all(context, capability=CapabilityId.SOURCE_INVENTORY,
+    ...)`` over the child version's material and the comment's.
+
+    :raises ApplicationRefusedError: the edge or the comment is not there, the
+        actor kind or the grade is outside its vocabulary, a model is named as
+        a person, or the policy denied the inventory.
+    """
+    from labcairn.papers.edits import record_edit as _record_edit
+
+    return _record_edit(
+        context,
+        edit_action_id=edit_action_id,
+        version_edge_id=version_edge_id,
+        actor_kind=actor_kind,
+        feedback_id=feedback_id,
+        actor_id=actor_id,
+        grade=grade,
+        now=now,
+    )
+
+
+def record_revision_events(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    version_id: str,
+    now: datetime,
+) -> tuple[RevisionRecord, ...]:
+    """Record the tracked changes a marked-up manuscript holds.
+
+    **The rows say what changed and not why, because the file says not why.**
+    A second reading of the same bytes finds the same rows: the ids are
+    derived from the version and the change, not from the moment.
+
+    **And the permission it answers to is** ``source.read`` **on the manuscript
+    the version was made from**, asked by
+    :func:`labcairn.papers.revisions.record_revision_events`'s own
+    ``consent.evaluate(context, capability=CapabilityId.SOURCE_READ, ...)``.
+
+    :raises ApplicationRefusedError: the project or the version is not there,
+        the material is missing, unreadable or drifted, the policy denied the
+        read, or an anchor no longer matches the text it was set in.
+    """
+    from labcairn.papers.revisions import record_revision_events as _record_revision_events
+
+    return _record_revision_events(context, project_id=project_id, version_id=version_id, now=now)
+
+
+def record_response(
+    context: ApplicationContext,
+    *,
+    response_link_id: str,
+    feedback_id: str,
+    edit_action_id: str,
+    state: str,
+    grade: str = "observed",
+    decided_by: str | None = None,
+    decided_at: datetime | None = None,
+    evidence_refs: tuple[str, ...] = (),
+    now: datetime,
+) -> ResponseLink:
+    """Record the judgement of whether a change answered a comment.
+
+    **A state other than** ``pending`` **needs a decider and evidence, and a
+    model may not decide one.** That is the same line the acceptance of a
+    change may not cross: the answer to *"did it address the comment"* is a
+    person's, or it is nobody's.
+
+    **And the permission it answers to is** ``source.inventory`` **on the
+    material the comment was written against**, asked by
+    :func:`labcairn.papers.responses.record_response`'s own
+    ``consent.evaluate_all(context, capability=CapabilityId.SOURCE_INVENTORY,
+    ...)``.
+
+    :raises ApplicationRefusedError: the comment or the change is not there,
+        the state, the grade or the decider is outside its vocabulary, a
+        decision is claimed without its evidence, a model decides it, or the
+        policy denied the inventory.
+    """
+    from labcairn.papers.responses import record_response as _record_response
+
+    return _record_response(
+        context,
+        response_link_id=response_link_id,
+        feedback_id=feedback_id,
+        edit_action_id=edit_action_id,
+        state=state,
+        grade=grade,
+        decided_by=decided_by,
+        decided_at=decided_at,
+        evidence_refs=evidence_refs,
+        now=now,
+    )
+
+
+def settle_reply(
+    context: ApplicationContext,
+    *,
+    settlement_id: str,
+    reply_id: str,
+    state: str,
+    grade: str = "observed",
+    decided_by: str | None = None,
+    decided_at: datetime | None = None,
+    evidence_refs: tuple[str, ...] = (),
+    claim_terms: tuple[str, ...] = (),
+    change_version_id: str | None = None,
+    change_paragraph: int | None = None,
+    anchor_status: str = "unknown",
+    feedback_id: str | None = None,
+    hold_reason: str | None = None,
+    now: datetime,
+) -> ReplySettlement:
+    """Record the judgement that an author's answer settled a review point.
+
+    **One point is judged once, and the judgement is a person's.** A model may
+    put a settlement forward as ``pending`` and ``inferred``; it may not decide
+    one. A settled settlement names the claim terms that the manuscript's
+    accepted text bears out, and a held one names what the hold is waiting for.
+
+    **And the permission it answers to is conditional, and the door says so.**
+    :func:`labcairn.papers.replies.settle_reply` asks nothing of the policy for
+    a settlement that is pending or whose anchor is ``unknown`` -- the row
+    records a judgement about an exchange, and the exchange is already in the
+    store. It asks ``source.read`` **when the settlement resolves an address**,
+    because placing the change means reading the manuscript it was placed in.
+
+    :raises ApplicationRefusedError: the reply, the comment or the version is
+        not there, the point is already decided, the state, the grade, the
+        anchor status or the decider is outside its vocabulary, the address and
+        the anchor status disagree, a decision is claimed without its evidence,
+        a model decides it, the claim is not in the manuscript, or the policy
+        denied the read the resolution needs.
+    """
+    from labcairn.papers.replies import settle_reply as _settle_reply
+
+    return _settle_reply(
+        context,
+        settlement_id=settlement_id,
+        reply_id=reply_id,
+        state=state,
+        grade=grade,
+        decided_by=decided_by,
+        decided_at=decided_at,
+        evidence_refs=evidence_refs,
+        claim_terms=claim_terms,
+        change_version_id=change_version_id,
+        change_paragraph=change_paragraph,
+        anchor_status=anchor_status,
+        feedback_id=feedback_id,
+        hold_reason=hold_reason,
+        now=now,
+    )
+
+
+def record_assessment(
+    context: ApplicationContext,
+    *,
+    assessment_id: str,
+    project_id: str,
+    assessment: str,
+    outcome: str,
+    basis: str,
+    assessor_kind: str,
+    feedback_id: str | None = None,
+    issue_key: str | None = None,
+    grade: str = "observed",
+    evidence_refs: tuple[str, ...] = (),
+    now: datetime,
+) -> FollowupAssessment:
+    """Record the later judgement about an issue, with its own evidence.
+
+    **The advisor's advice may not be recorded as correct because the student's
+    change was accepted.** Acceptance is a fact about the process; the
+    correctness of the advice is a claim about the science, and the second needs
+    evidence of its own. So an assessment with no evidence is refused here, and
+    a basis of *"the change was accepted"* is not in the vocabulary at all.
+
+    **And the permission it answers to is** ``source.inventory`` **on the
+    project's materials**, asked by
+    :func:`labcairn.papers.assessments.record_assessment`'s own
+    ``consent.evaluate_all(context, capability=CapabilityId.SOURCE_INVENTORY,
+    arguments={}, resources=_materials(context, project_id))``.
+
+    :raises ApplicationRefusedError: the project, the comment or the issue is
+        not there, the basis, the outcome, the assessor or the grade is outside
+        its vocabulary, the assessment names neither a comment nor an issue, the
+        assessment has no evidence, or the policy denied the inventory.
+    """
+    from labcairn.papers.assessments import record_assessment as _record_assessment
+
+    return _record_assessment(
+        context,
+        assessment_id=assessment_id,
+        project_id=project_id,
+        assessment=assessment,
+        outcome=outcome,
+        basis=basis,
+        assessor_kind=assessor_kind,
+        feedback_id=feedback_id,
+        issue_key=issue_key,
+        grade=grade,
+        evidence_refs=evidence_refs,
+        now=now,
+    )
+
+
 __all__ = [
     "REVISION_CHANGE_KINDS",
     "ChainComment",
@@ -969,4 +1277,10 @@ __all__ = [
     "read_revision_activity",
     "read_revision_events",
     "read_revision_sources",
+    "record_assessment",
+    "record_edit",
+    "record_feedback",
+    "record_response",
+    "record_revision_events",
+    "settle_reply",
 ]

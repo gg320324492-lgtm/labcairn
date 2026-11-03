@@ -100,12 +100,24 @@ Operation                  Capability
 
 **The mentor line's own rows.** The operations below reach rows that belong
 to a paper project, to the guidance memory and to the role contracts rather
-than to a task. **None of them names a path**, so none of them can be judged
-by a policy about paths: the permission that governs them is the permission
-on the material, and it is asked where the material is named — the retrieval
-asks it per source at serve time and drops the sources the reader may not
-reach (ADR-0003 C5). A role contract names no material either, and it holds
-its own boundary: the capabilities it lists, and the actions it forbids.
+than to a task. **The reads of them name no path**, so no read is judged by a
+policy about paths: the permission that governs what a reader may be shown is
+the permission on the material, and it is asked where the material is named —
+the retrieval asks it per source at serve time and drops the sources the
+reader may not reach (ADR-0003 C5). A role contract names no material either,
+and it holds its own boundary: the capabilities it lists, and the actions it
+forbids.
+
+**The chain's write doors are the exception, and they are listed with the
+permission they answer to.** A write that reads a manuscript names that
+manuscript's path, and the door asks the permission on it before it reads a
+byte: ``source.read`` where the row is made from the bytes of one file,
+``source.inventory`` where it is made from the materials of several. The
+capability below is the one the domain function's own `consent` call asks —
+not the one its reader would guess. :func:`settle_reply` is conditional and
+the row says so: a pending settlement, or one whose anchor is ``unknown``,
+names no material and asks nothing; one that resolves an address reads the
+manuscript it places the change in.
 
 **And the checks name no material either.** A check is a question a reader
 runs against a manuscript, and the rule it decides is a rule of the memory
@@ -135,6 +147,12 @@ Operation  The permission that governs it
 ``read_material_paths``               the material's — asked where it is named
 ``read_project_graph``                the material's — asked where it is named
 ``read_issue_keys``                   the material's — asked where it is named
+``record_feedback``                   ``source.read``, asked at the door on the manuscript
+``record_edit``                       ``source.inventory``, on both materials
+``record_revision_events``            ``source.read``, asked at the door on the manuscript
+``record_response``                   ``source.inventory``, on the comment's material
+``settle_reply``                      ``source.read``, only when it places the change
+``record_assessment``                 ``source.inventory``, on the project's materials
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
 ``read_guidance_rule_version``        the material's — asked where it is named
@@ -204,6 +222,12 @@ from labcairn.application.chain import (
     read_project_graph,
     read_replies,
     read_response_states,
+    record_assessment,
+    record_edit,
+    record_feedback,
+    record_response,
+    record_revision_events,
+    settle_reply,
 )
 from labcairn.application.context import ApplicationContext
 from labcairn.application.events import EventPage, read_events
@@ -440,12 +464,17 @@ __all__ = [
     "read_task_state",
     "read_version",
     "reconcile_abandoned",
+    "record_assessment",
     "record_claim",
     "record_confirmation",
     "record_edge",
+    "record_edit",
+    "record_feedback",
     "record_identifier",
     "record_model_proposal",
     "record_project",
+    "record_response",
+    "record_revision_events",
     "record_version",
     "render_report",
     "request_approval",
@@ -455,6 +484,7 @@ __all__ = [
     "run_figure",
     "run_role_run",
     "run_stage",
+    "settle_reply",
     "the_role_run_question",
     "write_guidance_check",
     "write_guidance_check_confirmation",

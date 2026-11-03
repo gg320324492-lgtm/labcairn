@@ -106,6 +106,7 @@ from labcairn.db.models import (
     GuidanceRuleCounterexampleRow,
     GuidanceRuleRow,
     GuidanceRuleSourceRow,
+    ReplyRow,
     ResponseLinkRow,
 )
 from labcairn.db.repository import count_events, events_after, list_operations
@@ -3514,6 +3515,525 @@ def test_the_layer_reads_the_projects_graph_and_only_its_accepted_edges(
     )
     assert alone.version_ids == frozenset({"ver-1"})
     assert alone.edges == ()
+
+
+# -- the chain's write doors ------------------------------------------------- #
+
+#: The six write doors, and the module of the domain function each one delegates
+#: to. **Measured, not remembered**: the row for a door is compared against the
+#: consent call that module's own source makes for it, by
+#: :func:`_consent_capabilities_of`, so a row that names a permission the door
+#: does not ask is caught rather than read.
+_WRITE_DOORS: dict[str, str] = {
+    "record_feedback": "feedback.py",
+    "record_edit": "edits.py",
+    "record_revision_events": "revisions.py",
+    "record_response": "responses.py",
+    "settle_reply": "replies.py",
+    "record_assessment": "assessments.py",
+}
+
+
+def _consent_capabilities_of(module_path: Path, function_name: str) -> frozenset[str]:
+    """The capabilities a domain door can ask, read out of its own source.
+
+    **The door, and the private helpers it reaches inside its own module.** The
+    settlement door is the reason the walk is not just the body: it asks nothing
+    itself, and asks ``source.read`` only in the helper that checks the address
+    a settlement resolves. A row that named a permission nothing on that path
+    asks would be a row that says something false.
+    """
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    bodies = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+    asked: set[str] = set()
+    seen: set[str] = set()
+    pending = [function_name]
+    while pending:
+        name = pending.pop()
+        if name in seen or name not in bodies:
+            continue
+        seen.add(name)
+        for node in ast.walk(bodies[name]):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if isinstance(func, ast.Name) and func.id in bodies:
+                pending.append(func.id)
+            if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)):
+                continue
+            if func.value.id != "consent":
+                continue
+            for keyword in node.keywords:
+                value = keyword.value
+                if (
+                    keyword.arg == "capability"
+                    and isinstance(value, ast.Attribute)
+                    and isinstance(value.value, ast.Name)
+                    and value.value.id == "CapabilityId"
+                ):
+                    asked.add(str(getattr(CapabilityId, value.attr).value))
+    return frozenset(asked)
+
+
+def _table_row_for(operation: str) -> str:
+    """The capability-table row written for one operation, or ``None``."""
+    import labcairn.application as application
+
+    match = re.search(rf"^``{operation}``\s+(.*)$", application.__doc__ or "", re.MULTILINE)
+    assert match is not None, f"the capability table has no row for {operation!r}"
+    return match.group(1)
+
+
+def test_the_chain_write_doors_are_operations_of_the_layer() -> None:
+    """The chain's six write doors are exported by the layer and called through it.
+
+    **They were not.** Every read of the chain has been an operation of the
+    layer since this module was written, and every write was reached by a caller
+    importing ``labcairn.papers`` directly -- so a comment, an edit, a reply or
+    an assessment entered the chain by whichever module the caller happened to
+    think of, and the consent accounting that goes with each door was not the
+    layer's to hold. **A chain the layer cannot write is a chain whose consent
+    accounting depends on the caller**, and that is the drift this test closes.
+    """
+    import labcairn.application as application
+
+    for operation in _WRITE_DOORS:
+        assert operation in application.__all__, f"{operation} is not exported by the layer"
+        door = getattr(application, operation)
+        assert callable(door), f"{operation} is exported but is not callable"
+        assert _table_row_for(operation), f"{operation} has no capability row"
+
+
+def test_the_write_door_rows_name_the_capability_the_door_asks(repo_root: Path) -> None:
+    """Every row is the permission the domain function's own `consent` call asks.
+
+    **The table is the layer's account of itself, and a wrong capability is a
+    false statement, not a typo.** The both-ways witness checks that a row
+    exists for every export and that no row names a gone export; it cannot read
+    the second column. So this witness reads the door: it takes the
+    ``capability=CapabilityId.`` of every consent call in the door's source and
+    in the helpers it reaches inside its own module, and compares that set with
+    the capability the row names. **The two must be equal in both directions** —
+    a row that names a permission the door never asks is refused, and so is a
+    door that asks a permission the row does not name.
+    """
+    papers = repo_root / "src" / "labcairn" / "papers"
+    for operation, module in _WRITE_DOORS.items():
+        asked = _consent_capabilities_of(papers / module, operation)
+        assert asked, f"{operation} asks no capability anywhere -- the row would name one"
+        row = _table_row_for(operation)
+        named = frozenset(re.findall(r"`([a-z]+\.[a-z]+)`", row))
+        assert named == asked, (
+            f"the row for {operation} names {sorted(named)}, but its domain function "
+            f"asks {sorted(asked)} (in {module})"
+        )
+
+
+def test_the_settlement_door_asks_nothing_until_it_places_the_change(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The settlement row's condition is the door's behaviour, and both are measured.
+
+    **A settlement that places nothing reads nothing.** ``anchor_status`` of
+    ``unknown`` is the default, and a pending settlement with it writes a
+    judgement row with no policy call on the path -- so the door is refused by a
+    denying policy only when it resolves an address and reads the manuscript
+    there. **The row says so, and this is the witness that it says so truly.**
+    """
+    denied = ApplicationContext(
+        workspace=mentor_chain.context.workspace,
+        store=mentor_chain.context.store,
+        policy=_deny_all(),
+        ledger=mentor_chain.context.ledger,
+    )
+    session = mentor_chain.context.store.session
+    objection, answer = "The baseline is not named.", "Named in section 2."
+    for reply_id, paragraph in (("rp-layer-a", 0), ("rp-layer-b", 1)):
+        session.add(
+            ReplyRow(
+                reply_id=reply_id,
+                project_id=mentor_chain.chain.project_id,
+                version_id=mentor_chain.chain.version_id,
+                objection_party="reviewer",
+                objection_text=objection,
+                objection_text_sha256=hashlib.sha256(objection.encode()).hexdigest(),
+                objection_paragraph=paragraph,
+                answer_party="author",
+                answer_text=answer,
+                answer_text_sha256=hashlib.sha256(answer.encode()).hexdigest(),
+                answer_paragraph=paragraph + 1,
+                pairing_grade="observed",
+                created_at=_MOMENT,
+            )
+        )
+    session.commit()
+
+    settled = chain_layer.settle_reply(
+        denied,
+        settlement_id="set-unknown",
+        reply_id="rp-layer-a",
+        state="pending",
+        now=_MOMENT,
+    )
+    assert settled.anchor_status == "unknown"
+
+    _assert_refused(
+        lambda: chain_layer.settle_reply(
+            denied,
+            settlement_id="set-resolved",
+            reply_id="rp-layer-b",
+            state="pending",
+            change_version_id=mentor_chain.chain.second_version_id,
+            change_paragraph=0,
+            anchor_status="resolved",
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+
+
+def test_the_layer_write_doors_refuse_what_the_doors_refuse(mentor_chain: _MentorChain) -> None:
+    """One witness per wired door: the layer path refuses exactly what the domain path does.
+
+    **The wiring is a seam, not an alias.** Each door was called by its own
+    module and by the layer with the same argument that it refuses, and the two
+    refusals are compared by name -- **not by exception type alone**, because a
+    layer that wrapped every domain refusal in one generic name would pass that
+    test and tell a surface nothing.
+
+    The refusals chosen are the ones reachable with no manuscript read at all:
+    a thing the store does not hold. The policy refusal is witnessed separately,
+    by :func:`test_the_layer_write_doors_answer_to_the_policy_that_governs_them`.
+    """
+    from labcairn.papers.assessments import record_assessment as domain_record_assessment
+    from labcairn.papers.edits import record_edit as domain_record_edit
+    from labcairn.papers.replies import settle_reply as domain_settle_reply
+    from labcairn.papers.responses import record_response as domain_record_response
+    from labcairn.papers.revisions import record_revision_events as domain_record_revision_events
+
+    context = mentor_chain.context
+    cases: tuple[
+        tuple[str, Callable[[], object], Callable[[], object], ApplicationRefusal], ...
+    ] = (
+        (
+            "record_feedback",
+            lambda: chain_layer.record_feedback(
+                context, project_id="proj-ghost", version_id="ver-1", now=_MOMENT
+            ),
+            lambda: record_feedback(
+                context, project_id="proj-ghost", version_id="ver-1", now=_MOMENT
+            ),
+            ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND,
+        ),
+        (
+            "record_edit",
+            lambda: chain_layer.record_edit(
+                context,
+                edit_action_id="edit-ghost",
+                version_edge_id="edge-ghost",
+                actor_kind="human",
+                now=_MOMENT,
+            ),
+            lambda: domain_record_edit(
+                context,
+                edit_action_id="edit-ghost",
+                version_edge_id="edge-ghost",
+                actor_kind="human",
+                now=_MOMENT,
+            ),
+            ApplicationRefusal.CHAIN_VERSION_NOT_FOUND,
+        ),
+        (
+            "record_revision_events",
+            lambda: chain_layer.record_revision_events(
+                context, project_id="proj-ghost", version_id="ver-1", now=_MOMENT
+            ),
+            lambda: domain_record_revision_events(
+                context, project_id="proj-ghost", version_id="ver-1", now=_MOMENT
+            ),
+            ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND,
+        ),
+        (
+            "record_response",
+            lambda: chain_layer.record_response(
+                context,
+                response_link_id="resp-ghost",
+                feedback_id="fb-ghost",
+                edit_action_id=mentor_chain.edit_action_id,
+                state="addressed",
+                decided_by="rule",
+                decided_at=_MOMENT,
+                evidence_refs=("ev-1",),
+                now=_MOMENT,
+            ),
+            lambda: domain_record_response(
+                context,
+                response_link_id="resp-ghost",
+                feedback_id="fb-ghost",
+                edit_action_id=mentor_chain.edit_action_id,
+                state="addressed",
+                decided_by="rule",
+                decided_at=_MOMENT,
+                evidence_refs=("ev-1",),
+                now=_MOMENT,
+            ),
+            ApplicationRefusal.CHAIN_FEEDBACK_NOT_FOUND,
+        ),
+        (
+            "settle_reply",
+            lambda: chain_layer.settle_reply(
+                context,
+                settlement_id="set-ghost",
+                reply_id="rp-ghost",
+                state="pending",
+                now=_MOMENT,
+            ),
+            lambda: domain_settle_reply(
+                context,
+                settlement_id="set-ghost",
+                reply_id="rp-ghost",
+                state="pending",
+                now=_MOMENT,
+            ),
+            ApplicationRefusal.CHAIN_REPLY_NOT_FOUND,
+        ),
+        (
+            "record_assessment",
+            lambda: chain_layer.record_assessment(
+                context,
+                assessment_id="as-ghost",
+                project_id="proj-ghost",
+                assessment="The baseline is named now.",
+                outcome="established",
+                basis="revised_manuscript",
+                assessor_kind="advisor",
+                evidence_refs=("ev-1",),
+                now=_MOMENT,
+            ),
+            lambda: domain_record_assessment(
+                context,
+                assessment_id="as-ghost",
+                project_id="proj-ghost",
+                assessment="The baseline is named now.",
+                outcome="established",
+                basis="revised_manuscript",
+                assessor_kind="advisor",
+                evidence_refs=("ev-1",),
+                now=_MOMENT,
+            ),
+            ApplicationRefusal.CHAIN_PROJECT_NOT_FOUND,
+        ),
+    )
+
+    for name, layer_call, domain_call, reason in cases:
+        layer_refused = _assert_refused(layer_call, reason)
+        domain_refused = _assert_refused(domain_call, reason)
+        assert layer_refused.reason is domain_refused.reason, name
+        assert layer_refused.reason.value == domain_refused.reason.value, name
+
+
+def test_the_assessment_door_refuses_its_two_judgement_refusals_through_the_layer(
+    mentor_chain: _MentorChain,
+) -> None:
+    """The assessment door's own two refusals arrive through the layer, named.
+
+    **The fourth ring's refusals are not existence refusals.** An assessment
+    about an issue the chain does not hold, and an assessment with no evidence
+    behind it, are the two ways the fourth ring says *no* to a judgement; both
+    are reached only inside a real project with a real keyed comment, and both
+    are called here through the layer rather than through the domain module.
+    """
+    context = mentor_chain.context
+
+    _assert_refused(
+        lambda: chain_layer.record_assessment(
+            context,
+            assessment_id="as-nowhere",
+            project_id=mentor_chain.chain.project_id,
+            assessment="The baseline is named now.",
+            outcome="established",
+            basis="revised_manuscript",
+            assessor_kind="advisor",
+            issue_key="iss-nowhere",
+            evidence_refs=("ev-1",),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.CHAIN_ASSESSMENT_ISSUE_NOT_FOUND,
+    )
+    _assert_refused(
+        lambda: chain_layer.record_assessment(
+            context,
+            assessment_id="as-bare",
+            project_id=mentor_chain.chain.project_id,
+            assessment="The baseline is named now.",
+            outcome="established",
+            basis="revised_manuscript",
+            assessor_kind="advisor",
+            issue_key=_MENTOR_KEY,
+            evidence_refs=(),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.CHAIN_ASSESSMENT_NEEDS_EVIDENCE,
+    )
+
+
+def test_the_layer_write_doors_answer_to_the_policy_that_governs_them(
+    mentor_chain: _MentorChain,
+) -> None:
+    """A policy that denies the material denies the write, through the layer.
+
+    **This is the witness that the wiring does not skip the consent call.** Each
+    door asks its permission on the manuscript the row is drawn from before it
+    writes, and a context whose policy denies everything must be refused at that
+    call -- reached through the layer, with the refusal named
+    ``permission_denied`` rather than the thing-not-found name of the earlier
+    checks. **A layer operation that wrote without asking would let all five
+    through**, and this test would stay green for none of them.
+    """
+    denied = ApplicationContext(
+        workspace=mentor_chain.context.workspace,
+        store=mentor_chain.context.store,
+        policy=_deny_all(),
+        ledger=mentor_chain.context.ledger,
+    )
+    from labcairn.papers.assessments import record_assessment as domain_record_assessment
+    from labcairn.papers.edits import record_edit as domain_record_edit
+    from labcairn.papers.responses import record_response as domain_record_response
+    from labcairn.papers.revisions import record_revision_events as domain_record_revision_events
+
+    project_id = mentor_chain.chain.project_id
+    comment_id = mentor_chain.comment.feedback_id
+
+    _assert_refused(
+        lambda: chain_layer.record_feedback(
+            denied, project_id=project_id, version_id=mentor_chain.chain.version_id, now=_MOMENT
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: chain_layer.record_edit(
+            denied,
+            edit_action_id="edit-denied",
+            version_edge_id=mentor_chain.chain.edge_id,
+            actor_kind="human",
+            feedback_id=comment_id,
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: chain_layer.record_revision_events(
+            denied, project_id=project_id, version_id=mentor_chain.chain.version_id, now=_MOMENT
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: chain_layer.record_response(
+            denied,
+            response_link_id="resp-denied",
+            feedback_id=comment_id,
+            edit_action_id=mentor_chain.edit_action_id,
+            state="addressed",
+            decided_by="rule",
+            decided_at=_MOMENT,
+            evidence_refs=("ev-1",),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: chain_layer.record_assessment(
+            denied,
+            assessment_id="as-denied",
+            project_id=project_id,
+            assessment="The baseline is named now.",
+            outcome="established",
+            basis="revised_manuscript",
+            assessor_kind="advisor",
+            issue_key=_MENTOR_KEY,
+            evidence_refs=("ev-1",),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    # And the domain path, on the same denial, for the same name: the layer holds
+    # the seam, but it does not hold a different verdict.
+    _assert_refused(
+        lambda: domain_record_edit(
+            denied,
+            edit_action_id="edit-denied-domain",
+            version_edge_id=mentor_chain.chain.edge_id,
+            actor_kind="human",
+            feedback_id=comment_id,
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: domain_record_revision_events(
+            denied, project_id=project_id, version_id=mentor_chain.chain.version_id, now=_MOMENT
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: domain_record_response(
+            denied,
+            response_link_id="resp-denied-domain",
+            feedback_id=comment_id,
+            edit_action_id=mentor_chain.edit_action_id,
+            state="addressed",
+            decided_by="rule",
+            decided_at=_MOMENT,
+            evidence_refs=("ev-1",),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+    _assert_refused(
+        lambda: domain_record_assessment(
+            denied,
+            assessment_id="as-denied-domain",
+            project_id=project_id,
+            assessment="The baseline is named now.",
+            outcome="established",
+            basis="revised_manuscript",
+            assessor_kind="advisor",
+            issue_key=_MENTOR_KEY,
+            evidence_refs=("ev-1",),
+            now=_MOMENT,
+        ),
+        ApplicationRefusal.PERMISSION_DENIED,
+    )
+
+
+def test_a_comment_written_through_the_layer_lands_in_the_chain(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The layer path really writes, and the layer's own read finds the row.
+
+    **A delegation that returned nothing would still refuse correctly.** So one
+    write is run end to end through the layer: the comment the manuscript holds
+    is recorded by ``chain_layer.record_feedback``, keyed by the domain's
+    ``set_issue_key``, and read back by ``chain_layer.read_comments``.
+    """
+    workspace_root = tmp_path / "layer-write-workspace"
+    workspace_root.mkdir()
+    chain = build_chain(env.store(), workspace_root, comments=(a_comment("202"),))
+    events = chain_layer.record_feedback(
+        chain.context, project_id=chain.project_id, version_id=chain.version_id, now=_MOMENT
+    )
+    assert len(events) == 1, "the layer path recorded the manuscript's comment"
+
+    keyed = set_issue_key(
+        chain.context,
+        feedback_id=events[0].feedback_id,
+        issue_key="iss-layer-write",
+        now=_MOMENT,
+    )
+    found = chain_layer.read_comments(chain.context, issue_keys=["iss-layer-write"])
+    assert [comment.feedback_id for comment in found] == [keyed.feedback_id]
+    assert found[0].comment_text == events[0].comment_text
 
 
 # -- the guidance memory's rules --------------------------------------------- #
