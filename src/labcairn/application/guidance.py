@@ -144,6 +144,41 @@ def read_guidance_rule(context: ApplicationContext, *, rule_id: str) -> Guidance
     return _the_rule(context, row)
 
 
+def read_guidance_rule_version(
+    context: ApplicationContext, *, rule_id: str, version: int
+) -> GuidanceRule:
+    """The rule at the version named, with that version's sources and cases.
+
+    **The version asked for, and not the newest.** A new statement is a new
+    row, and the old row keeps the state, the sources and the checks it had.
+    The highest-version reads answer the retrieval's question — *what does
+    this rule say now?* — and they cannot answer the reconciliation's: *what
+    did it say then, and what did that version rest on?* A caller comparing a
+    rule's past with its present asks here.
+
+    **Everything comes back at that version.** The sources, the
+    counterexamples and the checks are stored against ``(rule_id, version)``,
+    and :func:`_the_rule` filters all three by the row's own version — so a
+    v1 read cannot carry v2's material, and a v2 read cannot carry v1's.
+
+    :raises ApplicationRefusedError: no rule carries that id at that version.
+    """
+    row = context.store.session.scalar(
+        select(GuidanceRuleRow)
+        .where(
+            GuidanceRuleRow.rule_id == rule_id,
+            GuidanceRuleRow.version == version,
+        )
+        .limit(1)
+    )
+    if row is None:
+        raise guidance_refused(
+            GuidanceRefusal.RULE_NOT_FOUND,
+            f"no rule carries the id {rule_id!r} at version {version}",
+        )
+    return _the_rule(context, row)
+
+
 def read_guidance_rules(context: ApplicationContext) -> tuple[GuidanceRule, ...]:
     """The highest version of every rule, with its sources and its cases.
 
@@ -749,6 +784,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_version",
     "read_guidance_rules",
     "write_guidance_check",
     "write_guidance_check_confirmation",
