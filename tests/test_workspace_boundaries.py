@@ -286,6 +286,13 @@ def test_the_ceiling_is_written_once_in_the_product() -> None:
     rather than by an import. Naming the second file is what makes the witness
     fail for the property: a **third** spelling anywhere is this test going red,
     and it says which file to import instead.
+
+    **The count is pinned in both files, not just the set.** A set assertion
+    alone lets a second literal be added *inside* ``papers/revisions.py``, where
+    nothing would notice — measured: with ``_DUPLICATE_CEILING_LITERAL =
+    96_000_000`` added there, every witness in this file stayed green, because
+    the set was unchanged and the value still equalled the ceiling. Two literals
+    in one file are two places to move, so each allowed file is pinned to one.
     """
     spelled = _literal_spellings_of_the_ceiling()
 
@@ -295,6 +302,11 @@ def test_the_ceiling_is_written_once_in_the_product() -> None:
     )
     assert spelled["security/capabilities.py"] == 1, (
         "the ceiling's digits are written twice even in its own home"
+    )
+    assert spelled["papers/revisions.py"] == 1, (
+        "papers/revisions.py carries more than one copy of the ceiling's digits; "
+        "that file is watched rather than imported, so every extra literal there "
+        "is another place a raise can miss"
     )
 
 
