@@ -61,6 +61,7 @@ from store_support import StoreEnv
 from store_support import env as _shared_env
 
 from labcairn.application.context import ApplicationContext
+from labcairn.application.guidance import read_guidance_rule_version, read_guidance_rules
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.application.tasks import create_task
 from labcairn.db.models import GuidanceCheckRow, GuidanceRuleCheckRow, GuidanceRuleRow
@@ -539,6 +540,146 @@ def test_a_rule_that_is_not_there_is_refused(memory: ApplicationContext) -> None
     with pytest.raises(ApplicationRefusedError) as raised:
         read_rule(memory, rule_id="rule-nowhere")
     assert _refusal(raised.value) is GuidanceRefusal.RULE_NOT_FOUND, raised.value
+
+
+# --------------------------------------------------------------------------- #
+# the rule at a named version
+# --------------------------------------------------------------------------- #
+
+
+def test_a_version_read_returns_that_versions_words_sources_and_checks(
+    memory: ApplicationContext,
+) -> None:
+    """The version asked for, whole, and not the rule's newest material.
+
+    **The two versions disagree in every field this read resolves from
+    rows**: the statement, the sources, the counterexamples and the checks.
+    A read that takes any of them from the newest version fails by name.
+    """
+    first_check = _confirmed_check(memory)
+    first = _propose(memory, sources=("iss-gold-a-r1",), checks=(first_check.check_id,))
+    confirm_rule(memory, rule_id=first.rule_id, confirmed_by="the-advisor", now=LATER)
+    record_counterexample(
+        memory,
+        rule_id=first.rule_id,
+        statement="The ablation paragraph of 2026-03-09 named its baseline.",
+        recorded_by="reader-2",
+        now=LATER,
+        issue_key="iss-gold-a-r2",
+    )
+    second_check = _confirmed_check(
+        memory,
+        question="Does the paragraph that compares two arms name both of them?",
+        pass_criterion="Both arms are named, and the quantity compared is the same on both sides.",
+    )
+    second = supersede_rule(
+        memory,
+        rule_id=first.rule_id,
+        statement="When the claim rests on a comparison, the advisor names the"
+        " baseline and the effect size in the same paragraph.",
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        issue_type="method_and_hypothesis",
+        sources=("iss-gold-b-r1",),
+        proposed_by="distil-run-8",
+        now=LATER,
+        checks=(second_check.check_id,),
+    )
+    assert second.statement != first.statement
+
+    old = read_guidance_rule_version(memory, rule_id=first.rule_id, version=1)
+    assert old.version == 1
+    assert old.statement == first.statement
+    assert old.sources == ("iss-gold-a-r1",)
+    assert [case.issue_key for case in old.counterexamples] == ["iss-gold-a-r2"]
+    assert [check.check_id for check in old.checks] == [first_check.check_id]
+
+    new = read_guidance_rule_version(memory, rule_id=first.rule_id, version=2)
+    assert new.version == 2
+    assert new.statement == second.statement
+    assert new.sources == ("iss-gold-b-r1",)
+    assert new.counterexamples == ()
+    assert [check.check_id for check in new.checks] == [second_check.check_id]
+
+
+def test_the_first_version_of_a_superseded_rule_reads_as_it_stood(
+    memory: ApplicationContext,
+) -> None:
+    """A superseded rule's v1 comes back as v1, state included.
+
+    **The read must not answer with the newest wording**: a reconciliation
+    that received v2 for v1 would be comparing v2 with itself.
+    """
+    first = _propose(memory)
+    confirm_rule(memory, rule_id=first.rule_id, confirmed_by="the-advisor", now=LATER)
+    disputed = dispute_rule(
+        memory,
+        rule_id=first.rule_id,
+        reason="The counterexample of 2026-03-09 stands.",
+        disputed_by="reader-2",
+        now=LATER,
+    )
+    second = supersede_rule(
+        memory,
+        rule_id=first.rule_id,
+        statement="When the claim rests on a comparison, the advisor names the"
+        " baseline and the effect size in the same paragraph.",
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        issue_type="method_and_hypothesis",
+        sources=("iss-gold-a-r1",),
+        proposed_by="distil-run-8",
+        now=LATER,
+    )
+    old = read_guidance_rule_version(memory, rule_id=first.rule_id, version=1)
+    assert old.statement == first.statement
+    assert old.state == "disputed"
+    assert old.resolution_reason == disputed.resolution_reason
+    assert old.statement != second.statement
+
+
+def test_a_version_the_memory_does_not_hold_is_refused(
+    memory: ApplicationContext,
+) -> None:
+    """A version below the first and one past the newest are both refused,
+    and so is a version read of an id the memory does not hold at all.
+    """
+    rule = _propose(memory)
+    for not_held in (0, 2):
+        with pytest.raises(ApplicationRefusedError) as raised:
+            read_guidance_rule_version(memory, rule_id=rule.rule_id, version=not_held)
+        assert _refusal(raised.value) is GuidanceRefusal.RULE_NOT_FOUND, raised.value
+    with pytest.raises(ApplicationRefusedError) as raised:
+        read_guidance_rule_version(memory, rule_id="rule-nowhere", version=1)
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_NOT_FOUND, raised.value
+
+
+def test_the_highest_version_reads_still_serve_the_newest(
+    memory: ApplicationContext,
+) -> None:
+    """The by-version read does not move the reads that serve the retrieval."""
+    first = _propose(memory)
+    second = supersede_rule(
+        memory,
+        rule_id=first.rule_id,
+        statement="When the claim rests on a comparison, the advisor names the"
+        " baseline and the effect size in the same paragraph.",
+        rule_context="A results section whose claim is comparative.",
+        scope="Empirical papers in this group's field.",
+        example="The comment of 2026-03-02 on the ablation paragraph.",
+        issue_type="method_and_hypothesis",
+        sources=("iss-gold-a-r1",),
+        proposed_by="distil-run-8",
+        now=LATER,
+    )
+    newest = read_rule(memory, rule_id=first.rule_id)
+    assert newest.version == 2
+    assert newest.statement == second.statement
+    assert newest.sources == second.sources
+    rules = read_guidance_rules(memory)
+    assert [(rule.rule_id, rule.version) for rule in rules] == [(first.rule_id, 2)]
 
 
 # --------------------------------------------------------------------------- #
