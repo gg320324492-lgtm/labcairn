@@ -3188,16 +3188,32 @@ def test_a_row_claiming_an_empty_text_is_never_fresh(legacy_0022: ChainEnv) -> N
         == "stale"
     )
 
-    # And the re-recording the store will ask for the moment its owner
-    # reads the same version again: the legacy row spells the position
-    # the old way -- ``unknown`` with the reason, and the placeholder
-    # digest the old checks forced -- while today's reader spells it
-    # ``position`` with no digest at all. **Both spell "no anchored
-    # text"**, so the row is found and returned, not refused as stale
-    # because two spellings of one fact failed to compare.
+
+def test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded(
+    legacy_0022: ChainEnv,
+) -> None:
+    """A re-recording reads the placeholder digest as "no anchored text".
+
+    The store will ask for this the moment its owner reads the same
+    version again: the legacy row spells the position the old way --
+    ``unknown`` with the reason, and the placeholder digest the old
+    checks forced -- while today's reader spells it ``position`` with no
+    digest at all. **Both spell "no anchored text"**, so the row is found
+    and returned, not refused as stale because two spellings of one fact
+    failed to compare. Staged on a real 0022 database, because the head
+    schema refuses to hold the placeholder the re-recording must read.
+    """
+    session = legacy_0022.context.store.session
     _raw_insert(
         session,
-        feedback_id=_legacy_position_id(legacy_0022),
+        feedback_id=_legacy_id(legacy_0022),
+        comment_locator=DocxLocator(
+            part="word/comments.xml",
+            element_path="/w:document[1]/w:comments[1]/w:comment[1]",
+            view="accepted",
+            char_start=0,
+            char_end=39,
+        ).model_dump_json(),
         anchor_status="unknown",
         anchor_reason=POSITION_REASON,
         anchor_paragraph=0,
