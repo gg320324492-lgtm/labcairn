@@ -62,6 +62,8 @@ difference between absorbing the mentor's judgement and arranging it.
 | **The feedback chain** | the four rings: comment, change, judgement, assessment | [`LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md) |
 | **The annotation** | the label set, the guide, the gold set and two independent readings of it | [`LC-P2-10-acceptance.md`](../acceptance/LC-P2-10-acceptance.md) |
 | **The guidance memory** | rules as versioned rows, candidates, confirmations, retrievals | [`LC-P2-11-acceptance.md`](../acceptance/LC-P2-11-acceptance.md) |
+| **A rule from a tracked change** | the distillation's second case: a marked-up manuscript with hundreds of revisions and **no comment at all** is material a rule can be drawn from, the case key is the product's, the proposer is `operator_proposal`, and a rule read from too little is **rewritten under its own id** rather than duplicated beside itself | [`LC-P2-11-revision-distillation.md`](../acceptance/LC-P2-11-revision-distillation.md) |
+| **A check that decides a rule** | the question a reader runs against a manuscript and what answers it, bound to the rule's **version**; exercised on real material for the first time — two rules, two confirmed checks, and the refusal that a candidate check cannot decide a rule proved on the row | [`LC-P2-11-check-binding.md`](../acceptance/LC-P2-11-check-binding.md) |
 | **The three-role loop** | the roles, the cards, the run, the refusals | [`LC-P2-12-acceptance.md`](../acceptance/LC-P2-12-acceptance.md) |
 | **The model-call path** | one consented, budgeted, recorded, refusal-honest call | [`LC-P2-01-acceptance.md`](../acceptance/LC-P2-01-acceptance.md) |
 | **Restart-durable consent** | the approval that survives a restart and cannot be spent twice | [`LC-P2-02-acceptance.md`](../acceptance/LC-P2-02-acceptance.md) |
@@ -115,12 +117,24 @@ as it stands**, and the memory reports them as unserved. **This is a
 material gap, not a product one**, and it is closed by material, not by
 code.
 
-**And one reader defect is owed to the fidelity line.** The reader
-records **one change twice in one file** (243 reported, 239 real), and the
-revision event's id rests on an assumption that is false as written —
-*the element's path is unique inside a part*. **It holds today only
-because the four duplicates are the same change**; two **different**
-changes sharing a path would lose one of them silently.
+**And the reader debt that was owed to the fidelity line is paid.** It was
+two things, and they were opposite failures. The reader recorded **one
+change twice in one file** (243 reported against 239 elements) — fixed in
+`f4a7e94`, and that draft now reads 239 events against 239 distinct
+addresses. And the revision event's id rested on an assumption false as
+written — *the element's path is unique inside a part* — which held only
+because every duplicate happened to be the same change; **two different
+changes at one path would have lost one of them silently**. The id is now
+keyed `(version, part, element_path, occurrence)`, with the first change at
+an address keeping the digest every stored row already carries, so the 2164
+pilot rows and the rules bound to them do not move
+([`LC-P2-07-revision-event-identity.md`](../acceptance/LC-P2-07-revision-event-identity.md)).
+The third case was the reverse of the first: a table row's insertion marker
+(`w:trPr/w:ins`) sits outside every paragraph, so a scan that walks
+paragraphs **never reported it** — measured across all five corpora, 4499
+revision elements against 4498 reported, one file short. The reader now
+reports it, with `paragraph` absent rather than invented
+([`LC-P2-07-table-row-markers.md`](../acceptance/LC-P2-07-table-row-markers.md)).
 
 ---
 
