@@ -209,6 +209,30 @@ def _scope_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
     return ". ".join(parts)
 
 
+def _comment_example_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
+    """The advisor's own words, with the case's key beside them.
+
+    **The comment itself, not a description of it.** A comment is the
+    advisor writing in the margin, and the words are the evidence; a rule
+    whose example paraphrased them would be a rule illustrated by
+    something the chain does not hold.
+
+    **And the key is beside it, so the sentence traces back.** A reader
+    must be able to open the case the example came from.
+
+    **And the choice is stable.** The first case by key and then by text,
+    so two distillations of the same comments show the same example — the
+    same reason the scope is sorted.
+
+    **Both comment doors read this one function.** A rule's first version
+    and its next version are distilled from the same kind of case, and
+    two spellings of one example would be two answers to what the case
+    says.
+    """
+    first_key, first = min(cases, key=lambda case: (case[0], case[1].comment_text))
+    return f"The advisor's comment ({first_key}): {first.comment_text}"
+
+
 def distil_candidate(
     context: ApplicationContext,
     *,
@@ -239,8 +263,7 @@ def distil_candidate(
         )
     cases = _cases_of(context, issue_keys)
     scope = _scope_of(cases)
-    first_key, first = min(cases, key=lambda case: (case[0], case[1].comment_text))
-    example = f"The advisor's comment ({first_key}): {first.comment_text}"
+    example = _comment_example_of(cases)
     issue_type, statement, rule_context, scope, example, proposer, keys = _validated_fields(
         issue_type=issue_type,
         statement=statement,
@@ -255,6 +278,101 @@ def distil_candidate(
         guidance_layer.RuleDraft(
             rule_id=_rule_id(issue_type, statement, rule_context, scope, example, proposer, keys),
             version=1,
+            issue_type=issue_type,
+            statement=statement,
+            rule_context=rule_context,
+            scope=scope,
+            example=example,
+            proposed_by=proposer,
+            sources=keys,
+            proposed_at=now,
+        ),
+    )
+
+
+def distil_comment_version_of(
+    context: ApplicationContext,
+    *,
+    rule_id: str,
+    issue_type: str,
+    statement: str,
+    rule_context: str,
+    issue_keys: Sequence[str],
+    now: datetime,
+) -> GuidanceRule:
+    """Write a **new version** of a rule, from comment cases, keeping its place.
+
+    **The comment path needs the door the revision path already has.** A
+    rule read once from comments is often a rule read from too little —
+    a remark that says what to fix rather than how to recognise the fault
+    — and a thin rule is fixed by writing it again, not by leaving a
+    better one beside it. **A second rule under a new id would be two
+    answers to one question**, and correcting the old row through
+    :func:`labcairn.guidance.rules.supersede_rule` would hand-write the
+    scope, which is the door a caller must not go around.
+
+    **And the new version keeps the old one's place.** It is written under
+    the same ``rule_id``, as the next version of it: the old version keeps
+    the state it had, and the reader gets the newest words and nothing
+    else.
+
+    **And the scope and the example are the cases', not the caller's.**
+    Exactly as on the first version — the scope is the anchored text each
+    comment was written against, and the example is the advisor's own
+    words with the case's key beside them — so **the caller cannot write
+    a scope the cases do not support**.
+
+    **And the proposer is the comment path's, as on the first version.**
+    A distillation run over a corpus of comments is a model's work, and
+    the record says so: this door carries ``model_proposal``, **not the
+    revision path's ``operator_proposal``**, because the words were read
+    from comments and no person sat between them and the rule. **The
+    proposer belongs to the work, not to the id**: copying it from the
+    old row would let one version's author stand for another's, which is
+    the misreport the two proposer constants exist to prevent.
+
+    **And the version starts as a candidate.** A rewording is not a
+    confirmation: the new words need a second reader as much as the old
+    ones did, and **the confirmer cannot be the proposer**, so the rule
+    cannot be confirmed by the same hand that wrote it.
+
+    **And a re-run is a new version, not the same row.** The version is a
+    place in a sequence, not a function of the words, so running one
+    correction twice writes the next version again — the same shape the
+    revision door has. **The mint door's idempotency does not carry
+    here**, and a caller that wants one row must not re-run its own
+    correction.
+
+    :raises ApplicationRefusedError: the rule is not there; the problem is
+        outside the closed vocabulary; the statement or its context is
+        empty; no comments were named, or a named key the chain holds
+        nothing under.
+    """
+    if issue_type not in ISSUE_LABELS:
+        raise guidance_refused(
+            GuidanceRefusal.PROBLEM_OUTSIDE_VOCABULARY,
+            f"{issue_type!r} is not one of the closed vocabulary's labels",
+        )
+    # **The rule is read first**, so a rule that is not there is refused
+    # before anything is written. The layer raises on its own.
+    old = guidance_layer.read_guidance_rule(context, rule_id=rule_id)
+    cases = _cases_of(context, issue_keys)
+    scope = _scope_of(cases)
+    example = _comment_example_of(cases)
+    issue_type, statement, rule_context, scope, example, proposer, keys = _validated_fields(
+        issue_type=issue_type,
+        statement=statement,
+        rule_context=rule_context,
+        scope=scope,
+        example=example,
+        proposed_by=MODEL_PROPOSER,
+        sources=tuple(key for key, _ in cases),
+    )
+    return guidance_layer.write_guidance_rule_version(
+        context,
+        guidance_layer.RuleDraft(
+            rule_id=old.rule_id,
+            version=old.version + 1,
             issue_type=issue_type,
             statement=statement,
             rule_context=rule_context,
