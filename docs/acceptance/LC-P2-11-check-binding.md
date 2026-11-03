@@ -1,8 +1,8 @@
 # LC-P2-11: binding checks to the two confirmed rules of `proj-pilot-3`
 
-**Status: DRAFT (measurement only).** This file records what was measured
-before anything was written. The check wording is drafted in §4 and is
-awaiting a second reader.
+**Status: measurement done; the check wording in §4 is DRAFT and awaits a
+second reader.** §1–§3 record what was measured before anything was
+written; §4 is the wording the owner is asked to confirm.
 
 - **Branch**: `claude/check-binding-pilot3-feaddf`
 - **Measured at**: `eff6561` (the merge of `docs/debt-closures` into this
@@ -180,6 +180,21 @@ raises `CHECK_NOT_CONFIRMED` for any check whose state is not
 > **The wording below has not been proposed.** It is shown here so that the
 > second reader can read it before anything is written to the pilot
 > database.
+
+### 4.0 The identity a proposed check will carry
+
+- **`check_id` is derived, not supplied.** `checks.py::_check_id` hashes
+  `f"{question}|{pass_criterion}|{proposed_by}|{now.isoformat()}"` with
+  SHA-256 and takes the first 16 hex characters, prefixed `check-`. **A
+  change to the wording changes the id**, so the owner is asked to confirm
+  the wording *as written*; a later rewording is a different check.
+- **`proposed_by` is `model_proposal`.** This draft was written by a model
+  and not by a person, and the database's own vocabulary already
+  distinguishes the two: sixteen rule rows carry
+  `model_proposal`/`local-user`, and the two pilot rules carry
+  `operator_proposal`/`owner`. **The proposer may not be the confirmer**,
+  so `confirmed_by` will be `owner` — a second reader, and not this
+  session.
 
 ### 4.1 For `rule-1fcc9d1a2573d7b0` (one mechanism, not a list)
 
