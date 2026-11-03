@@ -29,6 +29,14 @@ confirms, disputes, withdraws and supersedes.
      a new statement is a new row                        the old version keeps
                                                           its state; the new one
                                                           is a candidate again
+     **the identity is the draft, not the clock**        a re-run of one
+                                                          proposal is one row,
+                                                          and `proposed_at` is
+                                                          the instant it was
+                                                          really proposed at
+     distinct drafts are distinct ids                    same words, different
+                                                          sources or scope, are
+                                                          different rows
       a counterexample travels with the rule              served in the same read,
                                                           or refused when empty
 ======================================================  =========================
@@ -125,20 +133,22 @@ def _propose(
     issue_type: str = "method_and_hypothesis",
     statement: str = "When the claim rests on a comparison, the advisor asks"
     " for the baseline to be named in the same paragraph.",
+    scope: str = "Empirical papers in this group's field.",
     sources: tuple[str, ...] = ("iss-gold-a-r1",),
     proposed_by: str = "distil-run-7",
     checks: tuple[str, ...] = (),
+    now: datetime = MOMENT,
 ) -> GuidanceRule:
     return propose_rule(
         context,
         issue_type=issue_type,
         statement=statement,
         rule_context="A results section whose claim is comparative.",
-        scope="Empirical papers in this group's field.",
+        scope=scope,
         example="The comment of 2026-03-02 on the ablation paragraph.",
         sources=sources,
         proposed_by=proposed_by,
-        now=MOMENT,
+        now=now,
         checks=checks,
     )
 
@@ -156,6 +166,7 @@ def _propose_check(
     question: str = QUESTION,
     pass_criterion: str = CRITERION,
     proposed_by: str = "the-group",
+    now: datetime = MOMENT,
 ) -> GuidanceCheck:
     """A check as it is proposed: a candidate, and nobody has confirmed it."""
     return propose_check(
@@ -163,7 +174,7 @@ def _propose_check(
         question=question,
         pass_criterion=pass_criterion,
         proposed_by=proposed_by,
-        now=MOMENT,
+        now=now,
     )
 
 
@@ -225,6 +236,77 @@ def test_a_rule_carries_a_problem_a_context_a_scope_a_counterexample_and_a_versi
     )
     assert len(challenged.counterexamples) == 1
     assert read_rule(memory, rule_id=rule.rule_id).version == 1
+
+
+def test_the_identity_is_the_draft_and_not_the_clock(memory: ApplicationContext) -> None:
+    """A re-run of one proposal is one row, and the clock does not name it.
+
+    **The stored instant is the one the row was first proposed at, not the one
+    the re-run carried.** Two proposals of the same draft at two different real
+    times are the same proposal: the second returns the row the first wrote,
+    writes nothing, and **does not rewrite the past** — ``proposed_at`` still
+    says when the rule entered the memory. This is the property the fixed
+    instant in ``LC-P2-11-check-binding`` was bought to approximate; deriving
+    the identity from the draft is what makes it true without inventing a time.
+    """
+    first = _propose(memory, now=MOMENT)
+    second = _propose(memory, now=LATER)
+    assert second.rule_id == first.rule_id, "the clock moved the identity"
+    rows = memory.store.session.query(GuidanceRuleRow).all()
+    assert len(rows) == 1, f"a re-run wrote a second row: {[(r.rule_id, r.version) for r in rows]}"
+    assert rows[0].proposed_at == MOMENT, "a re-run rewrote the instant the row was proposed at"
+
+
+def test_distinct_drafts_are_distinct_ids_even_when_the_words_match(
+    memory: ApplicationContext,
+) -> None:
+    """The identity is the whole draft, so a different proposal is a different row.
+
+    **Two proposals that differ only in a field the statement does not carry**
+    — the same words learned from different chain material, or applied in a
+    different scope — are genuinely distinct proposals. An id derived from the
+    words alone would collapse them onto one row, and the second proposal's
+    sources and scope would be silently lost; each of these gets its own id
+    and its own row.
+    """
+    base = _propose(memory)
+    other_sources = _propose(memory, sources=("iss-gold-b-r1",))
+    other_scope = _propose(memory, scope="A different applicability condition.")
+    assert len({base.rule_id, other_sources.rule_id, other_scope.rule_id}) == 3
+    assert len(memory.store.session.query(GuidanceRuleRow).all()) == 3
+
+
+def test_proposed_at_is_the_instant_it_was_proposed(memory: ApplicationContext) -> None:
+    """The instant column means a time: the one passed, not a chosen constant."""
+    moment = datetime.now(UTC).replace(microsecond=123456)
+    rule = _propose(memory, now=moment)
+    assert rule.proposed_at == moment
+    assert read_rule(memory, rule_id=rule.rule_id).proposed_at == moment
+
+
+def test_the_check_identity_is_the_check_and_not_the_clock(memory: ApplicationContext) -> None:
+    """A re-run of one check is one row; a different check is a different row.
+
+    **The same two properties the rule's identity has**, asked of the check
+    door: the clock does not name the check, a re-run returns the row already
+    in the memory, and a different criterion is a different check. The check
+    has no version, so a duplicate proposal has nowhere to land — which is why
+    the door reads before it writes.
+    """
+    first = _propose_check(memory, now=MOMENT)
+    second = _propose_check(memory, now=LATER)
+    assert second.check_id == first.check_id, "the clock moved the check's identity"
+    rows = memory.store.session.query(GuidanceCheckRow).all()
+    assert len(rows) == 1, f"a re-run wrote a second check row: {[r.check_id for r in rows]}"
+    assert rows[0].proposed_at == MOMENT, "a re-run rewrote the check's instant"
+
+    other = _propose_check(
+        memory,
+        pass_criterion=CRITERION + " The unit is named beside the number.",
+        now=LATER,
+    )
+    assert other.check_id != first.check_id
+    assert len(memory.store.session.query(GuidanceCheckRow).all()) == 2
 
 
 def test_a_problem_outside_the_vocabulary_is_refused(

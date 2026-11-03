@@ -75,7 +75,7 @@ from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import guidance_refused
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
-from labcairn.guidance.rules import _rule_id, _validated_fields
+from labcairn.guidance.rules import _rule_id, _validated_fields, _write_rule_version_idempotent
 from labcairn.papers.labels import ISSUE_LABELS
 
 #: The proposer every distilled rule carries. **It is not a parameter**:
@@ -250,10 +250,10 @@ def distil_candidate(
         proposed_by=MODEL_PROPOSER,
         sources=tuple(key for key, _ in cases),
     )
-    return guidance_layer.write_guidance_rule_version(
+    return _write_rule_version_idempotent(
         context,
         guidance_layer.RuleDraft(
-            rule_id=_rule_id(issue_type, statement, proposer, now),
+            rule_id=_rule_id(issue_type, statement, rule_context, scope, example, proposer, keys),
             version=1,
             issue_type=issue_type,
             statement=statement,
@@ -452,10 +452,10 @@ def distil_candidate_from_revisions(
         proposed_by=OPERATOR_PROPOSER,
         sources=tuple(case.source_key for case in cases),
     )
-    return guidance_layer.write_guidance_rule_version(
+    return _write_rule_version_idempotent(
         context,
         guidance_layer.RuleDraft(
-            rule_id=_rule_id(issue_type, statement, proposer, now),
+            rule_id=_rule_id(issue_type, statement, rule_context, scope, example, proposer, keys),
             version=1,
             issue_type=issue_type,
             statement=statement,
