@@ -125,7 +125,7 @@ export type ChainComment = {
   issue_key: string
   version_id: string
   comment_text: string
-  anchor_text: string
+  anchor_text: string | null
   anchor_status: string
   anchor_reason: string | null
 }
