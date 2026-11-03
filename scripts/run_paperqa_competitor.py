@@ -146,7 +146,10 @@ def _live_execute(model_name: str):
     """The seam ``run_planned_cases`` executes cases through, for real."""
 
     def execute_case(case: Any, inputs: dict[str, bytes]) -> str:
-        question = inputs["question"].decode("utf-8").strip()
+        # The inputs are the case's files keyed by their own names: the
+        # material bytes plus "<case>.question.txt" — the question is asked,
+        # not ingested.
+        question = inputs[f"{case.case}.question.txt"].decode("utf-8").strip()
         material = _material_text(case.case, inputs)
         return asyncio.run(_live_answer(model_name, question, material))
 
