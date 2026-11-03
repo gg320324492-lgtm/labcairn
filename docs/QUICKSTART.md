@@ -387,10 +387,18 @@ The run says this in its own output, and the report carries it:
   (`web/src/api/paths.ts`). "The Web and the CLI use the same application
   services" is therefore checked against the client's code, not measured
   between two surfaces.
-- **The event stream was not consumed.** The workbench does not read it, by
-  decision — `web/src/api/paths.ts` says so.
-- **The workbench cannot switch the selected project.** The API has no such
-  operation, so there was nothing to drive.
+- **The event stream was not consumed by the walk.** It was not consumed
+  *then* because the workbench did not read it — a limit closed on 2026-11-02
+  by `37591c7` ([release notes §2.5](RELEASE-NOTES.md)), and the file this
+  bullet used to cite for the omission, `web/src/api/paths.ts`, now says the
+  opposite. **What still holds is the bullet above it: the walk never starts a
+  browser**, so the stream the page reads is witnessed by
+  `web/src/views/EventsView.test.tsx`, not between two surfaces here.
+- **The selected project could not be switched by the walk.** The API had no
+  such operation then; `POST /task/select` closed it in the same commit
+  ([release notes §2.6](RELEASE-NOTES.md)), and the selection is witnessed by
+  `tests/test_api.py` and `tests/test_workbench_live_service.py`, not by this
+  path.
 - **No provider was called.** There is no credential in this repository, so
   the run is made against the repository's own fixtures, with no network call
   to a model.

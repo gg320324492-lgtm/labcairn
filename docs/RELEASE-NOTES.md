@@ -175,24 +175,57 @@ make the browser claim.**
 *Evidence:* [threat model §6.1](THREAT-MODEL.md) ·
 `web/src/test/fakeApi.ts` · `examples/g4_exit_demo.py:1216-1221`.
 
-### 2.5 The workbench does not consume the API's event stream
+### 2.5 The workbench does not consume the API's event stream — closed 2026-11-02
 
-By decision: `web/src/api/paths.ts:14-21` names the omission explicitly —
+~~By decision: `web/src/api/paths.ts:14-21` names the omission explicitly —
 *"The event stream is not among them. The service offers `/events` and
-`/events/stream`, and the workbench reads neither."*
+`/events/stream`, and the workbench reads neither."*~~
 
-*Consequence:* a change that alters the event stream alone will not show up
-in the workbench.
-*Evidence:* [threat model §6.2](THREAT-MODEL.md).
+**Closed by `37591c7`, and the quotation this limitation rested on is now the
+opposite of itself** — `paths.ts` reads *"The event stream is among them, and
+it is a second way to read the same log, not a second source of truth."* The
+workbench reads the SSE body with the client's own `fetch` in
+`web/src/api/events.ts`, never `EventSource`, so the path check, the base and
+the token boundary stay in the client; it resumes from each page's
+`next_after_seq`, and it says whether the reading is going.
 
-### 2.6 The workbench cannot switch the selected project
+**The record lagged the tree by one day and nothing caught it:** the commit
+that closed the limit rewrote [threat model §6.2](THREAT-MODEL.md) and its
+C14 row, and left this section quoting the file's superseded words. A limit
+that names a quotation as its evidence names a thing a later commit may
+reverse, which is why the row is struck rather than deleted.
 
-**Because the API has no such operation.** The service's routes are reads of
+*Consequence, then:* a change that alters the event stream alone will not show
+up in the workbench. *Consequence, now:* the stream is a second reading of one
+log, so a change to it shows in the events panel and not in the state panel —
+**the two panels are the check that they were not confused.**
+*Evidence:* `web/src/views/EventsView.test.tsx` — draws what the service sent
+and says the stream is live, resumes from the cursor after a disconnect and
+draws no event twice, says it is disconnected rather than showing a stopped
+clock, keeps what it read when the connection is lost, waits on the service
+rather than inventing an empty log.
+
+### 2.6 The workbench cannot switch the selected project — closed 2026-11-02
+
+~~**Because the API has no such operation.** The service's routes are reads of
 one bound workspace plus four mutating consent routes; none selects a
-workspace. The CLI can.
+workspace. The CLI can.~~
 
-*Evidence:* [threat model §6.3](THREAT-MODEL.md) ·
-`src/labcairn/api/routes.py`.
+**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:273`)
+moves the workspace's `current_task` through a host-supplied port; the task is
+validated through the application layer before anything is written, and the
+route needs the session token like every other change. The CLI and the page are
+now about the same task because there is one operation that says which task it
+is.
+
+*Evidence:* `tests/test_api.py` — `test_selecting_a_task_binds_the_service_to_it`,
+`test_selecting_a_task_from_a_foreign_origin_is_refused`,
+`test_selecting_a_task_needs_the_session_token`,
+`test_an_unwired_selection_refuses_rather_than_pretending` ·
+`web/src/app/workbench.test.tsx` ·
+`tests/test_workbench_live_service.py`, which drives one service over httpx's
+in-process ASGI transport and the console script in a subprocess and compares
+`GET /task` with `task status --json`.
 
 ### 2.7 The real-provider smoke runs only where a credential is named
 

@@ -225,8 +225,18 @@ The run says this in its own output, and the report carries it:
 - **The event stream was not consumed.** The workbench does not read it, by
   decision (`web/src/api/paths.ts` says so), and nothing here demonstrated a
   client reading it.
+  **Corrected 2026-11-03:** true of the walk and of that tree; the workbench
+  reads the stream since `37591c7`, and the file this bullet cites now says the
+  opposite of what it said here — `web/src/views/EventsView.test.tsx` holds the
+  reading, and the walk still starts no browser, so this bullet's own claim
+  about *this run* stands.
 - **The workbench cannot switch the selected project.** The API has no such
   operation, so there was nothing to drive.
+  **Corrected 2026-11-03:** closed by the same commit — `POST /task/select`
+  (`src/labcairn/api/routes.py:273`) — and driven against one live service by
+  `tests/test_workbench_live_service.py`. What this run did not do was drive
+  the page in a browser, so *measured between the two surfaces* remains the
+  walk's limit and is not discharged by the correction.
 - **The DOCX and the PDF are not byte-reproducible.** Their bytes are recorded
   and compared as stored against served, not across two renders.
   **Corrected 2026-11-02:** the DOCX is now byte-reproducible — its ZIP entries
