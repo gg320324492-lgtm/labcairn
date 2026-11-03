@@ -129,9 +129,12 @@ before, 3291 after, **LOST — none**, the eight additions named.
 
 ## 4. What this piece does not do
 
-**The fourth ring is still empty.** `followup_assessments` holds **zero rows**
-in the pilot store — counted directly, read-only, not read out of a report. The
-door is now safe to fill; filling it is a separate piece of work.
+**The fourth ring was empty when this door closed.** `followup_assessments` held
+**zero rows** in the pilot store — counted directly, read-only, not read out of a
+report. **It has held five since the same day**, all `not_established`, written
+through this door and read back; that pass is its own record,
+[`LC-P2-11-fourth-ring.md`](LC-P2-11-fourth-ring.md), and it is where the
+eleven comment-derived rules that could not be judged are accounted for.
 
 **What that work needs, in order.** Each rule's standard has to be looked for in
 a *later* version of the same manuscript, and the judgement recorded through
