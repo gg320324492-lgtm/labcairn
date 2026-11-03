@@ -356,3 +356,89 @@ source. What it does not change: the state machine, the second-reader
 rule, the vocabulary, and the refusal of a rule whose cases do not
 support it.
 
+## A read that finds a rule at the version it names — landed 2026-11-03
+
+**Why a third read was needed.** The layer offered two rule reads and
+both served the highest version, because that is what the retrieval
+serves. A reconciliation asks the other question — *what did the rule
+say then, and what did that version rest on?* — and through the two
+existing reads the rows a reconciliation is about were unreachable.
+
+**Measured on the pilot database, opened read-only** (`mode=ro`, so the
+store itself was not touched): **25 rules over 27 rows, exactly two of
+them with more than one version.** For each of those two the older row
+is `disputed` and the newer is `confirmed`, their statements differ,
+neither carries a counterexample, and **the older row carries no check
+while the newer carries one**. The reason is the binding's own shape, not
+the supersede's: `guidance_rule_checks` carries `(rule_id, version,
+check_id)` and both rows name **version 2** — the version the rule was at
+when the binding was written, which is what the door binds to. The checks
+table carries no timestamp, so nothing here claims an order in time; what
+is held is that **the older row has no instrument bound to it**. **A read
+that could not reach v1 would report one check where that version rests
+on none.** One pair shares two sources across both versions;
+the other has **two sources at v1 and four at v2**, so a v1 read that
+resolved its sources against the newest row would report material the
+version it names never rested on.
+
+**What landed** (`d6cf117`, wired in `f21ebe0`, merged at `00a8072`):
+`read_guidance_rule_version(context, rule_id=…, version=…)` selects the
+row at `(rule_id, version)` and refuses a version the memory does not
+hold. The sources, the counterexamples and the checks are stored
+against `(rule_id, version)` and `_the_rule` already filtered all three
+by the row's own version, so no new filter was needed — **the read is
+one select and the existing assembly**. The operation is re-exported
+from `labcairn.application` and has a row in the layer's capability
+table, because a table that lags is a table that says something false.
+
+**The wiring landed as an uncommitted file** in that window's worktree:
+its commit carried `application/guidance.py` and the tests only, so the
+read existed in the module and was not an operation of the layer. It was
+committed after the four witnesses were re-measured here, not before.
+
+**What was measured, on this tree (`00a8072`).** `tests/test_guidance_rules.py`
+and `tests/test_application_layer.py`: **134 passed**, with the worktree's
+own `src` first on `PYTHONPATH` — proved by printing
+`labcairn.application.__file__` in the same interpreter, since the venv's
+editable install names the primary checkout. `ruff check .` clean,
+`ruff format --check .` clean over 432 files, `mypy --strict src tests`
+clean over 389 source files.
+
+**The four witnesses under their own mutations** (battery
+re-run here, not taken on the window's word; baseline green first, tree
+green again after restore):
+
+| Mutation | Witnesses that went red |
+|---|---|
+| the version read returns the newest whatever was asked | all three of the version's own witnesses |
+| a version's sources are not resolved at its own version | the words-sources-checks witness alone |
+| a version the memory does not hold is accepted | the refusal witness alone |
+| the highest-version read moved to the oldest row | the highest-version witness alone |
+
+**The ledger after the merge** (`witness_ledger e71dc51 00a8072`): 3279
+test functions before, 3283 after, **LOST — none**, the four additions
+named. The merge added 180 lines and deleted none, which is why nothing
+could be swallowed this time; that is not how the check is satisfied.
+
+**What this piece does not do.** Nothing calls the new read yet — the
+retrieval still serves the highest version, as it should, and the
+reconciliation that motivated it has not been run.
+
+**And one witness is red on this tree, by design and not because of this
+piece.** `test_the_costs_belong_to_the_tree_they_were_measured_on`
+fails naming **`tests/test_cli.py`** — measured, not inferred: the run
+on `00a8072` says *"these files changed since the costs were measured at
+0a8f391…, and each costs more than the partition's slack (57s):
+tests/test_cli.py"*. The reason it names that file and not the two this
+piece changed is the witness's own construction: it walks **the files
+the cost table is about**, keyed by file name, and a slack of 57 seconds
+admits a file whose measured cost cannot unbalance the partition however
+much it moves — `test_guidance_rules.py` costs **7.74 s** on
+`ubuntu-latest`, while `test_cli.py` costs **405.58 s**, the longest
+entry in that platform's table. `tests/test_cli.py` was changed by the
+console's check output, several commits before this piece. **The sentence this record first wrote named
+`guidance.py` and `test_guidance_rules.py` instead, and was corrected
+against the failure output — a record of a mechanism is not a run of
+it.** The new costs must come from a runner's log, and that run needs a
+push, which is the owner's call.
+

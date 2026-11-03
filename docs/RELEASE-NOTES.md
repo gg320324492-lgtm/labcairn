@@ -38,7 +38,9 @@ alpha hands over what exists, measured rather than asserted:
   PDF, with revisions and staleness;
 - **the mentor-trajectory line** — a **feedback chain** whose four rings are
   a comment, a change, a judgement and an assessment; a **rule memory** whose
-  rules are versioned rows, which **learns a rule from a comment or from a
+  rules are versioned rows — readable **at the version a citation names** and
+  not only at the newest, since a superseded row keeps the state, the sources
+  and the checks it had — which **learns a rule from a comment or from a
   tracked change** — so a marked-up manuscript holding hundreds of revisions
   and no comment is material a rule can be drawn from, and the case's key is
   the product's, not the caller's — and whose retrieval serves a rule on the
@@ -405,7 +407,12 @@ and the write engine still opens `BEGIN IMMEDIATE` before its first read
 
 ### 2.19 The mentor's own material is in the chain, and it says something narrow
 
-**The rule memory serves three rules of eighteen.** The retrieval serves a
+**The rule memory serves nine rules, out of twenty-four confirmed and one
+candidate.** That is re-measured at `00a8072` through the product's own doors
+against a read-only copy of the pilot store, and the store came back
+byte-identical afterwards — the count this section first carried, **three of
+eighteen**, was the pilot's alone and had been overtaken by the second, third
+and fourth corpora. The retrieval serves a
 confirmed rule on the sources that stand, and the owner's own judgements on
 the pilot's ten correspondences came back **two holds, eight does not** —
 so of the sixteen rules learned from comments, **one is served and fifteen
