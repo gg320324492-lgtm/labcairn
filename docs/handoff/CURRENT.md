@@ -26,9 +26,40 @@ are re-measured at `6ccdfcc`. **Two commits are local-only** (`081ede7`,
 **What remains is the owner's, and each piece is listed where it is
 recorded**: the blind evaluation's real run (unseen papers, five arms' budget,
 human rating — §3 row 2), the retrieval sample's human pass over three papers'
-reports (§3 row 5), the competitor run's budget approval and runbook execution
-(§3 row 6), the G1/G2 human review, and two material gaps — the second paper's
-version edges and the author-draft-versus-mentor-copy edge type.
+reports (§3 row 5), the G1/G2 human review, and two material gaps — the second
+paper's version edges and the author-draft-versus-mentor-copy edge type. **The
+competitor run's budget approval and runbook execution (§3 row 6) happened on
+2026-11-04** — below, and in
+[LC-P2-18 live run](../acceptance/LC-P2-18-live-run.md).
+
+**Date:** 2026-11-04 · **the competitor baseline's live run happened: both
+sides ran for real on one task package, the six conditions hold, and the
+spend was a small fraction of its ceiling.**
+
+The pinned paper-qa at the re-pinned `57e89f7223b0960d5ee5ea048c69e3c47e088572`
+(full clone, the pin an ancestor of the remote tip `c692d0d`, verified 2026-11-04)
+and our side, driven through the LC-P2-01 model-call path under both consent
+gates with one single-use approval per call, ran the same twelve document-QA
+cases over the package whose manifest is `eda2a4f9b4174dfc…`; recovery ran as
+our side's real crash matrix (4/4 held, no model called) and as the competitor's
+declared absent surface. **The alignment is comparable — all six conditions met**
+— and the comparison document's pairs carry no winner's language:
+`recovery-correctness 4/4 against 0/4`, `unsupported-claim-detection 1/1 against
+1/1`; task 1 prints no pair, because our side's 69/89 cell exactness and the
+competitor's 183/232 statistic recall are different denominators on purpose.
+**The owner corrected the model mid-run** to `MiniMax-M3.1-Flash` (the live run
+was stopped, the approval file updated, and both sides re-run on the declared
+model); the operator's new key file's first key probed `ok` through the
+providers layer's own probe and the third line's key was not probed, as the
+instruction ordered. Three machinery defects the dry pipeline could not reach
+were fixed with witnesses — the side documents named no fixtures, the live seam
+read a question key nothing produces, and an empty cells list was refused where
+the empty fixture's own key declares none (now scored 0/0, the recall rule's
+reading of the same key; mutation-checked). The spend was a small fraction of
+the USD 50.00 ceiling; the token counts and the uncounted lines are in the
+record. The run's raw artifacts live outside the repository at
+`E:/labcairn-local/lc-p2-18-run/2026-11-04/`.
+Record: [LC-P2-18 live run](../acceptance/LC-P2-18-live-run.md).
 
 **2026-11-03 · the chain's fourth ring has been opened, and it says the
 advice mostly did not land.**

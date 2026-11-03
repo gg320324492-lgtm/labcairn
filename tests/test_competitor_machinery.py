@@ -435,6 +435,39 @@ def test_the_scope_facts_pair_but_the_task_one_denominators_do_not(tmp_path: Pat
     assert "numeric-extraction-exactness" not in paired
 
 
+def test_a_key_addressing_no_cells_scores_zero_over_zero(tmp_path: Path) -> None:
+    """The empty fixture's key declares no cells; its exactness score is 0 over 0.
+
+    The key's own note says the file produces no cells at all — its
+    statistics are null — so an exactness artifact carrying an empty cells
+    list is the honest reading of that key, and the recall rule already
+    scores the same key 0 over 0. Refusing it would refuse the corpus.
+    """
+    package_dir, our_dir, competitor_dir = _aligned_pair(tmp_path)
+    artifact = our_dir / "answers" / "numeric-extraction" / "empty.csv.json"
+    document = json.loads(artifact.read_text(encoding="utf-8"))
+    document["cells"] = []
+    artifact.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    outcome = align(package_dir, our_dir, competitor_dir)
+    assert outcome.comparison.comparable, outcome.comparison.reasons
+    exactness = outcome.our_metrics["numeric-extraction-exactness"]
+    assert exactness["numerator"] == 30
+    assert exactness["denominator"] == 30
+
+
+def test_an_exactness_artifact_without_a_cells_list_is_still_refused(
+    tmp_path: Path,
+) -> None:
+    """A missing cells list is not the same fact as an empty one."""
+    package_dir, our_dir, competitor_dir = _aligned_pair(tmp_path)
+    artifact = our_dir / "answers" / "numeric-extraction" / "basic.csv.json"
+    document = json.loads(artifact.read_text(encoding="utf-8"))
+    del document["cells"]
+    artifact.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(AlignmentRefusedError):
+        align(package_dir, our_dir, competitor_dir)
+
+
 # -- the aligner's refusals, one mutation each -----------------------------
 
 

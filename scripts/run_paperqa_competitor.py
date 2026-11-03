@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -91,7 +92,23 @@ async def _live_answer(model_name: str, question: str, material: str) -> str:
     reaches the provider through the declared model. The model is the
     approval file's declaration, so the run and the basis cannot disagree
     about what was called.
+
+    The declared model reaches litellm under the ``openai/`` prefix — the
+    declared model is served behind an OpenAI-compatible endpoint, whose
+    address and the credential arrive through ``PAPERQA_LLM_API_BASE`` and
+    ``PAPERQA_LLM_API_KEY``, set by the operator's shell from the provider
+    layer's own configuration and the secrets directory. Either missing is a
+    refusal before paper-qa is even asked a question: an unset endpoint is
+    not a default to guess at.
     """
+    api_key = os.environ.get("PAPERQA_LLM_API_KEY", "").strip()
+    api_base = os.environ.get("PAPERQA_LLM_API_BASE", "").strip()
+    if not api_key or not api_base:
+        raise RuntimeError(
+            "live mode needs PAPERQA_LLM_API_BASE and PAPERQA_LLM_API_KEY in the "
+            "environment — the endpoint and credential the operator's provider "
+            "configuration names. Nothing was called and nothing was spent."
+        )
     from lmi import LiteLLMModel
     from paperqa import Docs, Settings
     from paperqa.llms import SparseEmbeddingModel
@@ -99,10 +116,11 @@ async def _live_answer(model_name: str, question: str, material: str) -> str:
     from paperqa.settings import make_default_litellm_model_list_settings
     from paperqa.types import Doc, Text
 
-    model = LiteLLMModel(
-        name=model_name,
-        config=make_default_litellm_model_list_settings(model_name, 0.0),
-    )
+    litellm_name = f"openai/{model_name}"
+    config = make_default_litellm_model_list_settings(litellm_name, 0.0)
+    config["model_list"][0]["litellm_params"]["api_key"] = api_key
+    config["model_list"][0]["litellm_params"]["api_base"] = api_base
+    model = LiteLLMModel(name=litellm_name, config=config)
     settings = Settings()
     settings.embedding = "sparse"
     embedding = SparseEmbeddingModel()
@@ -128,7 +146,10 @@ def _live_execute(model_name: str):
     """The seam ``run_planned_cases`` executes cases through, for real."""
 
     def execute_case(case: Any, inputs: dict[str, bytes]) -> str:
-        question = inputs["question"].decode("utf-8").strip()
+        # The inputs are the case's files keyed by their own names: the
+        # material bytes plus "<case>.question.txt" — the question is asked,
+        # not ingested.
+        question = inputs[f"{case.case}.question.txt"].decode("utf-8").strip()
         material = _material_text(case.case, inputs)
         return asyncio.run(_live_answer(model_name, question, material))
 
@@ -152,6 +173,8 @@ def _write_side_documents(
     """
     layout = ArtifactLayout(root=artifacts_dir)
     manifest_sha = package_manifest_sha256(package_dir)
+    key_versions = layout.write_key_versions(package_dir)
+    case_names = _case_names(key_versions)
     (artifacts_dir / "run.json").write_text(
         json.dumps(
             {
@@ -171,6 +194,7 @@ def _write_side_documents(
         json.dumps(
             {
                 "label": label,
+                "fixtures": {"names": case_names, "versions": key_versions},
                 "model": model,
                 "budget": budget,
                 "verified_capabilities": ["integration"],
@@ -190,7 +214,26 @@ def _write_side_documents(
         + "\n",
         encoding="utf-8",
     )
-    layout.write_key_versions(package_dir)
+
+
+def _case_names(key_versions: dict[str, str]) -> list[str]:
+    """The package's case names in the order the sides declare them.
+
+    The six conditions compare ``fixtures.names`` as a tuple, so both sides
+    must spell the same order: each face's cases sorted, the faces in the
+    package's own order — numeric extraction, unsupported-claim detection,
+    recovery correctness.
+    """
+    faces = ("numeric-extraction", "unsupported-claim-detection", "recovery-correctness")
+    names: list[str] = []
+    for face in faces:
+        prefix = f"{face}/answer-keys/"
+        names += sorted(
+            Path(relpath).name.removesuffix(".expected.json").removesuffix(".json")
+            for relpath in key_versions
+            if relpath.startswith(prefix)
+        )
+    return names
 
 
 def main() -> int:
