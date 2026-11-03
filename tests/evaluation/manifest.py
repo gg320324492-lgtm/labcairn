@@ -231,6 +231,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # witnesses build the sides offline and read the frozen baseline; the
     # clause is numerical extraction, the task both sides carry.
     "test_competitor_comparison.py": ("unit", "numeric-extraction"),
+    # LC-P2-18's machinery: the two-side task package, the runner's call
+    # plan and live gate, and the aligner's refusals. Unit, because every
+    # witness builds synthetic sides offline; the clause is numerical
+    # extraction, the face the three tasks share.
+    "test_competitor_machinery.py": ("unit", "numeric-extraction"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
     "test_fake_provider_determinism.py": ("unit", "typed-contracts"),
