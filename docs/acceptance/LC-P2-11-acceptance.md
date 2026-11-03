@@ -278,6 +278,32 @@ the evidence above is local until a runner says otherwise.
   identity. **A check that is retired is withdrawn with a reason, and a
   rule that was superseded is bound again by hand.**
 
+### 7.5 Every confirmed rule names a check now — closed 2026-11-03
+
+**The column is full.** Read back from the pilot database: **24 checks and 24
+bindings, no check in `candidate`, and no confirmed rule without one** — eight
+from the first corpus, eight from the second, two from the third pilot and six
+from the fourth. The owner read every wording as a second reader, and **the
+negative proof was run on the real rows in each batch**: the bind was attempted
+*before* the confirmation and refused with `guidance_check_not_confirmed`, then
+accepted after it.
+
+**And a bound check does not make a rule served.** The retrieval serves a
+comment-derived rule only on the sources a judgement says were answered, and
+**fifteen of the twenty-four rules have no answered judgement on their
+sources**; read back through the doors, **9 of the 25 latest rows are served**
+(the eight learned from tracked changes, whose source is the change itself, and
+one from the first corpus). **That is the retrieval working, not the binding
+failing.**
+
+**What the closure does not claim.** Each criterion is read out of what the
+advisor wrote or did, and **none has been tried against a case the advisor left
+alone** — a check derived from behaviour is a standard read out of that
+behaviour, not one validated by a negative case. **And this record's §7.4 still
+holds**: a rule may be confirmed without naming a check, because that
+precondition would change the memory's existing meaning and the piece that
+closed this column did not ask for it.
+
 ## The weakest point an independent review found
 
 An independent read-only review re-applied the mutations in this

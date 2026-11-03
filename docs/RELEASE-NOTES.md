@@ -420,8 +420,12 @@ carries an answered judgement and can stop standing when the judgement says
 it was not answered; **a revision source has no answered judgement to wait
 for** — its source is the change itself, so it stands while the chain holds
 the change and the reader may read the manuscript. Read back through the
-product's own doors at `bb8f8f6` on 2026-11-03: **18 confirmed rules, 3
-served, 15 reported as unserved.**
+product's own doors at `7677e59` on 2026-11-03: **24 confirmed rules and one
+candidate; 9 served and 15 reported as unserved.** The nine are **the eight
+learned from tracked changes plus one from the first corpus** — every rule
+whose sources stand — and the fifteen are comment-derived rules with **no
+answered judgement on their sources**, which is the material's answer rather
+than a defect.
 
 **Which is worth stating plainly as a limit of the material, not of the
 code:** a rule learned from a comment must survive the question *was this
