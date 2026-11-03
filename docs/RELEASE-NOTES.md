@@ -2,7 +2,12 @@
 
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
 been cut · **The tree this describes:** `main` at
-`6cfc0c0`, 2026-11-01
+`e13b967`, 2026-11-02
+
+**Items below dated 2026-11-03 are measured on the branch that has not
+landed** (`docs/debt-closures` at `bb8f8f6`, pull request #146 open). Their
+numbers belong to that tree and to the commit each of them names; they are
+not claims about `main` until the merge.
 
 **Every limitation below names the document that measured it, and each of
 those documents names its own commit.** A number belongs to the commit it
@@ -33,10 +38,15 @@ alpha hands over what exists, measured rather than asserted:
   PDF, with revisions and staleness;
 - **the mentor-trajectory line** — a **feedback chain** whose four rings are
   a comment, a change, a judgement and an assessment; a **rule memory** whose
-  rules are versioned rows and whose retrieval serves a rule only on the
-  sources a judgement says were answered; **a three-role loop** that writes a
-  guidance card and has it critiqued independently; and **a DOCX reader** that
-  reads revisions and comments out of the package itself, with locators.
+  rules are versioned rows, which **learns a rule from a comment or from a
+  tracked change** — so a marked-up manuscript holding hundreds of revisions
+  and no comment is material a rule can be drawn from, and the case's key is
+  the product's, not the caller's — and whose retrieval serves a rule on the
+  sources that stand: for a comment, the ones a judgement says were answered;
+  for a revision, the change itself, which carries no answered judgement to
+  wait for; **a three-role loop** that writes a guidance card and has it
+  critiqued independently; and **a DOCX reader** that reads revisions and
+  comments out of the package itself, with locators.
 
 **What a reviewer can do with it:** follow the
 [quickstart](QUICKSTART.md) from a clean clone and get a report with source
@@ -395,17 +405,32 @@ and the write engine still opens `BEGIN IMMEDIATE` before its first read
 
 ### 2.19 The mentor's own material is in the chain, and it says something narrow
 
-**The rule memory serves one rule of sixteen.** The retrieval serves a
-confirmed rule on the sources a judgement says were answered, and the
-owner's own judgements on the pilot's ten correspondences came back **two
-holds, eight does not** — so **sixteen confirmed rules yield one served
-rule and fifteen reported as unserved**. **That is the material's answer,
-not a defect**: of the mentor's forty-six comments on the first paper, the
-ones a later version really answered are few. **A memory that served all
-sixteen would be serving rules the chain cannot show to have been
-applied.**
+**The rule memory serves three rules of eighteen.** The retrieval serves a
+confirmed rule on the sources that stand, and the owner's own judgements on
+the pilot's ten correspondences came back **two holds, eight does not** —
+so of the sixteen rules learned from comments, **one is served and fifteen
+are reported as unserved**. **That is the material's answer, not a
+defect**: of the mentor's forty-six comments on the first paper, the ones a
+later version really answered are few. **A memory that served all of them
+would be serving rules the chain cannot show to have been applied.**
+
+**The other two served rules are the third pilot's, learned from tracked
+changes, and they are served on a different ground.** A comment source
+carries an answered judgement and can stop standing when the judgement says
+it was not answered; **a revision source has no answered judgement to wait
+for** — its source is the change itself, so it stands while the chain holds
+the change and the reader may read the manuscript. Read back through the
+product's own doors at `bb8f8f6` on 2026-11-03: **18 confirmed rules, 3
+served, 15 reported as unserved.**
+
+**Which is worth stating plainly as a limit of the material, not of the
+code:** a rule learned from a comment must survive the question *was this
+answer?*, and a rule learned from a change does not. The second is easier to
+serve and, for that reason, weaker as evidence — the chain shows the mentor
+wrote something, and shows no later draft agreeing with it.
 [LC-P2-09 acceptance](acceptance/LC-P2-09-acceptance.md) §9 ·
-[the second corpus](acceptance/second-corpus-absorption.md).
+[the second corpus](acceptance/second-corpus-absorption.md) ·
+[the revision distillation](acceptance/LC-P2-11-revision-distillation.md) §6.
 
 ### 2.20 The second paper's rules are not in the chain's reach
 
@@ -465,6 +490,41 @@ happened once, and the log holds two operation rows saying so.
 *Evidence:* [ADR-0003 C2](adr/ADR-0003-event-and-permission-model.md) ·
 `tests/test_application_layer.py::test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned` ·
 `tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`.
+
+### 2.23 The largest file the product will read is one number written in five places
+
+**Measured 2026-11-03 at `bb8f8f6`.** The ceiling on a supplied manuscript is
+**96 MB**, and the number came from material rather than from taste: the third
+pilot's late drafts are **71.4 MB** and the previous 64 MB ceiling refused
+**seven versions of one real manuscript** — the refusal came from the read
+limit, and the pilot could not be ingested until it moved.
+
+**It moved in four places, and the tree still spells it in five.**
+`MAX_MANUSCRIPT_BYTES = 96_000_000` in `papers/feedback.py`, `papers/replies.py`
+and `papers/revisions.py`; `MAX_SOURCE_READ_BYTES = 96_000_000` in
+`workspace/readonly.py`, which is what the material walk actually enforces; and
+`security/capabilities.py`, where `FsReadArgs.max_bytes` still caps at
+**64 MB** and `SourceReadArgs.max_bytes` still **defaults** to 64 MB.
+
+**Why that is a limit and not just untidiness.** One of these numbers was
+already wrong on its own: `readonly.py`'s two read doors carried **64 MB and
+96 MB as two separate defaults**, and raising only the one the ingest walks
+through left a fixture parked between the two — a refusal test stopped
+refusing, which is how it was found (closed at `f8dbbe8`, with both doors now
+reading one constant and two witnesses, one of them comparing the defaults
+themselves). **The remaining three spellings have not been given that
+treatment**, so a future change to the ceiling can repeat the miss: raising
+the doors past 64 MB makes an `fs.read` approval ask for more than the
+capability schema allows, and `source.read` silently keeps defaulting to half
+what the reader will accept. **Nothing is known to be broken by this today**
+— it is a single-number claim that is not yet held, recorded so it is not
+mistaken for one.
+
+*The measurement:* `src/labcairn/papers/feedback.py`, the docstring over
+`MAX_MANUSCRIPT_BYTES` · *the witnesses that closed the split:*
+`tests/test_workspace_boundaries.py::test_a_file_over_the_ceiling_is_refused_by_both_read_doors`
+and `::test_both_read_doors_default_to_the_one_ceiling` ·
+[LC-P2-11 revision distillation](acceptance/LC-P2-11-revision-distillation.md) §6.
 
 ---
 
