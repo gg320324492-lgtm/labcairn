@@ -128,9 +128,17 @@ comparison of what each paper elicited.
 - **No rules were drawn from the author's own changes.** The roster knows one
   actor, the reviewer; the drafts carry no tracked changes at all.
 - **The seven paired exchanges were not recorded** (§1).
-- **No check is bound to any of these six.** They are served as statements with
-  sources — the same gap the third pilot's §6.5 closed for its two rules, and
-  it is open again here.
+- **Each of the six confirmed rules now names a check — closed 2026-11-03.**
+  A question a reader runs against a manuscript and the criterion that answers
+  it, confirmed by the owner as a second reader and bound at the rule's
+  version; the memory holds **8 checks and 8 bindings** and no candidate
+  check. **The negative proof was run on the real rows both times**: binding
+  was attempted *before* each confirmation and refused with
+  `guidance_check_not_confirmed`, so "a rule may name only a check a person
+  has confirmed" is demonstrated rather than quoted. **What the closure does
+  not change is the evidence under it**: the six criteria rest on **11, 3, 2,
+  3, 2 and 3 acts**, and **none has been tried against a draft the reviewer
+  left alone** — the criteria are read out of what he did.
 - **A one-act rule is left in the memory as a candidate** (§2), which is the
   state a proposal should be in.
 
