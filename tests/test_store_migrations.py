@@ -587,9 +587,10 @@ def _sqlite_feedback_row(db: Path, feedback_id: str) -> tuple[object, ...] | Non
     conn = sqlite3.connect(db)
     try:
         columns = ", ".join(_LEGACY_COLUMNS)
-        return conn.execute(
+        row: tuple[object, ...] | None = conn.execute(
             f"SELECT {columns} FROM feedback_events WHERE feedback_id = ?", (feedback_id,)
         ).fetchone()
+        return row
     finally:
         conn.close()
 
@@ -665,7 +666,9 @@ def test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing(tmp_path: P
             "the forced empty string and its digest are cleaned to NULL"
         )
         # Every other column of the row is exactly what went in.
-        expected = list(before[fid])
+        before_row = before[fid]
+        assert before_row is not None
+        expected = list(before_row)
         expected[text_ix] = None
         expected[digest_ix] = None
         assert list(after) == expected, (
@@ -677,7 +680,9 @@ def test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing(tmp_path: P
     assert resolved[digest_ix] == hashlib.sha256(b"The").hexdigest(), (
         "a resolved row's text and digest are untouched"
     )
-    assert list(resolved) == list(before["fb-legacy-resolved"])
+    before_resolved = before["fb-legacy-resolved"]
+    assert before_resolved is not None
+    assert list(resolved) == list(before_resolved)
 
 
 def test_a_position_row_downgrades_to_what_it_was_called_before(tmp_path: Path) -> None:
