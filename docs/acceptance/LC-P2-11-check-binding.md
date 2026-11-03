@@ -1,24 +1,26 @@
-# LC-P2-11: binding checks to the two confirmed rules of `proj-pilot-3`
+# LC-P2-11: a check bound to each of the two confirmed rules of `proj-pilot-3`
 
-**Status: measurement done; the check wording in §4 is DRAFT and awaits a
-second reader.** §1–§3 record what was measured before anything was
-written; §4 is the wording the owner is asked to confirm.
+**Status: closed.** Each of the two rules the owner confirmed on 2026-11-03
+now names a check — a question a reader can run against a manuscript, and
+the criterion that says what passes. The gap §6.5 of
+`LC-P2-11-revision-distillation.md` names is closed, and this file is the
+record of it.
 
 - **Branch**: `claude/check-binding-pilot3-feaddf`
-- **Measured at**: `eff6561` (the merge of `docs/debt-closures` into this
+- **Measured at**: `991c063` (the merge of `docs/debt-closures` into this
   branch; `git merge-base --is-ancestor bb8f8f6 HEAD` succeeds)
 - **Pilot database**: `E:\labcairn-local\pilot-ws\labcairn.db`
 - **Backup taken before the first write**:
   `E:\labcairn-local\pilot-ws\labcairn.db.backup.before_binding_2026-11-03`
+  — and the backup **still holds 0 rows** in `guidance_checks` and 0 in
+  `guidance_rule_checks`, which is how it is known to predate the write.
 
 ---
 
-## 1. The two rules, as the memory serves them
+## 1. What the two rules are, and what they rest on
 
 Both rules are at **version 2, `confirmed`**; version 1 of each is
-`disputed`. The pilot database holds **0 rows** in `guidance_checks` and
-**0 rows** in `guidance_rule_checks`, so this is the first exercise of the
-check door on real material.
+`disputed`.
 
 ### 1.1 `rule-1fcc9d1a2573d7b0` v2 — one mechanism, not a list
 
@@ -54,16 +56,11 @@ polarization; activating ozone).
 The rule is therefore about a **selection**: one mechanism, argued, named
 with its chemistry — not a list of candidates joined by 「或」.
 
-**What the scope says about the evidence.** The scope reads:
-
-> Cases whose changed paragraph reads: "1、对水中气泡溃灭和自由基产生的强化机制，…". Cases whose changed paragraph could not be read: the revision under 'rv-999867b0995458ec'; the revision under 'rv-f9ca686e41905747'
-
-**Two of the four source events have no readable changed paragraph.** The
-`del` of 「或」 and the `del` of the unargued mechanism are recorded as
-unreadable, so the *before* state of those two acts is not in the material
-— the paragraph quoted in the scope is what remains readable around them.
-This matters for §4: the check can be derived from the acts, but the acts
-do not cover every case the check would decide.
+**What the scope says about the evidence.** The scope records that **two
+of the four source events have no readable changed paragraph** — the `del`
+of 「或」 and the `del` of the unargued mechanism. The paragraph quoted in
+the scope is what remains readable around them, so the *before* state of
+those two acts is inferred, not read. §5 says what that costs.
 
 ### 1.2 `rule-1006b8ca1120db13` v2 — the causal chain beside the number
 
@@ -105,12 +102,8 @@ pass_criterion, proposed_by, now)`. The row it writes carries `question`,
 
 ### 2.2 `confirm_check` — what it refuses
 
-Two refusals, and one of them is the project's own rule:
-
 - **`CONFIRMER_IS_PROPOSER`** — `if confirmed_by == check.proposed_by`
-  it refuses. **The proposer may not confirm their own check.** This is
-  why the owner is the second reader here and this session must not
-  confirm anything.
+  it refuses. **The proposer may not confirm their own check.**
 - The check must exist, and it must be a `candidate` — the closed state
   machine is the layer's, so `confirm_check` asks the layer rather than
   restating it.
@@ -141,119 +134,218 @@ select(GuidanceRuleRow)
 
 **So the binding lands on the rule's highest version.** For both rules
 here that is **version 2** — the `confirmed` one — and not version 1,
-which is `disputed`.
+which is `disputed`. The pilot rules were already in the situation that
+makes this observable: v1 `disputed`, v2 `confirmed`, and the bindings
+below are on **v2**.
 
 **Does the next version inherit the binding? No.** The binding is a row of
 its own in `guidance_rule_checks`, carrying `rule_id`, `version` and
 `check_id`. A supersede writes a **new** rule row at a higher version, and
 the new row names no check until somebody binds one: *the check that
 decided the old words is not automatically the check that decides the new
-ones, and a rewording is not a confirmation.* This is exactly the
-situation the two rules are already in — v1 `disputed`, v2 `confirmed`,
-and the binding that this task creates belongs to v2.
+ones, and a rewording is not a confirmation.*
 
-### 2.4 The negative the project holds as a rule
+### 2.4 The negatives the project holds as rules
 
-**A rule may name only a confirmed check.** `write_guidance_rule_check`
-raises `CHECK_NOT_CONFIRMED` for any check whose state is not
-`confirmed`, with the message
-
-> the check {check_id!r} is in state {state!r}, and a rule may name only a
-> check a person has confirmed
-
-**A withdrawn rule names no check** — `bind_check` refuses that too
-(`TRANSITION_NOT_POSSIBLE`).
+- **A rule may name only a confirmed check.** `write_guidance_rule_check`
+  raises `CHECK_NOT_CONFIRMED` for any check whose state is not
+  `confirmed`.
+- **A withdrawn rule names no check** — `bind_check` refuses that too
+  (`TRANSITION_NOT_POSSIBLE`).
 
 ---
 
-## 3. The database state, before this task wrote anything
+## 3. The checks, as the pilot database holds them
 
-| Table | Rows |
-|---|---|
-| `guidance_checks` | **0** |
-| `guidance_rule_checks` | **0** |
+Both are **`confirmed`**, proposed by `operator_proposal` and confirmed by
+`owner` — the same second-reader rule the memory applies to a rule, with
+the same reading: the revision channel's proposer is a person reading the
+mentor's revisions.
+
+| Check | Bound to | Version | State |
+|---|---|---|---|
+| `check-a1de7d4db9d7cbda` | `rule-1fcc9d1a2573d7b0` | **2** | `confirmed` |
+| `check-5df4997384d6a0bd` | `rule-1006b8ca1120db13` | **2** | `confirmed` |
+
+### 3.1 `check-a1de7d4db9d7cbda` — for the mechanism rule
+
+**question**
+
+> 文中描述强化机制处，是否只主张一个机理，并写明该机理的作用主体与被作用对象？
+
+**pass_criterion**
+
+> 没有以「或」并列多个未论证机理；所主张的机理写清了谁作用于谁（如铜离子的极化作用于臭氧、将其活化）。
+
+### 3.2 `check-5df4997384d6a0bd` — for the causal-chain rule
+
+**question**
+
+> 每处给出量化结果的地方，是否紧接写出该量所属的因果链条？
+
+**pass_criterion**
+
+> 量化值旁有机理链条（气泡溃灭后能量集中释放，从而加速对藻的攻击），而不只写「促进」或「抑制」。
+
+**A check is two fields, and neither may be empty.** The question is what
+the reader runs; the criterion is the condition under which the answer is
+yes. Neither of these restates the rule: the rule says what the advisor
+demands, and the check says what a reader looks at in a draft and what
+counts as passing.
+
+**`check_id` is derived, not supplied.** `checks.py::_check_id` hashes
+`f"{question}|{pass_criterion}|{proposed_by}|{now.isoformat()}"` with
+SHA-256 and takes the first 16 hex characters, prefixed `check-`. A
+change to the wording changes the id — so the wording above and the id
+above are one fact, not two.
+
+**The timestamps are one fixed instant.** Both checks carry
+`proposed_at = confirmed_at = 2026-11-03T18:00:00+00:00` — a single
+chosen moment rather than two wall-clock readings, so that a re-run of
+the same proposal is the same row. The state machine is unaffected: a
+check proposed and confirmed at the same instant has still been through
+two readers.
 
 ---
 
-## 4. Draft check wording (DRAFT — not yet proposed, not yet confirmed)
+## 4. The verification
 
-> **The wording below has not been proposed.** It is shown here so that the
-> second reader can read it before anything is written to the pilot
-> database.
+Everything below was measured through the **product's own doors**, on the
+pilot database, with the worktree's `src` first on `PYTHONPATH`:
 
-### 4.0 The identity a proposed check will carry
+```
+checks module : E:\LabCairn\.claude\worktrees\check-binding-pilot3-feaddf\src\labcairn\guidance\checks.py
+```
 
-- **`check_id` is derived, not supplied.** `checks.py::_check_id` hashes
-  `f"{question}|{pass_criterion}|{proposed_by}|{now.isoformat()}"` with
-  SHA-256 and takes the first 16 hex characters, prefixed `check-`. **A
-  change to the wording changes the id**, so the owner is asked to confirm
-  the wording *as written*; a later rewording is a different check.
-- **`proposed_by` is `model_proposal`.** This draft was written by a model
-  and not by a person, and the database's own vocabulary already
-  distinguishes the two: sixteen rule rows carry
-  `model_proposal`/`local-user`, and the two pilot rules carry
-  `operator_proposal`/`owner`. **The proposer may not be the confirmer**,
-  so `confirmed_by` will be `owner` — a second reader, and not this
-  session.
+### 4.1 Read back — the binding is at v2
 
-### 4.1 For `rule-1fcc9d1a2573d7b0` (one mechanism, not a list)
+```
+read_rule_checks(rule-1fcc9d1a2573d7b0): 1
+  check_id      : check-a1de7d4db9d7cbda
+  state         : confirmed
+  proposed_by   : operator_proposal
+  confirmed_by  : owner
+    <- bound to rule-1fcc9d1a2573d7b0 v2 (confirmed)
 
-**Question**
+read_rule_checks(rule-1006b8ca1120db13): 1
+  check_id      : check-5df4997384d6a0bd
+  state         : confirmed
+  proposed_by   : operator_proposal
+  confirmed_by  : owner
+    <- bound to rule-1006b8ca1120db13 v2 (confirmed)
+```
 
-> 稿件中叙述除藻剂强化臭氧微纳米气泡除藻作用的机理时，是否只保留了一个机理，而没有并列列出其他未经论证的可能机理？
+### 4.2 Read back — the card carries the question
 
-**Pass criterion**
+`search_rules` serves a rule with its checks inside the rule, so the
+retrieval card now carries the runnable question:
 
-> 通过，当且仅当同时满足：
-> (1) 该段关于强化机理的叙述只陈述**一个**机理，且该段不含以「或」「或者」「亦可能」等把多个机理并列起来的表达；
-> (2) 该段写明了这个被保留的机理的**化学作用**（是什么作用、作用于什么）；
-> (3) 该段写明了这个机理与**臭氧的活化**之间的关系。
+```
+query='机理'  -> rule-1fcc9d1a2573d7b0 v2
+    check check-a1de7d4db9d7cbda [confirmed]
+      Q: 文中描述强化机制处，是否只主张一个机理，并写明该机理的作用主体与被作用对象？
+query='溃灭'  -> rule-1006b8ca1120db13 v2
+    check check-5df4997384d6a0bd [confirmed]
+      Q: 每处给出量化结果的地方，是否紧接写出该量所属的因果链条？
+```
 
-### 4.2 For `rule-1006b8ca1120db13` (the causal chain beside the number)
+**Both rules are served at version 2**, which is the version that carries
+the binding — the disputed v1 is not what a card shows.
 
-**Question**
+### 4.3 The negative — a candidate check cannot be bound
 
-> 稿件在给出气泡溃灭对除藻效果的量化结果时，是否在括号内或紧接的句中写出了从溃灭到能量释放再到攻击藻体的因果链条？
+Measured **on a copy of the pilot database**, so that the live database
+gained no row nobody confirmed:
 
-**Pass criterion**
+```
+proposed a candidate on the COPY: check-5b03568174f6ec99 (state=candidate)
 
-> 通过，当且仅当在给出该量化结果的位置（括号内，或与该结果紧邻的句子中）能读出下列**全部三个环节**：
-> (1) 气泡**溃灭**；
-> (2) **能量**在溃灭后的释放；
-> (3) 该能量释放导致对**藻体的攻击**（或其加速）。
+trying to bind candidate 'check-5b03568174f6ec99' to 'rule-1fcc9d1a2573d7b0'
+  REFUSED, as it must be:
+  application refused (guidance_check_not_confirmed): the check
+  'check-5b03568174f6ec99' is in state 'candidate', and a rule may name only
+  a check a person has confirmed
 
-### 4.3 What the material does not earn — stated rather than manufactured
+  the rule still names 1 check(s): ['check-a1de7d4db9d7cbda']
+```
 
-- **One paragraph, one draft, two acts.** §4 of
-  `LC-P2-11-revision-distillation.md` already says this and it stands: the
-  evidence is a single paragraph of a single draft, read twice. Neither
-  check above is supported by a **pattern** of mentor edits; each rests on
+**And the live database was not touched:**
+
+```
+  candidate rows in the live database: 0
+  total rows in the live database:     2
+  binding: rule-1fcc9d1a2573d7b0 v2 -> check-a1de7d4db9d7cbda
+  binding: rule-1006b8ca1120db13 v2 -> check-5df4997384d6a0bd
+```
+
+The refusal came **before** the binding was written, so the rule kept its
+one confirmed check and nothing was left half-written. This is the
+project's own rule ("a rule may name only a confirmed check"), and it is
+witnessed in the suite as well by
+`tests/test_guidance_rules.py::test_a_rule_may_name_only_a_confirmed_check`.
+
+---
+
+## 5. What the material does not earn — stated rather than manufactured
+
+- **One paragraph of one draft.** §4 of
+  `LC-P2-11-revision-distillation.md` says this and it stands: the
+  evidence is a single paragraph of a single draft, read a few times.
+  Neither check rests on a **pattern** of mentor edits; each rests on
   **one** edit.
 - **Two of `rule-1fcc9d1a2573d7b0`'s four source acts have no readable
-  changed paragraph** (the two deletions). The check is derived from the
+  changed paragraph** — the two deletions. The check is derived from the
   two readable insertions plus the readable paragraph around them, so the
   *before* state of the deleted clause is inferred, not read.
-- **No false-positive case exists.** There is no instance where the mentor
-  **left** a parallel mechanism list in place, so the check has never been
-  observed to *not fire* on material the mentor chose not to touch. The
-  pass criterion is therefore **not** validated by a negative case — it is
-  derived from what the mentor did do.
+- **No false-positive case exists for either check.** There is no instance
+  where the mentor **left** a parallel mechanism list in place, and none
+  where they left a bare 「促进作用」 in place. So neither pass criterion
+  has been observed to *not fire* on material the mentor chose not to
+  touch: **the criteria are derived from what the mentor did do, and are
+  not validated by a negative case.**
 - **The checks are decidable, but running them is the reader's work.**
   `checks.py` says so in its own words: *a check is decidable, and
   deciding it is the reader's work.* Nothing in this task runs a check
-  against a draft.
+  against a draft, and no claim is made about any manuscript's compliance.
+- **The statements name this paper's chemistry** (§6.5 of the distillation
+  record) and so do the checks. They are usable by a reader of *this*
+  group's manuscripts and are not a general writing standard.
 
 ---
 
-## 5. What is still owed
+## 6. Provenance — who wrote what
 
-- The owner confirms both checks as second reader (this session must not,
-  and must not simulate one).
-- `propose_check` → owner's `confirm_check` → `bind_check` at **v2**.
-- Read back through `read_rule_checks` and `search_rules`.
-- The negative witness: a `candidate` check cannot be bound.
+**This session did not write to the pilot database.** The session assigned
+this task was interrupted repeatedly and lost its turn each time; the
+parent session (`LabCairn 项目续开发`) therefore carried out the
+proposal, the owner's confirmation and the binding itself, at
+2026-11-03 13:07 local time, while this branch measured the doors and
+drafted the wording for the owner's second reader.
+
+What this session is responsible for, and what this file records:
+
+- **the measurement** of what each door does and refuses (§2), read from
+  the source and confirmed against the live database;
+- **the verification** of the binding through the product's own doors
+  (§4) — the read-back, the retrieval card, and the negative witness;
+- **the record**, which is this file and the §6.5 closure pointer.
+
+**Two drafts of the wording existed.** This session drafted a longer
+wording and handed it to the owner for confirmation. The wording in §3 is
+the one the owner confirmed and the database holds; the longer draft was
+**not** written to the database and is **not** a second check.
 
 ---
 
-*Nothing has been pushed. No pull request has been opened. No CI run has
-been started.*
+## 7. What was not done
+
+- **Nothing pushed. No pull request opened. No CI run started.**
+- `docs/RELEASE-NOTES.md`, `docs/ROADMAP.md` and every `LC-P2-07*` file
+  were **not touched** — another window was writing them.
+- **No product code under `src/` was changed.** No missing door and no
+  wrong behaviour was found: `bind_check` attaches to the highest version
+  as the project requires, and an unconfirmed check is refused as the
+  project requires.
+- **No new test file was created.** The negative already has a witness in
+  `tests/test_guidance_rules.py`, and the pilot run above measures the
+  same property on real material.
