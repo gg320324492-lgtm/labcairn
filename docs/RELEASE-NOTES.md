@@ -491,39 +491,72 @@ happened once, and the log holds two operation rows saying so.
 `tests/test_application_layer.py::test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned` ·
 `tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`.
 
-### 2.23 The largest file the product will read is one number written in five places
+### 2.23 The largest file the product will read is one number, written once — with one split kept on purpose
 
-**Measured 2026-11-03 at `bb8f8f6`.** The ceiling on a supplied manuscript is
-**96 MB**, and the number came from material rather than from taste: the third
-pilot's late drafts are **71.4 MB** and the previous 64 MB ceiling refused
-**seven versions of one real manuscript** — the refusal came from the read
-limit, and the pilot could not be ingested until it moved.
+**Measured 2026-11-03 at `bb8f8f6`, single-sourced at `7e94338`.** The ceiling
+on a supplied manuscript is **96 MB**, and the number came from material rather
+than from taste: the third pilot's late drafts are **71.4 MB** and the previous
+64 MB ceiling refused **seven versions of one real manuscript** — the refusal
+came from the read limit, and the pilot could not be ingested until it moved.
 
-**It moved in four places, and the tree still spells it in five.**
-`MAX_MANUSCRIPT_BYTES = 96_000_000` in `papers/feedback.py`, `papers/replies.py`
-and `papers/revisions.py`; `MAX_SOURCE_READ_BYTES = 96_000_000` in
-`workspace/readonly.py`, which is what the material walk actually enforces; and
-`security/capabilities.py`, where `FsReadArgs.max_bytes` still caps at
-**64 MB** and `SourceReadArgs.max_bytes` still **defaults** to 64 MB.
+**It was spelled in five places and it is now spelled in one** —
+`security/capabilities.py`, the module both read doors and every papers module
+already import, so the change adds no edge and no cycle.
+`workspace/readonly.py` re-exports it and both of its doors take it as their
+default; `papers/feedback.py` and `papers/replies.py` alias it under the name
+their callers already use. **One literal remains**: `papers/revisions.py` still
+writes `MAX_MANUSCRIPT_BYTES = 96_000_000`, because the window doing the work
+was told not to edit that file, and a boundary in a task brief is not
+something the runner of the task gets to dissolve. It is **neither hidden nor
+loose**: the scan witness asserts the ceiling's digits appear in **exactly
+those two files** and **once in `security/capabilities.py`** — so a *third*
+file, or a doubled definition in its home, turns it red — and the kept copy is
+pinned to the same value by `test_the_manuscript_readers_share_the_one_ceiling`.
+**What no witness yet constrains is a second literal inside `revisions.py`
+itself**: the set assertion allows that file to hold the digits twice, and the
+equality witness compares values, not counts.
 
-**Why that is a limit and not just untidiness.** One of these numbers was
-already wrong on its own: `readonly.py`'s two read doors carried **64 MB and
-96 MB as two separate defaults**, and raising only the one the ingest walks
-through left a fixture parked between the two — a refusal test stopped
-refusing, which is how it was found (closed at `f8dbbe8`, with both doors now
-reading one constant and two witnesses, one of them comparing the defaults
-themselves). **The remaining three spellings have not been given that
-treatment**, so a future change to the ceiling can repeat the miss: raising
-the doors past 64 MB makes an `fs.read` approval ask for more than the
-capability schema allows, and `source.read` silently keeps defaulting to half
-what the reader will accept. **Nothing is known to be broken by this today**
-— it is a single-number claim that is not yet held, recorded so it is not
-mistaken for one.
+**And a claim this section used to make was wrong, so it is replaced with what
+was measured.** The earlier text said that raising the read doors past 64 MB
+would make an `fs.read` approval ask for more than the capability schema
+allows. **No path in the tree does that**: all seven approvals that carry the
+ceiling carry `CapabilityId.SOURCE_READ`, whose `max_bytes` bound is 512 MB
+and so admits 96, and every `fs.read` site passes only a path or nothing —
+`read_artifact`'s two real callers omit `max_bytes` and take its 1 MB default.
+The 64 MB bound on `FsReadArgs` is therefore **not** a ceiling in the same
+sense, and it is now asserted as a deliberate split: widening it onto the
+manuscript ceiling would make every artefact read approvable at a size its own
+capability never offered
+(`test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling`).
 
-*The measurement:* `src/labcairn/papers/feedback.py`, the docstring over
-`MAX_MANUSCRIPT_BYTES` · *the witnesses that closed the split:*
+**What the real coupling is, in the direction the old text had wrong.** The
+ceiling is sent *into* `SourceReadArgs`, so a ceiling above the schema's bound
+would have every one of those seven approvals refused **at consent time** — the
+read would never be reached. That is the invariant the split protects, and
+`test_the_source_read_schema_admits_the_ceiling` now holds it. Three mutations
+were run against these four witnesses, each caught by the one that names it:
+re-spelling the literal in `readonly.py`, widening `FsReadArgs` onto the
+manuscript ceiling, and moving `SourceReadArgs`' default off it.
+
+**One consequence of the move, stated because it is data and not code.** The
+pilot database holds **20 `granted` `source.read` approvals whose arguments
+digest over the old 64 MB ceiling** — recomputed with the product's own
+`compute_args_digest` over the stored task, capability and resource, all 20
+match `path + max_bytes=64_000_000` and none matches 96. Nothing breaks today
+because the papers only *evaluate* consent and never spend a stored grant; but
+those rows describe a request the product no longer makes, and **a future
+pilot run re-requests them rather than reusing them.**
+
+*The measurement:* `src/labcairn/security/capabilities.py`, the docstring over
+`MAX_SOURCE_READ_BYTES` · *the witnesses:*
 `tests/test_workspace_boundaries.py::test_a_file_over_the_ceiling_is_refused_by_both_read_doors`
-and `::test_both_read_doors_default_to_the_one_ceiling` ·
+and `::test_both_read_doors_default_to_the_one_ceiling` (the two doors), plus
+`::test_the_ceiling_is_written_once_in_the_product`,
+`::test_the_manuscript_readers_share_the_one_ceiling`,
+`::test_the_source_read_schema_admits_the_ceiling` and
+`::test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling` (the
+single source, the kept literal in `papers/revisions.py`, the schema's bound,
+and the split that is kept) ·
 [LC-P2-11 revision distillation](acceptance/LC-P2-11-revision-distillation.md) §6.
 
 ---
