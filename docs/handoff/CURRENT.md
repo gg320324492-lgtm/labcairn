@@ -1,6 +1,36 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-03 · **the chain's fourth ring has been opened, and it says the
+**Date:** 2026-11-04 · **every machine-buildable piece of Phase 2 is in the
+tree; what remains waits on the owner.**
+
+**Four deliveries landed on 2026-11-04.** The README guard's qualifier
+whitewash is closed — the exemption is clause-scoped, quantified before the
+change, and witnessed three ways
+([LC-P2-25](../acceptance/LC-P2-25-guard-of-the-guards.md)). The 16
+resolved-with-empty-text rows are adjudicated: 3 were a reader defect and are
+fixed, 13 are true zero-width position anchors recorded as unknown with the
+position reason — and the distillation carries a position bucket of its own, so
+it no longer calls a placed position unplaced. The retrieval metric's machinery
+is built: a five-field sample table whose loader refuses any sixth field, an
+empty sample that measures `NOT MEASURED` and never a 0/0 rate, a filled table
+handed in with `--citation-sample`
+([LC-P2-26](../acceptance/LC-P2-26-retrieval-metric-machinery.md)). The
+competitor baseline's machinery is built: one packaged task corpus both sides
+consume byte-identically, a paper-qa runner whose live mode refuses without the
+owner's approval file, an aligner that refuses a missing case or a mismatched
+pin, and the runbook the owner executes on approval
+([LC-P2-18 machinery](../acceptance/LC-P2-18-machinery.md)). The shard costs
+are re-measured at `6ccdfcc`. **Two commits are local-only** (`081ede7`,
+`54d34e7`); the next push lets one CI run cost them all.
+
+**What remains is the owner's, and each piece is listed where it is
+recorded**: the blind evaluation's real run (unseen papers, five arms' budget,
+human rating — §3 row 2), the retrieval sample's human pass over three papers'
+reports (§3 row 5), the competitor run's budget approval and runbook execution
+(§3 row 6), the G1/G2 human review, and two material gaps — the second paper's
+version edges and the author-draft-versus-mentor-copy edge type.
+
+**2026-11-03 · the chain's fourth ring has been opened, and it says the
 advice mostly did not land.**
 
 **Five assessments are in `followup_assessments`, all five
