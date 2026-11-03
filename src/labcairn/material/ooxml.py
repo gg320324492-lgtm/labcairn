@@ -180,10 +180,11 @@ class RevisionEvent:
 class CommentAnchor:
     """Where a comment is anchored, or why it is not.
 
-    The four failure modes are named rather than lumped: a range that
+    The five failure modes are named rather than lumped: a range that
     starts and never ends, a range that ends and never started, a
-    comment with no range at all, and a range that starts in one
-    paragraph and ends in another. They are different defects and a
+    comment with no range at all, a range that starts in one
+    paragraph and ends in another, and a range that closes where it
+    opens. They are different facts and a
     reader that reports them as one loses the distinction between a
     document that is damaged and a document that is merely unusual.
     """
@@ -206,15 +207,13 @@ class CommentAnchor:
     #: of LC-P2-09's feedback chain, and an empty one is a chain that cannot
     #: be traversed.
     #:
-    #: **Empty in three cases, and each is a fact rather than a failure.**
-    #: The anchor is unknown (there is no range to name text, and the
-    #: reason says which defect it was); the range starts in one paragraph
-    #: and ends in another (the two markers carry an offset each, and the
-    #: offsets are into two different texts, so no single slice is the text
-    #: the comment covers — and the anchor is reported as unknown rather
-    #: than as a range that cannot exist); and the range covers nothing — a
-    #: comment anchored on an empty paragraph, whose text is the empty
-    #: string.
+    #: **Empty whenever the anchor is unknown, and each unknown is a fact
+    #: rather than a failure.** There is no range to name text and the
+    #: reason says which of the five shapes it was; a range that starts in
+    #: one paragraph and ends in another has two offsets into two different
+    #: texts, so no single slice is the text the comment covers; and a
+    #: range that closes where it opens covers a position, not a passage —
+    #: reported as unknown rather than as a passage nobody wrote.
     text: str
 
 
@@ -478,6 +477,7 @@ def _scan_paragraph(
         depth: int,
         enclosing: tuple[int, int] | None,
         reports: bool,
+        counting: bool = False,
     ) -> int:
         """Walk ``element``'s children, returning the new baseline offset.
 
@@ -486,6 +486,16 @@ def _scan_paragraph(
         once the walk has crossed into a nested paragraph: the offsets
         are still this paragraph's, but the revision and the comment
         marker belong to the nested paragraph's own scan.
+
+        ``counting`` is True once the walk is inside a revision that
+        contributes to the baseline. **The deleted words are baseline
+        words** -- the rejected view is the manuscript as it read before
+        the change -- so the walk keeps advancing through them, and a
+        comment marker inside the deletion is recorded at the place its
+        words actually sit. An insertion contributes nothing to the
+        baseline, so its subtree never counts: every marker inside one
+        collapses to the insertion point, which is the honest coordinate
+        for a comment on text the baseline does not hold.
         """
         for child in element:
             child_reports = reports and child.tag != _TAG["paragraph"]
@@ -497,11 +507,25 @@ def _scan_paragraph(
                     offset += width
                     if child_reports:
                         revisions.append((child, kind, start, offset, depth > 0))
-                    walk(child, offset, depth + 1, (start, offset), child_reports)
+                    walk(
+                        child,
+                        start,
+                        depth + 1,
+                        (start, offset),
+                        child_reports,
+                        counting=kind in _REJECTED_KINDS,
+                    )
                 else:
                     if child_reports:
                         revisions.append((child, kind, enclosing[0], enclosing[1], depth > 0))
-                    walk(child, offset, depth + 1, enclosing, child_reports)
+                    walk(
+                        child,
+                        offset,
+                        depth + 1,
+                        enclosing,
+                        child_reports,
+                        counting=counting and kind in _REJECTED_KINDS,
+                    )
                 continue
             if child_reports and child.tag == _TAG["comment_start"]:
                 markers.append(
@@ -523,7 +547,7 @@ def _scan_paragraph(
                     )
                 )
                 continue
-            if enclosing is not None:
+            if not counting and enclosing is not None:
                 # The text inside a revision is already counted by it.
                 walk(child, offset, depth, enclosing, child_reports)
                 continue
@@ -536,7 +560,7 @@ def _scan_paragraph(
             if child.tag in (_TAG["break"], _TAG["carriage_return"]):
                 offset += 1
                 continue
-            offset = walk(child, offset, depth, None, child_reports)
+            offset = walk(child, offset, depth, enclosing, child_reports, counting)
         return offset
 
     walk(paragraph, 0, 0, None, True)
@@ -911,12 +935,13 @@ def _anchor_for(
 ) -> tuple[CommentAnchor, list[ExtractionProblem]]:
     """A comment's anchor, or the reason it does not have one.
 
-    **Four ways a comment can fail to have a nameable anchor, and each is
+    **Five ways a comment can fail to have a nameable anchor, and each is
     named.** A range that carries no markers, a range that ends without
-    starting, a range that starts without ending, and a range whose two
-    markers sit in different paragraphs. They are four different defects,
-    and a reader that reports them as one has thrown away the difference
-    between a damaged document and an unusual one.
+    starting, a range that starts without ending, a range whose two
+    markers sit in different paragraphs, and a range that closes where it
+    opens. They are five different facts, and a reader that reports them
+    as one has thrown away the difference between a damaged document and
+    an unusual one.
 
     **An address that names no text is not a text.** The fourth case is the
     one that looks resolvable and is not: Word writes a comment covering
@@ -928,6 +953,14 @@ def _anchor_for(
     store an address that resolves to text nobody wrote — so the anchor is
     reported as unknown, with the reason named, and the paragraph the range
     starts in is kept.
+
+    **And the fifth is the claim nothing backs.** A range that closes
+    where it opens covers a *position* — a reviewer commenting on the
+    place, not on words. Reporting it as ``resolved`` would store the
+    empty string as the text the comment covers and hash that emptiness
+    into an integrity value any check reading only "is there a digest"
+    accepts, so the anchor is reported as unknown with its reason named,
+    the way the four genuinely damaged shapes above are.
     """
     problems: list[ExtractionProblem] = []
     entries = markers.get(comment_id, [])
@@ -1028,6 +1061,40 @@ def _anchor_for(
             CommentAnchor(
                 status="unknown",
                 reason="the comment's range spans two paragraphs",
+                paragraph=start_entry[1],
+                start=None,
+                end=None,
+                text="",
+            ),
+            problems,
+        )
+
+    if start_entry[2] == end_entry[2]:
+        # **A range that closes where it opens is a position, not a
+        # passage.** Word writes this when a reviewer comments on *the
+        # place* rather than on words — an insertion point, a spot between
+        # runs. The paragraph is a fact the file records and is kept, but
+        # ``resolved`` would claim a passage was found and no passage
+        # exists: the stored slice would be the empty string, hashed into
+        # an integrity value that any check reading only "is there a
+        # digest" accepts. A comment on a place is still a comment, so it
+        # is reported with its body and the reason it holds no words.
+        problems.append(
+            ExtractionProblem(
+                code="docx_comment_position_anchor",
+                detail=(
+                    f"comment {comment_id!r} covers a position, not a passage: its "
+                    f"range closes where it opens. The paragraph the comment sits "
+                    f"in is reported, and the anchor carries no text because the "
+                    f"file records no words there."
+                ),
+                location=f"comment {comment_id}",
+            )
+        )
+        return (
+            CommentAnchor(
+                status="unknown",
+                reason="the comment's range is a position, not a passage of text",
                 paragraph=start_entry[1],
                 start=None,
                 end=None,

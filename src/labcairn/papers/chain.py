@@ -86,6 +86,12 @@ class ChainRefusal(StrEnum):
     #: manuscript's bytes changed under the anchor, and the anchor is
     #: **stale** — reported as stale rather than silently re-pointed.
     ANCHOR_STALE = "anchor_stale"
+    #: An anchor that claims ``resolved`` while covering no words. **A
+    #: passage found is text the row can carry**; a range that closes
+    #: where it opens is a position, and the reader reports it as unknown
+    #: with its reason — never as a resolved claim whose integrity value
+    #: is the digest of the empty string.
+    ANCHOR_RESOLVED_WITHOUT_TEXT = "anchor_resolved_without_text"
     #: A model may not write a comment. **The row that holds a locator is
     #: the row the reader wrote**, and a model may not cause the system to
     #: claim the advisor said something.

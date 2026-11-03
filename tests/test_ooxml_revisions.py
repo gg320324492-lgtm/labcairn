@@ -44,7 +44,7 @@ from docx_corpus import FIXTURES
 from docx_fixtures import Fixture, gold_for, write_fixture
 
 from labcairn.material.addressing import render_locator_key, split_locator_key
-from labcairn.material.ooxml import RevisionDocument, read_document
+from labcairn.material.ooxml import CommentEvent, RevisionDocument, read_document
 from labcairn.material.units import adapter_for, registered_kinds
 from labcairn.sources.locators import DocxLocator
 from labcairn.sources.source import SourceKind
@@ -1252,3 +1252,173 @@ def _fixture(name: str) -> Fixture:
         if fixture.name == name:
             return fixture
     raise AssertionError(f"no fixture named {name!r}")
+
+
+# --------------------------------------------------------------------------- #
+# the anchor a deletion holds, and the anchor that is a position
+# --------------------------------------------------------------------------- #
+
+
+def _comments_part(*comments: tuple[str, str]) -> str:
+    """The comments part for the given ``(id, text)`` comments."""
+    bodies = "".join(
+        f'<w:comment w:id="{cid}" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        f'<w:p><w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>'
+        "</w:comment>"
+        for cid, text in comments
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:comments xmlns:w="{W}">{bodies}</w:comments>'
+    )
+
+
+def _comment_by_id(document: RevisionDocument, comment_id: str) -> CommentEvent:
+    for comment in document.comments:
+        if comment.comment_id == comment_id:
+            return comment
+    raise AssertionError(f"the document holds no comment {comment_id!r}")
+
+
+def test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words() -> None:
+    """A comment Word wrapped in the deletion of the words it covers.
+
+    When a commented-upon span is later deleted, Word moves the comment's
+    range markers *inside* the ``w:del`` element, around the deleted runs.
+    The deleted text **is baseline text** -- the rejected view is the
+    manuscript as it read before the change -- so the anchor is the span
+    the words occupy, and the words themselves. A walk that entered a
+    top-level revision at the offset past its whole width recorded both
+    markers at that one point, sliced the empty string, and hashed it
+    into an integrity value: the pilot's three ``resolved`` rows with no
+    anchored text were exactly this shape, and the file held 66, 66 and
+    10 baseline characters the reader dropped.
+
+    **What breaks it:** reverting the walk to enter a revision at its
+    end offset. Every marker inside then collapses onto one point, the
+    anchor covers no words, and this test fails on the text.
+    """
+    lead, deleted, tail = "Lead in. ", "removed span", " Tail."
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="7"/>'
+        f'<w:r><w:delText xml:space="preserve">{deleted}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="7"/>'
+        '<w:r><w:commentReference w:id="7"/></w:r>'
+        "</w:del>"
+        '<w:commentRangeStart w:id="8"/>'
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body),
+            _comments_part(("7", "Reword this."), ("8", "The tail needs a comma.")),
+        )
+    )
+    assert not document.problems, [problem.code for problem in document.problems]
+
+    covered = _comment_by_id(document, "7")
+    anchor = covered.anchor
+    assert anchor.status == "resolved", (anchor.status, anchor.reason)
+    assert anchor.paragraph == 0
+    assert anchor.start == len(lead), (anchor.start, anchor.end)
+    assert anchor.end == len(lead) + len(deleted)
+    assert anchor.text == deleted
+    assert document.baseline_paragraphs[0][anchor.start : anchor.end] == deleted, (
+        "the anchored text is the text at the offsets the anchor names"
+    )
+
+    # The deletion's own span is the whole width it removes, unchanged:
+    # the walk counts the deletion's text once, at the top level, and the
+    # markers inside it are positioned within that span.
+    (revision,) = [r for r in document.revisions if r.kind == "del"]
+    assert (revision.baseline_start, revision.baseline_end) == (
+        len(lead),
+        len(lead) + len(deleted),
+    ), "the deletion's own span moved"
+
+    # And the good path is not collateral: the comment anchored on the
+    # tail run still resolves to the words it covers, cut from the same
+    # baseline the offsets are into.
+    tail_comment = _comment_by_id(document, "8")
+    assert tail_comment.anchor.status == "resolved"
+    assert tail_comment.anchor.text == tail
+    assert tail_comment.anchor.start == len(lead) + len(deleted)
+
+
+def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> None:
+    """A reviewer commenting on the place, not on words.
+
+    Word writes a comment whose range closes where it opens when the
+    reviewer comments at a point. The pre-fix reader reported that as
+    ``resolved`` with the empty string as the covered text -- the claim
+    nothing backs, stored on every zero-width row of the pilot. **The
+    position is still a place the reader found**, so the paragraph is
+    kept and the comment is reported with its body; what is not reported
+    is a passage.
+    """
+    lead = "Lead in. "
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:commentRangeStart w:id="8"/>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body), _comments_part(("8", "Tighten here."))))
+    assert {problem.code for problem in document.problems} == {"docx_comment_position_anchor"}, (
+        "the position is disclosed, not passed in silence"
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "unknown"
+    assert anchor.reason == "the comment's range is a position, not a passage of text"
+    assert anchor.paragraph == 0, "the place the reader found is kept"
+    assert anchor.start is None
+    assert anchor.end is None
+    assert anchor.text == ""
+
+
+def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
+    """A comment covering words the revisions added, seen from the baseline.
+
+    The anchor's coordinates are the baseline's, and **inserted text is
+    not in the baseline** -- so a comment whose markers sit inside an
+    insertion covers a position there, whatever words the accepted view
+    shows. The pre-fix reader reported that position as ``resolved`` over
+    the empty string; the pilot's over-insertion rows were this shape,
+    eleven of the sixteen.
+    """
+    body = (
+        "<w:p>"
+        '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+        '<w:ins w:id="910" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="9"/>'
+        '<w:r><w:t xml:space="preserve">inserted words</w:t></w:r>'
+        '<w:commentRangeEnd w:id="9"/>'
+        '<w:r><w:commentReference w:id="9"/></w:r>'
+        "</w:ins>"
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(_document(body), _comments_part(("9", "Check this addition.")))
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "unknown"
+    assert anchor.reason == "the comment's range is a position, not a passage of text"
+    assert anchor.paragraph == 0
+    assert anchor.start is None
+    assert anchor.end is None
+    assert anchor.text == ""
+    # The comment itself is not lost: its body, author and date are the
+    # file's, and they are reported with the position.
+    assert comment.text == "Check this addition."
+    assert comment.author == "Prof. Lin"

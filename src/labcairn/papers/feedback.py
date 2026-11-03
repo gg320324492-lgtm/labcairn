@@ -20,6 +20,13 @@ construction, and the hash is what makes a drifted anchor detectable.
 author and the reason it could not be placed are all recorded, because a
 comment the reader could not place is a comment a person still wrote.
 
+**And a comment anchored on a place, not on words, is still written.** A
+range that closes where it opens covers a position; the reader reports
+it as unknown with the position named as its reason, and the row carries
+the comment's body. What no row may claim is a resolved passage whose
+integrity value hashes nothing: the door refuses that claim, and
+``anchor_state`` never calls an empty one fresh.
+
 **And a model may not write one.** A row read out of the file is
 ``observed`` and carries the locator the reader read. A row nobody read
 is a candidate, and the chain refuses to let a candidate wear the
@@ -325,6 +332,26 @@ def record_feedback(
         row_id = _feedback_id(version_id, event.comment_id)
         anchor_text = anchor.text
         anchor_hash = _sha256(anchor_text)
+        if anchor.status == "resolved" and not anchor_text:
+            # **A resolved anchor covers words, or it is not resolved.** A
+            # range that closes where it opens is a position, and the
+            # reader reports it as unknown with its reason; a resolved
+            # claim that carries no text would store the digest of the
+            # empty string as the integrity value of an anchored passage —
+            # the claim a null anchor passes an integrity check with. The
+            # comment is not lost: its body is in the file, and a reader
+            # that names the claim truthfully has this row stored.
+            raise chain_refused(
+                ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT,
+                f"the reader resolved an anchor for the comment {event.comment_id!r} "
+                "that covers no words: its range closes where it opens. A resolved "
+                "anchor claims the passage was found, and a passage of no words was "
+                "not found; the row is refused rather than stored with the digest of "
+                "the empty string as its integrity value. The comment itself is a "
+                "comment a person wrote — a reader that reports the anchor as "
+                "unknown, with the position named as its reason, has this comment "
+                "recorded.",
+            )
         existing = feedback_row(session, row_id)
         if existing is not None:
             if existing.anchor_text_sha256 != anchor_hash:
@@ -509,6 +536,13 @@ def anchor_state(
     re-pointed, because a re-pointed anchor is an address that now names
     something nobody wrote about.
 
+    **And an empty claim is never a confirmed one.** A row that claims a
+    resolved anchor and carries no anchored text cannot be confirmed by
+    any read: the digest it holds is the digest of the empty string, and
+    empty matching empty is the false ``fresh`` this function exists to
+    refuse. Such a row is reported stale until it is re-derived against
+    the file, never fresh over nothing.
+
     :raises ApplicationRefusedError: the comment is not there, or the
         material cannot be read.
     """
@@ -521,11 +555,22 @@ def anchor_state(
         )
     if row.anchor_status != "resolved":
         return "unanchored"
+    if not row.anchor_text:
+        # A row that claims a resolved anchor and carries no anchored text
+        # makes a claim no address can hold: there are no words to still be
+        # there. The verdict is stale — the claim fails until the row is
+        # re-derived — and never fresh, whatever the manuscript now reads.
+        return "stale"
     data = _read_material(context, row.version_id)
     document = read_document(data)
     for event in document.comments:
         if _feedback_id(row.version_id, event.comment_id) != feedback_id:
             continue
+        if not event.anchor.text:
+            # The address names no words now, so it cannot still name the
+            # words the row recorded — even though the two empty strings
+            # would hash the same.
+            return "stale"
         return "fresh" if _sha256(event.anchor.text) == row.anchor_text_sha256 else "stale"
     return "stale"
 
