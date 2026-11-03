@@ -3188,6 +3188,30 @@ def test_a_row_claiming_an_empty_text_is_never_fresh(legacy_0022: ChainEnv) -> N
         == "stale"
     )
 
+    # And the re-recording the store will ask for the moment its owner
+    # reads the same version again: the legacy row spells the position
+    # the old way -- ``unknown`` with the reason, and the placeholder
+    # digest the old checks forced -- while today's reader spells it
+    # ``position`` with no digest at all. **Both spell "no anchored
+    # text"**, so the row is found and returned, not refused as stale
+    # because two spellings of one fact failed to compare.
+    _raw_insert(
+        session,
+        feedback_id=_legacy_position_id(legacy_0022),
+        anchor_status="unknown",
+        anchor_reason=POSITION_REASON,
+        anchor_paragraph=0,
+        anchor_start=None,
+        anchor_end=None,
+        anchor_text="",
+        anchor_text_sha256=_EMPTY_SHA256,
+    )
+    session.rollback()
+    (event,) = _record(legacy_0022)
+    assert event.feedback_id == _legacy_id(legacy_0022), (
+        "the legacy row is the row that was found, not a stale refusal"
+    )
+
 
 @pytest.fixture()
 def legacy_0022(tmp_path: Path) -> Iterator[ChainEnv]:
