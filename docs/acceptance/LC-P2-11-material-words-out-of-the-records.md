@@ -94,10 +94,25 @@ reaches those is the fingerprinting convention and the audit that found this.
 landed in `0c32971` (2026-10-31) and `a724768` (2026-11-01), both **already merged to
 `origin/main`**; the acceptance-record quotations came in commits that were pushed to
 `docs/debt-closures` on 2026-11-03. Redacting the tree does not unpublish a commit.
-**Removing them from history means rewriting `main`, which is the owner's call and has
-not been made or attempted here** — `main` is protected and never force-pushed. The
-exposure is therefore: real, dated, public since those commits, and now closed going
-forward and watched.
+**The owner decided on 2026-11-03: the history is not rewritten.** `main` stays as it
+is — protected, never force-pushed, and no rewrite was attempted before or after the
+decision. That is a decision with a consequence worth stating plainly rather than
+softening: **those two sentences remain retrievable from `origin/main`'s history by
+anyone who knows to look**, and the project's protection now runs forward from
+`9f6d034`, not backward. What the pin and the cap defend is the present and the
+future tree; nothing in this repository defends a commit that has already been
+published, which is why the rule is now watched instead of merely asserted — an
+assertion that had already been contradicted once is not a control.
+
+**If the decision is ever revisited**, the work is not "force-push `main`": a
+protected branch will refuse it, and rewriting shared history that a public
+repository has already served breaks every clone and every open pull request, this
+one included. The route runs through GitHub's support for removing content from a
+public repository's history, and it is a request the owner makes, not an operation a
+session performs. Revisiting it is cheap in information — this record names the two
+commits, `0c32971` and `a724768`, and the file and lines involved — which is the
+form the decision should be kept in: **dated, reversible in judgement, and not
+requiring anyone to rediscover the exposure.**
 
 **Not a general leak test.** This watches Chinese runs. It does not scan for
 manuscript text in images, filenames, or the digests themselves, it does not
