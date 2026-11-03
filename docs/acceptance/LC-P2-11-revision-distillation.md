@@ -233,11 +233,23 @@ an empty string as though it were the reviewer's surroundings.
    saying so in its own output ("the 35 fast files share 31 s"). At
    `3d1487e` the revision-distillation file therefore carries an
    apportioned 0.92 s (ubuntu) and 1.66 s (windows) against **14.9 s
-   measured locally on Windows** — the same direction LC-P2-06 wrote
-   down ("apportioned at 0.13 s and measured at 1.16 s, nine times
-   larger"). **The next CI run replaces both numbers with measurements**,
-   and until it does, the partition is balanced on figures known to be
-   low.
+   measured locally on Windows**.
+
+   **That next run has happened, and it replaced them.** Run
+   `41566766491` (head `bb8f8f6`) measures the file at **7.16 s (ubuntu)
+   and 86.18 s (windows)**, committed at `69a3bd5`. **The apportionment was
+   low by about fifty-two times on Windows** — LC-P2-06 recorded nine times
+   for its file, so the direction of that lesson held and its size did not.
+   What is still apportioned in the table is the set the tool names in its
+   own output (36 fast files sharing 33 s on ubuntu, 28 sharing 35 s on
+   Windows): files too quick to appear in the durations section. None of
+   them decides a shard's length.
+
+   **And one number moved the other way.** `test_cli.py` got a cheaper test
+   in `f8dbbe8` — a five-minute fixture became a four-second one — and its
+   measured cost still rose, 330.81 → 380.28 s (ubuntu) and 765.32 → 824.96
+   s (windows), because the same batch added a witness to that file. **A
+   file that gets a cheaper test does not necessarily get cheaper.**
 
 ---
 
@@ -381,8 +393,9 @@ keeping its past looks like in a row.
   a test. **This is the remaining gap LC-P2-11's checks column exists to
   close**, and it is a judgement about this material, not a defect in the
   door.
-- **Nothing was measured on a runner** for the new witnesses; see §4 item
-  7.
+- **The new witnesses were not measured on a runner when this section was
+  written**; §4 item 7 carries the measurement that has since arrived, and
+  §7 carries the whole-suite run this branch was checked with.
 
 ---
 
@@ -394,3 +407,46 @@ operator's script names the acts and the statements and nothing else, and
 whole module exists for, and the second pass is the first time a real
 corpus exercised it end to end: read, propose, dispute, rewrite,
 confirm — five acts, four of them the memory's own.
+
+---
+
+## 7. The whole suite, and a claim about it that did not survive re-measurement
+
+**Why this section exists twice over.** The window that landed §1–§4 wrote a
+measurement section of its own — **4665 passed, 5 failed, 5 skipped** — and
+argued the five failures were not its work's: the two witnesses that clone a
+repository and build a wheel, it said, **were already red at the commit the
+branch starts from**. That commit never reached this branch: `git cherry`
+reports its patch as not upstream, and the string it measured does not appear
+anywhere in `docs/`. **So the record was missing, and what was missing of it
+was a claim this tree contradicts.** Landing it as written would have carried
+an excuse forward for failures that are not here.
+
+**The whole suite at `69a3bd5`, this machine, 2026-11-03:**
+
+| | |
+|---|---|
+| Result | **4739 passed, 0 failed, 14 skipped** · 33m21s |
+| Test count against the earlier record | 4665 → 4739 — the delta is additions (§2, §6's witnesses and the ceiling pair), and the witness ledger over `ba80a28..bb8f8f6` reports **LOST — none**, so nothing was renamed away |
+| The named skips | POSIX permission bits, POSIX path semantics, the 8.3 short-name cases on a volume that has none, and the provider smoke that **refuses to run without the owner's authorisation to spend money** |
+
+**And the base-commit check, run under the same conditions.** The five
+witnesses the earlier record excused were run at `e13b967` — the commit this
+branch starts from — in a separate worktree, with no `PYTHONPATH` injection
+(the injection is what makes a worktree run measure somebody else's code, and
+it also breaks the wheel test's clean venv): **18 passed, 0 failed**, 2m21s.
+
+**So the claim does not hold here, and it is not carried.** Whatever made those
+five red on that tree at that hour — the worktrees and caches on this machine
+were in a different state then — the same witnesses are green at the base
+commit and green at this head. **A sentence that reads *"not our failure, it
+was already red"* is only worth writing when the parent tree has been measured
+under the same conditions; measuring it reversed the conclusion.** That is the
+method this project keeps paying for (§4 item 7's apportionment reversed by
+fifty-two times is the other one), and it is why the number lives here with its
+commit rather than in a commit message.
+
+**What this does not establish.** One machine, one platform. The shard
+partition is balanced on runner seconds, and §4 item 7's are the only ones
+this section quotes as measured — a development-machine total is not evidence
+about the runner, only about this machine.
