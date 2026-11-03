@@ -14,6 +14,9 @@ A8  a suggestion does not become an advisor's rule by  retrieval has no
 A9  a rule whose scope the cases do not support is     the scope is the
     refused                                            cases', or there is
                                                        no rule
+A** a re-run of one distillation is one row             the clock does not
+                                                       name the rule, and a
+                                                       re-run writes nothing
 =====================================================  =========================
 
 **And A9 has a second half.** The scope the cases give is the
@@ -185,6 +188,27 @@ def test_a_distilled_rule_is_a_candidate_until_a_person_confirms_it(
     assert confirmed.state == "confirmed"
     assert confirmed.confirmed_by == "the-advisor"
     assert confirmed.confirmed_at == LATER
+
+
+def test_a_rerun_of_one_distillation_is_one_row(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """The distillation door is idempotent: the same cases propose the same row.
+
+    **This is the debt the stopgap paid for.** The pilot run pinned a chosen
+    instant so that re-running it would reproduce the identity; but a re-run
+    at that instant collides with the primary key, and a re-run at the real
+    clock mints a second id. Deriving the identity from the draft makes the
+    re-run land on the row that is already there, and lets ``proposed_at`` be
+    the real clock: the second call returns the first row and writes nothing.
+    """
+    context, _ = cases
+    first = _distil(context, now=MOMENT)
+    second = _distil(context, now=LATER)
+    assert second.rule_id == first.rule_id, "the clock moved the distilled identity"
+    assert second.proposed_at == MOMENT, "a re-run rewrote the instant it was proposed at"
+    rows = context.store.session.query(GuidanceRuleRow).all()
+    assert len(rows) == 1, f"a re-run wrote a second row: {[(r.rule_id, r.version) for r in rows]}"
 
 
 def test_a_frequently_retrieved_suggestion_is_still_a_candidate(
