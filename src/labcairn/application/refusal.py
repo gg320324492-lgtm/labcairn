@@ -305,6 +305,12 @@ class ApplicationRefusal(StrEnum):
     #: things** -- acceptance is a fact about the process, and the
     #: correctness of the advice is a claim about the science.
     CHAIN_ASSESSMENT_BASIS_REFUSED = "chain_assessment_basis_refused"
+    #: An assessment named an issue the chain does not hold in the project
+    #: being assessed. The column carries no foreign key -- a case is a
+    #: comment or a revision, and the two live in different tables -- so the
+    #: door resolves the key, and a judgement about an issue nobody holds is
+    #: a judgement about nothing.
+    CHAIN_ASSESSMENT_ISSUE_NOT_FOUND = "chain_assessment_issue_not_found"
     #: An issue key was asked to be derived rather than given. The same
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
@@ -598,6 +604,7 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ),
     ChainRefusal.ASSESSMENT_NEEDS_EVIDENCE: ApplicationRefusal.CHAIN_ASSESSMENT_NEEDS_EVIDENCE,
     ChainRefusal.ASSESSMENT_BASIS_REFUSED: ApplicationRefusal.CHAIN_ASSESSMENT_BASIS_REFUSED,
+    ChainRefusal.ASSESSMENT_ISSUE_NOT_FOUND: ApplicationRefusal.CHAIN_ASSESSMENT_ISSUE_NOT_FOUND,
     ChainRefusal.ISSUE_KEY_MAY_NOT_BE_INFERRED: (
         ApplicationRefusal.CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED
     ),

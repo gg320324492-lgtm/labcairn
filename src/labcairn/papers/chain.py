@@ -102,6 +102,14 @@ class ChainRefusal(StrEnum):
     #: advice's correctness. **"The change was accepted" is one of those
     #: things.**
     ASSESSMENT_BASIS_REFUSED = "assessment_basis_refused"
+    #: An assessment named an issue the chain does not hold in the project
+    #: being assessed. **The column has no foreign key that could hold it**,
+    #: because a case is a comment or a revision and the two live in
+    #: different tables, so the door does the holding — and it holds it by
+    #: looking the key up on both routes, never by reading its spelling
+    #: (ADR-0017 C10, and the same rule
+    #: :func:`labcairn.guidance.retrieval._living_sources` follows).
+    ASSESSMENT_ISSUE_NOT_FOUND = "assessment_issue_not_found"
     #: An issue key was asked to be derived rather than given. The same
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.

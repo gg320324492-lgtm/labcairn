@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from labcairn.application import consent
 from labcairn.application.context import ApplicationContext
@@ -34,7 +35,7 @@ from labcairn.application.refusal import (
     ApplicationRefusedError,
     chain_refused,
 )
-from labcairn.db.models import FeedbackEventRow, FollowupAssessmentRow
+from labcairn.db.models import FeedbackEventRow, FollowupAssessmentRow, RevisionEventRow
 from labcairn.papers.chain import (
     ChainRefusal,
     feedback_row,
@@ -42,6 +43,7 @@ from labcairn.papers.chain import (
     material_relative_path,
     project_row,
     project_version_rows,
+    version_row,
 )
 from labcairn.runtime.trajectory import emit_followup_assessed
 from labcairn.security.capabilities import CapabilityId
@@ -135,6 +137,36 @@ def _materials(context: ApplicationContext, project_id: str) -> tuple[CanonicalP
     )
 
 
+def _chain_holds_issue_key(session: Session, project_id: str, issue_key: str) -> bool:
+    """Whether the chain holds this key as one of the project's cases.
+
+    **Both kinds of case are looked up, in the project, and the key's
+    spelling decides nothing.** A comment's issue key is a person's
+    judgement and may be spelled any way at all — including with the
+    prefix the product's own revision ids carry — so a key that starts
+    ``rv-`` is a revision **only when the chain holds a change under it**,
+    and a key that starts anything else is a comment **only when the chain
+    holds a comment bound to it** (ADR-0017 C10). This is the route
+    :func:`labcairn.guidance.retrieval._living_sources` takes, in the same
+    order: the comments bound to the key first, then the change the key
+    names.
+
+    **And the lookup is scoped to the project**, because a key means "the
+    same problem" only inside one manuscript's history: two projects may
+    each hold ``"stats"`` without their being one problem. The column has
+    no foreign key that could say this — ``feedback_events.issue_key`` and
+    ``revision_events.revision_event_id`` are different tables — which is
+    why the door holds it instead.
+    """
+    if feedback_rows_for_issue(session, project_id, issue_key):
+        return True
+    revision = session.get(RevisionEventRow, issue_key)
+    if revision is None:
+        return False
+    version = version_row(session, revision.version_id)
+    return version is not None and version.project_id == project_id
+
+
 def record_assessment(
     context: ApplicationContext,
     *,
@@ -163,6 +195,15 @@ def record_assessment(
 
     **And it names a comment or an issue.** An assessment about nothing is
     not an assessment.
+
+    **And what it names has to be there.** ``feedback_id`` is held by a
+    foreign key, and the door checks it; ``issue_key`` is a bare column
+    that could point at a comment in another project or at no case at all,
+    so **the door resolves it too** — through :func:`_chain_holds_issue_key`,
+    which looks the key up as a comment's key and then as a revision's, in
+    the project being assessed, and refuses it when the chain holds it
+    nowhere. A key that merely *spells* like a revision is not thereby a
+    revision, and an assessment that nothing can resolve is not a record.
 
     :raises ApplicationRefusedError: the project, the comment or the issue
         is not there; the basis, the outcome, the assessor or the grade is
@@ -235,6 +276,24 @@ def record_assessment(
                 f"the feedback {feedback_id!r} belongs to the project "
                 f"{feedback.project_id!r}, not to {project_id!r}.",
             )
+    if issue_key is not None and not issue_key.strip():
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"the assessment {assessment_id!r} carries an issue key that is blank. A key "
+            "names an issue or it is not a key at all: leave it out and the assessment is "
+            "about the comment, or name an issue the chain holds.",
+        )
+    if issue_key is not None and not _chain_holds_issue_key(session, project_id, issue_key):
+        raise chain_refused(
+            ChainRefusal.ASSESSMENT_ISSUE_NOT_FOUND,
+            f"the chain holds no issue {issue_key!r} in the project {project_id!r}. An "
+            "assessment is about a case the chain records — a comment somebody bound that "
+            "key to, or the change the key is the address of — and **which kind it is is "
+            "found by looking, not by reading the key's first letters**: a key spelled "
+            "like a revision is a comment when a comment carries it, and is nothing when "
+            "the chain carries it nowhere. A judgement about an issue nobody holds is a "
+            "judgement about nothing, and no later reader could resolve it.",
+        )
 
     consent.evaluate_all(
         context,
