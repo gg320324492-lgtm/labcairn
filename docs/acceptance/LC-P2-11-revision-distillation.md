@@ -387,12 +387,28 @@ keeping its past looks like in a row.
   standard. That is what the memory holds a rule to be — one advisor's
   standard, traceable to the moment it was learned — but it means these
   two will not transfer to a different subject.
-- **No check was bound to either rule.** A rule may name the question a
-  reader runs against a manuscript and what answers it, and neither does
-  yet: both are served as statements with sources, not as statements with
-  a test. **This is the remaining gap LC-P2-11's checks column exists to
-  close**, and it is a judgement about this material, not a defect in the
-  door.
+- **A check is now bound to each rule, at version 2 — closed 2026-11-03.**
+  A rule may name the question a reader runs against a manuscript and what
+  answers it, and each of these two now does:
+  `rule-1fcc9d1a2573d7b0` v2 names `check-a1de7d4db9d7cbda` and
+  `rule-1006b8ca1120db13` v2 names `check-5df4997384d6a0bd`, both confirmed
+  by the owner as a second reader and read back through `read_rule_checks`
+  onto the retrieval card. [`LC-P2-11-check-binding.md`](LC-P2-11-check-binding.md)
+  is that record. **What the closure does not change is the objection
+  above**: each check rests on one act, in one paragraph of one draft, and
+  **neither criterion has been observed to *not* fire** — the material holds
+  no sample where the mentor left a parallel set of mechanisms, or a bare
+  「促进」, alone. So both criteria are read out of what the mentor *did*,
+  and are untested against what the mentor left be.
+- **One number in those rows is not a time.** Both checks carry
+  `proposed_at = confirmed_at = 2026-11-03T18:00:00+00:00`, chosen as a
+  fixed instant so a re-run of the same proposal is the same row — but the
+  write happened at **05:07 UTC**, so the stored instant is about twelve and
+  a half hours **after** the event it dates. The state machine is unaffected
+  and the row is idempotent, **yet a reader who takes the column as a
+  timestamp is being shown a moment that had not arrived**. It is left as it
+  is because the memory does not rewrite its past; it is named here because
+  that rule is no licence to leave a misleading value unmarked.
 - **The new witnesses were not measured on a runner when this section was
   written**; §4 item 7 carries the measurement that has since arrived, and
   §7 carries the whole-suite run this branch was checked with.

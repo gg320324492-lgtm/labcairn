@@ -216,6 +216,28 @@ the same proposal is the same row. The state machine is unaffected: a
 check proposed and confirmed at the same instant has still been through
 two readers.
 
+**And that instant is after the event it dates.** The write landed at
+**05:07 UTC** on 2026-11-03, so the stored value sits roughly twelve and a
+half hours in the future. Fixing the instant buys idempotence and buys it
+*at the cost of the column meaning what its name says* — a reader who takes
+`proposed_at` as when the proposal happened is shown a moment that had not
+arrived yet. It is left in place, because the memory does not rewrite its
+past, and it is marked here, because that rule is not a licence to leave a
+misleading value unmarked.
+
+**And the fixed instant is load-bearing, which is the honest trade.**
+`check_id` is derived from `question | pass_criterion | proposed_by | now`,
+and the only uniqueness the table carries is that primary key — a measured
+fact, not a guess: `guidance_checks` has one index,
+`sqlite_autoindex_guidance_checks_1` on `check_id`, and none on `question`
+or `pass_criterion`. So **writing these two rows twice against the wall
+clock would create two checks with the same words**, both bindable, and the
+memory would hold two rows answering one question. The moment is fixed to
+prevent exactly that; the cost is that `proposed_at` stops being a time.
+**A later write should keep the idempotence and drop the lie** — bind the
+instant to the draft rather than to the wall clock, so a re-run is the same
+row *and* the column means what its name says.
+
 ---
 
 ## 4. The verification
