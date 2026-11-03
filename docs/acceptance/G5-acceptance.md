@@ -95,10 +95,12 @@ says**, and each is listed here with the finding that measured it:
   words**: nothing extracts, proposes or verifies them, and no surface runs C1,
   C2 or C3. [§7.3](LC-P1-14-outsider-path.md), [§2.2](../RELEASE-NOTES.md).
 - **"requests a revision"** — a second revision **is** produced and v1's bytes are
-  unchanged, but the attempt to recompute the report from the revised material is
-  **refused** (the chain names the material twice with different hashes), so the
-  second revision still rests on the material the claims were read from
-  (§7.2, §2.3). This is a Phase 2 finding, recorded rather than fixed.
+  unchanged; after the re-ingest and a second analysis run, rendering again
+  **succeeds** and the new revision carries the figure drawn over the revised
+  bytes. **Corrected 2026-11-02** — the refusal this paragraph used to record
+  (the chain named the material twice with different hashes) is closed by
+  carrying only the parts computed over the current material
+  (§7.2, §2.3). The report's claims are still the records they were read from.
 - **"the original materials remain unchanged"** — the product wrote **nothing**
   into the research folder, every file it produced is under the task's own
   output area, and the pristine corpus is byte-identical afterwards; but the

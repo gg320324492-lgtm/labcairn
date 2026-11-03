@@ -159,6 +159,18 @@ export type ClaimBody = {
   tolerance?: number | null
 }
 
+export type ClaimExtractionBody = {
+  source_id: string
+  locator_key: string
+  user_id: string
+  provider: string
+  model: string
+  destination: string
+  subject_ref: string
+  purpose?: string
+  approval_id?: string | null
+}
+
 export type ClaimRecorded = {
   record: EvidenceRecord
   anchor_id: string
@@ -388,6 +400,19 @@ export type ProjectGraph = {
   edges: ChainEdge[]
 }
 
+export type ProposalAcceptanceBody = {
+  user_id: string
+  verdict: string
+  note?: string
+}
+
+export type ProposalSettled = {
+  proposal: EvidenceRecord
+  confirmation: EvidenceRecord
+  verdict: string
+  user_id: string
+}
+
 export type RawId = string
 
 export type RawSourceId = string
@@ -577,6 +602,10 @@ export type TaskPlan = {
   skill_id: string
   skill_digest: string
   steps: PlanStage[]
+}
+
+export type TaskSelectBody = {
+  task_id: string
 }
 
 export type TaskState = {

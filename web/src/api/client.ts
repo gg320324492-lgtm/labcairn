@@ -128,7 +128,7 @@ export function assertRelativePath(path: string): void {
 }
 
 /** Whether a payload is the refusal body the service sends. */
-function isRefusalBody(payload: unknown): payload is RefusalBody {
+export function isRefusalBody(payload: unknown): payload is RefusalBody {
   if (typeof payload !== 'object' || payload === null) {
     return false
   }
@@ -188,6 +188,19 @@ export class LabCairnClient {
   }
 
   /**
+   * Open a response and hand its body back unread.
+   *
+   * **The event stream cannot go through** :meth:`read`: that waits for the
+   * body to end, and a followed stream ends when the service does. The caller
+   * reads the body and decides when to stop. The path is still checked here
+   * and the base is still this client's — a stream opened any other way would
+   * be a second boundary.
+   */
+  async stream(path: string, signal?: AbortSignal): Promise<Response> {
+    return this.send('GET', path, undefined, signal)
+  }
+
+  /**
    * Where the service wrote the session token.
    *
    * The path is returned and the token is not: the token goes into the
@@ -240,7 +253,12 @@ export class LabCairnClient {
   }
 
   /** The request itself. */
-  private async send(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response> {
+  private async send(
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     assertRelativePath(path)
     const headers: Record<string, string> = {}
     if (method === 'POST') {
@@ -259,6 +277,9 @@ export class LabCairnClient {
     }
     if (body !== undefined) {
       init.body = JSON.stringify(body)
+    }
+    if (signal !== undefined) {
+      init.signal = signal
     }
     return await fetch(apiUrl(path, this.base), init)
   }

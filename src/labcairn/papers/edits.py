@@ -45,6 +45,7 @@ from labcairn.papers.chain import (
     ChainRefusal,
     classify_revision_change,
     edge_row,
+    edit_action_id_for,
     edit_row,
     feedback_row,
     material_relative_path,
@@ -259,8 +260,14 @@ def _edit_action_id(version_id: str, revision_event_id: str) -> str:
     address of its own, so the id is what joins a row to the revision
     event it records — and a reader that wants to know what the change
     was, or whose name the file gives it, follows the id to the event.
+
+    **The derivation is shared, not repeated.** The application layer
+    also derives this id when an operator names a revision, so it lives
+    in :func:`labcairn.papers.chain.edit_action_id_for` — one spelling,
+    used by the side that writes and the side that reads.
     """
-    return f"ea-{revision_event_id}"
+    del version_id  # The event's id is the change's; the version is the caller's check.
+    return edit_action_id_for(revision_event_id)
 
 
 def record_edits_from_revisions(

@@ -32,6 +32,7 @@ refusal as well.
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -45,17 +46,21 @@ from labcairn.api.contracts import (
     ApprovalBody,
     ApprovalUseBody,
     ClaimBody,
+    ClaimExtractionBody,
     CommentResponses,
     GuidanceRuleVerdictBody,
     Health,
     IssueKeys,
+    ProposalAcceptanceBody,
     ReportBody,
     SessionInfo,
     StageBody,
+    TaskSelectBody,
     Trajectory,
 )
 from labcairn.api.events import EventSource, sse_frame
 from labcairn.api.guards import OriginPolicy
+from labcairn.api.selection import TaskSelector
 from labcairn.api.session import SessionToken
 from labcairn.application import (
     ApplicationContext,
@@ -63,11 +68,14 @@ from labcairn.application import (
     ApprovalGranted,
     ApprovalRequested,
     ArtifactView,
+    ClaimExtractionBackend,
     ClaimRecorded,
     ClaimRequest,
+    ExtractClaimRequest,
     FigureRequest,
     FigureRun,
     ProjectGraph,
+    ProposalSettled,
     ReportRendered,
     ReportRequest,
     SourceAddress,
@@ -76,7 +84,9 @@ from labcairn.application import (
     TaskPlan,
     TaskState,
     TaskStep,
+    confirm_proposal,
     consume_approval,
+    extract_claim,
     grant_approval,
     inspect_source,
     list_artifacts,
@@ -105,7 +115,7 @@ from labcairn.application.chain import read_issue_keys
 from labcairn.application.context import approval_ledger_for
 from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.stages import StageRequest, StageWork
-from labcairn.core.ids import ApprovalId
+from labcairn.core.ids import ApprovalId, TaskId, is_uuid7
 from labcairn.evidence.record import EvidenceRecord
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.rules import confirm_rule, dispute_rule
@@ -237,6 +247,57 @@ def get_task_state(context: Annotated[ApplicationContext, Depends(_context)]) ->
     return read_task_state(context)
 
 
+def _selected_task_id(raw: str) -> TaskId:
+    """The task id a selection names, or the layer's refusal.
+
+    The same validation the CLI's ``--task`` does, in the same vocabulary: a
+    malformed id is ``arguments_invalid`` and not a schema error, because a
+    caller that branches on the service's reasons should not have to branch
+    on a second shape for the one field it supplied.
+    """
+    try:
+        parsed = uuid.UUID(raw)
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{raw!r} is not a task id: task ids are UUIDv7.",
+        ) from error
+    if not is_uuid7(parsed):
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{raw!r} is not a task id: task ids are UUIDv7.",
+        )
+    return TaskId(parsed)
+
+
+@router.post("/task/select", response_model=Health, tags=["task"])
+def post_task_select(
+    body: TaskSelectBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> Health:
+    """Bind the service to another task in this workspace, and return the binding.
+
+    **This is a change, so it presents the session token** — the guard asks
+    for it on every method that is not a read, and this route is a POST for
+    exactly that reason. What it changes is the workspace's selection, not the
+    store: the task's own rows are left alone, and the next request is about
+    the task this one named.
+
+    **A task the store does not hold is refused before anything moves.** The
+    selector validates through the request's own session, and only then
+    persists the selection, so a typo cannot leave the workspace pointing at
+    a task that does not exist.
+
+    **Already-open streams are not re-bound.** Each stream reads the task it
+    was opened for; a selection decides what requests made after it are about.
+    """
+    selector = cast(TaskSelector, request.app.state.select_task)
+    base = cast(ApplicationContext, request.app.state.context)
+    request.app.state.context = selector(base, context, _selected_task_id(body.task_id))
+    return get_health(request)
+
+
 @router.get("/plan", response_model=TaskPlan, tags=["task"])
 def get_plan(context: Annotated[ApplicationContext, Depends(_context)]) -> TaskPlan:
     """The declared workflow and how far this task has got through it."""
@@ -317,6 +378,97 @@ def post_claim(
             unit=body.unit,
             tolerance=body.tolerance,
         ),
+    )
+
+
+def _parsed_approval_id(value: str) -> ApprovalId:
+    """The approval id a caller presented, or the layer's refusal naming why not.
+
+    A malformed id and an id the store does not hold are different refusals
+    with different remedies, and both belong to the layer's vocabulary rather
+    than to FastAPI's validation error.
+    """
+    try:
+        return ApprovalId(uuid.UUID(value))
+    except ValueError as error:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.ARGUMENTS_INVALID,
+            f"{value!r} is not an approval id: approval ids are UUIDs.",
+        ) from error
+
+
+@router.post("/claims/extract", response_model=ClaimRecorded, status_code=201, tags=["evidence"])
+def post_claim_extraction(
+    body: ClaimExtractionBody,
+    request: Request,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ClaimRecorded:
+    """Ask a model for one claim, and record its answer as a proposal.
+
+    **The route writes a proposal and never a person's claim**, even though a
+    person pressed the button. The person's act is acceptance, which is a
+    different route; keeping the two apart is what lets the ledger say whose
+    words each record carries.
+
+    **A service with no provider invocation refuses and writes nothing.** The
+    refusal is ``claim_extraction_no_provider`` and it is the honest answer to
+    a request this service cannot serve: an empty or invented proposal would
+    put words in a model's mouth that no model said. The same rule makes a
+    missing approval a refusal before anything leaves the machine.
+
+    The proposal is bound to the locator it names, and the model's quotation
+    is checked against the ledger's stored text before the record is written;
+    a quotation the material does not contain is refused with
+    ``claim_extraction_not_grounded``.
+    """
+    backend = cast(ClaimExtractionBackend | None, request.app.state.claim_extraction)
+    return extract_claim(
+        context,
+        ExtractClaimRequest(
+            source_id=body.source_id,
+            locator_key=body.locator_key,
+            user_id=body.user_id,
+            provider=body.provider,
+            model=body.model,
+            destination=body.destination,
+            subject_ref=body.subject_ref,
+            purpose=body.purpose,
+        ),
+        approval_id=_parsed_approval_id(body.approval_id) if body.approval_id else None,
+        grants=() if backend is None else backend.grants,
+        send=None if backend is None else backend.send,
+        capabilities=None if backend is None else backend.capabilities,
+    )
+
+
+@router.post(
+    "/records/{evidence_id}/accept",
+    response_model=ProposalSettled,
+    tags=["evidence"],
+)
+def post_record_acceptance(
+    evidence_id: str,
+    body: ProposalAcceptanceBody,
+    context: Annotated[ApplicationContext, Depends(_context)],
+) -> ProposalSettled:
+    """A person confirms or disputes a model's proposal.
+
+    The layer's own operation and the layer's own result, so the record this
+    route writes is the record the CLI's ``task proposal-confirm`` writes.
+    **The proposal is not promoted**: the person's own record is written at the
+    same address, carrying the proposal's words unchanged (acceptance is
+    as-is), and the proposal is superseded and kept.
+
+    ``note`` is required for a dispute and refused for a confirmation; the
+    layer enforces both, and the refusal it gives is the one this route
+    renders. ``user_id`` is a self-reported string — no account is checked.
+    """
+    return confirm_proposal(
+        context,
+        evidence_id,
+        user_id=body.user_id,
+        verdict=body.verdict,
+        note=body.note,
     )
 
 

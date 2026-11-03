@@ -15,6 +15,7 @@ quietly passing because the path it used happened not to be covered.
 from __future__ import annotations
 
 import builtins
+import inspect
 import os
 import shutil
 from collections.abc import Callable
@@ -32,7 +33,7 @@ from labcairn.workspace.outputs import (
     TaskOutputArea,
     WriteOutcome,
 )
-from labcairn.workspace.readonly import SourceIsReadOnlyError, SourceMaterial
+from labcairn.workspace.readonly import MAX_SOURCE_READ_BYTES, SourceIsReadOnlyError, SourceMaterial
 from labcairn.workspace.roots import Workspace, WorkspaceError
 
 pytestmark = pytest.mark.negative
@@ -173,6 +174,70 @@ def test_source_material_can_be_read(workspace: Workspace, source_id: str) -> No
     permissive = PermissionPolicy.from_rules([Rule(Permission.ALLOW, "**")])
     material = SourceMaterial(workspace, permissive)
     assert material.read("papers/a.pdf", root_id=source_id) == b"%PDF-1.4 a"
+
+
+def _oversized(workspace: Workspace, *, size: int) -> str:
+    """A source file whose **size** is *size*, with no bytes written to fill it.
+
+    The ceiling is checked on ``stat``, so the arrangement needs a length and
+    not a payload. Writing 96 MB to make a point about a number would make
+    every run of this file pay for it.
+    """
+    path = workspace.selected_root / "sources" / "papers" / "oversized.csv"
+    with path.open("wb") as handle:
+        handle.seek(size - 1)
+        handle.write(b"x")
+    assert path.stat().st_size == size, "the arrangement must be the size it claims"
+    return "papers/oversized.csv"
+
+
+@pytest.mark.parametrize("door", ["read", "read_permitted"])
+def test_a_file_over_the_ceiling_is_refused_by_both_read_doors(
+    workspace: Workspace, source_id: str, door: str
+) -> None:
+    """One ceiling, and **both doors enforce it**.
+
+    :meth:`SourceMaterial.read` and :meth:`SourceMaterial.read_permitted` are
+    two doors onto the same byte. They once carried two defaults that could be
+    moved apart, and one was moved: the manuscript ceiling was raised for the
+    ingest path and only the door that path uses was raised with it, so the
+    doors disagreed and a fixture parked between the two numbers stopped being
+    refused. **A caller that reads through the door nobody tested is the case
+    a witness has to cover.**
+    """
+    material = SourceMaterial(
+        workspace, PermissionPolicy.from_rules([Rule(Permission.ALLOW, "**")])
+    )
+    key = _oversized(workspace, size=MAX_SOURCE_READ_BYTES + 1)
+
+    with pytest.raises(SourceIsReadOnlyError) as raised:
+        if door == "read":
+            material.read(key, root_id=source_id)
+        else:
+            material.read_permitted(key, root_id=source_id, capability="source.inventory")
+
+    assert "oversized.csv" in str(raised.value), "the refusal must name the file"
+    assert str(MAX_SOURCE_READ_BYTES) in str(raised.value), "and name the ceiling it crossed"
+
+
+def test_both_read_doors_default_to_the_one_ceiling(workspace: Workspace, source_id: str) -> None:
+    """The two doors' defaults are **the same constant**, not two numbers that agree today.
+
+    **Why the signature and not only the behaviour.** A refusal test at
+    ceiling + 1 catches a default that was *raised*; it does not catch one that
+    was *lowered*, because the smaller door still refuses. Reading the defaults
+    binds the claim to the number it is about: change either one without the
+    other and this goes red.
+    """
+    defaults = {
+        name: inspect.signature(getattr(SourceMaterial, name)).parameters["max_bytes"].default
+        for name in ("read", "read_permitted")
+    }
+
+    assert defaults == {
+        "read": MAX_SOURCE_READ_BYTES,
+        "read_permitted": MAX_SOURCE_READ_BYTES,
+    }, f"the read doors carry two different ceilings: {defaults}"
 
 
 @pytest.mark.parametrize("method", ["write", "delete"])

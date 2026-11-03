@@ -25,6 +25,8 @@ import type {
   ApprovalRequested,
   ArtifactReceipt,
   ArtifactView,
+  Event,
+  EventStreamPage,
   EvidenceRecord,
   FigureRun,
   GuidanceRule,
@@ -32,6 +34,8 @@ import type {
   Health,
   IssueKeys,
   ProjectGraph,
+  ProposalAcceptanceBody,
+  ProposalSettled,
   Selection,
   SessionInfo,
   Source,
@@ -513,6 +517,33 @@ export function initialState(): FakeApiState {
   }
 }
 
+/** One stream the fake should answer with when it is asked. */
+export interface FakeStreamAttempt {
+  /** The frames to send before the body ends, or before it is held open. */
+  readonly frames?: readonly string[]
+  /** Keep the body open after the frames, until a test closes it. */
+  readonly hold?: boolean
+  /** Refuse the attempt with this status instead of streaming. */
+  readonly status?: number
+}
+
+/** A page of events, as the service's stream frame carries it. */
+export function eventPage(events: readonly Event[], taskId = TASK_ID): EventStreamPage {
+  const last = events.length === 0 ? 0 : (events[events.length - 1]?.seq ?? 0)
+  return {
+    schema_version: 1,
+    task_id: taskId,
+    events: [...events],
+    next_after_seq: last,
+    caught_up: true,
+  }
+}
+
+/** One server-sent frame, in the service's own spelling. */
+export function sseFrame(body: unknown): string {
+  return `data: ${JSON.stringify(body)}\n\n`
+}
+
 /**
  * The fake service.
  *
@@ -525,6 +556,21 @@ export class FakeApi {
 
   /** Every request the client has made. */
   readonly requests: RecordedRequest[] = []
+
+  /** The events the stream reports, in the order the fake's log holds them. */
+  events: Event[] = []
+
+  /** What the next stream connections should answer with, in order. */
+  streamScript: FakeStreamAttempt[] = []
+
+  /** How many event streams have been opened. */
+  streamAttempts = 0
+
+  /** The task states a selection can choose from, keyed by task id. */
+  readonly taskStates = new Map<string, TaskState>()
+
+  /** The bodies held open, so a test can close one as a disconnect would. */
+  private readonly openStreams: ReadableStreamDefaultController<Uint8Array>[] = []
 
   /** How many times the artefact's bytes have been asked for as a value. */
   artefactContentReads = 0
@@ -564,6 +610,9 @@ export class FakeApi {
 
   /** How many verdicts the service has been asked for. */
   ruleConfirmations = 0
+
+  /** How many proposals the fake has settled. */
+  proposalSettlements = 0
 
   /**
    * Whether the service refuses the verdict in the route's own vocabulary.
@@ -614,6 +663,7 @@ export class FakeApi {
       ['/records', () => this.state.records],
       ['/guidance/rules', () => this.state.guidanceRules],
     ])
+    this.taskStates.set(this.state.health.task_id, this.state.task)
   }
 
   /** The fetch the client calls. Bound, so it can be handed to a stub. */
@@ -629,6 +679,26 @@ export class FakeApi {
       credentials: init?.credentials ?? null,
       referrerPolicy: init?.referrerPolicy ?? null,
     })
+
+    if (method === 'POST' && path === '/task/select') {
+      const body = JSON.parse(init?.body as string) as { task_id: string }
+      const selected = this.taskStates.get(body.task_id)
+      if (selected === undefined) {
+        return jsonResponse(403, {
+          reason: 'task_not_found',
+          message: `no Task row for ${body.task_id}`,
+        })
+      }
+      // The service's answer is the binding, and the reads after it see the
+      // new task — the fake changes the same two answers for the same reason.
+      this.state.task = selected
+      this.state.health = { ...this.state.health, task_id: body.task_id }
+      return jsonResponse(200, this.state.health)
+    }
+
+    if (method === 'GET' && path.startsWith('/events/stream')) {
+      return this.eventStream(path)
+    }
 
     if (method === 'POST' && path.endsWith('/grant')) {
       const approvalId = path.replace('/approvals/', '').replace('/grant', '')
@@ -813,6 +883,10 @@ export class FakeApi {
       return this.answerTheGraph(path)
     }
 
+    if (method === 'POST' && path.startsWith('/records/') && path.endsWith('/accept')) {
+      return this.settleTheProposal(path, init)
+    }
+
     if (method === 'GET' && path.startsWith('/trajectory')) {
       return this.answerTheTrajectory(path)
     }
@@ -833,6 +907,97 @@ export class FakeApi {
       })
     }
     return jsonResponse(200, route())
+  }
+
+  /**
+   * The settlement of one proposal, and the two records it leaves.
+   *
+   * **The service's own three moves**: the person's record is written with
+   * the proposal's text unchanged (acceptance is as-is), the proposal is
+   * marked superseded and kept, and the answer is the pair. The refusals are
+   * the layer's — a dispute carries a note, a confirmation carries none, and
+   * a proposal is settled once.
+   */
+  private settleTheProposal(path: string, init?: RequestInit): Response {
+    const evidenceId = decodeURIComponent(path.slice('/records/'.length, -'/accept'.length))
+    const body = JSON.parse(init?.body as string) as ProposalAcceptanceBody
+    const proposal = this.state.records.find((record) => record.evidence_id === evidenceId)
+    if (proposal === undefined || proposal.created_by !== 'model_proposal') {
+      return jsonResponse(404, {
+        reason: 'evidence_not_found',
+        message: `the ledger holds no model's proposal with the id ${JSON.stringify(evidenceId)}.`,
+      })
+    }
+    if (proposal.superseded_by !== null && proposal.superseded_by !== undefined) {
+      return jsonResponse(403, {
+        reason: 'proposal_already_settled',
+        message:
+          `the proposal ${JSON.stringify(evidenceId)} was already settled by ` +
+          `${JSON.stringify(proposal.superseded_by)}. A proposal is settled once.`,
+      })
+    }
+    if (body.verdict !== 'confirmed' && body.verdict !== 'disputed') {
+      return jsonResponse(403, {
+        reason: 'proposal_verdict_unknown',
+        message: `${JSON.stringify(body.verdict)} is not a verdict a person can return about a proposal.`,
+      })
+    }
+    if (body.user_id.trim() === '') {
+      return jsonResponse(403, {
+        reason: 'attestation_identity_empty',
+        message: 'an attestation nobody signs is not an attestation.',
+      })
+    }
+    if (body.verdict === 'disputed' && (body.note ?? '').trim() === '') {
+      return jsonResponse(403, {
+        reason: 'proposal_note_missing',
+        message:
+          "a dispute must say what is disputed. The note is the disagreement's " +
+          'content, and a disagreement nobody states is an accusation with none.',
+      })
+    }
+    if (body.verdict === 'confirmed' && (body.note ?? '').trim() !== '') {
+      return jsonResponse(403, {
+        reason: 'proposal_note_unexpected',
+        message:
+          'a confirmation carries no note: acceptance is as-is, and a confirmation ' +
+          "with a correction would be an amendment wearing acceptance's name.",
+      })
+    }
+    this.proposalSettlements += 1
+    const confirmation: EvidenceRecord = {
+      ...proposal,
+      evidence_id: `rec-person-${this.proposalSettlements}`,
+      status: 'user_attested',
+      created_by: 'user',
+      created_by_id: body.user_id,
+      verification_log: [
+        {
+          schema_version: 1,
+          check: 'c4',
+          checker_id: body.user_id,
+          outcome: 'not_checked',
+          detail: body.verdict === 'disputed' ? `disputed. ${body.note}` : 'confirmed',
+          checked_at: '2026-11-02T09:00:00+00:00',
+        },
+      ],
+      superseded_by: null,
+      created_at: '2026-11-02T09:00:00+00:00',
+    }
+    const settled: EvidenceRecord = {
+      ...proposal,
+      superseded_by: confirmation.evidence_id,
+    }
+    this.state.records = this.state.records
+      .map((record) => (record.evidence_id === evidenceId ? settled : record))
+      .concat(confirmation)
+    const answer: ProposalSettled = {
+      proposal: settled,
+      confirmation,
+      verdict: body.verdict,
+      user_id: body.user_id,
+    }
+    return jsonResponse(200, answer)
   }
 
   /**
@@ -981,6 +1146,68 @@ export class FakeApi {
       feedbackIds.includes(response.feedback_id),
     )
     return jsonResponse(200, { comments, edits, responses })
+  }
+
+  /**
+   * One event-stream connection.
+   *
+   * **A scripted attempt wins; otherwise the stream is held open.** The
+   * default is the service's own behaviour for `follow=true` — the events
+   * after the cursor, then nothing until something happens — and holding it
+   * open means a test that does not care about disconnects sees no
+   * reconnects.
+   */
+  private eventStream(path: string): Response {
+    const scripted = this.streamScript[this.streamAttempts]
+    this.streamAttempts += 1
+
+    if (scripted?.status !== undefined) {
+      return jsonResponse(scripted.status, {
+        reason: 'not_implemented',
+        message: `the fake event stream refused attempt ${this.streamAttempts}.`,
+      })
+    }
+
+    let frames: readonly string[]
+    let hold: boolean
+    if (scripted === undefined) {
+      const query = new URLSearchParams(path.split('?')[1] ?? '')
+      const after = Number(query.get('after_seq') ?? '0')
+      const pending = this.events.filter((event) => event.seq > after)
+      frames = pending.length === 0 ? [] : [sseFrame(eventPage(pending))]
+      hold = true
+    } else {
+      frames = scripted.frames ?? []
+      hold = scripted.hold === true
+    }
+
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(frame))
+        }
+        if (hold) {
+          this.openStreams.push(controller)
+        } else {
+          controller.close()
+        }
+      },
+    })
+    return new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+
+  /** Close the most recently held-open stream, the way a dropped service does. */
+  closeStream(): boolean {
+    const controller = this.openStreams.pop()
+    if (controller === undefined) {
+      return false
+    }
+    controller.close()
+    return true
   }
 
   /** The requests the client made to one path. */

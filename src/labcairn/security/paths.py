@@ -35,6 +35,19 @@ before it can be compared, then resolve, then check containment again.** A
 single check is not enough — ``is_relative_to`` on the unresolved spelling
 passes for a junction escape, which is precisely the bypass §C4 forbids.
 
+What is a *hazard* is a platform property
+-----------------------------------------
+The list above was measured on Windows, and not all of it is true elsewhere.
+On POSIX a trailing dot or space is an ordinary filename character, ``:`` is
+not alternate-data-stream syntax, and a backslash is not a separator, so
+``\\\\?\\`` and ``\\\\.\\`` are relative names rather than namespace prefixes.
+The guard is therefore conditional where the hazard is: a POSIX file named
+``report.txt.`` is admitted and keeps its own key, and ``notes:draft.txt`` is
+refused for the *key's* character set rather than for a data stream POSIX does
+not have. A guard that refuses a real file for a hazard of another platform
+fails closed on the wrong question. Windows spellings are still refused on
+Windows, and the POSIX branches are tested on the Ubuntu runner.
+
 Failing closed
 --------------
 :func:`canonicalize` either returns a :class:`CanonicalPath` or **raises**
@@ -117,6 +130,12 @@ class PathRejection(StrEnum):
     TRAILING_DOT_OR_SPACE = "trailing_dot_or_space"
     #: A ``:`` inside a segment: the NTFS alternate-data-stream syntax.
     ALTERNATE_DATA_STREAM = "alternate_data_stream"
+    #: A character a POSIX filename may contain but a ``ResourceKey`` cannot.
+    #: The key is a cross-platform identity, and its pattern excludes ``:`` and
+    #: ``\\`` because neither can name the same file on Windows. Refused on
+    #: POSIX for the key's character set, **not** for a Windows hazard it does
+    #: not have there.
+    UNREPRESENTABLE_KEY_CHARACTER = "unrepresentable_key_character"
     #: A character that normalises to ``/`` or ``\`` under NFKC (fullwidth forms).
     SEPARATOR_SMUGGLING = "separator_smuggling"
     #: A ``\\?\`` extended-length prefix.
@@ -235,6 +254,14 @@ def _check_invisible(value: str) -> None:
 def _check_segments(value: str, *, separators: str) -> None:
     """Per-segment checks: trailing dot/space, ADS colon, NFKC smuggling.
 
+    **The first two are Windows hazards, not spelling hazards.** Win32 strips a
+    trailing dot or space and reads ``:`` as alternate-data-stream syntax; POSIX
+    does neither, so there they are ordinary filename characters. The check is
+    therefore conditional on the platform rather than applied everywhere: a
+    guard that refuses a real POSIX file for a Windows reason is wrong on POSIX
+    even though it fails closed. A ``:`` is still refused on POSIX, but for the
+    cross-platform reason in the branch below, not for ADS.
+
     The caller passes only the path *after* its drive or UNC root. That matters:
     ``C:\\Windows`` has a segment containing ``:``, and without the split every
     absolute Windows path would be refused as alternate-data-stream syntax —
@@ -263,7 +290,7 @@ def _check_segments(value: str, *, separators: str) -> None:
             # root is decided by the containment check, not here — which is why
             # they must not be caught by the trailing-dot rule below.
             continue
-        if segment != segment.rstrip(". "):
+        if os.name == "nt" and segment != segment.rstrip(". "):
             raise PathRefusedError(
                 PathRejection.TRAILING_DOT_OR_SPACE,
                 f"segment {raw_segment!r} ends in a dot or space. Win32 strips both, "
@@ -271,18 +298,41 @@ def _check_segments(value: str, *, separators: str) -> None:
                 f"written against one spelling would miss the other.",
             )
         # The drive colon was removed by the caller, so any colon still present
-        # is alternate-data-stream syntax.
+        # is alternate-data-stream syntax on Windows. POSIX has no data streams
+        # and a colon is an ordinary filename character there — but a
+        # ResourceKey is a cross-platform identity, and its pattern excludes the
+        # colon because the same key could not name the same file on Windows.
         if ":" in segment:
+            if os.name == "nt":
+                raise PathRefusedError(
+                    PathRejection.ALTERNATE_DATA_STREAM,
+                    f"segment {raw_segment!r} contains ':'. On NTFS that is alternate "
+                    f"data stream syntax: open() would write a hidden stream on the "
+                    f"target file and leave the visible content untouched.",
+                )
             raise PathRefusedError(
-                PathRejection.ALTERNATE_DATA_STREAM,
-                f"segment {raw_segment!r} contains ':'. On NTFS that is alternate "
-                f"data stream syntax: open() would write a hidden stream on the "
-                f"target file and leave the visible content untouched.",
+                PathRejection.UNREPRESENTABLE_KEY_CHARACTER,
+                f"segment {raw_segment!r} contains ':'. POSIX allows it in a filename, "
+                f"but a resource key that could name this file on POSIX could not name "
+                f"it on Windows, where ':' is alternate-data-stream syntax. The key "
+                f"character set excludes it.",
+            )
+        # `*` and `?` are the other two characters the key pattern excludes.
+        # POSIX allows both in a filename; Win32 allows neither in a real one,
+        # so a declared spelling containing them names nothing there either.
+        # In both cases the key cannot carry them, and that is the reason.
+        if "*" in segment or "?" in segment:
+            raise PathRefusedError(
+                PathRejection.UNREPRESENTABLE_KEY_CHARACTER,
+                f"segment {raw_segment!r} contains '*' or '?'. POSIX allows them in "
+                f"a filename, but a resource key cannot carry them, and on Windows "
+                f"they are not legal filename characters at all. The key character "
+                f"set excludes them.",
             )
 
 
 def _check_prefixes(value: str) -> None:
-    """Reject ``\\\\?\\``, ``\\\\.\\`` and UNC roots.
+    """Reject Windows namespace prefixes, on the platform that has them.
 
     All three are Windows *namespace* prefixes rather than ordinary path
     syntax. ``\\\\?\\`` survives ``resolve()`` verbatim, so a path spelled with it
@@ -290,7 +340,26 @@ def _check_prefixes(value: str) -> None:
     the digest in ADR-0003 §C4 is computed over that string. ``\\\\.\\`` addresses
     devices. UNC addresses another machine, which a local-first workbench has no
     business reading silently.
+
+    **On POSIX none of that is true.** A backslash is an ordinary filename
+    character there, so ``\\\\?\\E:\\temp\\x`` is a relative name, not a
+    namespace path; ``//server/share`` is a POSIX absolute path, not a UNC
+    root. Refusing the backslash spellings for a Windows reason would name a
+    hazard the platform does not have. They are still refused, because a
+    ``ResourceKey`` cannot carry a backslash — the same key could not name the
+    same file on Windows — and that is the reason given. A leading ``//`` is
+    left to resolution and the containment check, which is what actually
+    decides where it lands.
     """
+    if os.name != "nt":
+        if "\\" in value:
+            raise PathRefusedError(
+                PathRejection.UNREPRESENTABLE_KEY_CHARACTER,
+                "path contains a backslash. POSIX allows it in a filename, but a "
+                "resource key that could name this file on POSIX could not name it "
+                "on Windows. The key character set excludes it.",
+            )
+        return
     lowered = value.lower()
     if lowered.startswith(("\\\\?\\", "\\\\??\\")):
         raise PathRefusedError(
@@ -349,10 +418,11 @@ def _reject_hostile_spelling(value: str) -> str:
     _check_invisible(value)
     _check_prefixes(value)
     _check_percent_encoding(value)
-    # Strip the drive or UNC root before per-segment checks, so the colon in
-    # `C:` is not mistaken for alternate-data-stream syntax. `_check_prefixes`
-    # has already refused UNC and namespace paths, so what remains is either a
-    # drive spec or nothing.
+    # Strip the drive root before per-segment checks, so the colon in `C:` is
+    # not mistaken for alternate-data-stream syntax. On POSIX `splitdrive`
+    # returns the whole value (there is no drive), so `C:/...` reaches the
+    # segment check with its colon intact and is refused as an unrepresentable
+    # key character — refused either way, for the reason each platform has.
     drive, remainder = os.path.splitdrive(value)
     del drive
     _check_segments(remainder, separators="/\\")
@@ -373,9 +443,11 @@ def check_spelling(value: str) -> str:
     :param value: the name as the caller wrote it.
     :returns: the NFC-normalised spelling of *value*.
     :raises PathRefusedError: *value* is a spelling this build cannot speak —
-        a NUL byte in it, an invisible character, a segment that ends in a
-        dot, an alternate-data-stream colon, a percent-escape that decodes to
-        a structural character, a namespace or UNC prefix.
+        a NUL byte in it, an invisible character, on Windows a segment that
+        ends in a dot, an alternate-data-stream colon where the platform has
+        data streams, on POSIX a colon or backslash a ``ResourceKey`` cannot
+        carry, a percent-escape that decodes to a structural character, or a
+        Windows namespace or UNC prefix on Windows.
     """
     return _reject_hostile_spelling(value)
 

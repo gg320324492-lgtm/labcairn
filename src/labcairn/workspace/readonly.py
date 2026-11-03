@@ -37,11 +37,30 @@ import fnmatch
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Final
 
 from labcairn.security.approval import content_hash
 from labcairn.security.paths import RootKind
 from labcairn.security.policy import Permission, PermissionPolicy, ResourceRef
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace
+
+#: The largest supplied file this module will read, and **the only place that
+#: number is written**.
+#:
+#: **It is one constant, not one per door.** :meth:`SourceMaterial.read` and
+#: :meth:`SourceMaterial.read_permitted` are two doors onto the same byte, and
+#: two defaults that could be moved apart is what happened once: the ceiling
+#: was raised for the manuscript ingest and only the door the ingest uses was
+#: raised with it, so the doors disagreed and a fixture parked between the two
+#: numbers stopped being refused. Both doors are watched now, in
+#: ``tests/test_workspace_boundaries.py``: the refusal is exercised through
+#: each one, and the two defaults are read back and compared to this constant.
+#:
+#: **Why 96 MB.** Measured 2026-11-03: the third pilot's late drafts are 71.4 MB
+#: and the 64 MB ceiling refused seven versions of one real manuscript. The
+#: number is anchored to that measurement, and a ceiling that can change is
+#: re-measured rather than carried forward.
+MAX_SOURCE_READ_BYTES: Final[int] = 96_000_000
 
 
 class SourceAccessDeniedError(PermissionError):
@@ -74,7 +93,7 @@ class SourceMaterial:
     def workspace(self) -> Workspace:
         return self._workspace
 
-    def read(self, key: str, *, root_id: str, max_bytes: int = 64_000_000) -> bytes:
+    def read(self, key: str, *, root_id: str, max_bytes: int = MAX_SOURCE_READ_BYTES) -> bytes:
         """Read a source file, re-checking containment on the way.
 
         ``root_id`` is required rather than optional. "Read something inside the
@@ -103,7 +122,7 @@ class SourceMaterial:
         *,
         root_id: str,
         capability: str,
-        max_bytes: int = 64_000_000,
+        max_bytes: int = MAX_SOURCE_READ_BYTES,
     ) -> bytes:
         """Read a source file only if the policy permits this capability for it.
 

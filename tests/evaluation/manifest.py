@@ -226,6 +226,11 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # clause is numerical extraction because that is the task the adapter
     # translates; the file declares the unit marker, as its neighbours do.
     "test_paperqa_adapter.py": ("unit", "numeric-extraction"),
+    # LC-P2-18's comparison driver: two sides, the six conditions, the
+    # dry-run disclosures, and the real mode's refusals. Unit, because the
+    # witnesses build the sides offline and read the frozen baseline; the
+    # clause is numerical extraction, the task both sides carry.
+    "test_competitor_comparison.py": ("unit", "numeric-extraction"),
     "test_retrieval_ground_truth.py": ("negative", "fabricated-citation"),
     # -- the fake provider --------------------------------------------------
     "test_fake_provider_determinism.py": ("unit", "typed-contracts"),
@@ -347,6 +352,12 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # says so. Its clause is insufficient evidence, because the refusal is
     # about a rule the cases do not support.
     "test_guidance_distillation.py": ("integration", "insufficient-evidence"),
+    # The distillation's second case: a rule learned from a tracked change
+    # rather than from a comment, for the manuscript that carries changes
+    # and no comment at all. Its clause is insufficient evidence, because
+    # the refusal is about a rule the cases do not support -- a revision
+    # nobody holds, or no revision at all.
+    "test_guidance_revision_distillation.py": ("integration", "insufficient-evidence"),
     # The retrieval: a source that stands or falls by its state, the
     # reader's consent, and a hit that carries its source and its
     # conditions. Its clause is the dataset locators, because the property
@@ -472,6 +483,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # -- G5's own work ------------------------------------------------------
     "test_fault_injection_e2e.py": ("e2e", "cli-task"),
     "test_outsider_path.py": ("e2e", "fresh-install"),
+    # The workbench's first live-service witness: the CLI and the API the UI
+    # reads, driven against one running service.
+    "test_workbench_live_service.py": ("e2e", "web-task"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),

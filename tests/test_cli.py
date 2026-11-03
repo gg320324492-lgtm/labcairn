@@ -90,6 +90,7 @@ from labcairn.reports.receipt import (
 )
 from labcairn.runtime.lifecycle import Task
 from labcairn.sources.source import Source, SourceKind, SourceReadability
+from labcairn.workspace.readonly import MAX_SOURCE_READ_BYTES
 
 pytestmark = pytest.mark.e2e
 
@@ -972,13 +973,26 @@ def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: 
     a task that quietly holds less than the material it was given, and the
     refusal names the file.
 
-    The bytes are never read -- the refusal is on the size -- so the file
-    costs a write and nothing else, and the arrangement cannot skip on a
-    platform where symlinks are unavailable.
+    The bytes are never read -- the refusal is on the size -- so the file is
+    made by seeking past the end and writing one byte, and the arrangement
+    cannot skip on a platform where symlinks are unavailable.
+
+    **And the size is derived from the ceiling it means to cross, not written
+    out.** This arrangement was once a hardcoded 72 MB against a 64 MB limit;
+    when the limit moved to 96 MB the file stayed where it was, the refusal
+    stopped happening, and the witness went red for a reason that had nothing
+    to do with the property under test. A fixture that names a number the
+    product owns is a fixture that decouples the moment that number moves.
     """
     (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     (workspace / "other").mkdir()
-    (workspace / "other" / "oversized.csv").write_bytes(b"a,b\n1,2\n" * 8_000_001)
+    oversized = workspace / "other" / "oversized.csv"
+    with oversized.open("wb") as handle:
+        handle.seek(MAX_SOURCE_READ_BYTES)
+        handle.write(b"x")
+    assert oversized.stat().st_size == MAX_SOURCE_READ_BYTES + 1, (
+        "the arrangement must be one byte past the ceiling the product names"
+    )
     created = run_cli(
         "--workspace",
         str(workspace),
@@ -2938,8 +2952,6 @@ def test_task_proposal_confirm_settles_a_models_proposal_through_the_console(
         "confirmed",
         "--user",
         "the-advisor",
-        "--note",
-        "I read the table; the number is the one it carries.",
         "--json",
     )
 

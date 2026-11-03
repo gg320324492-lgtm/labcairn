@@ -87,7 +87,7 @@ from labcairn.application.refusal import PAPER_REFUSALS, paper_refusal_name
 from labcairn.db.materials import put_source
 from labcairn.db.models import RevisionEventRow
 from labcairn.db.session import create_db_engine, create_session_factory
-from labcairn.material.ooxml import read_document
+from labcairn.material.ooxml import RevisionDocument, RevisionEvent, read_document
 from labcairn.papers.feedback import record_feedback
 from labcairn.papers.responses import list_unaddressed
 from labcairn.papers.revisions import (
@@ -108,6 +108,7 @@ from labcairn.papers.versions import (
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.security.approval import ApprovalLedger
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
+from labcairn.sources.locators import DocxLocator
 from labcairn.sources.source import Source, SourceKind, SourceReadability
 
 pytestmark = pytest.mark.integration
@@ -1639,6 +1640,168 @@ def test_a_manuscript_whose_bytes_changed_under_its_name_is_refused(
         _recorded(marked_up.context, marked_up)
     assert caught.value.reason is ApplicationRefusal.CHAIN_MATERIAL_DRIFTED
     assert _count(marked_up.context, "revision_events") == 0
+
+
+def _revision_on_one_path(text: str, kind: str) -> RevisionEvent:
+    """A hand-built tracked change at one fixed element path.
+
+    The path is the one the reader would give the first ``ins`` of the first
+    paragraph; the point of these witnesses is a *second* change landing on
+    the very same address, which the real reader does not produce (it reports
+    each element once and the address is unique over what it reports). So the
+    collision is driven at the seam the identity is decided at -- the rows the
+    writer builds -- rather than through a document the reader refuses to
+    mis-address.
+    """
+    return RevisionEvent(
+        kind=kind,
+        text=text,
+        author="Prof. Lin",
+        date=datetime(2026, 3, 2, 9, 30, tzinfo=UTC),
+        element_id=None,
+        locator=DocxLocator(
+            part="word/document.xml",
+            element_path="/document[1]/body[1]/p[1]/ins[1]",
+            view="accepted",
+            char_start=0,
+            char_end=len(text),
+        ),
+        paragraph=0,
+        baseline_start=0,
+        baseline_end=0,
+        nested=False,
+        text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    )
+
+
+def _record_two_events_on_one_path(
+    marked_up: ChainEnv,
+    monkeypatch: pytest.MonkeyPatch,
+    first: RevisionEvent,
+    second: RevisionEvent,
+) -> tuple[RevisionRecord, ...]:
+    """Record ``marked_up`` with ``read_document`` returning the two events."""
+
+    def _fake_read_document(_data: bytes) -> RevisionDocument:
+        return RevisionDocument(revisions=(first, second))
+
+    monkeypatch.setattr("labcairn.papers.revisions.read_document", _fake_read_document)
+    return record_revision_events(
+        marked_up.context,
+        project_id=marked_up.project_id,
+        version_id=marked_up.version_id,
+        now=CHAIN_MOMENT,
+    )
+
+
+def test_two_different_changes_on_one_element_path_are_recorded_as_two_events(
+    marked_up: ChainEnv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second change at a taken address is a NEW row, not a refused file.
+
+    This is the silent-loss case the identity used to assume away. Two tracked
+    changes -- here with different text -- land on the *same* ``(part,
+    element_path)``. **The old derivation hashed ``(version, part, path)`` and
+    nothing else**, so the two events got one id: the writer's replay check
+    found the row the first event wrote, saw a different ``text_sha256``, and
+    raised ``ANCHOR_STALE`` -- reporting a collision as if the manuscript's
+    bytes had drifted, and recording neither change. **The fix gives the
+    second change an occurrence of 1**, a different id, and its own row.
+
+    **What breaks it:** dropping the ``occurrence`` argument from the digest
+    (the defect restored) -- the two events collide on one id and the second
+    is refused, so only one row lands. A second half of the guard -- the
+    ``ANCHOR_STALE`` that mislabels the collision -- disappears with it, and
+    the ``len == 2`` below is the witness for the change, not the refusal.
+    """
+    first = _revision_on_one_path("alpha", "ins")
+    second = _revision_on_one_path("beta", "ins")
+
+    # A collision is RECORDED, not refused: the writer must not raise
+    # ANCHOR_STALE here (that is the drift case, held by the test named below).
+    # The two -- collision recorded as two events, drift refused as stale -- are
+    # the collision-versus-drift distinction, and they are decided apart.
+    recorded = _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+
+    assert len(recorded) == 2, "two changes at one address collapsed to one record"
+    assert len({r.revision_event_id for r in recorded}) == 2
+    assert {r.text for r in recorded} == {"alpha", "beta"}
+    assert _count(marked_up.context, "revision_events") == 2
+
+    # Re-recording the same two events is the same two rows, not four.
+    again = _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+    assert {r.revision_event_id for r in again} == {r.revision_event_id for r in recorded}
+    assert _count(marked_up.context, "revision_events") == 2
+
+
+def test_two_changes_on_one_path_that_share_their_text_are_still_two_events(
+    marked_up: ChainEnv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Identical text at one address is still two changes, not a replay.
+
+    The worst shape of the defect: two changes with the **same text** at the
+    same path. The old writer's replay branch matched ``text_sha256`` and
+    ``continue``d -- silently dropping the second event as if it were the same
+    change read twice. But the reader reported two distinct elements, so two
+    rows are owed; the occurrence separates them where the text cannot.
+
+    **What breaks it:** an identity that hashes the text so a same-text
+    collision is "detected", or one that ignores the occurrence so the writer
+    folds the second onto the first -- both leave one row where there are two
+    changes, and ``len == 2`` is red.
+    """
+    first = _revision_on_one_path("the same words", "ins")
+    second = _revision_on_one_path("the same words", "ins")
+
+    recorded = _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+
+    assert len(recorded) == 2, "two same-text changes at one address folded into one"
+    assert len({r.revision_event_id for r in recorded}) == 2
+    assert _count(marked_up.context, "revision_events") == 2
+
+
+def test_a_stale_anchor_is_still_refused_on_an_occurrence_bearing_id(
+    marked_up: ChainEnv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The occurrence rule dissolves a collision; it does not blunt the drift guard.
+
+    The collision and the drift are two different failures and they must be
+    decided apart. **A collision** -- two changes at one address in one read --
+    is a NEW row, not a refusal: that is the two witnesses just above, and the
+    ``occ ≡ 0`` mutation proves it (with the occurrence dropped the
+    different-text pair is refused as ``ANCHOR_STALE``, reporting a collision as
+    if the bytes had drifted). **A drift** -- a stored row whose text no longer
+    agrees with what the manuscript now reads -- is still ``ANCHOR_STALE``.
+
+    This witness runs the drift on an id that *carries an occurrence*, which is
+    the case the single-change stale test never reaches: a second change at one
+    address is recorded, then that stored row is corrupted, then the same
+    version is re-read. **What breaks it:** an identity that refuses to
+    re-derive the occurrence on re-read, or a writer that replays a
+    text-mismatched occurrence-bearing row as a harmless skip instead of a
+    stale anchor -- both let a drifted change pass unnoticed among the
+    multi-change addresses.
+    """
+    first = _revision_on_one_path("alpha", "ins")
+    second = _revision_on_one_path("beta", "ins")
+    _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+    assert _count(marked_up.context, "revision_events") == 2
+
+    session = marked_up.context.store.session
+    second_row = next(
+        row
+        for row in session.query(RevisionEventRow).filter_by(version_id=marked_up.version_id)
+        if row.text == "beta"
+    )
+    second_row.text_sha256 = "0" * 64
+    session.commit()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record_two_events_on_one_path(marked_up, monkeypatch, first, second)
+    assert caught.value.reason is ApplicationRefusal.CHAIN_ANCHOR_STALE
 
 
 def test_a_revision_event_is_not_recorded_when_the_policy_denies_the_material(

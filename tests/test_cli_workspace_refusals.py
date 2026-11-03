@@ -819,14 +819,23 @@ def test_a_source_directory_the_command_names_that_cannot_be_spoken_is_refused(
     )
 
     payload = _refusal_with_reason(result, INVALID_ARGUMENTS)
-    expected = (
-        "the source directory 'materials.' is not a name this build can use: "
-        "trailing_dot_or_space: segment 'materials.' ends in a dot or space. "
-        "Win32 strips both, so 'secret.txt.' and 'secret.txt' are the same file and "
-        "a rule written against one spelling would miss the other. `task create` "
-        "binds source roots the workspace can speak, and it will not make one up."
-    )
-    assert payload["message"] == expected
+    if os.name == "nt":
+        expected = (
+            "the source directory 'materials.' is not a name this build can use: "
+            "trailing_dot_or_space: segment 'materials.' ends in a dot or space. "
+            "Win32 strips both, so 'secret.txt.' and 'secret.txt' are the same file and "
+            "a rule written against one spelling would miss the other. `task create` "
+            "binds source roots the workspace can speak, and it will not make one up."
+        )
+        assert payload["message"] == expected
+    else:
+        # On POSIX a trailing dot is an ordinary filename character, so the
+        # guard admits the name (the platform-conditional half witnessed in
+        # tests/test_security_paths.py) and the command refuses it for the
+        # plain reason: the directory is not there. Asserting the Windows
+        # sentence here would have CI assert a hazard POSIX does not have.
+        assert "is not a directory" in payload["message"]
+        assert "'materials.'" in payload["message"]
 
 
 # --------------------------------------------------------------------------- #

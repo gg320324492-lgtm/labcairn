@@ -1,5 +1,24 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-03 · **the evaluation harness now runs in CI on a weekly
+schedule, over the five classes it can run offline.**
+
+`python.yml` gained a `schedule` trigger and an `evaluation` job. On the
+schedule event `lint` and the ten shard jobs are skipped, so the run spends
+one job; the job runs `python -m tests.evaluation --classes
+unit,integration,negative,e2e,repository`, prints the report to the log and
+uploads it as an artifact. It is **not** a required check, and it cannot be
+one: GitHub fires a schedule only from the default branch, so branch
+protection never sees it. The fifth protocol class is `NOT SELECTED` and is
+discharged by `provider-smoke.yml` under the owner's 2026-10-28 ruling. The
+choice between a weekly schedule, a per-merge push and a pull-request job
+that could be required is still the owner's, as is the runner cost.
+Measured locally on 2026-11-03: the default all-class run exits 2 (the fifth
+class is `NOT RUN`) in 2456.8 s; `--classes unit` passes 1789/1789 and still
+exits 1 because the blockers become `NOT_EVALUATED`, which is why the job
+selects all five offline classes. Five mutations of the new witness were
+caught. Record: [LC-P1-13 evaluation in CI](../plans/LC-P1-13-evaluation-ci.md).
+
 **Date:** 2026-11-02 · **the artifact ledger and the outbound-consent
 bridge are durable, the blind evaluation's preparation is
 mutation-verified twice, and five acceptance records carry an

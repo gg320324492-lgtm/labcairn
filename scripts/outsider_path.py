@@ -1998,7 +1998,7 @@ def the_workspace_walk(spec: dict[str, Any], recorder: Recorder, report: dict[st
     ]
     report["findings"] = [
         {
-            "what": "the report's second revision cannot be recomputed from the revised material",
+            "what": "whether the report's second revision is recomputed from the revised material",
             "measured": report.get("recomputation", {}).get("outcome", "not attempted"),
         },
     ]
