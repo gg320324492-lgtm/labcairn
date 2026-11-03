@@ -137,6 +137,7 @@ Operation  The permission that governs it
 ``read_issue_keys``                   the material's — asked where it is named
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
+``read_guidance_rule_version``        the material's — asked where it is named
 ``write_guidance_rule_version``       the material's — asked where it is named
 ``write_guidance_rule_confirmation``  the material's — asked where it is named
 ``write_guidance_rule_resolution``    the material's — asked where it is named
@@ -233,6 +234,7 @@ from labcairn.application.guidance import (
     read_guidance_checks,
     read_guidance_rule,
     read_guidance_rule_checks,
+    read_guidance_rule_version,
     read_guidance_rules,
     write_guidance_check,
     write_guidance_check_confirmation,
@@ -424,6 +426,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_version",
     "read_guidance_rules",
     "read_issue_keys",
     "read_material_paths",
