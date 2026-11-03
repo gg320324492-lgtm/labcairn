@@ -27,6 +27,14 @@ would say the advisor wrote about nothing — which is not what happened.
 So the scope names every case it holds: the text the comment was written
 against, or the fact that the reader could not place it, with the reason
 the chain gives.
+
+**And a comment rule can be written again under its own id.** The comment
+path's version door is ``distil_comment_version_of``, the sibling of the
+revision path's ``distil_revision_version_of``: it keeps the rule's
+``rule_id``, takes the scope and the example from the cases, carries the
+comment path's ``model_proposal``, and lands as a candidate that only a
+second reader may confirm. Its witnesses are the second half of this
+file.
 """
 
 from __future__ import annotations
@@ -37,14 +45,19 @@ from pathlib import Path
 import pytest
 from docx_fixtures import Comment
 from feedback_chain_fixtures import PARAGRAPH, a_comment, build_chain
+from sqlalchemy import select, text
 from store_support import StoreEnv
 from store_support import env as _shared_env
 
 from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
-from labcairn.db.models import GuidanceRuleRow
-from labcairn.guidance.distil import MODEL_PROPOSER, distil_candidate
+from labcairn.db.models import EditActionRow, GuidanceRuleRow, ResponseLinkRow
+from labcairn.guidance.distil import (
+    MODEL_PROPOSER,
+    distil_candidate,
+    distil_comment_version_of,
+)
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.retrieval import search_rules
 from labcairn.guidance.rules import GuidanceRule, confirm_rule, read_rule
@@ -59,6 +72,10 @@ MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
 LATER = datetime(2026, 4, 2, 9, 0, tzinfo=UTC)
 
 KEY = "iss-gold-a-r1"
+#: The key of a second case, on the manuscript's second paragraph. **The
+#: version witness uses a different case from the first version**, so a
+#: scope or example copied from the old row cannot pass for the cases'.
+KEY_OTHER = "iss-gold-d-r1"
 #: The key of a case whose comment the reader could not place in the body.
 KEY_UNPLACED = "iss-gold-b-r1"
 #: The key of a case whose comment the reader placed on a point, so the
@@ -151,6 +168,57 @@ def _chain_keyed(
     )
     for key, event in zip(keys, events, strict=True):
         set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=key, now=MOMENT)
+    return chain.context
+
+
+def _judged_chain(env: StoreEnv, workspace_root: Path) -> ApplicationContext:
+    """A chain with one comment under *KEY*, judged ``addressed``.
+
+    **The judgement is written as the chain's own rows**, the way
+    ``tests/test_guidance_retrieval.py`` writes it: the retrieval's
+    source check reads ``response_links``, and a rule is served only
+    while a judgement says the change answered the comment. The
+    distillation's own fixture deliberately holds no judgement — the
+    distillation reads the case, not the verdict — so the witness that
+    has to see a rule served builds a judged chain of its own.
+    """
+    workspace_root.mkdir(parents=True)
+    store = env.store()
+    chain = build_chain(store, workspace_root, comments=(a_comment("201"),))
+    events = record_feedback(
+        chain.context,
+        project_id=chain.project_id,
+        version_id=chain.version_id,
+        now=MOMENT,
+    )
+    assert len(events) == 1, "the fixture's manuscript carries one comment"
+    event = events[0]
+    set_issue_key(chain.context, feedback_id=event.feedback_id, issue_key=KEY, now=MOMENT)
+    session = chain.context.store.session
+    session.add(
+        EditActionRow(
+            edit_action_id="edit-1",
+            feedback_id=event.feedback_id,
+            version_edge_id=chain.edge_id,
+            actor_kind="student",
+            grade="observed",
+            created_at=MOMENT,
+        )
+    )
+    session.add(
+        ResponseLinkRow(
+            response_link_id="resp-1",
+            feedback_id=event.feedback_id,
+            edit_action_id="edit-1",
+            state="addressed",
+            grade="human_verified",
+            decided_by="user",
+            decided_at=LATER,
+            evidence_refs=["check:key"],
+            created_at=LATER,
+        )
+    )
+    session.flush()
     return chain.context
 
 
@@ -440,3 +508,234 @@ def test_the_scope_names_every_case_it_claims_and_the_sources_agree(
     assert set(_quoted_texts(distilled.scope)) == {
         case.anchor_text for case in cases if case.anchor_text
     }, f"the scope quotes a text no case holds: {distilled.scope!r}"
+
+
+# --------------------------------------------------------------------------- #
+# A comment rule written again: the next version, from comment cases.
+# --------------------------------------------------------------------------- #
+
+#: The statement of the **first** version of the rule — the thin one, the
+#: kind a run that read one remark writes.
+_FIRST_STATEMENT = STATEMENT
+
+#: The statement of the **second** version — the one a reader could apply.
+_SECOND_STATEMENT = (
+    "When the claim rests on a comparison, the rule names the baseline in the"
+    " same paragraph as the quantity it is compared against."
+)
+
+
+def _version(context: ApplicationContext, rule_id: str, **overrides: object) -> GuidanceRule:
+    """Write a new version of *rule_id* from the advisor's comment."""
+    kwargs: dict[str, object] = {
+        "rule_id": rule_id,
+        "issue_type": "method_and_hypothesis",
+        "statement": _SECOND_STATEMENT,
+        "rule_context": "A results section whose claim is comparative.",
+        "issue_keys": (KEY,),
+        "now": LATER,
+    }
+    kwargs.update(overrides)
+    return distil_comment_version_of(context, **kwargs)  # type: ignore[arg-type]
+
+
+def test_a_new_version_keeps_the_rule_it_replaces(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """**The rule keeps its place.** A new rule under a new id would be a
+    second rule about the same thing, and the memory would hold two
+    answers to one question.
+
+    So the new version is written under the same ``rule_id``, as the next
+    version of it — **and the reader gets the newest words and nothing
+    else.**
+    """
+    context, _ = cases
+    first = _distil(context)
+    second = _version(context, first.rule_id)
+
+    assert second.rule_id == first.rule_id, "the version must keep the rule's place"
+    assert second.version == first.version + 1, "the version must be the next one"
+    assert second.statement == _SECOND_STATEMENT
+    assert second.state == "candidate", "a rewording is not a confirmation"
+
+
+def test_the_old_version_keeps_the_state_it_had(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """**The memory does not rewrite its past.**
+
+    The old version's row keeps its own state and its own words, so a
+    reader who looks at the past finds the past — **and a rule that
+    outlives its work is not a second place to look for the same code.**
+    """
+    context, _ = cases
+    first = _distil(context)
+    confirm_rule(context, rule_id=first.rule_id, confirmed_by="reviewer-2", now=MOMENT)
+
+    _version(context, first.rule_id)
+
+    rows = (
+        context.store.session.execute(
+            select(GuidanceRuleRow)
+            .where(GuidanceRuleRow.rule_id == first.rule_id)
+            .order_by(GuidanceRuleRow.version)
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 2, "the version must be a new row, not a rewrite"
+    assert rows[0].statement == _FIRST_STATEMENT, "the old version keeps its own words"
+    assert rows[0].state == "confirmed", "the old version keeps the state it had"
+    assert rows[1].statement == _SECOND_STATEMENT
+    assert rows[1].state == "candidate"
+
+
+def test_the_scope_and_the_example_are_the_cases_not_the_callers(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """**A caller cannot write a scope the cases do not support.**
+
+    The scope is the anchored text the comment was written against and
+    the example is the advisor's own words — **so a caller that had to
+    hand-write them would have had to go around the product to do it**,
+    and a rule whose scope the cases do not support is a rule bound to
+    material that does not exist.
+
+    **And the version's cases are the version's, not the first version's.**
+    The first version is distilled from one comment and the new version
+    from another, so a scope or an example copied from the old row is a
+    scope or an example the new cases did not give.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(
+            a_comment("301"),
+            a_comment(
+                "302",
+                text="Name the comparison group.",
+                anchor_text="comparison group",
+                paragraph=1,
+            ),
+        ),
+        keys=(KEY, KEY_OTHER),
+        paragraphs=(PARAGRAPH, SECOND_PARAGRAPH),
+    )
+    first = _distil(context, issue_keys=(KEY,))
+    second = _version(context, first.rule_id, issue_keys=(KEY_OTHER,))
+
+    assert f'"{SECOND_PARAGRAPH}"' in second.scope, (
+        "the scope is the anchored text the new version's case was written against"
+    )
+    assert PARAGRAPH not in second.scope, "the scope is not the old version's"
+    assert second.example.startswith("The advisor's comment ("), "the example is the comment"
+    assert KEY_OTHER in second.example, "and it names the new version's key"
+    assert KEY not in second.example, "and not the old version's"
+    assert "Name the comparison group." in second.example, (
+        "and it quotes the new version's advisor's words"
+    )
+
+
+def test_a_new_version_is_not_confirmed_by_its_own_proposer(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """**A rewording is not a confirmation**, and the second-reader door
+    does not open for the hand that wrote the words.
+
+    **And the proposer is the comment path's.** The version was distilled
+    from comments, so the record says ``model_proposal`` — not the
+    revision path's ``operator_proposal``, and not whatever the old row
+    happened to carry.
+    """
+    context, _ = cases
+    first = _distil(context)
+    second = _version(context, first.rule_id)
+
+    assert second.proposed_by == MODEL_PROPOSER, (
+        "a comment distillation is a model's work, and the version says so"
+    )
+    with pytest.raises(ApplicationRefusedError) as raised:
+        confirm_rule(context, rule_id=second.rule_id, confirmed_by=second.proposed_by, now=LATER)
+    assert _refusal(raised.value) is GuidanceRefusal.CONFIRMER_IS_PROPOSER
+
+    confirmed = confirm_rule(context, rule_id=second.rule_id, confirmed_by="reviewer-3", now=LATER)
+    assert confirmed.state == "confirmed"
+    assert confirmed.confirmed_by == "reviewer-3"
+
+
+def test_only_the_newest_version_is_served(env: StoreEnv, tmp_path: Path) -> None:
+    """**The reader gets the newest words and nothing else.**
+
+    The memory keeps its past, and a reader sees each rule's newest
+    version — **so a rule written twice is one rule to a query, never
+    two.** And because the newest version is a candidate until a second
+    reader confirms it, **a rule whose newest version is unconfirmed is
+    not served at all**: a proposal reaching a card would be a proposal
+    dressed as a record.
+    """
+    context = _judged_chain(env, tmp_path / "judged")
+    first = _distil(context)
+    confirm_rule(context, rule_id=first.rule_id, confirmed_by="reviewer-2", now=MOMENT)
+
+    second = _version(context, first.rule_id)
+
+    served = [hit for hit in search_rules(context) if hit.rule.rule_id == first.rule_id]
+    assert not served, (
+        "the newest version is a candidate, and a candidate is not served — even"
+        " though an older version of the same rule was confirmed"
+    )
+
+    # **Once the second reader confirms the new version, it is the one
+    # served** — and it is served once, not twice.
+    confirm_rule(context, rule_id=second.rule_id, confirmed_by="reviewer-3", now=LATER)
+    served = [hit for hit in search_rules(context) if hit.rule.rule_id == first.rule_id]
+    assert len(served) == 1, "one rule is one answer, however many versions it has"
+    assert served[0].rule.version == second.version
+    assert served[0].rule.statement == _SECOND_STATEMENT
+
+
+def test_a_version_of_a_rule_that_is_not_there_is_refused(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """**A rule that is not there cannot be given a version.**
+
+    The new version is written under a rule's own id, so the rule is
+    read first — and a rule nobody holds is refused before anything is
+    written.
+    """
+    context, _ = cases
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _version(context, "rule-does-not-exist")
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_NOT_FOUND
+
+    written: int = context.store.session.execute(
+        text("SELECT count(*) FROM guidance_rules WHERE rule_id = :r"),
+        {"r": "rule-does-not-exist"},
+    ).scalar_one()
+    assert written == 0, "a refused version must write nothing"
+
+
+def test_a_version_with_no_case_is_refused(
+    cases: tuple[ApplicationContext, str],
+) -> None:
+    """**A version with no source behind it is not a version.**
+
+    The new version's sources are the cases, so a version naming no
+    comment — or a key the chain holds nothing under — is a rule bound to
+    material that does not exist.
+    """
+    context, _ = cases
+    first = _distil(context)
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _version(context, first.rule_id, issue_keys=())
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_WITHOUT_SOURCE
+
+    with pytest.raises(ApplicationRefusedError) as raised:
+        _version(context, first.rule_id, issue_keys=("iss-nobody-holds",))
+    assert _refusal(raised.value) is GuidanceRefusal.RULE_WITHOUT_SOURCE
+
+    assert read_rule(context, rule_id=first.rule_id).version == first.version, (
+        "a refused version must leave the rule where it was"
+    )
