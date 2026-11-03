@@ -83,6 +83,7 @@ from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine, create_session_factory, session_scope
 from labcairn.db.materials import put_source
 from labcairn.evidence.store import load_task_records
+from labcairn.guidance.checks import bind_check, confirm_check, propose_check
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -3347,3 +3348,49 @@ def test_the_cli_and_the_route_accept_the_same_verdicts() -> None:
     annotation = GuidanceRuleVerdictBody.model_fields["verdict"].annotation
     assert tuple(get_args(annotation)) == RULE_VERDICTS
     assert RULE_VERDICTS == ("confirmed", "disputed")
+
+
+def test_the_console_shows_the_check_that_decides_the_rule(
+    workspace: Path, task_id: str, rule_id: str
+) -> None:
+    """**A reader handed a rule is handed the thing that decides it.**
+
+    The machine-readable answer has carried the rule's checks for as long as
+    the binding has existed; the console's own answer did not, so a person at
+    a terminal read the standard and not the question that decides it. **The
+    two faces of one door must not disagree about what a rule carries.**
+    """
+    with _context(workspace, task_id) as context:
+        check = propose_check(
+            context,
+            question="Does the caption say what the two axes are?",
+            pass_criterion="Passes when the caption names both axes and their units.",
+            proposed_by="distil-run-7",
+            now=_MOMENT,
+        )
+        confirm_check(context, check_id=check.check_id, confirmed_by="reader-2", now=_MOMENT)
+        bind_check(context, rule_id=rule_id, check_id=check.check_id)
+
+    answered = _settle(workspace, rule_id, verdict="confirmed", user="reader-2", as_json=False)
+
+    assert answered.returncode == 0, answered.stdout
+    assert "Does the caption say what the two axes are?" in answered.stdout, (
+        "the console did not print the question that decides the rule:\n" + answered.stdout
+    )
+    assert "Passes when the caption names both axes and their units." in answered.stdout, (
+        "the console did not print the criterion that answers it:\n" + answered.stdout
+    )
+
+
+def test_the_console_says_when_a_rule_names_no_check(
+    workspace: Path, task_id: str, rule_id: str
+) -> None:
+    """**A rule that names no check says so** — the silence is the ambiguity.
+
+    A reader who cannot tell "this rule has no check" from "the door dropped
+    it" cannot judge the rule; the console says which it is.
+    """
+    answered = _settle(workspace, rule_id, verdict="confirmed", user="reader-2", as_json=False)
+
+    assert answered.returncode == 0, answered.stdout
+    assert "the rule names no check" in answered.stdout, answered.stdout

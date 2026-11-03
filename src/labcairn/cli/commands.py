@@ -80,7 +80,7 @@ if TYPE_CHECKING:
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
-    from labcairn.guidance.models import GuidanceRule
+    from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
@@ -2047,6 +2047,24 @@ def guidance_rule_confirm(
         _console().print(
             f"[bold]{rule.state}[/bold] by {rule.confirmed_by} — {rule.rule_id}\n{rule.statement}"
         )
+        _print_the_checks(rule.checks)
+
+
+def _print_the_checks(checks: Sequence[GuidanceCheck]) -> None:
+    """The questions that decide the rule, printed beside the rule itself.
+
+    **A reader handed a rule is handed the thing that decides it.** The
+    machine-readable form already carries ``checks``; the console's own answer
+    says the same, and **a rule that names none says so** rather than leaving
+    the reader to wonder whether the door dropped them on the way out.
+    """
+    if not checks:
+        _console().print("\n[dim]the rule names no check[/dim]")
+        return
+    for check in checks:
+        _console().print(f"\n[bold]check[/bold] {check.check_id}")
+        _console().print(f"  question: {check.question}")
+        _console().print(f"  passes:   {check.pass_criterion}")
 
 
 def _emit_rule(rule: GuidanceRule) -> None:
