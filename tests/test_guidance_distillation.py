@@ -52,7 +52,7 @@ from store_support import env as _shared_env
 from labcairn.application import chain as chain_layer
 from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import ApplicationRefusedError
-from labcairn.db.models import EditActionRow, GuidanceRuleRow, ResponseLinkRow
+from labcairn.db.models import EditActionRow, FeedbackEventRow, GuidanceRuleRow, ResponseLinkRow
 from labcairn.guidance.distil import (
     MODEL_PROPOSER,
     distil_candidate,
@@ -61,6 +61,7 @@ from labcairn.guidance.distil import (
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.retrieval import search_rules
 from labcairn.guidance.rules import GuidanceRule, confirm_rule, read_rule
+from labcairn.material.ooxml import POSITION_ANCHOR_REASON
 from labcairn.papers.feedback import record_feedback, set_issue_key
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 
@@ -81,6 +82,10 @@ KEY_UNPLACED = "iss-gold-b-r1"
 #: The key of a case whose comment the reader placed on a point, so the
 #: anchor resolved to an empty text.
 KEY_POINT = "iss-gold-c-r1"
+#: The key of a case whose placed position the row spells the legacy way:
+#: ``unknown`` with the position reason, as the rows written before the
+#: third anchor status carry it.
+KEY_LEGACY = "iss-gold-e-r1"
 #: The second paragraph of the two-paragraph manuscript.
 SECOND_PARAGRAPH = "The comparison group is not named."
 
@@ -465,6 +470,58 @@ def test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_plac
     assert point_scope != unplaced_scope, (
         "the two facts were given the same words, and they are not the same fact"
     )
+
+
+def test_a_position_spelled_the_legacy_way_lands_in_the_same_bucket(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """The two spellings of a placed position say the same thing in a scope.
+
+    The reader spells a placed position ``position`` now; the rows already
+    written under the two-word vocabulary spell it ``unknown`` with the
+    position reason. **One fact, two spellings** -- and a scope built from
+    the legacy spelling must say what the reader said, as the new
+    spelling's scope does, because a case that changed buckets when the
+    spelling changed would be a scope about the spelling, not about the
+    case. The legacy shape here is the one the schema's cleaning leaves:
+    no anchored text, no digest, the reason named.
+
+    **What breaks it:** dropping the reason branch -- the rows the pilot
+    store carries would fall into the *could not place* bucket -- or
+    narrowing the status branch until it misses the new spelling, which
+    the status test above catches.
+    """
+    context = _chain_keyed(
+        env,
+        tmp_path / "chain",
+        comments=(a_comment("501"),),
+        keys=(KEY_LEGACY,),
+        point_comment_ids=("501",),
+    )
+    # The row the pilot store carries, as the schema's cleaning left it:
+    # the legacy spelling of a placed position.
+    session = context.store.session
+    row = session.scalars(
+        select(FeedbackEventRow).where(FeedbackEventRow.issue_key == KEY_LEGACY)
+    ).one()
+    assert row.anchor_status == "position"
+    # The legacy spelling: the status and the reason the two-word
+    # vocabulary carried, and the offset it dropped -- the shape the
+    # schema's cleaning leaves behind.
+    row.anchor_status = "unknown"
+    row.anchor_reason = POSITION_ANCHOR_REASON
+    row.anchor_start = None
+    row.anchor_end = None
+    session.commit()
+
+    scope = _distil(context, issue_keys=(KEY_LEGACY,)).scope
+    assert "a position, not a passage" in scope, (
+        f"the scope does not say the anchor sits on a position it placed: {scope!r}"
+    )
+    assert "could not place" not in scope, (
+        f"a case the reader placed was called unplaced under the legacy spelling: {scope!r}"
+    )
+    assert '""' not in scope, f"the empty string was quoted as the advisor's words: {scope!r}"
 
 
 def test_the_scope_names_every_case_it_claims_and_the_sources_agree(

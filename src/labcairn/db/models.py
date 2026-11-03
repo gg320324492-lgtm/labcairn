@@ -2220,16 +2220,23 @@ class FeedbackEventRow(Base):
     anchor_paragraph: Mapped[int | None] = mapped_column(Integer, nullable=True)
     anchor_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     anchor_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    #: ``resolved`` or ``unknown``.
+    #: ``"resolved"``, ``"unknown"`` or ``"position"``.
     anchor_status: Mapped[str] = mapped_column(String(32), nullable=False)
-    #: Why the anchor is unknown, or ``None`` when it resolved.
+    #: Why the anchor is unknown, or ``None`` when it resolved or was placed
+    #: on a position. **A position is placed, not unknown** -- the reader
+    #: found where the comment sits, and there is no failure to explain.
     anchor_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: The text the anchor covers, in the baseline. **The same text the
     #: offsets are into**, so the offset and the text agree by construction.
-    anchor_text: Mapped[str] = mapped_column(Text, nullable=False)
+    #: ``None`` when the anchor covers no text -- a row the reader could not
+    #: place, or one placed on a position. **The digest of the empty string
+    #: is not a substitute for ``None``**: a row that covers no text has no
+    #: integrity value, because there is nothing whose sameness it guards.
+    anchor_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: The hash of that text, so a later read can tell whether the same
-    #: address still holds the same text.
-    anchor_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: address still holds the same words. ``None`` when the anchor covers
+    #: no text.
+    anchor_text_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: The advisor's words.
     comment_text: Mapped[str] = mapped_column(Text, nullable=False)
     #: The hash of those words.
@@ -2257,7 +2264,7 @@ class FeedbackEventRow(Base):
         Index("ix_feedback_events_issue_key", "issue_key"),
         CheckConstraint(
             "length(feedback_id) > 0 AND length(project_id) > 0 AND length(version_id) > 0 "
-            "AND length(comment_text_sha256) > 0 AND length(anchor_text_sha256) > 0",
+            "AND length(comment_text_sha256) > 0",
             name="feedback_events_ids_present",
         ),
         CheckConstraint(
@@ -2265,18 +2272,36 @@ class FeedbackEventRow(Base):
             name="feedback_events_grade_vocabulary",
         ),
         CheckConstraint(
-            "anchor_status IN ('resolved', 'unknown')",
+            "anchor_status IN ('resolved', 'unknown', 'position')",
             name="feedback_events_anchor_status_vocabulary",
         ),
-        # **A resolved anchor names a place; an unknown one names a reason.**
-        # An anchor with no reason and no place is a fact about nothing.
+        # **A row's anchor columns say what its status says.** A resolved
+        # anchor names a place and the words there -- the digest is the
+        # integrity value of that passage, and a passage of no words has no
+        # digest to carry. An unknown anchor names a reason and no place,
+        # and no text either: the reader could not place the comment, so
+        # there is no passage whose sameness a digest would guard -- the
+        # empty-string digest this check replaces was a placeholder the old
+        # shape forced, not a value. And a position names the place the
+        # range closes where it opens -- the paragraph and the offset are
+        # kept, the words the file does not record there are not invented,
+        # and the reason is absent because a position is placed, not
+        # unknown: there is no failure to explain.
         CheckConstraint(
             "(anchor_status = 'resolved' AND anchor_paragraph IS NOT NULL "
             "AND anchor_start IS NOT NULL AND anchor_end IS NOT NULL "
-            "AND anchor_reason IS NULL) OR "
+            "AND anchor_reason IS NULL "
+            "AND anchor_text IS NOT NULL AND length(anchor_text) > 0 "
+            "AND anchor_text_sha256 IS NOT NULL AND length(anchor_text_sha256) > 0) OR "
             "(anchor_status = 'unknown' AND anchor_reason IS NOT NULL "
-            "AND length(anchor_reason) > 0 AND anchor_start IS NULL AND anchor_end IS NULL)",
-            name="feedback_events_anchor_is_resolved_or_named",
+            "AND length(anchor_reason) > 0 AND anchor_start IS NULL AND anchor_end IS NULL "
+            "AND anchor_text IS NULL AND anchor_text_sha256 IS NULL) OR "
+            "(anchor_status = 'position' AND anchor_paragraph IS NOT NULL "
+            "AND anchor_start IS NOT NULL AND anchor_end IS NOT NULL "
+            "AND anchor_start = anchor_end "
+            "AND anchor_reason IS NULL "
+            "AND anchor_text IS NULL AND anchor_text_sha256 IS NULL)",
+            name="feedback_events_anchor_shape_matches_status",
         ),
         # **The locator belongs to a read.** A row nobody read carries no
         # address, and a row that was read carries the address it read. A

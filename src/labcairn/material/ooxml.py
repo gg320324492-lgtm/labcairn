@@ -121,10 +121,14 @@ _REJECTED_KINDS: Final[frozenset[str]] = frozenset({"del", "moveFrom"})
 _DOCUMENT_PART: Final[str] = "word/document.xml"
 _COMMENTS_PART: Final[str] = "word/comments.xml"
 
-#: The reason a comment's anchor carries when its range closes where it
-#: opens: a position is *where* the comment sits, not a passage it covers.
-#: **Distil reads this name** — the scope of a distilled rule says what the
-#: reader said, rather than inventing its own words for the same fact.
+#: The reason a comment's anchor carried while the vocabulary had only two
+#: words and a position was reported as ``unknown``: a position is *where*
+#: the comment sits, not a passage it covers. The reader reports positions
+#: as ``status="position"`` now and no longer mints this reason, but the
+#: rows already written under the two-word vocabulary carry it, so every
+#: reader of those rows must know the name. **Distil reads it still** --
+#: the scope of a distilled rule says what the reader said, and the older
+#: rows are part of what it has to say it about.
 POSITION_ANCHOR_REASON: Final[str] = "the comment's range is a position, not a passage of text"
 
 
@@ -195,13 +199,19 @@ class CommentAnchor:
     document that is damaged and a document that is merely unusual.
     """
 
-    #: ``"resolved"`` or ``"unknown"``.
+    #: ``"resolved"``, ``"unknown"`` or ``"position"``.
     status: str
-    #: Why the anchor is unknown, or ``None`` when it resolved.
+    #: Why the anchor is unknown, or ``None`` when it resolved or was
+    #: placed on a position. **A position is placed, not unknown** -- the
+    #: reader found where the comment sits, and there is no failure to
+    #: explain.
     reason: str | None
     #: The paragraph the anchor is in, or ``None`` when it is not known.
     paragraph: int | None
-    #: The anchored range in the paragraph's rejected (baseline) text.
+    #: The anchored range in the paragraph's rejected (baseline) text. For
+    #: a position anchor, the offset the range closes at -- ``start`` and
+    #: ``end`` are the same number, because the range closes where it
+    #: opens, and the place is kept rather than dropped.
     start: int | None
     end: int | None
     #: The text the comment covers, in the baseline.
@@ -213,14 +223,15 @@ class CommentAnchor:
     #: of LC-P2-09's feedback chain, and an empty one is a chain that cannot
     #: be traversed.
     #:
-    #: **Empty whenever the anchor is unknown, and each unknown is a fact
-    #: rather than a failure.** There is no range to name text and the
-    #: reason says which of the five shapes it was; a range that starts in
-    #: one paragraph and ends in another has two offsets into two different
-    #: texts, so no single slice is the text the comment covers; and a
-    #: range that closes where it opens covers a position, not a passage —
-    #: reported as unknown rather than as a passage nobody wrote.
-    text: str
+    #: **``None`` whenever the anchor covers no text, and each such anchor
+    #: is a fact rather than a failure.** There is no range to name text
+    #: when the anchor is unknown, and the reason says which of the shapes
+    #: it was; a range that starts in one paragraph and ends in another has
+    #: two offsets into two different texts, so no single slice is the text
+    #: the comment covers; and a range that closes where it opens covers a
+    #: position, not a passage -- reported as a position, with the place it
+    #: names kept and no passage claimed.
+    text: str | None
 
 
 @dataclass(frozen=True)
@@ -993,7 +1004,7 @@ def _anchor_for(
                 paragraph=None,
                 start=None,
                 end=None,
-                text="",
+                text=None,
             ),
             problems,
         )
@@ -1016,7 +1027,7 @@ def _anchor_for(
                 paragraph=ends[0][1],
                 start=None,
                 end=None,
-                text="",
+                text=None,
             ),
             problems,
         )
@@ -1039,7 +1050,7 @@ def _anchor_for(
                 paragraph=starts[0][1],
                 start=None,
                 end=None,
-                text="",
+                text=None,
             ),
             problems,
         )
@@ -1070,7 +1081,7 @@ def _anchor_for(
                 paragraph=start_entry[1],
                 start=None,
                 end=None,
-                text="",
+                text=None,
             ),
             problems,
         )
@@ -1079,32 +1090,39 @@ def _anchor_for(
         # **A range that closes where it opens is a position, not a
         # passage.** Word writes this when a reviewer comments on *the
         # place* rather than on words — an insertion point, a spot between
-        # runs. The paragraph is a fact the file records and is kept, but
-        # ``resolved`` would claim a passage was found and no passage
-        # exists: the stored slice would be the empty string, hashed into
-        # an integrity value that any check reading only "is there a
-        # digest" accepts. A comment on a place is still a comment, so it
-        # is reported with its body and the reason it holds no words.
+        # runs. The paragraph is a fact the file records and is kept, and
+        # so is the offset: the range closes where it opens, so ``start``
+        # and ``end`` are the same number, and the place the comment sits
+        # at travels with the row instead of being dropped with the words
+        # it does not cover. ``resolved`` would claim a passage was found
+        # and no passage exists: the stored slice would be the empty
+        # string, hashed into an integrity value that any check reading
+        # only "is there a digest" accepts. And ``unknown`` would claim
+        # the reader could not place the comment when the reader did: the
+        # place is recorded in the file and reported here. A comment on a
+        # place is still a comment, so it is reported with its body, the
+        # place it names, and no text -- because the file records no words
+        # there.
         problems.append(
             ExtractionProblem(
                 code="docx_comment_position_anchor",
                 detail=(
                     f"comment {comment_id!r} covers a position, not a passage: its "
-                    f"range closes where it opens. The paragraph the comment sits "
-                    f"in is reported, and the anchor carries no text because the "
-                    f"file records no words there."
+                    f"range closes where it opens. The paragraph and the offset the "
+                    f"comment sits at are reported, and the anchor carries no text "
+                    f"because the file records no words there."
                 ),
                 location=f"comment {comment_id}",
             )
         )
         return (
             CommentAnchor(
-                status="unknown",
-                reason=POSITION_ANCHOR_REASON,
+                status="position",
+                reason=None,
                 paragraph=start_entry[1],
-                start=None,
-                end=None,
-                text="",
+                start=start_entry[2],
+                end=end_entry[2],
+                text=None,
             ),
             problems,
         )

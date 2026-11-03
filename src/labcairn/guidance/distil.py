@@ -182,6 +182,15 @@ def _scope_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
     and the scope says *could not place* for it. Never the same words for
     the two, and never the empty string quoted as either.
 
+    **A position reaches the position bucket two ways, and both are
+    real.** The reader reports one as ``anchor_status == "position"``
+    now; the rows already written under the two-word vocabulary carry
+    ``anchor_status == "unknown"`` with :data:`POSITION_ANCHOR_REASON` as
+    their reason. A scope built from the two spellings of the one fact
+    says the same thing about both — a case that changed buckets when the
+    reader's spelling changed would be a scope about the spelling, not
+    about the case.
+
     **And the order is the cases' own.** The chain's rows come back in no
     particular order, so the cases are sorted here: a scope that changed
     shape between two distillations of the same comments would be a
@@ -202,15 +211,19 @@ def _scope_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
         for key, comment in ordered
         if comment.anchor_status == "resolved" and not comment.anchor_text
     ]
-    unplaced = [
-        (key, comment)
-        for key, comment in ordered
-        if comment.anchor_status != "resolved" and comment.anchor_reason != POSITION_ANCHOR_REASON
-    ]
     position = [
         (key, comment)
         for key, comment in ordered
-        if comment.anchor_status != "resolved" and comment.anchor_reason == POSITION_ANCHOR_REASON
+        # The status is the reader's current word for a placed position;
+        # the reason is the word it used while the vocabulary had only two.
+        # Both spellings are the one fact, and both land here.
+        if comment.anchor_status == "position"
+        or (comment.anchor_status == "unknown" and comment.anchor_reason == POSITION_ANCHOR_REASON)
+    ]
+    unplaced = [
+        (key, comment)
+        for key, comment in ordered
+        if comment.anchor_status == "unknown" and comment.anchor_reason != POSITION_ANCHOR_REASON
     ]
     parts: list[str] = []
     if quoted:

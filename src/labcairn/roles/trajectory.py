@@ -72,7 +72,9 @@ class TrajectoryComment:
 
     issue_key: str
     comment_text: str
-    anchor_text: str
+    #: The text the comment was written against, or ``None`` when the
+    #: anchor covers no text -- an unplaced comment, or one on a position.
+    anchor_text: str | None
 
 
 @dataclass(frozen=True)

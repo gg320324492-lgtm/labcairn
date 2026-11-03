@@ -329,7 +329,7 @@ def test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor(
     assert comment.anchor.end is None, (
         "the end offset belongs to the other paragraph and must not be borrowed"
     )
-    assert comment.anchor.text == ""
+    assert comment.anchor.text is None
 
     # The comment is still a comment: body, author and date are all there.
     assert comment.text == "This remark covers both paragraphs."
@@ -1357,10 +1357,12 @@ def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> Non
     Word writes a comment whose range closes where it opens when the
     reviewer comments at a point. The pre-fix reader reported that as
     ``resolved`` with the empty string as the covered text -- the claim
-    nothing backs, stored on every zero-width row of the pilot. **The
-    position is still a place the reader found**, so the paragraph is
-    kept and the comment is reported with its body; what is not reported
-    is a passage.
+    nothing backs, stored on every zero-width row of the pilot -- and the
+    reader before the third status reported it as ``unknown``, which
+    called a placed comment unplaced. **The position is still a place the
+    reader found**, so the paragraph and the offset are kept, the anchor
+    is reported as a position, and the comment is reported with its body;
+    what is not reported is a passage.
     """
     lead = "Lead in. "
     body = (
@@ -1378,12 +1380,15 @@ def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> Non
     )
     (comment,) = document.comments
     anchor = comment.anchor
-    assert anchor.status == "unknown"
-    assert anchor.reason == "the comment's range is a position, not a passage of text"
+    assert anchor.status == "position"
+    assert anchor.reason is None, "a position is placed, not unknown: no failure to explain"
     assert anchor.paragraph == 0, "the place the reader found is kept"
-    assert anchor.start is None
-    assert anchor.end is None
-    assert anchor.text == ""
+    # The range closes where it opens: both offsets are the same number,
+    # and that number is where the markers sit -- the place travels with
+    # the anchor instead of being dropped with the words it does not cover.
+    assert anchor.start == len(lead)
+    assert anchor.end == len(lead)
+    assert anchor.text is None
 
 
 def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
@@ -1412,12 +1417,12 @@ def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
     )
     (comment,) = document.comments
     anchor = comment.anchor
-    assert anchor.status == "unknown"
-    assert anchor.reason == "the comment's range is a position, not a passage of text"
+    assert anchor.status == "position"
+    assert anchor.reason is None
     assert anchor.paragraph == 0
-    assert anchor.start is None
-    assert anchor.end is None
-    assert anchor.text == ""
+    assert anchor.start is not None
+    assert anchor.end == anchor.start, "the place is kept: the range closes where it opens"
+    assert anchor.text is None
     # The comment itself is not lost: its body, author and date are the
     # file's, and they are reported with the position.
     assert comment.text == "Check this addition."

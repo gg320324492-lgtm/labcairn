@@ -107,12 +107,24 @@ class FeedbackEvent:
     #: The comment's own address, or ``None`` on a row nobody read.
     comment_locator: DocxLocator | None
     anchor_paragraph: int | None
+    #: The anchored range in the paragraph's baseline text. A position
+    #: anchor keeps its offset -- ``start`` and ``end`` are the same
+    #: number -- because the place the comment sits at is a fact the file
+    #: records, and the third anchor status exists to keep it.
     anchor_start: int | None
     anchor_end: int | None
+    #: ``"resolved"``, ``"unknown"`` or ``"position"``.
     anchor_status: str
+    #: Why the anchor is unknown, or ``None`` when it resolved or was
+    #: placed on a position.
     anchor_reason: str | None
-    anchor_text: str
-    anchor_text_sha256: str
+    #: The text the anchor covers, in the baseline. ``None`` when the
+    #: anchor covers no text -- a row the reader could not place, or one
+    #: placed on a position. The digest of the empty string is never a
+    #: substitute: a row that covers no text carries no digest either.
+    anchor_text: str | None
+    #: The hash of that text, or ``None`` when there is no text to hash.
+    anchor_text_sha256: str | None
     comment_text: str
     comment_text_sha256: str
     author: str | None
@@ -125,6 +137,27 @@ class FeedbackEvent:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+#: The digest of the empty string, which rows written while the schema
+#: forced a digest onto every anchor carry as the integrity value of no
+#: text. The third anchor status made ``NULL`` the spelling of that fact;
+#: a comparison that spelled the one fact two ways would call one thing
+#: two names, so both spellings read as "no text" here.
+_EMPTY_TEXT_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+def _text_of(digest: str | None) -> str | None:
+    """The anchored text a stored digest stands for, or ``None`` for none.
+
+    **Rows before and after the third status spell "no text" differently,
+    and a re-recording compares them as what they are.** A row whose anchor
+    covers no text carries no digest now, and the rows already written carry
+    the digest of the empty string; both mean no anchored text, so both
+    read as ``None`` here, and re-recording a position or an unknown anchor
+    that has not moved is the same row it always was.
+    """
+    return None if not digest or digest == _EMPTY_TEXT_SHA256 else digest
 
 
 def _feedback_id(version_id: str, comment_id: str) -> str:
@@ -331,16 +364,22 @@ def record_feedback(
         anchor = event.anchor
         row_id = _feedback_id(version_id, event.comment_id)
         anchor_text = anchor.text
-        anchor_hash = _sha256(anchor_text)
+        # **A row whose anchor covers no text carries no digest.** A
+        # position and an unknown anchor have no passage whose sameness a
+        # digest could guard, so their digest is ``None`` -- the spelling
+        # the third anchor status made legal -- and never the digest of
+        # the empty string, which is the value that reads as an integrity
+        # check and guards nothing.
+        anchor_hash = None if anchor_text is None else _sha256(anchor_text)
         if anchor.status == "resolved" and not anchor_text:
             # **A resolved anchor covers words, or it is not resolved.** A
             # range that closes where it opens is a position, and the
-            # reader reports it as unknown with its reason; a resolved
-            # claim that carries no text would store the digest of the
-            # empty string as the integrity value of an anchored passage —
-            # the claim a null anchor passes an integrity check with. The
-            # comment is not lost: its body is in the file, and a reader
-            # that names the claim truthfully has this row stored.
+            # reader reports it as one; a resolved claim that carries no
+            # text would store the digest of the empty string as the
+            # integrity value of an anchored passage — the claim a null
+            # anchor passes an integrity check with. The comment is not
+            # lost: its body is in the file, and a reader that names the
+            # claim truthfully has this row stored.
             raise chain_refused(
                 ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT,
                 f"the reader resolved an anchor for the comment {event.comment_id!r} "
@@ -348,13 +387,12 @@ def record_feedback(
                 "anchor claims the passage was found, and a passage of no words was "
                 "not found; the row is refused rather than stored with the digest of "
                 "the empty string as its integrity value. The comment itself is a "
-                "comment a person wrote — a reader that reports the anchor as "
-                "unknown, with the position named as its reason, has this comment "
-                "recorded.",
+                "comment a person wrote — a reader that reports the anchor as a "
+                "position, with the place it names, has this comment recorded.",
             )
         existing = feedback_row(session, row_id)
         if existing is not None:
-            if existing.anchor_text_sha256 != anchor_hash:
+            if _text_of(existing.anchor_text_sha256) != _text_of(anchor_hash):
                 raise chain_refused(
                     ChainRefusal.ANCHOR_STALE,
                     f"the feedback {row_id!r} was recorded against text hashing to "
@@ -543,6 +581,17 @@ def anchor_state(
     refuse. Such a row is reported stale until it is re-derived against
     the file, never fresh over nothing.
 
+    **A position is not a confirmed anchor, and it says so.** The verdicts
+    answer one question -- *does this row's anchored text still sit where
+    the row says it does* -- and a position row has no anchored text to
+    ask about: it names the place the comment sits at, and the file
+    records no words there to compare. It is therefore ``unanchored``, the
+    verdict a row the reader could not place also carries, and never
+    ``fresh`` -- a verdict that would claim a text had been confirmed
+    where no text exists. The place the position keeps is recorded on the
+    row; confirming *that* place still sits where it did is a re-reading
+    of the file, not a comparison this function makes.
+
     :raises ApplicationRefusedError: the comment is not there, or the
         material cannot be read.
     """
@@ -554,6 +603,9 @@ def anchor_state(
             f"the store holds no feedback event with the id {feedback_id!r}.",
         )
     if row.anchor_status != "resolved":
+        # An unknown anchor and a position one have no anchored text to
+        # confirm: the first because the reader could not place the
+        # comment, the second because the place it found holds no words.
         return "unanchored"
     if not row.anchor_text:
         # A row that claims a resolved anchor and carries no anchored text
