@@ -152,13 +152,21 @@ class RevisionEvent:
     element_id: str | None
     #: The locator that addresses this revision, and resolves to ``text``.
     locator: DocxLocator
-    #: The index of the paragraph the revision sits in.
-    paragraph: int
+    #: The index of the paragraph the revision sits in, or ``None`` when no
+    #: paragraph holds it. A table row's mark (``w:trPr/w:ins``, ``w:trPr/w:del``)
+    #: is such a case: Word writes it on the row's properties, outside every
+    #: paragraph, and an index invented for it would name a place the file
+    #: does not give it.
+    paragraph: int | None
     #: The revision's place in the paragraph's **rejected** (baseline) text.
     #: A deletion covers the text it removed; an insertion is a *point*,
-    #: because an insertion contributes nothing to the baseline.
-    baseline_start: int
-    baseline_end: int
+    #: because an insertion contributes nothing to the baseline. Both are
+    #: ``None`` together with :attr:`paragraph` when the revision sits
+    #: outside every paragraph -- there is then no baseline text for it to
+    #: have a place in, and a coordinate that names no text is a coordinate
+    #: nobody can check.
+    baseline_start: int | None
+    baseline_end: int | None
     #: Whether this revision is nested inside another one. Word permits it
     #: and a reader that flattens it cannot tell "inserted then deleted"
     #: from "inserted".
@@ -445,7 +453,9 @@ def _scan_paragraph(
     is the enclosing revision's own text, so it is reported at the
     enclosing revision's place.
 
-    **And a revision is reported by the paragraph that contains it.** A
+    **And a revision is reported by the nearest paragraph that contains
+    it** -- and by :func:`_scan_outside_paragraphs` when no paragraph
+    contains it, which is the case a table row's mark belongs to. A
     run's content is not limited to text: it can carry a drawing, and a
     drawing carries a text box, and a text box holds paragraphs of its
     own -- real material holds exactly that, inside a
@@ -531,6 +541,55 @@ def _scan_paragraph(
 
     walk(paragraph, 0, 0, None, True)
     return revisions, markers
+
+
+def _scan_outside_paragraphs(
+    root: ElementTree.Element,
+) -> list[tuple[ElementTree.Element, str, bool]]:
+    """The revision elements no paragraph holds, in document order.
+
+    Returns ``(element, kind, nested)``. **These are the changes a scan of
+    paragraphs cannot see.** :func:`_scan_paragraph` reports a revision to
+    the nearest paragraph that contains it, and a tracked change on a
+    *table row* is written on the row's properties -- ``w:trPr/w:ins``,
+    ``w:trPr/w:del`` -- where no paragraph contains it. Word also writes
+    such a marker with no children at all, so it carries no text; the event
+    the reader builds from it says *this row was inserted by this author at
+    this time* and quotes nothing, which is what the file records.
+
+    **The walk stops descending to report at a paragraph, and never starts
+    reporting inside one.** Every revision element under some ``w:p`` is
+    that paragraph's to report, and the paragraph loop already reports it;
+    the two scans therefore split the part's revision elements on the
+    question "does a paragraph contain it", which is what keeps
+    :func:`read_document` reporting each element **exactly once**. A walk
+    that reported here as well as in the paragraph scan would double the
+    element; a walk that reported neither would lose it, and a lost revision
+    is the failure no caller can see.
+
+    Descent continues through a paragraph's subtree (a nested paragraph is
+    still a paragraph, and the loop scans it) and through a revision
+    element's subtree, where a further revision outside every paragraph is
+    marked ``nested`` -- the same disclosure :func:`_scan_paragraph` gives
+    inside a paragraph.
+    """
+    found: list[tuple[ElementTree.Element, str, bool]] = []
+    # An explicit stack rather than recursion: a document's tree is shallow,
+    # but a stack keeps the walk's cost on the tree and not on the interpreter.
+    stack: list[tuple[ElementTree.Element, bool, bool]] = [(root, False, False)]
+    while stack:
+        element, in_paragraph, in_revision = stack.pop()
+        kind = None if in_paragraph else _revision_kind(element.tag)
+        if kind is not None:
+            found.append((element, kind, in_revision))
+            in_revision = True
+        # A paragraph owns everything under it, down to a nested paragraph,
+        # which the paragraph loop picks up as a paragraph of its own.
+        child_in_paragraph = in_paragraph or element.tag == _TAG["paragraph"]
+        children = list(element)
+        for child in reversed(children):
+            stack.append((child, child_in_paragraph, in_revision))
+    return found
 
 
 def _comment_body(comment: ElementTree.Element) -> str:
@@ -639,6 +698,36 @@ def read_document(data: bytes) -> RevisionDocument:
                     text_sha256=_sha256(text),
                 )
             )
+
+    # **And the changes no paragraph holds.** A table row's mark is written on
+    # the row's properties, outside every paragraph, so the loop above never
+    # reaches it. It is reported here, in document order after the paragraphs
+    # the marker follows, with no paragraph and no baseline place -- the two
+    # ``None``s are the file's own fact, not a gap in this reader.
+    for element, kind, nested in _scan_outside_paragraphs(document_root):
+        marker_view: DocxView = "accepted" if kind in _ACCEPTED_KINDS else "rejected"
+        text = _text_in(element, marker_view)
+        revisions.append(
+            RevisionEvent(
+                kind=kind,
+                text=text,
+                author=element.get(f"{{{W}}}author"),
+                date=_parse_date(element.get(f"{{{W}}}date")),
+                element_id=element.get(f"{{{W}}}id"),
+                locator=DocxLocator(
+                    part=_DOCUMENT_PART,
+                    element_path=_element_path(element, document_root),
+                    view=marker_view,
+                    char_start=0,
+                    char_end=len(text),
+                ),
+                paragraph=None,
+                baseline_start=None,
+                baseline_end=None,
+                nested=nested,
+                text_sha256=_sha256(text),
+            )
+        )
 
     comments, comment_problems = _collect_comments(
         comments_root, markers_by_comment, document_root, baseline_paragraphs
