@@ -284,6 +284,14 @@ project's own rule ("a rule may name only a confirmed check"), and it is
 witnessed in the suite as well by
 `tests/test_guidance_rules.py::test_a_rule_may_name_only_a_confirmed_check`.
 
+**Those two witnesses were run against this branch's `src`**, with the
+worktree first on `PYTHONPATH` and a `--basetemp` outside the repository:
+
+```
+pytest tests/test_guidance_rules.py -k "may_name_only_a_confirmed_check or names_the_checks_that_decide_it"
+2 passed, 22 deselected in 1.61s
+```
+
 ---
 
 ## 5. What the material does not earn — stated rather than manufactured
