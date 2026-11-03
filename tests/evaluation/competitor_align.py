@@ -332,9 +332,17 @@ def _score_numeric_recall(document: dict[str, Any], key: dict[str, Any]) -> tupl
 
 
 def _score_numeric_exactness(document: dict[str, Any]) -> tuple[int, int]:
-    """Count the per-cell outcomes the artifact carries; invent none."""
+    """Count the per-cell outcomes the artifact carries; invent none.
+
+    An empty cells list is a score, not a refusal: a key whose selections
+    address no cells at all — the empty fixture's own declaration, whose
+    statistics are ``null`` — is scored 0 over 0, the same reading the
+    recall rule gives the same key. An artifact that declares the method
+    but carries no list of cells is still refused, because a list that
+    does not exist is not the same fact as a list that is empty.
+    """
     cells = document.get("cells")
-    if not isinstance(cells, list) or not cells:
+    if not isinstance(cells, list):
         raise AlignmentRefusedError(
             (
                 f"artifact {document.get('case')} declares "
