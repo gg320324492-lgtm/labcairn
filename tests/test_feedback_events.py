@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, fields
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -79,7 +79,12 @@ from labcairn.db.models import (
 )
 from labcairn.guidance.retrieval import invalidated_rules, search_rules
 from labcairn.guidance.rules import confirm_rule, propose_rule
-from labcairn.material.ooxml import read_document
+from labcairn.material.ooxml import (
+    CommentAnchor,
+    CommentEvent,
+    RevisionDocument,
+    read_document,
+)
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.edits import ActorClaim, EditAction, record_edits_from_revisions
 from labcairn.papers.feedback import (
@@ -106,6 +111,7 @@ from labcairn.papers.responses import (
     record_response,
 )
 from labcairn.papers.revisions import record_revision_events
+from labcairn.sources.locators import DocxLocator
 
 pytestmark = pytest.mark.integration
 
@@ -2816,3 +2822,200 @@ def test_a_judgement_the_door_refuses_never_reaches_the_store(
     assert "nobody can lift" in caught.value.detail, (
         "the hold's refusal says why a hold names what it holds"
     )
+
+
+# --------------------------------------------------------------------------- #
+# A8  the anchor that is a position     a zero-width range is recorded as an
+#                                unknown anchor with its reason, and the
+#                                empty-string digest is never an integrity
+#                                value for anchored text
+# --------------------------------------------------------------------------- #
+
+#: The digest of the empty string, which is what a resolved claim over no
+#: text used to carry as its integrity value.
+_EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+
+#: A document part whose comment's range markers sit **inside** the
+#: ``w:del`` of the words they cover -- the shape Word writes when a
+#: commented-upon span is later deleted, and the shape the pilot's three
+#: reader-defect rows carried. Written by hand because the fixture writer
+#: places markers beside revisions, never inside one.
+_DELETION_ANCHOR_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+    "<w:body>\n"
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+    '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:commentRangeStart w:id="201"/>'
+    '<w:r><w:delText xml:space="preserve">removed span</w:delText></w:r>'
+    '<w:commentRangeEnd w:id="201"/>'
+    '<w:r><w:commentReference w:id="201"/></w:r>'
+    "</w:del>"
+    '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+#: A document part whose comment's range **closes where it opens** -- the
+#: reviewer commented on the place, not on words.
+_POINT_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+    "<w:body>\n"
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+    '<w:commentRangeStart w:id="201"/>'
+    '<w:commentRangeEnd w:id="201"/>'
+    '<w:r><w:commentReference w:id="201"/></w:r>'
+    '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+
+def test_the_words_a_deletion_covered_are_anchored(env: StoreEnv, tmp_path: Path) -> None:
+    """A comment inside a deletion anchors the words the deletion removed.
+
+    The deleted text is baseline text -- the rejected view is the
+    manuscript as it read before the change -- so the reader that walks a
+    deletion from its start records the markers where the words sit. The
+    pre-fix reader entered the deletion at the offset past its whole
+    width, recorded both markers there, sliced the empty string and
+    hashed it: the pilot's three ``resolved`` rows with no anchored text,
+    whose files held 66, 66 and 10 baseline characters, were this shape.
+
+    **What breaks it:** reverting the walk. The row then stores an empty
+    anchored text, a digest of nothing, and this test fails on the text.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_DELETION_ANCHOR_DOCUMENT,
+    )
+    (event,) = _record(built)
+    assert event.anchor_status == "resolved"
+    assert event.anchor_text == "removed span"
+    assert event.anchor_text_sha256 == hashlib.sha256(b"removed span").hexdigest()
+    assert event.anchor_text_sha256 != _EMPTY_SHA256
+    assert (event.anchor_start, event.anchor_end) == (
+        len("Lead in. "),
+        len("Lead in. ") + len("removed span"),
+    )
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "fresh"
+
+
+def test_a_position_anchor_is_recorded_and_never_fresh(env: StoreEnv, tmp_path: Path) -> None:
+    """A zero-width range is a position, and the row says so.
+
+    The reader reports the range that closes where it opens as an unknown
+    anchor with its reason; the row keeps the comment's body, its author
+    and the paragraph the reader found, and loses nothing but the claim.
+    **The row that used to store the digest of the empty string as the
+    integrity value of a resolved passage is the row this witness
+    forbids**: ``anchor_state`` answers ``unanchored`` for it, never
+    ``fresh``.
+
+    **What breaks it:** a reader (or a door) that stores the zero-width
+    range as ``resolved`` again -- the row then claims anchored text, the
+    digest is the digest of nothing, and the status assertion fails.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_POINT_DOCUMENT,
+    )
+    (event,) = _record(built)
+    assert event.anchor_status == "unknown"
+    assert event.anchor_reason == "the comment's range is a position, not a passage of text"
+    assert event.anchor_paragraph == 0, "the place the reader found is kept"
+    assert event.anchor_start is None
+    assert event.anchor_end is None
+    assert event.anchor_text == ""
+    assert event.comment_text == a_comment("201").text, "the comment is not lost"
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "unanchored"
+
+
+def test_a_row_claiming_an_empty_text_is_never_fresh(chain: ChainEnv) -> None:
+    """A resolved row whose anchored text is empty cannot be confirmed.
+
+    Stores recorded before the fix hold rows shaped ``resolved`` with an
+    empty anchored text and the digest of the empty string. **Empty
+    matching empty is the false ``fresh``**: whatever the file now reads,
+    there are no words to still be there, so the row is reported stale
+    until it is re-derived against the file. A mutation that returns
+    ``fresh`` whenever a digest is present fails here.
+    """
+    (event,) = _record(chain)
+    session = chain.context.store.session
+    row = session.get(FeedbackEventRow, event.feedback_id)
+    assert row is not None
+    row.anchor_text = ""
+    row.anchor_text_sha256 = _EMPTY_SHA256
+    session.commit()
+    assert anchor_state(chain.context, feedback_id=event.feedback_id, now=MOMENT) == "stale"
+
+
+def test_the_door_refuses_a_resolved_anchor_that_covers_no_words(
+    chain: ChainEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The door refuses a resolved anchor that covers no words.
+
+    **The refusal is the seam, not the common path.** The reader reports
+    a position as an unknown anchor, so a ``resolved``-with-no-text
+    anchor reaching the door means a reader regression or a hand-built
+    claim. It is refused rather than stored with the digest of the empty
+    string as its integrity value, and nothing is written: a claim the
+    file does not back is not a comment the chain holds.
+    """
+    fabricated = RevisionDocument(
+        revisions=(),
+        comments=(
+            CommentEvent(
+                comment_id="201",
+                author="Prof. Lin",
+                date=datetime(2026, 3, 2, 9, 30, tzinfo=UTC),
+                text="Reword this.",
+                locator=DocxLocator(
+                    part="word/document.xml",
+                    element_path="/w:document[1]/w:body[1]/w:p[1]",
+                    view="accepted",
+                    char_start=0,
+                    char_end=12,
+                ),
+                anchor=CommentAnchor(
+                    status="resolved",
+                    reason=None,
+                    paragraph=0,
+                    start=0,
+                    end=0,
+                    text="",
+                ),
+                text_sha256=hashlib.sha256(b"Reword this.").hexdigest(),
+            ),
+        ),
+        accepted_text="The method estimates the parameter",
+        rejected_text="The method estimates the parameter",
+        paragraphs=("The method estimates the parameter",),
+        baseline_paragraphs=("The method estimates the parameter",),
+        problems=(),
+    )
+    monkeypatch.setattr("labcairn.papers.feedback.read_document", lambda data: fabricated)
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record(chain)
+    assert caught.value.reason == ApplicationRefusal.CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT
+    assert CHAIN_REFUSALS[ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT] is caught.value.reason, (
+        "the door's refusal is the new member's own name"
+    )
+    rows = chain.context.store.session.scalars(select(FeedbackEventRow)).all()
+    assert rows == [], "a refused claim writes nothing"
