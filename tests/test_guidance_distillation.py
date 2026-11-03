@@ -423,9 +423,9 @@ def test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_plac
     them apart, and a scope that gave them the same words would be wrong
     about one of them.
 
-    **So the scope says which is which**: *"resolved to an empty text"*
-    for the one the reader placed, and *"could not place"* for the one it
-    did not. **And neither is quoted as the empty string.**
+    **So the scope says which is which**: *"a position, not a passage"* for
+    the one the reader placed, and *"could not place"* for the one it did
+    not. **And neither is quoted as the empty string.**
 
     **What breaks it:** a scope that treats a resolved-but-empty anchor as
     an unplaced one (or the other way round), and a scope that quotes
@@ -445,8 +445,8 @@ def test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_plac
     assert '""' not in point_scope, (
         f"the empty string was quoted as the advisor's words: {point_scope!r}"
     )
-    assert "resolved to an empty text" in point_scope, (
-        f"the scope does not say the anchor resolved to nothing: {point_scope!r}"
+    assert "a position, not a passage" in point_scope, (
+        f"the scope does not say the anchor sits on a position it placed: {point_scope!r}"
     )
     assert "could not place" not in point_scope, (
         f"a case the reader placed was called unplaced: {point_scope!r}"
@@ -458,8 +458,8 @@ def test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_plac
     assert "could not place" in unplaced_scope, (
         f"the scope does not say the comment was not placed: {unplaced_scope!r}"
     )
-    assert "resolved to an empty text" not in unplaced_scope, (
-        f"a case the reader could not place was called resolved: {unplaced_scope!r}"
+    assert "a position, not a passage" not in unplaced_scope, (
+        f"a case the reader could not place was called a placed position: {unplaced_scope!r}"
     )
 
     assert point_scope != unplaced_scope, (

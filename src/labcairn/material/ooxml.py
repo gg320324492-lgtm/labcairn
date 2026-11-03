@@ -121,6 +121,12 @@ _REJECTED_KINDS: Final[frozenset[str]] = frozenset({"del", "moveFrom"})
 _DOCUMENT_PART: Final[str] = "word/document.xml"
 _COMMENTS_PART: Final[str] = "word/comments.xml"
 
+#: The reason a comment's anchor carries when its range closes where it
+#: opens: a position is *where* the comment sits, not a passage it covers.
+#: **Distil reads this name** — the scope of a distilled rule says what the
+#: reader said, rather than inventing its own words for the same fact.
+POSITION_ANCHOR_REASON: Final[str] = "the comment's range is a position, not a passage of text"
+
 
 # --------------------------------------------------------------------------- #
 # the model
@@ -1094,7 +1100,7 @@ def _anchor_for(
         return (
             CommentAnchor(
                 status="unknown",
-                reason="the comment's range is a position, not a passage of text",
+                reason=POSITION_ANCHOR_REASON,
                 paragraph=start_entry[1],
                 start=None,
                 end=None,
