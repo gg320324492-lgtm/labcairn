@@ -481,6 +481,18 @@ corpus holds. The hand-built drawing test stays: it asserts what the
 fixture's gold does not — which paragraph reports a text-box revision, and
 that none of them is nested.
 
+**One shape the corpus still cannot declare.** A table row's mark (§5.6's
+unfixed defect, fixed 2026-11-03 by `LC-P2-07-table-row-markers.md`) sits
+outside every paragraph, and the fixture model anchors every revision it
+states in a paragraph — `revision_range` derives the range from a
+paragraph's baseline text, and the gold, the writer's round-trip test and the
+arms' view scores are all built on that. Declaring the shape would mean
+reopening the harness §3 and §4 are measured with. It is held by the count
+witness instead: `test_the_reader_reports_each_revision_element_exactly_once`
+now reads a hand-built table document alongside the corpus, so the property
+has data to catch, which is the lesson §5.6 wrote down rather than the same
+mistake one level further out.
+
 ### 5.6 The double-read: one tracked change, two events
 
 **Found by real material, on 2026-11-01.** One of the corpus's
@@ -589,6 +601,26 @@ one it reports twice — and it is **not fixed here**; it belongs to its
 own work order, and the count that found it is recorded so it cannot be
 forgotten.
 
+**That work order landed on 2026-11-03, and this paragraph is the reason it
+was findable.** `docs/acceptance/LC-P2-07-table-row-markers.md` is the fix:
+the scan no longer depends on a paragraph holding the change, the row's mark
+comes back as an event, and the property recorded above — one element, one
+event — is what it had to keep. Its numbers, measured on the development
+machine and anchored there: over the 193 `.docx` files of the local materials
+library the parts held **4499** revision elements while the reader at the
+base commit reported **4498**, and the one element it never reported was a
+row's `w:ins` in one review copy (222 events against 223 elements); after the
+fix the same library reads **4499 against 4499** with **0** files short and
+**0** shared addresses, and the only file whose count moved is the one that
+held the marker. The extraction version moved the way §5.6's note says it
+must: **`38e0d9591c8e2a9a13c913b5f2b5f0f3` before,
+`b021d3c3c61fd7fd2e4563db5c7eeba1` after**. **What did not move is this
+record's own measurement**: the synthetic corpus is still 30 fixtures and 35
+revisions (re-counted at the fix's commit), so §2, §3 and §4 are the numbers
+they were, and the fix's witnesses are in the reader's test file, whose case
+count went 27 → 30 at the fix and **32** with the parent branch's two identity
+cases merged in (counted by collecting the file, not carried).
+
 ## 6. The numbers this does **not** establish
 
 - **Nothing about real Word documents.** The corpus is synthetic. A real
@@ -650,7 +682,8 @@ forgotten.
 | Corpus test | `tests/test_docx_fixture_corpus.py` (103 cases; 100 measured here, 3 added with fixture `30-revision-in-drawing-textbox`) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
 | **The reader** | `src/labcairn/material/ooxml.py` |
-| **The reader's test** | `tests/test_ooxml_revisions.py` (27 cases; 24 measured here, 3 added with §5.6) |
+| **The reader's test** | `tests/test_ooxml_revisions.py` (32 cases at the merge of the parent branch — 24 measured here, 3 added with §5.6, 3 more with the row-marker work order of 2026-11-03 at `1f1529d`, 2 more from the identity work that landed on the parent branch; counted by collecting the file, never carried) |
+| **The row marker, read at last** | `docs/acceptance/LC-P2-07-table-row-markers.md` — §5.6's unfixed defect, its before/after counts over 193 real files, and its four mutations |
 | **The migration** | `migrations/versions/0009_docx_locator.py` — **unchanged**: the anchor vocabulary is `'resolved' \| 'unknown'` and this change adds a *reason*, not a value |
 | pandoc | 3.10 (installed on the machine; GPL-2.0, used as a comparison only) |
 | python-docx | the project's own declared dependency, 1.2.0 |
