@@ -716,7 +716,11 @@ def test_a_revision_inside_a_drawing_textbox_is_reported_once() -> None:
 #   change with a paragraph index;
 # * a ``w:ins`` and a ``w:del`` on a table row's properties (ids 302, 303,
 #   ``w:trPr``): outside every paragraph, empty, and -- before this shape was
-#   read -- invisible.
+#   read -- invisible;
+# * a third row's ``w:ins`` (id 305) with **no author and no date at all**:
+#   the new code path reads the same two attributes the paragraph path reads,
+#   and a scan that filled an absent author with a guess is caught here rather
+#   than in the paragraph case, where the rule has had a witness for a year.
 #
 # The names are invented and the sentences are about a parameter, like the
 # rest of this file: a document built to hold a shape, not to hold a meaning.
@@ -741,6 +745,13 @@ _ROW_MARKER_BODY = (
     '<w:p><w:r><w:t xml:space="preserve">The deleted row states one cell.</w:t></w:r></w:p>'
     "</w:tc>"
     "</w:tr>"
+    "<w:tr>"
+    # No ``w:author`` and no ``w:date`` at all: the absence is the answer.
+    '<w:trPr><w:ins w:id="305"/></w:trPr>'
+    "<w:tc>"
+    '<w:p><w:r><w:t xml:space="preserve">A row whose mark names nobody.</w:t></w:r></w:p>'
+    "</w:tc>"
+    "</w:tr>"
     "</w:tbl>"
     "<w:p>"
     "<w:pPr><w:rPr>"
@@ -759,11 +770,11 @@ def test_a_table_row_marker_is_reported_though_no_paragraph_holds_it() -> None:
     """A change on a row's properties is a tracked change, and is reported.
 
     The fidelity baseline recorded this and left it unfixed
-    (``docs/acceptance/LC-P2-07-fidelity-baseline.md`` §5.7): Word writes a
-    table row's insertion as ``w:trPr/w:ins`` -- an empty element outside
-    every paragraph -- and a reader that walks paragraphs never reaches it.
-    Real material holds one: a review copy whose part carries 223 revision
-    elements while the reader reported 222.
+    (``docs/acceptance/LC-P2-07-fidelity-baseline.md``, the closing paragraph
+    of §5.6): Word writes a table row's insertion as ``w:trPr/w:ins`` -- an
+    empty element outside every paragraph -- and a reader that walks
+    paragraphs never reaches it. Real material holds one: a review copy whose
+    part carries 223 revision elements while the reader reported 222.
 
     **What breaks it:** a scan that reports only what a paragraph contains.
     That is the defect, and this witness is the property the fix holds: the
@@ -803,6 +814,19 @@ def test_a_table_row_marker_is_reported_though_no_paragraph_holds_it() -> None:
     assert deleted.locator.view == "rejected", "a deletion is read in the view it lives in"
     assert deleted.locator.element_path.endswith("/trPr[1]/del[1]"), deleted.locator.element_path
     assert deleted.paragraph is None
+
+    # **And a marker that names nobody stays unnamed on the new path too.**
+    # The rule "a missing author is absent, never guessed" was witnessed
+    # where the paragraph scan reads the attributes; this row's mark is read
+    # by the document scan, which reads the same two attributes and must
+    # answer the same way. A scan that fell back to the empty string, or to
+    # somebody else's name, is caught here.
+    unnamed = by_id["305"]
+    assert unnamed.kind == "ins"
+    assert unnamed.author is None, "no w:author, so no author -- and not the empty string"
+    assert unnamed.date is None, "no w:date, so no date -- and not the file's mtime"
+    assert unnamed.text == ""
+    assert unnamed.paragraph is None
 
     # The cells' prose is not lost and not double-counted: it is the cells'
     # paragraphs, and they stand in the document's paragraph list once each.
