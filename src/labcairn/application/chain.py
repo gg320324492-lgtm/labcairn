@@ -98,10 +98,21 @@ from labcairn.papers.chain import (
     project_version_rows,
     revision_source_key,
 )
-from labcairn.papers.revisions import (
-    read_paragraph_context,
-    read_rejected_paragraph_context,
-)
+
+# **Not `from labcairn.papers.revisions import read_paragraph_context`.** That
+# name is reached for here, at line ~714, and only there — and a module-level
+# import of it closes a cycle that breaks in exactly one order. A process that
+# imports the writer first runs its `from labcairn.application import consent`,
+# which runs this package's aggregator, which imports this module, which asks
+# the half-initialised writer for a name its body has not bound yet:
+# `ImportError: cannot import name 'read_paragraph_context' from partially
+# initialized module`. Every other order works, which is what made it
+# invisible: the suite collects a file that imports the layer first, and the
+# writer is then already loaded. The same remedy as
+# :mod:`labcairn.analysis.chart.recipe`, and the same reason for it — the edge
+# is needed at **call** time, not at load time.
+# `tests/test_application_layer.py` holds the witness: every first-party module
+# is imported first, alone, in a fresh process.
 
 
 @dataclass(frozen=True)
@@ -700,7 +711,17 @@ def _the_paragraph_texts(
     **And a version that cannot be read is absent, not empty.** The
     caller says so in the scope; the empty string is never quoted as
     the reviewer's surroundings.
+
+    **And the paragraph readers are imported here, not at the top of this
+    module** — the module comment above :func:`read_revision_sources` says
+    why: the top-level import closes a cycle that fails only when the writer
+    is the first module a process loads.
     """
+    from labcairn.papers.revisions import (
+        read_paragraph_context,
+        read_rejected_paragraph_context,
+    )
+
     wanted: dict[tuple[str, str | None], set[int]] = {}
     for row in rows:
         if row.paragraph is None:

@@ -564,6 +564,91 @@ def test_the_layer_and_the_mentor_line_import_in_any_order(repo_root: Path) -> N
         )
 
 
+def _first_party_modules(repo_root: Path) -> list[str]:
+    """Every module under `src/labcairn`, spelled as a process would import it."""
+    root = repo_root / "src" / "labcairn"
+    names: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        parts = list(path.relative_to(root).parts)
+        if parts[-1] == "__init__.py":
+            parts = parts[:-1]
+        else:
+            parts[-1] = parts[-1][: -len(".py")]
+        names.append(".".join(("labcairn", *parts)))
+    return names
+
+
+def test_every_first_party_module_can_be_imported_first(repo_root: Path) -> None:
+    """**Any** module may be the first thing a process loads — every one is tried.
+
+    The test above names the orders that once bit. **A remembered list of pairs
+    is a witness to those pairs, not to the graph**, and it is how this project
+    keeps re-finding the same class of bug: `labcairn.papers.revisions` could
+    not be imported first at all — the writer's own `from labcairn.application
+    import consent` ran the layer's aggregator, which imported
+    :mod:`labcairn.application.chain`, which asked the half-initialised writer
+    for ``read_paragraph_context``, a name its body had not reached yet — and
+    **not one of the listed pairs starts with a module the writer imports**.
+    The suite was green because it collects a file that loads the layer first,
+    so by the time the writer appeared it was already in `sys.modules`. Order
+    hid it; that is the whole failure mode the test above describes in words.
+
+    **So the claim is enumerated, not sampled**: one fresh interpreter per
+    module, in parallel, and each one must both import and **resolve inside
+    this checkout** — a probe that quietly measures the main checkout's source
+    would prove nothing about the tree under test, which is the trap a worktree
+    walks into when its `PYTHONPATH` is not set.
+    """
+    import subprocess
+    import sys
+    from concurrent.futures import ThreadPoolExecutor
+
+    source_root = (repo_root / "src").resolve()
+    modules = _first_party_modules(repo_root)
+    assert len(modules) > 150, (
+        f"only {len(modules)} modules were found to probe, which means the "
+        f"enumeration is not covering the package and the witness is hollow"
+    )
+
+    def probe(name: str) -> str | None:
+        # **`importlib`, not `import ... as _m`.** The shorthand binds whatever
+        # attribute the parent package holds under that name, and
+        # `labcairn.reports.render` holds a *function* called `resolve` that
+        # shadows its own submodule — so `import ... as` yields a function with
+        # no `__file__` and the probe reports a cycle that is not there.
+        # `sys.modules` is the one place the module itself is found.
+        program = (
+            "import importlib, sys;"
+            f"importlib.import_module({name!r});"
+            f"print(getattr(sys.modules[{name!r}], '__file__', ''))"
+        )
+        finished = subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+        )
+        if finished.returncode != 0:
+            tail = (finished.stderr.strip().splitlines() or ["no stderr reported"])[-1]
+            return f"{name} cannot be imported first — {tail}"
+        landed = finished.stdout.strip()
+        if landed and not Path(landed).resolve().is_relative_to(source_root):
+            return (
+                f"{name} resolved to {landed}, outside {source_root}; this run is "
+                "measuring another tree — put this checkout's src first on PYTHONPATH"
+            )
+        return None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        problems = [problem for problem in pool.map(probe, modules) if problem]
+
+    assert not problems, "these modules cannot be the first import of a process:\n" + "\n".join(
+        problems
+    )
+
+
 # --------------------------------------------------------------------------- #
 # the consent
 # --------------------------------------------------------------------------- #
