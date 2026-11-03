@@ -37,30 +37,25 @@ import fnmatch
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Final
 
 from labcairn.security.approval import content_hash
+from labcairn.security.capabilities import MAX_SOURCE_READ_BYTES
 from labcairn.security.paths import RootKind
 from labcairn.security.policy import Permission, PermissionPolicy, ResourceRef
 from labcairn.workspace.roots import OUTPUT_DIR_NAME, Workspace
 
-#: The largest supplied file this module will read, and **the only place that
-#: number is written**.
-#:
-#: **It is one constant, not one per door.** :meth:`SourceMaterial.read` and
-#: :meth:`SourceMaterial.read_permitted` are two doors onto the same byte, and
-#: two defaults that could be moved apart is what happened once: the ceiling
-#: was raised for the manuscript ingest and only the door the ingest uses was
-#: raised with it, so the doors disagreed and a fixture parked between the two
-#: numbers stopped being refused. Both doors are watched now, in
-#: ``tests/test_workspace_boundaries.py``: the refusal is exercised through
-#: each one, and the two defaults are read back and compared to this constant.
-#:
-#: **Why 96 MB.** Measured 2026-11-03: the third pilot's late drafts are 71.4 MB
-#: and the 64 MB ceiling refused seven versions of one real manuscript. The
-#: number is anchored to that measurement, and a ceiling that can change is
-#: re-measured rather than carried forward.
-MAX_SOURCE_READ_BYTES: Final[int] = 96_000_000
+# The ceiling is **not written here**: it is the registry's
+# :data:`labcairn.security.capabilities.MAX_SOURCE_READ_BYTES`, imported above and
+# re-exported by name so callers that think of it as the door's bound keep
+# finding it on this module. It is imported rather than re-declared because the
+# doors and the manuscript readers must not be able to disagree —
+# :meth:`SourceMaterial.read` and :meth:`SourceMaterial.read_permitted` are two
+# doors onto the same byte, and two defaults that could be moved apart is what
+# happened once: the ceiling was raised for the manuscript ingest and only the
+# door the ingest uses was raised with it, so the doors disagreed and a fixture
+# parked between the two numbers stopped being refused. Both doors are watched
+# in ``tests/test_workspace_boundaries.py``, together with the papers' own size
+# check and the ``source.read`` argument model's bound.
 
 
 class SourceAccessDeniedError(PermissionError):
@@ -275,6 +270,7 @@ def resolve_source_path(workspace: Workspace, *, root_id: str) -> Callable[[str]
 
 
 __all__ = [
+    "MAX_SOURCE_READ_BYTES",
     "SourceAccessDeniedError",
     "SourceIsReadOnlyError",
     "SourceMaterial",

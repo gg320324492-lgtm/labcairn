@@ -77,6 +77,7 @@ import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Final
 
 from sqlalchemy import select
 
@@ -96,7 +97,7 @@ from labcairn.papers.chain import (
     project_row,
     version_row,
 )
-from labcairn.security.capabilities import CapabilityId
+from labcairn.security.capabilities import MAX_SOURCE_READ_BYTES, CapabilityId
 from labcairn.security.paths import CanonicalPath
 
 #: **The two parties a reply has.** A closed vocabulary, and it is the
@@ -116,16 +117,19 @@ REPLY_PARTIES: frozenset[str] = frozenset({"reviewer", "author"})
 #: nothing to grade here. What varies is how the pairing was established.
 PAIRING_GRADES: frozenset[str] = frozenset({"observed", "inferred", "human_verified"})
 
-#: The ceiling on a document this operation will read. **A ceiling, and
-#: not a hope**: the file's size is measured before the bytes are read, so
-#: a file that is too large is refused rather than read and then refused.
+#: The ceiling on a document this operation will read — **the registry's
+#: ceiling, the same one :mod:`labcairn.papers.feedback` reads**, not a second
+#: number that happens to agree. It is named here because this module measures
+#: the file before reading it and puts the bound into the ``source.read``
+#: approval it asks for.
 #:
-#: **Raised from 64 MB on 2026-11-03**, with :mod:`labcairn.papers.feedback`:
-#: the third pilot's late drafts are 71.4 MB, and the old ceiling refused
-#: seven versions of one real manuscript. See that module's constant for
-#: the measurement and the reasoning; the two ceilings are the same number
-#: deliberately.
-MAX_MANUSCRIPT_BYTES = 96_000_000
+#: **Why 96 MB, measured 2026-11-03**: the third pilot's late drafts are 71.4 MB,
+#: and the old 64 MB ceiling refused seven versions of one real manuscript. The
+#: single definition is
+#: :data:`labcairn.security.capabilities.MAX_SOURCE_READ_BYTES`; the witnesses
+#: that hold every spelling of the ceiling together are in
+#: ``tests/test_workspace_boundaries.py``.
+MAX_MANUSCRIPT_BYTES: Final = MAX_SOURCE_READ_BYTES
 
 
 @dataclass(frozen=True, slots=True)
