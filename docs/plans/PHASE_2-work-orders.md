@@ -98,7 +98,12 @@ both are in the code, the record and the review points:
 
 ## 3. What is not built, and what each piece costs
 
-**This is the whole of what is left, in the order it has to happen.**
+**This is the whole of what was left, in the order it has to happen — and a
+row that is closed stays in place, marked.** Deleting it would make the table
+read as though the work had never been owed, and the ordering is what says
+which piece unblocks which. **Read the second column for the state**: a row
+that says LANDED or done is history with its evidence, and the rows that
+describe a cost still being owed are the ones the phase is waiting on.
 
 | | what is missing | why it is missing | what it costs | how it is known to be done |
 |---|---|---|---|---|
