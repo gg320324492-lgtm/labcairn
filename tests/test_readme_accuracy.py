@@ -946,6 +946,11 @@ _LAUNDERED_CLAIMS = (
     "LabCairn 将支持 DOCX，现已支持 PDF 解析。",  # noqa: RUF001
     "本项目拟提供批量导出，系统支持一键摘要。",  # noqa: RUF001
     "不声称支持 DOCX，但系统提供 PDF 导出。",  # noqa: RUF001
+    # No comma before the adversative: these two are carried by the Chinese
+    # adversative splits alone -- with the comma the clause split already
+    # separates the claim from the plan.
+    "不声称支持 DOCX 但系统提供 PDF 导出。",
+    "LabCairn 已支持 DOCX 但计划重写导出器。",
 )
 
 #: The honest planning language the clause-scope rule must survive: the
