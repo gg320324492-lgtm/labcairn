@@ -1,5 +1,45 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-03 · **the chain's fourth ring has been opened, and it says the
+advice mostly did not land.**
+
+**Five assessments are in `followup_assessments`, all five
+`not_established`.** They were written through `record_assessment` — the door
+whose `issue_key` hole closed the same day — with `basis=revised_manuscript`,
+`assessor_kind=model` and evidence refs that each name a version and a paragraph
+address. Three are graded `observed`, because the next draft carries the commented
+paragraph **byte for byte**, so the omission the advisor named is seen rather than
+concluded; two are `inferred`, because the passage moved and the reading rests on a
+nearest match at similarity 0.177 and 0.125. **The similarity numbers locate the
+paragraph; they are not the verdict.** Record:
+[LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md).
+
+**The finding is the funnel, not the five.** Of the 32 comment keys the confirmed
+rules are bound to, **14 carry no anchored words** and **9 sit on the newest draft
+of their project**, so **five of the sixteen comment-derived rules could be judged
+and eleven could not** — each named in the record with the test that failed it.
+**And none of the eight revision-derived rules can be read this way at all:** all
+thirty of their cases have an empty rejected view, because the mentor wrote his
+instruction **as a new paragraph**, so there is no earlier wording to compare
+against and no corresponding place in a later draft. The distillation chose the
+longest inserted text, and that chose his notes.
+
+**Two questions this leaves open, and neither is mine to settle.** *One:* in this
+material a "later version" is often the advisor's marked-up copy rather than the
+author's next draft — pilot-1's `v03 → v03-copy` step is a month later by the
+documents' own clock and carries up to **38** tracked insertions by him at one
+paragraph, so reading it as the advice borne out would credit the advice with its
+own restatement. Whether the chain's edges should be typed, or such an edge
+shouldn't exist, is the owner's call. *Two:* **24 of the store's 80 comment rows
+store `sha256("")`** as their anchor digest, seven of them under
+`anchor_status='resolved'`, so `anchor_state` reports `fresh` over an anchor that
+holds nothing — a window is measuring now whether the reader dropped text the file
+has, or the vocabulary is claiming a passage where there was only a position.
+
+**What the five rows do not change:** the retrieval still serves **9** rules and
+reports **15** unserved, re-measured after the write. An assessment is a judgement
+about a case, not a judgement that a comment was answered.
+
 **Date:** 2026-11-03 · **the evaluation harness now runs in CI on a weekly
 schedule, over the five classes it can run offline.**
 
