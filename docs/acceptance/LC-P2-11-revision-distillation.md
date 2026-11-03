@@ -466,3 +466,13 @@ commit rather than in a commit message.
 partition is balanced on runner seconds, and §4 item 7's are the only ones
 this section quotes as measured — a development-machine total is not evidence
 about the runner, only about this machine.
+
+---
+
+**A fourth pilot has since been run on the same door, at a hundred times the
+size**: a submission's six drafts and five marked-up copies, **897 tracked
+changes by one reviewer**, from which seven groups were read and six confirmed
+— and the same reviewer's standards compared against the second corpus's.
+[`LC-P2-11-pilot-4-distillation.md`](LC-P2-11-pilot-4-distillation.md). **What
+did not change is the door**: no new shape, no new parameter, and one
+single-act rule left as a candidate rather than dressed as a standard.
