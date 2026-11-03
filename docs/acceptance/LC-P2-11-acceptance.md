@@ -304,6 +304,19 @@ holds**: a rule may be confirmed without naming a check, because that
 precondition would change the memory's existing meaning and the piece that
 closed this column did not ask for it.
 
+**And the console shows the check now — closed 2026-11-03.** The
+machine-readable answer had carried `checks` for as long as the binding has
+existed; **the console's own answer printed the state and the statement and
+stopped there**, so a person at a terminal read the standard and not the
+question that decides it. The two faces of one door must not disagree about
+what a rule carries: the console now prints each check's id, question and pass
+criterion, **and a rule that names none says so** rather than leaving a reader
+to wonder whether the door dropped them. Two witnesses (`test_cli.py`) and a
+mutation measured against them: deleting the call that prints the checks turns
+both red — one for the rule that has a check, one for the rule that has none.
+**The whole of `test_cli.py` was then run as a file: 97 passed**, so the change
+is not an inference about the branch it does not touch.
+
 ## The weakest point an independent review found
 
 An independent read-only review re-applied the mutations in this
