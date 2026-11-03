@@ -3189,6 +3189,37 @@ def test_a_row_claiming_an_empty_text_is_never_fresh(legacy_0022: ChainEnv) -> N
     )
 
 
+def test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh(
+    legacy_0022: ChainEnv,
+) -> None:
+    """A resolved row whose re-read names no words is confirmed by nothing.
+
+    The row here is a *legitimate* resolved row -- real text, a real
+    digest -- but the manuscript's comment now sits on a point, so the
+    re-read names no words: the address the row records no longer holds
+    the words it held. **The re-read is the second guard**, and it is the
+    one that runs when the row's own text is present: a mutation that
+    confirms a re-read which named no words turns this witness false.
+    """
+    session = legacy_0022.context.store.session
+    _raw_insert(
+        session,
+        feedback_id=_legacy_id(legacy_0022),
+        anchor_status="resolved",
+        anchor_reason=None,
+        anchor_paragraph=0,
+        anchor_start=0,
+        anchor_end=3,
+        anchor_text="The",
+        anchor_text_sha256=hashlib.sha256(b"The").hexdigest(),
+    )
+    session.rollback()
+    assert (
+        anchor_state(legacy_0022.context, feedback_id=_legacy_id(legacy_0022), now=MOMENT)
+        == "stale"
+    )
+
+
 def test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded(
     legacy_0022: ChainEnv,
 ) -> None:
