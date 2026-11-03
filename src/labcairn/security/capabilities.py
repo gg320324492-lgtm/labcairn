@@ -217,9 +217,9 @@ class FsReadArgs(_Args):
     #: consumer is :func:`labcairn.application.artifacts.read_artifact`, which
     #: reads the approved value back and refuses a file larger than it. Joining
     #: it to ``MAX_SOURCE_READ_BYTES`` would make every artefact read approvable
-    #: at the manuscript ceiling; ``test_an_artefact_read_may_not_be_approved_at_
-    #: the_manuscript_ceiling`` holds the difference so the tidying is a decision
-    #: rather than an accident.
+    #: at the manuscript ceiling. The difference is held by
+    #: ``test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling``, so
+    #: unifying the two is a decision about artefacts rather than a tidy-up.
     max_bytes: int = Field(default=1_000_000, ge=1, le=64_000_000)
 
 
