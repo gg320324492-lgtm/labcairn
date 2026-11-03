@@ -381,6 +381,22 @@ the other has **two sources at v1 and four at v2**, so a v1 read that
 resolved its sources against the newest row would report material the
 version it names never rested on.
 
+**And read back through the product's own doors**, so that the above is not
+a reading of tables but of the operation: an operator script outside the
+repository called `read_guidance_rule` and `read_guidance_rule_version`
+through `labcairn.application` — **the layer's name, not the module's**, which
+is what the wiring commit made possible. It reported 25 rows at their highest
+version and 2 of them past v1; for both, the highest-version read returned v2
+and nothing else, the version read returned **v1 as it stood** (`disputed`,
+statement 128 characters where v2's is 77, **2 sources where v2 has 4, no
+check where v2 has one**) and v2 as the retrieval serves it, and a request for
+version 3 came back `application refused (guidance_rule_not_found): no rule
+carries the id … at version 3`. **The pilot store came back byte-identical
+afterwards** — the same SHA-256 before and after the run — so this is a
+reading of real material that wrote nothing to it. No statement text is
+quoted here or anywhere in this record: a version's words are named by length
+and digest, because the material is the owner's unpublished work.
+
 **What landed** (`d6cf117`, wired in `f21ebe0`, merged at `00a8072`):
 `read_guidance_rule_version(context, rule_id=…, version=…)` selects the
 row at `(rule_id, version)` and refuses a version the memory does not
@@ -420,9 +436,11 @@ test functions before, 3283 after, **LOST — none**, the four additions
 named. The merge added 180 lines and deleted none, which is why nothing
 could be swallowed this time; that is not how the check is satisfied.
 
-**What this piece does not do.** Nothing calls the new read yet — the
-retrieval still serves the highest version, as it should, and the
-reconciliation that motivated it has not been run.
+**What this piece does not do.** **No operation of the product calls the new
+read** — the retrieval still serves the highest version, as it should, and the
+reconciliation that motivated this has not been run. The only caller so far is
+the operator's read-only script named above, which exists to measure the claim
+rather than to use the door.
 
 **And one witness is red on this tree, by design and not because of this
 piece.** `test_the_costs_belong_to_the_tree_they_were_measured_on`
