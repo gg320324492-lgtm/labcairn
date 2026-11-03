@@ -2946,24 +2946,44 @@ def test_a_position_anchor_is_recorded_and_never_fresh(env: StoreEnv, tmp_path: 
     assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "unanchored"
 
 
-def test_a_row_claiming_an_empty_text_is_never_fresh(chain: ChainEnv) -> None:
+def test_a_row_claiming_an_empty_text_is_never_fresh(env: StoreEnv, tmp_path: Path) -> None:
     """A resolved row whose anchored text is empty cannot be confirmed.
 
     Stores recorded before the fix hold rows shaped ``resolved`` with an
     empty anchored text and the digest of the empty string. **Empty
     matching empty is the false ``fresh``**: whatever the file now reads,
     there are no words to still be there, so the row is reported stale
-    until it is re-derived against the file. A mutation that returns
+    until it is re-derived against the file. The manuscript here carries a
+    *point* comment, so a re-read of the file also covers no words -- the
+    case where the two empty strings hash the same and only the guards
+    stand between the row and a false ``fresh``. A mutation that returns
     ``fresh`` whenever a digest is present fails here.
     """
-    (event,) = _record(chain)
-    session = chain.context.store.session
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_POINT_DOCUMENT,
+    )
+    (event,) = _record(built)
+    session = built.context.store.session
     row = session.get(FeedbackEventRow, event.feedback_id)
     assert row is not None
+    # The shape a store recorded before the fix: a resolved claim, no
+    # anchored words, and the digest of the empty string as its
+    # integrity value.
+    row.anchor_status = "resolved"
+    row.anchor_reason = None
+    row.anchor_paragraph = 0
+    row.anchor_start = len("Lead in. ")
+    row.anchor_end = len("Lead in. ")
     row.anchor_text = ""
     row.anchor_text_sha256 = _EMPTY_SHA256
     session.commit()
-    assert anchor_state(chain.context, feedback_id=event.feedback_id, now=MOMENT) == "stale"
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "stale"
 
 
 def test_the_door_refuses_a_resolved_anchor_that_covers_no_words(
