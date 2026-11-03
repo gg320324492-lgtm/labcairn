@@ -171,27 +171,47 @@ and each has its own witness:
 
 Every witness below was **mutation-checked**: the assertion's mechanism
 was broken in source, the witness was re-run, and the red was recorded.
+Twelve mutations ran, one per mechanism, and all twelve were caught; the
+mutations that were first tried and **not** caught are recorded too,
+because a mutation that survives says the witness was watching something
+else:
+
+- the first attempt at the re-read guard's mutation targeted
+  `test_a_row_claiming_an_empty_text_is_never_fresh`, whose row-side
+  guard fires before the re-read is ever reached — the mutation survived,
+  and the re-read guard got its own witness
+  (`test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh`, a row
+  with real text whose re-read names no words) and its own mutation;
+- the `_text_of` mutation first ran against a head-schema test, which
+  cannot hold the placeholder digest at all — the placeholder re-recording
+  is now staged on a real 0022 database
+  (`test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded`),
+  the only shape that can hold it.
+
 All runs used `--basetemp` outside the repository, with `TEMP`, `TMP` and
 `TMPDIR` pointed at the same outside directory, one directory per run.
 
 | # | Claim | Witness | Mutation | Red |
 |---|---|---|---|---|
-| 1 | the reader reports a position with the place kept | `test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage` | status reverted to `"unknown"` | `assert anchor.status == "position"` |
-| 2 | the reader reports the over-insertion shape as a position | `test_a_comment_over_inserted_text_is_a_position_in_the_baseline` | offset dropped (`start=None`) | `assert anchor.start is not None` |
-| 3 | the store refuses a row that denies its status | `test_the_schema_refuses_an_anchor_row_that_does_not_hold_what_its_status_claims` | the shape check's position branch allows a digest | `IntegrityError` not raised |
-| 4 | a resolved row must carry real text | same witness, `fb-resolved-empty` case | the check's `length(anchor_text) > 0` removed | `IntegrityError` not raised |
-| 5 | a position row is recorded with the place and no digest | `test_a_position_anchor_is_recorded_and_never_fresh` | `anchor_hash` computed over `None` (reverted to unconditional `_sha256`) | digest assertion fails |
-| 6 | re-recording a legacy row is not a stale anchor | `test_a_legacy_row_is_read_and_re_recorded_without_a_false_stale` | `_text_of` reduced to identity | `ANCHOR_STALE` raised |
-| 7 | a legacy resolved-empty row is never fresh | `test_a_row_claiming_an_empty_text_is_never_fresh` | the stale guard in `anchor_state` reads the digest instead of the text | `"stale" != "fresh"` assertion fails |
-| 8 | the two spellings land in one bucket | `test_a_position_spelled_the_legacy_way_lands_in_the_same_bucket` | the reason branch removed from the dispatch | `could not place` appears in the scope |
-| 9 | the upgrade cleans the placeholder and moves nothing else | `test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing` | the cleaning `UPDATE` deleted from the migration | the new check fails to install |
-| 10 | a position downgrades to what it was called | `test_a_position_row_downgrades_to_what_it_was_called_before` | the downgrade's first `UPDATE` deleted | status assertion fails |
+| 1 | the reader reports a position with the place kept | `test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage` | status reverted to `"unknown"` | `AssertionError` on the status |
+| 2 | the reader reports the over-insertion shape as a position | `test_a_comment_over_inserted_text_is_a_position_in_the_baseline` | offset dropped (`start=None`) | `AssertionError: assert anchor.start is not None` |
+| 3 | the store refuses a position row that carries a digest | `test_the_schema_refuses_an_anchor_row_that_does_not_hold_what_its_status_claims` | the check's position branch loses its digest pin | the refused insert was accepted (`DID NOT RAISE`) |
+| 4 | a resolved row must carry real text | same witness, `fb-resolved-empty` case | the check's `length(anchor_text) > 0` removed | the empty-text insert was accepted |
+| 5 | a position row is recorded with the place and no digest | `test_a_position_anchor_is_recorded_and_never_fresh` | `anchor_hash` computed unconditionally over `anchor.text or ""` | `IntegrityError` — the schema refuses the row the door then wrote |
+| 6 | re-recording reads a placeholder digest as "no text" | `test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded` | `_text_of` reduced to identity | `ApplicationRefusedError: ANCHOR_STALE` |
+| 7 | a resolved row with no text is stale before any read | `test_a_row_claiming_an_empty_text_is_never_fresh` | the row-side guard returns `fresh` | `AssertionError: "stale" != "fresh"` |
+| 8 | a re-read that names no words confirms nothing | `test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh` | the re-read guard returns `fresh` | `AssertionError: "stale" != "fresh"` |
+| 9 | the legacy spelling of a position lands in the position bucket | `test_a_position_spelled_the_legacy_way_lands_in_the_same_bucket` | the reason branch removed from the dispatch | the scope the cases do not support is refused |
+| 10 | the status spelling lands in the same bucket | `test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_placed` | the status branch misspelled | the scope the cases do not support is refused |
+| 11 | the upgrade cleans the placeholder and moves nothing else | `test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing` | the cleaning `UPDATE` deleted from the migration | `IntegrityError` — the new check fails to install over the placeholder |
+| 12 | a position downgrades to what it was called | `test_a_position_row_downgrades_to_what_it_was_called_before` | the downgrade's re-spelling `UPDATE` deleted | `IntegrityError` — the restored two-word vocabulary refuses the row |
 
-Mutation commands took the form:
-`python -c` with `read_bytes`/`write_bytes` over the named file (never
-`read_text`, which rewrites CRLF), run after the work was committed and
-reverted with `git checkout --` afterwards, so no uncommitted work was
-ever on the table.
+The mutations ran from a script outside the repository that writes its
+one replacement with `read_bytes`/`write_bytes` (never `read_text`, which
+rewrites CRLF), re-runs the named witness, and restores the file with
+`git checkout --` — the work was committed first, so nothing uncommitted
+was ever on the table, and the script asserts the tree is clean
+afterwards.
 
 ## 5. What is deliberately not here
 
