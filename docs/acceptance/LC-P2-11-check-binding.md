@@ -1,19 +1,29 @@
 # LC-P2-11: a check bound to each of the two confirmed rules of `proj-pilot-3`
 
-**Status: closed.** Each of the two rules the owner confirmed on 2026-11-03
-now names a check — a question a reader can run against a manuscript, and
-the criterion that says what passes. The gap §6.5 of
-`LC-P2-11-revision-distillation.md` names is closed, and this file is the
-record of it.
+**Status: the binding is done and verified.** Each of the two rules the
+owner confirmed on 2026-11-03 now names a check — a question a reader can
+run against a manuscript, and the criterion that says what passes. **This
+file is the record of it.**
+
+**This branch touches this file and nothing else.** The closure pointer
+in §6.5 of `LC-P2-11-revision-distillation.md` is the parent session's to
+write, and that file is **not** modified here.
 
 - **Branch**: `claude/check-binding-pilot3-feaddf`
 - **Measured at**: `991c063` (the merge of `docs/debt-closures` into this
   branch; `git merge-base --is-ancestor bb8f8f6 HEAD` succeeds)
 - **Pilot database**: `E:\labcairn-local\pilot-ws\labcairn.db`
-- **Backup taken before the first write**:
-  `E:\labcairn-local\pilot-ws\labcairn.db.backup.before_binding_2026-11-03`
-  — and the backup **still holds 0 rows** in `guidance_checks` and 0 in
-  `guidance_rule_checks`, which is how it is known to predate the write.
+
+**The backups, and how each is known to predate the write.** All three
+hold **0 rows** in `guidance_checks` and **0** in `guidance_rule_checks`,
+which is what makes each of them evidence of the state before the
+binding:
+
+| Backup | Taken by | State it holds |
+|---|---|---|
+| `E:\labcairn-local\pilot-ws\labcairn.db.backup.before_binding_2026-11-03` | this session, before the write | 0 checks, 0 bindings |
+| `E:\labcairn-local\revdistil-pilot3\labcairn.db.before` | the parent session | 0 checks, 0 bindings |
+| `E:\labcairn-local\revdistil-pilot3\labcairn.db.before-v2` | the parent session | 0 checks, 0 bindings |
 
 ---
 
@@ -284,6 +294,14 @@ project's own rule ("a rule may name only a confirmed check"), and it is
 witnessed in the suite as well by
 `tests/test_guidance_rules.py::test_a_rule_may_name_only_a_confirmed_check`.
 
+**The parent session made the same measurement independently, and earlier.**
+Its negative was taken **before the confirmation** — the binding was
+attempted against a candidate and refused twice, with the reason arriving
+as the application-layer enum `ApplicationRefusal`, value
+`guidance_check_not_confirmed`; the binding succeeded only after the
+confirmation. **The two measurements are independent and agree**: the
+refusal is the door's, and it does not depend on which session asks.
+
 **Those two witnesses were run against this branch's `src`**, with the
 worktree first on `PYTHONPATH` and a `--basetemp` outside the repository:
 
@@ -336,20 +354,43 @@ What this session is responsible for, and what this file records:
   the source and confirmed against the live database;
 - **the verification** of the binding through the product's own doors
   (§4) — the read-back, the retrieval card, and the negative witness;
-- **the record**, which is this file and the §6.5 closure pointer.
+- **this file**, which is the record. **The closure pointer in §6.5 of
+  `LC-P2-11-revision-distillation.md` belongs to the parent session**,
+  and this branch does not modify that file.
 
 **Two drafts of the wording existed.** This session drafted a longer
 wording and handed it to the owner for confirmation. The wording in §3 is
 the one the owner confirmed and the database holds; the longer draft was
-**not** written to the database and is **not** a second check.
+**not** written to the database and is **not** a second check. **Writing
+it would have been the harm the parent session named**: a rule names one
+check at its highest version, and a second one there would give the same
+rule two names for the same question.
+
+**`proposed_by` differs between the two drafts.** The rows in the
+database carry `operator_proposal`, which is the parent session's
+judgement — the revision channel's proposer is a person reading the
+mentor's revisions. This session's own draft would have carried
+`model_proposal`, because that draft was written by a model. **Only the
+database's rows exist**, so the difference is a difference between two
+drafts and not between two rows.
 
 ---
 
 ## 7. What was not done
 
+- **The pilot database was not written by this session.** The read-back
+  and the negative were the only things done against it, and the negative
+  was done against a **copy** so that the live database gained no row
+  nobody confirmed. The database's two checks and two bindings are the
+  parent session's work.
 - **Nothing pushed. No pull request opened. No CI run started.**
 - `docs/RELEASE-NOTES.md`, `docs/ROADMAP.md` and every `LC-P2-07*` file
   were **not touched** — another window was writing them.
+- **`docs/acceptance/LC-P2-11-revision-distillation.md` was not
+  modified** in the state this branch now carries. A closure pointer for
+  §6.5 was drafted here and **reverted** so that this branch and the
+  parent session do not write the same file; the draft survives in commit
+  `f9a16b5` of this branch if it is wanted.
 - **No product code under `src/` was changed.** No missing door and no
   wrong behaviour was found: `bind_check` attaches to the highest version
   as the project requires, and an unconfirmed check is refused as the

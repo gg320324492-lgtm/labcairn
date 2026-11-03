@@ -387,17 +387,12 @@ keeping its past looks like in a row.
   standard. That is what the memory holds a rule to be — one advisor's
   standard, traceable to the moment it was learned — but it means these
   two will not transfer to a different subject.
-- **A check is now bound to each rule, at version 2 — closed 2026-11-03.**
-  *(Record: `LC-P2-11-check-binding.md`.)* A rule may name the question a
-  reader runs against a manuscript and what answers it, and each of these
-  two now does: `rule-1fcc9d1a2573d7b0` v2 names `check-a1de7d4db9d7cbda`
-  and `rule-1006b8ca1120db13` v2 names `check-5df4997384d6a0bd`, both
-  read back through `read_rule_checks` and served on the retrieval card.
-  **What the closure does not change is the standing objection above**:
-  each check rests on one act, in one paragraph of one draft, and neither
-  criterion has been observed to *not* fire on material the mentor chose
-  to leave alone — so the criteria are derived from what the mentor did,
-  and are not validated by a negative case.
+- **No check was bound to either rule.** A rule may name the question a
+  reader runs against a manuscript and what answers it, and neither does
+  yet: both are served as statements with sources, not as statements with
+  a test. **This is the remaining gap LC-P2-11's checks column exists to
+  close**, and it is a judgement about this material, not a defect in the
+  door.
 - **The new witnesses were not measured on a runner when this section was
   written**; §4 item 7 carries the measurement that has since arrived, and
   §7 carries the whole-suite run this branch was checked with.
