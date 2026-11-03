@@ -1,7 +1,9 @@
 # LC-P2-07 — the revision no paragraph holds: the row marker, measured and read
 
 **Date:** 2026-11-03 · **Base commit for the "before" numbers:** `e13b967` ·
-**The fix:** `1f1529d` on `claude/reader-row-markers-41cc54` ·
+**The fix:** `1f1529d`, corrected and re-measured at `82d7161`, re-measured again
+after the parent branch was merged in at `5984f1e` (parent tip `eff6561`, which
+carries `bb8f8f6`) ·
 **Measured by:** the executor, on the development machine ·
 **Pushed:** no. **Pull request opened:** no (CLAUDE.md: a run is the owner's
 call, and one was already in flight on the parent branch).
@@ -186,8 +188,10 @@ numbers in it needed no re-run.
 
 ## 4. The witnesses, and the mutations
 
-Three cases were added to `tests/test_ooxml_revisions.py` (27 → **30**
-cases, counted by collecting the file at the commit, not carried), all reading
+Three cases were added to `tests/test_ooxml_revisions.py` by this order
+(27 at the base commit → 30 at `1f1529d`; **32** on this branch now, the parent
+branch's identity work adding two more — counted by collecting the file at the
+merge commit, not carried), all reading
 one hand-built document that holds **five** revision elements in the places
 one can sit: an insertion in a paragraph's run sequence (`w:ins` among the
 runs), a paragraph's own mark (`w:pPr/w:rPr/w:ins`), and **three** row marks
@@ -219,21 +223,33 @@ what they measure. The count therefore reads the hand-built document
 alongside the corpus, which puts the shape in the witness without touching
 the measured corpus. Re-homing it into the corpus is named in §6.
 
-**The mutations.** Each was applied to a **copy** of `src/` outside the
-repository (`E:\labcairn-local\row-marker-measure\mut\src`) and run through
+**The mutations.** Each was applied to a **copy** of the tree outside the
+repository (`E:\labcairn-local\row-marker-measure\mut\`) and run through
 `PYTHONPATH`, so the measured tree never changed while a measurement was in
 flight — the rule this project learned the hard way (CLAUDE.md: a run showing
 a failure is re-measured before it is believed, and a tree edited mid-run
-invalidates the run). Each row is `pytest tests/test_ooxml_revisions.py`
-(30 cases) against that copy, `--basetemp` outside the repository.
+invalidates the run). **The copy needs `migrations/` beside it**: `REPO_ROOT`
+in `db/migrations.py` is derived from the package location, so a copy of
+`src/` alone makes the writer's 52 database fixtures error out — and an error
+count is not a witness result. The first battery run of this section had
+exactly that bug in its own harness, and the numbers below are the re-run with
+`migrations/` copied too. Each row prints the `ooxml.py` it actually imported.
+
+**Every row is `pytest tests/test_ooxml_revisions.py
+tests/test_docx_fixture_corpus.py tests/test_version_store.py` — 191 cases —
+against that copy, `--basetemp` outside the repository.** The writer's file is
+in the set because these mutations move what the writer stores, and because
+collecting it first is what keeps the parent branch's import cycle (see §5)
+from reddening three identity witnesses for a reason that is not the mutation.
+The baseline for the set, on the merged tree with no mutation: **191 passed**.
 
 | # | The mutation | What went red |
 |---|---|---|
-| A | **not a reconstruction: the reader as it stood at the base commit.** `git archive e13b967 src` was extracted and used unchanged, so the witnesses ran against the behaviour that had the defect | `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph`, `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once` — **4 failed, 26 passed** |
-| B | one row marker, two events (the element appended twice to the scan's found-list) | `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once` — **2 failed, 28 passed** |
-| C | the row's mark is given paragraph `0` and baseline `0..0` instead of `None` | `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph` — **2 failed, 28 passed** |
-| D | the event quotes borrowed prose instead of the marker's own empty text | `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it` — **1 failed, 29 passed** |
-| E | the new scan drops its "a paragraph owns this element" guard, so the §5.6 double-read comes back | `test_every_revision_in_the_corpus_is_reported`, `test_every_revision_carries_its_kind_text_author_and_date`, `test_a_missing_author_or_date_is_unknown_and_never_guessed`, `test_a_revision_nested_inside_another_is_reported_separately`, `test_a_revision_inside_a_drawing_textbox_is_reported_once`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph`, `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once`, `test_the_derived_revision_event_id_names_one_change_per_address` — **9 failed, 21 passed** |
+| A | **not a reconstruction: the reader as it stood at the base commit.** `git archive e13b967 src migrations` was extracted and used unchanged, so the witnesses ran against the behaviour that had the defect | my four witnesses — `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph`, `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once` — **plus five witnesses that belong to the identity work now on this branch** (`test_the_revision_event_id_carries_an_occurrence_per_change_at_one_address`, `test_the_revision_event_id_is_re_derivable_not_position_dependent`, and three in `test_version_store.py`), which fail here because the extracted tree predates them and takes no `occurrence` argument. **9 failed, 182 passed** |
+| B | one row marker, two events (the element appended twice to the scan's found-list) | `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once` — **2 failed, 189 passed** |
+| C | the row's mark is given paragraph `0` and baseline `0..0` instead of `None` | `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph` — **2 failed, 189 passed** |
+| D | the event quotes borrowed prose instead of the marker's own empty text | `test_a_table_row_marker_is_reported_though_no_paragraph_holds_it` — **1 failed, 190 passed** |
+| E | the new scan drops its "a paragraph owns this element" guard, so the §5.6 double-read comes back | nine in the reader's and corpus's files — `test_every_revision_in_the_corpus_is_reported`, `test_every_revision_carries_its_kind_text_author_and_date`, `test_a_missing_author_or_date_is_unknown_and_never_guessed`, `test_a_revision_nested_inside_another_is_reported_separately`, `test_a_revision_inside_a_drawing_textbox_is_reported_once`, `test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph`, `test_a_table_row_marker_is_reported_once_and_not_twice`, `test_the_reader_reports_each_revision_element_exactly_once`, `test_the_derived_revision_event_id_names_one_change_per_address` — **and seven in the writer's**: `test_a_revision_event_carries_the_text_and_the_place_of_the_change`, `test_a_revision_with_no_author_or_date_is_unknown_and_never_guessed`, `test_recording_the_same_version_twice_is_the_same_rows`, `test_a_listing_drops_the_events_of_denied_material`, `test_the_four_kinds_of_change_are_told_apart`, `test_the_application_layer_reads_the_revision_events_and_the_activity`, `test_a_comment_and_a_change_in_one_manuscript_are_two_facts`. **16 failed, 175 passed** |
 
 **Why E is in the list at all.** The work order's constraint was to keep
 §5.6's property while removing the blind spot, and a mutation that restores
@@ -244,21 +260,23 @@ pushed the element back onto the walk's stack, which never terminates. That
 run was stopped; a mutation that hangs is not a witness that failed, so it
 was rewritten into the two-appends form, which does terminate and does bite.
 
-Mutation B was first written as "push the element back on the stack", which
-loops forever; that attempt is recorded because it is the kind of mutation
-that *looks* like a red test and is in fact a hung run — it was stopped and
-rewritten into the two-appends form above, which terminates.
-
 **The rest of the tree.** Everything that consumes a revision event was run
-against the widened types: `tests/test_ooxml_revisions.py`,
-`tests/test_docx_fixture_corpus.py`, `tests/test_version_store.py`,
-`tests/test_feedback_events.py`, `tests/test_guidance_distillation.py`,
-`tests/test_analysis_report_revisions.py` — **276 passed**. `ruff check .`,
-`ruff format --check .` (423 files) and `mypy` (383 files, `--strict` from
-`pyproject.toml`) are clean. The one known red is
-`tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`,
-which the parent branch owes a runner: two of its heavy test files changed
-there, and no cost may be invented locally. Nothing was regenerated.
+against the widened types, on the merged tree, as one command —
+`tests/test_ooxml_revisions.py`, `tests/test_docx_fixture_corpus.py`,
+`tests/test_version_store.py`, `tests/test_feedback_events.py`,
+`tests/test_guidance_distillation.py`,
+`tests/test_guidance_revision_distillation.py`,
+`tests/test_workbench_live_service.py` and
+`tests/test_analysis_report_revisions.py`: **304 passed, 0 failed**. The first
+time this paragraph was written it named a test file that does not exist; the
+names above are the directory's, listed from `tests/` rather than recalled.
+`ruff check .`, `ruff format --check .` and `mypy` (`--strict`, over every
+file `pyproject.toml` names) are clean at each commit. The ledger counts are
+§8. The one red this branch carries is
+`tests/test_ci_shard_coverage.py::test_the_costs_belong_to_the_tree_they_were_measured_on`:
+the shard costs were measured at `bb8f8f6aaab46f0285f03b3ea511b8668b78ee45`
+and a heavy test file changed since, so it wants a runner and no cost may be
+invented locally. Nothing was regenerated.
 
 ---
 
@@ -266,12 +284,30 @@ there, and no cost may be invented locally. Nothing was regenerated.
 
 **Downstream, checked rather than assumed.** `papers/revisions.py` copies
 `paragraph` and the baseline pair into columns already declared nullable;
-`application/chain.py:read_revision_activity` filters `None` before it
-counts paragraphs touched, so a row mark adds a revision event without
-pretending to touch a paragraph. No id moved: re-deriving the stored ids of
-a document whose only row mark was previously invisible changes nothing
-about the other rows, because the id is the version, the part and the path —
-and this fix adds a path, it does not renumber one.
+`application/chain.py:read_revision_activity` filters `None` before it counts
+paragraphs touched, so a row mark adds a revision event without pretending to
+touch a paragraph.
+
+**No stored id moves, and that was measured against the rule the branch runs
+now.** The identity is `(version, part, element_path, occurrence)` since the
+identity work landed, and the writer numbers each address in the order the read
+events arrive, so an appended row mark could in principle renumber the changes
+that follow it. It does not, because the number is **per address** and a row's
+mark is the first and only change at its own. Measured, not argued: the
+revision addresses of 64 real files (the manuscript's 46 and the pilot's first
+corpus's 18) were dumped from the reader at the base commit and from the fixed
+reader, then fed through the branch's own `_revision_event_id` with the
+writer's own counting:
+
+| | result |
+|---|---|
+| files whose id set differs | 1 — the one that held the invisible marker |
+| ids that disappeared | **0** (222 of 222 in that file, unchanged, byte for byte) |
+| ids added | 1 |
+| addresses carrying two events in any of the 64 files | **none** |
+
+Reproduce it with `dump_addresses.py` (once per reader) and `ids_stability.py`
+(§7).
 
 **One thing this fix makes visible and does not classify.** The chain counts
 an event by `classify_revision_change(text, element_path)`
@@ -302,14 +338,47 @@ named here so it is a listed gap and not a silently-wrong number, and it is
 not yet live data: the pilot chain holds no such row (0 null paragraphs, §2),
 because the reader never reported the marker that would have made one.
 
-**And a stale sentence in a file this order may not edit.** The docstring of
-`_revision_event_id` (`src/labcairn/papers/revisions.py:140-142`) still says
-the reader reports each revision element "from the paragraph that contains
-it". After this fix that is the *majority* rule, not the whole rule: some
-elements are reported by the document scan. It is a sentence, not a
-behaviour — the uniqueness the id rests on is unaffected, and
-`test_the_reader_reports_each_revision_element_exactly_once` is what holds
-it. It is named here for whoever owns that file next.
+**A claim this record made, and the merge withdrew.** The first version of
+this section named a sentence in `_revision_event_id`'s docstring — that the
+reader reports each element "from the paragraph that contains it" — as stale
+wording for whoever owned that file next. The parent branch had already
+rewritten that docstring when the merge landed, and what it says now is
+`identity = (version, part, element_path, occurrence)` plus "the reader's own
+uniqueness keeps every address at `occurrence == 0`". So the naming is dropped:
+**the claim the docstring rests on is exactly the property measured in §5
+above** — 0 addresses carrying two events over 64 real files, and every stored
+id byte-stable — and this order owes that file nothing.
+
+**What the merge did surface, in a file this order may not edit.** An import
+cycle, introduced upstream at `5f1e790` ("A rule may be learned from a tracked
+change, not only from a comment") when `read_paragraph_context` moved into
+`papers/revisions.py`: `labcairn.papers.revisions` imports
+`labcairn.application.consent`, whose package `__init__` imports
+`labcairn.application.chain`, which imports `labcairn.papers.revisions` back.
+Measured, on a clean `git archive eff6561` of the parent branch *alone* — not
+on anything this order touched:
+
+```
+$ python -c "import labcairn.papers.revisions"
+ImportError: cannot import name 'read_paragraph_context' from partially
+initialized module 'labcairn.papers.revisions'
+```
+
+It works when the application package is imported first. The visible symptom
+is a test run that looks like a product failure and is not: collecting
+`tests/test_ooxml_revisions.py` **by itself** turns three identity witnesses red
+(`test_the_derived_revision_event_id_names_one_change_per_address`,
+`test_the_revision_event_id_carries_an_occurrence_per_change_at_one_address`,
+`test_the_revision_event_id_is_re_derivable_not_position_dependent`) with that
+`ImportError`; add a file that imports the application layer and all three go
+green. CI does not see it because the shard that holds the reader's tests
+collects `tests/test_application_layer.py` first — the order is masking the
+defect, not fixing it. **This is reported to the parent session rather than
+repaired here**: `papers/` and `application/` are outside this order's files,
+and a cycle that only shows when a module is imported first is exactly the
+kind of thing that must not be quietly patched from a window that came in for
+a row marker. It is also why every mutation row in §4 lists the file set it
+was run with.
 
 ---
 
@@ -321,34 +390,85 @@ it. It is named here for whoever owns that file next.
 | a row mark is counted under the name `formatting_only` | The count is right — it is a change, not a cursor — and only the four-name vocabulary is wrong, because `empty_marker` means "carries no judgement" and a row's insertion does. The fifth name is `papers/chain.py`'s, and that file is another window's today. Measured in §5, named here, not reached. |
 | Revisions in parts other than `word/document.xml` | Measured: **0** revision elements outside the document part in all 193 real files, and 0 comment markers outside a paragraph. A latent gap, not a live loss, and the reader's part list is unchanged by this order. |
 | The shape is not a synthetic corpus fixture | The corpus's gold model derives a revision's range from a paragraph's baseline text, so it cannot declare a paragraph-less revision without reopening the harness the §4 arm numbers are measured with (§4). The count witness holds the shape instead. Moving it into the corpus — and re-measuring the arms against 31 fixtures — is a work order of its own. |
-| Shard costs for this change | `.github/ci-shards.json` records costs measured on a runner at `49e81f2`; `tests/test_ooxml_revisions.py` grew 3 cases and 205 lines here, so the coverage witness is red until a run re-measures it. `python .github/remeasure_shards.py <run-id>` is the fix, and it needs the run the owner batches. |
+| Shard costs for this change | `.github/ci-shards.json` records costs measured on a runner at `bb8f8f6aaab46f0285f03b3ea511b8668b78ee45` (the parent branch's re-measurement, now merged in). `tests/test_ooxml_revisions.py` grew 3 cases and 305 lines on top of that, so the coverage witness is red until a run re-measures it. `python .github/remeasure_shards.py <run-id>` is the fix, and it needs the run the owner batches. Nothing here was regenerated. |
+| A row mark's own `w:id` is not a stable identifier | Not this order's claim to make: the baseline records that Word renumbers `w:id` on every save (the corpus's `KNOWN_GAPS`), so the event carries `element_id` as the file states it and nothing downstream keys on it. |
 
 ---
 
 ## 7. How to reproduce
 
 ```bash
-# the before/after count over the real material (outside the repository)
 cd E:/labcairn-local/row-marker-measure
+
+# the "after" count over the real material, with the fixed reader
 PYTHONIOENCODING=utf-8 \
 PYTHONPATH=E:/LabCairn/.claude/worktrees/reader-row-markers-41cc54/src \
   python measure.py "E:/labcairn-local/materials-library" > after.json 2> after.err
 
-# the same over the reader as it stood at the base commit
-git -C E:/LabCairn/.claude/worktrees/reader-row-markers-41cc54 archive e13b967 src \
+# the "before" count: the reader as it stood at the base commit, extracted.
+# `migrations` comes along because db/migrations.py derives REPO_ROOT from the
+# package location, and a copy of src/ alone cannot run the writer's tests.
+git -C E:/LabCairn/.claude/worktrees/reader-row-markers-41cc54 archive e13b967 src migrations \
   | tar -x -C E:/labcairn-local/row-marker-measure/prefix
 PYTHONPATH=E:/labcairn-local/row-marker-measure/prefix/src \
   python measure.py "E:/labcairn-local/materials-library" > before.json 2> before.err
 
-# the witnesses (30 cases), and the five mutations A-E
-# (A is run against the extracted pre-fix copy above, not against this tree)
+# the id-stability check of §5: dump each file's addresses per reader, then
+# derive ids with THIS branch's _revision_event_id and the writer's counting
+PYTHONPATH=.../prefix/src python dump_addresses.py addr_before.json <two corpus dirs>
+PYTHONPATH=.../reader-row-markers-41cc54/src python dump_addresses.py addr_after.json <same dirs>
+PYTHONPATH=.../reader-row-markers-41cc54/src python ids_stability.py addr_before.json addr_after.json
+
+# the witnesses and the writer's tests together — 191 cases, the set §4 used.
+# test_version_store.py is not padding: it is what imports the application
+# layer first, which keeps the import cycle of §5 from reddening three
+# identity witnesses that have nothing to do with a row mark.
 TEMP=E:/labcairn-local/tmp TMP=E:/labcairn-local/tmp \
 PYTHONPATH=E:/LabCairn/.claude/worktrees/reader-row-markers-41cc54/src \
   python -m pytest tests/test_ooxml_revisions.py tests/test_docx_fixture_corpus.py \
+    tests/test_version_store.py \
     --basetemp=E:/labcairn-local/tmp/bt-rowmark -p no:cacheprovider -q
+
+# the five mutations, each on a copy of the tree, each printing the ooxml.py
+# it really imported
+bash E:/labcairn-local/row-marker-measure/run_mutations.sh
 ```
 
-`measure.py`, its JSON outputs and the extracted `e13b967` copy live outside the repository,
-alongside the material they read: the repository is public and this
-manuscript is not published. The scripts read it and write nothing to it;
-the pilot database was opened `mode=ro`.
+`measure.py`, `dump_addresses.py`, `ids_stability.py`, `run_mutations.sh`,
+their JSON outputs and the extracted base-commit copy all live outside the
+repository, alongside the material they read: the repository is public and
+this manuscript is not published. The scripts read the material and write
+nothing to it; the pilot database was opened `mode=ro`.
+
+**Two harness traps this section exists to record.** First: a mutation battery
+whose `PYTHONPATH` silently goes empty does not fail — it runs the *editable
+install*, which is the main checkout, and prints a clean-looking result about
+the wrong tree. Every row of §4 therefore prints the `ooxml.py` it imported;
+one of the earlier battery runs was discarded precisely because a quoting
+mistake did that and made five different mutations return five identical
+failure lists. Second: `python -I` cannot be used here, because it drops
+`PYTHONPATH` — and neither can a run that leaks `PYTHONPATH` into
+`tests/test_no_reference_leakage.py::test_wheel_installs_clean_and_imports`,
+whose clean-room subprocess would then resolve `labcairn` to this worktree
+instead of the built wheel.
+
+---
+
+## 8. The state of the tree at this record
+
+| | |
+|---|---|
+| Branch | `claude/reader-row-markers-41cc54`, based on `e13b967`, with the parent branch `eff6561` (carrying `bb8f8f6`) merged at `5984f1e` |
+| The fix | `1f1529d` — `src/labcairn/material/ooxml.py`, +3 witnesses in `tests/test_ooxml_revisions.py` |
+| This record | `82d7161` — the record, the baseline's corrections, and the unnamed-marker assertion |
+| Pushed / PR / CI | **none**, on the parent's instruction and CLAUDE.md §1.5 |
+| Reader's test file | 32 cases (27 at the base commit, +3 here, +2 from the identity work) |
+| Verification set | 191 cases (reader + corpus + writer) green; 304 cases green over the eight files of §4 |
+| Ledger `e13b967 → 82d7161` | 3117 → 3120 test functions, **LOST -- none**, ADDED 3 |
+| Ledger across the merge | 3120 → 3202, ADDED 85, **LOST 3** — and the three are not this merge's doing: `tests/test_threat_model.py`'s two were removed upstream by `37591c7` (the workbench now *does* read its event stream, and the replacements `test_the_workbench_reads_the_event_stream` and `test_the_api_selects_a_task_and_the_document_says_so` are present), and `tests/test_analysis_report_render.py::test_the_two_container_forms_are_not_byte_reproducible` was removed by `521e481` once the DOCX became reproducible. The ledger is what makes "three fewer" a statement rather than a surprise. |
+| Static checks | `ruff check .`, `ruff format --check .` and `mypy` (`--strict`) clean |
+| Known red | `test_ci_shard_coverage::test_the_costs_belong_to_the_tree_they_were_measured_on` — costs measured at `bb8f8f6…`, a heavy test file changed since; it wants a runner, and no cost was invented locally |
+| Not run | the whole suite. It is the review gate's measurement, not this order's, and the shard witness above is red on this branch until a runner re-measures |
+| Pilot database | read-only: `revision_events` 2164 rows, 0 null paragraphs, parser versions `d375f3a8…` and `38e0d959…` — untouched by this fix, which changes what a *new* read reports |
+| `docs/RELEASE-NOTES.md` | **not edited** — outside this order's files. Whoever batches the push may want a line for a defect the baseline named and this order closed. |
+

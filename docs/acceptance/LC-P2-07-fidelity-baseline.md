@@ -618,7 +618,8 @@ must: **`38e0d9591c8e2a9a13c913b5f2b5f0f3` before,
 record's own measurement**: the synthetic corpus is still 30 fixtures and 35
 revisions (re-counted at the fix's commit), so §2, §3 and §4 are the numbers
 they were, and the fix's witnesses are in the reader's test file, whose case
-count went 27 → 30.
+count went 27 → 30 at the fix and **32** with the parent branch's two identity
+cases merged in (counted by collecting the file, not carried).
 
 ## 6. The numbers this does **not** establish
 
@@ -681,7 +682,7 @@ count went 27 → 30.
 | Corpus test | `tests/test_docx_fixture_corpus.py` (103 cases; 100 measured here, 3 added with fixture `30-revision-in-drawing-textbox`) |
 | Measurement | `tests/evaluation_docx_fidelity.py` |
 | **The reader** | `src/labcairn/material/ooxml.py` |
-| **The reader's test** | `tests/test_ooxml_revisions.py` (30 cases; 24 measured here, 3 added with §5.6, and 3 more with the row-marker work order of 2026-11-03 — counted at its commit `1f1529d`, not carried) |
+| **The reader's test** | `tests/test_ooxml_revisions.py` (32 cases at the merge of the parent branch — 24 measured here, 3 added with §5.6, 3 more with the row-marker work order of 2026-11-03 at `1f1529d`, 2 more from the identity work that landed on the parent branch; counted by collecting the file, never carried) |
 | **The row marker, read at last** | `docs/acceptance/LC-P2-07-table-row-markers.md` — §5.6's unfixed defect, its before/after counts over 193 real files, and its four mutations |
 | **The migration** | `migrations/versions/0009_docx_locator.py` — **unchanged**: the anchor vocabulary is `'resolved' \| 'unknown'` and this change adds a *reason*, not a value |
 | pandoc | 3.10 (installed on the machine; GPL-2.0, used as a comparison only) |

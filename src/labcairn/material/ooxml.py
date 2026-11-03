@@ -701,9 +701,17 @@ def read_document(data: bytes) -> RevisionDocument:
 
     # **And the changes no paragraph holds.** A table row's mark is written on
     # the row's properties, outside every paragraph, so the loop above never
-    # reaches it. It is reported here, in document order after the paragraphs
-    # the marker follows, with no paragraph and no baseline place -- the two
-    # ``None``s are the file's own fact, not a gap in this reader.
+    # reaches it. They come last: the paragraph pass finishes first, then the
+    # document scan reports its elements in document order among themselves.
+    # So ``revisions`` is paragraph-ordered and then row-ordered, not one
+    # merged document sequence -- the file gives a row's mark no paragraph to
+    # be counted against, and pretending otherwise would put it inside a
+    # paragraph it is not in. Nothing in this reader, or in the chain's writer,
+    # keys an identity on that order: the derived id is the address plus the
+    # count of changes already seen *at that address*, and a row's mark is the
+    # first and only change at its own. Each such event carries no paragraph and
+    # no baseline place -- the two ``None``s are the file's own fact, not a gap
+    # in this reader.
     for element, kind, nested in _scan_outside_paragraphs(document_root):
         marker_view: DocxView = "accepted" if kind in _ACCEPTED_KINDS else "rejected"
         text = _text_in(element, marker_view)
