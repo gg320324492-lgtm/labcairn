@@ -105,7 +105,10 @@ corrected **on the rule**. The second paper's **eighteen version edges**
 were built from the timestamps inside the material itself, on 2026-11-02.
 **What is left** is in the merged ticket: the blind
 evaluation's real run (its machinery is built and mutation-verified
-twice), retrieval quality beyond three papers, and the competitor
+twice), retrieval quality beyond three papers (its machinery — the
+citation-support sample's schema, loader, measurement and `--citation-sample`
+wiring — is built and mutation-verified, 2026-11-04; the human pass over
+produced reports is the part left), and the competitor
 comparison.
 
 **Where Line B stands (2026-11-02, later).** Everything the 2026-11-01
