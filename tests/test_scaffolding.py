@@ -237,3 +237,51 @@ def test_the_witness_ledger_reports_nothing_lost_when_nothing_was(tmp_path: Path
         "the ledger did not name the witness that was added, so the report is "
         "not telling the whole story:\n" + finished.stdout
     )
+
+
+#: Two files that each define a witness **with the same name** — a mirrored
+#: witness, which this project writes on purpose (the comment path's door
+#: mirrors the revision path's seven witnesses name for name). A collector
+#: keyed by name alone lets one file's entry overwrite the other's, and then a
+#: loss in either file is invisible.
+LEDGER_SAME_NAME = "def test_the_same_name() -> None:\n    assert True\n"
+
+
+def test_a_shared_name_does_not_hide_a_lost_witness(tmp_path: Path) -> None:
+    """**The name is not the identity; the file and the name together are.**
+
+    Measured 2026-11-03, on real work: a merge added seven witnesses whose
+    names already existed in a sibling file, and the ledger printed
+    ``ADDED -- none`` with both totals unchanged — the additions were
+    overwritten in its dictionary. The same collision hides a **loss**, which
+    is the failure this tool exists for: delete the copy in one file, and the
+    other file's identical name keeps ``LOST -- none`` printing over a tree
+    that lost a witness.
+    """
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    _git(repo, "init")
+    (repo / "tests" / "test_a.py").write_text(LEDGER_SAME_NAME, encoding="utf-8")
+    (repo / "tests" / "test_b.py").write_text(LEDGER_SAME_NAME, encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "two files, one name")
+    before = _git(repo, "rev-parse", "HEAD").strip()
+
+    (repo / "tests" / "test_b.py").write_text("", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "one copy gone")
+    after = _git(repo, "rev-parse", "HEAD").strip()
+
+    finished = _run_the_ledger(repo, before, after)
+
+    assert finished.returncode == 1, (
+        "the ledger exited zero over a tree that lost one of two identically "
+        "named witnesses:\n" + finished.stdout
+    )
+    assert "test_the_same_name" in finished.stdout, (
+        "the ledger did not name the lost witness:\n" + finished.stdout
+    )
+    assert "test_b.py" in finished.stdout, (
+        "the report did not say which file lost it, so a reader cannot tell "
+        "the copy that went from the copy that stayed:\n" + finished.stdout
+    )
