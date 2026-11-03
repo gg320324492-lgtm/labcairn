@@ -544,7 +544,7 @@ check this ruling, and both are witnessed.**
 
 ## 9. The witnesses, and the mutation table
 
-`tests/test_evaluation_harness.py` — **74 test functions, 75 test cases** (one
+`tests/test_evaluation_harness.py` — **83 test functions, 84 test cases** (one
 of them is parameterised), and each one names the property it holds. **The table
 below is re-read from the file, not remembered**:
 `test_the_evaluation_record_names_every_witness_in_this_file` fails if a witness
@@ -631,6 +631,15 @@ green while the evaluation stops measuring anything.
 | `test_no_published_record_claims_superiority_over_another_system` | The documents a reader reads are watched for a superiority claim |
 | `test_the_inner_run_gets_its_own_temporary_directory_everywhere` | TMPDIR is set as well, because it is the one that is read first |
 | `test_the_evaluation_record_names_every_witness_in_this_file` | The record's witness table is re-read from this file, not remembered |
+| `test_a_sample_row_that_carries_text_is_refused` | A row has five fields, and a sixth — text above all — is refused at load |
+| `test_a_sample_with_a_verdict_outside_the_vocabulary_is_refused` | A verdict is "supported" or "unsupported", and a third value is refused |
+| `test_a_sample_row_missing_a_field_is_refused` | A row that cannot say which citation it judges judges nothing |
+| `test_a_sample_that_names_a_row_twice_is_refused` | A repeated sample_id counts one judgement twice, and is refused |
+| `test_the_empty_sample_in_the_tree_is_read_and_says_not_measured` | The tree's empty sample loads, and measures NOT MEASURED rather than 0/0 |
+| `test_a_judged_sample_measures_its_denominator_and_names_it` | The numerator counts supported; the denominator counts every judgement, and the how line names the sample size |
+| `test_a_run_without_a_sample_reports_not_measured_not_a_zero_rate` | A run handed no sample reports NOT MEASURED with the reason, not a zero rate |
+| `test_a_handed_sample_measures_the_row_and_names_the_failures` | A handed sample moves the row out of NOT MEASURED and names the unsupported citations |
+| `test_the_sample_enters_the_comparison_when_the_baseline_carries_it` | The fraction prints as a pair only when the baseline carries the key too |
 
 ### The mutation table
 

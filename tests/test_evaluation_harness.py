@@ -1663,6 +1663,295 @@ def test_a_reason_about_a_tree_that_is_not_there_is_still_true(tmp_path: Path) -
 
 
 # --------------------------------------------------------------------------
+# The citation-support sample
+# --------------------------------------------------------------------------
+
+
+def test_a_sample_row_that_carries_text_is_refused(tmp_path: Path) -> None:
+    """A row has five fields, and a sixth field is refused — text above all.
+
+    The sample table is the one place a human's reading could leak the
+    corpus into a public tree: a reader who writes the claim, or the
+    material's words, or even a reason, into a row has written the
+    manuscript into the repository. So the loader refuses any field beyond
+    the five, and the refusal says why, rather than trusting a review to
+    catch the sixth field after the commit.
+    """
+    from evaluation.citation_sample import CitationSampleError, load_citation_sample
+
+    path = tmp_path / "sample.json"
+    path.write_text(
+        json.dumps(
+            {
+                "label": "a reader's pass over three reports",
+                "rows": [
+                    {
+                        "sample_id": "s-1",
+                        "report": "report-1",
+                        "record_id": "rec-1",
+                        "anchor_id": "src-a-1.pdf#p3",
+                        "verdict": "supported",
+                        "text": "the sentence the citation was judged against",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(CitationSampleError) as caught:
+        load_citation_sample(path)
+    message = str(caught.value)
+    assert '"text"' in message
+    assert "no text" in message
+
+
+def test_a_sample_with_a_verdict_outside_the_vocabulary_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A verdict is ``supported`` or ``unsupported``, and nothing else.
+
+    A third value — ``unknown``, ``maybe``, ``not sure`` — is a reader's
+    hesitation wearing the shape of a judgement. It would sit in the
+    denominator without belonging to either side of the numerator, so the
+    loader refuses it and the reader records the citation they cannot
+    decide by leaving the row out.
+    """
+    from evaluation.citation_sample import CitationSampleError, load_citation_sample
+
+    path = tmp_path / "sample.json"
+    path.write_text(
+        json.dumps(
+            {
+                "label": "a reader's pass over three reports",
+                "rows": [
+                    {
+                        "sample_id": "s-1",
+                        "report": "report-1",
+                        "record_id": "rec-1",
+                        "anchor_id": "src-a-1.pdf#p3",
+                        "verdict": "maybe",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(CitationSampleError) as caught:
+        load_citation_sample(path)
+    message = str(caught.value)
+    assert "maybe" in message
+    assert '"supported" or "unsupported"' in message
+
+
+def test_a_sample_row_missing_a_field_is_refused(tmp_path: Path) -> None:
+    """A row that cannot say which citation it judges judges nothing.
+
+    Four fields locate the citation — the report, the record, the anchor —
+    and one records the judgement. A row missing any of them is a verdict
+    about a citation nobody can find again, which is a rate with no
+    failure cases behind it.
+    """
+    from evaluation.citation_sample import CitationSampleError, load_citation_sample
+
+    path = tmp_path / "sample.json"
+    path.write_text(
+        json.dumps(
+            {
+                "label": "a reader's pass over three reports",
+                "rows": [
+                    {
+                        "sample_id": "s-1",
+                        "report": "report-1",
+                        "anchor_id": "src-a-1.pdf#p3",
+                        "verdict": "unsupported",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(CitationSampleError) as caught:
+        load_citation_sample(path)
+    assert '"record_id"' in str(caught.value)
+
+
+def test_a_sample_that_names_a_row_twice_is_refused(tmp_path: Path) -> None:
+    """One citation, one row: a repeated ``sample_id`` counts one row twice.
+
+    The denominator is the number of citations a human judged. A table that
+    names a row twice inflates it without a second judgement behind the
+    second copy, so the loader refuses the table instead of dividing by
+    what the file happens to hold.
+    """
+    from evaluation.citation_sample import CitationSampleError, load_citation_sample
+
+    def row(sample_id: str, verdict: str) -> dict[str, str]:
+        return {
+            "sample_id": sample_id,
+            "report": "report-1",
+            "record_id": "rec-1",
+            "anchor_id": "src-a-1.pdf#p3",
+            "verdict": verdict,
+        }
+
+    path = tmp_path / "sample.json"
+    path.write_text(
+        json.dumps(
+            {
+                "label": "a reader's pass over three reports",
+                "rows": [row("s-1", "supported"), row("s-1", "unsupported")],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(CitationSampleError) as caught:
+        load_citation_sample(path)
+    assert '"s-1"' in str(caught.value)
+
+
+def test_the_empty_sample_in_the_tree_is_read_and_says_not_measured(
+    repo_root: Path,
+) -> None:
+    """The tree's own empty sample loads, and measures nothing.
+
+    ``tests/fixtures/retrieval/citation-support-sample.empty.json`` is the
+    shape a filled table takes. A loader that rejected it would be a loader
+    that rejected the table the record points new readers at; a measurement
+    that turned it into ``0 / 0`` would state a rate over no judgements.
+    Both are refused here: the sample loads with zero rows, and the
+    measurement over it is ``NOT MEASURED`` with the reason on it.
+    """
+    from evaluation.citation_sample import load_citation_sample, measure_locator_validity
+
+    sample = load_citation_sample(
+        repo_root / "tests" / "fixtures" / "retrieval" / "citation-support-sample.empty.json"
+    )
+    assert sample == ()
+    measured = measure_locator_validity(sample)
+    assert not measured.measured
+    assert measured.numerator is None
+    assert measured.denominator is None
+    assert "0/0" in measured.reason
+
+
+def test_a_judged_sample_measures_its_denominator_and_names_it(repo_root: Path) -> None:
+    """The metric counts what the human judged, and says what that is.
+
+    The numerator is the citations judged supported; the denominator is
+    every citation judged at all, unsupported ones included — an
+    unsupported citation is a measurement, not a missing one. The
+    measurement's ``how`` line carries the sample size, and the metric row
+    names the rows judged unsupported rather than averaging them away.
+    """
+    from evaluation.citation_sample import CitationSampleRow, measure_locator_validity
+
+    def row(sample_id: str, verdict: str) -> CitationSampleRow:
+        return CitationSampleRow(
+            sample_id=sample_id,
+            report=f"report-{sample_id[-1]}",
+            record_id=f"rec-{sample_id[-1]}",
+            anchor_id=f"src-{sample_id[-1]}.pdf#p2",
+            verdict=verdict,
+        )
+
+    sample = (
+        row("s-1", "supported"),
+        row("s-2", "supported"),
+        row("s-3", "unsupported"),
+    )
+    measured = measure_locator_validity(sample)
+    assert measured.measured, measured.reason
+    assert (measured.numerator, measured.denominator) == (2, 3)
+    assert "3 citation(s)" in measured.how
+    assert measured.rate is not None
+
+
+def test_a_run_without_a_sample_reports_not_measured_not_a_zero_rate(
+    repo_root: Path,
+) -> None:
+    """No table given to the run, no number: the metric says why it is not there.
+
+    A run that was handed no ``--citation-sample`` has not been given the
+    input the protocol's metric needs. The honest report is ``NOT
+    MEASURED`` with the reason — the sample is a human labour that has not
+    been done, not a rate of zero — and the reason says where the table
+    lives when it exists.
+    """
+    protocol = _protocol(repo_root)
+    rows = metric_rows(protocol, index_outcomes(()), (), None, 0.0, repo_root=repo_root)
+    row = next(entry for entry in rows if entry.key == "evidence-locator-validity")
+    assert not row.value.measured
+    assert row.value.numerator is None and row.value.denominator is None
+    assert "citation-sample" in row.value.reason
+
+
+def test_a_handed_sample_measures_the_row_and_names_the_failures(
+    repo_root: Path,
+) -> None:
+    """A sample handed to the run moves the metric row out of NOT MEASURED.
+
+    The same run that reports ``NOT MEASURED`` without a sample reports a
+    measured fraction when one is handed to it, and the row's context names
+    the citations judged unsupported — the failure cases the protocol asks
+    for, listed rather than averaged away.
+    """
+    from evaluation.citation_sample import CitationSampleRow
+
+    def row(sample_id: str, verdict: str) -> CitationSampleRow:
+        return CitationSampleRow(
+            sample_id=sample_id,
+            report="report-1",
+            record_id=f"rec-{sample_id}",
+            anchor_id=f"src-{sample_id}.pdf#p2",
+            verdict=verdict,
+        )
+
+    protocol = _protocol(repo_root)
+    rows = metric_rows(
+        protocol,
+        index_outcomes(()),
+        (),
+        None,
+        0.0,
+        repo_root=repo_root,
+        citation_sample=(
+            row("s-1", "supported"),
+            row("s-2", "unsupported"),
+        ),
+    )
+    entry = next(item for item in rows if item.key == "evidence-locator-validity")
+    assert entry.value.measured, entry.value.reason
+    assert (entry.value.numerator, entry.value.denominator) == (1, 2)
+    context = " ".join(entry.context)
+    assert "s-2" in context
+    assert "2 human-judged citation(s)" in context
+
+
+def test_the_sample_enters_the_comparison_when_the_baseline_carries_it() -> None:
+    """The measured fraction compares like any other metric's — when both sides hold it.
+
+    The frozen Phase 1 baseline was taken before the sample machinery
+    existed, so it carries no ``evidence-locator-validity`` and the
+    comparison prints no pair: an intersection is the only honest
+    behaviour, and inventing a missing baseline number would be worse than
+    silence. When a later baseline carries the key — the first one taken
+    after a human pass has happened — the pair prints like every other
+    metric's.
+    """
+    from evaluation.comparison import pairs
+
+    run_values = {"evidence-locator-validity": (1, 2), "numeric-extraction-exactness": (9, 10)}
+    without_the_key: dict[str, tuple[int, int]] = {"numeric-extraction-exactness": (8, 10)}
+    assert pairs(run_values, without_the_key) == (
+        ("numeric-extraction-exactness", "9/10 against 8/10"),
+    )
+    assert pairs(run_values, {**without_the_key, "evidence-locator-validity": (1, 3)}) == (
+        ("evidence-locator-validity", "1/2 against 1/3"),
+        ("numeric-extraction-exactness", "9/10 against 8/10"),
+    )
+
+
+# --------------------------------------------------------------------------
 # The partition's repository class
 # --------------------------------------------------------------------------
 
