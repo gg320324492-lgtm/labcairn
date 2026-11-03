@@ -32,6 +32,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Final
 
 from sqlalchemy import select
 
@@ -50,23 +51,29 @@ from labcairn.papers.chain import (
     version_row,
 )
 from labcairn.runtime.trajectory import emit_feedback_recorded
-from labcairn.security.capabilities import CapabilityId
+from labcairn.security.capabilities import MAX_SOURCE_READ_BYTES, CapabilityId
 from labcairn.security.paths import CanonicalPath
 from labcairn.sources.locators import DocxLocator
 
-#: The ceiling on a manuscript this operation will read. **A ceiling, and
-#: not a hope**: the file's size is measured before the bytes are read, so
-#: a file that is too large is refused rather than read and then refused.
+#: The ceiling on a manuscript this operation will read — **the registry's
+#: ceiling, not a second one.** This is
+#: :data:`labcairn.security.capabilities.MAX_SOURCE_READ_BYTES`, named here
+#: because this module measures the file before reading it and because it is the
+#: bound this module puts into the ``source.read`` approval it asks for; the two
+#: roles are the same number and one definition.
 #:
-#: **Raised from 64 MB on 2026-11-03.** The third pilot's late drafts are
-#: 71.4 MB — the figures are embedded at full resolution — and the 64 MB
-#: ceiling refused seven versions of one real manuscript, including the
-#: final English one. The ceiling still exists: it bounds what a single
-#: operation reads, and 96 MB leaves room for the largest real material
-#: seen so far without admitting a file whose read would not fit the
-#: operation's own budget. The bound is measured on the file, not trusted
-#: from a caller.
-MAX_MANUSCRIPT_BYTES = 96_000_000
+#: **A ceiling, and not a hope**: the file's size is measured before the bytes
+#: are read, so a file that is too large is refused rather than read and then
+#: refused. The bound is measured on the file, not trusted from a caller.
+#:
+#: **Why 96 MB, measured 2026-11-03**: the third pilot's late drafts are 71.4 MB
+#: — the figures are embedded at full resolution — and the 64 MB ceiling refused
+#: seven versions of one real manuscript, including the final English one.
+#: The number is anchored to that measurement; raising it is a re-measurement,
+#: not an edit, and it must stay inside the ``source.read`` argument model's
+#: bound or every manuscript approval is refused at consent time.
+#: ``tests/test_workspace_boundaries.py`` holds both.
+MAX_MANUSCRIPT_BYTES: Final = MAX_SOURCE_READ_BYTES
 
 #: The grades a feedback row may carry.
 #:

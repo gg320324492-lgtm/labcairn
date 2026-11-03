@@ -20,11 +20,22 @@ import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
 
 from labcairn.core.ids import TaskId, new_id
+from labcairn.papers import feedback as feedback_module
+from labcairn.papers import replies as replies_module
+from labcairn.papers import revisions as revisions_module
+from labcairn.security.capabilities import (
+    MAX_SOURCE_READ_BYTES,
+    CapabilityId,
+    FsReadArgs,
+    SourceReadArgs,
+    parse_args,
+)
 from labcairn.security.paths import PathRefusedError, RootKind
 from labcairn.security.policy import Permission, PermissionPolicy, Rule
 from labcairn.workspace.outputs import (
@@ -33,7 +44,13 @@ from labcairn.workspace.outputs import (
     TaskOutputArea,
     WriteOutcome,
 )
-from labcairn.workspace.readonly import MAX_SOURCE_READ_BYTES, SourceIsReadOnlyError, SourceMaterial
+from labcairn.workspace.readonly import (
+    MAX_SOURCE_READ_BYTES as DOOR_CEILING,
+)
+from labcairn.workspace.readonly import (
+    SourceIsReadOnlyError,
+    SourceMaterial,
+)
 from labcairn.workspace.roots import Workspace, WorkspaceError
 
 pytestmark = pytest.mark.negative
@@ -238,6 +255,145 @@ def test_both_read_doors_default_to_the_one_ceiling(workspace: Workspace, source
         "read": MAX_SOURCE_READ_BYTES,
         "read_permitted": MAX_SOURCE_READ_BYTES,
     }, f"the read doors carry two different ceilings: {defaults}"
+
+
+def _literal_spellings_of_the_ceiling() -> dict[str, int]:
+    """Every place in the product that **writes the ceiling as digits**.
+
+    The scan is the point: a claim that a number is written once is not held by
+    a behaviour test, because two identical literals behave identically right up
+    until the day someone changes one of them.
+    """
+    src = Path(__file__).resolve().parents[1] / "src" / "labcairn"
+    found: dict[str, int] = {}
+    for path in sorted(src.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        hits = text.count("96_000_000") + text.count("96000000")
+        if hits:
+            found[path.relative_to(src).as_posix()] = hits
+    return found
+
+
+def test_the_ceiling_is_written_once_in_the_product() -> None:
+    """The ceiling's digits are written in exactly two files, and both are named.
+
+    **One is the definition and one is watched, not unified.**
+    ``security/capabilities.py`` holds the number
+    (:data:`~labcairn.security.capabilities.MAX_SOURCE_READ_BYTES`);
+    ``papers/revisions.py`` still writes its own copy because that file is
+    another window's lane and this work order was told not to edit it — so the
+    copy is held by :func:`test_the_manuscript_readers_share_the_one_ceiling`
+    rather than by an import. Naming the second file is what makes the witness
+    fail for the property: a **third** spelling anywhere is this test going red,
+    and it says which file to import instead.
+    """
+    spelled = _literal_spellings_of_the_ceiling()
+
+    assert set(spelled) == {"security/capabilities.py", "papers/revisions.py"}, (
+        f"the ceiling is written as digits in {spelled}; the definition belongs in "
+        "security/capabilities.py and every reader should import it"
+    )
+    assert spelled["security/capabilities.py"] == 1, (
+        "the ceiling's digits are written twice even in its own home"
+    )
+
+
+def test_the_manuscript_readers_share_the_one_ceiling() -> None:
+    """The doors, the papers' size check and the ``source.read`` default are one value.
+
+    **Identity, not equality, where the code imports the constant.** Two modules
+    that each write ``96_000_000`` are equal forever until a raise touches one of
+    them — which is the exact accident that left a fixture parked between two
+    defaults, and the accident the remaining spellings still invite. So the
+    readers that were brought onto the one definition are checked with ``is``:
+    re-spelling the literal there keeps the values equal and still goes red.
+
+    ``papers/revisions.py`` is checked by value only, because its literal is a
+    lane this work order may not edit; that is the weakest link in the claim and
+    the test says so rather than pretending otherwise.
+    """
+    readers = {
+        "workspace.readonly re-export": DOOR_CEILING,
+        "papers/feedback": feedback_module.MAX_MANUSCRIPT_BYTES,
+        "papers/replies": replies_module.MAX_MANUSCRIPT_BYTES,
+    }
+    retyped = [name for name, value in readers.items() if value is not MAX_SOURCE_READ_BYTES]
+    assert not retyped, (
+        f"these spellings are re-typed literals, not imports of the one ceiling: {retyped}"
+    )
+
+    assert feedback_module.MAX_MANUSCRIPT_BYTES == revisions_module.MAX_MANUSCRIPT_BYTES, (
+        "papers/revisions.py writes its own copy of the ceiling and it has drifted; "
+        "import MAX_SOURCE_READ_BYTES there or raise both together"
+    )
+
+    unnamed = cast(SourceReadArgs, parse_args(CapabilityId.SOURCE_READ, {"path": "papers/a.docx"}))
+    assert unnamed.max_bytes == MAX_SOURCE_READ_BYTES, (
+        f"a source.read approval that names no bound carries {unnamed.max_bytes} while the "
+        f"doors read up to {MAX_SOURCE_READ_BYTES}: the consent and the operation differ"
+    )
+
+
+def test_the_source_read_schema_admits_the_ceiling() -> None:
+    """Every manuscript operation hands the ceiling to ``source.read`` — so it must fit.
+
+    **Behavioural, not a metadata compare.** All seven ``consent.evaluate`` sites
+    in ``papers/`` and ``guidance/`` pass ``arguments={"max_bytes": ceiling}``,
+    and ``consent.evaluate`` validates that dict against the closed model. A
+    ceiling above the model's bound is therefore not a cosmetic disagreement: it
+    refuses every manuscript operation with ``ARGUMENTS_INVALID`` before a byte
+    is read. Lowering ``le`` under the ceiling, or raising the ceiling over it,
+    both go red here — which is the day the next material measurement is the
+    change that breaks the chain, and the reason the number is re-measured and
+    not carried forward.
+    """
+    admitted = cast(
+        SourceReadArgs,
+        parse_args(
+            CapabilityId.SOURCE_READ,
+            {"path": "papers/a.docx", "max_bytes": MAX_SOURCE_READ_BYTES},
+        ),
+    )
+    assert admitted.max_bytes == MAX_SOURCE_READ_BYTES
+
+    le = next(m.le for m in SourceReadArgs.model_fields["max_bytes"].metadata if hasattr(m, "le"))
+    assert le > MAX_SOURCE_READ_BYTES, (
+        f"source.read may be approved up to {le} but the ceiling is {MAX_SOURCE_READ_BYTES}: "
+        "there is no room left to raise the ceiling without first raising the bound"
+    )
+
+    with pytest.raises(ValidationError):
+        parse_args(CapabilityId.SOURCE_READ, {"path": "papers/a.docx", "max_bytes": le + 1})
+
+
+def test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling() -> None:
+    """``fs.read`` is a **different question**, and the split is held on purpose.
+
+    The manuscript ceiling bounds one read of *supplied* material. ``fs.read``
+    bounds one read of an artefact the product wrote itself, and its
+    ``max_bytes`` is the only approved bound in the registry that is read back
+    and enforced (:func:`labcairn.application.artifacts.read_artifact`). Measured
+    2026-11-03: no call site feeds the manuscript ceiling to ``fs.read`` — the
+    papers send it to ``source.read``, whose bound is 512 MB — so the 64 MB here
+    refused nothing today, and ``docs/RELEASE-NOTES.md`` §2.23 said so while
+    describing the mechanism backwards.
+
+    **This is the witness against the tidy-up.** Unifying the two numbers makes
+    this red, because a supplied manuscript's ceiling is not a licence to pull
+    that many artefact bytes into memory on one ``fs.read``; if the bound is
+    genuinely to move, that is a decision about artefacts and it should say so.
+    """
+    field = FsReadArgs.model_fields["max_bytes"]
+    assert field.default != MAX_SOURCE_READ_BYTES, (
+        "the artefact read default was joined to the manuscript ceiling; they answer "
+        "different questions and read_artifact enforces this one"
+    )
+
+    with pytest.raises(ValidationError):
+        parse_args(
+            CapabilityId.FS_READ,
+            {"path": "out/report.pdf", "max_bytes": MAX_SOURCE_READ_BYTES},
+        )
 
 
 @pytest.mark.parametrize("method", ["write", "delete"])
