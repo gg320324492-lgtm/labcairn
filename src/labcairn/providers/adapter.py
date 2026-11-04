@@ -548,7 +548,10 @@ class PydanticAiModelProvider:
             isinstance(finish_reason, str) and finish_reason.startswith("max_")
         ):
             raise ProviderOutputTruncatedError(
-                max_output_tokens=self._max_output_tokens or 0,
+                # The ceiling is None when no run-level cap was configured and
+                # the cut came from the provider's own default; folding that
+                # unknown into a zero would be a usage fold.
+                max_output_tokens=self._max_output_tokens,
                 finish_reason=str(finish_reason),
             )
 

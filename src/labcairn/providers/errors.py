@@ -337,7 +337,7 @@ class ProviderMalformedResponseError(ProviderError):
 class ProviderOutputTruncatedError(ProviderError):
     """An answer cut off at the output ceiling; never a blind-sheet item."""
 
-    def __init__(self, *, max_output_tokens: int, finish_reason: str) -> None:
+    def __init__(self, *, max_output_tokens: int | None, finish_reason: str) -> None:
         super().__init__(ProviderFailure.of(FailureKind.PROVIDER_OUTPUT_TRUNCATED))
         self.max_output_tokens = max_output_tokens
         self.finish_reason = finish_reason
