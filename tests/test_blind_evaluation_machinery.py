@@ -20,7 +20,7 @@ import http.server
 import json
 import socketserver
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -233,13 +233,17 @@ class _CapturingUpstream:
     calls: list[Any] | None = None
     fail: bool = False
     finish_reason: str | None = "stop"
+    #: Per-call switches for the "one response bypassed the wire" witness.
+    observe_on: tuple[bool, ...] = ()
 
     def __post_init__(self) -> None:
         if self.calls is None:
             self.calls = []
 
-    def observe(self) -> None:
+    def observe(self, *, call_index: int) -> None:
         if self.sniffer is None:
+            return
+        if self.observe_on and not self.observe_on[call_index]:
             return
         self.sniffer.observe({"usage": {"input_tokens": 10, "output_tokens": 2}})
 
@@ -254,10 +258,11 @@ class _CapturingUpstream:
         self, messages: Any, model_settings: Any, model_request_parameters: Any
     ) -> Any:
         del messages, model_request_parameters
+        call_index = len(self.settings_seen())
         self.settings_seen().append(model_settings)
         if self.fail:
             raise RuntimeError("Event loop is closed")
-        self.observe()
+        self.observe(call_index=call_index)
         return _UpstreamResponse(text="A complete answer.", finish_reason=self.finish_reason)
 
 
@@ -278,11 +283,15 @@ class _UpstreamResponse:
 
 
 def _wire_provider(
-    context: ApplicationContext, approval: ApprovalId, upstream: _CapturingUpstream
+    context: ApplicationContext,
+    approvals: Sequence[ApprovalId],
+    upstream: _CapturingUpstream,
 ) -> tuple[PydanticAiModelProvider, blind_runner.ConsumingApprovals]:
     consent = blind_runner.ConsumingApprovals(
         context,
-        (blind_runner.ApprovalGrant(UUID(str(approval)), _the_use()),),
+        tuple(
+            blind_runner.ApprovalGrant(UUID(str(approval)), _the_use()) for approval in approvals
+        ),
         clock=lambda: MOMENT,
     )
     assert isinstance(consent, WireAuthorizedConsent)
@@ -314,7 +323,7 @@ def test_a_local_fault_before_the_wire_does_not_spend_the_approval(
     """A closed-loop fault leaves one granted approval and consumes none."""
     approval = _granted(context)
     upstream = _CapturingUpstream(sniffer=None, fail=True)
-    provider, consent = _wire_provider(context, approval, upstream)
+    provider, consent = _wire_provider(context, (approval,), upstream)
 
     with pytest.raises(ProviderError):
         provider.send(ModelRequest(prompt="A question."))
@@ -330,7 +339,7 @@ def test_a_measured_response_spends_exactly_one_approval(
     """The sniffer's observation is what consumes the reserved approval."""
     approval = _granted(context)
     upstream = _CapturingUpstream(sniffer=None)
-    provider, consent = _wire_provider(context, approval, upstream)
+    provider, consent = _wire_provider(context, (approval,), upstream)
 
     response = provider.send(ModelRequest(prompt="A question."))
 
@@ -340,13 +349,48 @@ def test_a_measured_response_spends_exactly_one_approval(
     assert isinstance(response.usage.input_tokens, Known)
 
 
+def test_two_consecutive_measured_calls_each_spend_their_own_approval(
+    context: ApplicationContext,
+) -> None:
+    """The five-arm path spends one fresh approval on each measured call."""
+    first, second = _granted(context), _granted(context)
+    upstream = _CapturingUpstream(sniffer=None)
+    provider, consent = _wire_provider(context, (first, second), upstream)
+
+    assert provider.send(ModelRequest(prompt="First arm.")).text == "A complete answer."
+    assert provider.send(ModelRequest(prompt="Second arm.")).text == "A complete answer."
+
+    assert _state(context, first) is ApprovalState.CONSUMED
+    assert _state(context, second) is ApprovalState.CONSUMED
+    assert consent.spent == 2
+    assert consent.remaining == 0
+
+
+def test_a_stale_wire_observation_cannot_authorize_the_next_response(
+    context: ApplicationContext,
+) -> None:
+    """The second call is refused if its own response bypassed the wire."""
+    first, second = _granted(context), _granted(context)
+    upstream = _CapturingUpstream(sniffer=None, observe_on=(True, False))
+    provider, consent = _wire_provider(context, (first, second), upstream)
+
+    assert provider.send(ModelRequest(prompt="First arm.")).text == "A complete answer."
+    with pytest.raises(OutboundRefusedError):
+        provider.send(ModelRequest(prompt="Second arm."))
+
+    assert _state(context, first) is ApprovalState.CONSUMED
+    assert _state(context, second) is ApprovalState.GRANTED
+    assert consent.spent == 1
+    assert consent.remaining == 1
+
+
 def test_a_response_without_wire_authorization_is_refused(
     context: ApplicationContext,
 ) -> None:
     """An answer that bypassed the sniffer cannot become a blind artefact."""
     approval = _granted(context)
     upstream = _CapturingUpstream(sniffer=None)
-    provider, consent = _wire_provider(context, approval, upstream)
+    provider, consent = _wire_provider(context, (approval,), upstream)
     upstream.sniffer = None  # the response arrives without a wire observation
 
     with pytest.raises(OutboundRefusedError) as raised:
