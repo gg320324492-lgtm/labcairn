@@ -344,8 +344,9 @@ execution plan is the operator-side page at
 
 ## 7. The two rows were re-recorded on the real store — 2026-11-04
 
-The owner approved the run on 2026-11-04 — the words 「批准执行」 arrive through the
-coordinator session and are recorded verbatim in the run's report — and
+The owner approved the run on 2026-11-04 — the approval phrase arrived through
+the coordinator session and stands verbatim on line 2 of the run report
+outside this repository — and
 `nz_execute.py` ran against `E:\labcairn-local\pilot-ws\labcairn.db`.
 **The store now reads 59 fresh / 21 unanchored / 0 stale over 80 rows:
 there is no stale row left in the pilot.** The rows moved exactly as §6
