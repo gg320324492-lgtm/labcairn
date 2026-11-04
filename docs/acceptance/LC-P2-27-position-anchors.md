@@ -2,9 +2,18 @@
 
 **Work order:** SOW (1) plan b, decided by the owner · **Status:** LANDED
 on `claude/anchor-position-06df0`, every claim mutation-checked locally.
-The real pilot store was **never written**: it is read-only for this piece,
-and its data correction is a separate work order awaiting the owner's
-approval.
+The real pilot store was **never written by this piece**: it is read-only for
+LC-P2-27, and its data correction was a separate work order. **That work
+order ran on 2026-11-04, on the owner's approval**: the three collapsed-`w:del`
+rows were re-anchored to the text the fixed reader derives, the thirteen
+zero-width rows were recast as `position` with their paragraph and offset kept,
+the eight `unknown` rows had the placeholder this revision nulls, and the store
+went from `0019` to `0023`. Measured on the corrected store: `59 resolved /
+8 unknown / 13 position`, no `resolved` row over empty text, no row carrying
+`sha256("")`. The execution record is the operator-side report kept outside the
+repository, as every store-side record is; the pre-state backup it ran from is
+still on disk, so those numbers are re-measurable against a store that was not
+touched before the copy was taken.
 
 ## 1. The defect this closes
 
@@ -215,10 +224,22 @@ afterwards.
 
 ## 5. What is deliberately not here
 
-- **The pilot store's rows are not re-cast.** Thirteen `unknown`+reason
-  rows and sixteen resolved-over-no-text rows wait for the data
-  correction work order; until it runs, a pilot store cannot be upgraded
-  past 0022, and this record is the notice of that.
+- **The pilot store's rows were not re-cast by this piece.** At landing,
+  thirteen `unknown`+reason rows and sixteen resolved-over-no-text rows
+  waited for the data correction work order, and until it ran a pilot store
+  could not be upgraded past `0022` — this record was the notice of that.
+  **The correction ran on 2026-11-04** and the pilot store is at `0023`.
+  The refusal this bullet described is real and was demonstrated on a copy
+  the same day: with only the three passages corrected and the thirteen left
+  as `resolved` over no text, the upgrade stopped with
+  `IntegrityError: CHECK constraint failed:
+  ck_feedback_events_feedback_events_anchor_shape_matches_status` on the
+  batch's row copy — and because the chain commits per revision, the refused
+  store was left at `0022`, `PRAGMA integrity_check` `ok`, the committed
+  corrections intact. **So the rollback point of such a run is the file
+  backup, never the transaction**, and writing `position` at `0019` is
+  refused by the vocabulary check, which is why the recast is a statement
+  after this revision rather than part of the correction's first half.
 - **A position's place is not confirmed by `anchor_state`.** Keeping the
   offset is storage; confirming the place still sits where it did is a
   re-reading, and nothing in this piece does it.
