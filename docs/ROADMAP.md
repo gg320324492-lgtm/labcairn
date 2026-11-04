@@ -134,17 +134,22 @@ the leak check run against the real chain and clean. **The owner approved
 a real run on 2026-11-04, and a single-case calibration was run before
 scaling**: three arms metered 52779 tokens against an estimated 10808,
 so the estimate was wrong by 4.88x and scaling stopped by the owner's own
-rule; the corrected shape is about 1.48M tokens for the 84 calls
+rule. The machine was then repaired — the shared-loop fault, approval
+consumption before the wire, missing output policy and the arrangement
+pair's runnable path — and one case was recalibrated: all five arms
+answered at **27209 tokens** (8210 in, 18999 out), **48.45%** below the
+old measurement but still **2.52x** the original estimate. The measured
+12-case shape is **326508** tokens for five arms and **384480** for the
+84 calls including the arrangement pair. **No 12-case run was started**;
+the owner's fresh budget decision is still outstanding
 ([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
-Two real-request gaps in the driver were fixed with mutation-checked
-witnesses. **Of the merged ticket's six, four are built and two are left**:
-the blind evaluation's real run (the paper, the assembly and the
-calibration exist; what is left is the owner's new budget, the event-loop
-fault, the arrangement pair's runnable path, an output policy and the
-second paper), and the competitor comparison (brief written,
-preconditions met, budget and final pick the owner's call). Retrieval
-quality beyond three papers waits on a corpus read by a human, per
-LC-P2-14's own protocol.
+**Of the merged ticket's six, four are built and two are left**:
+the blind evaluation's real run (the paper, the assembly, both
+calibrations and the repaired machinery exist; what is left is the
+owner's new budget, the raters, the arbiter and the second paper), and
+the competitor comparison (brief written, preconditions met, budget and
+final pick the owner's call). Retrieval quality beyond three papers waits
+on a corpus read by a human, per LC-P2-14's own protocol.
 
 ## Phase 1 upstream research
 

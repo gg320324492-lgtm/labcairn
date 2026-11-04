@@ -364,32 +364,82 @@ the wire.
 Per annotator-hour rather than per token, the run also costs two independent
 raters over 60 items × 5 dimensions, plus an arbiter for every disagreement.
 
-## 8. What the real run still needs, in order
+## 8. The recalibration: repaired machine, one case, still no scaling
 
-1. **A new budget shape approved by the owner** — about 1.48M tokens or an
-   explicit per-call output cap, plus a fresh ceiling. The 130k figure is now
-   measured-wrong and must not be carried forward.
-2. **The event-loop fault fixed or the driver restarted per arm**, with a
-   witness: in calibration, B and D were refused in 0.02s with `Event loop is
-   closed` while A, C and E answered, and all five approvals were consumed.
-   Eighty-four calls would lose a fraction of their authorizations to a local
-   fault.
-3. **The arrangement pair (24 calls)**: `blind_runner` never reads the `roles`
-   field and `assess_configuration` refuses two B variants sharing an arm id,
-   so B-only vs B+C has no runnable path in the driver. This is a machinery
-   gap, not a budget question.
-4. **An output policy** — whether the model's long reasoning text is part of
-   what a rater sees, and a per-call output ceiling.
-5. **A literature source for arm B** — or B is declared as a control that
+The owner's next decision was to repair the machine and measure one case again
+before any 12-case spend. The three gaps are now fixed with mutation-checked
+synthetic witnesses:
+
+1. **The event-loop fault.** A shared keep-alive connection belonged to a loop
+   the adapter had already closed; the next `send` refused in 0.02s with
+   `Event loop is closed`. Both the plain client and the sniffer's own
+   transport now disable pooled keep-alive connections. A loopback HTTP/1.1
+   server reproduces the alternating fault, and six sequential sends through
+   each product client shape survive six fresh loops.
+2. **Approval consumption.** An approval is verified and reserved before a
+   request, but spent only after the wire sniffer observes a measurable
+   response. A local fault leaves the row `GRANTED`; a response that bypasses
+   the wire is refused. Consecutive calls each need their own observation.
+3. **Output policy.** The provider sends `max_tokens=12000` and
+   `reasoning_effort=low`. A reply whose `finish_reason` says `length` raises
+   `ProviderOutputTruncatedError` before any artefact, blind packet or rating
+   can carry it. The cap was derived from the three complete calibration
+   answers (the largest measured answer was 4797 tokens in a generic
+   tokenizer); 12000 is a ceiling, not an instruction to fill it.
+
+The protocol's arrangement pair now has a runnable path. Its two B variants
+share an arm id, differ only in roles, and are assessed by the arrangement
+check rather than the five-letter check. Their anonymous item ids include the
+roles, their prompts differ in the critique instruction, and their one
+contrast is `B+C vs B-only`. A pair that moves evidence, model or budget is
+still refused; so is a third variant.
+
+**The recalibration proper spent exactly five calls.** Every arm answered,
+every answer was complete, and the consent ledger ended with five `CONSUMED`
+rows. The metered rows are in the operator-side report and its
+`measurements.json`, outside this repository.
+
+| Arm | Input | Output | Total | Wall clock |
+|---|---:|---:|---:|---:|
+| A | 1047 | 3715 | 4762 | 53.53s |
+| B | 1119 | 3712 | 4831 | 37.42s |
+| C | 1693 | 4200 | 5893 | 32.78s |
+| D | 2081 | 3821 | 5902 | 39.20s |
+| E | 2270 | 3551 | 5821 | 50.30s |
+| **Five arms, one case** | **8210** | **18999** | **27209** | **213.23s** |
+
+Against the old calibration's **52779** tokens for three answering arms,
+**27209** for all five is a **48.45% reduction** (25570 fewer tokens). It is
+still **2.52x** the original 10808-token estimate for a whole five-arm case.
+The new 12-case shape is **326508 tokens** for the 60 five-arm calls. Using
+B's metered two-call cost as a proxy for the arrangement pair's two calls per
+case adds **57972 tokens** for its 24 calls: **384480 tokens for 84 calls**,
+plus a mean-shape cross-check of about **457111** tokens (5441.8 per call).
+At the measured mean of 42.646s per call, 84 sequential calls are about
+**59.7 minutes**, not the old three-hour extrapolation. These are shapes for
+the owner's decision, not a budget that has been approved. **USD is not
+computed here**; the owner's billing console is the money source.
+
+**No 12-case run was started.** The owner's rule was to scale only when the
+new cost came down enough for a fresh decision; this record presents the
+measured shape and leaves that decision to them.
+
+## 9. What the real run still needs, in order
+
+1. **A fresh owner budget decision** for the measured 384480-token shape
+   (or another explicit per-call output cap), a new ceiling and the 12-case
+   authorization. Neither the old 130k estimate nor the 1.48M pre-repair
+   extrapolation is a current budget.
+2. **A literature source for arm B** — or B is declared as a control that
    repeats A, which the record must say before the run rather than after.
-6. **Two annotators who did not develop the system and did not annotate the
+3. **Two annotators who did not develop the system and did not annotate the
    current test set**, and an arbiter (§5 of the protocol) — no blind sheet was
    filled and no significance was computed; a calibration is not a run.
-7. **More unseen papers.** One paper gives twelve paired cases; the protocol's
+4. **More unseen papers.** One paper gives twelve paired cases; the protocol's
    conclusion is about the system, not about one manuscript, and the split is
    checked per paper.
 
-## 9. What the calibration changed in the tree
+## 10. What the calibration changed in the tree
 
 **The assembly itself changed no `src/` and no `tests/` file.** The seven-face
 case shape, the additive chain, the split checker with its version caps, the
@@ -411,9 +461,14 @@ go red.
 | the CLI exposed no request timeout, and a full case prompt made the endpoint's generation exceed the library's 60-second default (`ReadTimeout` classified as a transient provider failure) | `--timeout-s`, handed to `ProviderSettings.timeout_s`; the default stays 60 | `test_the_real_run_hands_its_timeout_to_the_provider_settings` |
 
 80 blind-evaluation witnesses pass; both mutations were restored byte for byte
-after they reddened. **No new test file was created**, so no shard or manifest
-registration was needed, and `docs/` and `scripts/` are not what the shard-cost
-witness watches. This record carries **no Chinese run at all**, so
+after they reddened. **That calibration created no new test file**, so no shard
+or manifest registration was needed, and `docs/` and `scripts/` are not what
+the shard-cost witness watches. The repairs in §8 did add
+`tests/test_blind_evaluation_machinery.py` and register it in the evaluation
+manifest; its costs have not been measured on a runner, so the CI shard-cost
+witness is expected to refuse the hand-edited list until an authorized run
+remeasures it. Costs come from a runner, not a development machine. This
+record carries **no Chinese run at all**, so
 `CJK_RUN_CEILINGS` needs no new entry and the material-quotage witness stays
 green by the same measurement that reddens it if this file ever quotes the
 paper. The owner's approval phrase stands verbatim on line 2 of the operator's

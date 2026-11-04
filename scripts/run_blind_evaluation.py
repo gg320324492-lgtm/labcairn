@@ -302,18 +302,20 @@ def _budget_label(budget: RunBudget | None) -> str:
 def _build_sniffer(*, on_observed: Callable[[], None] | None = None) -> HttpxUsageSniffer | None:
     """The one usage sniffer the run shares between its client and its capture.
 
-    The import is deferred so ``--help`` works in an environment where the
-    provider extras are not installed; a missing extra is a refusal, not a
-    traceback. The same object must become both the HTTP transport and the
-    provider's ``usage_capture``: two captures would let the run report a
-    ``Known`` count the probe could not confirm. ``on_observed`` is the
-    consent port's wire callback; a provider response is the evidence that a
-    request really went out and came back.
+    The provider extras are imported by ``make_sniffer`` at call time; a
+    missing extra is a refusal rather than a traceback. The same object must
+    become both the HTTP transport and the provider's ``usage_capture``: two
+    captures would let the run report a ``Known`` count the probe could not
+    confirm. ``on_observed`` is the consent port's wire callback; a provider
+    response is the evidence that a request really went out and came back.
     """
     # The product's own sniffer owns a no-keep-alive transport. Constructing a
     # separate AsyncHTTPTransport here would restore the event-loop fault for
     # the real run while the product-level witness stayed green.
-    return make_sniffer(on_observed=on_observed)
+    try:
+        return make_sniffer(on_observed=on_observed)
+    except ImportError:
+        return None
 
 
 def _parser() -> argparse.ArgumentParser:
