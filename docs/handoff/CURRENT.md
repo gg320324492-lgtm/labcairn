@@ -30,7 +30,10 @@ unknown / 13 position, with **no empty-text `resolved` row and no
 `sha256("")` digest anywhere left**, and the funnel re-measures at 12 anchored
 failures and six judgeable rules ([LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md) §1).
 The rollback point is the pre-correction file backup; the correction script
-refuses the real store without the owner's approval phrase.
+refuses the real store without the owner's approval phrase. The correction made
+one more rule judgeable (`rule-125072…`), and on the owner's approval its
+assessment was recorded through the same door — the ring now holds **six
+assessments, all `not_established`**.
 
 **What remains is the owner's, and each piece is listed where it is
 recorded**: the blind evaluation's real run (unseen papers, five arms' budget,

@@ -44,10 +44,20 @@ the rule count moves by one, not by two. The numbers above stay as measured at
 `d693521` over the `0019` store — a claim about one store state does not carry
 to another — and the re-measurement is witnessed the same way: both states were
 run through the identical three tests, the before-state reproducing this
-record's 14 and 5 exactly. **Whether the sixth rule's assessment should be
-recorded is the owner's call, and nothing was recorded for it here.**
+record's 14 and 5 exactly. **The sixth rule's assessment was recorded on
+2026-11-04, on the owner's approval**, through the same door and under the same
+discipline as the five below — `assess-ring4-125072f804bf0f39`, basis
+`revised_manuscript`, assessor `model`, graded `observed` because the matched
+paragraph of the child carries the caption **byte for byte**, and the omission
+is seen rather than concluded: the comment asks for before-and-after figures
+made from the data, and at that address the child draft's addition is numeric
+prose in the body text, not a figure. **All six rows read `not_established`.**
 
 ## 2. The five assessments
+
+*(Five rows as written on 2026-11-03; the sixth, recorded 2026-11-04 after the
+data correction made its rule judgeable, is described in §1 above — six rows
+now, all `not_established`.)*
 
 All five were written **through `record_assessment`**, none by SQL, and each
 carries `basis="revised_manuscript"`, `assessor_kind="model"` — the judgement is
