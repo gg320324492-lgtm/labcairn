@@ -55,7 +55,7 @@ from labcairn.providers.errors import (
     ProviderError,
     ProviderOutputTruncatedError,
 )
-from labcairn.providers.pydantic_models import build_http_client
+from labcairn.providers.pydantic_models import build_http_client, make_sniffer
 from labcairn.providers.usage_capture import HttpxUsageSniffer
 from labcairn.runtime.lifecycle import TaskGoal
 from labcairn.runtime.operation import ApprovalState
@@ -154,17 +154,24 @@ def test_a_pooled_keep_alive_client_reproduces_the_calibration_fault() -> None:
 
 
 def test_the_product_client_has_no_pooled_keep_alive_connections() -> None:
-    """Six sequential sends survive the adapter's per-send fresh loop."""
+    """Six sequential sends survive the adapter's per-send fresh loop.
+
+    Both client shapes are measured: the plain client and the sniffer-wrapped
+    transport the real calibration uses. ``AsyncClient(limits=...)`` does not
+    configure a supplied transport's own pool, so a witness that tried only
+    the plain client would stay green while the real run still failed.
+    """
     settings = ProviderSettings(protocol=Protocol.OPENAI, model="test-model")
-    with _loopback_server() as url:
-        client = build_http_client(settings)
-        assert client._transport is not None
-        assert isinstance(client, httpx.AsyncClient)
-        outcomes = _run_six_loops(client, url)
-    assert outcomes == ["OK"] * 6
-    inner = getattr(client._transport, "inner", client._transport)
-    assert inner._pool._max_keepalive_connections == 0
-    assert len(_KeepAliveHandler.bodies) == 6
+    for sniffer in (None, make_sniffer()):
+        with _loopback_server() as url:
+            client = build_http_client(settings, sniffer=sniffer)
+            assert client._transport is not None
+            assert isinstance(client, httpx.AsyncClient)
+            inner = getattr(client._transport, "inner", client._transport)
+            assert inner._pool._max_keepalive_connections == 0
+            outcomes = _run_six_loops(client, url)
+        assert outcomes == ["OK"] * 6
+        assert len(_KeepAliveHandler.bodies) == 6
 
 
 # --- W2: approval spent only after the wire answered -----------------------
