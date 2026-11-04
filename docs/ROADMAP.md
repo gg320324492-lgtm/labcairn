@@ -125,21 +125,26 @@ LC-P2-17), **the blind evaluation's mechanical preparation is built and
 mutation-verified twice** (five arms as data, the by-paper leak check
 that names every shape, the anonymous sheet that refuses an arm key,
 the paired sign test whose not-significant verdict is first-class —
-LC-P2-14's machinery, **written and not run**), and **five acceptance
+LC-P2-14's machinery), and **five acceptance
 records carry an independent review** (every mutation re-applied by a
 session that built none of them, every witness watched). **The first
 unseen paper has since been assembled into those arms and the dry run
 walked end to end on it** — 12 cases, 60 stub calls, zero provider calls,
-the leak check run against the real chain and clean, and the budget shape
-measured at 84 calls and about 130k tokens per paper
+the leak check run against the real chain and clean. **The owner approved
+a real run on 2026-11-04, and a single-case calibration was run before
+scaling**: three arms metered 52779 tokens against an estimated 10808,
+so the estimate was wrong by 4.88x and scaling stopped by the owner's own
+rule; the corrected shape is about 1.48M tokens for the 84 calls
 ([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
-**Of the merged ticket's six, four are built and two are left**: the blind
-evaluation's real run (the paper and the assembly now exist; what is left
-is the owner's budget and the three decisions that record names — the
-citable-rule face, arm B's literature source, and the second paper),
-and the competitor comparison (brief written, preconditions met, budget
-and final pick the owner's call). Retrieval quality beyond three
-papers waits on a corpus read by a human, per LC-P2-14's own protocol.
+Two real-request gaps in the driver were fixed with mutation-checked
+witnesses. **Of the merged ticket's six, four are built and two are left**:
+the blind evaluation's real run (the paper, the assembly and the
+calibration exist; what is left is the owner's new budget, the event-loop
+fault, the arrangement pair's runnable path, an output policy and the
+second paper), and the competitor comparison (brief written,
+preconditions met, budget and final pick the owner's call). Retrieval
+quality beyond three papers waits on a corpus read by a human, per
+LC-P2-14's own protocol.
 
 ## Phase 1 upstream research
 
