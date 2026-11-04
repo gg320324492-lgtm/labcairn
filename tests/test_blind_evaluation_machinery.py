@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import http.server
+import importlib.util
 import json
 import socketserver
 import threading
@@ -135,6 +136,23 @@ def _run_six_loops(client: httpx.AsyncClient, url: str) -> list[str]:
             outcomes.append("OK")
     asyncio.run(client.aclose())
     return outcomes
+
+
+def _cli_module() -> Any:
+    """Load the executable run driver without importing its module name twice."""
+    path = Path(__file__).resolve().parent.parent / "scripts" / "run_blind_evaluation.py"
+    spec = importlib.util.spec_from_file_location("run_blind_evaluation_machinery", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_real_run_cli_builds_a_no_keep_alive_sniffer() -> None:
+    """The driver's own sniffer must not reconstruct the faulty transport."""
+    sniffer = _cli_module()._build_sniffer()
+    assert sniffer is not None
+    assert sniffer.inner._pool._max_keepalive_connections == 0
 
 
 def test_a_pooled_keep_alive_client_reproduces_the_calibration_fault() -> None:

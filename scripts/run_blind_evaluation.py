@@ -73,7 +73,7 @@ from labcairn.core.providers.usage import Known
 from labcairn.providers.budget import RunBudget
 from labcairn.providers.credentials import Protocol, ProviderSettings
 from labcairn.providers.errors import OutboundRefusedError
-from labcairn.providers.pydantic_models import build_http_client
+from labcairn.providers.pydantic_models import build_http_client, make_sniffer
 from labcairn.providers.usage_capture import HttpxUsageSniffer
 from labcairn.security.capabilities import CapabilityId
 
@@ -310,11 +310,10 @@ def _build_sniffer(*, on_observed: Callable[[], None] | None = None) -> HttpxUsa
     consent port's wire callback; a provider response is the evidence that a
     request really went out and came back.
     """
-    try:
-        import httpx
-    except ImportError:
-        return None
-    return HttpxUsageSniffer(httpx.AsyncHTTPTransport(), on_observed=on_observed)
+    # The product's own sniffer owns a no-keep-alive transport. Constructing a
+    # separate AsyncHTTPTransport here would restore the event-loop fault for
+    # the real run while the product-level witness stayed green.
+    return make_sniffer(on_observed=on_observed)
 
 
 def _parser() -> argparse.ArgumentParser:
