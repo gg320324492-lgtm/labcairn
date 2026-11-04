@@ -84,6 +84,8 @@ class FailureKind(StrEnum):
     PROVIDER_TRANSIENT = "provider_transient"
     #: The reply arrived but was not a reply we could read.
     PROVIDER_MALFORMED_RESPONSE = "provider_malformed_response"
+    #: The reply was cut off at its output ceiling, so it is not a complete answer.
+    PROVIDER_OUTPUT_TRUNCATED = "provider_output_truncated"
     INTERNAL = "internal"
 
 
@@ -158,6 +160,14 @@ _CLASSIFICATION: Mapping[FailureKind, _Classification] = {
         retryable=False,
         user_action=ACTION_SETTINGS,
         message="The provider's reply was not in a shape LabCairn can read.",
+    ),
+    FailureKind.PROVIDER_OUTPUT_TRUNCATED: _Classification(
+        retryable=False,
+        user_action=ACTION_SETTINGS,
+        message=(
+            "The provider's answer reached its output ceiling and is incomplete; "
+            "LabCairn refused it rather than score a truncated answer."
+        ),
     ),
     FailureKind.INTERNAL: _Classification(
         retryable=False,
@@ -322,6 +332,15 @@ class ProviderMalformedResponseError(ProviderError):
         super().__init__(
             ProviderFailure.of(FailureKind.PROVIDER_MALFORMED_RESPONSE, detail_digest=detail_digest)
         )
+
+
+class ProviderOutputTruncatedError(ProviderError):
+    """An answer cut off at the output ceiling; never a blind-sheet item."""
+
+    def __init__(self, *, max_output_tokens: int, finish_reason: str) -> None:
+        super().__init__(ProviderFailure.of(FailureKind.PROVIDER_OUTPUT_TRUNCATED))
+        self.max_output_tokens = max_output_tokens
+        self.finish_reason = finish_reason
 
 
 #: The lowest and highest HTTP status this table claims. Declared so a test can

@@ -49,7 +49,7 @@ import argparse
 import json
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -180,28 +180,30 @@ def _real_run(args: argparse.Namespace) -> int:
     cases = _load_cases(Path(args.cases))
     budget = _load_budget(args)
     approvals = _load_approvals(Path(args.approvals)) if args.approvals else ()
-    required = len(cases) * 5
+    requests_per_case = 2 if args.arrangement_pair else 5
+    required = len(cases) * requests_per_case
     if len(approvals) < required:
         print(
-            f"refused: the run has {required} requests (5 arms x {len(cases)} cases) "
+            f"refused: the run has {required} requests "
+            f"({requests_per_case} arms x {len(cases)} cases) "
             f"but the owner supplied {len(approvals)} approvals; one approval "
             "covers one request, and the driver will not start a run it cannot "
             "finish",
             file=sys.stderr,
         )
         return EXIT_REFUSED
-    sniffer = _build_sniffer()
+    probe_capture = _build_sniffer()
     problems = blind_runner.missing_real_requirements(
         approvals=len(approvals),
         budget=budget,
         model=args.model,
-        usage_capture=sniffer,
+        usage_capture=probe_capture,
     )
     if problems:
         for problem in problems:
             print(f"refused: {problem}", file=sys.stderr)
         return EXIT_REFUSED
-    if sniffer is None:  # unreachable after missing_real_requirements, kept explicit
+    if probe_capture is None:  # unreachable after missing_real_requirements, kept explicit
         return EXIT_REFUSED
 
     #: ``TaskId`` is a NewType, so it does not convert at runtime. The approval
@@ -218,16 +220,20 @@ def _real_run(args: argparse.Namespace) -> int:
     config: WorkspaceConfig = read_config(location)
     out_dir = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="labcairn-blind-"))
     settings = _provider_settings(args)
-    http_client = build_http_client(settings, sniffer=sniffer)
-    try:
-        with application_context(location, config, task_id) as context:
-            consent = blind_runner.ConsumingApprovals(context, approvals)
+    with application_context(location, config, task_id) as context:
+        consent = blind_runner.ConsumingApprovals(context, approvals)
+        sniffer = _build_sniffer(on_observed=consent.authorize_wire)
+        assert sniffer is not None  # the same constructor already succeeded above
+        http_client = build_http_client(settings, sniffer=sniffer)
+        try:
             provider = blind_runner.build_real_provider(
                 settings,
                 consent=consent,
                 budget=budget,
                 usage_capture=sniffer,
                 http_client=http_client,
+                max_output_tokens=args.max_output_tokens,
+                reasoning_effort=args.reasoning_effort,
             )
             summary = blind_runner.run_real(
                 provider=provider,
@@ -235,10 +241,15 @@ def _real_run(args: argparse.Namespace) -> int:
                 model=args.model,
                 budget=_budget_label(budget),
                 cases=cases,
+                arms=(
+                    blind_runner.arrangement_arms(model=args.model, budget=_budget_label(budget))
+                    if args.arrangement_pair
+                    else None
+                ),
             )
-    except OutboundRefusedError as error:
-        print(f"refused by the outbound bridge: {error}", file=sys.stderr)
-        return EXIT_OUTBOUND_REFUSED
+        except OutboundRefusedError as error:
+            print(f"refused by the outbound bridge: {error}", file=sys.stderr)
+            return EXIT_OUTBOUND_REFUSED
     print("LC-P2-14 blind evaluation - REAL RUN")
     print(f"  out           : {summary.out_dir}")
     print(f"  status        : {summary.status}")
@@ -288,20 +299,22 @@ def _budget_label(budget: RunBudget | None) -> str:
     return ", ".join(parts)
 
 
-def _build_sniffer() -> HttpxUsageSniffer | None:
+def _build_sniffer(*, on_observed: Callable[[], None] | None = None) -> HttpxUsageSniffer | None:
     """The one usage sniffer the run shares between its client and its capture.
 
     The import is deferred so ``--help`` works in an environment where the
     provider extras are not installed; a missing extra is a refusal, not a
     traceback. The same object must become both the HTTP transport and the
     provider's ``usage_capture``: two captures would let the run report a
-    ``Known`` count the probe could not confirm.
+    ``Known`` count the probe could not confirm. ``on_observed`` is the
+    consent port's wire callback; a provider response is the evidence that a
+    request really went out and came back.
     """
     try:
         import httpx
     except ImportError:
         return None
-    return HttpxUsageSniffer(httpx.AsyncHTTPTransport())
+    return HttpxUsageSniffer(httpx.AsyncHTTPTransport(), on_observed=on_observed)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -338,11 +351,28 @@ def _parser() -> argparse.ArgumentParser:
         help="per-request timeout in seconds (real mode); a long review needs longer than 60",
     )
     parser.add_argument("--approvals", help="the owner's approval records (real mode)")
+    parser.add_argument(
+        "--arrangement-pair",
+        action="store_true",
+        help="run the protocol's two B role variants instead of the five arms",
+    )
     parser.add_argument("--budget-max-total-tokens", type=int, help="a token ceiling (real mode)")
     parser.add_argument(
         "--budget-max-model-requests", type=int, help="a request ceiling (real mode)"
     )
     parser.add_argument("--budget-max-cost-usd", help="a cost ceiling (real mode)")
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=12000,
+        help="per-request output ceiling; a truncated answer is refused (real mode)",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=("low", "medium", "high"),
+        default="low",
+        help="the provider's reasoning-depth setting (real mode)",
+    )
     return parser
 
 
