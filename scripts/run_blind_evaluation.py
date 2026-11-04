@@ -151,7 +151,9 @@ def _provider_settings(args: argparse.Namespace) -> ProviderSettings:
 def _dry_run(args: argparse.Namespace) -> int:
     out_dir = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="labcairn-blind-"))
     cases = _load_cases(Path(args.cases)) if args.cases else None
-    summary = blind_runner.run_dry(out_dir=out_dir, cases=cases)
+    summary = blind_runner.run_dry(
+        out_dir=out_dir, cases=cases, run_scope=args.run_scope or "five_arm"
+    )
     print("LC-P2-14 blind evaluation - DRY RUN")
     print("Nothing was sent to a model; every rating is the unknown label.")
     print(f"  out          : {summary.out_dir}")
@@ -246,7 +248,9 @@ def _real_run(args: argparse.Namespace) -> int:
                     if args.arrangement_pair
                     else None
                 ),
-                run_scope="arrangement_pair" if args.arrangement_pair else "five_arm",
+                run_scope=(
+                    "arrangement_pair" if args.arrangement_pair else (args.run_scope or "five_arm")
+                ),
             )
         except OutboundRefusedError as error:
             print(f"refused by the outbound bridge: {error}", file=sys.stderr)
@@ -357,6 +361,14 @@ def _parser() -> argparse.ArgumentParser:
         "--arrangement-pair",
         action="store_true",
         help="run the protocol's two B role variants instead of the five arms",
+    )
+    parser.add_argument(
+        "--run-scope",
+        help=(
+            "the item space this run's anonymous ids live in (default: five_arm, "
+            "or arrangement_pair with --arrangement-pair); a second unseen paper "
+            "must run under its own scope so the two papers' item ids cannot collide"
+        ),
     )
     parser.add_argument("--budget-max-total-tokens", type=int, help="a token ceiling (real mode)")
     parser.add_argument(
