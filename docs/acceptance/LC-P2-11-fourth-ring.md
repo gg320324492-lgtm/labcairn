@@ -33,10 +33,15 @@ none of which this method can read at all — also §4.
 
 **Re-measured on 2026-11-04, after the SOW (2) data correction** (the store at
 schema `0023`; the three deletion-collapse rows re-anchored to their real text,
-the thirteen zero-width rows recast as `position`): the anchor test now fails
-**12 of 32**, not 14 — the two keys carried by the re-anchored rows read as
-anchored — and **six of the sixteen comment-derived rules are judgeable**, not
-five. The new sixth is `rule-125072f804bf0f39`: its only anchored case sits on
+the thirteen zero-width rows recast as `position`), and **re-measured again the
+same day after the two out-of-scope rows were re-recorded**
+([LC-P2-27](LC-P2-27-position-anchors.md) §7 — the store at `0023`, now
+59 fresh / 21 unanchored / 0 stale): **every number below is line-for-line
+what it measured then** — those two rows always carried non-empty text, so
+they were readable anchors under this test even while stale, and nothing in
+the funnel moved: the anchor test fails **12 of 32**, not 14 — the two keys
+carried by the re-anchored rows read as anchored — and **six of the sixteen
+comment-derived rules are judgeable**, not five. The new sixth is `rule-125072f804bf0f39`: its only anchored case sits on
 paragraph 171, whose text the old reader had collapsed to nothing, and the
 correction gave it back (ten characters, `fb-71edce76…`). The other re-anchored
 key belongs to a rule that was already judgeable through a different case, so

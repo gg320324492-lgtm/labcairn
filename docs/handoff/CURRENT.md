@@ -33,7 +33,18 @@ The rollback point is the pre-correction file backup; the correction script
 refuses the real store without the owner's approval phrase. The correction made
 one more rule judgeable (`rule-125072…`), and on the owner's approval its
 assessment was recorded through the same door — the ring now holds **six
-assessments, all `not_established`**.
+assessments, all `not_established`**. **The two rows that correction left
+outside its scope — the same collapsed-`w:del` walk's output at a milder
+severity, real text truncated at its start — were re-recorded on the real
+store on 2026-11-04, also on the owner's approval**
+([LC-P2-27](../acceptance/LC-P2-27-position-anchors.md) §7): the reader was
+not touched (its own span for those rows equals the hand-counted file truth),
+the two rows moved and nothing else did, and the store now reads **59 fresh /
+21 unanchored / 0 stale over 80 rows** — no stale row left in the pilot. The
+funnel does not move: those two rows always carried non-empty text, so they
+were readable anchors under its test even while stale, and its `12 of 32`
+and six judgeable rules were re-measured line-for-line the same after the
+run.
 
 **What remains is the owner's, and each piece is listed where it is
 recorded**: the blind evaluation's real run (unseen papers, five arms' budget,

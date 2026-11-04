@@ -338,7 +338,79 @@ without it.
 `954e6825cbf7693d7cf72239f3bcd0c35cf7fdbc55eaddfcf0a2693de6fb105a`; the
 live store at `0023` with 80 rows and statuses
 `resolved 59 / unknown 8 / position 13` — read `mode=ro`, written by
-nothing in this piece. **The execution plan is the operator-side page at
-`E:\labcairn-local\nonzero-width\EXECUTION-PLAN.md`, and it waits for the
-owner.** Until that approval, the two rows stay stale, and the store
-says so honestly.
+nothing in this piece at the time these values were measured. The
+execution plan is the operator-side page at
+`E:\labcairn-local\nonzero-width\EXECUTION-PLAN.md`.
+
+## 7. The two rows were re-recorded on the real store — 2026-11-04
+
+The owner approved the run on 2026-11-04 — the words 「批准执行」 arrive through the
+coordinator session and are recorded verbatim in the run's report — and
+`nz_execute.py` ran against `E:\labcairn-local\pilot-ws\labcairn.db`.
+**The store now reads 59 fresh / 21 unanchored / 0 stale over 80 rows:
+there is no stale row left in the pilot.** The rows moved exactly as §6
+measured them: `fb-7b7a991a1962a496` to (11, 16, 41) / 25 / `4cd8e0d388b7…`
+and `fb-8bc0ab3105ecf2cc` to (11, 105, 114) / 9 / `fa466b74c698…`, status
+`resolved`, reason cleared. The reader was not touched by any of it:
+`src/labcairn/material/ooxml.py` still hashes
+`954e6825cbf7693d7cf72239f3bcd0c35cf7fdbc55eaddfcf0a2693de6fb105a`, the
+bytes §6 and the rehearsal measured against, and the tree ran from
+`2fc7e03a3adf493b08052a818bc302bae940a4b2`.
+
+*The backup, and the rollback point.* `E:\labcairn-local\pilot-ws\labcairn.20261104T073605Z.pre-two-rows.db`,
+sha256 `d4a9a8cb2b5d20d66c7cd70bc7f15082bb1b1b1925222e5b21732da81d5869be` —
+byte-identical to the live store at the moment of the copy, and **re-read
+after the run**: 80 rows, the old spans intact. The backup sits beside the
+store, not in a `backups\` subdirectory: the run's phase 1 names it after
+the store it protects. As §5 established, the rollback point of such a run
+is this file, never the transaction.
+
+*The gate caught something real before it wrote.* Phase 0 refused the first
+attempt: a `0`-byte `-wal` and a `-shm` were sitting beside the store — the
+shell a `mode=ro` read of a WAL-mode database leaves behind, mine, from the
+pre-run measurement. The precondition demands no side files, so the refusal
+was the rule working, not a glitch: `wal_checkpoint(TRUNCATE)` returned
+`(0, 0, 0)` — nothing un-checkpointed — and the logical digest read the same
+before and after the clear (`c7f8af85a564f0763f5f823d9b974a304bc29a01da72a7a841089747ae98e6ed`).
+Then the run passed every precondition and executed. **A read-only
+connection can create the WAL side files; clearing them is part of the
+gate, not an afterthought.**
+
+*What was verified, twice, over two different canonicalisations.* The
+executor's own checks: PRE {fresh 57, unanchored 21, stale 2} → POST
+{fresh 59, unanchored 21}, exactly the two rows moved, no other table
+digest moved, `PRAGMA integrity_check` `ok`, and the terminal
+`feedback_events` digest (seven anchor columns, canonical JSON, ordered by
+id) equal to the rehearsed
+`c70a24633a9c71ebc9ee4450c1984b4e11c28d4b8ed1eaec4ed9b0e5859d2be4` —
+so the real store now holds exactly the rehearsed state, and the value
+§6 named as the terminal anchor is the value the store carries. A second
+script, `nz_verify_after.py`, re-checks it with its own canonicalisation
+(TSV-joined, not the JSON list): every check PASS, its own digest
+`d38b4ab1c3978dc0636281f9fca8666df5869918547209379e276777c59b1e55`, the
+same seven-column JSON digest reproduced, and per-row checks that each
+re-recorded row's text length equals its span width with the reason NULL.
+After a final `wal_checkpoint(TRUNCATE)` and a clean close the side files
+are absent and the store hashes `8d37ca218d9974308637278271f1847355a034d4ea618d3ca222380136f6c0bc`
+— **a run record only**: the page layout of a checkpointed file is not its
+content, and the anchor above is the logical digest.
+
+*What the run did not move.* The fourth ring's funnel was re-measured after
+the store changed, through the identical script: **six of the sixteen
+comment-derived rules judgeable, and the anchor test failing 12 of 32 —
+line for line what `0023` measured before this run** (`judgeable-now.out`,
+outside the repository). The two re-recorded rows are not among the 12:
+they always carried non-empty text, so they were readable anchors under
+that test even when truncated; what they lacked was freshness, and
+freshness is not what the funnel asks. `LC-P2-11-fourth-ring.md` therefore
+needs no re-numbering, and the check that it did not is in the record.
+
+Nothing was pushed, no pull request was opened, no CI was started, and the
+repository's tree carries the record of the run rather than the run's
+bytes: the store-side outputs — the report `execution-20261104T073603Z.txt`
+(with the owner's words on its second line), `EXECUTION-RECORD.md`, the
+executor, the verifier, the rehearsal, the leaf-walk truth and the
+mutation's red — all live outside the repository at
+`E:\labcairn-local\nonzero-width\`, as every store-side record does.
+**With this the debt §6 named is closed: the chain's last two stale rows
+read fresh, and the pilot store has no stale row left.**
