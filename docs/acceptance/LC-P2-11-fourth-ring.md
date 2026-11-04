@@ -31,6 +31,22 @@ others are not judgeable *by this ring's question*, and they are listed in §4
 rather than quietly dropped. Beyond them sit the eight revision-derived rules,
 none of which this method can read at all — also §4.
 
+**Re-measured on 2026-11-04, after the SOW (2) data correction** (the store at
+schema `0023`; the three deletion-collapse rows re-anchored to their real text,
+the thirteen zero-width rows recast as `position`): the anchor test now fails
+**12 of 32**, not 14 — the two keys carried by the re-anchored rows read as
+anchored — and **six of the sixteen comment-derived rules are judgeable**, not
+five. The new sixth is `rule-125072f804bf0f39`: its only anchored case sits on
+paragraph 171, whose text the old reader had collapsed to nothing, and the
+correction gave it back (ten characters, `fb-71edce76…`). The other re-anchored
+key belongs to a rule that was already judgeable through a different case, so
+the rule count moves by one, not by two. The numbers above stay as measured at
+`d693521` over the `0019` store — a claim about one store state does not carry
+to another — and the re-measurement is witnessed the same way: both states were
+run through the identical three tests, the before-state reproducing this
+record's 14 and 5 exactly. **Whether the sixth rule's assessment should be
+recorded is the owner's call, and nothing was recorded for it here.**
+
 ## 2. The five assessments
 
 All five were written **through `record_assessment`**, none by SQL, and each

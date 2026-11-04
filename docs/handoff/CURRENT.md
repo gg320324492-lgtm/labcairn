@@ -20,8 +20,17 @@ consume byte-identically, a paper-qa runner whose live mode refuses without the
 owner's approval file, an aligner that refuses a missing case or a mismatched
 pin, and the runbook the owner executes on approval
 ([LC-P2-18 machinery](../acceptance/LC-P2-18-machinery.md)). The shard costs
-are re-measured at `6ccdfcc`. **Two commits are local-only** (`081ede7`,
-`54d34e7`); the next push lets one CI run cost them all.
+are re-measured at `6ccdfcc`. **And the SOW (2) data correction was executed on
+the real pilot store on 2026-11-04, on the owner's approval**: rehearsed green on
+a copy in both terminal variants first, then backup → the three
+deletion-collapse rows re-anchored to their real text → the chain to `0023` →
+the thirteen zero-width rows recast as `position` with their paragraph and
+offsets (variant B, the owner's choice). The store now measures 59 resolved / 8
+unknown / 13 position, with **no empty-text `resolved` row and no
+`sha256("")` digest anywhere left**, and the funnel re-measures at 12 anchored
+failures and six judgeable rules ([LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md) §1).
+The rollback point is the pre-correction file backup; the correction script
+refuses the real store without the owner's approval phrase.
 
 **What remains is the owner's, and each piece is listed where it is
 recorded**: the blind evaluation's real run (unseen papers, five arms' budget,
