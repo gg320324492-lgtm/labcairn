@@ -735,3 +735,70 @@ files. This record carries **no Chinese material at all**, so
 `CJK_RUN_CEILINGS` needs no new entry and the material-quotage witness stays
 green by the same measurement that reddens it if this file ever quotes the
 paper.
+
+
+## 20. The authorized real run for the second unseen paper
+
+The owner approved the run on 2026-11-05 (via the coordinator session; the
+approval phrase lives in the operator-side report outside this repository).
+**Status: the machine side is complete -- 91 calls, all answered, zero
+truncations, zero approvals spent twice, 404802 metered tokens against the
+run's 577000 hard stop. The measurement is not: no sheet is filled, no
+significance exists, and no capability claim is made.** The two contrasts
+and the arrangement contrast each hold 13 paired answer sets across the
+five dimensions; the raters and the arbiter remain owner-side work, and
+``unknown`` and ``not significant`` stay first-class results.
+
+**The calibration first, as the owner ordered.** The five-arm case ``b6-01``
+metered **28850 tokens** against paper 1's recalibrated 27209 -- **1.06x**,
+inside the operator's declared 1.25 stop line, so the scaled run proceeded.
+The first calibration pass wrote zero into its own meter (it parsed the
+usage wire wrapper instead of the metered fields); the five paid-for
+answers were already on disk, and the meter was recovered from their
+artifacts with zero additional calls. The run scripts now treat an
+unmetered count as a fault and record each call's approval delta.
+
+**Two zero-spend stops taught the workspace lesson.** Two attempts stopped
+at their first call, refused at the consent bridge before the wire -- each
+spent zero tokens and consumed zero approvals -- because both scripts
+shared one consent workspace, where paper 1's recalibration and scaled run
+each kept a workspace of its own. The run completed on a dedicated
+workspace; the refusal's specific reason was not captured, the refused
+attempts' approvals lapsed unused, and the lesson is the shape: **one
+workspace per run**, the way the precedent had it.
+
+**The ceiling the run executed under.** The assembly's authorization shape
+was 467052 tokens; after the calibration's measurement the run script's
+ceiling stood at **577000** (the measured per-case shape extrapolated to 91
+calls, plus 10%) -- a change made outside this session, consistent with the
+owner's instruction to set the hard stop by the measured mean-shape upper
+bound. The run finished at **404802 / 577000 = 70.16%**; the gate and the
+projected-next-call check never fired. As in section 9, the product's
+``max_total_tokens`` ceiling was not used (it needs a capability probe
+outside the authorization); the product's request ceiling was 91.
+
+| Run scope | Arm / roles | Calls | Input | Output | Total | Wall clock |
+|---|---|---:|---:|---:|---:|---:|
+| five_arm_unseen2 | A, guidance | 13 | 11793 | 37159 | 48952 | 260.0s |
+| five_arm_unseen2 | B, guidance | 13 | 12558 | 39193 | 51751 | 314.7s |
+| five_arm_unseen2 | C, guidance | 13 | 20202 | 40385 | 60587 | 354.4s |
+| five_arm_unseen2 | D, guidance | 13 | 25945 | 43190 | 69135 | 327.3s |
+| five_arm_unseen2 | E, guidance | 13 | 29243 | 38422 | 67665 | 267.5s |
+| arrangement_pair_unseen2 | B-only, guidance | 13 | 12558 | 38544 | 51102 | 315.6s |
+| arrangement_pair_unseen2 | B+C, guidance + critique | 13 | 12896 | 42714 | 55610 | 292.5s |
+| **Total** | | **91** | **125195** | **279607** | **404802** | **2132.0s** |
+
+**The blind sheet the run minted, verified.** ``unblinding.json`` holds **91
+items** -- 65 ``five_arm_unseen2``, 26 ``arrangement_pair_unseen2``; the
+assembly's skeleton (section 16) is a subset of exactly these ids, and paper
+1's namespace shares **zero** ids with this run's. The blind packet's 91
+outputs are all non-empty and none carries an arm key; the packet pushed
+back through the real ``load_blind_sheet`` (**91 accepted**), and the
+negative control -- an item carrying an ``arm`` key -- is still refused with
+the machinery's own sentence. Answers are named by item id, so the
+arrangement pair's B answers cannot overwrite the five-arm B's -- the
+collision section 9 repaired is structurally absent here. The per-call
+ledger, the answers and the operator-side report (with the approval phrase
+verbatim) live outside the repository under ``blind6-arms`` ``live`` paths;
+``tests/test_no_reference_leakage.py`` keeps them out of the tree. **No USD
+is computed here**; the owner's billing console is the money source.
