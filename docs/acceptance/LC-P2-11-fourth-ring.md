@@ -117,7 +117,11 @@ is no later version to read, and the ring has nothing to say about them.
 `rule-125072f804bf0f39`, `rule-3550b3e245fdee58`, `rule-4da1e823cb3afa4f`,
 `rule-af3ea5561e6c8217`, `rule-bafe38a22815e7e4`, `rule-e288246e5eae415c` and
 `rule-789806193d1568c3` are blocked by the empty anchor or by the advisor's own
-hand in the child paragraph.
+hand in the child paragraph. **One of these eleven moved after the list was
+written:** `rule-125072f804bf0f39` was blocked by the empty anchor on the case
+the reader had collapsed, and the SOW (2) correction of 2026-11-04 gave that
+anchor its real text — it is judgeable now and its assessment is recorded (§1).
+The other ten stand as listed.
 
 **And the container is the real finding, not the count.** Two structural facts
 came out of the attempt:

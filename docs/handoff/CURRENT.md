@@ -87,9 +87,10 @@ nearest match at similarity 0.177 and 0.125. **The similarity numbers locate the
 paragraph; they are not the verdict.** Record:
 [LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md).
 
-**The finding is the funnel, not the five.** Of the 32 comment keys the confirmed
-rules are bound to, **14 carry no anchored words** and **9 sit on the newest draft
-of their project**, so **five of the sixteen comment-derived rules could be judged
+**The finding is the funnel, not the five.** As measured then over the `0019`
+store: of the 32 comment keys the confirmed rules were bound to, **14 carried no
+anchored words** and **9 sat on the newest draft of their project**, so **five of
+the sixteen comment-derived rules could be judged
 and eleven could not** — each named in the record with the test that failed it.
 **And none of the eight revision-derived rules can be read this way at all:** all
 thirty of their cases have an empty rejected view, because the mentor wrote his
@@ -103,11 +104,13 @@ author's next draft — pilot-1's `v03 → v03-copy` step is a month later by th
 documents' own clock and carries up to **38** tracked insertions by him at one
 paragraph, so reading it as the advice borne out would credit the advice with its
 own restatement. Whether the chain's edges should be typed, or such an edge
-shouldn't exist, is the owner's call. *Two:* **24 of the store's 80 comment rows
-store `sha256("")`** as their anchor digest, seven of them under
-`anchor_status='resolved'`, so `anchor_state` reports `fresh` over an anchor that
-holds nothing — a window is measuring now whether the reader dropped text the file
-has, or the vocabulary is claiming a passage where there was only a position.
+shouldn't exist, is the owner's call. *Two:* as measured then, **24 of the store's
+80 comment rows stored `sha256("")`** as their anchor digest — **16 of them under
+`anchor_status='resolved'`** (seven of those 16 were bound to confirmed rules) —
+so `anchor_state` could report `fresh` over an anchor that held nothing.
+**That debt is closed**: the reader fix, the `position` status and the SOW (2)
+correction landed, and the store as corrected holds **no such row** — zero
+empty-text `resolved` rows and zero `sha256("")` digests, measured 2026-11-04.
 
 **What the five rows do not change:** the retrieval still serves **9** rules and
 reports **15** unserved, re-measured after the write. An assessment is a judgement
