@@ -170,7 +170,8 @@
         "tests/test_status_consistency.py",
         "tests/test_baseline_document.py",
         "tests/test_material_regressions.py",
-        "tests/test_docx_fixture_corpus.py"
+        "tests/test_docx_fixture_corpus.py",
+        "tests/test_blind_evaluation_machinery.py"
       ]
     ],
     "windows-latest": [
@@ -270,7 +271,8 @@
         "tests/test_runtime_contracts.py",
         "tests/test_security_listing_canonical.py",
         "tests/test_capability_namespaces.py",
-        "tests/test_material_addressing.py"
+        "tests/test_material_addressing.py",
+        "tests/test_blind_evaluation_machinery.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -507,7 +509,8 @@
       "test_version_duplicates.py": 0.4,
       "test_version_store.py": 2.12,
       "test_workbench_live_service.py": 7.41,
-      "test_workspace_boundaries.py": 0.01
+      "test_workspace_boundaries.py": 0.01,
+      "test_blind_evaluation_machinery.py": 0.3
     },
     "windows-latest": {
       "test_access_grant_schema.py": 4.28,
@@ -669,7 +672,8 @@
       "test_version_duplicates.py": 0.72,
       "test_version_store.py": 11.59,
       "test_workbench_live_service.py": 12.21,
-      "test_workspace_boundaries.py": 1.67
+      "test_workspace_boundaries.py": 1.67,
+      "test_blind_evaluation_machinery.py": 0.55
     }
   }
 }
