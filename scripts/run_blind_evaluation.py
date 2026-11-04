@@ -144,6 +144,7 @@ def _provider_settings(args: argparse.Namespace) -> ProviderSettings:
         model=args.model,
         base_url=args.base_url,
         credential_env=args.credential_env,
+        timeout_s=args.timeout_s,
     )
 
 
@@ -203,13 +204,23 @@ def _real_run(args: argparse.Namespace) -> int:
     if sniffer is None:  # unreachable after missing_real_requirements, kept explicit
         return EXIT_REFUSED
 
+    #: ``TaskId`` is a NewType, so it does not convert at runtime. The approval
+    #: ledger stores the task id as a UUID; handing it the raw command-line
+    #: string makes every granted approval fail with ``task_scope_mismatch``
+    #: before a single request leaves the process. Parse it *before* the
+    #: workspace is opened, so a malformed id is a refusal that reads no files.
+    try:
+        task_id = TaskId(UUID(args.task))
+    except (ValueError, AttributeError, TypeError) as error:
+        print(f"refused: --task must be a UUID: {error}", file=sys.stderr)
+        return EXIT_REFUSED
     location = WorkspaceLocation(root=Path(args.workspace_root).expanduser().resolve())
     config: WorkspaceConfig = read_config(location)
     out_dir = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="labcairn-blind-"))
     settings = _provider_settings(args)
     http_client = build_http_client(settings, sniffer=sniffer)
     try:
-        with application_context(location, config, TaskId(args.task)) as context:
+        with application_context(location, config, task_id) as context:
             consent = blind_runner.ConsumingApprovals(context, approvals)
             provider = blind_runner.build_real_provider(
                 settings,
@@ -320,6 +331,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--base-url", help="the endpoint (openai_compatible requires it)")
     parser.add_argument("--credential-env", help="the environment variable holding the key")
+    parser.add_argument(
+        "--timeout-s",
+        type=float,
+        default=60.0,
+        help="per-request timeout in seconds (real mode); a long review needs longer than 60",
+    )
     parser.add_argument("--approvals", help="the owner's approval records (real mode)")
     parser.add_argument("--budget-max-total-tokens", type=int, help="a token ceiling (real mode)")
     parser.add_argument(

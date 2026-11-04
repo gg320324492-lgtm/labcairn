@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from collections.abc import Mapping
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
@@ -1195,6 +1196,126 @@ class TestTheRunDriverCommand:
         )
         assert code == 2
         assert "budget ceiling" in capsys.readouterr().err
+
+    def test_the_real_run_parses_the_task_id_as_a_uuid(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The approval ledger stores a UUID task id, not the CLI's raw string.
+
+        Real material exposed this: ``TaskId`` is a NewType, so
+        ``TaskId(args.task)`` keeps the command-line string at runtime, and
+        every granted approval fails with ``task_scope_mismatch`` before any
+        request leaves. A real run must parse it, as the CLI's other entry
+        points do. The witness monkeypatches the context manager to capture
+        the id the command hands the application layer.
+        """
+        module = _cli_module()
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+        #: A config file is all ``read_config`` needs before the context opens;
+        #: the witness stops there, so no database and no provider are built.
+        (tmp_path / ".labcairn").mkdir(exist_ok=True)
+        (tmp_path / ".labcairn" / "workspace.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "database": "labcairn.db",
+                    "source_dirs": [],
+                    "current_task": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        task_id = UUID("01a1a5ed-c2ee-73dc-92d2-c98e8e0f6c37")
+        seen: list[Any] = []
+
+        @contextmanager
+        def capture(location: Any, config: Any, tid: Any, **kwargs: Any) -> Any:
+            seen.append(tid)
+            raise RuntimeError("the witness stops before a workspace is opened")
+
+        monkeypatch.setattr(module, "application_context", capture)
+        monkeypatch.setattr(module, "build_http_client", lambda *a, **k: object())
+        code = module.main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--out",
+                str(tmp_path / "out"),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                str(task_id),
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+                "--budget-max-model-requests",
+                "5",
+            ]
+        )
+        assert code == 2, "the witness's own stop is a refusal, not a sent request"
+        assert seen == [task_id], (
+            "the real run handed the application layer something other than the "
+            "parsed UUID; an approval bound to a UUID cannot match a string"
+        )
+
+    def test_the_real_run_hands_its_timeout_to_the_provider_settings(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """A long review must not be cut off by the library's 60s default.
+
+        Real material exposed this: a full case prompt made the endpoint's
+        generation exceed the default, and the CLI had no way to raise it. The
+        witness asks for 240 seconds and reads the setting the command builds;
+        the assertion is on the settings object, not on a promise in a docstring.
+        """
+        module = _cli_module()
+        args = module._parser().parse_args(
+            ["--mode", "real", "--timeout-s", "240", "--model", "test-model"]
+        )
+        settings = module._provider_settings(args)
+        assert settings.timeout_s == 240.0
+        assert (
+            module._provider_settings(
+                module._parser().parse_args(["--mode", "real", "--model", "test-model"])
+            ).timeout_s
+            == 60.0
+        )
+
+    def test_a_real_run_refuses_a_task_id_that_is_not_a_uuid(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A task id that cannot be parsed never reaches the consent bridge."""
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+                "--budget-max-model-requests",
+                "5",
+            ]
+        )
+        assert code == 2
+        assert "--task must be a UUID" in capsys.readouterr().err
 
     def test_a_real_run_with_an_empty_approvals_file_is_refused_before_a_provider(
         self,

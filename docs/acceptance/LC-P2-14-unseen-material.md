@@ -332,46 +332,89 @@ estimate is CJK characters counted as one token and other characters per four,
 which is a statement about size, **not** a provider meter — the run's record
 carries the metered count, as LC-P2-18's precedent requires.
 
+**This estimate did not survive the calibration.** The owner approved a real
+run on 2026-11-04 against that shape, with one condition: measure one case
+first, and stop if the real cost differs materially. It did. The three arms
+that answered a single case metered **5010 input and 47769 output tokens**
+(A 1047/11791, C 1693/14717, E 2270/21261), against an estimated 7308 input
+and 3500 output for a whole five-arm case — **4.88x** the estimate, driven
+almost entirely by the model's long reasoning output, not by the prompts. The
+input estimate was roughly right; the 700-token-per-call output allowance was
+wrong by an order of magnitude. Extrapolated to 84 calls the measured size is
+**about 1.48 million tokens**, not 130k, and the three successful calls took
+397.5 seconds of wall clock. **Scaling was not started**, as the owner
+instructed. The wrong estimate is kept above rather than silently replaced,
+because a corrected number needs its wrong predecessor visible. The measured
+numbers, the per-call ledger and the reasons are in the operator-side report
+outside this repository, under `blind5-arms/live/CALIBRATION-REPORT.md`.
+
+**The owner's two decisions.** The citable rule face is the **measured three**
+(24 confirmed rows → 9 served by `search_rules` → 6 withheld by the leak gate
+→ 3), not 24, and the gate was not relaxed; the three numbers and their
+provenance are stated where the result is reported. The real run was
+authorized; calibration spent money, no full run did.
+
 **No USD figure is computed here and none belongs in this tree.** The repository
 carries no unit price, and the money's source is the owner's billing console.
-What the owner is approving is: **84 calls per unseen paper, roughly 130k tokens
-per unseen paper, and a token ceiling at least that high** (`--budget-max-total-
-tokens`), plus one approval record per call — the driver refuses a run whose
-approvals are fewer than its requests, so 84 approvals, not one blanket.
+One approval record per call is still required — the driver refuses a run whose
+approvals are fewer than its requests — and the approvals' cost is not zero
+even when the outbound bridge refuses, because the consent port runs before
+the wire.
 
 Per annotator-hour rather than per token, the run also costs two independent
 raters over 60 items × 5 dimensions, plus an arbiter for every disagreement.
 
 ## 8. What the real run still needs, in order
 
-1. **The owner's budget decision** (§7), including the arrangement pair and the
-   84 approvals.
-2. **A literature source for arm B** — or B is declared as a control that
+1. **A new budget shape approved by the owner** — about 1.48M tokens or an
+   explicit per-call output cap, plus a fresh ceiling. The 130k figure is now
+   measured-wrong and must not be carried forward.
+2. **The event-loop fault fixed or the driver restarted per arm**, with a
+   witness: in calibration, B and D were refused in 0.02s with `Event loop is
+   closed` while A, C and E answered, and all five approvals were consumed.
+   Eighty-four calls would lose a fraction of their authorizations to a local
+   fault.
+3. **The arrangement pair (24 calls)**: `blind_runner` never reads the `roles`
+   field and `assess_configuration` refuses two B variants sharing an arm id,
+   so B-only vs B+C has no runnable path in the driver. This is a machinery
+   gap, not a budget question.
+4. **An output policy** — whether the model's long reasoning text is part of
+   what a rater sees, and a per-call output ceiling.
+5. **A literature source for arm B** — or B is declared as a control that
    repeats A, which the record must say before the run rather than after.
-3. **The rule-face choice, §3.5**: run with 3 citable rules, relax the gate to
-   the product's 9, or pick an unseen paper from a different laboratory.
-4. **Two annotators who did not develop the system and did not annotate the
-   current test set**, and an arbiter (§5 of the protocol) — the sheets are
-   skeletons until real labels arrive.
-5. **More unseen papers.** One paper gives twelve paired cases; the protocol's
+6. **Two annotators who did not develop the system and did not annotate the
+   current test set**, and an arbiter (§5 of the protocol) — no blind sheet was
+   filled and no significance was computed; a calibration is not a run.
+7. **More unseen papers.** One paper gives twelve paired cases; the protocol's
    conclusion is about the system, not about one manuscript, and the split is
    checked per paper.
 
-## 9. What was not changed in the tree
+## 9. What the calibration changed in the tree
 
-**No `src/` and no `tests/` change was needed.** The machinery took the real
-material as it is: the seven-face case shape, the additive chain, the split
-checker with its version caps, the blind loader and the paired sign test all ran
-against real bytes and real store rows. Two things this assembly found are
-**usage requirements the operator has to meet**, recorded above rather than
-patched into the code: every paper in an arm's reach needs a declared cap (§3.4),
-and the citable rule count is the product's serving answer, not the table's row
-count (§3.5). A third finding is a **vacuous check** (§3.3) that the brief
-expected to bite on numbers and that cannot, because the rules carry none.
+**The assembly itself changed no `src/` and no `tests/` file.** The seven-face
+case shape, the additive chain, the split checker with its version caps, the
+blind loader and the paired sign test all ran against real bytes and real store
+rows. Three things it found are **usage requirements the operator has to meet**,
+recorded above rather than patched into the code: every paper in an arm's reach
+needs a declared cap (§3.4), the citable rule count is the product's serving
+answer rather than the table's row count (§3.5), and the distinctive-number
+check is vacuous because the rules carry no digits (§3.3).
 
-Because no test file and no source file changed, the shard costs were not
-re-measured and no new file was registered; `docs/` is not what the shard
+**The calibration did change two lines of the driver**, because real requests
+could not otherwise leave the process. Both are minimum fixes, both have a
+witness, and each witness was mutation-checked: restoring the old line made it
+go red.
+
+| Gap the real run hit | The fix | The witness |
+|---|---|---|
+| `--task` was a raw string inside `TaskId` (a `NewType` does not convert at runtime), so the approval ledger's UUID task id never matched and every grant failed `task_scope_mismatch` **before any request** | parse it as `TaskId(UUID(args.task))` before the workspace is opened; a malformed id is a refusal that reads no files | `test_the_real_run_parses_the_task_id_as_a_uuid`, `test_a_real_run_refuses_a_task_id_that_is_not_a_uuid` |
+| the CLI exposed no request timeout, and a full case prompt made the endpoint's generation exceed the library's 60-second default (`ReadTimeout` classified as a transient provider failure) | `--timeout-s`, handed to `ProviderSettings.timeout_s`; the default stays 60 | `test_the_real_run_hands_its_timeout_to_the_provider_settings` |
+
+80 blind-evaluation witnesses pass; both mutations were restored byte for byte
+after they reddened. **No new test file was created**, so no shard or manifest
+registration was needed, and `docs/` and `scripts/` are not what the shard-cost
 witness watches. This record carries **no Chinese run at all**, so
 `CJK_RUN_CEILINGS` needs no new entry and the material-quotage witness stays
 green by the same measurement that reddens it if this file ever quotes the
-paper.
+paper. The owner's approval phrase stands verbatim on line 2 of the operator's
+report outside this repository, never in the tree.
