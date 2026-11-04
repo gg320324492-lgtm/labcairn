@@ -243,6 +243,7 @@ class ArtifactRecord:
     case_id: str
     arm_id: str
     roles: tuple[str, ...]
+    run_scope: str
     prompt_digest: str
     output: str
     provider: str
@@ -255,6 +256,7 @@ class ArtifactRecord:
             "case_id": self.case_id,
             "arm_id": self.arm_id,
             "roles": list(self.roles),
+            "run_scope": self.run_scope,
             "prompt_digest": self.prompt_digest,
             "output": self.output,
             "provider": self.provider,
@@ -463,16 +465,27 @@ def arrangement_arms(*, model: str, budget: str) -> tuple[ArmConfiguration, ...]
     )
 
 
-def item_id_for(arm_id: str, case_id: str, roles: Sequence[str] = ()) -> str:
+def item_id_for(
+    arm_id: str,
+    case_id: str,
+    roles: Sequence[str] = (),
+    run_scope: str = "five_arm",
+) -> str:
     """The anonymous id of one arm's answer to one case.
 
     A digest, not a spelling: an id that says ``A`` would break the blind
     sheet's anonymity before a rater opened it. The arrangement pair's two B
     variants share an arm id, so their roles are part of the digest too: two
-    different answers must not become one blind-sheet item. The mapping is
-    written to ``unblinding.json`` and is not part of the blind packet.
+    different answers must not become one blind-sheet item. The run scope
+    separates a five-arm B answer from the arrangement pair's B-only answer,
+    which have the same arm id, case and role but are independent calls. The
+    mapping is written to ``unblinding.json`` and is not part of the blind
+    packet.
     """
-    material = f"labcairn.blind.item.v1\x00{arm_id}\x00{case_id}\x00{','.join(roles)}".encode()
+    material = (
+        f"labcairn.blind.item.v1\x00{run_scope}\x00{arm_id}"
+        f"\x00{case_id}\x00{','.join(roles)}".encode()
+    )
     return "item-" + hashlib.sha256(material).hexdigest()[:16]
 
 
@@ -656,6 +669,7 @@ def _record_artifacts(
     cases: Sequence[CaseSpec],
     *,
     on_each: Callable[[ArtifactRecord], None] | None = None,
+    run_scope: str = "five_arm",
 ) -> tuple[tuple[ArtifactRecord, ...], int]:
     """Send one request per arm and case, and return what came back.
 
@@ -677,10 +691,11 @@ def _record_artifacts(
             response = provider.send(ModelRequest(prompt=prompt))
             calls += 1
             artifact = ArtifactRecord(
-                item_id=item_id_for(arm.arm_id, case.case_id, arm.roles),
+                item_id=item_id_for(arm.arm_id, case.case_id, arm.roles, run_scope),
                 case_id=case.case_id,
                 arm_id=arm.arm_id,
                 roles=arm.roles,
+                run_scope=run_scope,
                 prompt_digest=prompt_digest(prompt),
                 output=response.text,
                 provider=provider.name,
@@ -748,6 +763,7 @@ def _write_unblinding(
                     "arm": artifact.arm_id,
                     "case": artifact.case_id,
                     "roles": list(artifact.roles),
+                    "run_scope": artifact.run_scope,
                 }
                 for artifact in artifacts
             },
@@ -1228,6 +1244,7 @@ def run_real(
     budget: str,
     cases: Sequence[CaseSpec],
     arms: Sequence[ArmConfiguration] | None = None,
+    run_scope: str = "five_arm",
 ) -> RunSummary:
     """Run the arms against a real provider and stop at AWAITING RATINGS.
 
@@ -1257,7 +1274,7 @@ def run_real(
     sent: list[ArtifactRecord] = []
     try:
         artifacts, provider_calls = _record_artifacts(
-            provider, arms, case_set.cases, on_each=sent.append
+            provider, arms, case_set.cases, on_each=sent.append, run_scope=run_scope
         )
     except OutboundRefusedError as error:
         # The answers already paid for are kept, and the record says how many

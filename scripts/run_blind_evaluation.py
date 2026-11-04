@@ -246,6 +246,7 @@ def _real_run(args: argparse.Namespace) -> int:
                     if args.arrangement_pair
                     else None
                 ),
+                run_scope="arrangement_pair" if args.arrangement_pair else "five_arm",
             )
         except OutboundRefusedError as error:
             print(f"refused by the outbound bridge: {error}", file=sys.stderr)

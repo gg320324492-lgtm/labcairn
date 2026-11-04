@@ -555,6 +555,53 @@ def test_the_arrangement_pair_runs_two_anonymous_answers_per_case(
     assert report["significance"]["contrasts"][0]["contrast"] == "B+C vs B-only"
 
 
+def test_a_five_arm_b_and_an_arrangement_b_only_answer_have_distinct_ids() -> None:
+    """Two independent calls with the same arm, case and role stay distinct.
+
+    The 12-case scaling run found this collision: the five-arm B and the
+    arrangement pair's B-only answer had the same arm id, case and guidance
+    role, so the old digest gave them one anonymous item and one artifact
+    overwrote the other. The run scope is now part of the digest and the
+    unblinding provenance.
+    """
+    case = blind_runner.synthetic_cases()[0]
+    five = blind_runner.item_id_for("B", case.case_id, ("guidance",), "five_arm")
+    alone = blind_runner.item_id_for("B", case.case_id, ("guidance",), "arrangement_pair")
+    assert five != alone
+
+    endpoint = FakeEndpoint(
+        replies=(
+            Reply(
+                name="five",
+                text="five-arm answer",
+                usage_body={"input_tokens": 1, "output_tokens": 1},
+            ),
+            Reply(
+                name="arrangement",
+                text="arrangement answer",
+                usage_body={"input_tokens": 1, "output_tokens": 1},
+            ),
+        )
+    )
+    provider = PydanticAiModelProvider(
+        model=endpoint,
+        consent=PermissiveConsent(),
+        runner=sync_runner,
+        usage_capture=endpoint.capture,
+    )
+    arms = (blind_runner.arrangement_arms(model="test-model", budget="max_model_requests=2")[0],)
+    five_artifacts, _ = blind_runner._record_artifacts(
+        provider, arms, (case,), run_scope="five_arm"
+    )
+    pair_artifacts, _ = blind_runner._record_artifacts(
+        provider, arms, (case,), run_scope="arrangement_pair"
+    )
+    assert five_artifacts[0].item_id == five
+    assert pair_artifacts[0].item_id == alone
+    assert five_artifacts[0].run_scope == "five_arm"
+    assert pair_artifacts[0].run_scope == "arrangement_pair"
+
+
 def test_a_pair_that_moves_evidence_is_refused_by_the_driver(
     tmp_path: Path,
 ) -> None:
