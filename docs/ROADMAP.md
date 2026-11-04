@@ -105,7 +105,10 @@ corrected **on the rule**. The second paper's **eighteen version edges**
 were built from the timestamps inside the material itself, on 2026-11-02.
 **What is left** is in the merged ticket: the blind
 evaluation's real run (its machinery is built and mutation-verified
-twice), retrieval quality beyond three papers, and the competitor
+twice), retrieval quality beyond three papers (its machinery — the
+citation-support sample's schema, loader, measurement and `--citation-sample`
+wiring — is built and mutation-verified, 2026-11-04; the human pass over
+produced reports is the part left), and the competitor
 comparison.
 
 **Where Line B stands (2026-11-02, later).** Everything the 2026-11-01
@@ -122,14 +125,35 @@ LC-P2-17), **the blind evaluation's mechanical preparation is built and
 mutation-verified twice** (five arms as data, the by-paper leak check
 that names every shape, the anonymous sheet that refuses an arm key,
 the paired sign test whose not-significant verdict is first-class —
-LC-P2-14's machinery, **written and not run**), and **five acceptance
+LC-P2-14's machinery), and **five acceptance
 records carry an independent review** (every mutation re-applied by a
-session that built none of them, every witness watched). **Of the
-merged ticket's six, four are built and two are left**: the blind
-evaluation's real run (unseen papers and a budget — the owner's call),
-and the competitor comparison (brief written, preconditions met, budget
-and final pick the owner's call). Retrieval quality beyond three
-papers waits on a corpus read by a human, per LC-P2-14's own protocol.
+session that built none of them, every witness watched). **The first
+unseen paper has since been assembled into those arms and the dry run
+walked end to end on it** — 12 cases, 60 stub calls, zero provider calls,
+the leak check run against the real chain and clean. **The owner approved
+a real run on 2026-11-04, and a single-case calibration was run before
+scaling**: three arms metered 52779 tokens against an estimated 10808,
+so the estimate was wrong by 4.88x and scaling stopped by the owner's own
+rule. The machine was then repaired — the shared-loop fault, approval
+consumption before the wire, missing output policy and the arrangement
+pair's runnable path — and one case was recalibrated: all five arms
+answered at **27209 tokens** (8210 in, 18999 out), **48.45%** below the
+old measurement but still **2.52x** the original estimate. The owner then approved the 12-case scaled run: all **84** calls
+answered at **398555 tokens** (115337 in, 283218 out), 87.19% of the
+457111-token hard ceiling, in 51.9 minutes. The five-arm B / arrangement
+B-only item-id collision was found and repaired by adding a run scope
+to the anonymous digest; the 84 paid-for answers were rebuilt into 84
+distinct blind items without another provider call. **The machine side
+is complete but the measurement is not**: no human rater sheets or
+arbiter exist, so D vs C, E vs D and B+C vs B-only all remain `NOT RUN`
+with no p-value or significance claim. A second unseen paper and the
+human ratings remain owner-side work
+([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
+**Of the merged ticket's six, four are built and two are left**:
+the blind evaluation's human scoring and second paper, and the
+competitor comparison (brief written, preconditions met, budget and
+final pick the owner's call). Retrieval quality beyond three papers waits
+on a corpus read by a human, per LC-P2-14's own protocol.
 
 ## Phase 1 upstream research
 

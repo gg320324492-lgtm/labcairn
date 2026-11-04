@@ -1,0 +1,417 @@
+# LC-P2-27 — The anchor that covers no text is stored as covering no text
+
+**Work order:** SOW (1) plan b, decided by the owner · **Status:** LANDED
+on `claude/anchor-position-06df0`, every claim mutation-checked locally.
+The real pilot store was **never written by this piece**: it is read-only for
+LC-P2-27, and its data correction was a separate work order. **That work
+order ran on 2026-11-04, on the owner's approval**: the three collapsed-`w:del`
+rows were re-anchored to the text the fixed reader derives, the thirteen
+zero-width rows were recast as `position` with their paragraph and offset kept,
+the eight `unknown` rows had the placeholder this revision nulls, and the store
+went from `0019` to `0023`. Measured on the corrected store: `59 resolved /
+8 unknown / 13 position`, no `resolved` row over empty text, no row carrying
+`sha256("")`. The execution record is the operator-side report kept outside the
+repository, as every store-side record is; the pre-state backup it ran from is
+still on disk, so those numbers are re-measurable against a store that was not
+touched before the copy was taken.
+
+## 1. The defect this closes
+
+`FeedbackEventRow.anchor_status` had two words: `resolved` and `unknown`.
+Two checks then forced a lie onto every row whose anchor covered no text:
+
+- `feedback_events_anchor_is_resolved_or_named` demanded that an
+  `unknown` row drop `anchor_start`/`anchor_end` — so a comment the
+  reader *did* place on a position lost the place it was placed at;
+- `feedback_events_ids_present` demanded
+  `length(anchor_text_sha256) > 0` — so every row without anchored text
+  stored the digest of the empty string as the integrity value of a text
+  that is not there.
+
+The reader reported a zero-width range (a comment whose range closes
+where it opens — a comment on *the place*, not on words) as `unknown`
+with `POSITION_ANCHOR_REASON`. That kept the two shapes apart at the
+reader, but the store could not hold the fact: thirteen rows of the pilot
+store carry `unknown` + that reason, and every one of them stores
+`e3b0c442…b855` in a column that reads as an integrity value.
+
+**Why plan b (a third status) and not a nullable digest on `unknown`.**
+A position is *placed, not unknown*: the reader found where the comment
+sits, and the file records no words there. Widening `unknown`'s shape to
+let it keep an offset would make "unknown" mean both *could not place*
+and *placed on nothing* — the exact conflation the scope lead
+(`_POSITION_ANCHOR_LEAD`) exists to refuse. The third word keeps the
+three facts three: resolved (text, at a place), unknown (a reason, no
+place), position (a place, no text).
+
+## 2. What landed
+
+**The schema** ([`models.py`](../../src/labcairn/db/models.py),
+[`0023_position_anchors.py`](../../migrations/versions/0023_position_anchors.py)):
+
+- `anchor_status` vocabulary: `resolved`, `unknown`, `position`.
+- `anchor_text` and `anchor_text_sha256` are nullable, and the new shape
+  check `feedback_events_anchor_shape_matches_status` pins them per
+  status:
+  - `resolved`: paragraph, start and end present, reason `NULL`,
+    **`anchor_text` non-empty and digest present** — the claim the
+    sixteen pilot rows made (resolved over no text) is now refused by the
+    schema, not only by the door;
+  - `unknown`: reason present, start/end `NULL`, **text and digest
+    `NULL`**;
+  - `position`: paragraph, start and end present, **`start = end`** (a
+    position is a range that closes where it opens — the equality is the
+    definition, written into the check), reason `NULL`, text and digest
+    `NULL`.
+- `anchor_reason` on a `position` row is `NULL`, by design: the reason
+  column's meaning is *why the anchor is unknown*, and a position is not
+  unknown — there is no failure to explain. The fact "this is a place,
+  not a passage" is carried by the status itself; saying it twice in two
+  columns would give the second copy nothing to do. `POSITION_ANCHOR_REASON`
+  stays exported: the thirteen legacy rows carry it, and the distil
+  compatibility path reads it (§3).
+- `feedback_events_ids_present` drops the digest clause — the digest is
+  pinned by status in the shape check, where it belongs.
+- `reply_settlements.anchor_status` is untouched: its two words mean
+  *the judgement points at a manuscript address or does not*, which is a
+  different axis from the feedback row's anchor, and nothing in this piece
+  concerns it.
+
+**The migration.** SQLite cannot alter a check, so the table is rebuilt
+in batch mode, and the rebuild happens in three steps because the new
+check cannot install over data that denies it:
+
+1. widen the two columns, drop the three old checks;
+2. **clean the placeholder**: `UPDATE … SET anchor_text = NULL,
+   anchor_text_sha256 = NULL WHERE anchor_status = 'unknown'` — the two
+   columns the old shape invented values for, and nothing else;
+3. create the three new checks.
+
+Each cleaning runs in the window between the checks it must satisfy, and
+the downgrade runs the same way — the shape checks drop first, the rows
+re-spell, the old checks restore: a row's end state, not its intermediate
+one, is what each check meets.
+
+This is the shape of revision 0012's backfill: a data move that makes the
+new constraint installable, scoped to exactly the columns it exists for.
+**The downgrade is faithful to the shape it returns to, and that shape
+loses the place**: a `position` row downgrades to `unknown` with
+`POSITION_ANCHOR_REASON` (what it was called before the third word), and
+the old shape has nowhere to keep a placed position's offset, so the
+offset goes with the status; the placeholder is written back, because the
+shape it returns to refuses a row without one. Upgrading again cleans the
+placeholder and does not re-derive the offset — re-casting the row as a
+`position` again is the data correction's work, and the downgrade test
+asserts the loss rather than pretending the round trip kept it.
+
+**What the migration deliberately does not touch** — and the record this
+makes for the data-correction work order:
+
+- **Resolved rows whose anchored text is the empty string** (the pilot's
+  sixteen) are *refused by the new check*. A store that carries them
+  cannot be upgraded until they are re-cast — which is the point: the
+  schema refuses the claim the sixteen rows make, and the re-casting
+  (three reader-drop rows to resolved-with-text, thirteen to `position`)
+  needs the file evidence the data correction holds.
+- **`unknown` rows whose reason names a position** keep their status and
+  reason. The upgrade cleans their placeholder; re-casting them as
+  `position` rows is the data correction's decision, not a schema
+  revision's.
+
+**The reader** ([`ooxml.py`](../../src/labcairn/material/ooxml.py)): the
+zero-width branch now reports `status="position"`, `reason=None`, the
+paragraph **and the offset kept** (`start == end == the offset the range
+closes at`), and `text=None`. Every no-text branch reports `text=None`
+(not `""`): there is no text, and `None` is what that is.
+`CommentAnchor.text` is `str | None`; `POSITION_ANCHOR_REASON` is no
+longer minted by the reader, and stays exported for the legacy rows.
+
+**The layer** ([`feedback.py`](../../src/labcairn/papers/feedback.py),
+[`chain.py`](../../src/labcairn/application/chain.py),
+[`trajectory.py`](../../src/labcairn/roles/trajectory.py)):
+`FeedbackEvent.anchor_text`/`anchor_text_sha256` and
+`ChainComment.anchor_text`/`TrajectoryComment.anchor_text` are
+`str | None`, carried through from the row without re-spelling — a
+position row reads back as `None`, and a legacy row (cleaned by the
+migration) reads back as `None` too. `record_feedback` writes `NULL` for
+any anchor that covers no text, and the re-recording comparison
+normalises both spellings of "no text" (`_text_of`): `NULL` and the
+legacy empty-string digest read as the same fact, so re-recording a
+position that has not moved finds the row it recorded, legacy spelling or
+new.
+
+**`anchor_state`'s verdict for a position is `unanchored`.** The three
+verdicts answer one question — *does this row's anchored text still sit
+where the row says it does* — and a position row has no anchored text to
+ask about. It is therefore `unanchored`, the verdict a row the reader
+could not place also carries, and never `fresh`; a verdict that would
+claim a text had been confirmed where no text exists is exactly the false
+`fresh` this function exists to refuse. Confirming that the *place* still
+sits where it did is a re-reading of the file, which this function does
+not do for a row with no text to compare. **The door**
+(`ANCHOR_RESOLVED_WITHOUT_TEXT`) is untouched in mechanism and now guards
+a narrower gap: the reader reports positions as `position`, so a
+resolved-with-no-text anchor reaching the door means a reader regression
+or a hand-built claim, and the schema refuses it too — the door is no
+longer the only thing standing between the empty digest and the store.
+
+**The distillation** ([`distil.py`](../../src/labcairn/guidance/distil.py)):
+the position bucket dispatches on **two spellings of one fact** — the
+status (`anchor_status == "position"`) is the reader's current word, the
+reason (`anchor_status == "unknown"` with `POSITION_ANCHOR_REASON`) is
+the word the legacy rows carry — and both land in the same bucket, under
+the same lead. `unplaced` narrows to `unknown` rows whose reason is not
+the position reason, so no case changes buckets when the spelling
+changes.
+
+## 3. The compatibility requirement, met twice
+
+Every reader of these rows must accept both the new `position` rows and
+the legacy `unknown`+reason rows. The two spellings meet in three places,
+and each has its own witness:
+
+| Where | Legacy shape | Witness |
+|---|---|---|
+| the distillation's scope bucket | `unknown` + `POSITION_ANCHOR_REASON`, text and digest `NULL` after the cleaning | `test_a_position_spelled_the_legacy_way_lands_in_the_same_bucket` — the row is re-cast to the legacy spelling in place, and the scope still says *a position, not a passage*, never *could not place* |
+| re-recording the same version | a legacy row found by id must not read as stale | `test_a_legacy_row_is_read_and_re_recorded_without_a_false_stale` — the cleaned legacy row is found and returned, not refused |
+| `anchor_state` over rows the schema no longer mints | a store still at 0022 under today's code (opening a workspace does not migrate it) holds `resolved` rows over no text | `test_a_row_claiming_an_empty_text_is_never_fresh` — staged on a real 0022 database, the row is `stale`, never the false `fresh` |
+
+## 4. The witnesses, and what each mutation caught
+
+Every witness below was **mutation-checked**: the assertion's mechanism
+was broken in source, the witness was re-run, and the red was recorded.
+Twelve mutations ran, one per mechanism, and all twelve were caught; the
+mutations that were first tried and **not** caught are recorded too,
+because a mutation that survives says the witness was watching something
+else:
+
+- the first attempt at the re-read guard's mutation targeted
+  `test_a_row_claiming_an_empty_text_is_never_fresh`, whose row-side
+  guard fires before the re-read is ever reached — the mutation survived,
+  and the re-read guard got its own witness
+  (`test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh`, a row
+  with real text whose re-read names no words) and its own mutation;
+- the `_text_of` mutation first ran against a head-schema test, which
+  cannot hold the placeholder digest at all — the placeholder re-recording
+  is now staged on a real 0022 database
+  (`test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded`),
+  the only shape that can hold it.
+
+All runs used `--basetemp` outside the repository, with `TEMP`, `TMP` and
+`TMPDIR` pointed at the same outside directory, one directory per run.
+
+| # | Claim | Witness | Mutation | Red |
+|---|---|---|---|---|
+| 1 | the reader reports a position with the place kept | `test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage` | status reverted to `"unknown"` | `AssertionError` on the status |
+| 2 | the reader reports the over-insertion shape as a position | `test_a_comment_over_inserted_text_is_a_position_in_the_baseline` | offset dropped (`start=None`) | `AssertionError: assert anchor.start is not None` |
+| 3 | the store refuses a position row that carries a digest | `test_the_schema_refuses_an_anchor_row_that_does_not_hold_what_its_status_claims` | the check's position branch loses its digest pin | the refused insert was accepted (`DID NOT RAISE`) |
+| 4 | a resolved row must carry real text | same witness, `fb-resolved-empty` case | the check's `length(anchor_text) > 0` removed | the empty-text insert was accepted |
+| 5 | a position row is recorded with the place and no digest | `test_a_position_anchor_is_recorded_and_never_fresh` | `anchor_hash` computed unconditionally over `anchor.text or ""` | `IntegrityError` — the schema refuses the row the door then wrote |
+| 6 | re-recording reads a placeholder digest as "no text" | `test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded` | `_text_of` reduced to identity | `ApplicationRefusedError: ANCHOR_STALE` |
+| 7 | a resolved row with no text is stale before any read | `test_a_row_claiming_an_empty_text_is_never_fresh` | the row-side guard returns `fresh` | `AssertionError: "stale" != "fresh"` |
+| 8 | a re-read that names no words confirms nothing | `test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh` | the re-read guard returns `fresh` | `AssertionError: "stale" != "fresh"` |
+| 9 | the legacy spelling of a position lands in the position bucket | `test_a_position_spelled_the_legacy_way_lands_in_the_same_bucket` | the reason branch removed from the dispatch | the scope the cases do not support is refused |
+| 10 | the status spelling lands in the same bucket | `test_a_case_that_resolved_to_an_empty_text_is_not_a_case_that_was_never_placed` | the status branch misspelled | the scope the cases do not support is refused |
+| 11 | the upgrade cleans the placeholder and moves nothing else | `test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing` | the cleaning `UPDATE` deleted from the migration | `IntegrityError` — the new check fails to install over the placeholder |
+| 12 | a position downgrades to what it was called | `test_a_position_row_downgrades_to_what_it_was_called_before` | the downgrade's re-spelling `UPDATE` deleted | `IntegrityError` — the restored two-word vocabulary refuses the row |
+
+The mutations ran from a script outside the repository that writes its
+one replacement with `read_bytes`/`write_bytes` (never `read_text`, which
+rewrites CRLF), re-runs the named witness, and restores the file with
+`git checkout --` — the work was committed first, so nothing uncommitted
+was ever on the table, and the script asserts the tree is clean
+afterwards.
+
+## 5. What is deliberately not here
+
+- **The pilot store's rows were not re-cast by this piece.** At landing,
+  thirteen `unknown`+reason rows and sixteen resolved-over-no-text rows
+  waited for the data correction work order, and until it ran a pilot store
+  could not be upgraded past `0022` — this record was the notice of that.
+  **The correction ran on 2026-11-04** and the pilot store is at `0023`.
+  The refusal this bullet described is real and was demonstrated on a copy
+  the same day: with only the three passages corrected and the thirteen left
+  as `resolved` over no text, the upgrade stopped with
+  `IntegrityError: CHECK constraint failed:
+  ck_feedback_events_feedback_events_anchor_shape_matches_status` on the
+  batch's row copy — and because the chain commits per revision, the refused
+  store was left at `0022`, `PRAGMA integrity_check` `ok`, the committed
+  corrections intact. **So the rollback point of such a run is the file
+  backup, never the transaction**, and writing `position` at `0019` is
+  refused by the vocabulary check, which is why the recast is a statement
+  after this revision rather than part of the correction's first half.
+- **A position's place is not confirmed by `anchor_state`.** Keeping the
+  offset is storage; confirming the place still sits where it did is a
+  re-reading, and nothing in this piece does it.
+- **`reply_settlements`' two-word anchor vocabulary** is a different axis
+  (does the judgement name a manuscript address), and nothing here
+  widens it.
+
+## 6. The two rows outside the correction's scope: measured 2026-11-04
+
+The pre-correction scan found eighteen `resolved` rows that did not read
+fresh: the sixteen SOW (2) corrected, and two it did not touch —
+`fb-7b7a991a1962a496` and `fb-8bc0ab3105ecf2cc`, both on paragraph 11 of
+one corpus-2 version, real text truncated at its start. The work order
+carried them as an open question: a residue of the collapsed-`w:del` walk
+in the reader, or legacy data the fixed reader already reads right.
+**The measurement says legacy data: the current reader is right, and the
+rows are not. No reader change is needed; the closing of this debt is the
+same correction mechanism extended to the two rows, on the owner's
+approval.**
+
+The comparison was three-way, and the truth side does not reuse the
+product's recursion — a leaf-walk that judges every text leaf by its
+outermost enclosing revision and advances the cursor one leaf at a time,
+in the rejected (baseline) view the store's schema names:
+
+| row | file truth (leaf-walk) | the current reader | the row as stored |
+|---|---|---|---|
+| `fb-7b7a991a1962a496` | (16, 41) · 25 chars · `4cd8e0d388b7…` | (16, 41) · 25 chars · same digest | (21, 41) · 20 chars · `72636032da3d…` |
+| `fb-8bc0ab3105ecf2cc` | (105, 114) · 9 chars · `fa466b74c698…` | (105, 114) · 9 chars · same digest | (109, 114) · 5 chars · `f683ccab3bc2…` |
+
+(Digests are the first twelve hex characters; the full values, and every
+number, are in the rehearsal output kept outside the repository.)
+
+**The stored values are neither view's truth.** In the accepted view the
+same two markers fall at (16, 24) and (88, 91); (21, 41) and (109, 114)
+match no coordinate. They match the walk this record's §1 and §2 replaced:
+one that entered a top-level revision at the offset **past its whole
+width**, so a marker inside a deletion is recorded at the deletion's end.
+Each of these two rows' closing marker sits after its deletion's text,
+where that walk and the truth agree by luck — and its opening marker sits
+before its deletion's text, where they differ by exactly that deletion's
+width: 21 = 16 + 5, and 109 = 105 + 4. End right, start late, by the
+width of one deletion: the signature of the collapsed-`w:del` walk, the
+same mechanism as the sixteen, caught one severity down — a range that
+still holds text on the far side of the collapse survives as a truncated
+passage rather than an empty one.
+
+**Two pieces of machinery hold this from here.**
+
+*The witness for the crossing shape.* Each of the two rows' range opens
+inside one `w:del` and closes inside a later one, with ordinary runs and
+an insertion between. The existing witness
+`test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words`
+puts both markers in a single deletion; it reddens under the pre-fix walk,
+but it does not hold the shape where the start is wrong while the end
+happens to land right — the pilot's shape, and the one that would let a
+regression pass as "already covered". The new witness
+`test_a_range_opening_in_one_deletion_and_closing_in_another_anchors_across_them`
+(`tests/test_ooxml_revisions.py`) asserts the exact span, the exact text,
+that the text equals the baseline slice between those offsets, that the
+insertion contributes nothing to it, and that both deletions keep their
+own spans. Mutation: descend into a top-level revision at the offset past
+its whole width — the pre-fix order, one argument of one call, `start`
+changed to `offset` — and the witness fails on the span, `assert (16, 30)
+== (9, 27)`, with the single-deletion witness reddening alongside it. The
+reader file was restored byte-for-byte before anything else in this
+section ran.
+
+*The rehearsal of the re-record.* `nz_rehearsal.py`, kept outside the
+repository like every store-side script (it names the live store's path).
+The live store is opened `mode=ro` and copied with SQLite's backup API —
+it is in WAL mode, where a bare file copy can split pages from their log.
+The two rows are re-derived through the product's own reader and rewritten
+with its output; every verdict is read through the product's own
+`anchor_state`, before and after. On the copy:
+
+```
+PRE  verdicts: {'fresh': 57, 'unanchored': 21, 'stale': 2}
+POST verdicts: {'fresh': 59, 'unanchored': 21}   statuses: {'resolved': 59, 'unknown': 8, 'position': 13}
+rows moved: the two;  other tables: none;  integrity: ok
+```
+
+which is probe 4's terminal ({'fresh': 59, 'unanchored': 21}) — the
+status line reads differently only because probe 4 measured the store at
+`0019`, where the thirteen positions were spelled `unknown` + reason; in
+this copy they are `position`, as §2's correction left them. The copy's
+terminal `feedback_events` digest — its seven anchor columns in canonical
+JSON, ordered by id — is
+`c70a24633a9c71ebc9ee4450c1984b4e11c28d4b8ed1eaec4ed9b0e5859d2be4`;
+the execution script recomputes it and refuses to call the run done
+without it.
+
+**Anchored values, re-measured as this section was written.** Tree at
+`f1809a47d17701dfe5bbf69115c49392d74b337c` (printed with
+`git rev-parse HEAD`); `src/labcairn/material/ooxml.py` at
+`954e6825cbf7693d7cf72239f3bcd0c35cf7fdbc55eaddfcf0a2693de6fb105a`; the
+live store at `0023` with 80 rows and statuses
+`resolved 59 / unknown 8 / position 13` — read `mode=ro`, written by
+nothing in this piece at the time these values were measured. The
+execution plan is the operator-side page at
+`E:\labcairn-local\nonzero-width\EXECUTION-PLAN.md`.
+
+## 7. The two rows were re-recorded on the real store — 2026-11-04
+
+The owner approved the run on 2026-11-04 — the approval phrase arrived through
+the coordinator session and stands verbatim on line 2 of the run report
+outside this repository — and
+`nz_execute.py` ran against `E:\labcairn-local\pilot-ws\labcairn.db`.
+**The store now reads 59 fresh / 21 unanchored / 0 stale over 80 rows:
+there is no stale row left in the pilot.** The rows moved exactly as §6
+measured them: `fb-7b7a991a1962a496` to (11, 16, 41) / 25 / `4cd8e0d388b7…`
+and `fb-8bc0ab3105ecf2cc` to (11, 105, 114) / 9 / `fa466b74c698…`, status
+`resolved`, reason cleared. The reader was not touched by any of it:
+`src/labcairn/material/ooxml.py` still hashes
+`954e6825cbf7693d7cf72239f3bcd0c35cf7fdbc55eaddfcf0a2693de6fb105a`, the
+bytes §6 and the rehearsal measured against, and the tree ran from
+`2fc7e03a3adf493b08052a818bc302bae940a4b2`.
+
+*The backup, and the rollback point.* `E:\labcairn-local\pilot-ws\labcairn.20261104T073605Z.pre-two-rows.db`,
+sha256 `d4a9a8cb2b5d20d66c7cd70bc7f15082bb1b1b1925222e5b21732da81d5869be` —
+byte-identical to the live store at the moment of the copy, and **re-read
+after the run**: 80 rows, the old spans intact. The backup sits beside the
+store, not in a `backups\` subdirectory: the run's phase 1 names it after
+the store it protects. As §5 established, the rollback point of such a run
+is this file, never the transaction.
+
+*The gate caught something real before it wrote.* Phase 0 refused the first
+attempt: a `0`-byte `-wal` and a `-shm` were sitting beside the store — the
+shell a `mode=ro` read of a WAL-mode database leaves behind, mine, from the
+pre-run measurement. The precondition demands no side files, so the refusal
+was the rule working, not a glitch: `wal_checkpoint(TRUNCATE)` returned
+`(0, 0, 0)` — nothing un-checkpointed — and the logical digest read the same
+before and after the clear (`c7f8af85a564f0763f5f823d9b974a304bc29a01da72a7a841089747ae98e6ed`).
+Then the run passed every precondition and executed. **A read-only
+connection can create the WAL side files; clearing them is part of the
+gate, not an afterthought.**
+
+*What was verified, twice, over two different canonicalisations.* The
+executor's own checks: PRE {fresh 57, unanchored 21, stale 2} → POST
+{fresh 59, unanchored 21}, exactly the two rows moved, no other table
+digest moved, `PRAGMA integrity_check` `ok`, and the terminal
+`feedback_events` digest (seven anchor columns, canonical JSON, ordered by
+id) equal to the rehearsed
+`c70a24633a9c71ebc9ee4450c1984b4e11c28d4b8ed1eaec4ed9b0e5859d2be4` —
+so the real store now holds exactly the rehearsed state, and the value
+§6 named as the terminal anchor is the value the store carries. A second
+script, `nz_verify_after.py`, re-checks it with its own canonicalisation
+(TSV-joined, not the JSON list): every check PASS, its own digest
+`d38b4ab1c3978dc0636281f9fca8666df5869918547209379e276777c59b1e55`, the
+same seven-column JSON digest reproduced, and per-row checks that each
+re-recorded row's text length equals its span width with the reason NULL.
+After a final `wal_checkpoint(TRUNCATE)` and a clean close the side files
+are absent and the store hashes `8d37ca218d9974308637278271f1847355a034d4ea618d3ca222380136f6c0bc`
+— **a run record only**: the page layout of a checkpointed file is not its
+content, and the anchor above is the logical digest.
+
+*What the run did not move.* The fourth ring's funnel was re-measured after
+the store changed, through the identical script: **six of the sixteen
+comment-derived rules judgeable, and the anchor test failing 12 of 32 —
+line for line what `0023` measured before this run** (`judgeable-now.out`,
+outside the repository). The two re-recorded rows are not among the 12:
+they always carried non-empty text, so they were readable anchors under
+that test even when truncated; what they lacked was freshness, and
+freshness is not what the funnel asks. `LC-P2-11-fourth-ring.md` therefore
+needs no re-numbering, and the check that it did not is in the record.
+
+Nothing was pushed, no pull request was opened, no CI was started, and the
+repository's tree carries the record of the run rather than the run's
+bytes: the store-side outputs — the report `execution-20261104T073603Z.txt`
+(with the owner's words on its second line), `EXECUTION-RECORD.md`, the
+executor, the verifier, the rehearsal, the leaf-walk truth and the
+mutation's red — all live outside the repository at
+`E:\labcairn-local\nonzero-width\`, as every store-side record does.
+**With this the debt §6 named is closed: the chain's last two stale rows
+read fresh, and the pilot store has no stale row left.**

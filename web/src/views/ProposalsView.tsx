@@ -26,21 +26,30 @@
  * drawn as a record of its own, under its own heading, rather than folded
  * into a pair it does not belong to.
  *
- * **The panel offers no act, and that is a gap.** The ledger's door that
- * settles a proposal — the one a person answers a model's question with — is
- * a console command, and **the contract carries no route for it**: the
- * service serves `GET /records` and nothing that changes a record's
- * standing. So this panel draws the settlement and the person who made it,
- * and asks for nothing. The route that would open the door from the
- * workbench does not exist yet, and writing that here is better than letting
- * a reader wonder whether the panel forgot it.
+ * **The panel settles a proposal through the service's own route.** The two
+ * buttons post to `POST /records/{evidence_id}/accept`, which calls the
+ * layer's `confirm_proposal` unchanged — the operation the CLI also uses, so
+ * the two surfaces cannot drift. **The screen does not decide the outcome**:
+ * the service's answer is the record, and the panel re-reads `/records` after
+ * the write rather than marking the proposal settled here. A refused
+ * settlement is drawn with the service's reason, because a page that said
+ * "settled" over a proposal the service refused would be showing its own
+ * opinion.
+ *
+ * **Acceptance is as-is.** The person's record carries the proposal's words
+ * unchanged, and the service refuses a confirmation that carries a note; a
+ * correction is a dispute (with the disagreement's content) or a new record.
+ * The name field is a **self-reported string** — the product keeps no
+ * accounts and checks none — and the panel says so beside it.
  */
 
+import { useId, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { ApiRead } from '../app/useWorkbench'
-import type { EvidenceRecord, VerificationRecord } from '../api/generated'
-import { API_PATHS } from '../api/paths'
+import { api, describeError } from '../api/client'
+import type { EvidenceRecord, ProposalSettled, VerificationRecord } from '../api/generated'
+import { API_PATHS, proposalAcceptPath } from '../api/paths'
 import { Panel, RecordList } from './Panel'
 import { asApiRead, usePanelRead } from './usePanelRead'
 
@@ -194,11 +203,61 @@ interface ProposalsViewProps {
    * page refreshes rather than only after a reload.
    */
   readonly cycle: number
+  /** Ask the workbench to read again after a settlement lands. */
+  readonly onChanged?: () => void
 }
 
-export function ProposalsView({ cycle }: ProposalsViewProps): JSX.Element {
-  const records = usePanelRead<EvidenceRecord[]>(API_PATHS.records, cycle)
+/** What a settlement met: the panel's own refusal, or the service's answer. */
+interface ActOutcome {
+  readonly message: string
+}
+
+export function ProposalsView({ cycle, onChanged }: ProposalsViewProps): JSX.Element {
+  // A write's answer is one record; the panel draws the ledger. So the panel
+  // reads `/records` again after the write, and this counter is what asks
+  // `usePanelRead` for a later question \u2014 the workbench's own cycle may not
+  // have turned yet.
+  const [localCycle, setLocalCycle] = useState(0)
+  const records = usePanelRead<EvidenceRecord[]>(API_PATHS.records, cycle + localCycle)
   const panel: ApiRead<EvidenceRecord[]> = asApiRead(records)
+  const personId = useId()
+  const noteId = useId()
+  const [person, setPerson] = useState('')
+  const [note, setNote] = useState('')
+  const [pending, setPending] = useState<string | null>(null)
+  const [outcome, setOutcome] = useState<ActOutcome | null>(null)
+
+  async function settle(proposalId: string, verdict: 'confirmed' | 'disputed'): Promise<void> {
+    if (person.trim() === '') {
+      setOutcome({
+        message:
+          'Name the person whose word it is. An attestation nobody signs is not an attestation.',
+      })
+      return
+    }
+    if (verdict === 'disputed' && note.trim() === '') {
+      setOutcome({ message: 'A dispute must say what is disputed.' })
+      return
+    }
+    setPending(`${proposalId}:${verdict}`)
+    setOutcome(null)
+    try {
+      await api.post<ProposalSettled>(proposalAcceptPath(proposalId), {
+        user_id: person.trim(),
+        verdict,
+        note: verdict === 'disputed' ? note.trim() : '',
+      })
+      setNote('')
+      setLocalCycle((value) => value + 1)
+      onChanged?.()
+    } catch (error) {
+      const described = describeError(error)
+      setOutcome({ message: described.message })
+    } finally {
+      setPending(null)
+    }
+  }
+
   return (
     <Panel title="Proposals" read={panel}>
       {(data) => {
@@ -210,7 +269,26 @@ export function ProposalsView({ cycle }: ProposalsViewProps): JSX.Element {
               The ledger&rsquo;s records, each labelled with whose words it is. A report may cite a
               person&rsquo;s record and not a model&rsquo;s proposal: the service keeps the proposal
               as the record of what was claimed, and the person&rsquo;s own record stands beside it.
+              A proposal is settled once and is not promoted; acceptance is as-is.
             </p>
+            <div className="proposal__act">
+              <label htmlFor={personId}>Your name</label>
+              <input
+                id={personId}
+                onChange={(event) => setPerson(event.target.value)}
+                value={person}
+              />
+              <span className="record__detail">
+                self-reported: the product keeps no accounts and checks no identity
+              </span>
+              <label htmlFor={noteId}>Note (required to dispute)</label>
+              <input id={noteId} onChange={(event) => setNote(event.target.value)} value={note} />
+            </div>
+            {outcome === null ? null : (
+              <p className="panel__status" role="alert">
+                {outcome.message}
+              </p>
+            )}
             {proposals.length === 0 ? (
               <p className="panel__status">The ledger holds no model&rsquo;s proposal.</p>
             ) : null}
@@ -235,6 +313,24 @@ export function ProposalsView({ cycle }: ProposalsViewProps): JSX.Element {
                       />
                     )}
                   </ul>
+                  {superseded === null ? (
+                    <div className="proposal__act">
+                      <button
+                        disabled={pending !== null}
+                        onClick={() => void settle(proposal.evidence_id, 'confirmed')}
+                        type="button"
+                      >
+                        Confirm as-is
+                      </button>
+                      <button
+                        disabled={pending !== null}
+                        onClick={() => void settle(proposal.evidence_id, 'disputed')}
+                        type="button"
+                      >
+                        Dispute
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )
             })}

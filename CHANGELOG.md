@@ -20,6 +20,15 @@ The links are the records.
 
 **Added**
 
+- **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
+  pilot's late drafts are 71.4 MB — full-resolution figures embedded — and
+  the 64 MB ceiling refused **seven versions of one real manuscript**,
+  including its final English version, at ingestion. The four ceilings
+  (`feedback`, `replies`, `revisions`, and the read-only source port's
+  default) carry the same number deliberately, and a file is still
+  **measured before it is read**: the ceiling is a measurement, not a
+  caller's claim.
+
 - **Two acceptance records now name the witness the mutation actually
   reddens.** LC-P2-10's M22 row names
   `test_every_item_has_two_annotations_and_a_resolution` for the

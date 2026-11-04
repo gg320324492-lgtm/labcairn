@@ -104,6 +104,21 @@ class ApplicationRefusal(StrEnum):
     #: vocabulary is closed, because "the person had a look" is not a verdict
     #: a record can carry.
     PROPOSAL_VERDICT_UNKNOWN = "proposal_verdict_unknown"
+    #: A dispute carried no note. The note is the disagreement's content, and
+    #: a disagreement nobody states is an accusation with none.
+    PROPOSAL_NOTE_MISSING = "proposal_note_missing"
+    #: A confirmation carried a note. Acceptance is as-is; a confirmation with
+    #: a correction would be an amendment wearing acceptance's name.
+    PROPOSAL_NOTE_UNEXPECTED = "proposal_note_unexpected"
+    #: An extraction was asked for and this service has no provider
+    #: invocation wired. **Refused, never simulated**: an extractor that
+    #: returned an empty or invented proposal would put words in a model's
+    #: mouth that no model said.
+    CLAIM_EXTRACTION_NO_PROVIDER = "claim_extraction_no_provider"
+    #: The model's answer quoted text that is not in the address it was asked
+    #: about. A proposal is bound to the material it claims to speak for, and
+    #: a quotation the material does not contain binds nothing.
+    CLAIM_EXTRACTION_NOT_GROUNDED = "claim_extraction_not_grounded"
     #: The ledger holds no identifier with that id.
     IDENTIFIER_NOT_FOUND = "identifier_not_found"
     #: The confirmation named nobody. A resolution is a person's word about an
@@ -273,6 +288,10 @@ class ApplicationRefusal(StrEnum):
     #: manuscript's bytes changed under the anchor, so it is **stale** --
     #: reported as stale rather than silently re-pointed.
     CHAIN_ANCHOR_STALE = "chain_anchor_stale"
+    #: An anchor that claims ``resolved`` while covering no words. A
+    #: position is recorded as an unknown anchor with its reason, never as
+    #: a resolved claim whose integrity value hashes nothing.
+    CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT = "chain_anchor_resolved_without_text"
     #: A model may not write a comment. **The row that holds a locator is
     #: the row the reader wrote**, and a model may not cause the system to
     #: claim the advisor said something -- ADR-0016's third promotion path.
@@ -290,6 +309,12 @@ class ApplicationRefusal(StrEnum):
     #: things** -- acceptance is a fact about the process, and the
     #: correctness of the advice is a claim about the science.
     CHAIN_ASSESSMENT_BASIS_REFUSED = "chain_assessment_basis_refused"
+    #: An assessment named an issue the chain does not hold in the project
+    #: being assessed. The column carries no foreign key -- a case is a
+    #: comment or a revision, and the two live in different tables -- so the
+    #: door resolves the key, and a judgement about an issue nobody holds is
+    #: a judgement about nothing.
+    CHAIN_ASSESSMENT_ISSUE_NOT_FOUND = "chain_assessment_issue_not_found"
     #: An issue key was asked to be derived rather than given. The same
     #: wording is not the same issue, and a recurrence is recorded rather
     #: than inferred.
@@ -574,6 +599,9 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ChainRefusal.MATERIAL_UNREADABLE: ApplicationRefusal.CHAIN_MATERIAL_UNREADABLE,
     ChainRefusal.MATERIAL_DRIFTED: ApplicationRefusal.CHAIN_MATERIAL_DRIFTED,
     ChainRefusal.ANCHOR_STALE: ApplicationRefusal.CHAIN_ANCHOR_STALE,
+    ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT: (
+        ApplicationRefusal.CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT
+    ),
     ChainRefusal.MODEL_MAY_NOT_WRITE_A_COMMENT: (
         ApplicationRefusal.CHAIN_MODEL_MAY_NOT_WRITE_A_COMMENT
     ),
@@ -583,6 +611,7 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ),
     ChainRefusal.ASSESSMENT_NEEDS_EVIDENCE: ApplicationRefusal.CHAIN_ASSESSMENT_NEEDS_EVIDENCE,
     ChainRefusal.ASSESSMENT_BASIS_REFUSED: ApplicationRefusal.CHAIN_ASSESSMENT_BASIS_REFUSED,
+    ChainRefusal.ASSESSMENT_ISSUE_NOT_FOUND: ApplicationRefusal.CHAIN_ASSESSMENT_ISSUE_NOT_FOUND,
     ChainRefusal.ISSUE_KEY_MAY_NOT_BE_INFERRED: (
         ApplicationRefusal.CHAIN_ISSUE_KEY_MAY_NOT_BE_INFERRED
     ),

@@ -64,9 +64,11 @@ Operation                  Capability
 ``list_source_addresses``  ``source.inventory``
 ``record_claim``           ``source.inventory``
 ``record_model_proposal``  ``source.inventory``
-``attest_claim``          ``source.inventory``
+``attest_claim``           ``source.inventory``
 ``confirm_proposal``       ``source.inventory``
-``list_task_records``    ``fs.read``
+``claim_extraction_use``   ``model.request``
+``extract_claim``          ``model.request``
+``list_task_records``      ``fs.read``
 ``ingest_material``        ``source.inventory``
 ``list_artifacts``         ``fs.list``
 ``read_artifact``          ``fs.read``
@@ -135,6 +137,7 @@ Operation  The permission that governs it
 ``read_issue_keys``                   the material's — asked where it is named
 ``read_guidance_rule``                the material's — asked where it is named
 ``read_guidance_rules``               the material's — asked where it is named
+``read_guidance_rule_version``        the material's — asked where it is named
 ``write_guidance_rule_version``       the material's — asked where it is named
 ``write_guidance_rule_confirmation``  the material's — asked where it is named
 ``write_guidance_rule_resolution``    the material's — asked where it is named
@@ -207,6 +210,7 @@ from labcairn.application.events import EventPage, read_events
 from labcairn.application.evidence import (
     ClaimRecorded,
     ClaimRequest,
+    ProposalSettled,
     SourceAddress,
     attest_claim,
     confirm_proposal,
@@ -214,6 +218,13 @@ from labcairn.application.evidence import (
     list_task_records,
     record_claim,
     record_model_proposal,
+)
+from labcairn.application.extraction import (
+    ClaimExtractionBackend,
+    ExtractClaimRequest,
+    ExtractedClaimModel,
+    claim_extraction_use,
+    extract_claim,
 )
 from labcairn.application.guidance import (
     CheckDraft,
@@ -223,6 +234,7 @@ from labcairn.application.guidance import (
     read_guidance_checks,
     read_guidance_rule,
     read_guidance_rule_checks,
+    read_guidance_rule_version,
     read_guidance_rules,
     write_guidance_check,
     write_guidance_check_confirmation,
@@ -336,6 +348,7 @@ __all__ = [
     "ChainEdit",
     "ChainReply",
     "CheckDraft",
+    "ClaimExtractionBackend",
     "ClaimRecorded",
     "ClaimRequest",
     "ConfirmationRecorded",
@@ -344,6 +357,8 @@ __all__ = [
     "EdgeRequest",
     "EdgeStored",
     "EventPage",
+    "ExtractClaimRequest",
+    "ExtractedClaimModel",
     "FigureRequest",
     "FigureRun",
     "GuidanceJudgement",
@@ -358,6 +373,7 @@ __all__ = [
     "ProjectGraph",
     "ProjectRequest",
     "ProjectStored",
+    "ProposalSettled",
     "ReportRendered",
     "ReportRequest",
     "Result",
@@ -381,11 +397,13 @@ __all__ = [
     "VersionRequest",
     "VersionStored",
     "attest_claim",
+    "claim_extraction_use",
     "confirm_identifier_resolution",
     "confirm_proposal",
     "consume_approval",
     "create_task",
     "describe_abandoned",
+    "extract_claim",
     "grant_approval",
     "ingest_material",
     "inspect_source",
@@ -408,6 +426,7 @@ __all__ = [
     "read_guidance_checks",
     "read_guidance_rule",
     "read_guidance_rule_checks",
+    "read_guidance_rule_version",
     "read_guidance_rules",
     "read_issue_keys",
     "read_material_paths",

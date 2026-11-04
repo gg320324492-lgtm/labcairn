@@ -2,7 +2,12 @@
 
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
 been cut · **The tree this describes:** `main` at
-`6cfc0c0`, 2026-11-01
+`e13b967`, 2026-11-02
+
+**Items below dated 2026-11-03 are measured on the branch that has not
+landed** (`docs/debt-closures` at `bb8f8f6`, pull request #146 open). Their
+numbers belong to that tree and to the commit each of them names; they are
+not claims about `main` until the merge.
 
 **Every limitation below names the document that measured it, and each of
 those documents names its own commit.** A number belongs to the commit it
@@ -33,10 +38,17 @@ alpha hands over what exists, measured rather than asserted:
   PDF, with revisions and staleness;
 - **the mentor-trajectory line** — a **feedback chain** whose four rings are
   a comment, a change, a judgement and an assessment; a **rule memory** whose
-  rules are versioned rows and whose retrieval serves a rule only on the
-  sources a judgement says were answered; **a three-role loop** that writes a
-  guidance card and has it critiqued independently; and **a DOCX reader** that
-  reads revisions and comments out of the package itself, with locators.
+  rules are versioned rows — readable **at the version a citation names** and
+  not only at the newest, since a superseded row keeps the state, the sources
+  and the checks it had — which **learns a rule from a comment or from a
+  tracked change** — so a marked-up manuscript holding hundreds of revisions
+  and no comment is material a rule can be drawn from, and the case's key is
+  the product's, not the caller's — and whose retrieval serves a rule on the
+  sources that stand: for a comment, the ones a judgement says were answered;
+  for a revision, the change itself, which carries no answered judgement to
+  wait for; **a three-role loop** that writes a guidance card and has it
+  critiqued independently; and **a DOCX reader** that reads revisions and
+  comments out of the package itself, with locators.
 
 **What a reviewer can do with it:** follow the
 [quickstart](QUICKSTART.md) from a clean clone and get a report with source
@@ -125,19 +137,31 @@ demonstration's. A model-driven extractor is still not demonstrated.
 `tests/test_api.py::test_a_claim_recorded_through_the_service_makes_the_task_reportable` ·
 [acceptance record §7.3](acceptance/LC-P1-14-outsider-path.md).
 
-### 2.3 The report's second revision is not recomputed from the revised material
+### 2.3 The report's second revision is not recomputed from the revised material — closed 2026-11-02
 
-A revision **is** generated, and v1's bytes are unchanged afterwards. But the
-attempt to render the report again from the revised bytes is **refused**:
+A revision **was** generated, and v1's bytes were unchanged afterwards, but
+the attempt to render the report again from the revised bytes was **refused**:
 
 > the report was refused before it could be written as a revision: the chain
 > names 'materials/measurements.csv' twice with different hashes.
 
-*Consequence:* **the second revision still rests on the material the claims
-were read from.** The report's content is not recomputed from the revised
-bytes.
-*Evidence:* [acceptance record §7.2](acceptance/LC-P1-14-outsider-path.md).
-**This is a Phase 2 finding, recorded rather than fixed.**
+**Closed by carrying only the parts computed over the current material.** A
+report's document gathered every figure the ledger held; after a re-ingest
+the old figure and the new one both remained, naming one file under two
+hashes. The document builder now leaves out a figure or a table whose own
+``derived_from`` names a material hash the source row no longer records — the
+stale part is a record of an earlier run, not a part of this report. The chain
+then names one material under the hash the ledger holds now, and the second
+revision is recomputed from the revised bytes. The old part stays in the
+ledger, and v1's bytes stay untouched.
+
+*Consequence:* the second revision's figures and tables rest on the material
+the ledger holds now; its **claims** still rest on the records they were read
+from, because the product does not re-extract a record from moved bytes —
+that is the separate limit §2.2 names.
+*Evidence:* `tests/test_application_layer.py::test_a_second_revision_is_recomputed_from_the_revised_material` ·
+`tests/test_analysis_report_build.py::test_the_part_carried_is_the_one_computed_over_the_current_material` ·
+[acceptance record §7.2](acceptance/LC-P1-14-outsider-path.md).
 
 ### 2.4 The workbench has never run against a real service
 
@@ -151,24 +175,57 @@ make the browser claim.**
 *Evidence:* [threat model §6.1](THREAT-MODEL.md) ·
 `web/src/test/fakeApi.ts` · `examples/g4_exit_demo.py:1216-1221`.
 
-### 2.5 The workbench does not consume the API's event stream
+### 2.5 The workbench does not consume the API's event stream — closed 2026-11-02
 
-By decision: `web/src/api/paths.ts:14-21` names the omission explicitly —
+~~By decision: `web/src/api/paths.ts:14-21` names the omission explicitly —
 *"The event stream is not among them. The service offers `/events` and
-`/events/stream`, and the workbench reads neither."*
+`/events/stream`, and the workbench reads neither."*~~
 
-*Consequence:* a change that alters the event stream alone will not show up
-in the workbench.
-*Evidence:* [threat model §6.2](THREAT-MODEL.md).
+**Closed by `37591c7`, and the quotation this limitation rested on is now the
+opposite of itself** — `paths.ts` reads *"The event stream is among them, and
+it is a second way to read the same log, not a second source of truth."* The
+workbench reads the SSE body with the client's own `fetch` in
+`web/src/api/events.ts`, never `EventSource`, so the path check, the base and
+the token boundary stay in the client; it resumes from each page's
+`next_after_seq`, and it says whether the reading is going.
 
-### 2.6 The workbench cannot switch the selected project
+**The record lagged the tree by one day and nothing caught it:** the commit
+that closed the limit rewrote [threat model §6.2](THREAT-MODEL.md) and its
+C14 row, and left this section quoting the file's superseded words. A limit
+that names a quotation as its evidence names a thing a later commit may
+reverse, which is why the row is struck rather than deleted.
 
-**Because the API has no such operation.** The service's routes are reads of
+*Consequence, then:* a change that alters the event stream alone will not show
+up in the workbench. *Consequence, now:* the stream is a second reading of one
+log, so a change to it shows in the events panel and not in the state panel —
+**the two panels are the check that they were not confused.**
+*Evidence:* `web/src/views/EventsView.test.tsx` — draws what the service sent
+and says the stream is live, resumes from the cursor after a disconnect and
+draws no event twice, says it is disconnected rather than showing a stopped
+clock, keeps what it read when the connection is lost, waits on the service
+rather than inventing an empty log.
+
+### 2.6 The workbench cannot switch the selected project — closed 2026-11-02
+
+~~**Because the API has no such operation.** The service's routes are reads of
 one bound workspace plus four mutating consent routes; none selects a
-workspace. The CLI can.
+workspace. The CLI can.~~
 
-*Evidence:* [threat model §6.3](THREAT-MODEL.md) ·
-`src/labcairn/api/routes.py`.
+**Closed by `37591c7`.** `POST /task/select` (`src/labcairn/api/routes.py:273`)
+moves the workspace's `current_task` through a host-supplied port; the task is
+validated through the application layer before anything is written, and the
+route needs the session token like every other change. The CLI and the page are
+now about the same task because there is one operation that says which task it
+is.
+
+*Evidence:* `tests/test_api.py` — `test_selecting_a_task_binds_the_service_to_it`,
+`test_selecting_a_task_from_a_foreign_origin_is_refused`,
+`test_selecting_a_task_needs_the_session_token`,
+`test_an_unwired_selection_refuses_rather_than_pretending` ·
+`web/src/app/workbench.test.tsx` ·
+`tests/test_workbench_live_service.py`, which drives one service over httpx's
+in-process ASGI transport and the console script in a subprocess and compares
+`GET /task` with `task status --json`.
 
 ### 2.7 The real-provider smoke runs only where a credential is named
 
@@ -334,13 +391,26 @@ so they say nothing about the endpoint.
 
 *Evidence:* [threat model §6.9](THREAT-MODEL.md).
 
-### 2.15 The DOCX and the PDF are not byte-reproducible
+### 2.15 The DOCX is byte-reproducible; the PDF is recorded, not claimed — DOCX closed 2026-11-02
 
-A DOCX is a ZIP whose entries carry timestamps and a PDF carries a creation
-date. **The report's reproducible forms are Markdown and HTML.** The DOCX
-and the PDF are compared as stored against served, not across two renders.
+A PDF carries a creation date and a document id from the render, and the
+owner decided on 2026-10-20 (the breakdown's §1.4.3, Option A) that its
+bytes are recorded but **not claimed reproducible**: pinning the creation
+date would be a false statement about when the file was made. That decision
+stands, and the PDF is not changed.
 
-*Evidence:* [acceptance record §6](acceptance/LC-P1-14-outsider-path.md).
+The DOCX is now reproducible. python-docx writes a ZIP whose entries carry
+the writer's clock; after it saves, the package is rewritten once with every
+entry stamped at the report's own ``as_of`` — the same date ``core.created``
+and ``core.modified`` already carry, and the date the document states on its
+face. Entry order, bytes, compression and attributes are preserved. Two
+renders of one document are byte-identical; a different moment or different
+content renders to different bytes. The report's own notice says so.
+
+*Evidence:* `tests/test_analysis_report_render.py::test_the_docx_is_byte_reproducible` ·
+`...::test_the_docx_bytes_change_with_the_document` ·
+`...::test_the_pdf_is_not_byte_reproducible` ·
+[acceptance record §6](acceptance/LC-P1-14-outsider-path.md).
 
 ### 2.16 Rotated PDF text is not detected, and the two-column detector is bracketed
 
@@ -370,17 +440,41 @@ and the write engine still opens `BEGIN IMMEDIATE` before its first read
 
 ### 2.19 The mentor's own material is in the chain, and it says something narrow
 
-**The rule memory serves one rule of sixteen.** The retrieval serves a
-confirmed rule on the sources a judgement says were answered, and the
-owner's own judgements on the pilot's ten correspondences came back **two
-holds, eight does not** — so **sixteen confirmed rules yield one served
-rule and fifteen reported as unserved**. **That is the material's answer,
-not a defect**: of the mentor's forty-six comments on the first paper, the
-ones a later version really answered are few. **A memory that served all
-sixteen would be serving rules the chain cannot show to have been
-applied.**
+**The rule memory serves nine rules, out of twenty-four confirmed and one
+candidate.** That is re-measured at `00a8072` through the product's own doors
+against a read-only copy of the pilot store, and the store came back
+byte-identical afterwards — the count this section first carried, **three of
+eighteen**, was the pilot's alone and had been overtaken by the second, third
+and fourth corpora. The retrieval serves a
+confirmed rule on the sources that stand, and the owner's own judgements on
+the pilot's ten correspondences came back **two holds, eight does not** —
+so of the sixteen rules learned from comments, **one is served and fifteen
+are reported as unserved**. **That is the material's answer, not a
+defect**: of the mentor's forty-six comments on the first paper, the ones a
+later version really answered are few. **A memory that served all of them
+would be serving rules the chain cannot show to have been applied.**
+
+**The other two served rules are the third pilot's, learned from tracked
+changes, and they are served on a different ground.** A comment source
+carries an answered judgement and can stop standing when the judgement says
+it was not answered; **a revision source has no answered judgement to wait
+for** — its source is the change itself, so it stands while the chain holds
+the change and the reader may read the manuscript. Read back through the
+product's own doors at `7677e59` on 2026-11-03: **24 confirmed rules and one
+candidate; 9 served and 15 reported as unserved.** The nine are **the eight
+learned from tracked changes plus one from the first corpus** — every rule
+whose sources stand — and the fifteen are comment-derived rules with **no
+answered judgement on their sources**, which is the material's answer rather
+than a defect.
+
+**Which is worth stating plainly as a limit of the material, not of the
+code:** a rule learned from a comment must survive the question *was this
+answer?*, and a rule learned from a change does not. The second is easier to
+serve and, for that reason, weaker as evidence — the chain shows the mentor
+wrote something, and shows no later draft agreeing with it.
 [LC-P2-09 acceptance](acceptance/LC-P2-09-acceptance.md) §9 ·
-[the second corpus](acceptance/second-corpus-absorption.md).
+[the second corpus](acceptance/second-corpus-absorption.md) ·
+[the revision distillation](acceptance/LC-P2-11-revision-distillation.md) §6.
 
 ### 2.20 The second paper's rules are not in the chain's reach
 
@@ -413,6 +507,14 @@ because the four duplicates are the same change. **Two different changes
 sharing a path would lose one of them silently.**
 [LC-P2-07 fidelity baseline](acceptance/LC-P2-07-fidelity-baseline.md).
 
+**Closed 2026-11-03.** The double-read that produced the 243 was fixed by
+`f4a7e94` — that file now reads 239 events against 239 distinct addresses.
+The identity no longer rests on the path at all: a change is keyed by
+`(version, part, element_path, occurrence)`, the first change at an address
+keeping the id every stored row already carries, so the 2164 pilot rows and
+the rules bound to them do not move.
+[LC-P2-07 revision-event identity](acceptance/LC-P2-07-revision-event-identity.md).
+
 
 **The surfaces run the recovery pass now.** `run_stage` calls it after the policy
 verdict and before any consent is spent, so a crash through the CLI or the service
@@ -432,6 +534,80 @@ happened once, and the log holds two operation rows saying so.
 *Evidence:* [ADR-0003 C2](adr/ADR-0003-event-and-permission-model.md) ·
 `tests/test_application_layer.py::test_a_run_enters_uncertain_and_refuses_an_operation_a_crash_abandoned` ·
 `tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`.
+
+### 2.23 The largest file the product will read is one number, written once — with one split kept on purpose
+
+**Measured 2026-11-03 at `bb8f8f6`, single-sourced at `7e94338`.** The ceiling
+on a supplied manuscript is **96 MB**, and the number came from material rather
+than from taste: the third pilot's late drafts are **71.4 MB** and the previous
+64 MB ceiling refused **seven versions of one real manuscript** — the refusal
+came from the read limit, and the pilot could not be ingested until it moved.
+
+**It was spelled in five places and it is now spelled in one** —
+`security/capabilities.py`, the module both read doors and every papers module
+already import, so the change adds no edge and no cycle.
+`workspace/readonly.py` re-exports it and both of its doors take it as their
+default; `papers/feedback.py` and `papers/replies.py` alias it under the name
+their callers already use. **One literal remains**: `papers/revisions.py` still
+writes `MAX_MANUSCRIPT_BYTES = 96_000_000`, because the window doing the work
+was told not to edit that file, and a boundary in a task brief is not
+something the runner of the task gets to dissolve. It is **neither hidden nor
+loose**: the scan witness asserts the ceiling's digits appear in **exactly
+those two files** and **once in `security/capabilities.py`** — so a *third*
+file, or a doubled definition in its home, turns it red — and the kept copy is
+pinned to the same value by `test_the_manuscript_readers_share_the_one_ceiling`.
+**And the gap that existed here for a few hours is closed, which is worth
+recording as the shape it took.** The set assertion alone allowed that file to
+hold the digits **twice** — measured: a second literal planted inside
+`papers/revisions.py` left **every** ceiling witness green, because the set of
+files was unchanged and the value still equalled the ceiling. The count is now
+pinned per file (`spelled["papers/revisions.py"] == 1`), and the same mutation
+turns exactly that one witness red. **A witness that pins a set is not a
+witness that pins a count**, and the difference only shows when the second
+copy is added inside a file already on the list.
+
+**And a claim this section used to make was wrong, so it is replaced with what
+was measured.** The earlier text said that raising the read doors past 64 MB
+would make an `fs.read` approval ask for more than the capability schema
+allows. **No path in the tree does that**: all seven approvals that carry the
+ceiling carry `CapabilityId.SOURCE_READ`, whose `max_bytes` bound is 512 MB
+and so admits 96, and every `fs.read` site passes only a path or nothing —
+`read_artifact`'s two real callers omit `max_bytes` and take its 1 MB default.
+The 64 MB bound on `FsReadArgs` is therefore **not** a ceiling in the same
+sense, and it is now asserted as a deliberate split: widening it onto the
+manuscript ceiling would make every artefact read approvable at a size its own
+capability never offered
+(`test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling`).
+
+**What the real coupling is, in the direction the old text had wrong.** The
+ceiling is sent *into* `SourceReadArgs`, so a ceiling above the schema's bound
+would have every one of those seven approvals refused **at consent time** — the
+read would never be reached. That is the invariant the split protects, and
+`test_the_source_read_schema_admits_the_ceiling` now holds it. Three mutations
+were run against these four witnesses, each caught by the one that names it:
+re-spelling the literal in `readonly.py`, widening `FsReadArgs` onto the
+manuscript ceiling, and moving `SourceReadArgs`' default off it.
+
+**One consequence of the move, stated because it is data and not code.** The
+pilot database holds **20 `granted` `source.read` approvals whose arguments
+digest over the old 64 MB ceiling** — recomputed with the product's own
+`compute_args_digest` over the stored task, capability and resource, all 20
+match `path + max_bytes=64_000_000` and none matches 96. Nothing breaks today
+because the papers only *evaluate* consent and never spend a stored grant; but
+those rows describe a request the product no longer makes, and **a future
+pilot run re-requests them rather than reusing them.**
+
+*The measurement:* `src/labcairn/security/capabilities.py`, the docstring over
+`MAX_SOURCE_READ_BYTES` · *the witnesses:*
+`tests/test_workspace_boundaries.py::test_a_file_over_the_ceiling_is_refused_by_both_read_doors`
+and `::test_both_read_doors_default_to_the_one_ceiling` (the two doors), plus
+`::test_the_ceiling_is_written_once_in_the_product`,
+`::test_the_manuscript_readers_share_the_one_ceiling`,
+`::test_the_source_read_schema_admits_the_ceiling` and
+`::test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling` (the
+single source, the kept literal in `papers/revisions.py`, the schema's bound,
+and the split that is kept) ·
+[LC-P2-11 revision distillation](acceptance/LC-P2-11-revision-distillation.md) §6.
 
 ---
 

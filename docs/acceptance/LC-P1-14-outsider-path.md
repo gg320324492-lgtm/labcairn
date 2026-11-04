@@ -225,10 +225,24 @@ The run says this in its own output, and the report carries it:
 - **The event stream was not consumed.** The workbench does not read it, by
   decision (`web/src/api/paths.ts` says so), and nothing here demonstrated a
   client reading it.
+  **Corrected 2026-11-03:** true of the walk and of that tree; the workbench
+  reads the stream since `37591c7`, and the file this bullet cites now says the
+  opposite of what it said here — `web/src/views/EventsView.test.tsx` holds the
+  reading, and the walk still starts no browser, so this bullet's own claim
+  about *this run* stands.
 - **The workbench cannot switch the selected project.** The API has no such
   operation, so there was nothing to drive.
+  **Corrected 2026-11-03:** closed by the same commit — `POST /task/select`
+  (`src/labcairn/api/routes.py:273`) — and driven against one live service by
+  `tests/test_workbench_live_service.py`. What this run did not do was drive
+  the page in a browser, so *measured between the two surfaces* remains the
+  walk's limit and is not discharged by the correction.
 - **The DOCX and the PDF are not byte-reproducible.** Their bytes are recorded
   and compared as stored against served, not across two renders.
+  **Corrected 2026-11-02:** the DOCX is now byte-reproducible — its ZIP entries
+  are stamped with the report's own `as_of` — and only the PDF remains
+  recorded rather than claimed, by the owner's 2026-10-20 decision
+  (see [`RELEASE-NOTES.md`](../RELEASE-NOTES.md) §2.15).
 - **The evidence records are extracted, not verified.** The walk records
   three claims through the product's operation and leaves C1, C2 and C3
   unrun, so the report carries records the ledger has located but not
@@ -318,10 +332,20 @@ dropped from the document (there is no operation that removes an artefact
 receipt, and the artefact ledger is in memory) or the material's chain to name
 one hash rather than two.
 
-*This is a Phase 2 finding, not a defect this work order fixes.* It is
+*This was a Phase 2 finding, not a defect this work order fixed.* It is
 recorded here because the deliverable says *"requests a revision"*, and the
 honest answer is what the run measured: the revision is generated, and the
 re-computation is refused with a reason that names itself.
+
+**Closed 2026-11-02.** The refusal was the chain's, and the chain was right:
+the document carried the old figure and the new one, so one material was
+named under two hashes. The document builder now leaves out a figure or a
+table whose own chain names a material hash the source row no longer
+records, so the report rendered after the re-ingest carries the run over the
+revised bytes and the chain names one hash. The measurement above stays as
+the record of what the walk saw at the time. Witnesses:
+`tests/test_application_layer.py::test_a_second_revision_is_recomputed_from_the_revised_material` ·
+`tests/test_analysis_report_build.py::test_the_part_carried_is_the_one_computed_over_the_current_material`.
 
 ### 7.3 The evidence ledger cannot be written through any surface — closed
 

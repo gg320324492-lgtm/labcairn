@@ -3,15 +3,18 @@
 **Work order:** LC-P2-14 (the blind evaluation and ablation), prepared
 before the run · **Protocol:**
 [`../plans/LC-P2-14-ablation-protocol.md`](../plans/LC-P2-14-ablation-protocol.md) ·
-**Status of the work order:** **the machinery is built and witnessed; the
-run has not happened.**
+**Status of the work order:** **the machinery and the run driver are built
+and witnessed; the run has not happened.**
 
 **What this is.** The four pieces of the experiment that wait on nobody:
 the five arms' run configuration, the by-paper split's leak check, the
 blind score sheet's machine-checkable form, and the aggregation that can
 report not significant. Each is scaffolding beside the evaluation harness,
 each refusal and each leak shape has a witness, and every witness is
-mutation-checked (§4).
+mutation-checked (§4). **The run driver was added on 2026-11-02** (§6):
+it walks those four pieces in one command, in a dry run that claims
+nothing and in a real mode that refuses without the owner's approval and
+budget.
 
 **What this is not.** **No run has happened.** No model was contacted, no
 real paper was read, every number in the witnesses is invented, and no
@@ -229,8 +232,126 @@ had moved its first anchor; it went red there and in the final pass.)
 
 ## 5. How this was measured
 
-The witness file ran green locally, 62 tests, with the worktree's `src`
+The witness file ran green locally, 75 tests, with the worktree's `src`
 first on `PYTHONPATH` and the temp directory outside the repository. The
 shard-cost witnesses are expected red until the coordinator re-measures
 after merge — a new test file has no measured cost — and the shard
 coverage check expects the file to be unassigned until then.
+
+## 6. The run driver, added 2026-11-02
+
+**What was added.** `tests/evaluation/blind_runner.py` is the missing
+middle between the four preparation modules and a run:
+`scripts/run_blind_evaluation.py` is its executable entry point. The
+driver takes the five arms and a case set, sends one request per arm and
+case, writes one artefact per request in the shape the blind sheet reads,
+writes the anonymous packet and the unblinding map, and then walks the
+same pipeline the protocol describes — `load_blind_sheet` →
+`resolve_pair` → `unblind` → `pair_by_case` → `build_report`. The score
+mode takes two real sheets and an arbiter and does the last three steps.
+
+**The dry run, and what it claims.** `--mode dry-run` (the default) sends
+every request to `DryRunProvider`, a stub that records the request and
+returns a deterministic sentence saying no model was called. Its ratings
+are the protocol's `unknown` label on every dimension — a dry run has no
+evidence, so it is the only label that does not invent a judgement. The
+record therefore says `model: ""`, `provider_calls: 0`,
+`stub_calls: 80`, `"synthetic": true`, and its limitations sentence says
+the numbers are not a measurement. The two contrasts are the
+not-significant path by rule (every case tied), which is what makes the
+pipeline's wiring visible without dressing a fixture up as a result.
+
+**The witnesses added, and the one that matters most.** Thirteen tests
+were appended to `tests/test_blind_evaluation_preparation.py`; no new
+test file was created, so the shard partition and the manifest are
+unchanged.
+
+| | The property | The witness |
+|---|---|---|
+| W1 | the dry run never enters the real-provider path | `test_a_dry_run_never_constructs_a_provider` |
+| W2 | the artefacts, packet, sheets and verdicts have the shapes they claim | `test_a_dry_run_writes_the_shapes_the_scoring_stage_reads` |
+| W3 | scoring loads real sheets, unblinds and judges both contrasts | `test_scoring_a_completed_run_uses_the_production_loader` |
+| W4 | a finished real run stops at AWAITING RATINGS | `test_a_real_run_stops_before_it_claims_a_comparison` |
+| W5 | no consent, no provider | `test_a_real_provider_cannot_be_built_without_consent` |
+| W6 | no ceiling, no provider | `test_a_real_provider_cannot_be_built_without_a_budget_ceiling` |
+| W7 | no usage capture, no provider | `test_a_real_provider_cannot_be_built_without_a_usage_capture` |
+| W8 | every missing real-mode piece is named at once | `test_missing_real_requirements_names_every_missing_piece` |
+| W9 | the command runs the dry run | `test_the_command_runs_a_dry_run` |
+| W10 | no approval means the command constructs nothing | `test_a_real_run_without_approvals_is_refused_before_a_provider` |
+| W11 | approvals without a ceiling are also refused | `test_a_real_run_without_a_budget_is_refused_before_a_provider` |
+| W12 | the consent port refuses an empty grant list at construction | `test_an_empty_approval_grant_list_is_refused_at_construction` |
+| W13 | an approvals file that parses to no grants reaches the refusal path | `test_a_real_run_with_an_empty_approvals_file_is_refused_before_a_provider` |
+
+W1 is the one the work order names: it monkeypatches
+`build_real_provider` to raise, runs the whole dry-run pipeline, and
+passes only because the stub path never reaches it. W2 checks the packet
+carries no arm key and every item's output names the stub.
+
+**The real mode's boundary.** `build_real_provider` is the only place the
+driver constructs a provider, and it raises `RealRunRefusedError` when the
+consent port, a budget ceiling or a usage capture is absent. The provider
+it builds is `PydanticAiModelProvider` and nothing else; the consent it
+takes is `ConsumingApprovals`, which hands each request to the
+application layer's `OutboundApproval` — `consume_approval` is still the
+one function that spends an approval, and the driver has no second path
+around it. The command line refuses before construction when the owner
+has supplied fewer approvals than the run has requests (one approval
+covers one request) or no ceiling. A real run writes the artefacts and
+the packet and stops at `awaiting-ratings`; its `run.json` carries
+`significance: {"status": "NOT RUN"}` as a first-class state, and
+`report.md` says so in words.
+
+**What was not done.** No real provider was contacted, no real paper was
+read, and no real run happened: the unseen papers and the budget are the
+owner's to bring. The dry-run case set is sixteen synthetic fixtures,
+each labelled `[synthetic fixture]` in its own material. A real run's
+per-request approvals are the owner's to create; the driver does not
+request them, mint them or widen them.
+
+**Mutation checks, including an independent review's four.** On
+2026-11-02, making `run_dry` call `build_real_provider` turned W1 red
+(the witness's planted `AssertionError` fired), and adding `arm_id` to
+the blind packet turned W2 red (the packet's key set was no longer
+disjoint from `ARM_KEY_VARIANTS`). An independent review then ran four
+mutations against `blind_runner.py`: dry-run `provider_calls`, missing
+consent and missing budget were caught; the fourth — replacing
+`if not grants` in `ConsumingApprovals.__init__` with `if False` —
+**survived**, because the CLI witness stopped at the argument-level
+check before the port was constructed.
+
+That is the gap W12 closes. With the direct-construction witness in
+place, the same mutation now fails with `DID NOT RAISE`. W13 covers the
+adjacent real path — an approvals file that parses to an empty list — but
+it does **not** hold that branch: the run's approval-count check refuses
+first. The two witnesses are kept as two properties, not counted as one.
+The remaining witnesses await a pass, and the §4 table covers the four
+preparation modules rather than the driver.
+
+## 7. The first real material, added 2026-11-04
+
+The machinery above was built against invented fixtures. **The first unseen
+paper arrived on 2026-11-04**, and the whole of it — the leak check, the five
+arms, the blind sheet and the dry run — was walked over the real bytes and the
+real store, with zero provider calls and zero money spent. That work is its own
+record:
+[`LC-P2-14-unseen-material.md`](LC-P2-14-unseen-material.md).
+
+**Three things the real material taught the machinery, none of which changed a
+line of `src/` or `tests/`:**
+
+1. **The arm-exposure check needs a cap for every paper in reach, not only the
+   evaluated one.** An unnamed paper is read as having no cap, so every version
+   of every development paper comes back as `version-beyond-declared-cap`. The
+   behaviour is right — an undeclared reach is an unchecked reach — but an
+   assembler who does not know it gets five arms of false leaks.
+2. **The citable rule set is the product's serving answer, not the table's row
+   count.** 24 rules are confirmed in the store; `search_rules` served **9** to
+   this reader, because fifteen of them no longer stand on sources that resolve,
+   are reachable and carry a judgement that says the change answered. **A run
+   planned against 24 is a run planned against a number that does not exist at
+   the surface.**
+3. **A check the plan expected to bite could not bite.** The distinctive-number
+   test over the rules is vacuous on this data: **no confirmed rule statement
+   carries a digit at all**. It is reported as vacuous rather than as passed,
+   and the fragment test and the source-provenance gate carry the property
+   instead.

@@ -28,16 +28,26 @@ whatever it is given with a ``Z`` bolted on. A moment that is aware and
 not in UTC would therefore be written as its **local** time, and the
 ``Z`` would be hours wrong.
 
-**The bytes are not reproducible, and the exporter does not pretend
-otherwise.** A DOCX is a ZIP, and every one of its seventeen entries
-carries the timestamp of the moment it was written. The owner's decision
-of 2026-10-20 was that the report's reproducible forms are Markdown and
-HTML and that the DOCX's bytes are recorded but not claimed reproducible
-(the breakdown's §1.4.3, Option A), and the exporter therefore does not
-reach into the container metadata to pin it. Pinning the ZIP timestamps
-was measured to be possible and was declined: it would make the export
-lie about when it was made, in exchange for a hash comparison nobody asked
-for.
+**The bytes are reproducible, and the timestamps are the document's own.**
+A DOCX is a ZIP, and every one of its entries carries the local wall-clock
+time it was written — which, left alone, is the moment python-docx ran. Two
+renders of one document would then differ in timestamps that say nothing
+about the report. So the package is rewritten once after ``word.save`` and
+every entry is stamped with the report's ``as_of``: the moment the document
+is a view of, which is already the value in ``core.created`` and
+``core.modified``. **This is not a claim that the file was written then**;
+it is the same date the document states on its own face, put where the
+container keeps its date. The owner's decision of 2026-10-20 (the
+breakdown's §1.4.3, Option A) fixed the **PDF**'s bytes as recorded but not
+claimed reproducible, because a PDF's creation date is the render's; a DOCX
+whose date is ``as_of`` has no such conflict, and the two forms are not
+required to make the same claim. ``tests/test_analysis_report_render.py``
+holds the DOCX invariant, and the PDF's exception is stated beside it.
+
+**The rewrite preserves the package.** Entry order, names, bytes,
+compression, attributes and the archive comment are the ones python-docx
+wrote; only ``date_time`` changes. A rewrite that re-encoded an entry would
+be a second writer of the same file, and the two would eventually disagree.
 
 The module is named after the form it writes, so ``import docx`` below is
 the library's: Python 3 imports absolutely, and an installed package
@@ -47,6 +57,7 @@ precedes the module that shares its name.
 from __future__ import annotations
 
 import io
+import zipfile
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -71,9 +82,10 @@ def render_docx(document: ReportDocument) -> bytes:
     """The report as a DOCX.
 
     :param document: the report's model, frozen at one moment.
-    :returns: the DOCX's bytes. They are **not** byte-reproducible: a DOCX
-        is a ZIP and its entries carry the time the file was written. The
-        **document's** dates are the moment the report is a view of, in
+    :returns: the DOCX's bytes, **byte-reproducible** for one document: the
+        ZIP entries are stamped with the report's own ``as_of`` rather than
+        the moment the writer ran, so two renders of the same document are
+        the same bytes. The **document's** dates are the same moment, in
         UTC — see :func:`_in_utc` for why the conversion is the writer's
         business and not the reader's.
     """
@@ -123,7 +135,51 @@ def render_docx(document: ReportDocument) -> bytes:
 
     buffer = io.BytesIO()
     word.save(buffer)
-    return buffer.getvalue()
+    return _with_the_documents_timestamps(buffer.getvalue(), moment=report.as_of)
+
+
+#: The earliest year a ZIP entry can carry. The format stores the year as an
+#: offset from 1980, and a timestamp before it cannot be represented at all.
+_FIRST_ZIP_YEAR = 1980
+
+
+def _with_the_documents_timestamps(blob: bytes, *, moment: datetime) -> bytes:
+    """The same DOCX, with every ZIP entry stamped at the document's moment.
+
+    The entries' bytes are copied, not re-encoded: each :class:`zipfile.ZipInfo`
+    keeps its name, compression, attributes and order, and only ``date_time``
+    changes. A rewrite that re-compressed an entry would be a second writer
+    of the package, and two writers of one format eventually disagree about
+    it.
+
+    :param blob: the package python-docx wrote.
+    :param moment: the report's ``as_of``. Converted to UTC for the same
+        reason :func:`_in_utc` converts the core properties: ZIP stores a
+        wall-clock time with no offset, and the document's date is a UTC one.
+    :raises ValueError: when the moment precedes 1980, which the ZIP format
+        cannot represent. The report's model requires an aware moment, and a
+        report dated before 1980 would be a document no archive can hold.
+    """
+    stamp = _in_utc(moment)
+    if stamp.year < _FIRST_ZIP_YEAR:
+        raise ValueError(
+            f"the report's moment is {stamp.isoformat()}, and a ZIP entry cannot "
+            f"carry a date before {_FIRST_ZIP_YEAR}. The container has no way to "
+            "record this document's date, so it is refused rather than stamped "
+            "with a date the document does not claim."
+        )
+    date_time = (stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second)
+
+    rewritten = io.BytesIO()
+    with (
+        zipfile.ZipFile(io.BytesIO(blob), "r") as package,
+        zipfile.ZipFile(rewritten, "w") as pinned,
+    ):
+        pinned.comment = package.comment
+        for entry in package.infolist():
+            entry.date_time = date_time
+            pinned.writestr(entry, package.read(entry))
+    return rewritten.getvalue()
 
 
 def _in_utc(moment: datetime) -> datetime:

@@ -71,14 +71,33 @@ from typing import Final
 
 from labcairn.application import guidance as guidance_layer
 from labcairn.application.context import ApplicationContext
-from labcairn.application.refusal import guidance_refused
+from labcairn.application.refusal import (
+    ApplicationRefusal,
+    ApplicationRefusedError,
+    guidance_refused,
+)
 from labcairn.guidance.models import GuidanceCheck, GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
 
 
-def _check_id(question: str, pass_criterion: str, proposed_by: str, now: datetime) -> str:
-    """Caller-visible identity, derived from what the check says and who said it."""
-    material = f"{question}|{pass_criterion}|{proposed_by}|{now.isoformat()}"
+def _check_id(question: str, pass_criterion: str, proposed_by: str) -> str:
+    """Caller-visible identity, derived from the whole check — and from no instant.
+
+    **The identity names the check, not the moment it was proposed.** The
+    digest folds the question, the pass criterion and the proposer — every
+    field a check carries — so a re-run of one proposal is the same row
+    without anyone inventing a timestamp, and ``proposed_at`` is free to be
+    the real clock. The instant used to be folded in; that made two runs of
+    one check two rows answering one question, which is the failure the
+    fixed instant in ``LC-P2-11-check-binding`` was bought to prevent.
+
+    **The fields are length-prefixed, not joined by a bare separator.** A
+    question or a criterion that happened to contain the separator would
+    shift the boundary between fields, and two different checks could hash
+    the same. Prefixing each field with its length makes the byte string
+    unique to the field list.
+    """
+    material = "".join(f"{len(field)}:{field}" for field in (question, pass_criterion, proposed_by))
     return f"check-{hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]}"
 
 
@@ -132,10 +151,24 @@ def propose_check(
         pass_criterion=pass_criterion,
         proposed_by=proposed_by,
     )
+    check_id = _check_id(question, pass_criterion, proposed_by)
+    # **Read first, so a re-run is one row.** The id is derived from the
+    # check itself and from no instant, so proposing the same check twice
+    # produces the same id; writing it twice would collide with the primary
+    # key rather than land on the row. This is what the fixed instant bought
+    # before the identities stopped folding the clock — and it is what makes
+    # ``proposed_at`` free to be the real time.
+    try:
+        existing = guidance_layer.read_guidance_check(context, check_id=check_id)
+    except ApplicationRefusedError as refused:
+        if refused.reason is not ApplicationRefusal.GUIDANCE_CHECK_NOT_FOUND:
+            raise
+    else:
+        return existing
     return guidance_layer.write_guidance_check(
         context,
         guidance_layer.CheckDraft(
-            check_id=_check_id(question, pass_criterion, proposed_by, now),
+            check_id=check_id,
             question=question,
             pass_criterion=pass_criterion,
             proposed_by=proposed_by,

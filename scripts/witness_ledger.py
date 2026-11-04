@@ -30,8 +30,19 @@ TOP_LEVEL = re.compile(r"^def (test_[A-Za-z0-9_]+)\(", re.MULTILINE)
 METHOD = re.compile(r"^    def (test_[A-Za-z0-9_]+)\(", re.MULTILINE)
 
 
-def functions(ref: str) -> dict[str, str]:
-    """Every test function at `ref`, mapped to the file it lives in."""
+def functions(ref: str) -> set[tuple[str, str]]:
+    """Every test function at `ref`, as ``(file, name)``.
+
+    **The name alone is not the identity.** Two files may each hold a witness
+    with the same name — a mirrored witness, or a copy an agent happened to
+    write into both — and a keyed-by-name collector lets one overwrite the
+    other. Measured on 2026-11-03: a merge added seven witnesses whose names
+    already existed in a sibling file, and the ledger reported **ADDED — none**
+    with both totals unchanged. The same collision hides a **loss** in the
+    other direction, which is the failure this tool exists to catch: deleting
+    the copy in one file leaves the other's identical name in place, so
+    "LOST -- none" would be printed over a tree that lost a witness.
+    """
     listing = subprocess.run(
         ["git", "ls-tree", "-r", "--name-only", ref, "tests/"],
         cwd=REPO,
@@ -40,7 +51,7 @@ def functions(ref: str) -> dict[str, str]:
         encoding="utf-8",
         errors="replace",
     )
-    out: dict[str, str] = {}
+    out: set[tuple[str, str]] = set()
     for path in listing.stdout.split():
         if not path.endswith(".py"):
             continue
@@ -55,7 +66,7 @@ def functions(ref: str) -> dict[str, str]:
         if blob.returncode != 0:
             continue
         for match in list(TOP_LEVEL.finditer(blob.stdout)) + list(METHOD.finditer(blob.stdout)):
-            out[match.group(1)] = path
+            out.add((path, match.group(1)))
     return out
 
 
@@ -69,15 +80,15 @@ def main() -> int:
     print()
     if lost:
         print(f"LOST -- {len(lost)} test function(s) that existed before and do not now:")
-        for name in lost:
-            print(f"  {name}   (was in {before[name]})")
+        for path, name in lost:
+            print(f"  {name}   (was in {path})")
     else:
         print("LOST -- none.  Every test function that existed before still exists.")
     if added:
         print()
         print(f"ADDED -- {len(added)} test function(s):")
-        for name in added:
-            print(f"  {name}   (now in {after[name]})")
+        for path, name in added:
+            print(f"  {name}   (now in {path})")
     return 1 if lost else 0
 
 

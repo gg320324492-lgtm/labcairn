@@ -181,6 +181,67 @@ class ClaimBody(Result):
     tolerance: float | None = None
 
 
+class TaskSelectBody(Result):
+    """Which task the service should be bound to, as the API accepts it.
+
+    The id is a string and not a parsed id type here, because the refusal for
+    a malformed id belongs to the same vocabulary as the refusal for an id the
+    store does not hold — and the layer is where that vocabulary lives.
+    """
+
+    task_id: str = Field(min_length=1)
+
+
+class ClaimExtractionBody(Result):
+    """An extraction, as the API accepts it.
+
+    **The body names where to read and what to ask; it does not carry the
+    claim.** The text comes from the ledger's stored address and the claim
+    comes from the model, so a caller cannot put words in either. The
+    proposal the route writes says ``created_by=model_proposal`` and names the
+    model that answered; the person's act is acceptance, and it is a
+    different route.
+
+    ``user_id`` is a **self-reported string** — the CLI's trust level. The
+    product keeps no accounts and performs no authentication, so this names
+    who started the operation without proving it. It is not written as the
+    proposal's author: a model wrote the proposal, and the record says so.
+
+    ``approval_id`` is the consent the model call is spent against. It is
+    optional in the shape so the layer can give its own refusal
+    (``approval_missing``) rather than FastAPI's validation error: "you did
+    not ask" and "your request was malformed" are different remedies.
+    """
+
+    source_id: str = Field(min_length=1)
+    locator_key: str = Field(min_length=1)
+    user_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    destination: str = Field(min_length=1)
+    subject_ref: str = Field(min_length=1)
+    purpose: str = Field(default="claim_extraction", min_length=1)
+    approval_id: str | None = None
+
+
+class ProposalAcceptanceBody(Result):
+    """A person's answer to a model's proposal, as the API accepts it.
+
+    ``verdict`` is the closed pair the application layer publishes; it is a
+    plain string here so an unknown word is refused by the layer's own
+    vocabulary rather than by FastAPI's validation. ``note`` is required for
+    a dispute and refused for a confirmation — the layer enforces both, and
+    this body only carries what the caller said.
+
+    **``user_id`` is a self-reported string.** No account stands behind it and
+    none is checked; the record says it was reported, not proven.
+    """
+
+    user_id: str = Field(min_length=1)
+    verdict: str = Field(min_length=1)
+    note: str = ""
+
+
 class GuidanceRuleVerdictBody(Result):
     """A person's verdict on a rule, as the API accepts it.
 

@@ -72,7 +72,7 @@ from __future__ import annotations
 
 import contextlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol, runtime_checkable
 
 from labcairn.core.providers.protocol import UsageReport
@@ -203,16 +203,34 @@ class HttpxUsageSniffer:
     that the tests need no network stack at all.
     """
 
-    __slots__ = ("_block", "_inner", "_observed")
+    __slots__ = ("_authorized", "_block", "_inner", "_observed", "_on_observed")
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(
+        self,
+        inner: Any,
+        *,
+        on_observed: Callable[[], None] | None = None,
+    ) -> None:
         self._inner = inner
         self._block: Mapping[str, object] | None = None
         self._observed = False
+        self._on_observed = on_observed
+        self._authorized = False
 
     @property
     def inner(self) -> Any:
         return self._inner
+
+    @property
+    def wire_authorized(self) -> bool:
+        """Whether this response's outbound approval was spent."""
+        return self._authorized
+
+    def clear_observation(self) -> None:
+        """Forget the last observation before the next request."""
+        self._observed = False
+        self._authorized = False
+        self._block = None
 
     def as_transport(self) -> HttpxUsageSniffer:
         """The wrapper itself, typed as the transport httpx expects.
@@ -255,6 +273,9 @@ class HttpxUsageSniffer:
         self._observed = True
         raw = body.get("usage")
         self._block = _labcairn_usage_keys(raw) if isinstance(raw, Mapping) else None
+        if self._on_observed is not None:
+            self._on_observed()
+            self._authorized = True
 
     async def _observe_response(self, response: Any) -> None:
         """Read the body if the transport has not, then keep its ``usage`` key.

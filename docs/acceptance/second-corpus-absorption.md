@@ -388,3 +388,29 @@ its survival means anything caught it.
 - **It does not say the rules are good.** Whether a rule helps a student
   is LC-P2-14's question. This batch makes them *traceable* — every one
   back to the advisor's own words, through an address that holds.
+
+---
+
+## 7. The eight rules each name a check now — added 2026-11-03
+
+**What was added.** Every one of this corpus's confirmed rules now names a
+**check**: the question a reader runs against a manuscript and the criterion
+that answers it. The owner read all eight wordings and confirmed them as a
+second reader; the proposer is `operator_proposal`, and the memory records
+**16 checks and 16 bindings with no candidate** once this batch and the
+fourth pilot's six are counted.
+
+**And one distinction matters more than the count: a bound check does not
+make a rule served.** The retrieval serves a comment-derived rule only on the
+sources a judgement says were answered, and **this corpus's rules have no
+answered judgement on their sources** — the chain holds them as material, not
+as material somebody judged answered. Read back through the doors, all eight
+are `served = false`, and **that is the retrieval's rule working, not the
+binding failing.** The checks are there for the day a judgement says the
+source stands.
+
+**What the closure does not claim.** Each criterion is read out of what the
+advisor wrote and was not tried against a case he left alone — **the same gap
+the fourth pilot's record states for its six.** A check derived from a
+mentor's behaviour is a standard read out of that behaviour; it has not been
+validated by a case that did not fire.

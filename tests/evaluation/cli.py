@@ -46,6 +46,7 @@ from .aggregate import (
     index_outcomes,
     metric_rows,
 )
+from .citation_sample import load_citation_sample
 from .comparison import (
     ComparisonBasis,
     assess,
@@ -179,6 +180,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="a baseline document to compare against, if there is one",
     )
     parser.add_argument(
+        "--citation-sample",
+        type=Path,
+        default=None,
+        help=(
+            "a human-checked citation-support sample table, outside this "
+            "public repository. Without it the evidence-locator-validity "
+            "metric is NOT MEASURED."
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -288,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     blockers = blocker_results(protocol, index, repo_root=repo_root)
 
     corpus = measure_corpus(repo_root)
+    citation_sample = load_citation_sample(args.citation_sample) if args.citation_sample else None
     revision = _revision(repo_root)
     working_tree = _working_tree(repo_root)
     metrics = metric_rows(
@@ -304,6 +316,7 @@ def main(argv: list[str] | None = None) -> int:
             "reproducible from the revision above.",
         ),
         repo_root=repo_root,
+        citation_sample=citation_sample,
     )
 
     comparison = _comparison(args.baseline, repo_root, classes, metrics)

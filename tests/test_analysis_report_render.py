@@ -40,7 +40,7 @@ import sys
 import time
 import zipfile
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, Final
 from xml.etree import ElementTree
@@ -1973,10 +1973,10 @@ def test_every_form_carries_the_notice(document: ReportDocument) -> None:
 def test_every_form_says_which_forms_are_reproducible(document: ReportDocument) -> None:
     """The report states which of its four forms can be compared by hash.
 
-    Two of them cannot: a DOCX is a ZIP whose entries carry timestamps,
-    and a PDF carries a creation date. A report that stayed silent would
-    let a reader hash two exports and read agreement into a difference
-    that is only the clock.
+    One of them cannot: a PDF carries a creation date and a document id
+    from the render. A report that stayed silent would let a reader hash
+    two exports and read agreement into a difference that is only the
+    clock.
     """
     for form, text in _texts(document).items():
         assert REPRODUCIBILITY_NOTICE in text, f"the {form} form does not say"
@@ -2031,37 +2031,68 @@ def test_two_documents_of_the_same_content_have_the_same_bytes(
 
 
 # ---------------------------------------------------------------------------
-# The two container forms are not reproducible, and the reasons are named
+# The DOCX is reproducible, the PDF is not, and both reasons are named
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-def test_the_two_container_forms_are_not_byte_reproducible(
-    document: ReportDocument,
-) -> None:
-    """The DOCX and the PDF differ between two renders, and here is why.
+def test_the_docx_is_byte_reproducible(document: ReportDocument) -> None:
+    """Two renders of one document are the same bytes, and the times are its own.
 
-    A DOCX is a ZIP and every one of its entries carries the time it was
-    written; a PDF carries a creation date and a document id. Both are
-    measured here rather than asserted, and the reason is named so that
+    The entries are stamped with ``as_of`` rather than with the writer's
+    clock, so the comparison is a measurement even when the two renders are
+    seconds apart: the bytes do not depend on when they ran.
+    """
+    first = render_docx(document)
+    second = render_docx(document)
+    assert first == second
+
+    stamp = document.snapshot.as_of.astimezone(UTC)
+    expected = (stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second)
+    times = set(_docx_entry_times(first).values())
+    assert times == {expected}, (
+        "a DOCX entry carries a time other than the document's own; the package is "
+        "still recording when python-docx ran"
+    )
+
+
+@pytest.mark.unit
+def test_the_docx_bytes_change_with_the_document(frozen_now: datetime) -> None:
+    """The timestamp is the document's, not a constant.
+
+    Two documents that differ only in their moment, and two that differ only
+    in their content, must not render to one set of bytes: pinning the clock
+    is only honest if the pin is the value the document itself states.
+    """
+    first = _document(as_of=frozen_now)
+    later = _document(as_of=frozen_now + timedelta(minutes=1))
+    different = _document(as_of=frozen_now, title="A different report")
+
+    assert render_docx(first) != render_docx(later)
+    assert render_docx(first) != render_docx(different)
+
+
+@pytest.mark.integration
+def test_the_pdf_is_not_byte_reproducible(document: ReportDocument) -> None:
+    """The PDF differs between two renders, and here is why.
+
+    A PDF carries a creation date and a document id, and reportlab fills
+    both with the current time; the owner decided on 2026-10-20 that the
+    PDF's bytes are recorded but not claimed reproducible (the breakdown's
+    §1.4.3, Option A). It is measured here rather than asserted, so that
     nobody later reads the difference as a bug in the renderer.
 
-    The gap between the two renders is a little over two seconds because
-    a ZIP entry's timestamp has two seconds' resolution: two renders
-    inside one window would agree, and an agreement measured inside one
-    window is not a measurement.
+    The gap between the two renders is a little over two seconds because a
+    PDF's creation date has one second's resolution: two renders inside one
+    second would agree, and an agreement measured inside one window is not a
+    measurement.
     """
-    first_docx = render_docx(document)
-    first_pdf = render_pdf(document)
+    first = render_pdf(document)
     time.sleep(2.2)
-    second_docx = render_docx(document)
-    second_pdf = render_pdf(document)
+    second = render_pdf(document)
 
-    assert first_docx != second_docx, "the DOCX is byte-reproducible, which it must not be"
-    assert first_pdf != second_pdf, "the PDF is byte-reproducible, which it must not be"
-
-    assert _docx_entry_times(first_docx) != _docx_entry_times(second_docx)
-    assert _pdf_creation_date(first_pdf) != _pdf_creation_date(second_pdf)
+    assert first != second, "the PDF is byte-reproducible, which it must not be"
+    assert _pdf_creation_date(first) != _pdf_creation_date(second)
 
 
 @pytest.mark.unit
@@ -2622,10 +2653,10 @@ def _what_the_document_says(document: ReportDocument) -> str:
 def _the_forms_say(document: ReportDocument) -> dict[str, str]:
     """The four forms, each read back by a reader that did not write it.
 
-    The DOCX and the PDF are **not** byte-reproducible, so a claim about
-    them is measured by reading them back and not by comparing bytes: the
-    DOCX out of its package, the PDF by a reader that did not write it,
-    the HTML by a parser, and the Markdown by a Markdown parser.
+    The PDF is **not** byte-reproducible, so a claim about it is measured
+    by reading it back and not by comparing bytes: the DOCX out of its
+    package, the PDF by a reader that did not write it, the HTML by a
+    parser, and the Markdown by a Markdown parser.
     """
     pdf_text, _ = _read_pdf_body(render_pdf(document))
     return {
@@ -2673,10 +2704,9 @@ def test_every_form_carries_the_document_and_nothing_else(
     equality catches both, where a containment catches only the first.
 
     **All four forms are watched**, and each is read by the reader its
-    own test reads it with. The DOCX and the PDF are read back rather
-    than compared byte for byte, because neither of them is
-    byte-reproducible: a DOCX is a ZIP whose entries carry the time the
-    file was written, and a PDF carries a creation date.
+    own test reads it with. The PDF is read back rather than compared byte
+    for byte, because it is not byte-reproducible: it carries a creation
+    date that is the moment of the render.
 
     **The expectation is read out of the document**, so a document that
     changed moves the expectation with it, and a renderer that changed

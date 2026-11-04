@@ -278,6 +278,45 @@ the evidence above is local until a runner says otherwise.
   identity. **A check that is retired is withdrawn with a reason, and a
   rule that was superseded is bound again by hand.**
 
+### 7.5 Every confirmed rule names a check now — closed 2026-11-03
+
+**The column is full.** Read back from the pilot database: **24 checks and 24
+bindings, no check in `candidate`, and no confirmed rule without one** — eight
+from the first corpus, eight from the second, two from the third pilot and six
+from the fourth. The owner read every wording as a second reader, and **the
+negative proof was run on the real rows in each batch**: the bind was attempted
+*before* the confirmation and refused with `guidance_check_not_confirmed`, then
+accepted after it.
+
+**And a bound check does not make a rule served.** The retrieval serves a
+comment-derived rule only on the sources a judgement says were answered, and
+**fifteen of the twenty-four rules have no answered judgement on their
+sources**; read back through the doors, **9 of the 25 latest rows are served**
+(the eight learned from tracked changes, whose source is the change itself, and
+one from the first corpus). **That is the retrieval working, not the binding
+failing.**
+
+**What the closure does not claim.** Each criterion is read out of what the
+advisor wrote or did, and **none has been tried against a case the advisor left
+alone** — a check derived from behaviour is a standard read out of that
+behaviour, not one validated by a negative case. **And this record's §7.4 still
+holds**: a rule may be confirmed without naming a check, because that
+precondition would change the memory's existing meaning and the piece that
+closed this column did not ask for it.
+
+**And the console shows the check now — closed 2026-11-03.** The
+machine-readable answer had carried `checks` for as long as the binding has
+existed; **the console's own answer printed the state and the statement and
+stopped there**, so a person at a terminal read the standard and not the
+question that decides it. The two faces of one door must not disagree about
+what a rule carries: the console now prints each check's id, question and pass
+criterion, **and a rule that names none says so** rather than leaving a reader
+to wonder whether the door dropped them. Two witnesses (`test_cli.py`) and a
+mutation measured against them: deleting the call that prints the checks turns
+both red — one for the rule that has a check, one for the rule that has none.
+**The whole of `test_cli.py` was then run as a file: 97 passed**, so the change
+is not an inference about the branch it does not touch.
+
 ## The weakest point an independent review found
 
 An independent read-only review re-applied the mutations in this
@@ -298,3 +337,126 @@ thing judged by its state rather than by its clock.
 **The remedy:** a seed where the two rules differ in version or in
 timestamp, still asserting the id order. One line of fixture closes
 it.
+
+## An addition: the distillation's second case
+
+**This record covers T01 as it was first landed**, where a rule's case
+had to resolve to a **comment** under an issue key. On 2026-11-03 that
+was widened: **a rule may also be learned from a tracked change**, and
+the third pilot's material — 23 versions, 208 revisions, **not one
+comment** — is the shape that needed it.
+
+**That addition has its own record**, because the decisions it carries
+are different ones and its witnesses are different files:
+[`LC-P2-11-revision-distillation.md`](LC-P2-11-revision-distillation.md).
+
+**What it changes here:** the distillation has **two** entry points and
+**two** proposer names, and the retrieval resolves **two** kinds of
+source. What it does not change: the state machine, the second-reader
+rule, the vocabulary, and the refusal of a rule whose cases do not
+support it.
+
+## A read that finds a rule at the version it names — landed 2026-11-03
+
+**Why a third read was needed.** The layer offered two rule reads and
+both served the highest version, because that is what the retrieval
+serves. A reconciliation asks the other question — *what did the rule
+say then, and what did that version rest on?* — and through the two
+existing reads the rows a reconciliation is about were unreachable.
+
+**Measured on the pilot database, opened read-only** (`mode=ro`, so the
+store itself was not touched): **25 rules over 27 rows, exactly two of
+them with more than one version.** For each of those two the older row
+is `disputed` and the newer is `confirmed`, their statements differ,
+neither carries a counterexample, and **the older row carries no check
+while the newer carries one**. The reason is the binding's own shape, not
+the supersede's: `guidance_rule_checks` carries `(rule_id, version,
+check_id)` and both rows name **version 2** — the version the rule was at
+when the binding was written, which is what the door binds to. The checks
+table carries no timestamp, so nothing here claims an order in time; what
+is held is that **the older row has no instrument bound to it**. **A read
+that could not reach v1 would report one check where that version rests
+on none.** One pair shares two sources across both versions;
+the other has **two sources at v1 and four at v2**, so a v1 read that
+resolved its sources against the newest row would report material the
+version it names never rested on.
+
+**And read back through the product's own doors**, so that the above is not
+a reading of tables but of the operation: an operator script outside the
+repository called `read_guidance_rule` and `read_guidance_rule_version`
+through `labcairn.application` — **the layer's name, not the module's**, which
+is what the wiring commit made possible. It reported 25 rows at their highest
+version and 2 of them past v1; for both, the highest-version read returned v2
+and nothing else, the version read returned **v1 as it stood** (`disputed`,
+statement 128 characters where v2's is 77, **2 sources where v2 has 4, no
+check where v2 has one**) and v2 as the retrieval serves it, and a request for
+version 3 came back `application refused (guidance_rule_not_found): no rule
+carries the id … at version 3`. **The pilot store came back byte-identical
+afterwards** — the same SHA-256 before and after the run — so this is a
+reading of real material that wrote nothing to it. No statement text is
+quoted here or anywhere in this record: a version's words are named by length
+and digest, because the material is the owner's unpublished work.
+
+**What landed** (`d6cf117`, wired in `f21ebe0`, merged at `00a8072`):
+`read_guidance_rule_version(context, rule_id=…, version=…)` selects the
+row at `(rule_id, version)` and refuses a version the memory does not
+hold. The sources, the counterexamples and the checks are stored
+against `(rule_id, version)` and `_the_rule` already filtered all three
+by the row's own version, so no new filter was needed — **the read is
+one select and the existing assembly**. The operation is re-exported
+from `labcairn.application` and has a row in the layer's capability
+table, because a table that lags is a table that says something false.
+
+**The wiring landed as an uncommitted file** in that window's worktree:
+its commit carried `application/guidance.py` and the tests only, so the
+read existed in the module and was not an operation of the layer. It was
+committed after the four witnesses were re-measured here, not before.
+
+**What was measured, on this tree (`00a8072`).** `tests/test_guidance_rules.py`
+and `tests/test_application_layer.py`: **134 passed**, with the worktree's
+own `src` first on `PYTHONPATH` — proved by printing
+`labcairn.application.__file__` in the same interpreter, since the venv's
+editable install names the primary checkout. `ruff check .` clean,
+`ruff format --check .` clean over 432 files, `mypy --strict src tests`
+clean over 389 source files.
+
+**The four witnesses under their own mutations** (battery
+re-run here, not taken on the window's word; baseline green first, tree
+green again after restore):
+
+| Mutation | Witnesses that went red |
+|---|---|
+| the version read returns the newest whatever was asked | all three of the version's own witnesses |
+| a version's sources are not resolved at its own version | the words-sources-checks witness alone |
+| a version the memory does not hold is accepted | the refusal witness alone |
+| the highest-version read moved to the oldest row | the highest-version witness alone |
+
+**The ledger after the merge** (`witness_ledger e71dc51 00a8072`): 3279
+test functions before, 3283 after, **LOST — none**, the four additions
+named. The merge added 180 lines and deleted none, which is why nothing
+could be swallowed this time; that is not how the check is satisfied.
+
+**What this piece does not do.** **No operation of the product calls the new
+read** — the retrieval still serves the highest version, as it should, and the
+reconciliation that motivated this has not been run. The only caller so far is
+the operator's read-only script named above, which exists to measure the claim
+rather than to use the door.
+
+**And one witness is red on this tree, by design and not because of this
+piece.** `test_the_costs_belong_to_the_tree_they_were_measured_on`
+fails naming **`tests/test_cli.py`** — measured, not inferred: the run
+on `00a8072` says *"these files changed since the costs were measured at
+0a8f391…, and each costs more than the partition's slack (57s):
+tests/test_cli.py"*. The reason it names that file and not the two this
+piece changed is the witness's own construction: it walks **the files
+the cost table is about**, keyed by file name, and a slack of 57 seconds
+admits a file whose measured cost cannot unbalance the partition however
+much it moves — `test_guidance_rules.py` costs **7.74 s** on
+`ubuntu-latest`, while `test_cli.py` costs **405.58 s**, the longest
+entry in that platform's table. `tests/test_cli.py` was changed by the
+console's check output, several commits before this piece. **The sentence this record first wrote named
+`guidance.py` and `test_guidance_rules.py` instead, and was corrected
+against the failure output — a record of a mechanism is not a run of
+it.** The new costs must come from a runner's log, and that run needs a
+push, which is the owner's call.
+

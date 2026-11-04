@@ -83,6 +83,7 @@ from labcairn.core.ids import TaskId
 from labcairn.db import create_db_engine, create_session_factory, session_scope
 from labcairn.db.materials import put_source
 from labcairn.evidence.store import load_task_records
+from labcairn.guidance.checks import bind_check, confirm_check, propose_check
 from labcairn.reports.receipt import (
     ArtifactKind,
     ArtifactProducerKind,
@@ -90,6 +91,7 @@ from labcairn.reports.receipt import (
 )
 from labcairn.runtime.lifecycle import Task
 from labcairn.sources.source import Source, SourceKind, SourceReadability
+from labcairn.workspace.readonly import MAX_SOURCE_READ_BYTES
 
 pytestmark = pytest.mark.e2e
 
@@ -972,13 +974,26 @@ def test_task_create_refuses_when_the_material_could_not_all_be_read(workspace: 
     a task that quietly holds less than the material it was given, and the
     refusal names the file.
 
-    The bytes are never read -- the refusal is on the size -- so the file
-    costs a write and nothing else, and the arrangement cannot skip on a
-    platform where symlinks are unavailable.
+    The bytes are never read -- the refusal is on the size -- so the file is
+    made by seeking past the end and writing one byte, and the arrangement
+    cannot skip on a platform where symlinks are unavailable.
+
+    **And the size is derived from the ceiling it means to cross, not written
+    out.** This arrangement was once a hardcoded 72 MB against a 64 MB limit;
+    when the limit moved to 96 MB the file stayed where it was, the refusal
+    stopped happening, and the witness went red for a reason that had nothing
+    to do with the property under test. A fixture that names a number the
+    product owns is a fixture that decouples the moment that number moves.
     """
     (workspace / "materials" / "one.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     (workspace / "other").mkdir()
-    (workspace / "other" / "oversized.csv").write_bytes(b"a,b\n1,2\n" * 8_000_001)
+    oversized = workspace / "other" / "oversized.csv"
+    with oversized.open("wb") as handle:
+        handle.seek(MAX_SOURCE_READ_BYTES)
+        handle.write(b"x")
+    assert oversized.stat().st_size == MAX_SOURCE_READ_BYTES + 1, (
+        "the arrangement must be one byte past the ceiling the product names"
+    )
     created = run_cli(
         "--workspace",
         str(workspace),
@@ -2938,8 +2953,6 @@ def test_task_proposal_confirm_settles_a_models_proposal_through_the_console(
         "confirmed",
         "--user",
         "the-advisor",
-        "--note",
-        "I read the table; the number is the one it carries.",
         "--json",
     )
 
@@ -3335,3 +3348,49 @@ def test_the_cli_and_the_route_accept_the_same_verdicts() -> None:
     annotation = GuidanceRuleVerdictBody.model_fields["verdict"].annotation
     assert tuple(get_args(annotation)) == RULE_VERDICTS
     assert RULE_VERDICTS == ("confirmed", "disputed")
+
+
+def test_the_console_shows_the_check_that_decides_the_rule(
+    workspace: Path, task_id: str, rule_id: str
+) -> None:
+    """**A reader handed a rule is handed the thing that decides it.**
+
+    The machine-readable answer has carried the rule's checks for as long as
+    the binding has existed; the console's own answer did not, so a person at
+    a terminal read the standard and not the question that decides it. **The
+    two faces of one door must not disagree about what a rule carries.**
+    """
+    with _context(workspace, task_id) as context:
+        check = propose_check(
+            context,
+            question="Does the caption say what the two axes are?",
+            pass_criterion="Passes when the caption names both axes and their units.",
+            proposed_by="distil-run-7",
+            now=_MOMENT,
+        )
+        confirm_check(context, check_id=check.check_id, confirmed_by="reader-2", now=_MOMENT)
+        bind_check(context, rule_id=rule_id, check_id=check.check_id)
+
+    answered = _settle(workspace, rule_id, verdict="confirmed", user="reader-2", as_json=False)
+
+    assert answered.returncode == 0, answered.stdout
+    assert "Does the caption say what the two axes are?" in answered.stdout, (
+        "the console did not print the question that decides the rule:\n" + answered.stdout
+    )
+    assert "Passes when the caption names both axes and their units." in answered.stdout, (
+        "the console did not print the criterion that answers it:\n" + answered.stdout
+    )
+
+
+def test_the_console_says_when_a_rule_names_no_check(
+    workspace: Path, task_id: str, rule_id: str
+) -> None:
+    """**A rule that names no check says so** — the silence is the ambiguity.
+
+    A reader who cannot tell "this rule has no check" from "the door dropped
+    it" cannot judge the rule; the console says which it is.
+    """
+    answered = _settle(workspace, rule_id, verdict="confirmed", user="reader-2", as_json=False)
+
+    assert answered.returncode == 0, answered.stdout
+    assert "the rule names no check" in answered.stdout, answered.stdout

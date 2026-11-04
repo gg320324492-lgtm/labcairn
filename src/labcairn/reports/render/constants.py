@@ -15,10 +15,14 @@ that does not say it is claiming a standard it has not met. The limit is not
 a property of one format, so it cannot be one format's string.
 
 **The reproducibility notice.** ADR-0013's constraint 11 says the report must
-state which of its four forms are reproducible, because two of them are not:
-a DOCX is a ZIP whose entries carry timestamps, and a PDF carries a creation
-date. A report that stayed silent about it would let a reader assume that
-comparing two exports by hash means something it does not.
+state which of its four forms are reproducible, because one of them is not:
+a PDF carries the creation date of the render, and the owner decided on
+2026-10-20 that its bytes are recorded but not claimed reproducible. The
+DOCX's timestamps are the document's own ``as_of`` rather than the writer's
+clock, so it is reproducible too — see
+:mod:`labcairn.reports.render.docx`. A report that stayed silent about the
+PDF would let a reader assume that comparing two exports by hash means
+something it does not.
 
 **The interpretation marker.** ADR-0004's A10 says an interpretation is never
 machine-verified, because C4 returned ``not_checked`` and Phase 1 has no
@@ -59,13 +63,14 @@ FIRST_PASS_NOTICE: Final[str] = (
 #: Which of the report's four forms can be compared by hash.
 #:
 #: The owner decided on 2026-10-20 (the breakdown's §1.4.3, Option A) that
-#: the report's reproducible forms are Markdown and HTML, and that the DOCX
-#: and the PDF are exports whose bytes are recorded but not claimed
-#: reproducible. The reason is in the formats, not in this code: a DOCX is a
-#: ZIP whose seventeen entries carry timestamps, and a PDF carries a
-#: creation date. A report that did not say so would let a reader hash two
-#: exports and read agreement into a difference that is only the clock.
+#: the **PDF**'s bytes are recorded but not claimed reproducible, because a
+#: PDF's creation date is the moment of the render and pinning it would be a
+#: false statement about when the file was made. That reason does not reach
+#: the DOCX: its entries are stamped with the report's ``as_of``, which is
+#: the date the document itself states, not the writer's clock. So the three
+#: text-and-container forms are comparable by hash and the PDF is not. A
+#: report that did not say so would let a reader hash two exports and read
+#: agreement into a difference that is only the clock.
 REPRODUCIBILITY_NOTICE: Final[str] = (
-    "The Markdown and HTML forms of this report are byte-reproducible; "
-    "the DOCX and PDF forms are not."
+    "The Markdown, HTML and DOCX forms of this report are byte-reproducible; the PDF form is not."
 )

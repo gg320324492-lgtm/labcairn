@@ -103,12 +103,14 @@ from labcairn.core.providers.usage import Known, UsageValue
 from labcairn.providers.budget import BudgetGuard, RunBudget
 from labcairn.providers.cancel import CancellationToken
 from labcairn.providers.capabilities import Capability, ProviderCapabilities
-from labcairn.providers.consent import OutboundConsent
+from labcairn.providers.consent import OutboundConsent, WireAuthorizedConsent
 from labcairn.providers.errors import (
     FailureKind,
+    OutboundRefusedError,
     ProviderError,
     ProviderFailure,
     ProviderMalformedResponseError,
+    ProviderOutputTruncatedError,
     ProviderTimeoutError,
     UnsupportedCapabilityError,
     classify_exception,
@@ -347,9 +349,11 @@ class PydanticAiModelProvider:
         "_exchanges",
         "_label",
         "_ledger",
+        "_max_output_tokens",
         "_model",
         "_name",
         "_outbound",
+        "_reasoning_effort",
         "_redactor",
         "_required",
         "_runner",
@@ -378,6 +382,8 @@ class PydanticAiModelProvider:
         outbound: OutboundDisclosure = PHASE_1_OUTBOUND_POLICY,
         clock: Callable[[], float] | None = None,
         runner: AsyncRunner | None = None,
+        max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
         priced: bool = False,
     ) -> None:
         self._model = model
@@ -386,6 +392,8 @@ class PydanticAiModelProvider:
         self._redactor = redactor if redactor is not None else Redactor()
         self._token = token if token is not None else CancellationToken()
         self._runner = runner if runner is not None else default_runner
+        self._max_output_tokens = max_output_tokens
+        self._reasoning_effort = reasoning_effort
         self._tool_schemas = dict(tool_schemas or {})
         self._name = f"{provider_label}:{model.model_name}"
         self._label = model.model_name
@@ -498,11 +506,17 @@ class PydanticAiModelProvider:
             digest,
         )
 
+        if isinstance(self._consent, WireAuthorizedConsent):
+            clear = getattr(self._usage_capture, "clear_observation", None)
+            if clear is not None:
+                clear()
         try:
             upstream = self._dispatch(request)
-        except (ProviderError, asyncio.CancelledError):
-            raise
+        except (ProviderError, asyncio.CancelledError) as exc:
+            self._release_wire_authorization()
+            raise exc
         except Exception as exc:
+            self._release_wire_authorization()
             failure = classify_exception(exc, redactor=self._redactor)
             # The log line names the *kind* and a digest. It never interpolates the
             # exception, which may echo a rejected credential or a file excerpt.
@@ -514,6 +528,32 @@ class PydanticAiModelProvider:
                 failure.detail_digest,
             )
             raise ProviderError(failure) from None
+
+        # A wire-authorized consent must have spent exactly one approval for
+        # this response. A response that arrived without its callback is not a
+        # measurable call: refuse it rather than carry an unverified answer.
+        if isinstance(self._consent, WireAuthorizedConsent) and not getattr(
+            self._usage_capture, "wire_authorized", False
+        ):
+            self._release_wire_authorization()
+            raise OutboundRefusedError(
+                "the provider answered without a wire observation; no approval "
+                "was spent and the response is refused"
+            )
+
+        # A length-limited reply is not a complete answer. Refuse it before any
+        # artefact, blind packet or rating can carry the truncated text.
+        finish_reason = getattr(upstream, "finish_reason", None)
+        if finish_reason == "length" or (
+            isinstance(finish_reason, str) and finish_reason.startswith("max_")
+        ):
+            raise ProviderOutputTruncatedError(
+                # The ceiling is None when no run-level cap was configured and
+                # the cut came from the provider's own default; folding that
+                # unknown into a zero would be a usage fold.
+                max_output_tokens=self._max_output_tokens,
+                finish_reason=str(finish_reason),
+            )
 
         usage = self._usage_capture.report()
         response = translate_response(upstream, usage=usage, transcript_step=step)
@@ -537,6 +577,19 @@ class PydanticAiModelProvider:
         self._budget.require(self._ledger.snapshot())
         return response
 
+    def _release_wire_authorization(self) -> None:
+        """Release a reservation when a local fault stopped the request.
+
+        A wire-authorized consent spends its approval in the HTTP request hook,
+        so no reservation is left when the wire was reached. A fault before
+        that point leaves one, and the next call must not be refused because a
+        request that never happened held it.
+        """
+        if isinstance(self._consent, WireAuthorizedConsent):
+            release = getattr(self._consent, "release_wire", None)
+            if release is not None:
+                release()
+
     def _dispatch(self, request: ModelRequest) -> Any:
         from pydantic_ai.messages import ModelRequest as UpstreamRequest
         from pydantic_ai.messages import UserPromptPart
@@ -552,7 +605,17 @@ class PydanticAiModelProvider:
                 for name in request.tools
             ]
         )
-        awaitable = self._model.request(messages, None, parameters)
+        settings: Any = None
+        if self._max_output_tokens is not None or self._reasoning_effort is not None:
+            from pydantic_ai.settings import ModelSettings
+
+            values: dict[str, Any] = {}
+            if self._max_output_tokens is not None:
+                values["max_tokens"] = self._max_output_tokens
+            if self._reasoning_effort is not None:
+                values["openai_reasoning_effort"] = self._reasoning_effort
+            settings = ModelSettings(**values)  # type: ignore[typeddict-item]
+        awaitable = self._model.request(messages, settings, parameters)
         if self._timeout_s is not None:
             awaitable = asyncio.wait_for(awaitable, timeout=self._timeout_s)
         try:

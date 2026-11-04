@@ -52,7 +52,7 @@ handoff report.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from labcairn.providers.credentials import (
@@ -76,17 +76,23 @@ def auth_header_name(protocol: Protocol) -> str:
     return _AUTH_HEADER_NAMES[protocol]
 
 
-def make_sniffer() -> HttpxUsageSniffer:
+def make_sniffer(*, on_observed: Callable[[], None] | None = None) -> HttpxUsageSniffer:
     """A sniffer over a real httpx transport.
 
     Created once and then **shared**: the same object becomes the client's
     transport and the probe's ``usage_capture``. Two independent captures would
     let the run report a ``Known`` token count the probe could not confirm, which
     is precisely the disagreement this layer exists to prevent.
+
+    ``httpx.AsyncClient(limits=...)`` does not configure a caller-supplied
+    transport's own pool, so the no-keep-alive limit belongs on the inner
+    transport this function owns. Without it, the second fresh event loop
+    reuses a connection bound to the first and fails before the wire.
     """
     import httpx
 
-    return HttpxUsageSniffer(httpx.AsyncHTTPTransport())
+    transport = httpx.AsyncHTTPTransport(limits=httpx.Limits(max_keepalive_connections=0))
+    return HttpxUsageSniffer(transport, on_observed=on_observed)
 
 
 def build_http_client(
@@ -103,8 +109,15 @@ def build_http_client(
     """
     import httpx
 
-    transport: Any = sniffer if sniffer is not None else httpx.AsyncHTTPTransport()
-    return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s)
+    #: The adapter drives each synchronous ``send`` on its own fresh event loop.
+    #: A keep-alive connection owned by a loop that has since closed is reused
+    #: on the next call and fails with ``RuntimeError: Event loop is closed``.
+    #: Both the plain client and the sniffer's own transport must disable pooled
+    #: keep-alive connections: ``AsyncClient(limits=...)`` does not configure a
+    #: caller-supplied transport's pool.
+    limits = httpx.Limits(max_keepalive_connections=0)
+    transport: Any = sniffer if sniffer is not None else httpx.AsyncHTTPTransport(limits=limits)
+    return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)
 
 
 def build_model(

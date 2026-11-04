@@ -66,6 +66,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from rich.console import Console, RenderableType
 
+    from labcairn.api.selection import TaskSelector
     from labcairn.application import ApplicationContext, MaterialIngested, SourceAddress
     from labcairn.application.sources import SourceView
     from labcairn.application.stages import StageOutcome, TaskPlan
@@ -79,7 +80,7 @@ if TYPE_CHECKING:
     )
     from labcairn.cli.workspace import WorkspaceConfig, WorkspaceLocation
     from labcairn.core.ids import TaskId
-    from labcairn.guidance.models import GuidanceRule
+    from labcairn.guidance.models import GuidanceCheck, GuidanceRule
     from labcairn.providers.capabilities import Capability, ProviderCapabilities
     from labcairn.providers.credentials import ProviderSettings
     from labcairn.security.paths import CanonicalPath
@@ -1282,8 +1283,13 @@ def task_proposal_confirm(
     ],
     note: Annotated[
         str,
-        typer.Option("--note", help="What that person says about the proposal."),
-    ],
+        typer.Option(
+            "--note",
+            help="What the person says about a disputed proposal. Required for "
+            "'disputed' and refused for 'confirmed': acceptance is as-is, and a "
+            "correction is a dispute or a new record.",
+        ),
+    ] = "",
     task: TaskOption = None,
     as_json: JsonOption = False,
 ) -> None:
@@ -1291,10 +1297,17 @@ def task_proposal_confirm(
 
     **The proposal is not promoted; the person's own word replaces it.** The
     proposal's log gains a C4 entry naming the person and their verdict, the
-    person's own record is written at the same address, and the proposal is
-    superseded by it — **kept, not deleted**, because a record that was wrong
-    is worth more in the ledger than outside it. The thing a report may cite
-    is then a person's word and not a model's.
+    person's own record is written at the same address carrying the proposal's
+    words **unchanged** (acceptance is as-is), and the proposal is superseded
+    by it — **kept, not deleted**, because a record that was wrong is worth
+    more in the ledger than outside it. The thing a report may cite is then a
+    person's word and not a model's.
+
+    **The note belongs to the verdict.** ``--verdict disputed`` requires one,
+    because a disagreement nobody states is an accusation with no content;
+    ``--verdict confirmed`` refuses one, because a confirmation with a
+    correction would be an amendment wearing acceptance's name. The person's
+    name is a self-reported string: the product keeps no accounts.
     """
     from labcairn.application import confirm_proposal
     from labcairn.cli.models import CLI_REFUSAL_INVALID_ARGUMENTS, emit_model
@@ -2034,6 +2047,24 @@ def guidance_rule_confirm(
         _console().print(
             f"[bold]{rule.state}[/bold] by {rule.confirmed_by} — {rule.rule_id}\n{rule.statement}"
         )
+        _print_the_checks(rule.checks)
+
+
+def _print_the_checks(checks: Sequence[GuidanceCheck]) -> None:
+    """The questions that decide the rule, printed beside the rule itself.
+
+    **A reader handed a rule is handed the thing that decides it.** The
+    machine-readable form already carries ``checks``; the console's own answer
+    says the same, and **a rule that names none says so** rather than leaving
+    the reader to wonder whether the door dropped them on the way out.
+    """
+    if not checks:
+        _console().print("\n[dim]the rule names no check[/dim]")
+        return
+    for check in checks:
+        _console().print(f"\n[bold]check[/bold] {check.check_id}")
+        _console().print(f"  question: {check.question}")
+        _console().print(f"  passes:   {check.pass_criterion}")
 
 
 def _emit_rule(rule: GuidanceRule) -> None:
@@ -2140,9 +2171,15 @@ def serve(
     The event stream and the stage bodies belong to the packages that own
     them, so a request for either is refused in the layer's own vocabulary
     rather than answered with something that looks like a result.
+
+    **The binding can be moved from the workbench.** ``POST /task/select``
+    writes the workspace's ``current_task`` — the same field this command
+    reads and ``task status`` reads without ``--task`` — so a selection made
+    in the page is a selection the CLI shares, rather than a second idea of
+    which task the workspace is looking at.
     """
     from labcairn.cli.models import emit_model
-    from labcairn.cli.workspace import application_context, locate
+    from labcairn.cli.workspace import application_context, locate, task_selector
 
     options = _options(ctx)
     location = locate(options.workspace)
@@ -2161,6 +2198,7 @@ def serve(
                 port=port,
                 extra_origins=origins,
                 static_dir=workbench,
+                select_task=task_selector(location, config),
             )
             model = _service_report(
                 app, host=host, port=port, task_id=task_id, static_dir=workbench
@@ -2179,14 +2217,15 @@ def service_app(
     port: int,
     extra_origins: Sequence[str],
     static_dir: Path | None,
+    select_task: TaskSelector | None = None,
 ) -> FastAPI:
     """The service, as this command builds it.
 
     Named apart from the command so that what the command starts can be
     looked at without starting it. The wiring — the bind address, the port,
-    the origins and the task — is the thing worth looking at, and a test
-    that had to bind a socket to look at it would be a test that fails when
-    the machine's ports are busy.
+    the origins, the task and the way to select another one — is the thing
+    worth looking at, and a test that had to bind a socket to look at it
+    would be a test that fails when the machine's ports are busy.
     """
     from labcairn.api import create_app
 
@@ -2196,6 +2235,7 @@ def service_app(
         port=port,
         extra_origins=extra_origins,
         static_dir=static_dir,
+        select_task=select_task,
     )
 
 

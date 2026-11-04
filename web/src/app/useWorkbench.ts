@@ -167,10 +167,11 @@ async function settle<T>(read: () => Promise<T>): Promise<ApiRead<T>> {
 /**
  * Every read the workbench draws, in one pass.
  *
- * The service's event stream is not one of them, on purpose: the workbench
- * reads the task's state and reads it again when something changes, and a
- * long-lived stream would be a second way to watch the task move. The reason
- * is in `api/paths.ts`, next to the list of paths that leaves it out.
+ * The service's event stream is not one of them, and it is not an omission:
+ * it is a body that arrives over time, so it cannot be one of eight reads
+ * that all settle once. The events panel reads it on its own, with its own
+ * cursor and its own connection state; this batch stays the task as it
+ * stands.
  */
 async function readEverything(client: LabCairnClient): Promise<WorkbenchReads> {
   const [health, session, tasks, state, plan, steps, sources, artifacts] = await Promise.all([

@@ -184,8 +184,42 @@ class _Args(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+#: The largest supplied file the product will pull into memory in one read, and
+#: **the one place that number is written.**
+#:
+#: **Why the registry holds it.** This is not a capability's own argument, it is
+#: the bound that every reader of supplied material enforces — the read doors in
+#: :mod:`labcairn.workspace.readonly`, the size check before a manuscript is
+#: opened in :mod:`labcairn.papers.feedback`, :mod:`labcairn.papers.replies` and
+#: :mod:`labcairn.papers.revisions`, and the bound an unnamed ``source.read``
+#: approval carries. It lives here because the registry is what all of those
+#: already depend on, and because the number's one real external limit is the
+#: ``le`` just below: an approval argument above that bound is refused at
+#: consent time, so raising the ceiling without checking the ``le`` breaks the
+#: manuscript path rather than the ceiling test.
+#:
+#: **Why 96 MB.** Measured 2026-11-03: the third pilot's late drafts are 71.4 MB
+#: and the 64 MB ceiling refused seven versions of one real manuscript. The
+#: number is anchored to that measurement, and a ceiling that can change is
+#: re-measured rather than carried forward.
+#:
+#: **Witnessed in** ``tests/test_workspace_boundaries.py``: every spelling of the
+#: ceiling is read back and compared to this constant, the source is scanned for
+#: the literal, and ``source.read`` is exercised at the ceiling.
+MAX_SOURCE_READ_BYTES: Final[int] = 96_000_000
+
+
 class FsReadArgs(_Args):
     path: ResourceKey
+
+    #: **A different question from the manuscript ceiling, on purpose.** This is
+    #: the bound on reading back *one artefact the product wrote*, and its
+    #: consumer is :func:`labcairn.application.artifacts.read_artifact`, which
+    #: reads the approved value back and refuses a file larger than it. Joining
+    #: it to ``MAX_SOURCE_READ_BYTES`` would make every artefact read approvable
+    #: at the manuscript ceiling. The difference is held by
+    #: ``test_an_artefact_read_may_not_be_approved_at_the_manuscript_ceiling``, so
+    #: unifying the two is a decision about artefacts rather than a tidy-up.
     max_bytes: int = Field(default=1_000_000, ge=1, le=64_000_000)
 
 
@@ -205,7 +239,23 @@ class FsDeleteArgs(_Args):
 
 class SourceReadArgs(_Args):
     path: ResourceKey
-    max_bytes: int = Field(default=64_000_000, ge=1, le=512_000_000)
+
+    #: The bound a ``source.read`` approval carries. The default **is the
+    #: ceiling**: an approval that names no bound approves exactly the read the
+    #: doors make anyway, which is the only thing an unnamed bound can mean.
+    #: Measured 2026-11-03 — the default was 64 MB, the ceiling 96 MB, and no
+    #: real call site omitted it (the seven ``consent.evaluate`` sites in
+    #: ``papers/`` and ``guidance/`` all pass the ceiling explicitly), so the
+    #: stale default was bound into no digest and stopped nothing. Leaving it
+    #: half the ceiling was the accident waiting to be repeated by the next
+    #: raise, not a live refusal.
+    #:
+    #: ``le`` is the outer bound of what a person may approve *at all*, and so
+    #: answers a third question. The ceiling must stay inside it: every
+    #: manuscript operation passes the ceiling as this argument, and above
+    #: ``le`` the approval is refused at consent time.
+    #: ``test_the_source_read_schema_admits_the_ceiling`` holds that.
+    max_bytes: int = Field(default=MAX_SOURCE_READ_BYTES, ge=1, le=512_000_000)
 
 
 class SourceInventoryArgs(_Args):

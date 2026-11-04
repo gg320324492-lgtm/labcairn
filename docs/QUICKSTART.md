@@ -277,14 +277,13 @@ What the walk then shows, in this order:
    byte-identical afterwards**.
 4. The analysis runs again over the revised bytes and draws a **different**
    figure.
-5. **The report is then rendered again, and the layer refuses**:
-
-   > the report was refused before it could be written as a revision: the
-   > chain names 'materials/measurements.csv' twice with different hashes.
-
-   **So the second revision still rests on the material the claims were read
-   from.** The report's content is not recomputed from the revised bytes.
-   This is a Phase 2 finding, and the acceptance record says why.
+5. **The report is then rendered again, and it succeeds**, as a new revision.
+   The document carries the figure the second run drew over the revised bytes,
+   and the chain names `materials/measurements.csv` under the hash the ledger
+   records now. The old figure stays in the ledger and `v1`'s files do not move.
+   (The report's **claims** are still the records they were read from: the
+   product does not re-extract a record from moved bytes — see
+   [`RELEASE-NOTES.md`](RELEASE-NOTES.md) §2.2.)
 
 ### 4.9 The restart
 
@@ -388,17 +387,28 @@ The run says this in its own output, and the report carries it:
   (`web/src/api/paths.ts`). "The Web and the CLI use the same application
   services" is therefore checked against the client's code, not measured
   between two surfaces.
-- **The event stream was not consumed.** The workbench does not read it, by
-  decision — `web/src/api/paths.ts` says so.
-- **The workbench cannot switch the selected project.** The API has no such
-  operation, so there was nothing to drive.
+- **The event stream was not consumed by the walk.** It was not consumed
+  *then* because the workbench did not read it — a limit closed on 2026-11-02
+  by `37591c7` ([release notes §2.5](RELEASE-NOTES.md)), and the file this
+  bullet used to cite for the omission, `web/src/api/paths.ts`, now says the
+  opposite. **What still holds is the bullet above it: the walk never starts a
+  browser**, so the stream the page reads is witnessed by
+  `web/src/views/EventsView.test.tsx`, not between two surfaces here.
+- **The selected project could not be switched by the walk.** The API had no
+  such operation then; `POST /task/select` closed it in the same commit
+  ([release notes §2.6](RELEASE-NOTES.md)), and the selection is witnessed by
+  `tests/test_api.py` and `tests/test_workbench_live_service.py`, not by this
+  path.
 - **No provider was called.** There is no credential in this repository, so
   the run is made against the repository's own fixtures, with no network call
   to a model.
 - **The claims were written by the walk**, not by the product (§4.7).
-- **The DOCX and the PDF are not byte-reproducible.** Their bytes are
-  compared as stored against served, not across two renders. The report's
-  reproducible forms are Markdown and HTML.
+- **The PDF is not byte-reproducible.** Its bytes are compared as stored
+  against served, not across two renders: a PDF carries the creation date of
+  the render, and the owner decided on 2026-10-20 that its bytes are recorded
+  but not claimed reproducible. The report's reproducible forms are Markdown,
+  HTML and DOCX — the DOCX's entries are stamped with the report's own
+  `as_of`.
 
 ---
 

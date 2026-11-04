@@ -12,6 +12,15 @@ The junction tests are the reason this file exists. ``Path.is_symlink()`` return
 ``False`` for a Windows directory junction — verified, not assumed — so an
 ``is_symlink``-based guard walks past one and the containment check on the
 *resolved* path is the only thing that catches it.
+
+**The two platforms are tested for their own semantics, not one for both.**
+Windows has case-insensitive names, trailing-dot aliases and alternate data
+streams; POSIX has case-sensitive names, ``:`` as an ordinary character, and
+neither aliases nor streams. A POSIX run that only exercised the Windows
+spellings would skip most of this file and still look green, which is why the
+POSIX branches below are witnesses in their own right: ``report.txt.`` and
+``report.txt`` are asserted to be *different files* on POSIX, where the Windows
+test asserts they are the same file.
 """
 
 from __future__ import annotations
@@ -36,6 +45,7 @@ pytestmark = pytest.mark.negative
 
 IS_WINDOWS = os.name == "nt"
 requires_windows = pytest.mark.skipif(not IS_WINDOWS, reason="Windows path semantics")
+requires_posix = pytest.mark.skipif(IS_WINDOWS, reason="POSIX path semantics")
 
 
 def make_junction(link: Path, target: Path) -> None:
@@ -52,6 +62,21 @@ def make_junction(link: Path, target: Path) -> None:
     )
     if proc.returncode != 0:
         pytest.skip(f"mklink /J unavailable: {proc.stderr.decode('utf-8', 'replace')}")
+
+
+def make_symlink(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    """Create a symbolic link, or skip where the OS forbids it.
+
+    Unlike a junction, a symlink *is* what ``Path.is_symlink()`` reports, so it
+    is not the Windows bypass this file is built around. It is the POSIX
+    equivalent of the resolved-path escape, and it is also a Windows hazard
+    when it can be created. The skip is named — a platform that cannot create
+    one has not tested the property, and the record says so.
+    """
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:  # pragma: no cover - depends on OS policy
+        pytest.skip(f"symlinks unavailable here: {exc}")
 
 
 @pytest.fixture
@@ -162,14 +187,14 @@ def test_windows_drive_path_is_refused_on_posix(
     """A Windows drive path is not absolute on POSIX.
 
     ``C:/Windows/...`` is a *relative* name on Linux — it has no leading
-    separator — so the refusal has to be whatever the right answer is there,
-    which today is the alternate-data-stream rule firing on the drive colon.
+    separator — and its colon is an ordinary filename character there. It is
+    refused because a ``ResourceKey`` cannot carry that colon, not because
+    POSIX has data streams.
 
     The safety property under test is **refused**, not *which rule refused*:
-    a segment containing ``:`` is refused everywhere, and the drive form is
-    refused as a path outside the roots on Windows. Asserting a single
-    rejection reason across both platforms would be asserting a platform
-    accident.
+    the spelling is refused everywhere, and the drive form is refused as a
+    path outside the roots on Windows. Asserting a single rejection reason
+    across both platforms would be asserting a platform accident.
     """
     _, bound = roots
     with pytest.raises(PathRefusedError):
@@ -184,8 +209,8 @@ def test_absolute_path_outside_every_root_is_refused(
     The path is platform-appropriate: a POSIX absolute path on POSIX, a drive
     path on Windows. Using one form on both was how this test passed locally on
     Windows and failed on Ubuntu — ``C:/...`` is relative there, so the drive
-    colon tripped the ADS rule instead of the containment rule, and the test
-    asserted a reason that was correct for the wrong platform.
+    colon was refused for a spelling reason instead of the containment rule,
+    and the test asserted a reason that was correct for the wrong platform.
     """
     _, bound = roots
     absolute = "C:/Windows/System32/drivers/etc/hosts" if os.name == "nt" else "/etc/passwd"
@@ -293,7 +318,6 @@ def test_unicode_normalisation_does_not_change_the_stored_key(
     assert canonical.resolved_key == composed
 
 
-@requires_windows
 def test_invisible_unicode_characters_are_refused(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
@@ -305,7 +329,6 @@ def test_invisible_unicode_characters_are_refused(
         assert caught.value.rejection is PathRejection.INVISIBLE_CHARACTER
 
 
-@requires_windows
 def test_nul_byte_is_refused(roots: tuple[Path, tuple[AllowedRoot, ...]]) -> None:
     _, bound = roots
     with pytest.raises(PathRefusedError) as caught:
@@ -581,13 +604,12 @@ def test_junction_escaping_the_root_is_refused(
     assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT
 
 
-@requires_windows
 def test_symlink_escaping_the_root_is_refused(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
     allowed, bound = roots
     outside = allowed.parent / "outside" / "target.txt"
-    (allowed / "sub" / "alias.txt").symlink_to(outside)
+    make_symlink(allowed / "sub" / "alias.txt", outside)
     assert (allowed / "sub" / "alias.txt").is_symlink()
 
     with pytest.raises(PathRefusedError) as caught:
@@ -595,14 +617,13 @@ def test_symlink_escaping_the_root_is_refused(
     assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT
 
 
-@requires_windows
 def test_symlinked_parent_directory_mid_path_is_refused(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
     """The link is in a *middle* segment, so only full resolution finds it."""
     allowed, bound = roots
     outside = allowed.parent / "outside"
-    (allowed / "sub" / "hop").symlink_to(outside, target_is_directory=True)
+    make_symlink(allowed / "sub" / "hop", outside, target_is_directory=True)
 
     with pytest.raises(PathRefusedError) as caught:
         canonicalize(allowed / "sub" / "hop" / "target.txt", bound)
@@ -628,7 +649,6 @@ def test_junction_pointing_back_inside_the_root_is_admitted(
     assert canonical.real_path == allowed / "sub" / "inner.txt"
 
 
-@requires_windows
 def test_both_spellings_are_reported_so_policy_can_match_each(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
@@ -640,7 +660,7 @@ def test_both_spellings_are_reported_so_policy_can_match_each(
     """
     allowed, bound = roots
     link = allowed / "alias.txt"
-    link.symlink_to(allowed / "secret.txt")
+    make_symlink(link, allowed / "secret.txt")
 
     canonical = canonicalize(link, bound)
     assert canonical.declared_key == "alias.txt"
@@ -648,7 +668,6 @@ def test_both_spellings_are_reported_so_policy_can_match_each(
     assert canonical.declared_key != canonical.resolved_key
 
 
-@requires_windows
 def test_symlink_loop_is_refused_rather_than_crashing(
     roots: tuple[Path, tuple[AllowedRoot, ...]],
 ) -> None:
@@ -701,6 +720,213 @@ def test_case_variant_cannot_escape_a_case_insensitive_check(
     allowed, bound = roots
     canonical = canonicalize(allowed / "SECRET.TXT", bound)
     assert canonical.resolved_key == "secret.txt"
+
+
+# ---------------------------------------------------------------------------
+# The resource-key character set
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["draft?.txt", "draft*.txt"])
+def test_star_and_question_mark_cannot_be_resource_keys(
+    roots: tuple[Path, tuple[AllowedRoot, ...]], name: str
+) -> None:
+    """``*`` and ``?`` are excluded from ``ResourceKey`` on every platform.
+
+    On POSIX they are ordinary filename characters; on Windows neither is a
+    legal filename character at all. The key is a cross-platform identity, so
+    a spelling carrying either is refused for the key's character set — the
+    same reason a POSIX colon is refused, and not a Windows alias rule.
+    """
+    _, bound = roots
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(name, bound)
+    assert caught.value.rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
+
+
+# ---------------------------------------------------------------------------
+# POSIX semantics
+#
+# These are not "the Windows tests again". Each one asserts the behaviour the
+# POSIX filesystem actually has, where the Windows test asserts the opposite
+# or skips: case-sensitive names, an ordinary `:`, trailing dots and spaces
+# that are not aliases, backslashes that are not namespace prefixes, and `..`
+# applied after the link is followed. They are the half no Windows run can
+# witness.
+# ---------------------------------------------------------------------------
+
+
+@requires_posix
+def test_posix_case_variants_are_two_resources(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """POSIX is case-sensitive, so ``Case.txt`` and ``case.txt`` are two files.
+
+    The guard must follow the filesystem, not fold the spelling. The distinct
+    inodes are asserted first, so the two keys are known to name two real
+    files rather than one file under two spellings.
+    """
+    allowed, bound = roots
+    upper = allowed / "Case.txt"
+    lower = allowed / "case.txt"
+    upper.write_text("upper", encoding="utf-8")
+    lower.write_text("lower", encoding="utf-8")
+    assert upper.stat().st_ino != lower.stat().st_ino, (
+        "POSIX is case-sensitive; if these were one file the key assertions "
+        "below would not be testing what they claim"
+    )
+
+    upper_canonical = canonicalize(upper, bound)
+    lower_canonical = canonicalize(lower, bound)
+
+    assert upper_canonical.resolved_key == "Case.txt"
+    assert lower_canonical.resolved_key == "case.txt"
+    assert upper_canonical.resolved_key != lower_canonical.resolved_key
+    assert upper_canonical.real_path != lower_canonical.real_path
+
+
+@requires_posix
+def test_posix_colon_is_not_alternate_data_stream(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``notes:draft.txt`` is an ordinary POSIX file, not an NTFS stream.
+
+    The hazard does not exist here — the file is created and read back — so
+    the refusal must not name it. A resource key still cannot carry ``:``
+    (the same key could not name the same file on Windows), and that is the
+    reason the guard gives.
+    """
+    allowed, bound = roots
+    colon = allowed / "notes:draft.txt"
+    colon.write_text("colon", encoding="utf-8")
+    assert colon.is_file()
+    assert colon.read_text(encoding="utf-8") == "colon"
+
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(colon, bound)
+    # The second assertion is the one this test exists for. It compares the
+    # *value* because after the first assertion mypy narrows the enum to a
+    # single member and calls an enum-to-enum comparison one that cannot
+    # overlap; the string it names is what must not be the reason given.
+    rejection = caught.value.rejection
+    assert rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
+    assert rejection.value != PathRejection.ALTERNATE_DATA_STREAM.value
+
+
+@requires_posix
+def test_posix_trailing_dot_and_space_are_ordinary_names(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``report.txt.`` and ``report.txt `` are files of their own on POSIX.
+
+    Win32 strips the trailing character and aliases the clean name; POSIX
+    stores it. The three inodes are asserted distinct before the keys are, so
+    a pass cannot come from the filesystem aliasing them.
+    """
+    allowed, bound = roots
+    plain = allowed / "report.txt"
+    dotted = allowed / "report.txt."
+    spaced = allowed / "report.txt "
+    for path, text in ((plain, "plain"), (dotted, "dotted"), (spaced, "spaced")):
+        path.write_text(text, encoding="utf-8")
+    inodes = {plain.stat().st_ino, dotted.stat().st_ino, spaced.stat().st_ino}
+    assert len(inodes) == 3, "POSIX must store these as three distinct files"
+
+    assert canonicalize(dotted, bound).resolved_key == "report.txt."
+    assert canonicalize(spaced, bound).resolved_key == "report.txt "
+    assert canonicalize(plain, bound).resolved_key == "report.txt"
+
+
+@requires_posix
+@pytest.mark.parametrize(
+    "raw",
+    ["\\\\?\\E:\\temp\\x", "\\\\.\\PhysicalDrive0", "\\\\server\\share\\x"],
+)
+def test_posix_windows_namespace_spellings_are_not_namespaces(
+    roots: tuple[Path, tuple[AllowedRoot, ...]], raw: str
+) -> None:
+    """A backslash is a filename character on POSIX, not a namespace marker.
+
+    The spellings are still refused, because a ``ResourceKey`` cannot carry a
+    backslash — the same key could not name the same file on Windows — but the
+    refusal must not claim ``EXTENDED_LENGTH_PREFIX``, ``DEVICE_NAMESPACE`` or
+    ``REMOTE_ROOT``: none of those exists on this platform.
+    """
+    _, bound = roots
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(raw, bound)
+    rejection = caught.value.rejection
+    assert rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
+    assert rejection.value not in {
+        PathRejection.EXTENDED_LENGTH_PREFIX.value,
+        PathRejection.DEVICE_NAMESPACE.value,
+        PathRejection.REMOTE_ROOT.value,
+    }
+
+
+@requires_posix
+def test_posix_star_and_question_mark_are_ordinary_characters(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``draft?.txt`` and ``draft*.txt`` are real POSIX files, not globs.
+
+    They are refused for the key character set, not because the guard expanded
+    them as patterns. The files are created and read back first, so the test
+    cannot pass because the name failed to resolve.
+    """
+    allowed, bound = roots
+    for name in ("draft?.txt", "draft*.txt"):
+        path = allowed / name
+        path.write_text("ordinary", encoding="utf-8")
+        assert path.is_file(), "POSIX stores '?' and '*' literally"
+
+        with pytest.raises(PathRefusedError) as caught:
+            canonicalize(path, bound)
+        assert caught.value.rejection is PathRejection.UNREPRESENTABLE_KEY_CHARACTER
+
+
+@requires_posix
+def test_posix_double_slash_is_an_absolute_path_not_a_remote_root(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``//server/share/x`` is a POSIX absolute path, not a UNC root.
+
+    POSIX permits an implementation-defined meaning for a leading ``//``; on
+    Linux it resolves to ``/server/share/x``. That is outside every bound root,
+    which is the refusal — and it is ``OUTSIDE_EVERY_ROOT`` rather than
+    ``REMOTE_ROOT`` because no other machine is involved.
+    """
+    _, bound = roots
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize("//server/share/x", bound)
+    assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT
+
+
+@requires_posix
+def test_posix_dotdot_is_resolved_after_the_symlink(
+    roots: tuple[Path, tuple[AllowedRoot, ...]],
+) -> None:
+    """``hop/..`` follows the link first, so the result is outside the root.
+
+    The lexical collapse of ``allowed/hop/..`` is ``allowed``, which is inside;
+    only resolving the link first (``outside/..`` = the parent of ``outside``)
+    reveals the escape. This is the POSIX ``..`` rule and the reason the
+    containment check runs on the resolved path.
+    """
+    allowed, bound = roots
+    outside = allowed.parent / "outside"
+    make_symlink(allowed / "hop", outside, target_is_directory=True)
+
+    declared = allowed / "hop" / ".." / "outside" / "target.txt"
+    lexical = Path(os.path.normpath(str(declared)))
+    assert lexical.is_relative_to(allowed), "lexically this spelling is inside"
+    assert not declared.resolve().is_relative_to(allowed), (
+        "resolving the link first must land outside; if it does not, this "
+        "fixture is not testing the POSIX `..` rule"
+    )
+    with pytest.raises(PathRefusedError) as caught:
+        canonicalize(declared, bound)
+    assert caught.value.rejection is PathRejection.OUTSIDE_EVERY_ROOT
 
 
 # ---------------------------------------------------------------------------

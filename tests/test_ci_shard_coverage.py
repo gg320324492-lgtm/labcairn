@@ -38,11 +38,14 @@ platform is lopsided on the other, so each platform gets its own.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Final
 
 import pytest
 import yaml
+from evaluation import manifest
 
 #: The shard file, next to the workflow that uses it.
 SHARD_FILE: Final[Path] = Path(".github") / "ci-shards.json"
@@ -524,8 +527,6 @@ def _changed_paths(repo_root: Path, since: str) -> list[str]:
     reason is in the test above: they are where the measurement is recorded,
     and they are the things a rebalance changes.
     """
-    import subprocess
-
     excluded = ("--", "src/", "tests/")
     proc = subprocess.run(
         [
@@ -623,3 +624,357 @@ def test_both_platforms_run_the_same_tests(repo_root: Path, platform: str) -> No
         f"only on ubuntu {sorted(sets[0] - sets[1])}, "
         f"only on windows {sorted(sets[1] - sets[0])}"
     )
+
+
+def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
+    repo_root: Path,
+) -> None:
+    """The evaluation harness is in CI without making a pull request red.
+
+    **The property.** A job named ``evaluation`` runs
+    ``python -m tests.evaluation`` over **exactly** the classes the harness
+    can run offline, on a schedule event only. The fifth protocol class is
+    named nowhere in the command: it cannot run offline, and the owner's
+    2026-10-28 ruling gives it a different workflow (``provider-smoke.yml``).
+
+    **Why the class list is computed and not spelled.** The offline set is
+    ``manifest.OFFLINE_CLASSES``; a second literal in the workflow would
+    drift from it. The list must not be shortened either: a blocker is held
+    only when every one of its witnesses was collected and passed, and the
+    witnesses span all five offline classes. ``--classes unit`` passed
+    1789/1789 and still exited 1, because five of the six blockers became
+    NOT_EVALUATED; that was measured on 2026-11-03.
+
+    **Why the trigger and the guards are watched.** The five classes cost
+    1450.0 s on an Ubuntu runner at ``49e81f2`` (the costs in
+    ``.github/ci-shards.json``), so a pull-request job would add about ten
+    minutes to the wall clock on top of the ten shard jobs that already run
+    the same files. A schedule that also ran ``lint`` and the ten shards
+    would multiply the cost instead of moving it. The guards on those jobs
+    are part of the property, not incidental.
+
+    **What this cannot watch.** GitHub fires a schedule only from the
+    default branch, and branch protection is configured outside the
+    repository. The test can watch what the workflow offers; it cannot watch
+    what GitHub does with it.
+    """
+    workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
+
+    # PyYAML reads the YAML 1.1 bare `on` as the boolean True.
+    triggers = workflow.get("on", workflow.get(True))
+    assert isinstance(triggers, dict), "the workflow has no trigger mapping"
+    assert "schedule" in triggers, (
+        "the evaluation job is gated on a schedule event, and the workflow "
+        "declares no schedule trigger"
+    )
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    assert "evaluation" in jobs, "the workflow has no evaluation job"
+    job = jobs["evaluation"]
+    assert isinstance(job, dict)
+    assert job.get("name") == "evaluation", (
+        "the evaluation job's check name is not exactly `evaluation`; branch "
+        "protection identifies a check by its name"
+    )
+    assert job.get("if") == "${{ github.event_name == 'schedule' }}", (
+        "the evaluation job does not say it runs only on the schedule event"
+    )
+    assert job.get("runs-on") == "ubuntu-latest", (
+        "the evaluation job must run on one Ubuntu runner; the five classes "
+        "cost about 72 minutes on Windows against about 24 on Ubuntu"
+    )
+    assert "strategy" not in job, "the evaluation job must not have a matrix"
+
+    offline = [key for key, (runnable, _) in manifest.OFFLINE_CLASSES.items() if runnable]
+    expected = "--classes " + ",".join(offline)
+    commands = [
+        str(step.get("run", ""))
+        for step in job["steps"]
+        if isinstance(step, dict) and "run" in step
+    ]
+    harness = [command for command in commands if "python -m tests.evaluation" in command]
+    assert len(harness) == 1, (
+        "the evaluation job must run the harness exactly once, "
+        f"and it runs it {len(harness)} time(s)"
+    )
+    command = harness[0]
+    assert expected in command, (
+        f"the harness command does not select the offline classes: {expected!r} "
+        f"is not in {command!r}"
+    )
+    assert "real_model_smoke" not in command, (
+        "the harness command names the fifth protocol class, which cannot run "
+        "offline; provider-smoke.yml is its ruled shape"
+    )
+    assert '--out "$RUNNER_TEMP/evaluation-report"' in command, (
+        "the harness report must be written to the directory the artifact "
+        "step uploads, under the runner's temp and outside the checkout"
+    )
+
+    uploads = [
+        step
+        for step in job["steps"]
+        if isinstance(step, dict) and "upload-artifact" in str(step.get("uses", ""))
+    ]
+    assert len(uploads) == 1, (
+        f"the evaluation job must upload its report exactly once, and it uploads {len(uploads)}"
+    )
+    upload = uploads[0]
+    assert upload.get("if") == "always()", (
+        "the report must be uploaded whether the harness passed or failed; "
+        "a failed run is exactly when the blocker table is read"
+    )
+    settings = upload["with"]
+    assert settings["path"] == "${{ runner.temp }}/evaluation-report", (
+        "the artifact path is not the harness report directory under the "
+        "runner's temp; a path over the checkout could sweep the tree into a "
+        "downloadable bundle"
+    )
+
+    for guarded in ("lint", "python-quality"):
+        guard = str(jobs[guarded].get("if", ""))
+        assert "github.event_name != 'schedule'" in guard, (
+            f"{guarded} would also run on the schedule event, so a scheduled "
+            "run would spend thirteen jobs instead of one"
+        )
+
+    names = [str(entry.get("name", "")) for entry in jobs.values()]
+    assert len(names) == len(set(names)), (
+        f"two jobs share a check name, and branch protection cannot tell them apart: {names}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The re-measurement tool, watched
+# ---------------------------------------------------------------------------
+#
+# ``.github/remeasure_shards.py`` turns a CI run's durations section into the
+# per-file costs the checks above balance against. Until this witness existed,
+# nothing under ``tests/`` mentioned either shard tool: the checks above watch
+# the shape of the result, and a parser that read a number off the wrong line
+# would leave every one of them green.
+#
+# The witness runs the tool against a **copied mini-repo** in ``tmp_path``.
+# The tool derives ``REPO_ROOT``, ``SHARD_FILE`` and ``TESTS`` from
+# ``__file__``, so the copy moves all three at once. The checkout's real table
+# is captured before and after as well, so the test is provably unable to
+# write the artefact it guards.
+
+#: The two scripts a re-measurement is made of.
+REMEASURE_SCRIPTS: Final[tuple[str, ...]] = ("remeasure_shards.py", "make_ci_shards.py")
+
+#: The commit the synthetic logs were "measured at". The tool writes it
+#: through; whether the checkout contains it is not part of this contract.
+MEASURED_AT: Final[str] = "0123456789abcdef0123456789abcdef01234567"
+
+#: The mini tree's test files and their ``def test_`` counts. Only gamma (1)
+#: and delta (3) matter to the arithmetic: they are absent from the logs, so
+#: their weights split the residual 1:3.
+MINI_TEST_FILES: Final[dict[str, int]] = {
+    "test_alpha.py": 3,
+    "test_beta.py": 2,
+    "test_gamma.py": 1,
+    "test_delta.py": 3,
+}
+
+#: A synthetic ``--durations=0`` section whose arithmetic a reader can check.
+#: Alpha is ``1.00 + 0.10 + 0.05 + 2.85 = 4.00`` (all three phases), beta is
+#: ``0.60 + 0.40 = 1.00`` (``setup`` and ``teardown`` only, no ``call``
+#: line), and the summary says 13.00s, so the two unlogged files share 8.00s.
+UBUNTU_JOB_LOG: Final[str] = """\
+1.00s call     tests/test_alpha.py::test_one
+0.10s setup    tests/test_alpha.py::test_one
+0.05s teardown tests/test_alpha.py::test_one
+2.85s call     tests/test_alpha.py::test_two
+0.60s setup    tests/test_beta.py::test_one
+0.40s teardown tests/test_beta.py::test_one
+===== 9 passed, 1116 warnings in 13.00s =====
+"""
+
+#: The Windows log names three files and omits gamma, which is therefore the
+#: only file the residual reaches: ``12.00 - 6.00 = 6.00``.
+WINDOWS_JOB_LOG: Final[str] = """\
+3.00s call     tests/test_alpha.py::test_one
+1.00s setup    tests/test_beta.py::test_one
+2.00s call     tests/test_delta.py::test_one
+===== 5 passed, 10 warnings in 12.00s =====
+"""
+
+
+def _write_mini_checkout(repo_root: Path, destination: Path) -> Path:
+    """A copied checkout: the two tools, a tiny ``tests/`` tree, a shard file.
+
+    **Why a copy and not a ``--shard-file`` argument.** The tool resolves
+    ``REPO_ROOT``, ``SHARD_FILE`` and ``TESTS`` from ``__file__``. Moving only
+    the output would leave ``_test_files()`` and the missing-file weights
+    reading the real ``tests/`` tree, so the expected arithmetic would depend
+    on the repository's own corpus and could not be checked by hand. A copy
+    moves all three at once, and needs no change to the tool.
+
+    The tools are copied **byte for byte**, so a mutation applied to the
+    checkout's copy is the version the witness runs.
+    """
+    tools = destination / ".github"
+    tools.mkdir(parents=True)
+    (destination / "tests").mkdir()
+    for script in REMEASURE_SCRIPTS:
+        (tools / script).write_bytes((repo_root / ".github" / script).read_bytes())
+    for name, count in MINI_TEST_FILES.items():
+        source = "".join(
+            f"def test_{index}() -> None:\n    assert True\n\n" for index in range(count)
+        )
+        (destination / "tests" / name).write_text(source, encoding="utf-8")
+    (tools / "ci-shards.json").write_text(
+        json.dumps(
+            {
+                "measured_at": None,
+                "shards": {platform: [[], [], [], []] for platform in PLATFORMS},
+                "costs": {},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return destination
+
+
+def _write_job_logs(directory: Path, logs: dict[str, str]) -> Path:
+    """Write job logs under stems that name their platform.
+
+    ``--from`` derives the platform from the file stem by substring, so the
+    stem must contain ``ubuntu-latest`` or ``windows-latest``.
+    """
+    directory.mkdir()
+    for stem, body in logs.items():
+        (directory / f"{stem}.log").write_text(body, encoding="utf-8")
+    return directory
+
+
+def _run_remeasure(
+    checkout: Path, logs: Path, measured_at: str | None
+) -> subprocess.CompletedProcess[str]:
+    """Run the copied tool through ``--from``; never with a run id (no network)."""
+    command = [
+        sys.executable,
+        str(checkout / ".github" / "remeasure_shards.py"),
+        "--from",
+        str(logs),
+    ]
+    if measured_at is not None:
+        command.extend(["--measured-at", measured_at])
+    return subprocess.run(command, capture_output=True, text=True, check=False)
+
+
+def test_the_remeasurement_reads_the_numbers_out_of_the_logs(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """The tool's contract, on a log whose arithmetic a reader can check.
+
+    **What is watched.** A tool that turns a log into the numbers the shard
+    partition is balanced against has no witness unless a wrong number fails
+    one. This fixture's numbers are round and small enough to verify in the
+    head:
+
+    * **All three phases count.** Alpha's Ubuntu cost is
+      ``1.00 + 0.10 + 0.05 + 2.85 = 4.00``. A parser that read only the
+      ``call`` line would say 3.85. (The work order described the contract as
+      "the call line"; the code sums ``call``, ``setup`` and ``teardown``,
+      and the witness asserts what the code does.)
+    * **A file with no ``call`` line is not zero.** Beta's Ubuntu lines are
+      ``setup`` and ``teardown`` only, and its cost is 1.00.
+    * **The summary line is read and the residual is apportioned.** Ubuntu's
+      summary is 13.00s against 5.00s of visible files, so the files in no
+      log share 8.00s. Their weights are their ``def test_`` counts, gamma 1
+      and delta 3, which is 2.00 and 6.00.
+    * **``measured_at`` lands as the commit passed.**
+    * **A file in ``tests/`` but in no log is apportioned, not dropped** —
+      gamma and delta are both present in the costs, and the partition the
+      tool rebuilds contains every mini test file exactly once.
+
+    **What it cannot watch.** The numbers are synthetic: this says the parser
+    reads the log it is given, not that a runner's log has this shape.
+    """
+    checkout = _write_mini_checkout(repo_root, tmp_path / "checkout")
+    logs = _write_job_logs(
+        tmp_path / "logs",
+        {
+            "python-quality-ubuntu-latest-0": UBUNTU_JOB_LOG,
+            "python-quality-windows-latest-3": WINDOWS_JOB_LOG,
+        },
+    )
+    real_table = repo_root / SHARD_FILE
+    real_before = real_table.read_bytes()
+
+    proc = _run_remeasure(checkout, logs, MEASURED_AT)
+
+    assert real_table.read_bytes() == real_before, (
+        "the witness wrote the checkout's real shard table; the tool must run "
+        "against the copied checkout only"
+    )
+    assert proc.returncode == 0, f"the tool failed: {proc.stderr}"
+
+    table = checkout / ".github" / "ci-shards.json"
+    document: dict[str, Any] = json.loads(table.read_text(encoding="utf-8"))
+    assert document["measured_at"] == MEASURED_AT
+    assert document["costs"] == {
+        "ubuntu-latest": {
+            "test_alpha.py": 4.00,
+            "test_beta.py": 1.00,
+            "test_delta.py": 6.00,
+            "test_gamma.py": 2.00,
+        },
+        "windows-latest": {
+            "test_alpha.py": 3.00,
+            "test_beta.py": 1.00,
+            "test_delta.py": 2.00,
+            "test_gamma.py": 6.00,
+        },
+    }
+
+    for platform in PLATFORMS:
+        shards = document["shards"][platform]
+        assert len(shards) == 4, f"{platform} no longer has four shards: {len(shards)}"
+        placed = sorted(name for shard in shards for name in shard)
+        assert placed == sorted(f"tests/{name}" for name in MINI_TEST_FILES), (
+            "the tool wrote the costs but did not rebuild the partition from "
+            f"them: {platform} places {placed}"
+        )
+
+
+def test_the_remeasurement_refuses_to_write_a_table_it_could_not_measure(
+    repo_root: Path, tmp_path: Path
+) -> None:
+    """No commit, or no durations, means no write.
+
+    **Why both refusals.** The table is what the partition is balanced
+    against, and a table of zeros is worse than no table: every check stays
+    green while ten CI jobs are balanced against nothing. The tool's own
+    docstring records that this happened once and the table had to be
+    restored from git.
+
+    **The real table is checked too.** The run happens in a copied checkout,
+    and both that checkout's bytes and the real checkout's bytes are compared
+    before and after, so the test is provably unable to touch the artefact it
+    guards.
+    """
+    checkout = _write_mini_checkout(repo_root, tmp_path / "checkout")
+    logs = _write_job_logs(tmp_path / "logs", {"python-quality-ubuntu-latest-0": UBUNTU_JOB_LOG})
+    table = checkout / ".github" / "ci-shards.json"
+    real_table = repo_root / SHARD_FILE
+    before = table.read_bytes()
+    real_before = real_table.read_bytes()
+
+    without_commit = _run_remeasure(checkout, logs, None)
+    assert without_commit.returncode == 2, without_commit.stderr
+    assert "--measured-at" in without_commit.stderr
+    assert table.read_bytes() == before
+
+    # Only Ubuntu logs exist, so Windows measures nothing. Writing the table
+    # anyway would record a platform of zeros.
+    without_windows = _run_remeasure(checkout, logs, MEASURED_AT)
+    assert without_windows.returncode == 1, without_windows.stderr
+    assert "Nothing was written" in without_windows.stderr
+    assert table.read_bytes() == before
+    assert real_table.read_bytes() == real_before

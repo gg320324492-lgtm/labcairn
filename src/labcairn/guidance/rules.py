@@ -44,16 +44,54 @@ from typing import Final
 
 from labcairn.application import guidance as guidance_layer
 from labcairn.application.context import ApplicationContext
-from labcairn.application.refusal import guidance_refused
+from labcairn.application.refusal import (
+    ApplicationRefusal,
+    ApplicationRefusedError,
+    guidance_refused,
+)
 from labcairn.guidance.models import GuidanceRule, RuleCounterexample
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.papers.labels import ISSUE_LABELS
 
 
-def _rule_id(issue_type: str, statement: str, proposed_by: str, now: datetime) -> str:
-    """Caller-visible identity, derived from what the rule says and who said it."""
-    material = f"{issue_type}|{statement}|{proposed_by}|{now.isoformat()}"
-    return f"rule-{hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]}"
+def _draft_digest(*fields: str) -> str:
+    """The digest of an ordered list of fields — injective, and independent of the clock.
+
+    **Why length-prefixed and not ``"|".join``.** A bare separator is not an
+    encoding: a statement that happens to contain the separator shifts the
+    field boundary, and two drafts that are *not* the same proposal can hash
+    the same. Prefixing every field with its own length makes the byte string
+    unique to the field list, so the identity is a function of the draft and
+    of nothing the draft does not say.
+    """
+    material = "".join(f"{len(field)}:{field}" for field in fields)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _rule_id(
+    issue_type: str,
+    statement: str,
+    rule_context: str,
+    scope: str,
+    example: str,
+    proposed_by: str,
+    sources: Sequence[str],
+) -> str:
+    """Caller-visible identity, derived from the whole draft — and from no instant.
+
+    **The identity names the proposal, not the moment it was proposed.** The
+    digest folds every field the draft carries — the problem, the statement,
+    its context, its scope, its example, the proposer, and the chain material
+    it is bound to — so re-running one proposal is the same row without anyone
+    inventing a timestamp, and ``proposed_at`` is free to be the real clock.
+    The instant used to be folded in; that made two runs of one proposal two
+    ids answering one question, which is the failure the fixed instant in
+    ``LC-P2-11-check-binding`` was bought to prevent.
+    """
+    digest = _draft_digest(
+        issue_type, statement, rule_context, scope, example, proposed_by, *sources
+    )
+    return f"rule-{digest}"
 
 
 def _validated_fields(
@@ -131,6 +169,31 @@ def _validated_checks(context: ApplicationContext, checks: Sequence[str]) -> tup
     return named
 
 
+def _write_rule_version_idempotent(
+    context: ApplicationContext, draft: guidance_layer.RuleDraft
+) -> GuidanceRule:
+    """Write a rule version, or return the row the identity already names.
+
+    **This is what makes a re-run one row.** The id is derived from the draft
+    and from no instant, so proposing the same words twice produces the same
+    id — and a second write against that id would collide with the primary key
+    rather than land on the row. So the door reads first: if an id is already
+    in the memory, it returns the rule as the memory holds it (at its highest
+    version), and writes nothing. **A memory that rewrites its past is not a
+    memory, and a memory that duplicates its past answers one question twice**
+    — this is the failure the fixed instant used to be bought to prevent, and
+    deriving the id from the draft prevents it instead.
+    """
+    try:
+        existing = guidance_layer.read_guidance_rule(context, rule_id=draft.rule_id)
+    except ApplicationRefusedError as refused:
+        if refused.reason is not ApplicationRefusal.GUIDANCE_RULE_NOT_FOUND:
+            raise
+    else:
+        return existing
+    return guidance_layer.write_guidance_rule_version(context, draft)
+
+
 def propose_rule(
     context: ApplicationContext,
     *,
@@ -172,10 +235,12 @@ def propose_rule(
         sources=sources,
     )
     named = _validated_checks(context, checks)
-    rule = guidance_layer.write_guidance_rule_version(
+    rule = _write_rule_version_idempotent(
         context,
         guidance_layer.RuleDraft(
-            rule_id=_rule_id(issue_type, statement, proposed_by, now),
+            rule_id=_rule_id(
+                issue_type, statement, rule_context, scope, example, proposed_by, sources
+            ),
             version=1,
             issue_type=issue_type,
             statement=statement,

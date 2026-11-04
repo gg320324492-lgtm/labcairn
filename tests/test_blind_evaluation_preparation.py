@@ -16,9 +16,20 @@ every leak shape the protocol names and watch each one come back named.
 
 from __future__ import annotations
 
+import importlib.util
+import json
+from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
+from uuid import UUID
 
 import pytest
+from evaluation import blind_rating_closeout as closeout
+from evaluation import blind_runner
 from evaluation.arms import (
     ARM_IDS,
     EXPECTED_INPUTS,
@@ -56,6 +67,11 @@ from evaluation.split_check import (
     check_case,
     check_split,
 )
+
+from labcairn.core.providers.protocol import ModelRequest, UsageReport
+from labcairn.core.providers.usage import Known
+from labcairn.providers.budget import RunBudget
+from labcairn.providers.credentials import Protocol, ProviderSettings
 
 pytestmark = pytest.mark.unit
 
@@ -880,3 +896,905 @@ class TestContrastReport:
         rendered = render_report(report)
         assert rendered.count("SIGNIFICANT") == len(DIMENSIONS)
         assert "not a phase gate" in rendered
+
+
+@lru_cache(maxsize=1)
+def _cli_module() -> ModuleType:
+    """The executable entry point, loaded once for the command-line witnesses."""
+    path = Path(__file__).resolve().parent.parent / "scripts" / "run_blind_evaluation.py"
+    spec = importlib.util.spec_from_file_location("run_blind_evaluation_for_tests", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_case_set(directory: Path) -> Path:
+    """Write the dry run's synthetic case set as a real-mode input file."""
+    path = directory / "cases.json"
+    document = {"cases": [case.to_document() for case in blind_runner.synthetic_cases()]}
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _write_approvals(directory: Path, *, count: int) -> Path:
+    """Write owner approval records, one per request."""
+    path = directory / "approvals.json"
+    document = {
+        "approvals": [
+            {
+                "approval_id": str(UUID(int=index + 1)),
+                "capability": "model.request",
+                "root_id": "task",
+                "resource_key": "output",
+                "arguments": {},
+            }
+            for index in range(count)
+        ]
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _provider_settings() -> ProviderSettings:
+    """Settings that construct without I/O; no credential is read until build_model."""
+    return ProviderSettings(protocol=Protocol.OPENAI, model="test-model, params fixed")
+
+
+class _Consent:
+    """A consent port that grants everything, for the refusal tests.
+
+    The tests that use it stop before a provider is built, so nothing is sent.
+    """
+
+    def require(self, request: ModelRequest) -> None:
+        return None
+
+
+class _Capture:
+    """A usage capture that reports a measured count, for the refusal tests."""
+
+    def observe(self, body: Mapping[str, object]) -> None:
+        return None
+
+    def report(self) -> UsageReport:
+        return UsageReport(input_tokens=Known(1), output_tokens=Known(1))
+
+
+class TestTheRunDriver:
+    """The driver's two modes, and the line between them.
+
+    The dry run's witnesses hold three things at once: the whole pipeline runs,
+    every request lands on the stub, and the record claims no model. The real
+    witnesses hold the boundary that makes a real run the owner's: no consent,
+    no ceiling, no capture, no provider — and a real run that has finished its
+    requests **stops at awaiting ratings** rather than inventing a comparison.
+    """
+
+    def test_a_dry_run_never_constructs_a_provider(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every request lands on the stub; the real-provider path is never entered."""
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the dry run tried to construct a real provider")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        summary = blind_runner.run_dry(out_dir=tmp_path)
+        assert summary.provider_calls == 0
+        assert summary.stub_calls == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        assert {artifact.provider for artifact in summary.artifacts} == {
+            blind_runner.DRY_RUN_PROVIDER
+        }
+        assert summary.model == ""
+
+    def test_a_dry_run_writes_the_shapes_the_scoring_stage_reads(self, tmp_path: Path) -> None:
+        """Artefacts, packet, sheets and verdicts all have the shapes they claim."""
+        summary = blind_runner.run_dry(out_dir=tmp_path)
+        assert len(summary.artifacts) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        artifact_files = sorted((tmp_path / "artifacts").glob("*.json"))
+        assert len(artifact_files) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+
+        packet = json.loads((tmp_path / "blind_packet.json").read_text(encoding="utf-8"))
+        assert len(packet["items"]) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        expected_item_ids = [item["item_id"] for item in packet["items"]]
+        for item in packet["items"]:
+            assert not set(ARM_KEY_VARIANTS) & set(item)
+            assert item["output"].startswith("[dry-run synthetic output]")
+
+        for name in ("rater-a.json", "rater-b.json"):
+            sheet = load_blind_sheet(
+                json.loads((tmp_path / "ratings" / name).read_text(encoding="utf-8")),
+                expected_item_ids,
+            )
+            assert len(sheet.items) == 5 * blind_runner.DRY_RUN_CASE_COUNT
+
+        record = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+        assert record["model"] == ""
+        assert record["provider_calls"] == 0
+        assert record["stub_calls"] == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        assert record["status"] == blind_runner.STATUS_DRY_RUN_COMPLETE
+        assert "stub" in record["limitations"]
+        assert record["significance"]["synthetic"] is True
+        assert len(record["significance"]["contrasts"]) == 2
+        for contrast in record["significance"]["contrasts"]:
+            assert len(contrast["rows"]) == len(DIMENSIONS)
+            for row in contrast["rows"]:
+                assert row["significant"] is False
+                assert row["p_value"] is None
+                assert row["ties"] == blind_runner.DRY_RUN_CASE_COUNT
+
+        report = (tmp_path / "report.md").read_text(encoding="utf-8")
+        assert "DRY RUN" in report
+        assert "measurement of a model" in report.lower()
+
+    def test_scoring_a_completed_run_uses_the_production_loader(self, tmp_path: Path) -> None:
+        """The score mode loads real sheets, unblinds, and judges both contrasts."""
+        run_dir = tmp_path / "run"
+        blind_runner.run_dry(out_dir=run_dir)
+        scored = blind_runner.run_score(
+            run_dir=run_dir,
+            rater_a=run_dir / "ratings" / "rater-a.json",
+            rater_b=run_dir / "ratings" / "rater-b.json",
+            arbiter=run_dir / "ratings" / "arbiter.json",
+            out_dir=tmp_path / "scored",
+        )
+        assert scored.status == blind_runner.STATUS_EVALUATED
+        assert len(scored.contrasts) == 2
+        for report in scored.contrasts:
+            for row in report.rows:
+                assert row.verdict.significant is False
+                assert row.verdict.p_value is None
+        record = json.loads((tmp_path / "scored" / "run.json").read_text(encoding="utf-8"))
+        assert record["mode"] == blind_runner.MODE_SCORE
+        assert record["status"] == blind_runner.STATUS_EVALUATED
+        assert record["significance"]["synthetic"] is False
+
+    def test_a_real_run_stops_before_it_claims_a_comparison(self, tmp_path: Path) -> None:
+        """A finished real run is AWAITING RATINGS, and its record says NOT RUN."""
+        summary = blind_runner.run_real(
+            provider=blind_runner.DryRunProvider(),
+            out_dir=tmp_path,
+            model="test-model, params fixed",
+            budget="max_model_requests=80",
+            cases=blind_runner.synthetic_cases(),
+        )
+        assert summary.status == blind_runner.STATUS_AWAITING_RATINGS
+        assert summary.provider_calls == 5 * blind_runner.DRY_RUN_CASE_COUNT
+        record = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+        assert record["status"] == blind_runner.STATUS_AWAITING_RATINGS
+        assert record["significance"]["status"] == "NOT RUN"
+        assert record["significance"]["reason"]
+        report = (tmp_path / "report.md").read_text(encoding="utf-8")
+        assert "AWAITING RATINGS" in report
+        assert "significance was not computed" in report.lower()
+
+    def test_a_real_provider_cannot_be_built_without_consent(self) -> None:
+        """ADR-0006's port is a constructor argument, and this driver keeps it so."""
+        with pytest.raises(blind_runner.RealRunRefusedError, match="outbound consent"):
+            blind_runner.build_real_provider(
+                _provider_settings(),
+                consent=None,
+                budget=RunBudget(max_total_tokens=Known(100)),
+                usage_capture=_Capture(),
+            )
+
+    def test_a_real_provider_cannot_be_built_without_a_budget_ceiling(self) -> None:
+        """An unbounded budget is not an authorisation to spend."""
+        for budget in (None, RunBudget()):
+            with pytest.raises(blind_runner.RealRunRefusedError, match="budget ceiling"):
+                blind_runner.build_real_provider(
+                    _provider_settings(),
+                    consent=_Consent(),
+                    budget=budget,
+                    usage_capture=_Capture(),
+                )
+
+    def test_a_real_provider_cannot_be_built_without_a_usage_capture(self) -> None:
+        """Without a capture every token is Unknown and the first ceiling refuses."""
+        with pytest.raises(blind_runner.RealRunRefusedError, match="usage capture"):
+            blind_runner.build_real_provider(
+                _provider_settings(),
+                consent=_Consent(),
+                budget=RunBudget(max_total_tokens=Known(100)),
+                usage_capture=None,
+            )
+
+    def test_missing_real_requirements_names_every_missing_piece(self) -> None:
+        """The command can explain everything that is missing in one refusal."""
+        problems = blind_runner.missing_real_requirements(
+            approvals=None,
+            budget=None,
+            model="",
+            usage_capture=None,
+        )
+        assert len(problems) == 4
+        text = " ".join(problems)
+        assert "owner approval" in text
+        assert "budget ceiling" in text
+        assert "no model" in text
+        assert "usage capture" in text
+
+    def test_an_empty_approval_grant_list_is_refused_at_construction(self) -> None:
+        """The consent port itself refuses a run with no approvals.
+
+        An independent review mutated the ``if not grants`` branch and this
+        witness did not exist, so the mutation survived. The CLI test below it
+        only exercised the argument-level refusal, which returns before the
+        port is constructed.
+        """
+        with pytest.raises(blind_runner.RealRunRefusedError, match="at least one owner approval"):
+            blind_runner.ConsumingApprovals(cast(Any, None), [])
+
+
+class TestTheRunDriverCommand:
+    """The executable entry point: it runs the dry run and refuses the real one."""
+
+    def test_the_command_runs_a_dry_run(self, tmp_path: Path) -> None:
+        """The default mode completes and leaves a run record behind."""
+        module = _cli_module()
+        assert module.main(["--mode", "dry-run", "--out", str(tmp_path)]) == 0
+        assert (tmp_path / "run.json").exists()
+
+    def test_a_real_run_without_approvals_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No owner approval means no provider is constructed at all."""
+        cases = _write_case_set(tmp_path)
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider without an approval")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+            ]
+        )
+        assert code == 2
+        assert "approval" in capsys.readouterr().err.lower()
+
+    def test_a_real_run_without_a_budget_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Approvals are not enough: the run also needs a ceiling."""
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider without a budget")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+            ]
+        )
+        assert code == 2
+        assert "budget ceiling" in capsys.readouterr().err
+
+    def test_the_real_run_parses_the_task_id_as_a_uuid(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The approval ledger stores a UUID task id, not the CLI's raw string.
+
+        Real material exposed this: ``TaskId`` is a NewType, so
+        ``TaskId(args.task)`` keeps the command-line string at runtime, and
+        every granted approval fails with ``task_scope_mismatch`` before any
+        request leaves. A real run must parse it, as the CLI's other entry
+        points do. The witness monkeypatches the context manager to capture
+        the id the command hands the application layer.
+        """
+        module = _cli_module()
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+        #: A config file is all ``read_config`` needs before the context opens;
+        #: the witness stops there, so no database and no provider are built.
+        (tmp_path / ".labcairn").mkdir(exist_ok=True)
+        (tmp_path / ".labcairn" / "workspace.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "database": "labcairn.db",
+                    "source_dirs": [],
+                    "current_task": None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        task_id = UUID("01a1a5ed-c2ee-73dc-92d2-c98e8e0f6c37")
+        seen: list[Any] = []
+
+        @contextmanager
+        def capture(location: Any, config: Any, tid: Any, **kwargs: Any) -> Any:
+            seen.append(tid)
+            raise RuntimeError("the witness stops before a workspace is opened")
+
+        monkeypatch.setattr(module, "application_context", capture)
+        monkeypatch.setattr(module, "build_http_client", lambda *a, **k: object())
+        code = module.main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--out",
+                str(tmp_path / "out"),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                str(task_id),
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+                "--budget-max-model-requests",
+                "5",
+            ]
+        )
+        assert code == 2, "the witness's own stop is a refusal, not a sent request"
+        assert seen == [task_id], (
+            "the real run handed the application layer something other than the "
+            "parsed UUID; an approval bound to a UUID cannot match a string"
+        )
+
+    def test_the_real_run_hands_its_timeout_to_the_provider_settings(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """A long review must not be cut off by the library's 60s default.
+
+        Real material exposed this: a full case prompt made the endpoint's
+        generation exceed the default, and the CLI had no way to raise it. The
+        witness asks for 240 seconds and reads the setting the command builds;
+        the assertion is on the settings object, not on a promise in a docstring.
+        """
+        module = _cli_module()
+        args = module._parser().parse_args(
+            ["--mode", "real", "--timeout-s", "240", "--model", "test-model"]
+        )
+        settings = module._provider_settings(args)
+        assert settings.timeout_s == 240.0
+        assert (
+            module._provider_settings(
+                module._parser().parse_args(["--mode", "real", "--model", "test-model"])
+            ).timeout_s
+            == 60.0
+        )
+
+    def test_a_real_run_refuses_a_task_id_that_is_not_a_uuid(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A task id that cannot be parsed never reaches the consent bridge."""
+        cases = _write_case_set(tmp_path)
+        approvals = _write_approvals(tmp_path, count=5 * blind_runner.DRY_RUN_CASE_COUNT)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(approvals),
+                "--budget-max-model-requests",
+                "5",
+            ]
+        )
+        assert code == 2
+        assert "--task must be a UUID" in capsys.readouterr().err
+
+    def test_a_real_run_with_an_empty_approvals_file_is_refused_before_a_provider(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An approvals document that parses to no grants reaches the refusal path.
+
+        This is the real-mode shape the review found unwitnessed: the file
+        exists, so the argument-level "no --approvals" check is passed, and the
+        run must still stop before a provider. It also holds the loader to
+        treating an empty list as a refusal rather than a malformed document.
+        """
+        cases = _write_case_set(tmp_path)
+        empty = tmp_path / "approvals-empty.json"
+        empty.write_text(json.dumps({"approvals": []}), encoding="utf-8")
+
+        def explode(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the command constructed a provider from an empty approval list")
+
+        monkeypatch.setattr(blind_runner, "build_real_provider", explode)
+        code = _cli_module().main(
+            [
+                "--mode",
+                "real",
+                "--cases",
+                str(cases),
+                "--workspace-root",
+                str(tmp_path),
+                "--task",
+                "task-1",
+                "--model",
+                "test-model",
+                "--approvals",
+                str(empty),
+            ]
+        )
+        assert code == 2
+        assert "0 approvals" in capsys.readouterr().err
+
+
+# -- human rating close-out --------------------------------------------------
+
+
+def _closeout_rows() -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """84 invented call rows and their answer bodies, in the run's own shape.
+
+    The bodies are English fixture sentences, not material or a real answer.
+    The two arrangement variants share the letter ``B`` and are separated by
+    their roles, exactly as the scaled run's measurements record them.
+    """
+    rows: list[dict[str, Any]] = []
+    bodies: dict[str, str] = {}
+    schedule: list[tuple[str, str, str, list[str]]] = [
+        ("five_arm", arm, f"b5-{case:02d}", ["guidance"])
+        for arm in ("A", "B", "C", "D", "E")
+        for case in range(1, 13)
+    ]
+    schedule += [("arrangement_pair", "B", f"b5-{case:02d}", ["guidance"]) for case in range(1, 13)]
+    schedule += [
+        ("arrangement_pair", "B", f"b5-{case:02d}", ["guidance", "independent_critique"])
+        for case in range(1, 13)
+    ]
+    assert len(schedule) == 84
+    for call, (group, arm, case, roles) in enumerate(schedule, start=1):
+        name = f"call-{call:03d}-{group}-{arm}-{case}.txt"
+        rows.append(
+            {
+                "call": call,
+                "group": group,
+                "arm": arm,
+                "case": case,
+                "roles": roles,
+                "status": "ok",
+                "answer_file": name,
+            }
+        )
+        bodies[name] = f"[synthetic answer volume {call}]"
+    return rows, bodies
+
+
+def _closeout_volumes() -> tuple[closeout.AnswerVolume, ...]:
+    """The 84 volumes as the close-out reader parses them."""
+    rows, bodies = _closeout_rows()
+    return closeout.build_volumes(rows, bodies)
+
+
+def _assembled() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Two anonymous sheets and their withheld map over the synthetic volumes."""
+    return closeout.assemble_rating_sheets(_closeout_volumes())
+
+
+def _item_ids(sheet: Mapping[str, Any]) -> list[str]:
+    """The item ids in the order a rater received them."""
+    items = sheet["items"]
+    assert isinstance(items, list)
+    return [str(item["item_id"]) for item in items if isinstance(item, Mapping)]
+
+
+def _completed_sheet(sheet: Mapping[str, Any], *, rater: str, rated: bool = True) -> dict[str, Any]:
+    """A human has considered and confirmed every one of the five labels."""
+    return {"sheet_id": sheet["sheet_id"], "rater": rater, "rated": rated, "items": sheet["items"]}
+
+
+@dataclass(frozen=True, slots=True)
+class _CloseoutInputs:
+    """One completed close-out's machine inputs, named rather than positional."""
+
+    sheet_a: dict[str, Any]
+    sheet_b: dict[str, Any]
+    arbiter: dict[str, Any]
+    unblinding: dict[str, Any]
+    denominators: dict[str, Any]
+
+
+def _complete_inputs(*, disagreements: Sequence[tuple[str, str]] = ()) -> _CloseoutInputs:
+    """Two completed sheets, a third reader, the withheld map and denominators."""
+    sheet_a, sheet_b, unblinding = _assembled()
+    documents = (
+        _completed_sheet(sheet_a, rater=closeout.RATER_A),
+        _completed_sheet(sheet_b, rater=closeout.RATER_B),
+    )
+    for item_id, dimension in disagreements:
+        for document in documents:
+            items = document["items"]
+            assert isinstance(items, list)
+            for item in items:
+                assert isinstance(item, Mapping)
+                if item["item_id"] == item_id:
+                    ratings = item["ratings"]
+                    assert isinstance(ratings, dict)
+                    ratings[dimension] = "yes" if document["rater"] == closeout.RATER_A else "no"
+    decisions = [
+        {"item_id": item_id, "dimension": dimension, "label": "yes"}
+        for item_id, dimension in disagreements
+    ]
+    all_cases = sorted({str(entry["case"]) for entry in unblinding["items"].values()})
+    return _CloseoutInputs(
+        sheet_a=documents[0],
+        sheet_b=documents[1],
+        arbiter={"reader": "third-reader", "arbitrations": decisions},
+        unblinding=unblinding,
+        denominators={closeout.DENOMINATOR_FIELD: dict.fromkeys(DIMENSIONS, all_cases)},
+    )
+
+
+def _all_denominators(unblinding: Mapping[str, Any]) -> dict[str, Any]:
+    """The widest legal denominator mask, for witnesses that do not narrow it."""
+    all_cases = sorted({str(entry["case"]) for entry in unblinding["items"].values()})
+    return {closeout.DENOMINATOR_FIELD: dict.fromkeys(DIMENSIONS, all_cases)}
+
+
+class TestHumanRatingCloseout:
+    """The close-out's anonymity, independence, refusals and verdict words."""
+
+    def test_the_leak_vocabulary_carries_no_routes_to_the_answer(self) -> None:
+        """The consistency check's input has no id paired with an arm or case."""
+        _, _, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        assert set(vocabulary) == {
+            "item_ids",
+            "forbidden_values",
+            "source_ids",
+            "case_ids",
+            "notice",
+        }
+        assert "items" not in vocabulary
+        assert len(vocabulary["item_ids"]) == 84
+        assert set(vocabulary["item_ids"]) == set(unblinding["items"])
+        for entry in unblinding["items"].values():
+            assert isinstance(entry, Mapping)
+            for value in (entry["arm"], entry["case"], entry["source_id"]):
+                assert value in vocabulary["forbidden_values"]
+        with pytest.raises(closeout.RatingRefusedError, match="unblinding map itself"):
+            closeout.assert_anonymous_sheets(*_assembled())
+
+    def test_the_84_volumes_are_anonymous_and_carry_no_route_to_the_answer(self) -> None:
+        """Every withheld value is absent from both sheets' structural fields."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        assert len(_item_ids(sheet_a)) == len(_item_ids(sheet_b)) == 84
+        assert set(sheet_a) == closeout.BLIND_SHEET_KEYS
+        assert set(sheet_b) == closeout.BLIND_SHEET_KEYS
+        for sheet in (sheet_a, sheet_b):
+            items = sheet["items"]
+            assert isinstance(items, list)
+            for item in items:
+                assert isinstance(item, Mapping)
+                assert set(item) == closeout.BLIND_ITEM_KEYS
+                assert set(item["ratings"]) == set(DIMENSIONS)
+                assert "arm" not in item
+                assert "case" not in item
+                assert "issue_key" not in item
+                assert "annotator_id" not in item
+        closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+        for sheet in (sheet_a, sheet_b):
+            for entry in unblinding["items"].values():
+                assert isinstance(entry, Mapping)
+                for value in entry.values():
+                    rendered = json.dumps(
+                        {
+                            "sheet_id": sheet["sheet_id"],
+                            "rater": sheet["rater"],
+                            "items": [
+                                {"item_id": item["item_id"], "ratings": item["ratings"]}
+                                for item in sheet["items"]
+                            ],
+                        },
+                        ensure_ascii=False,
+                    )
+                    assert str(value) not in rendered
+
+    def test_answer_routes_in_answer_bodies_are_redacted_before_rating(self) -> None:
+        """A quoted case key or source id cannot travel with the answer body."""
+        rows, bodies = _closeout_rows()
+        rows[0]["case"] = "b5-01"
+        bodies[rows[0]["answer_file"]] = (
+            f"synthetic answer quoting b5-02 and {rows[1]['answer_file'].removesuffix('.txt')}"
+        )
+        volumes = closeout.build_volumes(rows, bodies)
+        assert volumes[0].answer == (
+            "synthetic answer quoting [case-key redacted] and [source-id redacted]"
+        )
+
+    def test_a_mapping_value_in_the_blind_sheet_is_refused(self) -> None:
+        """An arm smuggled into a sheet field is a leak, not a field to strip."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        items = sheet_a["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        first["arm"] = "D"
+        with pytest.raises(closeout.RatingRefusedError, match="anonymous schema"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+        first.pop("arm")
+        first["answer_route"] = "call-001-five_arm-D-b5-01"
+        with pytest.raises(closeout.RatingRefusedError, match="anonymous schema"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+
+    def test_a_withheld_value_in_an_answer_body_is_refused(self) -> None:
+        """A source id pasted into an answer is a route back to the answer."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        source = next(iter(unblinding["items"].values()))["source_id"]
+        items = sheet_a["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        first["answer"] = str(source)
+        with pytest.raises(closeout.RatingRefusedError, match="source id"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+
+    def test_a_case_key_in_an_answer_body_is_refused(self) -> None:
+        """A case key in an answer body is a route to the case and answer."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        case = next(iter(unblinding["items"].values()))["case"]
+        items = sheet_a["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        first["answer"] = f"synthetic answer for {case}"
+        with pytest.raises(closeout.RatingRefusedError, match="case key"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+
+    def test_a_withheld_value_in_a_structural_field_is_refused(self) -> None:
+        """A case or source value hidden under a legal field name is a leak."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        case = next(iter(unblinding["items"].values()))["case"]
+        items = sheet_a["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        ratings = first["ratings"]
+        assert isinstance(ratings, dict)
+        ratings[str(case)] = "unknown"
+        with pytest.raises(closeout.RatingRefusedError, match="five rating columns"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+        ratings.pop(str(case))
+        first["sheet_id"] = str(case)
+        with pytest.raises(closeout.RatingRefusedError, match="anonymous schema"):
+            closeout.assert_anonymous_sheets(sheet_a, sheet_b, vocabulary)
+        first.pop("sheet_id")
+        hidden = dict(sheet_a)
+        hidden["rater"] = str(case)
+        with pytest.raises(closeout.RatingRefusedError, match="leaks a withheld value"):
+            closeout.assert_anonymous_sheets(hidden, sheet_b, vocabulary)
+
+    def test_the_two_raters_receive_different_orders(self) -> None:
+        """The same seed is not two independent readings."""
+        sheet_a, sheet_b, unblinding = _assembled()
+        vocabulary = closeout.make_leak_vocabulary(unblinding)
+        assert _item_ids(sheet_a) != _item_ids(sheet_b)
+        assert set(_item_ids(sheet_a)) == set(_item_ids(sheet_b))
+        with pytest.raises(closeout.RatingRefusedError, match="same volume order"):
+            closeout.assemble_rating_sheets(
+                _closeout_volumes(),
+                seed_a=closeout.SEED_A,
+                seed_b=closeout.SEED_A,
+            )
+        second = dict(sheet_b)
+        second["items"] = sheet_a["items"]
+        with pytest.raises(closeout.RatingRefusedError, match="same volume order"):
+            closeout.assert_anonymous_sheets(sheet_a, second, vocabulary)
+
+    def test_the_two_sheets_carry_the_same_answer_bodies(self) -> None:
+        """Two readings of different texts would be an agreement about nothing."""
+        inputs = _complete_inputs()
+        items = inputs.sheet_b["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        first["answer"] = f"{first['answer']} (edited)"
+        with pytest.raises(
+            closeout.RatingRefusedError, match="do not carry the same answer bodies"
+        ):
+            closeout.consistency_check(inputs.sheet_a, inputs.sheet_b)
+
+    def test_an_unrated_sheet_is_refused_instead_of_defaulting_to_a_score(self) -> None:
+        """Assembly's unknown labels are not human ratings until confirmed."""
+        sheet_a, _, _ = _assembled()
+        with pytest.raises(closeout.RatingRefusedError, match="not confirmed as rated"):
+            closeout.load_rating_sheet(
+                _completed_sheet(sheet_a, rater=closeout.RATER_A, rated=False),
+                _item_ids(sheet_a),
+                rater=closeout.RATER_A,
+            )
+        completed = _completed_sheet(sheet_a, rater=closeout.RATER_A)
+        items = completed["items"]
+        assert isinstance(items, list)
+        first = items[0]
+        assert isinstance(first, dict)
+        ratings = first["ratings"]
+        assert isinstance(ratings, dict)
+        ratings.pop("abstention")
+        with pytest.raises(closeout.RatingRefusedError, match="without five ratings"):
+            closeout.load_rating_sheet(completed, _item_ids(sheet_a), rater=closeout.RATER_A)
+
+    def test_a_missing_arbitration_is_refused_not_counted_as_agreement(self) -> None:
+        """An unresolved disagreement never silently becomes a settled label."""
+        _, _, unblinding = _assembled()
+        disagreement = (sorted(unblinding["items"])[0], "evidence_support")
+        inputs = _complete_inputs(disagreements=[disagreement])
+        empty = {"reader": "third-reader", "arbitrations": []}
+        empty_denominators: dict[str, Any] = {
+            closeout.DENOMINATOR_FIELD: {dimension: [] for dimension in DIMENSIONS}
+        }
+        with pytest.raises(closeout.RatingRefusedError, match="no third-reader arbitration"):
+            closeout.close_out(
+                inputs.sheet_a,
+                inputs.sheet_b,
+                empty,
+                inputs.unblinding,
+                empty_denominators,
+            )
+        with pytest.raises(closeout.RatingRefusedError, match="no third-reader arbitration"):
+            closeout.load_arbitrations(empty, [disagreement])
+        rater_as_arbiter = {"reader": closeout.RATER_A, "arbitrations": []}
+        with pytest.raises(closeout.RatingRefusedError, match="third reader, not a rater"):
+            closeout.load_arbitrations(rater_as_arbiter, [disagreement])
+
+    def test_the_arbitration_packet_carries_no_route_to_the_answer(self) -> None:
+        """The third reader sees two labels and the answer, never a placement."""
+        _, _, unblinding = _assembled()
+        disagreement = (sorted(unblinding["items"])[0], "evidence_support")
+        inputs = _complete_inputs(disagreements=[disagreement])
+        agreement, _, _ = closeout.consistency_check(inputs.sheet_a, inputs.sheet_b)
+        packet = closeout.build_arbitration_packet(agreement, inputs.sheet_a, inputs.sheet_b)
+        assert set(packet) == {"reader", "items"}
+        assert packet["reader"] == "third-reader"
+        assert len(packet["items"]) == 1
+        item = packet["items"][0]
+        assert set(item) == {"item_id", "dimension", "answer", "labels"}
+        assert item["item_id"] == disagreement[0]
+        assert item["dimension"] == disagreement[1]
+        assert item["labels"] == ["no", "yes"]
+        rendered = json.dumps(packet, ensure_ascii=False, sort_keys=True)
+        for entry in unblinding["items"].values():
+            assert isinstance(entry, Mapping)
+            for value in entry.values():
+                assert str(value) not in rendered
+        for forbidden in ("rater-a", "rater-b", "arm", "case", "source_id"):
+            assert f'"{forbidden}"' not in rendered
+
+    def test_a_not_significant_result_is_reported_as_not_significant(self) -> None:
+        """All ties are a first-class result, not a win, a zero or an exception."""
+        inputs = _complete_inputs()
+        report = closeout.close_out(
+            inputs.sheet_a,
+            inputs.sheet_b,
+            inputs.arbiter,
+            inputs.unblinding,
+            inputs.denominators,
+        )
+        rendered = report.render()
+        assert len(report.reports) == 2
+        assert "NOT SIGNIFICANT" in rendered
+        assert not rendered.startswith("SIGNIFICANT") and "\nSIGNIFICANT" not in rendered
+        assert not any(
+            line.startswith("SIGNIFICANT") for line in closeout.summarise_verdicts(report.reports)
+        )
+        assert rendered.count("not significant: every one of 12 paired cases tied") == 10
+        for contrast in report.reports:
+            assert all(not row.verdict.significant for row in contrast.rows)
+            assert all(row.verdict.counts.ties == 12 for row in contrast.rows)
+            for line in closeout.summarise_verdicts((contrast,)):
+                assert "NOT SIGNIFICANT" in line
+                assert "wins=0, losses=0, ties=12" in line
+
+    def test_a_significant_verdict_is_not_rounded_into_a_not_significant_one(self) -> None:
+        """The verdict words come from the exact sign test, in both directions."""
+        counts = PairedCounts(wins=11, losses=0, ties=1)
+        verdict = assess_significance("D vs C", "evidence_support", counts)
+        assert verdict.significant is True
+        assert closeout.verdict_word(verdict.significant) == "SIGNIFICANT"
+        assert closeout.verdict_word(False) == "NOT SIGNIFICANT"
+        assert "NOT SIGNIFICANT" in render_verdict(
+            assess_significance("D vs C", "evidence_support", PairedCounts(3, 1, 8))
+        )
+
+    def test_the_end_to_end_closeout_pairs_twelve_cases_on_both_contrasts(self) -> None:
+        """Two contrasts, five dimensions, 12 paired cases each, no exclusions."""
+        inputs = _complete_inputs()
+        report = closeout.close_out(
+            inputs.sheet_a,
+            inputs.sheet_b,
+            inputs.arbiter,
+            inputs.unblinding,
+            inputs.denominators,
+        )
+        assert tuple(one.contrast for one in report.reports) == ("D vs C", "E vs D")
+        assert len(report.resolved) == 84 * len(DIMENSIONS)
+        assert report.excluded == ()
+        for contrast in report.reports:
+            assert len(contrast.rows) == len(DIMENSIONS)
+            assert all(row.verdict.counts.cases == 12 for row in contrast.rows)
+
+    def test_the_denominators_are_refused_rather_than_defaulted(self) -> None:
+        """A missing, unknown or partial hallucination denominator is refused."""
+        inputs = _complete_inputs()
+        cases = sorted({str(entry["case"]) for entry in inputs.unblinding["items"].values()})
+        with pytest.raises(closeout.RatingRefusedError, match="no denominators mapping"):
+            closeout.close_out(
+                inputs.sheet_a,
+                inputs.sheet_b,
+                inputs.arbiter,
+                inputs.unblinding,
+                {},
+            )
+        unknown = dict.fromkeys(DIMENSIONS, cases)
+        unknown["abstention"] = [*cases, "b5-99"]
+        with pytest.raises(closeout.RatingRefusedError, match="outside the run"):
+            closeout.read_denominators({closeout.DENOMINATOR_FIELD: unknown}, cases)
+        partial = dict.fromkeys(DIMENSIONS, cases)
+        partial[closeout.HALLUCINATION_DIMENSION] = cases[:-1]
+        with pytest.raises(closeout.RatingRefusedError, match="must cover every case"):
+            closeout.read_denominators({closeout.DENOMINATOR_FIELD: partial}, cases)
+
+    def test_each_dimension_uses_its_own_denominator(self) -> None:
+        """An evidence-bounded dimension is not silently widened to every case."""
+        inputs = _complete_inputs()
+        cases = sorted({str(entry["case"]) for entry in inputs.unblinding["items"].values()})
+        denominators = dict.fromkeys(DIMENSIONS, cases)
+        denominators["problem_identification"] = cases[:5]
+        denominators["evidence_support"] = cases[3:]
+        report = closeout.close_out(
+            inputs.sheet_a,
+            inputs.sheet_b,
+            inputs.arbiter,
+            inputs.unblinding,
+            {closeout.DENOMINATOR_FIELD: denominators},
+        )
+        by_dimension = {row.dimension: row for contrast in report.reports for row in contrast.rows}
+        assert by_dimension["problem_identification"].verdict.counts.cases == 5
+        assert by_dimension["evidence_support"].verdict.counts.cases == 9
+        assert by_dimension[closeout.HALLUCINATION_DIMENSION].verdict.counts.cases == 12
+        assert by_dimension["abstention"].verdict.counts.cases == 12

@@ -74,6 +74,13 @@ class SourceState:
     holds no material under the key (:attr:`found`), the material is out
     of the reader's reach (:attr:`reachable`), or a judgement on it says
     the change did not answer the comment (:attr:`addressed`).
+
+    **And the key names which kind of case it is.** A comment's issue
+    key is a person's judgement; a revision's key is the one the product
+    minted from the change's address. **The two are read by different
+    routes** — the first by the comment's own judgement, the second by
+    the change itself — and a source state that did not say which it was
+    would be a state about a case nobody could identify.
     """
 
     issue_key: str
@@ -84,6 +91,10 @@ class SourceState:
     reachable: bool
     #: A judgement on that material says the change answered the comment.
     addressed: bool
+    #: ``comment`` or ``revision``: **which kind of case this source is.**
+    #: **Not optional** — a source state that did not say would be a
+    #: state about a case nobody could look up.
+    kind: str = "comment"
 
 
 @dataclass(frozen=True)
@@ -162,21 +173,77 @@ def _living_sources(
     disputed or superseded — and not on the chain, which says what was
     decided and the rule says what may be served. (The owner's decision,
     2026-11-01.)
+
+    **And the two kinds of case are read by their own routes.** A
+    comment's issue key is read through the comments bound to it; a
+    revision's key is the one the product minted from the change's
+    address, and it is read through the change itself. **Which route a
+    key takes is the chain's own decision** — the chain looks the key up
+    and says what it finds, so **a key that merely *spells* like a
+    revision is not thereby a revision** (a comment's issue key is a
+    person's judgement and may be spelled any way at all).
+
+    **A revision source is answered by the change itself.** A comment's
+    source lives or dies by a judgement about whether something answered
+    it; **a revision's source is the change the mentor made**, so there
+    is nothing left to judge — the change *is* the answer, and a
+    revision source is answered by existing.
     """
     living: list[SourceState] = []
     for key in issue_keys:
         comments = chain_layer.read_comments(context, issue_keys=(key,))
-        if not comments:
-            living.append(SourceState(issue_key=key, found=False, reachable=False, addressed=False))
+        if comments:
+            feedback_ids = tuple(comment.feedback_id for comment in comments)
+            version_ids = tuple({comment.version_id for comment in comments})
+            reachable = _reachable_materials(context, version_ids)
+            stands = bool(reachable)
+            states = chain_layer.read_response_states(context, feedback_ids=feedback_ids)
+            addressed = any(state in LIVING_STATES for state in states)
+            living.append(
+                SourceState(
+                    issue_key=key,
+                    found=True,
+                    reachable=stands,
+                    addressed=addressed,
+                    kind="comment",
+                )
+            )
             continue
-        feedback_ids = tuple(comment.feedback_id for comment in comments)
-        version_ids = tuple({comment.version_id for comment in comments})
-        reachable = _reachable_materials(context, version_ids)
-        stands = bool(reachable)
-        states = chain_layer.read_response_states(context, feedback_ids=feedback_ids)
-        addressed = any(state in LIVING_STATES for state in states)
-        living.append(SourceState(issue_key=key, found=True, reachable=stands, addressed=addressed))
+        revision = _revision_source_state(context, key)
+        if revision is not None:
+            living.append(revision)
+            continue
+        living.append(
+            SourceState(
+                issue_key=key, found=False, reachable=False, addressed=False, kind="comment"
+            )
+        )
     return tuple(living)
+
+
+def _revision_source_state(context: ApplicationContext, key: str) -> SourceState | None:
+    """The state of one revision source, or ``None`` when it is not one.
+
+    **The chain holds the change or it does not.** A key the chain holds
+    no revision under is not a revision source at all — it may be a
+    comment's key that simply has no comment, or nothing anybody named —
+    and the caller answers for it.
+
+    **And the material is the version's own file**, so the reader's
+    reach is asked about that file and not about a comment's.
+    """
+    sources = chain_layer.read_revision_sources(context, revision_event_ids=(key,))
+    if not sources:
+        return None
+    version_ids = tuple({source.version_id for source in sources})
+    reachable = _reachable_materials(context, version_ids)
+    return SourceState(
+        issue_key=key,
+        found=True,
+        reachable=bool(reachable),
+        addressed=True,
+        kind="revision",
+    )
 
 
 def _standing(sources: tuple[SourceState, ...]) -> tuple[SourceState, ...]:

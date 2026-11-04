@@ -44,7 +44,7 @@ from docx_corpus import FIXTURES
 from docx_fixtures import Fixture, gold_for, write_fixture
 
 from labcairn.material.addressing import render_locator_key, split_locator_key
-from labcairn.material.ooxml import RevisionDocument, read_document
+from labcairn.material.ooxml import CommentEvent, RevisionDocument, read_document
 from labcairn.material.units import adapter_for, registered_kinds
 from labcairn.sources.locators import DocxLocator
 from labcairn.sources.source import SourceKind
@@ -329,7 +329,7 @@ def test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor(
     assert comment.anchor.end is None, (
         "the end offset belongs to the other paragraph and must not be borrowed"
     )
-    assert comment.anchor.text == ""
+    assert comment.anchor.text is None
 
     # The comment is still a comment: body, author and date are all there.
     assert comment.text == "This remark covers both paragraphs."
@@ -683,8 +683,16 @@ def test_a_revision_inside_a_drawing_textbox_is_reported_once() -> None:
     # document order puts both boxes' paragraphs after the two body
     # ones), with their own text, and not as the outer revision's
     # nested revision.
+    # A revision may sit outside every paragraph (a table row's mark does),
+    # and then its paragraph is ``None``. This document holds none of those:
+    # every change here is inside a paragraph, and the assertion says so
+    # rather than assuming it, because a document that grew a row mark would
+    # otherwise silently change what the four keys below mean.
     by_paragraph: dict[int, list[str]] = {}
     for revision in document.revisions:
+        assert revision.paragraph is not None, (
+            f"{revision.locator.element_path}: this document holds no revision outside a paragraph"
+        )
         by_paragraph.setdefault(revision.paragraph, []).append(revision.text)
     assert sorted(by_paragraph) == [0, 1, 2, 3]
     assert by_paragraph[0] == ["plain insert"]
@@ -694,6 +702,207 @@ def test_a_revision_inside_a_drawing_textbox_is_reported_once() -> None:
         "a revision in its own paragraph is not a nested revision"
     )
     assert "docx_nested_revision" not in {problem.code for problem in document.problems}
+
+
+# **The document every one of the three witnesses below reads.** It holds a
+# revision in each of the three places one can sit, so that the partition the
+# reader draws -- *the nearest paragraph reports it, and where there is no
+# paragraph the document does* -- is checked on one file rather than on three:
+#
+# * a ``w:ins`` in a paragraph's run sequence (id 301): reported by that
+#   paragraph, with its text and a paragraph index;
+# * a ``w:ins`` under a paragraph's own properties (id 304, ``w:pPr/w:rPr``):
+#   the paragraph **mark** inserted, still inside a paragraph, an empty
+#   change with a paragraph index;
+# * a ``w:ins`` and a ``w:del`` on a table row's properties (ids 302, 303,
+#   ``w:trPr``): outside every paragraph, empty, and -- before this shape was
+#   read -- invisible;
+# * a third row's ``w:ins`` (id 305) with **no author and no date at all**:
+#   the new code path reads the same two attributes the paragraph path reads,
+#   and a scan that filled an absent author with a guess is caught here rather
+#   than in the paragraph case, where the rule has had a witness for a year.
+#
+# The names are invented and the sentences are about a parameter, like the
+# rest of this file: a document built to hold a shape, not to hold a meaning.
+_ROW_MARKER_BODY = (
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">The body sentence stands first.</w:t></w:r>'
+    '<w:ins w:id="301" w:author="Prof. Lin" w:date="2026-03-02T09:15:00Z">'
+    '<w:r><w:t xml:space="preserve"> and carries a change of its own</w:t></w:r>'
+    "</w:ins>"
+    "</w:p>"
+    "<w:tbl>"
+    '<w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr>'
+    "<w:tr>"
+    '<w:trPr><w:ins w:id="302" w:author="Prof. Lin" w:date="2026-03-02T09:16:00Z"/></w:trPr>'
+    "<w:tc>"
+    '<w:p><w:r><w:t xml:space="preserve">The inserted row states one cell.</w:t></w:r></w:p>'
+    "</w:tc>"
+    "</w:tr>"
+    "<w:tr>"
+    '<w:trPr><w:del w:id="303" w:author="Dr. Ayala" w:date="2026-03-02T09:17:00Z"/></w:trPr>'
+    "<w:tc>"
+    '<w:p><w:r><w:t xml:space="preserve">The deleted row states one cell.</w:t></w:r></w:p>'
+    "</w:tc>"
+    "</w:tr>"
+    "<w:tr>"
+    # No ``w:author`` and no ``w:date`` at all: the absence is the answer.
+    '<w:trPr><w:ins w:id="305"/></w:trPr>'
+    "<w:tc>"
+    '<w:p><w:r><w:t xml:space="preserve">A row whose mark names nobody.</w:t></w:r></w:p>'
+    "</w:tc>"
+    "</w:tr>"
+    "</w:tbl>"
+    "<w:p>"
+    "<w:pPr><w:rPr>"
+    '<w:ins w:id="304" w:author="Prof. Lin" w:date="2026-03-02T09:18:00Z"/>'
+    "</w:rPr></w:pPr>"
+    '<w:r><w:t xml:space="preserve">A paragraph whose mark was inserted last.</w:t></w:r>'
+    "</w:p>"
+)
+
+
+def _row_marker_document() -> RevisionDocument:
+    return read_document(_docx_bytes(_document(_ROW_MARKER_BODY)))
+
+
+def test_a_table_row_marker_is_reported_though_no_paragraph_holds_it() -> None:
+    """A change on a row's properties is a tracked change, and is reported.
+
+    The fidelity baseline recorded this and left it unfixed
+    (``docs/acceptance/LC-P2-07-fidelity-baseline.md``, the closing paragraph
+    of §5.6): Word writes a table row's insertion as ``w:trPr/w:ins`` -- an
+    empty element outside every paragraph -- and a reader that walks
+    paragraphs never reaches it. Real material holds one: a review copy whose
+    part carries 223 revision elements while the reader reported 222.
+
+    **What breaks it:** a scan that reports only what a paragraph contains.
+    That is the defect, and this witness is the property the fix holds: the
+    row's mark comes back as an event.
+
+    **And what the event carries is what the file says.** The marker is
+    empty, so the event's text is empty -- not the row's cell prose, which
+    belongs to the cells' paragraphs and is reported by them. Its author,
+    its date, its ``w:id`` and its address are its own. It has no paragraph
+    and no place in any baseline, because the file gives it neither: a
+    paragraph index invented here would name a paragraph the change is not
+    in, and a coordinate in a text the element does not sit in is a
+    coordinate nobody can check.
+    """
+    document = _row_marker_document()
+    by_id = {revision.element_id: revision for revision in document.revisions}
+
+    inserted = by_id["302"]
+    assert inserted.kind == "ins"
+    assert inserted.text == "", "the row's marker holds no text of its own"
+    assert inserted.author == "Prof. Lin"
+    assert inserted.date == datetime(2026, 3, 2, 9, 16, tzinfo=UTC)
+    assert inserted.locator.view == "accepted"
+    assert inserted.locator.char_start == 0
+    assert inserted.locator.char_end == 0
+    assert inserted.locator.element_path.endswith("/trPr[1]/ins[1]"), inserted.locator.element_path
+    assert "/tbl[1]/tr[1]/" in inserted.locator.element_path, "it names the row it marks"
+    assert inserted.paragraph is None
+    assert inserted.baseline_start is None
+    assert inserted.baseline_end is None
+    assert inserted.nested is False
+
+    deleted = by_id["303"]
+    assert deleted.kind == "del"
+    assert deleted.text == ""
+    assert deleted.author == "Dr. Ayala"
+    assert deleted.locator.view == "rejected", "a deletion is read in the view it lives in"
+    assert deleted.locator.element_path.endswith("/trPr[1]/del[1]"), deleted.locator.element_path
+    assert deleted.paragraph is None
+
+    # **And a marker that names nobody stays unnamed on the new path too.**
+    # The rule "a missing author is absent, never guessed" was witnessed
+    # where the paragraph scan reads the attributes; this row's mark is read
+    # by the document scan, which reads the same two attributes and must
+    # answer the same way. A scan that fell back to the empty string, or to
+    # somebody else's name, is caught here.
+    unnamed = by_id["305"]
+    assert unnamed.kind == "ins"
+    assert unnamed.author is None, "no w:author, so no author -- and not the empty string"
+    assert unnamed.date is None, "no w:date, so no date -- and not the file's mtime"
+    assert unnamed.text == ""
+    assert unnamed.paragraph is None
+
+    # The cells' prose is not lost and not double-counted: it is the cells'
+    # paragraphs, and they stand in the document's paragraph list once each.
+    assert "The inserted row states one cell." in document.paragraphs
+    assert document.paragraphs.count("The inserted row states one cell.") == 1
+
+
+def test_a_revision_in_a_paragraph_is_still_reported_by_that_paragraph() -> None:
+    """The partition runs on the container, not on the element's shape.
+
+    A ``w:ins`` under ``w:pPr/w:rPr`` is empty too -- it marks the
+    paragraph's own mark -- and it is *inside* a paragraph, so the paragraph
+    reports it and the event carries a paragraph index. The two empty changes
+    in this document differ in exactly that one field, and a reader that
+    reported both the same way would be saying something the file does not:
+    either that a row's mark sits in a paragraph, or that a paragraph's own
+    mark sits in none.
+
+    **What breaks it:** a scan that keys on "is this element empty", or one
+    that hands a paragraph's revision to the document scan as well.
+    """
+    document = _row_marker_document()
+    by_id = {revision.element_id: revision for revision in document.revisions}
+
+    paragraph_mark = by_id["304"]
+    assert paragraph_mark.text == ""
+    assert paragraph_mark.paragraph is not None, "a paragraph holds it"
+    assert paragraph_mark.baseline_start is not None
+    assert paragraph_mark.locator.element_path.endswith("/pPr[1]/rPr[1]/ins[1]")
+
+    run_change = by_id["301"]
+    assert run_change.text == " and carries a change of its own"
+    assert run_change.paragraph is not None
+    assert run_change.baseline_start is not None
+
+    row_mark = by_id["302"]
+    assert row_mark.paragraph is None
+    assert row_mark.baseline_start is None
+
+
+def test_a_table_row_marker_is_reported_once_and_not_twice() -> None:
+    """One marker, one event -- the §5.6 property, now over both reporters.
+
+    Exactly-once was proved for revisions a paragraph contains. It has to be
+    proved again for a document read by **two** scans, because the new risk
+    is the one the double-read already was: the same element reported twice,
+    two events at one address, and one derived row id for two changes.
+
+    **What breaks it:** a walk that reports an element here and in the
+    paragraph scan, or one that emits a marker twice; and an address that
+    names two elements.
+    """
+    document = _row_marker_document()
+
+    addresses = [revision.locator.element_path for revision in document.revisions]
+    assert len(set(addresses)) == len(addresses), "two events share one element path"
+    assert sorted(addresses) == sorted(_row_marker_element_paths()), (
+        "the events are not the elements the part holds"
+    )
+
+
+def _row_marker_element_paths() -> list[str]:
+    """The part's revision elements, counted straight from the XML.
+
+    The private function is imported because the witness is about it: the
+    count has to use the reader's own addressing, or it measures a copy of
+    the rule instead of the rule the reader runs.
+    """
+    from xml.etree import ElementTree
+
+    from labcairn.material.ooxml import _element_path, _revision_kind
+
+    xml = _document(_ROW_MARKER_BODY)
+    root = ElementTree.fromstring(xml)
+    elements = [element for element in root.iter() if _revision_kind(element.tag) is not None]
+    return [_element_path(element, root) for element in elements]
 
 
 def test_the_reader_reports_each_revision_element_exactly_once(tmp_path: Path) -> None:
@@ -710,6 +919,14 @@ def test_the_reader_reports_each_revision_element_exactly_once(tmp_path: Path) -
     drawing-text-box defect), a walk that skips one, or an
     ``_element_path`` that gives two elements one address.
 
+    **And the count runs over the shape the corpus cannot declare.** The
+    corpus's gold model anchors a revision in a paragraph, so a marker on a
+    table row's properties -- outside every paragraph -- has no place in it;
+    the hand-built document below is therefore read by this witness as well,
+    because a count that loops only over ``FIXTURES`` can only catch what the
+    corpus holds, and the double-read survived exactly that for exactly that
+    reason (§5.6 of the fidelity baseline).
+
     The two private functions are imported because this witness is
     about them: counting with anything else would measure a copy of the
     rule, not the rule the reader runs.
@@ -719,16 +936,20 @@ def test_the_reader_reports_each_revision_element_exactly_once(tmp_path: Path) -
 
     from labcairn.material.ooxml import _element_path, _revision_kind
 
-    for fixture in FIXTURES:
-        raw = write_fixture(fixture, tmp_path).read_bytes()
+    documents: list[tuple[str, bytes]] = [
+        (fixture.name, write_fixture(fixture, tmp_path).read_bytes()) for fixture in FIXTURES
+    ]
+    documents.append(("hand-built-table-row-markers", _docx_bytes(_document(_ROW_MARKER_BODY))))
+
+    for name, raw in documents:
         document = read_document(raw)
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             root = ElementTree.fromstring(archive.read("word/document.xml"))
         elements = [element for element in root.iter() if _revision_kind(element.tag) is not None]
         addresses = [_element_path(element, root) for element in elements]
         event_addresses = [revision.locator.element_path for revision in document.revisions]
-        assert sorted(event_addresses) == sorted(addresses), fixture.name
-        assert len(set(event_addresses)) == len(event_addresses), fixture.name
+        assert sorted(event_addresses) == sorted(addresses), name
+        assert len(set(event_addresses)) == len(event_addresses), name
 
 
 def test_the_derived_revision_event_id_names_one_change_per_address(
@@ -772,6 +993,62 @@ def test_the_derived_revision_event_id_names_one_change_per_address(
             "version-under-test", first.locator.part or "", first.locator.element_path or ""
         )
         assert again == ids[0], fixture.name
+
+
+def test_the_revision_event_id_carries_an_occurrence_per_change_at_one_address() -> None:
+    """The identity is per change, not per path.
+
+    ``_revision_event_id`` used to hash ``(version, part, element_path)``
+    alone and its docstring asserted the path is unique inside a part -- a
+    claim about a *reader*, held up as if it were a constraint. This witness
+    holds the property that claim was standing in for, and the two halves of
+    it are both tested here because each fails a different mutation:
+
+    * **The first change at an address keeps the digest every stored row
+      already carries.** ``occurrence`` defaults to ``0`` and that path
+      hashes ``version|part|path`` with no suffix at all -- byte-for-byte the
+      pre-occurrence id. This is what lets the fix land without moving the
+      ``2164`` rows in the pilot's ``revision_events`` or re-pointing a rule
+      bound to one; a derivation that folded the occurrence in unconditionally
+      (``f"...\x00{occurrence}"`` with no ``if``) would change every id and
+      orphan every binding, and this assertion is red the moment it does.
+    * **A second and third genuinely different change at one address each get
+      a different id.** They are distinct events, so a writer that ignored the
+      occurrence -- the silent-loss defect itself -- would fold them onto the
+      first row, and the assertion ``len({id0, id1, id2}) == 3`` goes red.
+    """
+    import hashlib
+
+    from labcairn.papers.revisions import _revision_event_id
+
+    version, part, path = "ver-under-test", "word/document.xml", "/document[1]/body[1]/p[1]/ins[1]"
+
+    legacy = "rv-" + hashlib.sha256(f"{version}\x00{part}\x00{path}".encode()).hexdigest()[:16]
+    assert _revision_event_id(version, part, path) == legacy, "the first change at an address moved"
+    assert _revision_event_id(version, part, path, 0) == legacy
+
+    first = _revision_event_id(version, part, path, 0)
+    second = _revision_event_id(version, part, path, 1)
+    third = _revision_event_id(version, part, path, 2)
+    assert len({first, second, third}) == 3, "two changes at one address collide on one id"
+
+
+def test_the_revision_event_id_is_re_derivable_not_position_dependent() -> None:
+    """The occurrence is a function of the change, so re-reading is stable.
+
+    The writer numbers each address from the document's own order, not from
+    any caller's arrangement, so the same ``(version, part, path, occurrence)``
+    gives the same id every time it is asked. **What breaks it:** mixing the
+    wall clock or a per-call counter that starts elsewhere into the digest --
+    recording the same manuscript a second time would then mint new ids for
+    the same changes, and the rows already in the store would be found by
+    neither the replay check nor the reader.
+    """
+    from labcairn.papers.revisions import _revision_event_id
+
+    args = ("ver-a", "word/document.xml", "/document[1]/body[1]/p[3]/del[1]", 1)
+    assert _revision_event_id(*args) == _revision_event_id(*args)
+    assert _revision_event_id(*args) == _revision_event_id(*args)
 
 
 def test_a_part_that_declares_a_dtd_is_refused() -> None:
@@ -975,3 +1252,262 @@ def _fixture(name: str) -> Fixture:
         if fixture.name == name:
             return fixture
     raise AssertionError(f"no fixture named {name!r}")
+
+
+# --------------------------------------------------------------------------- #
+# the anchor a deletion holds, and the anchor that is a position
+# --------------------------------------------------------------------------- #
+
+
+def _comments_part(*comments: tuple[str, str]) -> str:
+    """The comments part for the given ``(id, text)`` comments."""
+    bodies = "".join(
+        f'<w:comment w:id="{cid}" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        f'<w:p><w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>'
+        "</w:comment>"
+        for cid, text in comments
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:comments xmlns:w="{W}">{bodies}</w:comments>'
+    )
+
+
+def _comment_by_id(document: RevisionDocument, comment_id: str) -> CommentEvent:
+    for comment in document.comments:
+        if comment.comment_id == comment_id:
+            return comment
+    raise AssertionError(f"the document holds no comment {comment_id!r}")
+
+
+def test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words() -> None:
+    """A comment Word wrapped in the deletion of the words it covers.
+
+    When a commented-upon span is later deleted, Word moves the comment's
+    range markers *inside* the ``w:del`` element, around the deleted runs.
+    The deleted text **is baseline text** -- the rejected view is the
+    manuscript as it read before the change -- so the anchor is the span
+    the words occupy, and the words themselves. A walk that entered a
+    top-level revision at the offset past its whole width recorded both
+    markers at that one point, sliced the empty string, and hashed it
+    into an integrity value: the pilot's three ``resolved`` rows with no
+    anchored text were exactly this shape, and the file held 66, 66 and
+    10 baseline characters the reader dropped.
+
+    **What breaks it:** reverting the walk to enter a revision at its
+    end offset. Every marker inside then collapses onto one point, the
+    anchor covers no words, and this test fails on the text.
+    """
+    lead, deleted, tail = "Lead in. ", "removed span", " Tail."
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="7"/>'
+        f'<w:r><w:delText xml:space="preserve">{deleted}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="7"/>'
+        '<w:r><w:commentReference w:id="7"/></w:r>'
+        "</w:del>"
+        '<w:commentRangeStart w:id="8"/>'
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body),
+            _comments_part(("7", "Reword this."), ("8", "The tail needs a comma.")),
+        )
+    )
+    assert not document.problems, [problem.code for problem in document.problems]
+
+    covered = _comment_by_id(document, "7")
+    anchor = covered.anchor
+    assert anchor.status == "resolved", (anchor.status, anchor.reason)
+    assert anchor.paragraph == 0
+    assert anchor.start == len(lead), (anchor.start, anchor.end)
+    assert anchor.end == len(lead) + len(deleted)
+    assert anchor.text == deleted
+    assert document.baseline_paragraphs[0][anchor.start : anchor.end] == deleted, (
+        "the anchored text is the text at the offsets the anchor names"
+    )
+
+    # The deletion's own span is the whole width it removes, unchanged:
+    # the walk counts the deletion's text once, at the top level, and the
+    # markers inside it are positioned within that span.
+    (revision,) = [r for r in document.revisions if r.kind == "del"]
+    assert (revision.baseline_start, revision.baseline_end) == (
+        len(lead),
+        len(lead) + len(deleted),
+    ), "the deletion's own span moved"
+
+    # And the good path is not collateral: the comment anchored on the
+    # tail run still resolves to the words it covers, cut from the same
+    # baseline the offsets are into.
+    tail_comment = _comment_by_id(document, "8")
+    assert tail_comment.anchor.status == "resolved"
+    assert tail_comment.anchor.text == tail
+    assert tail_comment.anchor.start == len(lead) + len(deleted)
+
+
+def test_a_range_opening_in_one_deletion_and_closing_in_another_anchors_across_them() -> None:
+    """A commented span that the deletions cut open at both ends.
+
+    This is the shape the pilot's two remaining stale rows are written in:
+    the ``w:commentRangeStart`` sits inside one ``w:del`` and the
+    ``w:commentRangeEnd`` inside a *different*, later one, with ordinary
+    runs and an insertion between the two. The baseline text -- the
+    rejected view, the coordinate every anchor in the store is measured
+    in -- holds the deleted words of both deletions and none of the
+    insertion's, so the anchor is:
+
+    * from the offset **before** the first deletion's text, because the
+      opening marker precedes it inside the element, to
+    * the offset **after** the second deletion's text, because the closing
+      marker follows it --
+    * a span whose text contains every deleted word between the markers
+      and none of the inserted ones.
+
+    **What breaks it:** the walk the SOW (2) correction replaced -- one
+    that enters a revision at the offset past its whole width. Both markers
+    are then recorded after their deletion's text, the opening marker
+    jumps to the end of the first deletion, the anchored text loses the
+    first deletion's words, and this test fails on the text. One marker
+    per deletion, as the single-deletion test above covers, cannot tell
+    that walk from this one; the crossing is what makes the start wrong
+    while the end happens to land right -- the asymmetry the pilot's two
+    rows show.
+    """
+    lead = "Lead in. "
+    first_cut = "removed"
+    kept = " middle "
+    inserted = "inserted"
+    second_cut = "cut"
+    tail = " end"
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="11"/>'
+        f'<w:r><w:delText xml:space="preserve">{first_cut}</w:delText></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{kept}</w:t></w:r>'
+        '<w:ins w:id="901" w:author="Prof. Lin" w:date="2026-03-02T09:31:00Z">'
+        f'<w:r><w:t xml:space="preserve">{inserted}</w:t></w:r>'
+        "</w:ins>"
+        '<w:del w:id="902" w:author="Prof. Lin" w:date="2026-03-02T09:32:00Z">'
+        f'<w:r><w:delText xml:space="preserve">{second_cut}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="11"/>'
+        '<w:r><w:commentReference w:id="11"/></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body), _comments_part(("11", "Across both cuts."), ("12", "Just the tail."))
+        )
+    )
+    baseline = document.baseline_paragraphs[0]
+    assert baseline == lead + first_cut + kept + second_cut + tail, (
+        "the baseline must hold both deletions' words and none of the insertion's"
+    )
+
+    comment = _comment_by_id(document, "11")
+    assert comment.anchor.status == "resolved"
+    expected_start = len(lead)
+    expected_end = len(lead) + len(first_cut) + len(kept) + len(second_cut)
+    assert comment.anchor.paragraph == 0
+    assert (comment.anchor.start, comment.anchor.end) == (expected_start, expected_end)
+    assert comment.anchor.text == first_cut + kept + second_cut
+    assert inserted not in comment.anchor.text
+    assert comment.anchor.text == baseline[expected_start:expected_end]
+
+    # The good paths are not collateral: the deletion events keep their own
+    # spans, and a comment outside every revision is anchored as usual.
+    dels = sorted((r.baseline_start, r.baseline_end) for r in document.revisions if r.kind == "del")
+    assert dels == [
+        (len(lead), len(lead) + len(first_cut)),
+        (len(lead) + len(first_cut) + len(kept), expected_end),
+    ]
+    tail_comment = _comment_by_id(document, "12")
+    assert tail_comment.anchor.status == "unknown"
+
+
+def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> None:
+    """A reviewer commenting on the place, not on words.
+
+    Word writes a comment whose range closes where it opens when the
+    reviewer comments at a point. The pre-fix reader reported that as
+    ``resolved`` with the empty string as the covered text -- the claim
+    nothing backs, stored on every zero-width row of the pilot -- and the
+    reader before the third status reported it as ``unknown``, which
+    called a placed comment unplaced. **The position is still a place the
+    reader found**, so the paragraph and the offset are kept, the anchor
+    is reported as a position, and the comment is reported with its body;
+    what is not reported is a passage.
+    """
+    lead = "Lead in. "
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:commentRangeStart w:id="8"/>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body), _comments_part(("8", "Tighten here."))))
+    assert {problem.code for problem in document.problems} == {"docx_comment_position_anchor"}, (
+        "the position is disclosed, not passed in silence"
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "position"
+    assert anchor.reason is None, "a position is placed, not unknown: no failure to explain"
+    assert anchor.paragraph == 0, "the place the reader found is kept"
+    # The range closes where it opens: both offsets are the same number,
+    # and that number is where the markers sit -- the place travels with
+    # the anchor instead of being dropped with the words it does not cover.
+    assert anchor.start == len(lead)
+    assert anchor.end == len(lead)
+    assert anchor.text is None
+
+
+def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
+    """A comment covering words the revisions added, seen from the baseline.
+
+    The anchor's coordinates are the baseline's, and **inserted text is
+    not in the baseline** -- so a comment whose markers sit inside an
+    insertion covers a position there, whatever words the accepted view
+    shows. The pre-fix reader reported that position as ``resolved`` over
+    the empty string; the pilot's over-insertion rows were this shape,
+    eleven of the sixteen.
+    """
+    body = (
+        "<w:p>"
+        '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+        '<w:ins w:id="910" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="9"/>'
+        '<w:r><w:t xml:space="preserve">inserted words</w:t></w:r>'
+        '<w:commentRangeEnd w:id="9"/>'
+        '<w:r><w:commentReference w:id="9"/></w:r>'
+        "</w:ins>"
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(_document(body), _comments_part(("9", "Check this addition.")))
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "position"
+    assert anchor.reason is None
+    assert anchor.paragraph == 0
+    assert anchor.start is not None
+    assert anchor.end == anchor.start, "the place is kept: the range closes where it opens"
+    assert anchor.text is None
+    # The comment itself is not lost: its body, author and date are the
+    # file's, and they are reported with the position.
+    assert comment.text == "Check this addition."
+    assert comment.author == "Prof. Lin"

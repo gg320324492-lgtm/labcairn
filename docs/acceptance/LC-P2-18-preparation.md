@@ -245,7 +245,140 @@ smoke-run witness fail with it. With the worktree's `src` on
 `PYTHONPATH`, `tests/test_evaluation_harness.py` passes 75/75 on this
 tree.
 
-## 5. What is not done
+## 5. The comparison driver: two sides, six conditions, one report
+
+**What was added.** [`tests/evaluation/competitor_run.py`](../../tests/evaluation/competitor_run.py)
+builds the two sides the brief (§1) defines, asks
+[`tests/evaluation/comparison.py`](../../tests/evaluation/comparison.py)::`assess`
+the six-condition question, and renders **pairs — never a verdict**.
+[`scripts/run_competitor_comparison.py`](../../scripts/run_competitor_comparison.py)
+is the entry point; [`tests/test_competitor_comparison.py`](../../tests/test_competitor_comparison.py)
+is its witness (13 tests). The driver has two modes: `--mode dry-run`
+(the default) and `--mode real`. **No provider was called in this work.**
+
+**The dry run, measured.** The command is:
+
+```
+python scripts/run_competitor_comparison.py --output <a directory outside the repository>
+```
+
+Both sides are offline:
+
+- **Our side** is the frozen Phase 1 baseline, read in place from
+  [`LC-P2-00-baseline.json`](LC-P2-00-baseline.json). Its `model` is
+  empty by its own record, and its numbers were **read, not
+  re-measured**. The driver refuses to print them if the baseline's
+  fixture labels or answer-key version pins no longer describe the tree.
+- **The competitor side** is the paper-qa adapter driven by a
+  deterministic stub. The stub answers every case with one sentence that
+  computes nothing; the adapter captures it untouched and scores it
+  against the committed key. The recall it earns is a **wiring
+  measurement**, not a capability measurement.
+
+The run record says `provider_calls: 0`, both sides declare `model: ""`
+and `budget: ""`, and the two side records say which one is a stub. The
+rendered report repeats all six conditions and carries no
+verdict-carrying word: the renderer checks its own output against
+`tests/evaluation/report.py::ranking_pattern()`, and the witness checks
+it again.
+
+**The six conditions as rendered on this tree (2026-11-02):**
+
+| # | condition | met | what it checked |
+|---|---|---|---|
+| 1 | `matched_task` | yes | both sides cover 11 tasks, by name |
+| 2 | `matched_task_versions` | yes | both sides pin the same version for every task |
+| 3 | `matched_model` | yes | both sides declare no model (the empty string) |
+| 4 | `matched_budget` | yes | both sides declare no budget (the empty string) |
+| 5 | `verified_capabilities` | yes | the competitor side declares the adapter's four capabilities |
+| 6 | `documented_limits` | yes | the competitor side documents its limitations |
+
+**Why the six met is not a capability claim.** Condition 3 is met
+because **both** sides declare no model. A real competitor declares one;
+brief §1 states the structural fact that the frozen offline baseline
+cannot be our side of that comparison. The report's disclosures say this
+in the report's own words, and the dry-run pairing is not carried to a
+real run.
+
+**Why no metric pair is printed.** The sides count different things: our
+side counts exact cells (84/84 in the frozen baseline); the competitor
+side counts the key's expected statistics recalled by the stub's text.
+`pairs()` finds no shared metric name, so the report prints none and
+says why. A shared name over two denominators would be one number
+pretending to be another.
+
+**The real mode refuses, and the refusal is the boundary.** The driver
+raises `RealRunRefusedError` **before either side is built** when any of
+these is missing:
+
+- a budget ceiling (`--budget`);
+- our side's outbound-consent record (`--our-consent`);
+- the owner's approval for the competitor run
+  (`--competitor-approval`), because the final competitor list is the
+  owner's decision (brief §6).
+
+With all three supplied it **still** refuses, for the structural reason
+above: our side has no model-declaring frozen run, and brief §1 says a
+real competitor cannot be compared against it. Nothing in the driver
+constructs a provider or names a provider adapter, so there is no path
+around the outbound-consent bridge. The command line exits 2 and writes
+nothing.
+
+**The mutation table.** Every witness below was checked by breaking the
+property it names and watching it go red; all six mutations were killed,
+and each file's SHA-256 was verified unchanged after restoration.
+
+| witness | property | mutation | result |
+|---|---|---|---|
+| `test_a_baseline_missing_a_requirement_is_refused` | capabilities are checked | condition forced true | killed |
+| the same witness | limits are checked | condition forced true | killed |
+| `test_the_report_renders_the_six_conditions_and_no_verdict` | no verdict word | report gains "better" | killed |
+| `test_the_record_declares_zero_provider_calls_and_which_side_is_a_stub` | zero calls recorded | default changed to 1 | killed |
+| `test_a_real_run_without_a_budget_ceiling_is_refused` | real mode refuses | raise replaced with `pass` | killed |
+| `test_the_frozen_side_refuses_when_an_answer_key_pin_no_longer_matches` | pins are checked | check disabled | killed |
+
+**A structural change in `comparison.py`.** `assess` now returns
+`ConditionCheck` rows (`tests/evaluation/model.py`), and the report
+renders those rows rather than re-deriving the six comparisons. The
+existing harness witnesses remain green: **97 passed** across
+`test_evaluation_harness.py`, `test_paperqa_adapter.py` and
+`test_competitor_comparison.py` on this tree, with the worktree's `src`
+on `PYTHONPATH`.
+
+**Registration.** The new test file declares `pytestmark =
+pytest.mark.unit`; it is registered in
+[`tests/evaluation/manifest.py`](../../tests/evaluation/manifest.py)
+under `("unit", "numeric-extraction")`; and it is added to the shortest
+shard on both platforms in [`.github/ci-shards.json`](../../.github/ci-shards.json)
+(Ubuntu's second shard, Windows's first). **No cost was guessed**: shard
+costs are measured on the runner, so
+`tests/test_ci_shard_coverage.py::test_the_recorded_costs_cover_every_test_file`
+is the one expected red. Measured on this tree: **1 failed, 12 passed**;
+the other shard properties (listed exactly once per platform, named
+files exist, shard count matches the matrix, balance not shortened, job
+names distinct) are green. The fix after the next runner run is
+`python .github/remeasure_shards.py <run-id>`.
+
+**The full suite on this worktree, measured at `4cf0634`:** 4661 passed,
+5 skipped, 6 failed in 2399.27 s. One failure is the expected shard-cost
+red above. The other five are `test_outsider_path.py` (4) and
+`test_no_reference_leakage.py::test_wheel_installs_clean_and_imports`
+(1): their own messages say the clone or wheel resolved
+`...\worktrees\...\src\labcairn\__init__.py` instead of the clone's own
+code, because this run put the worktree's `src` on `PYTHONPATH` — the
+worktree measurement effect §4 records. None of the five exercises the
+comparison driver, and the driver's 13 witnesses are green in the same
+run. The base-commit comparison was not re-run; the failures' own
+messages name the environment, not the change.
+
+**What this section does not cover.** The paper-qa real provider, our
+side's real-model frozen run, a metric pair, and competitor artifacts
+for tasks 2 and 3 (unsupported-claim detection and recovery) — the
+adapter covers numeric extraction only, and the six conditions check the
+basis's fixture labels, not the full task set. The driver's report says
+the last fact in its own "What this run does not show" section.
+
+## 6. What is not done
 
 - **The re-pin at full clone (brief §2).** The pinned SHA above was read
   from the shallow snapshot; the brief requires, before anything

@@ -1,8 +1,8 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { forgetSessionToken } from '../api/session'
-import { FakeApi } from '../test/fakeApi'
+import { FakeApi, recordsFixture } from '../test/fakeApi'
 import { ProposalsView } from './ProposalsView'
 
 /**
@@ -172,5 +172,92 @@ describe('what it draws of each record', () => {
     const panel = (await screen.findByRole('heading', { name: 'Proposals' })).closest('section')
     // The ledger held three records, and the panel drew three.
     expect(within(panel as HTMLElement).getAllByText(/^record rec-/)).toHaveLength(3)
+  })
+})
+
+/**
+ * The proposal the panel is asked to settle is one the ledger has not
+ * settled: the fixture's pair is a settled one, and an act needs an open
+ * question.
+ */
+function anUnsettledProposal(): void {
+  fake.state.records = recordsFixture()
+    .filter((record) => record.evidence_id !== 'rec-person')
+    .map((record) =>
+      record.evidence_id === 'rec-model' ? { ...record, superseded_by: null } : record,
+    )
+}
+
+/** The block the panel drew for one proposal. */
+async function proposalBlock(evidenceId: string): Promise<HTMLElement> {
+  const heading = await screen.findByText(`Proposal ${evidenceId}`)
+  return heading.closest('div') as HTMLElement
+}
+
+describe('settling a proposal', () => {
+  it('confirms as-is through the route, then reads the ledger again', async () => {
+    anUnsettledProposal()
+    render(<ProposalsView cycle={0} />)
+
+    fireEvent.change(await screen.findByLabelText('Your name'), {
+      target: { value: 'alice' },
+    })
+    const block = await proposalBlock('rec-model')
+    fireEvent.click(within(block).getByRole('button', { name: 'Confirm as-is' }))
+
+    // The service's answer is the record, and the panel draws the ledger
+    // again: the person's record appears beside the proposal.
+    const person = await screen.findByText('the person\u2019s verdict')
+    expect(drawn(person.closest('li') as HTMLElement)).toContain('user')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    const accepted = fake.requests.filter(
+      (request) => request.method === 'POST' && request.url.endsWith('/records/rec-model/accept'),
+    )
+    expect(accepted).toHaveLength(1)
+    expect(JSON.parse(accepted[0]?.body as string)).toEqual({
+      user_id: 'alice',
+      verdict: 'confirmed',
+      note: '',
+    })
+    const reads = fake.requests.filter(
+      (request) => request.method === 'GET' && request.url.endsWith('/records'),
+    )
+    expect(reads.length).toBeGreaterThanOrEqual(2)
+    expect(
+      fake.state.records.find((record) => record.evidence_id === 'rec-model')?.superseded_by,
+    ).toBe('rec-person-1')
+  })
+
+  it('refuses a dispute with no note before sending, and sends one with it', async () => {
+    anUnsettledProposal()
+    render(<ProposalsView cycle={0} />)
+
+    fireEvent.change(await screen.findByLabelText('Your name'), {
+      target: { value: 'alice' },
+    })
+    const block = await proposalBlock('rec-model')
+    fireEvent.click(within(block).getByRole('button', { name: 'Dispute' }))
+
+    // The panel's own refusal: nothing was sent, and it says which field is
+    // missing.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'A dispute must say what is disputed.',
+    )
+    expect(fake.requests.some((request) => request.method === 'POST')).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('Note (required to dispute)'), {
+      target: { value: 'the core log says 4.0 mm' },
+    })
+    fireEvent.click(within(block).getByRole('button', { name: 'Dispute' }))
+    await waitFor(() => expect(fake.proposalSettlements).toBe(1))
+
+    const posted = fake.requests.find((request) => request.method === 'POST')
+    expect(JSON.parse(posted?.body as string)).toEqual({
+      user_id: 'alice',
+      verdict: 'disputed',
+      note: 'the core log says 4.0 mm',
+    })
+    expect(await screen.findByText('the person\u2019s verdict')).toBeInTheDocument()
   })
 })

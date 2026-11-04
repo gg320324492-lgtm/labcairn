@@ -1461,3 +1461,177 @@ def test_gitleaks_guard_still_accepts_the_repository_config(repo_root: Path) -> 
     """
     text = (repo_root / ".gitleaks.toml").read_text(encoding="utf-8")
     assert _gitleaks_allowlist_offenders(text) == []
+
+
+#: The longest Han run each tracked file carried, measured 2026-11-03 by
+#: ``scripts/cjk_ceilings.py``. This is not a ban on Chinese: the project's own
+#: voice is Chinese in the ADRs, the README is bilingual, and the OOXML fixtures
+#: hold synthetic sentences. It is a pin, so that a new long Chinese run -- the
+#: shape of a quoted comment, a distilled rule statement or a manuscript
+#: paragraph -- cannot enter without the person who added it re-measuring it here.
+CJK_RUN_CEILINGS: Final[dict[str, int]] = {
+    "README.md": 29,
+    "README.zh-CN.md": 29,
+    "docs/research/upstream-study/openreview-py.md": 23,
+    "docs/adr/ADR-0015-dataset-consent-and-access.md": 20,
+    "docs/plans/P2-AMD-01-provider-and-data-options.md": 20,
+    "docs/adr/ADR-0014-paper-revision-provenance.md": 18,
+    "docs/plans/PHASE_2-capability-reuse-matrix.md": 16,
+    "docs/adr/ADR-0016-model-proposal-and-human-confirmation.md": 15,
+    "docs/plans/LC-P2-08-task-breakdown.md": 15,
+    "src/labcairn/papers/alignment.py": 15,
+    "tests/test_paper_version_graph.py": 15,
+    "tests/test_version_contracts.py": 15,
+    "docs/acceptance/LC-P2-07-fidelity-baseline.md": 14,
+    "docs/acceptance/P2-G0-evidence-pack.md": 14,
+    "docs/plans/PHASE_2-mentor-trajectory-work-orders.md": 14,
+    "docs/plans/LC-P2-14-ablation-protocol.md": 13,
+    "src/labcairn/papers/versions.py": 13,
+    "tests/docx_corpus.py": 13,
+    "tests/test_readme_accuracy.py": 13,
+    "docs/research/upstream-study/PeerRead.md": 11,
+    "tests/test_version_alignment.py": 11,
+    "docs/plans/PHASE_2-work-orders.md": 10,
+    "tests/test_status_consistency.py": 9,
+    "docs/plans/LC-P2-06-task-breakdown.md": 8,
+    "docs/plans/LC-P2-11-task-breakdown.md": 8,
+    "src/labcairn/db/models.py": 8,
+    "src/labcairn/security/permissions.py": 8,
+    "tests/test_consent_withdrawal.py": 8,
+    "tests/test_version_confirmation.py": 8,
+    "docs/acceptance/LC-P2-25-guard-of-the-guards.md": 7,
+    "src/labcairn/papers/duplicates.py": 7,
+    "tests/test_version_duplicates.py": 7,
+    "docs/acceptance/g5-review-records.md": 6,
+    "docs/adr/ADR-0017-feedback-chain.md": 6,
+    "docs/acceptance/PR-1-independent-review.md": 5,
+    "docs/research/upstream-study/XtraGPT.md": 5,
+    "docs/acceptance/LC-P1-01-evidence.md": 4,
+    "docs/acceptance/LC-P1-13-fixtures.md": 4,
+    "tests/test_analysis_recipe.py": 4,
+    "migrations/versions/0010_paper_version_graph.py": 3,
+    "src/labcairn/roles/trajectory.py": 3,
+    "src/labcairn/skills/quality.py": 3,
+    "tests/test_material_regressions.py": 3,
+    "docs/adr/ADR-0004-scientific-provenance-and-evidence-model.md": 2,
+    "scripts/cjk_ceilings.py": 2,
+    "tests/test_artifact_ledger_persistence.py": 2,
+    "tests/test_cli.py": 2,
+    "tests/test_repo_root_guard.py": 2,
+    "tests/test_skill_quality.py": 2,
+}
+
+#: Records where the corpus's words were found on 2026-11-03 and removed. These
+#: three are English by their own design, so they are held to no Chinese at all.
+#: A future Chinese phrase in one of them must be a deliberate act: add it to
+#: this tuple and to the measured table, in the commit that adds it.
+MATERIAL_FREE_RECORDS: Final[tuple[str, ...]] = (
+    "docs/acceptance/LC-P2-11-check-binding.md",
+    "docs/acceptance/LC-P2-11-revision-distillation.md",
+    "docs/handoff/CURRENT.md",
+)
+
+
+def _measured_ceilings(repo_root: Path) -> dict[str, int]:
+    """Ask the script. The measurement lives in one place, not in the test."""
+    proc = subprocess.run(
+        [sys.executable, "-I", str(repo_root / "scripts" / "cjk_ceilings.py"), "--json"],
+        capture_output=True,
+        check=True,
+    )
+    measured: dict[str, int] = json.loads(proc.stdout.decode("utf-8"))
+    return measured
+
+
+def test_the_tree_carries_no_more_chinese_than_was_measured(repo_root: Path) -> None:
+    """The corpus's words are not in the tree, and a pin is how that is known.
+
+    The repository is public and the pilot corpus is the owner's unpublished work.
+    ``docs/handoff/CURRENT.md`` states the promise -- *"Nothing of the paper is in
+    the repository"* -- and on 2026-11-03 an audit found three records carrying the
+    mentor's own sentences while that line stood: a full rule statement of 77
+    characters, the paragraph a tracked change was made in, and the advisor's
+    critique quoted twice. Nothing failed, because nothing was watching.
+
+    So this compares the tree against a measured table, **in both directions**.
+    Growth means a Chinese run was written in that nobody signed. Shrinkage means
+    a number was carried forward instead of re-measured -- which is the same
+    failure the shard costs guard against, and the reason the assertion is an
+    equality rather than a ``<=``.
+
+    And the table itself is checked against something real: the README must carry
+    a long run, so a script that quietly returned an empty map would redden here
+    instead of blessing the tree.
+    """
+    measured = _measured_ceilings(repo_root)
+    assert measured.get("README.md", 0) >= 20, (
+        "the measurement no longer sees the bilingual README, so it cannot be "
+        "trusting anything else either"
+    )
+    added = sorted(set(measured) - set(CJK_RUN_CEILINGS))
+    grown = sorted(
+        p for p in measured if p in CJK_RUN_CEILINGS and measured[p] != CJK_RUN_CEILINGS[p]
+    )
+    removed = sorted(set(CJK_RUN_CEILINGS) - set(measured))
+    assert not added, f"files now carrying Chinese that was never measured: {added}"
+    assert not grown, f"the Chinese run length moved from what was pinned: {grown}"
+    assert not removed, (
+        f"a pinned file lost its Chinese and the table was not re-measured: {removed}"
+    )
+
+
+def test_the_records_that_held_the_corpus_are_clean(repo_root: Path) -> None:
+    """The three records where the material's words were found carry none now.
+
+    The general table would catch a re-added quote only as "the number moved";
+    this names the files, so a failure says what it means: the corpus went back
+    into a record. The assertion is that the script reports **no entry at all**
+    for each -- an entry appears the moment a Han run exists.
+    """
+    measured = _measured_ceilings(repo_root)
+    offenders = sorted(p for p in MATERIAL_FREE_RECORDS if p in measured)
+    assert not offenders, f"the corpus's words are back in a record: {offenders}"
+
+
+#: Where the corpus's words were found on 2026-11-03: the acceptance records and
+#: the handoff. The cap below is **a policy, not a per-file measurement** -- that
+#: distinction is the point. A pinned ceiling can be satisfied by re-measuring the
+#: file a quote was written into; a cap cannot, so a quotation cannot be legalised
+#: by the act that a mutation battery turned out to be able to perform.
+#:
+#: 14 is the longest Han run these directories carry on 2026-11-03. Both instances
+#: are the project's own vocabulary quoted from its ADRs and records -- see
+#: ``docs/acceptance/LC-P2-07-fidelity-baseline.md`` and
+#: ``docs/acceptance/P2-G0-evidence-pack.md`` for the two sentences; the cap is not
+#: raised by quoting them here, which is how this witness found its own first
+#: offender: the draft of this docstring carried those 14 characters and reddened
+#: the pin it was written to express.
+RECORD_HAN_RUN_CAP: Final[int] = 14
+
+#: Paths whose files are held to the cap rather than to their own measurement.
+RECORD_DIRECTORIES: Final[tuple[str, ...]] = ("docs/acceptance/", "docs/handoff/")
+
+
+def test_the_records_carry_no_chinese_longer_than_the_cap(repo_root: Path) -> None:
+    """Records and the handoff are English about the material, whatever moves.
+
+    The audit that found the corpus's words quoted in three records also found the
+    general table could be widened to match them: measuring what is there makes no
+    statement about what should be. So this asks a different question of a different
+    surface -- **can a Chinese run in a record exceed the project's own vocabulary?**
+    -- and the answer does not move when a file is re-measured.
+
+    The failure names the file and the length, because a record that trips this is
+    either quoting somebody's paper or quoting a mentor's comment, and the reader
+    has to be able to tell which one it is holding.
+    """
+    measured = _measured_ceilings(repo_root)
+    offenders = sorted(
+        (run, path)
+        for path, run in measured.items()
+        if path.startswith(RECORD_DIRECTORIES) and run > RECORD_HAN_RUN_CAP
+    )
+    assert not offenders, (
+        f"records carrying Chinese longer than the project's own vocabulary "
+        f"(cap {RECORD_HAN_RUN_CAP}): {offenders}"
+    )
