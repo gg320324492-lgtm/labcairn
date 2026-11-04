@@ -47,13 +47,14 @@ and six judgeable rules were re-measured line-for-line the same after the
 run.
 
 **What remains is the owner's, and each piece is listed where it is
-recorded**: the blind evaluation's fresh budget decision after the
-five-arm recalibration (27209 tokens for one case, 384480 for the
-measured 84-call shape), the 12-case real run, human rating and a second
-unseen paper (§3 row 2; acceptance record §8), the retrieval sample's
-human pass over three papers' reports (§3 row 5), the G1/G2 human review,
-and two material gaps — the second paper's version edges and the
-author-draft-versus-mentor-copy edge type. **The
+recorded**: the blind evaluation's 84-call scaled run is complete at
+398555 tokens (87.19% of the 457111-token ceiling); its blind packet
+has 84 distinct anonymous items, but two independent human raters, the
+arbiter and a second unseen paper are still needed before any
+significance verdict (§3 row 2; acceptance record §9). Also outstanding:
+the retrieval sample's human pass over three papers' reports (§3 row 5),
+the G1/G2 human review, and two material gaps — the second paper's
+version edges and the author-draft-versus-mentor-copy edge type. **The
 competitor run's budget approval and runbook execution (§3 row 6) happened on
 2026-11-04** — below, and in
 [LC-P2-18 live run](../acceptance/LC-P2-18-live-run.md).

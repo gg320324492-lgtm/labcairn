@@ -420,26 +420,72 @@ At the measured mean of 42.646s per call, 84 sequential calls are about
 the owner's decision, not a budget that has been approved. **USD is not
 computed here**; the owner's billing console is the money source.
 
-**No 12-case run was started.** The owner's rule was to scale only when the
-new cost came down enough for a fresh decision; this record presents the
-measured shape and leaves that decision to them.
+**The 12-case scaling run was subsequently authorized and completed.** Its
+measured shape is §9; the recalibration's 384480-token estimate and
+457111-token mean-shape ceiling are the budgets the run was held to.
 
-## 9. What the real run still needs, in order
+## 9. The authorized 12-case scaling run
 
-1. **A fresh owner budget decision** for the measured 384480-token shape
-   (or another explicit per-call output cap), a new ceiling and the 12-case
-   authorization. Neither the old 130k estimate nor the 1.48M pre-repair
-   extrapolation is a current budget.
+The owner approved the scaled run against the recalibration's budget shape.
+The run made **84 calls**: 60 five-arm calls and 24 arrangement-pair calls.
+All **84** answered, no response was truncated, no approval was spent twice,
+and the product's own ledger ended with 84 `CONSUMED` rows. The cumulative
+metered total was **398555 tokens** (115337 input, 283218 output), **87.19%**
+of the 457111-token hard ceiling; the gate was not triggered and 58556 tokens
+of headroom remained. Wall clock was **3115.56s / 51.9 minutes**. **No USD
+is computed here**; the owner's billing console is the money source.
+
+| Run scope | Arm / roles | Calls | Input | Output | Total | Wall clock |
+|---|---|---:|---:|---:|---:|---:|
+| five arms | A, guidance | 12 | 10973 | 37780 | 48753 | 390.61s |
+| five arms | B, guidance | 12 | 11693 | 39767 | 51460 | 469.56s |
+| five arms | C, guidance | 12 | 18776 | 46309 | 65085 | 501.62s |
+| five arms | D, guidance | 12 | 24158 | 39072 | 63230 | 418.19s |
+| five arms | E, guidance | 12 | 26063 | 39348 | 65411 | 499.06s |
+| arrangement pair | B-only, guidance | 12 | 11693 | 37531 | 49224 | 404.74s |
+| arrangement pair | B+C, guidance + critique | 12 | 11981 | 43411 | 55392 | 431.78s |
+| **Total** | | **84** | **115337** | **283218** | **398555** | **3115.56s** |
+
+An earlier attempt stopped before its first provider call with
+`BudgetEnforcementUnavailableError`: the product's token ceiling requires a
+capability probe that the 84-call authorization did not include. It spent
+zero tokens and zero approvals; its record is archived separately. The run
+that completed used the operator-side cumulative meter as the hard stop and
+the product's 84-request ceiling, so no unapproved probe was made.
+
+The first material build exposed a **new** machine defect: the five-arm B
+answer and the arrangement pair's B-only answer had the same arm id, case and
+guidance role, so their old anonymous item digests collided and 12 artifact
+files overwrote 12 others. No answer was lost — every paid-for answer had
+already been written per call — and no new provider call was made. The run
+scope is now part of the item digest, artifact provenance and unblinding
+map. The materials were rebuilt from the paid-for answers into **84 distinct
+anonymous items**, with a mutation-checked witness. The blind packet,
+unblinding map and rating template live outside this repository under
+`blind5-arms/live/scaled/`; no answer or material text is in the tree.
+
+**The machine side is complete; the measurement is not.** D vs C and E vs D
+each have 12 paired answer sets and five protocol dimensions, but the two
+independent human raters and the arbiter have not supplied sheets. The
+machine-side record says `NOT RUN`, with no wins, losses, ties, p-value or
+significance verdict. `unknown` and `not significant` are first-class
+results, and no unscored answer is promoted into a significance claim. The
+same `NOT RUN` shape applies to B+C vs B-only. A second unseen paper and the
+human ratings remain owner-side work.
+
+## 10. What the real run still needs, in order
+
+1. **Two annotators who did not develop the system and did not annotate the
+   current test set**, and an arbiter for disagreements (§5 of the protocol).
+   The blind packet is ready; no sheet has been filled and no significance
+   has been computed.
 2. **A literature source for arm B** — or B is declared as a control that
    repeats A, which the record must say before the run rather than after.
-3. **Two annotators who did not develop the system and did not annotate the
-   current test set**, and an arbiter (§5 of the protocol) — no blind sheet was
-   filled and no significance was computed; a calibration is not a run.
-4. **More unseen papers.** One paper gives twelve paired cases; the protocol's
+3. **More unseen papers.** One paper gives twelve paired cases; the protocol's
    conclusion is about the system, not about one manuscript, and the split is
    checked per paper.
 
-## 10. What the calibration changed in the tree
+## 11. What the calibration changed in the tree
 
 **The assembly itself changed no `src/` and no `tests/` file.** The seven-face
 case shape, the additive chain, the split checker with its version caps, the

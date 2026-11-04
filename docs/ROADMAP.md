@@ -138,16 +138,20 @@ rule. The machine was then repaired — the shared-loop fault, approval
 consumption before the wire, missing output policy and the arrangement
 pair's runnable path — and one case was recalibrated: all five arms
 answered at **27209 tokens** (8210 in, 18999 out), **48.45%** below the
-old measurement but still **2.52x** the original estimate. The measured
-12-case shape is **326508** tokens for five arms and **384480** for the
-84 calls including the arrangement pair. **No 12-case run was started**;
-the owner's fresh budget decision is still outstanding
+old measurement but still **2.52x** the original estimate. The owner then approved the 12-case scaled run: all **84** calls
+answered at **398555 tokens** (115337 in, 283218 out), 87.19% of the
+457111-token hard ceiling, in 51.9 minutes. The five-arm B / arrangement
+B-only item-id collision was found and repaired by adding a run scope
+to the anonymous digest; the 84 paid-for answers were rebuilt into 84
+distinct blind items without another provider call. **The machine side
+is complete but the measurement is not**: no human rater sheets or
+arbiter exist, so D vs C, E vs D and B+C vs B-only all remain `NOT RUN`
+with no p-value or significance claim. A second unseen paper and the
+human ratings remain owner-side work
 ([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
 **Of the merged ticket's six, four are built and two are left**:
-the blind evaluation's real run (the paper, the assembly, both
-calibrations and the repaired machinery exist; what is left is the
-owner's new budget, the raters, the arbiter and the second paper), and
-the competitor comparison (brief written, preconditions met, budget and
+the blind evaluation's human scoring and second paper, and the
+competitor comparison (brief written, preconditions met, budget and
 final pick the owner's call). Retrieval quality beyond three papers waits
 on a corpus read by a human, per LC-P2-14's own protocol.
 
