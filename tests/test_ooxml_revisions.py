@@ -1351,6 +1351,90 @@ def test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words
     assert tail_comment.anchor.start == len(lead) + len(deleted)
 
 
+def test_a_range_opening_in_one_deletion_and_closing_in_another_anchors_across_them() -> None:
+    """A commented span that the deletions cut open at both ends.
+
+    This is the shape the pilot's two remaining stale rows are written in:
+    the ``w:commentRangeStart`` sits inside one ``w:del`` and the
+    ``w:commentRangeEnd`` inside a *different*, later one, with ordinary
+    runs and an insertion between the two. The baseline text -- the
+    rejected view, the coordinate every anchor in the store is measured
+    in -- holds the deleted words of both deletions and none of the
+    insertion's, so the anchor is:
+
+    * from the offset **before** the first deletion's text, because the
+      opening marker precedes it inside the element, to
+    * the offset **after** the second deletion's text, because the closing
+      marker follows it --
+    * a span whose text contains every deleted word between the markers
+      and none of the inserted ones.
+
+    **What breaks it:** the walk the SOW (2) correction replaced -- one
+    that enters a revision at the offset past its whole width. Both markers
+    are then recorded after their deletion's text, the opening marker
+    jumps to the end of the first deletion, the anchored text loses the
+    first deletion's words, and this test fails on the text. One marker
+    per deletion, as the single-deletion test above covers, cannot tell
+    that walk from this one; the crossing is what makes the start wrong
+    while the end happens to land right -- the asymmetry the pilot's two
+    rows show.
+    """
+    lead = "Lead in. "
+    first_cut = "removed"
+    kept = " middle "
+    inserted = "inserted"
+    second_cut = "cut"
+    tail = " end"
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="11"/>'
+        f'<w:r><w:delText xml:space="preserve">{first_cut}</w:delText></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{kept}</w:t></w:r>'
+        '<w:ins w:id="901" w:author="Prof. Lin" w:date="2026-03-02T09:31:00Z">'
+        f'<w:r><w:t xml:space="preserve">{inserted}</w:t></w:r>'
+        "</w:ins>"
+        '<w:del w:id="902" w:author="Prof. Lin" w:date="2026-03-02T09:32:00Z">'
+        f'<w:r><w:delText xml:space="preserve">{second_cut}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="11"/>'
+        '<w:r><w:commentReference w:id="11"/></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body), _comments_part(("11", "Across both cuts."), ("12", "Just the tail."))
+        )
+    )
+    baseline = document.baseline_paragraphs[0]
+    assert baseline == lead + first_cut + kept + second_cut + tail, (
+        "the baseline must hold both deletions' words and none of the insertion's"
+    )
+
+    comment = _comment_by_id(document, "11")
+    assert comment.anchor.status == "resolved"
+    expected_start = len(lead)
+    expected_end = len(lead) + len(first_cut) + len(kept) + len(second_cut)
+    assert comment.anchor.paragraph == 0
+    assert (comment.anchor.start, comment.anchor.end) == (expected_start, expected_end)
+    assert comment.anchor.text == first_cut + kept + second_cut
+    assert inserted not in comment.anchor.text
+    assert comment.anchor.text == baseline[expected_start:expected_end]
+
+    # The good paths are not collateral: the deletion events keep their own
+    # spans, and a comment outside every revision is anchored as usual.
+    dels = sorted((r.baseline_start, r.baseline_end) for r in document.revisions if r.kind == "del")
+    assert dels == [
+        (len(lead), len(lead) + len(first_cut)),
+        (len(lead) + len(first_cut) + len(kept), expected_end),
+    ]
+    tail_comment = _comment_by_id(document, "12")
+    assert tail_comment.anchor.status == "unknown"
+
+
 def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> None:
     """A reviewer commenting on the place, not on words.
 

@@ -246,3 +246,99 @@ afterwards.
 - **`reply_settlements`' two-word anchor vocabulary** is a different axis
   (does the judgement name a manuscript address), and nothing here
   widens it.
+
+## 6. The two rows outside the correction's scope: measured 2026-11-04
+
+The pre-correction scan found eighteen `resolved` rows that did not read
+fresh: the sixteen SOW (2) corrected, and two it did not touch —
+`fb-7b7a991a1962a496` and `fb-8bc0ab3105ecf2cc`, both on paragraph 11 of
+one corpus-2 version, real text truncated at its start. The work order
+carried them as an open question: a residue of the collapsed-`w:del` walk
+in the reader, or legacy data the fixed reader already reads right.
+**The measurement says legacy data: the current reader is right, and the
+rows are not. No reader change is needed; the closing of this debt is the
+same correction mechanism extended to the two rows, on the owner's
+approval.**
+
+The comparison was three-way, and the truth side does not reuse the
+product's recursion — a leaf-walk that judges every text leaf by its
+outermost enclosing revision and advances the cursor one leaf at a time,
+in the rejected (baseline) view the store's schema names:
+
+| row | file truth (leaf-walk) | the current reader | the row as stored |
+|---|---|---|---|
+| `fb-7b7a991a1962a496` | (16, 41) · 25 chars · `4cd8e0d388b7…` | (16, 41) · 25 chars · same digest | (21, 41) · 20 chars · `72636032da3d…` |
+| `fb-8bc0ab3105ecf2cc` | (105, 114) · 9 chars · `fa466b74c698…` | (105, 114) · 9 chars · same digest | (109, 114) · 5 chars · `f683ccab3bc2…` |
+
+(Digests are the first twelve hex characters; the full values, and every
+number, are in the rehearsal output kept outside the repository.)
+
+**The stored values are neither view's truth.** In the accepted view the
+same two markers fall at (16, 24) and (88, 91); (21, 41) and (109, 114)
+match no coordinate. They match the walk this record's §1 and §2 replaced:
+one that entered a top-level revision at the offset **past its whole
+width**, so a marker inside a deletion is recorded at the deletion's end.
+Each of these two rows' closing marker sits after its deletion's text,
+where that walk and the truth agree by luck — and its opening marker sits
+before its deletion's text, where they differ by exactly that deletion's
+width: 21 = 16 + 5, and 109 = 105 + 4. End right, start late, by the
+width of one deletion: the signature of the collapsed-`w:del` walk, the
+same mechanism as the sixteen, caught one severity down — a range that
+still holds text on the far side of the collapse survives as a truncated
+passage rather than an empty one.
+
+**Two pieces of machinery hold this from here.**
+
+*The witness for the crossing shape.* Each of the two rows' range opens
+inside one `w:del` and closes inside a later one, with ordinary runs and
+an insertion between. The existing witness
+`test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words`
+puts both markers in a single deletion; it reddens under the pre-fix walk,
+but it does not hold the shape where the start is wrong while the end
+happens to land right — the pilot's shape, and the one that would let a
+regression pass as "already covered". The new witness
+`test_a_range_opening_in_one_deletion_and_closing_in_another_anchors_across_them`
+(`tests/test_ooxml_revisions.py`) asserts the exact span, the exact text,
+that the text equals the baseline slice between those offsets, that the
+insertion contributes nothing to it, and that both deletions keep their
+own spans. Mutation: descend into a top-level revision at the offset past
+its whole width — the pre-fix order, one argument of one call, `start`
+changed to `offset` — and the witness fails on the span, `assert (16, 30)
+== (9, 27)`, with the single-deletion witness reddening alongside it. The
+reader file was restored byte-for-byte before anything else in this
+section ran.
+
+*The rehearsal of the re-record.* `nz_rehearsal.py`, kept outside the
+repository like every store-side script (it names the live store's path).
+The live store is opened `mode=ro` and copied with SQLite's backup API —
+it is in WAL mode, where a bare file copy can split pages from their log.
+The two rows are re-derived through the product's own reader and rewritten
+with its output; every verdict is read through the product's own
+`anchor_state`, before and after. On the copy:
+
+```
+PRE  verdicts: {'fresh': 57, 'unanchored': 21, 'stale': 2}
+POST verdicts: {'fresh': 59, 'unanchored': 21}   statuses: {'resolved': 59, 'unknown': 8, 'position': 13}
+rows moved: the two;  other tables: none;  integrity: ok
+```
+
+which is probe 4's terminal ({'fresh': 59, 'unanchored': 21}) — the
+status line reads differently only because probe 4 measured the store at
+`0019`, where the thirteen positions were spelled `unknown` + reason; in
+this copy they are `position`, as §2's correction left them. The copy's
+terminal `feedback_events` digest — its seven anchor columns in canonical
+JSON, ordered by id — is
+`c70a24633a9c71ebc9ee4450c1984b4e11c28d4b8ed1eaec4ed9b0e5859d2be4`;
+the execution script recomputes it and refuses to call the run done
+without it.
+
+**Anchored values, re-measured as this section was written.** Tree at
+`f1809a47d17701dfe5bbf69115c49392d74b337c` (printed with
+`git rev-parse HEAD`); `src/labcairn/material/ooxml.py` at
+`954e6825cbf7693d7cf72239f3bcd0c35cf7fdbc55eaddfcf0a2693de6fb105a`; the
+live store at `0023` with 80 rows and statuses
+`resolved 59 / unknown 8 / position 13` — read `mode=ro`, written by
+nothing in this piece. **The execution plan is the operator-side page at
+`E:\labcairn-local\nonzero-width\EXECUTION-PLAN.md`, and it waits for the
+owner.** Until that approval, the two rows stay stale, and the store
+says so honestly.
