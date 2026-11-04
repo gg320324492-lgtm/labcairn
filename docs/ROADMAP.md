@@ -127,9 +127,16 @@ that names every shape, the anonymous sheet that refuses an arm key,
 the paired sign test whose not-significant verdict is first-class —
 LC-P2-14's machinery, **written and not run**), and **five acceptance
 records carry an independent review** (every mutation re-applied by a
-session that built none of them, every witness watched). **Of the
-merged ticket's six, four are built and two are left**: the blind
-evaluation's real run (unseen papers and a budget — the owner's call),
+session that built none of them, every witness watched). **The first
+unseen paper has since been assembled into those arms and the dry run
+walked end to end on it** — 12 cases, 60 stub calls, zero provider calls,
+the leak check run against the real chain and clean, and the budget shape
+measured at 84 calls and about 130k tokens per paper
+([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
+**Of the merged ticket's six, four are built and two are left**: the blind
+evaluation's real run (the paper and the assembly now exist; what is left
+is the owner's budget and the three decisions that record names — the
+citable-rule face, arm B's literature source, and the second paper),
 and the competitor comparison (brief written, preconditions met, budget
 and final pick the owner's call). Retrieval quality beyond three
 papers waits on a corpus read by a human, per LC-P2-14's own protocol.
