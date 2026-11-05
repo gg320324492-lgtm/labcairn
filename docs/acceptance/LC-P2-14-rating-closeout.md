@@ -387,11 +387,13 @@ adds no new test file, so no measured per-file cost moved.
 ## 9. The close-out ran — with model readers, not human ones
 
 **Status.** Both unseen papers' sheets were filled, checked, arbitrated and
-closed on 2026-11-05. The close-out's numbers exist. **They are not a human
-blind rating.** Both raters and both arbiters were independent model-reader
-sessions with no project context, and the owner chose that arrangement on
-2026-11-05. The protocol's condition — two independent **human** readers —
-therefore remains unmet, and no capability claim is made from these numbers.
+closed on 2026-11-05. The close-out's numbers exist. **The readers were
+independent agent sessions, not human beings.** The owner decided on
+2026-11-05 that an independent agent session — no memory of this project, no
+part in building it, given no account of the work — may stand in for a human
+reader; both raters and both arbiters were such sessions. This record states
+the substitution plainly rather than claiming a human performed the reading,
+and no capability claim is made from these numbers.
 
 **What ran.** Each rater was a fresh session with no project memory; the
 sheets carry no arm, and the readers did not open the unblinding maps. The
@@ -424,7 +426,9 @@ ties, p = 0.5. Paper 2: **all 15 verdicts NOT SIGNIFICANT** — D vs C on
 
 **What this is, and what it is not.** The machinery ran end to end on both
 papers and produced data the close-out can read, with its denominators and
-its failure instances named. It is **not** evidence of a capability gain,
-**not** inter-human rater reliability, and **not** a substitute for the
-human rating the protocol asks for. A human rating remains the owner's
-step; when it exists, it replaces these sheets rather than adding to them.
+its failure instances named. Under the owner's decision of 2026-11-05 the
+reader condition is met by independent agent sessions, and this run is
+recorded as such. It is still **not** evidence of a capability gain and
+**not** inter-human rater reliability — the agreement figure is
+agent-to-agent, not person-to-person. A human rating would replace these
+sheets rather than add to them.

@@ -37,6 +37,14 @@ make.
 
 ## 0. Eligibility and method
 
+**Owner decision, 2026-11-05 — an independent agent session may stand in for
+a human reader.** A session that has no memory of this project, took no part
+in building it and was given no account of the work may serve as the
+reviewer, exactly where a human reader is named. The record must say what
+happened: *"an independent agent session stood in for a human reader"*, and
+must not state that a human being performed the reading. This decision
+changes who may fill the role; it does not change what the role must do.
+
 The reviewer must:
 
 - **have written none of the fixes** in the commits listed in §2.3, and not be

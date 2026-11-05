@@ -97,5 +97,7 @@ The 33 rows are the checklist's own: G1's 13, G2's 7 + 7 + 6.
   checklist has been run against a named commit, every row has a verdict,
   and the twelve rows with witness problems are named.
 - It **does not discharge** the board's independence rule: the reviewer is
-  the party that dispatched the work. A later independent review by someone
-  who did neither is what that rule asks for.
+  the party that dispatched the work. The owner's decision of 2026-11-05
+  lets an independent agent session stand in for a human reader, but this
+  review was a project session's, so the rule still asks for a later review
+  by an independent session that took no part in building the work.
