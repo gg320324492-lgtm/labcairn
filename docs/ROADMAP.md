@@ -8,6 +8,17 @@ orders.
 
 ## Current position
 
+**Delivery pointer (2026-11-06).** PR #148 merged as
+`0d654b2038051805eb0ab410783ea2fe90545506`; the delivery branch was deleted
+locally and on the remote. Batch 11's version-graph record, approved
+real-store write and three negative witnesses were then merged locally at
+`c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The owner expects no further
+paper-material batches. MIT is the chosen eventual licence, with
+`Copyright (c) 2026 Tonghe Du`, but the coordinated local commit waits for
+the next delivery batch and the repository still has no `LICENSE`. The CI
+provider credential remains the owner's. The 2026-11-05 end-of-day paragraph
+below is a historical snapshot, not the current delivery state.
+
 **Phase:** P2 — Scientific Intelligence · **Phase 1:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
 | | |
@@ -249,9 +260,11 @@ byte-for-byte, then succeeded — commits `ac8fe6fb6fd8cc945999b230962324d82c786
 `d19ea0412211e40e8c0bafdd684390c475dd2741`.
 The final whole suite on this tree at `9653b85` is **4,941 passed, 14
 skipped, 0 failed** in 31 minutes (no `PYTHONPATH`, isolated temp and
-basetemp outside the repository); `main` is **37 commits ahead of
-`origin/main`**, unpushed by the owner's choice. The licence, the CI provider
-credential and the next material batch remain the owner's.
+basetemp outside the repository); at that 2026-11-05 snapshot `main` was
+**37 commits ahead of `origin/main`**, unpushed by the owner's choice. The
+licence, the CI provider credential and the next material batch were the
+owner's. That paragraph is a dated historical snapshot: PR #148 has since
+merged and the §Current position pointer above carries the delivery state.
 
 ## Phase 1 upstream research
 

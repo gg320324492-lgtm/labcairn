@@ -223,3 +223,15 @@ open questions: the two papers became projects in the real store, and the
 text-identical re-issue received no separate version row. `F027`'s role and
 the editorial rounds' order remain open; every edge is still an unaccepted
 model proposal.
+
+## 7. Local delivery (2026-11-06)
+
+The scratch branch carrying this record was merged into local `main` after
+PR #148 merged. The delivery merge is
+`0d654b2038051805eb0ab410783ea2fe90545506`; the local tree carrying both
+batch-11 records is
+`c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The worktree and its scratch
+ref were deleted after the merge. The witness ledger over
+`0d654b2..c2cd25a` reported `LOST -- none`. No push, pull request or
+runner measurement was added by this local merge; the real-store write in
+§6 remains the store-side fact, not a CI result.

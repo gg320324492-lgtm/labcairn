@@ -103,3 +103,18 @@ delivery after PR #148 and starts no CI run itself.
   tree; no write to a real pilot store.
 - No push, no pull request, no whole-suite pytest run, and no change to a
   delivery branch.
+
+## 6. Local delivery (2026-11-06)
+
+The worktree's branch was merged into local `main` after PR #148 merged.
+The delivery merge is `0d654b2038051805eb0ab410783ea2fe90545506`; the local
+tree carrying this record and the batch-11 version graph is
+`c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. Both scratch worktrees and
+their refs were deleted after the merge. The ledger over
+`0d654b2..c2cd25a` reported `LOST -- none` and named the three witnesses
+above as additions; ruff, format, mypy and `git diff --check` were clean.
+
+This section changes only the branch's location in the local tree. It does
+not add a runner measurement, a push, a pull request or a whole-suite
+count to §4's evidence, and §5's boundaries remain the boundaries of the
+work as it was measured.

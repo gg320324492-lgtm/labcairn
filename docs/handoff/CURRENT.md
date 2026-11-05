@@ -1,10 +1,22 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-06 · **PR #148 has merged.** Local `main` is fast-forwarded
+to merge commit `0d654b2038051805eb0ab410783ea2fe90545506`; the delivery
+branch is deleted locally and on the remote. Batch 11's two-paper version
+graph, its approved real-store write and three negative witnesses are merged
+locally at `c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The owner expects no
+further paper-material batches. The owner has chosen MIT for the eventual
+licence grant and supplied `Copyright (c) 2026 Tonghe Du`, but requires the
+coordinated local commit to wait for the next delivery batch; the repository
+still has no `LICENSE`. The CI provider credential remains the owner's.
+
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,
-and batches 8–10 are in the tree. What remains is the owner's: the licence,
-the CI provider credential, the next material batch, and the deferred
-delivery PR.**
+and batches 8–10 are in the tree. What remained at that time was the owner's:
+the licence, the CI provider credential, the next material batch, and the
+deferred delivery PR.** The 2026-11-05 entries below are the historical
+state immediately before PR #148; the 2026-11-06 paragraph above is the
+current pointer.
 
 **What landed on 2026-11-05, with its record:**
 
