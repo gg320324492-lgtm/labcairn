@@ -197,6 +197,28 @@ unanchored / 0 stale over 80 rows**, with no empty-text `resolved` row and no
 `2fc7e03a3adf493b08052a818bc302bae940a4b2` and
 `f876affc874047850f6506b021cdb41a4b7cda82`.
 
+**Where Line B stands (2026-11-05, later the same day).** The close-out has
+now run: both papers' sheets were filled by independent reader sessions, and
+the owner decided on 2026-11-05 that an **independent agent session may stand
+in for a human reader** (the records say the substitution, never that a human
+read). Agreement **343/420** and **441/455**; 77 and 14 disputes settled by
+third readers; **all 30 verdicts NOT SIGNIFICANT** — commit
+`4aeb2fb822922d748531d5870290a3e1b56f82db`, decision
+`8da3c55d568d9cb53b6ee25ba3605815d527754f`. **The G1/G2 checklist ran**: 33
+rows, **21 A / 12 B / 0 C / 0 D**, the twelve B rows naming witness problems;
+the independence clause is named as *not* discharged by that review — commit
+`d63078c72b28c124852bece80a4ee4c422dd3706`. **The citation-support metric is
+measured**: `evidence-locator-validity` **36/45** over a 45-row sample, with
+the frozen P1 baseline predating the key so no pair prints yet — commit
+`d959044c12dfbaa8493033960fea9f2e722da21e`. **The rule layer's third rule has
+a confirmed check**, bound to version 1, with the unconfirmed-bind refusal
+demonstrated on the real rows (the store holds 25 confirmed rules, 25 checks,
+25 bindings) — commit `e248a6dfd7cd9bf0221b539e7ebe7e9343e343b8`. **Batch 8's
+draft chain is a version graph** in the pilot store: 9 versions, 7
+owner-accepted edges, 2,289 revision events, no rule distilled — commit
+`1d328fd97f2b61d02aab396a8322e8fc8cc084ad`. `main` is **13 commits ahead of
+`origin/main`**, unpushed by the owner's choice.
+
 ## Phase 1 upstream research
 
 **LC-P1-00** is a new lightweight prerequisite and continuing reference task: establish separate local clones of selected top Agent/scientific-Agent repositories, record precise SHAs and license context, and use ADRs/tests to justify architecture choices. Do not vendor/reference-clone entire repositories inside the public repo. See [`UPSTREAM_REFERENCES.md`](UPSTREAM_REFERENCES.md). P1 now contains **15 work orders (00–14)**, with G0 for reference setup before the original G1–G5 gates.

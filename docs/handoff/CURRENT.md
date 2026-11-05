@@ -1,5 +1,59 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-05 · **the two unseen papers' close-out has run, the G1/G2
+checklist has run, and the third rule has a check. The owner's two open
+decisions are the human/independent review path and delivery.**
+
+**What landed on 2026-11-05, with its record:**
+
+- **The unseen papers' blind evaluation closed out.** Both papers' sheets
+  were rated by independent reader sessions (no project memory, no account of
+  the work), checked and arbitrated; the owner decided on 2026-11-05 that an
+  **independent agent session may stand in for a human reader**, and the
+  records say the substitution plainly. Agreement: paper 1 **343/420**, paper
+  2 **441/455**; 77 and 14 disputes settled by third readers; **all 30
+  verdicts NOT SIGNIFICANT** (the closest: D vs C on advisor comprehension,
+  paper 1, 5 wins, p=0.0625). Records:
+  [LC-P2-14 rating close-out](../acceptance/LC-P2-14-rating-closeout.md) §9,
+  [unseen paper 2](../acceptance/LC-P2-14-unseen-material.md), commit
+  `4aeb2fb`; the model-reader decision is `8da3c55`.
+- **The G1/G2 checklist ran.** All 33 rows were measured and confirmed by
+  the owner: **21 A, 12 B, 0 C, 0 D**; the twelve B rows name witness
+  problems (wrong file cited, platform premise, partial coverage). Record
+  [G1-G2 owner review](../acceptance/G1-G2-owner-review.md), commit
+  `d63078c`. The independence clause is **not** discharged by that review —
+  the owner dispatched the work; an independent session is re-running it now.
+- **The citation-support metric is measured.** The first filled sample (45
+  rows: 36 supported, 9 unsupported) ran through the harness:
+  **`evidence-locator-validity 36/45`**. Record
+  [LC-P2-26](../acceptance/LC-P2-26-retrieval-metric-machinery.md) §4, commit
+  `d959044`. The frozen P1 baseline predates the key, so no baseline pair
+  prints yet.
+- **The rule layer's third rule has a check.** The one remaining candidate
+  was confirmed; its check was drafted by a model, confirmed by the owner as
+  the second reader, and bound to version 1 — with the negative that a
+  candidate check cannot be bound demonstrated on the real rows. The store
+  now holds **27 rule rows (25 confirmed, 2 disputed v1), 25 checks, 25
+  bindings**. Record
+  [LC-P2-11 check binding](../acceptance/LC-P2-11-check-binding.md) §8,
+  commit `e248a6d`.
+- **Batch 8's draft chain became a version graph.** Nine supplied files of
+  one paper (eight unique texts, a seven-step chain) were assembled into the
+  real pilot store: **9 versions, 7 owner-accepted edges, 2,289 revision
+  events**; no rule was distilled (the one rich channel is a translation
+  pass and the owner ruled it is not a distillation source). Record
+  [LC-P2-08 batch 8](../acceptance/LC-P2-08-batch8-version-graph.md), commit
+  `1d328fd`.
+
+**Where `main` stands.** Ahead of `origin/main` by **13 commits**, all
+measured locally; the owner chose on 2026-11-05 to keep accumulating rather
+than start CI. The last local suite on the tree: **4,898 passed, 5 failed,
+14 skipped**, and the five reds are clone/wheel subprocess tests that pass
+(18/18) when the parent's `PYTHONPATH` is removed — the review environment's
+contamination, not the tree's.
+
+---
+
 **Date:** 2026-11-04 · **every machine-buildable piece of Phase 2 is in the
 tree; what remains waits on the owner.**
 
