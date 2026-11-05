@@ -146,7 +146,8 @@ failure of this change.
 
 ## What this does not establish
 
-- **The qualifier whitewash was closed on 2026-11-03.** `_QUALIFIER_RE` used to
+- **The qualifier whitewash was closed on 2026-11-03, in commit
+  `1d28aa325ba2195c9bdf604e9841fa51d0306e1f`.** `_QUALIFIER_RE` used to
   exempt a whole sentence that contained `target` / `intended` / `future` /
   `目标` / `拟` / `将(?:会|要)?`, so a planning word could launder a
   present-tense claim in the same sentence. The exemption is now
@@ -163,10 +164,11 @@ failure of this change.
   and the released-status check now all go through the same helper, and
   `test_a_planning_qualifier_covers_its_clause_not_the_whole_sentence`,
   `test_a_qualifier_cannot_launder_a_licence_grant` and
-  `test_a_qualifier_cannot_launder_a_release_status_claim` are the witnesses.
-  Mutation checks: replacing the clause split with the whole sentence fails
-  all three; dropping the negated-assertion markers or the Chinese
-  adversative splits fails the capability witness.
+  `test_a_qualifier_cannot_launder_a_release_status_claim` are the witnesses;
+  `test_readme_makes_no_unqualified_capability_claim` carries the same rule
+  over the README itself. Mutation checks: replacing the clause split with the
+  whole sentence fails all three; dropping the negated-assertion markers or
+  the Chinese adversative splits fails the capability witness.
 
   **The false-positive cost was measured before the change, at commit
   `15faa4bd6e5fc145ac34549c1ae4a2b2aaa10305`, on the surfaces the guard

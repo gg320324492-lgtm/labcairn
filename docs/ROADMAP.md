@@ -2,21 +2,23 @@
 
 **Version:** LCR-PLAN-1.1  
 **Synchronized with:** `LC-P1-v1.1`, the Phase 1 work orders and gates in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md). Phase plan and work orders are revised together; they must never drift apart.
-**Status:** Phase 1 in progress; later phases are strategic targets, not approved implementation work orders.
+**Status:** Phase 1 closed at G5; Phase 2 in progress; later phases are strategic targets, not approved implementation work orders.
 
 ## Current position
 
-**Phase:** P1 — Foundation & MVP · **Gate:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
+**Phase:** P2 — Scientific Intelligence · **Phase 1:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
 | | |
 |---|---|
 | Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at `623e3ca` and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
 | Accepted and merged | **LC-P1-01 … LC-P1-14** — the engineering baseline (LC-P1-01), the trusted core (02–04, G1), the durable work and its recovery (05–07, G2), the evidence path (08 material and locators, 09 retrieval and the ledger, 10 bounded analysis and a deterministic figure), and the usable application (11 the report path, 12 the three surfaces behind the one application layer). **Every work order is `PASS WITH NOTES`**, each with its own acceptance review under [`acceptance/`](acceptance/), and every one of them was reviewed by the party that wrote the fixes — except **G3's three and G4's two**, which were also reviewed independently, at `d114810` and at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`. |
-| Next direction | **G5 is closed on two independent reviews, and it is the last of Phase 1.** **LC-P1-13** (the evaluation harness, the fault injection, the competitor baseline) and **LC-P1-14** (the public alpha handoff: the bilingual delivery documents, the release contents and the NOTICE, the review dossier, the licence audit). G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**: the outsider's path runs in a clean clone and is compared field by field, the three fixtures' answer keys are re-derived by code that is **not the product's**, the fault injection now goes **through the CLI and the service** and is killed at the process level, and the documents' commands are extracted and **run for real**. The fifth — the real-provider smoke — **has not run**: the harness reports it NOT RUN and exits 2, and **that is the owner's decision** (§1.4.2). **Two reviewers wrote none of the gate's fixes**; the first's verdict was **FAIL** on a property table that was entirely clean, and after every finding was fixed it **re-ran its own eleven mutations against the fixed code and passed**. **Twenty-four findings between them, all fixed**, and the gate found six more on its own. The [gate review](acceptance/G5-acceptance.md) records the method, both verdicts and what became of every finding. **What it handed over**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte**, and it is asserted rather than left as a sentence. **That hand-over is closed after the gate** — see the carried-issues list below: the surfaces now run the pass, refuse the second plan, and leave the answering to `labcairn task reconcile`. **The gate is closed; Phase 2 is under way** — eight of the phase's pieces are merged,
-**the mentor's own material is in the chain and the memory serves one rule of
-sixteen**, and **the phase's exit gate cannot be judged yet, because the
-frozen P1 baseline it needs does not exist**. What is built and what is left
-is in [the phase's one work order](plans/PHASE_2-work-orders.md).
+| Next direction | **G5 is closed on two independent reviews, and it is the last of Phase 1.** **LC-P1-13** (the evaluation harness, the fault injection, the competitor baseline) and **LC-P1-14** (the public alpha handoff: the bilingual delivery documents, the release contents and the NOTICE, the review dossier, the licence audit). G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**: the outsider's path runs in a clean clone and is compared field by field, the three fixtures' answer keys are re-derived by code that is **not the product's**, the fault injection now goes **through the CLI and the service** and is killed at the process level, and the documents' commands are extracted and **run for real**. The fifth — the real-provider smoke — **has not run**: the harness reports it NOT RUN and exits 2, and **that is the owner's decision** (§1.4.2). **Two reviewers wrote none of the gate's fixes**; the first's verdict was **FAIL** on a property table that was entirely clean, and after every finding was fixed it **re-ran its own eleven mutations against the fixed code and passed**. **Twenty-four findings between them, all fixed**, and the gate found six more on its own. The [gate review](acceptance/G5-acceptance.md) records the method, both verdicts and what became of every finding. **What it handed over**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte**, and it is asserted rather than left as a sentence. **That hand-over is closed after the gate** — see the carried-issues list below: the surfaces now run the pass, refuse the second plan, and leave the answering to `labcairn task reconcile`. **The gate is closed; Phase 2 is under way** — the phase's pieces are merged
+as they land, **the mentor's own material is in the chain and the memory
+serves one rule of sixteen**, and **the phase's exit gate cannot be judged
+yet**: the frozen P1 baseline exists (`LC-P2-00`, at `81babd5`), but the
+blind evaluation's human ratings and the retrieval metric's human sample have
+not been produced. What is built and what is left is in [the phase's one work
+order](plans/PHASE_2-work-orders.md).
 | Previous direction | **G4 is closed on an independent review.** **LC-P1-11** (report assembly, export and artefact versioning) and **LC-P1-12** (the Typer CLI and the local FastAPI + React workbench), behind the one application layer they all call. G4's exit test is *"CLI and Web produce same versioned report"*, and it is **demonstrated**: the CLI's task document and the local service's are compared **field by field** (255 fields, none differing) and the report's **bytes by hash**, for each of the four forms, against the file the report operation wrote and the bytes the service serves. The gate's own commit is `9381036af0104172f16fe94a6edd2e8cb6d9ae04`: T00, the report's document model · ADR-0013, the export libraries · T05, the application layer · T02, the report artefact manifest · T01, the four renderers · T04, the content checks · T07, the local service · the layer's event read · the source id's type · T06, the Typer CLI · T03, the revisions and the staleness · T12, the document builder · T08, the React workbench · T13, the layer's report operation · T09, the end-to-end smoke path — and then the fixes the gate's own review and that demonstration found: the doctor's token file, the service's **session per request** (it shared one session across concurrent requests, and the workbench reads eight paths at once), **`labcairn serve`** (nothing started the local service at all), the **ingestion operation** (no surface could bind a material, so a report could carry only disclosures), the material walk's recorded path, the report's **material in its own chain** (a claims-only report could never be marked `STALE`), the Markdown's **whitespace**, and the refusals nobody watched · then the **two blockers and six notes** the three surfaces' review found — the demonstration's **exit code** was not load-bearing, a stage run that followed an approval **planned a second operation**, the CLI's prose form and its JSON form could disagree, the token was not compared in constant time, the event stream's session was asserted against the wrong session, three of the demonstration's comparisons could be narrowed, the binding's docstring stated a distinction the code could not express, and a module docstring denied an import the module made · and then the **five the fixing found**: a **time bomb in the gate's own exit demonstration** (it failed after 13:00 UTC, and no CI run had ever run after 13:00), a parked stage that raised a raw `IntegrityError`, a resumed run that could **attempt an effect nobody authorised**, a grant of a lapsed approval that reached the database as a raw `IntegrityError`, and a duplicated sentence in the demonstration's own output · and then the **four the last round found**: the rule that does the watching was not itself watched, one command-level refusal was watched by nothing, the pairing of a witness with the refusal it watches was itself unwatched, and the crash fix's catches were load-bearing and unwatched. LC-P1-11's and LC-P1-12's acceptance reviews are written, both **PASS WITH NOTES**, and **the gate's own independent review is what discharged the board's rule for both** — two reviewers who wrote none of the gate's fixes, one of whom **failed the gate five times on a clean property table** — its findings fixed and re-reviewed by itself each time — and the other of whom **came back BLOCKED five times and FAIL once**, the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings**. **Every finding is fixed**, and both reviewers re-ran their own mutations against the fixed code. **G3 is closed**, on the independent review at `d114810` — verdict **PASS WITH NOTES**: a reviewer that wrote none of the gate's fixes broke each of the gate's fourteen fixes in turn and **no mutation survived** ([gate review](acceptance/G3-acceptance.md)). No decision stands between the two gates. |
 
 **Open issues carried forward** (full table with owners in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md)):
@@ -103,7 +105,7 @@ was answered — and **the chain's judgement is a fact**: a second judgement
 on the same correspondence does not undo the first, and a wrong judgement is
 corrected **on the rule**. The second paper's **eighteen version edges**
 were built from the timestamps inside the material itself, on 2026-11-02.
-**What is left** is in the merged ticket: the blind
+**What was left at that date** is in the merged ticket: the blind
 evaluation's real run (its machinery is built and mutation-verified
 twice), retrieval quality beyond three papers (its machinery — the
 citation-support sample's schema, loader, measurement and `--citation-sample`
@@ -149,11 +151,51 @@ arbiter exist, so D vs C, E vs D and B+C vs B-only all remain `NOT RUN`
 with no p-value or significance claim. A second unseen paper and the
 human ratings remain owner-side work
 ([`LC-P2-14-unseen-material.md`](acceptance/LC-P2-14-unseen-material.md)).
-**Of the merged ticket's six, four are built and two are left**:
-the blind evaluation's human scoring and second paper, and the
+**Of the merged ticket's six, four were built at that date and two were
+left**: the blind evaluation's human scoring and second paper, and the
 competitor comparison (brief written, preconditions met, budget and
 final pick the owner's call). Retrieval quality beyond three papers waits
 on a corpus read by a human, per LC-P2-14's own protocol.
+
+**Where Line B stands (2026-11-05).** **Both unseen papers have been run
+end to end, and the close-out that reads them is wired.** The second paper
+(eight versions of one manuscript) dry-ran at **65 stub calls** and zero
+provider calls; the owner approved the real run, which answered **91 of 91
+calls** at **404802 metered tokens against a 577000 hard stop (70.16%)**,
+zero truncations, after one calibration case measured **28850 tokens**
+against paper 1's **27209** (**1.06x**, inside the declared **1.25x** stop
+line) — commit `ee61e435ccf8a29513ee4b344e9d7a8d9d3ff625`. The close-out
+assembles the second paper's **91 volumes** into two anonymous sheets (**13
+per arm A–E, 13 `B-only`, 13 `B+critique`**, 91 distinct ids) while the first
+paper's **84 volumes** read exactly as before; its witness file grew from
+**99 to 107** — commit `6c77a018713bae1a5117e2f9099cb76717f11f21`, on the
+machinery of `6ca09196a205db2e6727375b5be16543c9545f8e`. **The measurement is
+not made**: no sheet is filled, no significance exists and no capability
+claim follows.
+
+**Batch 7 (review–response–revision) is in the tree as two negative
+witnesses and a read-only route pilot.** The recon rule counts **432 / 66**
+red runs; the pilot's own rule lands on **401 / 62**, and its store holds
+**37 `replies` rows (29 + 8)**; no full ingestion was performed — measured at
+`fc06cee7e79f20e831c9412f880e30fb323a8b30`, landed at
+`8dff3360aab0d0f60890a3d58427441df711889c`. **The retrieval metric's
+machinery is built but the metric is not measured**: a five-field sample
+table whose loader refuses any sixth field, an empty sample that reports
+`NOT MEASURED` and never a 0/0 rate, and a `--citation-sample` path — commit
+`6ccdfcc41c35f132dcec299f5795c1e1793d655e`. **The competitor baseline has a
+live run**: both sides ran under `MiniMax-M3.1-Flash` on a **USD 50.00**
+budget, and the aligner reports **comparable — all six conditions met**; our
+side scored **69/89** numeric exactness, **1/1** unsupported-claim detection
+and **4/4** recovery, paper-qa **183/232** recall, **1/1** and **0/4**, on
+different denominators and therefore with no task-1 pair — commit
+`85424c5a5a27e5896ccc1ed4cd671b6a1b199250`. **The anchor that covers no text
+is stored as covering no text**: `position` is a third status, schema `0023`
+(commit `e7d58f8b0431be8ddf1d401585fa69066d3ea1cd`), and the SOW (2)
+correction run on the real store on 2026-11-04 leaves **59 fresh / 21
+unanchored / 0 stale over 80 rows**, with no empty-text `resolved` row and no
+`sha256("")` digest anywhere — commits
+`2fc7e03a3adf493b08052a818bc302bae940a4b2` and
+`f876affc874047850f6506b021cdb41a4b7cda82`.
 
 ## Phase 1 upstream research
 
