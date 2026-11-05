@@ -1,8 +1,10 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-05 · **the two unseen papers' close-out has run, the G1/G2
-checklist has run, and the third rule has a check. The owner's two open
-decisions are the human/independent review path and delivery.**
+**Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
+the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,
+and batches 8–10 are in the tree. What remains is the owner's: the licence,
+the CI provider credential, the next material batch, and the deferred
+delivery PR.**
 
 **What landed on 2026-11-05, with its record:**
 

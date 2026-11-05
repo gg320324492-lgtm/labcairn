@@ -1,12 +1,12 @@
-# Batch 9 — the water manuscript's 3 → 5 version graph rehearsal
+# Batch 9 — the water manuscript's 3 → 5 version graph
 
 **What this record covers.** A supplied paper's draft chain was assembled on a
-**rehearsal copy of the pilot store**, in LC-P2-08's version-graph shape. Four
+**rehearsal copy of the pilot store**, in LC-P2-08's version-graph shape, and
+then written to the **real pilot store** on the owner's approval (§6). Four
 files were inventoried: one old-format `.doc`, two byte-identical `.docx`
 drafts, and one marked-up `.docx`. Three version rows, one unaccepted model
 edge, 345 revision events and five feedback events were written. The old
-format yielded no parse and no fabricated version. The real pilot store was
-not written, and no rule was distilled.
+format yielded no parse and no fabricated version. No rule was distilled.
 
 **What this record does not carry.** The paper's title, its file names, its
 sentences, and the names in its revision metadata. The material lives outside

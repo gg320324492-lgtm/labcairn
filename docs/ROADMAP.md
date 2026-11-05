@@ -2,7 +2,9 @@
 
 **Version:** LCR-PLAN-1.1  
 **Synchronized with:** `LC-P1-v1.1`, the Phase 1 work orders and gates in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md). Phase plan and work orders are revised together; they must never drift apart.
-**Status:** Phase 1 closed at G5; Phase 2 in progress; later phases are strategic targets, not approved implementation work orders.
+**Status:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH
+NOTES; later phases are strategic targets, not approved implementation work
+orders.
 
 ## Current position
 
@@ -221,8 +223,33 @@ routed through `replies`**: 8 letters, 72 `Point` items (46 distinct), the
 agriculture 20 pairs and MNB 24 pairs written to a fresh scratch store and
 read back 44/44 with matching hashes; the mixed-source water-supply letter
 was not touched, and the English revised manuscripts are absent from the
-material — commit `c25bb6d8922c9e0bb6027d951d0786e110fa6541`. `main` is
-**18 commits ahead of `origin/main`**, unpushed by the owner's choice.
+material — commit `c25bb6d8922c9e0bb6027d951d0786e110fa6541`.
+
+**Where Line B stands (2026-11-05, end of day).** Phase 2's exit gate is
+**CLOSED, PASS WITH NOTES**: the measured answer is *no capability gain*, 30
+NOT SIGNIFICANT verdicts, with five notes attached — commit
+`54ac69677658e7346677617c7c6e58df329a6c8d`. The locator baseline is frozen
+over the filled 45-row sample (`evidence-locator-validity 36/45`, five offline
+classes green, two independent readings agree 45/45) — commit
+`d1278195b303aa9a57d8d7b02c51890a88b289c8`. An independent agent session
+re-ran G1/G2 (19 A / 14 B / 0 C / 0 D), the four B-row witness gaps were
+closed, and CEJ full ingestion was written as design only (`ADR-0020` +
+LC-P2-28) — commits `925113d24d9b8732d50d2f296abd7e0b4c70da75`,
+`eff2b68cb8dd1850a6f1ba5929aadedc2c419e0a`,
+`a9d127484edf11e24ec3ee41217a54d2d872eae6`. **Batches 9 and 10 are in the
+pilot store**: the water graph (3 versions / 1 unaccepted edge / 345
+revisions / 5 comments), the eight-directory graph (8 versions / 7 unaccepted
+edges / 17 OLE2 refusals / no fabricated events), four batch-9 negative
+witnesses and three batch-10 negative witnesses. Batch 10's first two-gate
+write stopped on a missing isolated `TEMP` directory, was rolled back
+byte-for-byte, then succeeded — commits `ac8fe6fb6fd8cc945999b230962324d82c78669d`,
+`131ce4bc4959e3a754be01643603a8f482f7e71e`,
+`fc6d1dbfc7867810632e99680f08b3b054737e7f`,
+`0e83aa9e523d3d949f9560cbee586d6c2c340214`,
+`d19ea0412211e40e8c0bafdd684390c475dd2741`.
+`main` is **35 commits ahead of `origin/main`**, unpushed by the owner's
+choice; the licence, the CI provider credential and the next material batch
+remain the owner's.
 
 ## Phase 1 upstream research
 

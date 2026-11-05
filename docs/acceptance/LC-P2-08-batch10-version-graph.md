@@ -1,12 +1,12 @@
-# Batch 10 — the eight-directory version graph rehearsal
+# Batch 10 — the eight-directory version graph
 
 **What this record covers.** A supplied material batch was assembled on a
-**rehearsal copy of the pilot store** in LC-P2-08's version-graph shape. Eight
+**rehearsal copy of the pilot store** in LC-P2-08's version-graph shape and
+then written to the **real pilot store** on the owner's approval (§6). Eight
 numbered version directories became eight version rows and seven unaccepted
 model-proposal edges. One paper project, 18 inventoried sources, 17 disclosed
 reader refusals and 49 addressable text rows were written. No revision or
-feedback event was fabricated, and no rule was distilled. **The real pilot
-store was not written.**
+feedback event was fabricated, and no rule was distilled.
 
 **What this record does not carry.** The material's title, file names,
 sentences, figure labels and names in revision metadata. The material and the
