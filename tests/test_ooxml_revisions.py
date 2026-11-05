@@ -1511,3 +1511,102 @@ def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
     # file's, and they are reported with the position.
     assert comment.text == "Check this addition."
     assert comment.author == "Prof. Lin"
+
+
+# --------------------------------------------------------------------------- #
+# the two shapes the reader must report as absent
+# --------------------------------------------------------------------------- #
+#
+# Batch 7's material (chain-external) carries two ways of marking an edit
+# that are **not** the shapes this reader reads: words set in red font with
+# no `w:ins`/`w:del`, and reviewer opinions quoted as ordinary paragraphs
+# with no `word/comments.xml`. Both must be reported as absent -- the
+# reader's honesty is that it says "no revision" and "no comment" rather
+# than guessing from formatting or from a sentence that begins with a
+# reviewer's name. The pilot record
+# `docs/acceptance/LC-P2-14-cej-pilot.md` names those two shapes as the
+# design gap a future ingestion would have to close; these two witnesses
+# hold the negative half: the product does not misread them today.
+
+
+def test_red_font_is_not_a_revision_and_its_text_is_counted_once() -> None:
+    """A red run is formatting, and this reader does not guess an edit from it.
+
+    The file declares no ``w:ins``, no ``w:del``, no move and no row mark;
+    one run simply carries ``w:rPr/w:color w:val="FF0000"``. The reader
+    reports **no revision**, no comment and no problem, and the paragraph's
+    text is the whole sentence -- the red words included **exactly once**.
+
+    **What breaks it:** a reader that treats a red run as an insertion,
+    because a marked manuscript *usually* means tracked changes. That
+    mutation makes ``revisions`` non-empty; a second one, which counts the
+    red run both as a revision and as surviving text, makes the count of
+    the red words two. Both are what a colour-blind heuristic would do to
+    the real batch-7 files, which carry red runs across paragraphs and no
+    tracked changes at all.
+    """
+    lead = "The catalyst was prepared"
+    red = " under nitrogen"
+    tail = " and dried overnight."
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        f'<w:r><w:rPr><w:color w:val="FF0000"/></w:rPr>'
+        f'<w:t xml:space="preserve">{red}</w:t></w:r>'
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    # The negative claim: colour is not a revision mark, and there is no
+    # comments part for it to be mistaken for an annotation.
+    assert document.revisions == ()
+    assert document.comments == ()
+    assert document.problems == ()
+
+    # And the text is counted once, in the same place in both views. A
+    # reader that reads the red run twice reports it twice here even though
+    # it reports no revision.
+    paragraph = f"{lead}{red}{tail}"
+    assert document.paragraphs == (paragraph,)
+    assert document.baseline_paragraphs == (paragraph,)
+    assert document.accepted_text == paragraph
+    assert document.rejected_text == paragraph
+    assert document.accepted_text.count(red) == 1
+
+
+def test_a_quoted_reviewer_paragraph_is_not_a_comment() -> None:
+    """An opinion pasted into the body is text, not a Word comment.
+
+    The document has no ``word/comments.xml`` and no comment range markers;
+    two ordinary paragraphs carry a reviewer's quoted opinion and the
+    authors' response. The reader reports **no comment** and **no
+    revision**, no problem, and both paragraphs once each, in order.
+
+    **What breaks it:** a reader that recognises the sentence "Reviewer #2:"
+    and mints a comment from the paragraph that follows it. That is the
+    tempting shortcut for a response letter, and it is a guess: the file
+    never says the paragraph is an annotation, the paragraph is part of the
+    letter's own text, and a comment minted from it would carry an author
+    the file does not state and an anchor the file does not mark. The
+    design gap is a **comment-source type** the product does not have yet
+    (see the pilot record); it is not a licence to infer one from the
+    prose.
+    """
+    quote = "Reviewer #2: The introduction overstates the novelty of this method."
+    answer = "Response: We have revised the introduction to name the prior work."
+    body = (
+        f'<w:p><w:r><w:t xml:space="preserve">{quote}</w:t></w:r></w:p>'
+        f'<w:p><w:r><w:t xml:space="preserve">{answer}</w:t></w:r></w:p>'
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    assert document.comments == ()
+    assert document.revisions == ()
+    assert document.problems == ()
+
+    # Both paragraphs are body text, and neither is duplicated into a
+    # comment or an event.
+    assert document.paragraphs == (quote, answer)
+    assert document.paragraphs.count(quote) == 1
+    assert document.accepted_text.count(quote) == 1
