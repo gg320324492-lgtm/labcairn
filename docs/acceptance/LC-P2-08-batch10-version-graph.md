@@ -126,13 +126,37 @@ and after; the five witnesses passed again afterward. Machine-readable
 results are in `mutation-results.json` under the chain-external workspace.
 No whole-suite pytest run was started.
 
-## 6. Status and limits
+## 6. The real store — 2026-11-05
 
-This is a **rehearsal**: the write plan is `NOT EXECUTED`, no owner approval
-was supplied, no push or CI run was started, no pull request was opened and no
-product code was changed. The seven edges still need human confirmation. A
-decision is still needed on whether marked counterparts are separate versions
-or annotation layers, and on whether an OLE2 reader with revision and anchor
+The owner approved the write, with the seven edges left as **unaccepted
+`model` proposals**. The first execution stopped with
+`sqlite3.OperationalError: unable to open database file` after writing one
+grant and its approval bookkeeping: the script's isolated `TEMP` directory did
+not exist. The failed attempt was **rolled back** to the exact pre-run bytes
+(sha256 `a1e6333727a2916e3…`, verified byte-for-byte against the rollback
+point), the TEMP directory was created, and the same two-gate command was
+re-run. Both facts are recorded here rather than treating the second run as
+if the first never happened.
+
+Immediately before the successful run the real store measured
+`a1e6333727a2916e3…` (68,513,792 bytes, alembic `0023`, 6 projects / 67
+versions / 59 edges / 5,695 revisions / 85 feedback / 69 sources / 62,165
+source texts), with zero batch-10 rows — the shape the rehearsal measured.
+A rollback point was written:
+`E:\labcairn-local\pilot-ws\labcairn.db.backup.before-batch10-graph-20261105T133354Z`.
+
+The run wrote **1 project, 8 versions, 7 unaccepted model edges (confidence
+0.8), 0 revision events and 0 feedback events**; the 18 unreadable OLE2
+sources are disclosed rather than parsed. The store's sha256 moved to
+`fe1905fd6f38c13f03…` and its project count moved 6 → 7. No rule was
+distilled and no acceptance was claimed.
+
+## 7. Status and limits
+
+No push or CI run was started, no pull request was opened and no product code
+was changed. The seven edges still need human confirmation. A decision is
+still needed on whether marked counterparts are separate versions or
+annotation layers, and on whether an OLE2 reader with revision and anchor
 fidelity is to be built. Until then, the 17 `.doc` bodies remain disclosed as
 unparsed and the 286 tracked revisions remain external measurements rather
 than addressed chain events.
