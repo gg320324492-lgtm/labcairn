@@ -59,12 +59,15 @@ delivery PR.**
   [LC-P2-14 batch 9 pilot](../acceptance/LC-P2-14-batch9-pilot.md), commit
   `c25bb6d8922c9e0bb6027d951d0786e110fa6541`.
 
-**Where `main` stands.** Ahead of `origin/main` by **22 commits**, all
-measured locally; the owner chose on 2026-11-05 to keep accumulating rather
-than start CI. The last local suite on the tree: **4,898 passed, 5 failed,
-14 skipped**, and the five reds are clone/wheel subprocess tests that pass
-(18/18) when the parent's `PYTHONPATH` is removed — the review environment's
-contamination, not the tree's.
+**Where `main` stands.** Ahead of `origin/main` by **37 commits**, all
+measured locally; the owner chose on 2026-11-05 to send delivery after the
+final whole-suite result. That result, on the final merged tree at
+`9653b85`, is **4,941 passed, 14 skipped, 0 failed, 1,161 warnings in
+1,860.32 s (31 m)** — Windows 11, Python 3.12.13, no `PYTHONPATH`, with the
+suite's own `TEMP`/`TMP`/`TMPDIR`/`MPLCONFIGDIR` and `--basetemp` outside the
+repository. The earlier 4,898/5 run was on a different tree, and its five
+reds were clone/wheel subprocess tests that pass (18/18) when the parent's
+`PYTHONPATH` is removed; the final run has no such contamination.
 
 **Three decisions landed later on 2026-11-05.** The locator baseline is
 frozen over the 45-row citation sample at `c5e1f40`

@@ -247,9 +247,11 @@ byte-for-byte, then succeeded — commits `ac8fe6fb6fd8cc945999b230962324d82c786
 `fc6d1dbfc7867810632e99680f08b3b054737e7f`,
 `0e83aa9e523d3d949f9560cbee586d6c2c340214`,
 `d19ea0412211e40e8c0bafdd684390c475dd2741`.
-`main` is **35 commits ahead of `origin/main`**, unpushed by the owner's
-choice; the licence, the CI provider credential and the next material batch
-remain the owner's.
+The final whole suite on this tree at `9653b85` is **4,941 passed, 14
+skipped, 0 failed** in 31 minutes (no `PYTHONPATH`, isolated temp and
+basetemp outside the repository); `main` is **37 commits ahead of
+`origin/main`**, unpushed by the owner's choice. The licence, the CI provider
+credential and the next material batch remain the owner's.
 
 ## Phase 1 upstream research
 
