@@ -145,3 +145,34 @@ re-measured by the runner at the next run, per the repository's rule.
 this machinery produces is a measurement of whatever sample a person has
 put behind it, and until that person has read the reports, the report's row
 says NOT MEASURED — which is the claim this piece delivers.
+
+---
+
+## 4. The metric, measured — 2026-11-05
+
+The sample the machinery was waiting for now exists. It was built from five
+candidate reports over the public fixtures (45 citations: 26 at text-line
+addresses, 19 at CSV cells), each row judged against the material at its
+address.
+
+| | |
+|---|---|
+| Sample | 45 rows — **36 `supported`, 9 `unsupported`**; the five-field table is `E:\labcairn-local\citation-sample\citation-support-sample.json`, outside this repository |
+| Judgement | the coordinator read each citation against its address and wrote a recommendation; the owner accepted all 45 on 2026-11-05 |
+| Run | `python -m tests.evaluation --citation-sample <the table> --out E:\labcairn-local\citation-sample\eval-run`, exit 0 |
+| Metric | **`evidence-locator-validity: 36/45` (80.0%)** |
+| Report | `E:\labcairn-local\citation-sample\eval-run\evaluation-report.md` (and `.json`), outside the repository |
+
+**What the number is, and what it is not.** It is the share of judged
+citations whose address supports the claim attached to it, over a sample of
+45 synthetic-fixture citations. It is **not** a human-checked sample: the
+judgement was the coordinator's reading, accepted by the owner, and this
+record states that mechanism rather than calling it a person's. Under the
+owner's decision of 2026-11-05 an independent agent session may stand in
+for a human reader; this sample was accepted from the coordinator's
+recommendations, so it is recorded as such.
+
+**What the run did not move.** The frozen P1 baseline was taken before this
+machinery existed and carries no locator-validity key, so the comparison
+still prints no pair for it — the first baseline taken after this sample is
+the one a later retrieval change will be compared against.
