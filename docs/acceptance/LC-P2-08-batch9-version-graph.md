@@ -108,5 +108,23 @@ outside the repository.
   this repository. Approval to hold those bytes in the real pilot store is
   the owner's decision.
 - The real-store checklist, exact row counts, rollback point and double-gate
-  command are in `write-plan.md`. Until the owner opens both doors, the real
-  pilot store stays unwritten; no push and no pull request were made.
+  command are in `write-plan.md`.
+
+## 6. The real store — 2026-11-05
+
+The owner approved the write on 2026-11-05 and chose to **keep the edge an
+unaccepted `model` proposal**. Immediately before the run the real store
+re-measured as `c0256fd37f551caf…` (66,789,376 bytes, alembic `0023`,
+projects 5 / versions 64 / edges 58 / revisions 5,350 / feedback 80 /
+sources 65 / source texts 60,889, batch-9 rows 0) — the same shape the
+rehearsal was measured against. A rollback point was written:
+`E:\labcairn-local\pilot-ws\labcairn.db.backup.before-batch9-water-20261105T124317Z`.
+
+Both gates were required (`--execute-on-real-store --owner-approved`). The
+run copied four materials, ingested three readable documents and one
+`unparseable` old-format file, and wrote **3 versions, 1 unaccepted model
+edge (confidence 0.8), 345 revision events and 5 feedback events**. The
+store's sha256 moved to `1d0898786cac7dab…`; its project count moved 5 → 6.
+A read-back confirmed the edge's `accepted_by` is `NULL` and the identical
+draft pair is reported rather than hidden. No rule was distilled and no
+acceptance was claimed.
