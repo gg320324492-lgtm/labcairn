@@ -136,3 +136,50 @@ functions added**; `ruff`, `ruff format` and `mypy` (397 source files) are
 green. The coordinator re-ran the `ATTEMPTING` mutation personally: the new
 witness reddens and the restored file turns green. The other three
 mutations were verified in the session that wrote the witnesses.
+
+---
+
+## 6. The independent session's review — 2026-11-05
+
+Under the owner's decision of 2026-11-05, an **independent agent session**
+(no project memory, no part in building the work, given no account of the
+earlier packet) re-ran the checklist itself. Its packet lives outside the
+repository at `E:\labcairn-local\G1-G2-independent-review\`
+(`REVIEW-SHEET.md`, `SUMMARY.md`, and the per-row mutation journals). **No
+human being performed this reading.**
+
+| | Independent reading | Owner-confirmed reading |
+|---|---|---|
+| A | **19** | 21 |
+| B | **14** | 12 |
+| C | **0** | 0 |
+| D | **0** | 0 |
+
+- The independent reading's reviewed commit is
+  `1d328fd97f2b61d02aab396a8322e8fc8cc084ad`; the later `main` carries the
+  four new B-row witnesses and three citation corrections named in §5. A
+  row marked B on the earlier tree is not a claim that it is still unfixed.
+- **All 33 rows have evidence, with no C and no D.** Every product claim
+  the independent reader could exercise held, and every B names a witness,
+  citation or mutation-coverage problem rather than a failed property.
+- **Windows only.** POSIX-only witnesses are NOT MEASURED; the checklist's
+  two-platform requirement remains unmet on this machine.
+- The independent session's clean whole-suite run was stopped when it was
+  found running concurrently with the baseline harness — two whole-suite
+  runs must not share this machine. Its partial result is **not** counted
+  as evidence; the row-level mutations are the evidence.
+
+**What this discharges.** The board's independence rule asks for a review
+at a named commit by a party that neither wrote the fixes nor dispatched
+them. Under the owner's 2026-11-05 decision an independent agent session may
+stand in for a human reader, and this review was such a session's: it had
+no project memory and took no part in the work. **§0's `not the party that
+dispatched them` clause is therefore satisfied by this review**, with the
+session's identity recorded rather than a person's. The owner-confirmed
+reading of §1 remains a separate act by the dispatching party. Neither
+reading is a human being's, and this record does not say otherwise.
+
+**The clean-suite gap.** No uncontaminated whole-suite result backs this
+independent review; the row-level mutation evidence and the three exit
+demos do. A later run on one quiet machine would supply that number, but
+absence of a whole-suite count is not a C or D for any of the 33 rows.
