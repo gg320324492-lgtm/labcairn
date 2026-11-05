@@ -45,7 +45,19 @@ decisions are the human/independent review path and delivery.**
   [LC-P2-08 batch 8](../acceptance/LC-P2-08-batch8-version-graph.md), commit
   `1d328fd`.
 
-**Where `main` stands.** Ahead of `origin/main` by **13 commits**, all
+- **Batch 9's response letters routed through `replies`.** The three-paper
+  batch was reconnoitred first: 8 English response letters, 72 `Point`
+  items (46 after de-duplication); the agriculture letters carry **20
+  clean pairs** and the MNB letters **24**; the water-supply letter is a
+  mixed-source re-issue (its first two points are verbatim MNB) and was
+  not touched; **the English revised manuscripts the letters describe are
+  not in the material**. The 44 pairs were written to a fresh scratch
+  store through `record_replies` and read back **44/44 with matching text
+  hashes**, parties `reviewer → author`, all `observed`. Record
+  [LC-P2-14 batch 9 pilot](../acceptance/LC-P2-14-batch9-pilot.md), commit
+  `c25bb6d8922c9e0bb6027d951d0786e110fa6541`.
+
+**Where `main` stands.** Ahead of `origin/main` by **18 commits**, all
 measured locally; the owner chose on 2026-11-05 to keep accumulating rather
 than start CI. The last local suite on the tree: **4,898 passed, 5 failed,
 14 skipped**, and the five reds are clone/wheel subprocess tests that pass

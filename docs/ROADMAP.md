@@ -216,8 +216,13 @@ demonstrated on the real rows (the store holds 25 confirmed rules, 25 checks,
 25 bindings) — commit `e248a6dfd7cd9bf0221b539e7ebe7e9343e343b8`. **Batch 8's
 draft chain is a version graph** in the pilot store: 9 versions, 7
 owner-accepted edges, 2,289 revision events, no rule distilled — commit
-`1d328fd97f2b61d02aab396a8322e8fc8cc084ad`. `main` is **13 commits ahead of
-`origin/main`**, unpushed by the owner's choice.
+`1d328fd97f2b61d02aab396a8322e8fc8cc084ad`. **Batch 9's response letters
+routed through `replies`**: 8 letters, 72 `Point` items (46 distinct), the
+agriculture 20 pairs and MNB 24 pairs written to a fresh scratch store and
+read back 44/44 with matching hashes; the mixed-source water-supply letter
+was not touched, and the English revised manuscripts are absent from the
+material — commit `c25bb6d8922c9e0bb6027d951d0786e110fa6541`. `main` is
+**18 commits ahead of `origin/main`**, unpushed by the owner's choice.
 
 ## Phase 1 upstream research
 
