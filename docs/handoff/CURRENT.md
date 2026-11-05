@@ -90,10 +90,15 @@ owner's approval: the store moved from `c0256fd3…` to `1d089878…`, with a
 rollback point — commits `32cf6e1`, `ac8fe6f`. Four negative witnesses
 (answer range, red-font semantics, identical bytes, mixed-source letter)
 were added and mutation-checked — `3f9a313`, merged at `131ce4b`. Batch 10
-(`文字稿 (2).zip`, 184 files, a 稿1–稿8 chain with 17 OLE2 `.doc` files) was
-reconnoitred and judged fit for a version graph plus negative witnesses;
-both are in flight. The licence, the CI provider credential and the next
-material batch remain the owner's.
+(`文字稿 (2).zip`, 184 files, a 稿1–稿8 chain with 17 OLE2 `.doc` files) has
+three negative witnesses (OLE2 unparseable, marker words mint no events, a
+mixed folder inventories candidates without picking one) and an eight-row
+version graph: **8 versions, 7 unaccepted model edges, 0 fabricated revision
+or feedback events** in the real pilot store. Its first two-gate write stopped
+on a missing isolated TEMP directory, was rolled back to the exact pre-run
+bytes, then succeeded; the store moved to `fe1905fd6f38c13f03…` — commits
+`fc6d1db`, `0e83aa9`, `d19ea04`. The licence, the CI provider credential
+and the next material batch remain the owner's.
 
 ---
 
