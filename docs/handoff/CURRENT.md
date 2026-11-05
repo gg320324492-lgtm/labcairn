@@ -92,7 +92,8 @@ owner's approval: the store moved from `c0256fd3…` to `1d089878…`, with a
 rollback point — commits `32cf6e1`, `ac8fe6f`. Four negative witnesses
 (answer range, red-font semantics, identical bytes, mixed-source letter)
 were added and mutation-checked — `3f9a313`, merged at `131ce4b`. Batch 10
-(`文字稿 (2).zip`, 184 files, a 稿1–稿8 chain with 17 OLE2 `.doc` files) has
+(a supplied archive, 184 files, an eight-directory draft chain with 17
+OLE2 `.doc` files) has
 three negative witnesses (OLE2 unparseable, marker words mint no events, a
 mixed folder inventories candidates without picking one) and an eight-row
 version graph: **8 versions, 7 unaccepted model edges, 0 fabricated revision
