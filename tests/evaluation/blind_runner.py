@@ -1113,6 +1113,7 @@ def run_dry(
     out_dir: Path,
     cases: Sequence[CaseSpec] | None = None,
     arms: Sequence[ArmConfiguration] | None = None,
+    run_scope: str = "five_arm",
 ) -> RunSummary:
     """Run the whole pipeline against a stub, and claim nothing.
 
@@ -1141,7 +1142,7 @@ def run_dry(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     provider = DryRunProvider()
-    artifacts, stub_calls = _record_artifacts(provider, arms, case_set.cases)
+    artifacts, stub_calls = _record_artifacts(provider, arms, case_set.cases, run_scope=run_scope)
     _write_artifacts(out_dir, artifacts)
     _write_blind_packet(out_dir, artifacts, case_set.cases)
     _write_unblinding(out_dir, artifacts)

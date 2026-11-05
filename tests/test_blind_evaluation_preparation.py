@@ -1716,13 +1716,13 @@ class TestHumanRatingCloseout:
             inputs.denominators,
         )
         rendered = report.render()
-        assert len(report.reports) == 2
+        assert len(report.reports) == 3
         assert "NOT SIGNIFICANT" in rendered
         assert not rendered.startswith("SIGNIFICANT") and "\nSIGNIFICANT" not in rendered
         assert not any(
             line.startswith("SIGNIFICANT") for line in closeout.summarise_verdicts(report.reports)
         )
-        assert rendered.count("not significant: every one of 12 paired cases tied") == 10
+        assert rendered.count("not significant: every one of 12 paired cases tied") == 15
         for contrast in report.reports:
             assert all(not row.verdict.significant for row in contrast.rows)
             assert all(row.verdict.counts.ties == 12 for row in contrast.rows)
@@ -1741,8 +1741,8 @@ class TestHumanRatingCloseout:
             assess_significance("D vs C", "evidence_support", PairedCounts(3, 1, 8))
         )
 
-    def test_the_end_to_end_closeout_pairs_twelve_cases_on_both_contrasts(self) -> None:
-        """Two contrasts, five dimensions, 12 paired cases each, no exclusions."""
+    def test_the_end_to_end_closeout_pairs_twelve_cases_on_each_contrast(self) -> None:
+        """Three contrasts, five dimensions, 12 paired cases each, no exclusions."""
         inputs = _complete_inputs()
         report = closeout.close_out(
             inputs.sheet_a,
@@ -1751,12 +1751,90 @@ class TestHumanRatingCloseout:
             inputs.unblinding,
             inputs.denominators,
         )
-        assert tuple(one.contrast for one in report.reports) == ("D vs C", "E vs D")
+        assert tuple(one.contrast for one in report.reports) == (
+            "D vs C",
+            "E vs D",
+            "B+C vs B-only",
+        )
         assert len(report.resolved) == 84 * len(DIMENSIONS)
         assert report.excluded == ()
         for contrast in report.reports:
             assert len(contrast.rows) == len(DIMENSIONS)
             assert all(row.verdict.counts.cases == 12 for row in contrast.rows)
+
+    def test_the_arrangement_contrast_is_measured_not_hardwired(self) -> None:
+        """The arrangement pair's verdict comes from the ratings, not from a rule.
+
+        Every ``B+critique`` volume is rated ``yes`` on the four dimensions
+        whose beneficial label is ``yes``, by both raters identically, while
+        every ``B-only`` volume stays ``unknown``. The arrangement contrast
+        then wins on those four dimensions and goes significant, while the
+        work order's two contrasts — whose volumes nobody touched — stay all
+        ties. Hallucination is the control on the control: its beneficial
+        label is ``no``, so identical ``yes`` ratings tie there, and the
+        dimension's own denominator rule is what shows in the verdict.
+        """
+        inputs = _complete_inputs()
+        critique_ids = {
+            item_id
+            for item_id, entry in inputs.unblinding["items"].items()
+            if entry["arm"] == "B+critique"
+        }
+        assert len(critique_ids) == 12
+        for document in (inputs.sheet_a, inputs.sheet_b):
+            items = document["items"]
+            assert isinstance(items, list)
+            for item in items:
+                assert isinstance(item, Mapping)
+                if item["item_id"] in critique_ids:
+                    ratings = item["ratings"]
+                    assert isinstance(ratings, dict)
+                    ratings.update(dict.fromkeys(DIMENSIONS, "yes"))
+        report = closeout.close_out(
+            inputs.sheet_a,
+            inputs.sheet_b,
+            inputs.arbiter,
+            inputs.unblinding,
+            inputs.denominators,
+        )
+        by_contrast = {one.contrast: one for one in report.reports}
+        arrangement = by_contrast["B+C vs B-only"]
+        for row in arrangement.rows:
+            if row.dimension == closeout.HALLUCINATION_DIMENSION:
+                assert not row.verdict.significant
+                assert row.verdict.counts.ties == 12
+            else:
+                assert row.verdict.significant
+                assert row.verdict.counts == PairedCounts(wins=12, losses=0, ties=0)
+        for contrast in ("D vs C", "E vs D"):
+            assert all(not row.verdict.significant for row in by_contrast[contrast].rows)
+        rendered = report.render()
+        assert rendered.count(": SIGNIFICANT;") == 4
+        assert rendered.count(": NOT SIGNIFICANT;") == 11
+        assert rendered.count("Contrast B+C vs B-only:") == 1
+
+    def test_the_arrangement_contrast_refuses_an_unpaired_case(self) -> None:
+        """A case one arrangement arm covers and the other does not is refused.
+
+        The two arrangement variants share the letter ``B``; the pairing reads
+        the arm key the assembly cast from the roles. Moving one volume's arm
+        in the withheld map — which the blind sheets cannot see — leaves that
+        case with two ``B+critique`` ratings and none for ``B-only``, a
+        denominator that would move without anyone seeing it move.
+        """
+        inputs = _complete_inputs()
+        items = inputs.unblinding["items"]
+        assert isinstance(items, dict)
+        b_only = sorted(item_id for item_id, e in items.items() if e["arm"] == "B-only")
+        items[b_only[0]]["arm"] = "B+critique"
+        with pytest.raises(ValueError, match="unpaired on 1 case"):
+            closeout.close_out(
+                inputs.sheet_a,
+                inputs.sheet_b,
+                inputs.arbiter,
+                inputs.unblinding,
+                inputs.denominators,
+            )
 
     def test_the_denominators_are_refused_rather_than_defaulted(self) -> None:
         """A missing, unknown or partial hallucination denominator is refused."""

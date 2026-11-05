@@ -602,6 +602,45 @@ def test_a_five_arm_b_and_an_arrangement_b_only_answer_have_distinct_ids() -> No
     assert pair_artifacts[0].run_scope == "arrangement_pair"
 
 
+def test_a_dry_run_rides_its_run_scope_through(tmp_path: Path) -> None:
+    """The dry run's anonymous items live in the run scope the caller names.
+
+    A second unseen paper runs the same case shape under its own scope: a
+    dry run that ignored the scope would mint the first paper's item ids
+    for the second paper's answers, and two papers would share one
+    blind-sheet namespace.
+    """
+    case = blind_runner.synthetic_cases()[0]
+    blind_runner.run_dry(out_dir=tmp_path / "scoped", cases=[case], run_scope="five_arm_unseen2")
+    blind_runner.run_dry(out_dir=tmp_path / "plain", cases=[case])
+    scoped = json.loads((tmp_path / "scoped" / "unblinding.json").read_text(encoding="utf-8"))
+    plain = json.loads((tmp_path / "plain" / "unblinding.json").read_text(encoding="utf-8"))
+    assert set(scoped["items"]) != set(plain["items"])
+    assert {entry["run_scope"] for entry in scoped["items"].values()} == {"five_arm_unseen2"}
+    assert {entry["run_scope"] for entry in plain["items"].values()} == {"five_arm"}
+
+
+def test_the_driver_rides_its_run_scope_through(tmp_path: Path) -> None:
+    """``--run-scope`` reaches the dry run; leaving it out keeps the default."""
+    module = _cli_module()
+    argv = [
+        "--mode",
+        "dry-run",
+        "--out",
+        str(tmp_path / "scoped"),
+        "--run-scope",
+        "five_arm_unseen2",
+    ]
+    assert module._dry_run(module._parser().parse_args(argv)) == module.EXIT_OK
+    argv_default = ["--mode", "dry-run", "--out", str(tmp_path / "plain")]
+    assert module._dry_run(module._parser().parse_args(argv_default)) == module.EXIT_OK
+    scoped = json.loads((tmp_path / "scoped" / "unblinding.json").read_text(encoding="utf-8"))
+    plain = json.loads((tmp_path / "plain" / "unblinding.json").read_text(encoding="utf-8"))
+    assert {entry["run_scope"] for entry in scoped["items"].values()} == {"five_arm_unseen2"}
+    assert {entry["run_scope"] for entry in plain["items"].values()} == {"five_arm"}
+    assert set(scoped["items"]) != set(plain["items"])
+
+
 def test_a_pair_that_moves_evidence_is_refused_by_the_driver(
     tmp_path: Path,
 ) -> None:

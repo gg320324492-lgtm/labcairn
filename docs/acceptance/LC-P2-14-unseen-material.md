@@ -519,3 +519,286 @@ record carries **no Chinese run at all**, so
 green by the same measurement that reddens it if this file ever quotes the
 paper. The owner's approval phrase stands verbatim on line 2 of the operator's
 report outside this repository, never in the tree.
+
+---
+
+# LC-P2-14 — The second unseen paper assembled into the five arms — acceptance
+
+**Work order:** [LC-P2-14](../plans/LC-P2-14-ablation-protocol.md) (the blind evaluation
+and ablation) · **Machinery:**
+[`LC-P2-14-preparation.md`](LC-P2-14-preparation.md) · **Precedent:** the first
+unseen paper, §1–§11 above · **This record:** the second real unseen material put
+through that machinery, on the owner's delivery of 2026-11-05.
+
+**Status.** The material is assembled and every wire has been walked end to end
+in a dry run: **65 stub calls, zero provider calls, zero money spent.** The real
+run has not happened and cannot until the owner approves a budget. **No arm has
+been measured, and nothing here says anything about capability.**
+
+**What this record does not carry.** The paper's title, its sentences, its
+numbers, its section headings and the names of the people who wrote, revised and
+commented on it are not in this file and not anywhere in the repository. The
+material is referred to as **unseen paper 2**, and each file by the first sixteen
+hex characters of its sha256. The assembly's own outputs live outside the
+repository under `E:\labcairn-local\blind6-arms\`, beside paper 1's
+`blind5-arms\`; `tests/test_no_reference_leakage.py` is what keeps them out of
+the tree.
+
+## 12. The material, as the product's reader measured it
+
+Eight `.docx` files, one paper's evolution — a **different-domain** manuscript
+(carbon emissions and air pollution; the chain's four papers are water
+treatment), which is the property the split wants in an unseen paper. Read with
+`labcairn.material.ooxml.read_document` — the same reader the chain uses.
+
+| Version | File (sha256 prefix) | Tracked revisions | Margin comments |
+|---|---|---|---|
+| **v1** | `e33f1ba60b45a1f0` | 0 | 0 |
+| v2 | `0d5289424e2c2fd3` | 0 | 0 |
+| v3 | `220965d897a2b5ca` | 0 | 0 |
+| v4 | `58c9e06495bbf22a` | 0 | 0 |
+| v5 | `5e78e60319d10bc7` | 0 | 0 |
+| **v6** | `c230cb4113c23e19` | 0 | 0 |
+| v7 | `3a72100e9422955f` (English) | 0 | 0 |
+| v8 | `cdf135fad54a55dc` (English) | 0 | **8** |
+
+**The version order is the recon report's stage order, transcribed, not a
+file-name sort.** Every one of the eight accepted texts is distinct, so each
+file is one version; the order — initial draft, five revisions, then two
+English translations — comes from the batch-6 recon report, because this
+batch's file names do not sort by stage (the initial draft's name sorts *after*
+both English translations), and a guessed sort would have made the initial
+draft v8 and pointed the case's reach the wrong way.
+
+**Zero tracked revisions, measured, not assumed.** This paper's advisor hand is
+not in-document: unlike paper 1's 662 tracked revisions, every file's accepted
+and rejected views are one clean text (measured equal per file). **The eight
+margin comments are the advisor's hand here**, all on v8, all resolved by the
+reader, one author, who is not named here. The reader reports zero extraction
+problems over all eight files.
+
+## 13. The task, as the protocol defines it
+
+**The same case shape as paper 1, one question of arithmetic more.** Thirteen
+cases, cut from v1's clean draft at 1200 characters — the draft is 16550
+characters of the student's own text, so the natural chunking gives thirteen
+sections without any split-for-the-floor. Thirteen clears
+`significance.MIN_PAIRS` with the same room the protocol wants, at the cost of
+one case over paper 1's twelve (§15).
+
+**Why the comments do not drive the cases.** The protocol's case is a section
+of a draft and a question about it, and that shape is unchanged. This paper's
+own comments sit on v8, the final English translation, while a case asks about
+v1 in Chinese: they are later material for the paper (the split checker holds
+them on the evaluation side, and the negative control below proves the check
+sees them), and they are the **answer face** the raters read after unblinding —
+not an input any arm may hold. Arm D's comment face comes from the chain's
+development papers, as the protocol's arm table says.
+
+## 14. The by-paper leak check, measured
+
+Three independent measures, all run over the real chain and the real files. The
+raw output is outside the repository (`blind6-arms/leak-check.json`,
+`blind6-arms/split-shape.json`).
+
+### 14.1 Chain material sitting verbatim inside the paper
+
+Units of at least twenty characters, whitespace-normalised, tested for exact
+containment in the union of every file's accepted and rejected views:
+**0 verbatim units — paper 1 had 9.** Eight **shorter** chain units (8–22
+characters) do sit verbatim inside the paper, every one carried by
+`proj-pilot-3` alone; none reaches the 40-character single-carrier line the
+serving gate withholds at. The longest *shared run* anywhere is 44 characters
+(paper 1: 112), with no exact containment — the near-misses are the same
+instrument and method sentences a same-lab corpus shares, listed for judgement
+in the raw output.
+
+### 14.2 Distinctive numbers
+
+**0** — as in paper 1, vacuously: the confirmed rules carry no digits, so there
+is no number to find (§3.3 above records this check as vacuous by
+construction).
+
+### 14.3 The serving gate, and the rule face it leaves standing
+
+| Measure | Paper 1 | Paper 2 |
+|---|---:|---:|
+| Confirmed rules in the store | 24 | 24 |
+| Withheld by the serving gate | **6** | **0** |
+| Served with a note (widest overlap) | — | 2 (22 chars) |
+| Served by the product's `search_rules` (read-only store) | 9 | 9 |
+| **The citable rule face** | **3** | **9** |
+
+**The cross-domain prediction held, and it is measured, not assumed.** No
+rule's source material sits verbatim in this paper above the withholding line,
+so the gate withholds nothing and the rule face is exactly what the product's
+own surface serves — three times what paper 1's same-domain material left. The
+two noted rules carry 22-character overlaps that stay under the 40-character
+line; the raw output names them.
+
+### 14.4 The split, checked as data
+
+`check_split` over the assembled entries — 63 version, 88 comment (80 chain,
+8 this paper's own, filed on the evaluation side), 24 rule, 6 assessment — is
+**clean**. Per case: each case's assembled reach passes `check_case`, and the
+negative control (the same case with the cap ignored) is **refused for every
+later version v2–v8**, so the checker demonstrably sees this paper's later
+material and its own comments. Per arm: `check_arm_exposure` over each arm's
+declared caps reports **0 leaks** (paper 1: 0), with the negative control
+reporting the 7 beyond-cap versions per arm-case pair, as designed.
+
+## 15. The five arms, assembled
+
+The cases are written as the driver's own case set (`blind6-arms/cases.json`,
+case ids `b6-01`…`b6-13`, paper id `unseen-paper-2`). The unseen paper supplies
+`draft` only; the other six faces come from the chain's development material,
+as §2 says. Per-case reach is measured, not assumed: all thirteen cases reach
+rules (3–6 each) and chain comments (4–6 each); no case reaches nothing.
+
+## 16. The blind sheet, and the second paper's own item space
+
+**The run scope is the second paper's own.** Paper 1's items live in
+`five_arm`; paper 2's live in `five_arm_unseen2`, and the two anonymous id
+spaces cannot collide — measured, **0 shared item ids** across the two papers'
+skeletons. The skeleton's 65 items (5 arms × 13 cases) are minted by
+`item_id_for` with the same arms a run builds — the roles are part of the
+digest, and the five arms run one guidance role each, so the ids are minted
+*with* the roles, not against an empty tuple that no run would ever produce.
+
+Both the skeleton and the packet were pushed back through the real
+`load_blind_sheet` (**65 items accepted, 325 ratings read**), and the negative
+control was re-run against the same loader: **an item carrying an `arm` key is
+still refused** — `item item-f04ea6b5149a833b carries the key 'arm', which
+names an arm; a blind sheet is anonymous until unblinding`.
+
+## 17. The dry run, walked end to end on the real assembly
+
+`python scripts/run_blind_evaluation.py --mode dry-run --cases
+blind6-arms/cases.json --out blind6-arms/dryrun --run-scope
+five_arm_unseen2`, exit code **0** read from the command itself, not from a
+pipe.
+
+| The run says | |
+|---|---|
+| status | `dry-run-complete` |
+| model | empty |
+| provider calls | **0** |
+| stub calls | 65 |
+| split clean | true |
+| both contrasts, all five dimensions | wins 0, losses 0, **ties 13**, significant **false** |
+
+Thirteen paired cases clear the floor of ten, so the sign test computes rather
+than short-circuiting — and the verdicts are still ties, because every rating
+is `unknown`. The dry run's unblinding map and the assembly's skeleton mint
+**the same 65 item ids**, so the sheet a rater will hold is the sheet this
+assembly built.
+
+## 18. The real run's budget shape, measured from the assembly
+
+Five arms × 13 cases = **65 calls**. The protocol's arrangement pair adds
+2 × 13 = **26 calls**. One unseen paper, run properly, is **91 calls**.
+
+Two shapes, both carried from the recalibration and the scaling run (§8–§9),
+anchored to those runs' commits' tree:
+
+- **The recalibration's per-case shape**: 27209 tokens for a five-arm case
+  extrapolates to 13 × 27209 = **353717 tokens** for the five-arm calls. The
+  arrangement pair's per-call cost from the scaling run (104616 tokens over 24
+  calls) extrapolates to **113335 tokens** for its 26 calls: **about 467000
+  tokens** for the whole paper.
+- **The scaling run's mean shape**: 398555 tokens over 84 measured calls is
+  4744.7 per call, which over 91 calls is **about 432000 tokens** — the
+  cross-check below the extrapolation.
+
+At the scaling run's measured 37.09s per call, 91 sequential calls are about
+**56 minutes**. These are shapes for the owner's decision, not a budget that
+has been approved. **USD is not computed here**; the owner's billing console is
+the money source.
+
+## 19. What this assembly changed in the tree
+
+**The run scope now rides through the driver.** `run_dry` takes and honours a
+`run_scope`, and the driver's `--run-scope` reaches both the dry run and the
+real run (the arrangement pair keeps its own scope, as before). The gap was
+real: without it, a second paper's run would mint its anonymous items in the
+first paper's namespace, and the two papers' ids could collide on the same
+case shape. Two witnesses carry it — one at the machinery level, one at the
+driver level — and **both were mutation-checked: dropping the pass-through
+reddened both; dropping only the driver's reddened only the driver's
+witness.** No new test file was created, so no shard or manifest registration
+was needed. The shard-cost witness stays as §11 left it: expected to refuse
+the hand-edited list until an authorized run remeasures it.
+
+**82 blind-evaluation witnesses pass** (80 from §11, plus these two), with
+`ruff check`, `ruff format --check` and `mypy --strict` clean on the changed
+files. This record carries **no Chinese material at all**, so
+`CJK_RUN_CEILINGS` needs no new entry and the material-quotage witness stays
+green by the same measurement that reddens it if this file ever quotes the
+paper.
+
+
+## 20. The authorized real run for the second unseen paper
+
+The owner approved the run on 2026-11-05 (via the coordinator session; the
+approval phrase lives in the operator-side report outside this repository).
+**Status: the machine side is complete -- 91 calls, all answered, zero
+truncations, zero approvals spent twice, 404802 metered tokens against the
+run's 577000 hard stop. The measurement is not: no sheet is filled, no
+significance exists, and no capability claim is made.** The two contrasts
+and the arrangement contrast each hold 13 paired answer sets across the
+five dimensions; the raters and the arbiter remain owner-side work, and
+``unknown`` and ``not significant`` stay first-class results.
+
+**The calibration first, as the owner ordered.** The five-arm case ``b6-01``
+metered **28850 tokens** against paper 1's recalibrated 27209 -- **1.06x**,
+inside the operator's declared 1.25 stop line, so the scaled run proceeded.
+The first calibration pass wrote zero into its own meter (it parsed the
+usage wire wrapper instead of the metered fields); the five paid-for
+answers were already on disk, and the meter was recovered from their
+artifacts with zero additional calls. The run scripts now treat an
+unmetered count as a fault and record each call's approval delta.
+
+**Two zero-spend stops taught the workspace lesson.** Two attempts stopped
+at their first call, refused at the consent bridge before the wire -- each
+spent zero tokens and consumed zero approvals -- because both scripts
+shared one consent workspace, where paper 1's recalibration and scaled run
+each kept a workspace of its own. The run completed on a dedicated
+workspace; the refusal's specific reason was not captured, the refused
+attempts' approvals lapsed unused, and the lesson is the shape: **one
+workspace per run**, the way the precedent had it.
+
+**The ceiling the run executed under.** The assembly's authorization shape
+was 467052 tokens; after the calibration's measurement the run script's
+ceiling stood at **577000** (the measured per-case shape extrapolated to 91
+calls, plus 10%) -- a change made outside this session, consistent with the
+owner's instruction to set the hard stop by the measured mean-shape upper
+bound. The run finished at **404802 / 577000 = 70.16%**; the gate and the
+projected-next-call check never fired. As in section 9, the product's
+``max_total_tokens`` ceiling was not used (it needs a capability probe
+outside the authorization); the product's request ceiling was 91.
+
+| Run scope | Arm / roles | Calls | Input | Output | Total | Wall clock |
+|---|---|---:|---:|---:|---:|---:|
+| five_arm_unseen2 | A, guidance | 13 | 11793 | 37159 | 48952 | 260.0s |
+| five_arm_unseen2 | B, guidance | 13 | 12558 | 39193 | 51751 | 314.7s |
+| five_arm_unseen2 | C, guidance | 13 | 20202 | 40385 | 60587 | 354.4s |
+| five_arm_unseen2 | D, guidance | 13 | 25945 | 43190 | 69135 | 327.3s |
+| five_arm_unseen2 | E, guidance | 13 | 29243 | 38422 | 67665 | 267.5s |
+| arrangement_pair_unseen2 | B-only, guidance | 13 | 12558 | 38544 | 51102 | 315.6s |
+| arrangement_pair_unseen2 | B+C, guidance + critique | 13 | 12896 | 42714 | 55610 | 292.5s |
+| **Total** | | **91** | **125195** | **279607** | **404802** | **2132.0s** |
+
+**The blind sheet the run minted, verified.** ``unblinding.json`` holds **91
+items** -- 65 ``five_arm_unseen2``, 26 ``arrangement_pair_unseen2``; the
+assembly's skeleton (section 16) is a subset of exactly these ids, and paper
+1's namespace shares **zero** ids with this run's. The blind packet's 91
+outputs are all non-empty and none carries an arm key; the packet pushed
+back through the real ``load_blind_sheet`` (**91 accepted**), and the
+negative control -- an item carrying an ``arm`` key -- is still refused with
+the machinery's own sentence. Answers are named by item id, so the
+arrangement pair's B answers cannot overwrite the five-arm B's -- the
+collision section 9 repaired is structurally absent here. The per-call
+ledger, the answers and the operator-side report (with the approval phrase
+verbatim) live outside the repository under ``blind6-arms`` ``live`` paths;
+``tests/test_no_reference_leakage.py`` keeps them out of the tree. **No USD
+is computed here**; the owner's billing console is the money source.

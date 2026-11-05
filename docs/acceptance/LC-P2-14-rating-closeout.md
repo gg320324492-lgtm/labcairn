@@ -11,9 +11,9 @@ prepared; no human rating has been collected and no evaluation claim is made.**
 **What this is.** The human half of the scaled blind run's close-out: two
 anonymous rating sheets, a withheld unblinding map, a consistency check that
 names disagreements, a third reader's packet, and the paired sign tests for
-the two contrasts the work order names. The repository carries the witnessed
-machinery and this record only. The run's answers, the raters' sheets and the
-unblinding map are outside the tree.
+the two contrasts the work order names plus the protocol's arrangement pair.
+The repository carries the witnessed machinery and this record only. The
+run's answers, the raters' sheets and the unblinding map are outside the tree.
 
 **What this is not.** This record reports no winner. It reports no human
 rating, no agreement claim about real raters, and no significance claim about
@@ -31,12 +31,25 @@ is built to render it rather than round it up.
 | 3 | **The withheld map.** Item id to arm, case and source id, for unblinding only | `blind_rating_closeout.read_unblinding` | `withheld/unblinding.json`, `withheld/assembly.json` |
 | 4 | **The consistency check and third reader.** Two completed sheets are compared item by item and dimension by dimension; the report carries the agreement denominator; every disagreement becomes a blind arbitration packet | `consistency_check`, `compare_ratings`, `build_arbitration_packet`, `load_arbitrations` | `disagreements.json`, `arbitration-packet.json`, `arbiter.json` |
 | 5 | **The protocol's denominators.** The five dimensions do not all have the same denominator. The owner's human denominator mask is required; hallucination and mis-citation must cover every case, and no dimension is silently widened to every case | `read_denominators`, `_dimension_row`, `_contrast_report` | `denominators.template.json`, `denominators.json` |
-| 6 | **The two contrasts.** `D vs C` and `E vs D` are paired by case and judged by the protocol's exact two-tailed sign test; the not-significant verdict is rendered with its numbers and reason | `_contrast_report`, `summarise_verdicts`, `CloseoutReport.render` | `closeout-report.txt`, `closeout-summary.json` |
+| 6 | **The three contrasts.** `D vs C`, `E vs D` and the protocol's arrangement pair `B+C vs B-only` are paired by case and judged by the protocol's exact two-tailed sign test; the not-significant verdict is rendered with its numbers and reason | `_contrast_report`, `summarise_verdicts`, `CloseoutReport.render` | `closeout-report.txt`, `closeout-summary.json` |
 
-The arrangement pair's 24 volumes are rated for completeness. They are not
-aggregated into a third contrast here, because the work order names `D vs C`
-and `E vs D`; the protocol's `B+C vs B-only` comparison waits on its own
-close-out step.
+The arrangement pair's 24 volumes enter the same close-out as the five arms'
+60: the assembly casts their arm key from the call rows' roles (`guidance` alone
+is `B-only`; `guidance` with `independent_critique` is `B+critique`), so each
+of the 12 cases carries exactly one volume per arrangement arm, and the third
+contrast pairs by case through the same code path as the other two. The
+protocol names the comparison in its §1 ("the role arrangement to be measured
+separately from the evidence") and its §5 ("More agents is not a gain ... If
+`B+C` does not beat `B-only`, or does not beat it enough to pay for itself,
+that is the finding") — so the arrangement's not-significant verdict is a
+first-class finding, rendered the same way as the other two. The protocol does
+not spell the third contrast's arithmetic out; what this close-out assumes,
+and reports as an assumption, is that it is *like-for-like* with the two the
+work order names — same five dimensions, same per-dimension denominator mask,
+same exact sign test, same two-raters-plus-arbiter settlement for its volumes.
+The protocol's arbitration rule (§3) and denominator rule (§4) are written per
+case and per dimension, not per contrast, so the arrangement pair's volumes
+take the same settlement and the same mask as the five arms'.
 
 ## 2. The operator's human steps
 
@@ -75,7 +88,7 @@ close-out step.
    case.
 7. **Close.** Run the kit's `close` command with the denominator file. The
    machinery unblinds, settles every label, refuses any rating that is still
-   unresolved, pairs the two contrasts by case, and writes the rendered
+   unresolved, pairs all three contrasts by case, and writes the rendered
    report. A row that is not significant is rendered as `NOT SIGNIFICANT`
    with its wins, losses, ties, difference and p-value (or the reason no
    p-value was computed).
@@ -95,6 +108,9 @@ close-out step.
   one of the two raters;
 * a missing, malformed or out-of-run denominator, or a hallucination and
   mis-citation denominator that does not cover every case;
+* a case one arm of a contrast covers and the other does not, or an arm with
+  two settled labels for one case — the denominator is the paired cases, and
+  a case counted on one side only would move it without saying so;
 * a rating that remains unresolved after arbitration.
 
 ## 4. Witnesses
@@ -134,9 +150,19 @@ was created, so no shard, manifest or gate-class registration was needed:
 * `::test_the_denominators_are_refused_rather_than_defaulted` and
   `::test_each_dimension_uses_its_own_denominator` — the protocol's
   per-dimension denominators are required and are not silently widened;
-* `::test_the_end_to_end_closeout_pairs_twelve_cases_on_both_contrasts` — the
-  whole close-out runs over 84 invented volumes, 420 settled labels and both
-  contrasts.
+* `::test_the_end_to_end_closeout_pairs_twelve_cases_on_each_contrast` — the
+  whole close-out runs over 84 invented volumes, 420 settled labels and all
+  three contrasts;
+* `::test_the_arrangement_contrast_is_measured_not_hardwired` — the
+  arrangement pair's verdict comes from its ratings, not from a rule: twelve
+  `B+critique` volumes rated `yes` by both raters go significant on the four
+  `yes`-beneficial dimensions while the untouched five-arm contrasts stay all
+  ties, and the hallucination dimension ties on the same `yes` ratings
+  because its beneficial label is `no`;
+* `::test_the_arrangement_contrast_refuses_an_unpaired_case` — a case one
+  arrangement arm covers and the other does not (cast by moving a volume's
+  arm in the withheld map, which the blind sheets cannot see) is refused as
+  an unpaired denominator.
 
 ## 5. Mutations, and what each one turned red
 
@@ -154,6 +180,13 @@ The mutation driver and its full JSON output live outside the tree at
 | M3 | a missing rating silently scored is red | the `rated` confirmation refusal was disabled | `Failed: DID NOT RAISE <class '...RatingRefusedError'>` / `FAILED ...::test_an_unrated_sheet_is_refused_instead_of_defaulting_to_a_score` |
 | M4 | a not-significant verdict written as significant is red | `verdict_word(False)` was made to return `SIGNIFICANT` | `AssertionError: assert 'NOT SIGNIFICANT' in 'D vs C on problem_identification: SIGNIFICANT; wins=0, losses=0, ties=12, p=n/a'` |
 | M5 | an unfilled arbitration treated as agreement is red | `compare_ratings` was made to count a disagreement as agreement | `AssertionError: Regex pattern did not match. Regex: 'no third-reader arbitration' Input: '1 rating(s) remain unresolved after arbitration'` |
+| M6 | the third contrast silently dropped is red | the `B+C vs B-only` row was deleted from `CONTRASTS` | `AssertionError: assert ('D vs C', 'E vs D') == ('D vs C', 'E...+C vs B-only')` / `FAILED ...::test_the_end_to_end_closeout_pairs_twelve_cases_on_each_contrast` |
+| M7 | the arrangement contrast's direction flipped is red | the `CONTRASTS` row's treatment and control were swapped | `AssertionError: assert PairedCounts(wins=0, losses=12, ties=0) == PairedCounts(wins=12, losses=0, ties=0)` / `FAILED ...::test_the_arrangement_contrast_is_measured_not_hardwired` |
+
+The seventh is the load-bearing one for the arrangement pair: a contrast
+whose direction is wrong can still come out "significant", so the witness
+holds the counts, not only the verdict word. After all seven the module was
+restored to SHA-256 `a7fcf97df935a93bc323ab3fbed1b2d838c51bd24b143679f2aec34371d503c7`.
 
 ## 6. The end-to-end rehearsal
 
@@ -164,7 +197,12 @@ anonymous sheets, marked them rated, planted one disagreement, ran the
 consistency check, filled a legal all-cases denominator mask, arbitrated the
 one disagreement as a third reader, and closed. The report's ten verdict rows
 were all rendered `NOT SIGNIFICANT`, including the row whose one loss gave
-`p=1.0000`; no row was rounded into a win. The real scaled run's answers were
+`p=1.0000`; no row was rounded into a win. A second rehearsal of the
+extension ran the same way with no planted disagreement and the `B+critique`
+volumes rated `yes`: all three contrasts rendered — fifteen verdict rows, the
+arrangement pair significant on the four `yes`-beneficial dimensions and
+tied on hallucination — confirming the third contrast reaches the rendered
+report through the kit's own file path. The real scaled run's answers were
 assembled into two sheets, but no real sheet has been rated and no real
 verdict exists.
 
@@ -181,10 +219,16 @@ verdict exists.
   different denominators. The work order did not name them, so the kit makes
   the denominator mask an explicit human input rather than guessing one. The
   machine checks its shape; the owner fills it from the material.
-* **The third contrast.** The protocol also names `B+C vs B-only`. The work
-  order asks for `D vs C` and `E vs D`, so this close-out computes those two;
-  the arrangement pair is still rated and its volumes remain available for a
-  separate arrangement close-out.
+* **The third contrast.** The protocol also names `B+C vs B-only`, and this
+  close-out now computes it: the 24 arrangement volumes carry the arm keys
+  `B-only` and `B+critique`, cast by the assembly from the call rows' roles
+  (measured on the scaled run's `measurements.json`: the 24 rows' `arm`
+  letter is `B` for both variants, and `roles` is the only field that
+  separates them — `["guidance"]` on calls 61–72, `["guidance",
+  "independent_critique"]` on calls 73–84). The protocol does not spell the
+  third contrast's arithmetic out; this close-out runs it like-for-like with
+  the two the work order names, and §1 of this record says what that means
+  and what stays the owner's to settle.
 * **Rater eligibility.** That a rater took no part in development and
   annotated no current-test-set case is the owner's human judgement at rater
   selection. The machinery can only check that the arbiter's reader id is

@@ -5,7 +5,7 @@ answer volumes, the raters' sheets and the unblinding map carry material or
 answers and live outside the repository. This module carries no such content:
 it holds only the *shape* of an anonymous volume, the order in which two
 raters see those volumes, the agreement check, the arbiter's door, and the
-two paired sign tests. The scripts outside the tree feed it the real files;
+three paired sign tests. The scripts outside the tree feed it the real files;
 the witnesses in ``tests/test_blind_evaluation_preparation.py`` feed it
 invented ones.
 
@@ -27,10 +27,11 @@ unrated item and refuses a label outside the protocol's three. Unblinding is
 a third act, after both sheets are complete.
 
 **What may be concluded.** The close-out refuses to aggregate until every
-disagreement has a third reader's label. It then pairs C/D and D/E by case
-and uses the protocol's exact two-tailed sign test. A verdict that is not
-significant is reported as not significant; nothing in this module rewrites
-a verdict after the test has spoken.
+disagreement has a third reader's label. It then pairs C/D, D/E and the
+protocol's arrangement pair (``B+critique`` against ``B-only``) by case, and
+uses the protocol's exact two-tailed sign test for all three. A verdict that
+is not significant is reported as not significant; nothing in this module
+rewrites a verdict after the test has spoken.
 """
 
 from __future__ import annotations
@@ -105,11 +106,15 @@ DEFAULT_NAMESPACE: Final = "witness-namespace"
 SEED_A: Final = 2026110401
 SEED_B: Final = 2026110402
 
-#: The two contrasts the work order names. Their arms and cases are read only
-#: from the unblinding map, at close-out, never from a rating sheet.
+#: The three contrasts the close-out computes: the two the work order names,
+#: and the arrangement pair the protocol names as its third comparison
+#: ("B+C does not beat B-only" is the finding, not a failure of the run).
+#: Their arms and cases are read only from the unblinding map, at close-out,
+#: never from a rating sheet.
 CONTRASTS: Final[tuple[tuple[str, str, str], ...]] = (
     ("D vs C", "D", "C"),
     ("E vs D", "E", "D"),
+    ("B+C vs B-only", "B+critique", "B-only"),
 )
 
 ARBITER_FIELD: Final = "arbitrations"
@@ -853,14 +858,15 @@ def close_out(
     unblinding_document: Mapping[str, Any],
     denominators_document: Mapping[str, Any],
 ) -> CloseoutReport:
-    """Settle the two readings, then compute the protocol's two contrasts.
+    """Settle the two readings, then compute the protocol's three contrasts.
 
     The unblinding act happens here, after both sheets are complete and every
     disagreement has a third reader's label. The five-arm contrasts are
-    ``D vs C`` and ``E vs D``. The arrangement pair's volumes are rated for
-    completeness but are not aggregated into a third contrast here; the work
-    order names these two, and the protocol's third contrast waits on its own
-    close-out step.
+    ``D vs C`` and ``E vs D``; the third is the protocol's arrangement pair,
+    ``B+C vs B-only`` (the protocol's "role arrangement measured separately
+    from the evidence"), paired by case through the same exact two-tailed
+    sign test and rendered under the same honesty rule — the protocol's own
+    words are that if ``B+C`` does not beat ``B-only``, that is the finding.
     """
     structural_a = {key: sheet_a_document[key] for key in BLIND_SHEET_KEYS}
     structural_b = {key: sheet_b_document[key] for key in BLIND_SHEET_KEYS}
