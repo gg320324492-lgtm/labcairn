@@ -76,6 +76,7 @@ from labcairn.application.refusal import guidance_refused
 from labcairn.guidance.models import GuidanceRule
 from labcairn.guidance.refusals import GuidanceRefusal
 from labcairn.guidance.rules import _rule_id, _validated_fields, _write_rule_version_idempotent
+from labcairn.material.ooxml import POSITION_ANCHOR_REASON
 from labcairn.papers.labels import ISSUE_LABELS
 
 #: The proposer every distilled rule carries. **It is not a parameter**:
@@ -95,6 +96,14 @@ _EMPTY_ANCHOR_LEAD: Final[str] = "Cases whose anchor resolved to an empty text: 
 
 #: The lead for the cases the reader could not place in the body.
 _UNPLACED_LEAD: Final[str] = "Cases the reader could not place in the body: "
+
+#: The lead for the cases the reader *did* place — on a position that
+#: covers no words. **A position anchor is placed**, so the words the
+#: unplaced lead uses would be false about it: the reader found where the
+#: remark sits, and the file records no words there. The reader's own
+#: reason (:data:`POSITION_ANCHOR_REASON`) names the fact, and the scope
+#: carries it rather than calling the case unplaced.
+_POSITION_ANCHOR_LEAD: Final[str] = "Cases whose anchor is a position, not a passage of text: "
 
 #: The lead a revision case's scope carries. **It is a different
 #: sentence from the comment case's**, because a revision case is a
@@ -164,12 +173,23 @@ def _scope_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
     wrote about nothing — which is not what happened: the reader could
     not find where the remark sits.
 
-    **A resolved anchor and an unresolved one are two facts, and the scope
-    keeps them apart.** A comment anchored on a point *is* placed — the
-    reader found where it sits — and the text it covers is empty; a
-    comment the reader could not place is not placed at all. The scope
-    says *"resolved to an empty text"* for the first and *"could not
-    place"* for the second, and never the same words for the two.
+    **The kinds of unknown anchor are not the same fact, and the scope
+    keeps them apart.** A comment the reader placed on a position that
+    covers no words *is* placed — the reader found where it sits, and the
+    file records no words there — so its scope says what the reader said
+    (:data:`POSITION_ANCHOR_REASON`, carried in the position lead); a
+    comment the reader could not place in the body at all is not placed,
+    and the scope says *could not place* for it. Never the same words for
+    the two, and never the empty string quoted as either.
+
+    **A position reaches the position bucket two ways, and both are
+    real.** The reader reports one as ``anchor_status == "position"``
+    now; the rows already written under the two-word vocabulary carry
+    ``anchor_status == "unknown"`` with :data:`POSITION_ANCHOR_REASON` as
+    their reason. A scope built from the two spellings of the one fact
+    says the same thing about both — a case that changed buckets when the
+    reader's spelling changed would be a scope about the spelling, not
+    about the case.
 
     **And the order is the cases' own.** The chain's rows come back in no
     particular order, so the cases are sorted here: a scope that changed
@@ -191,13 +211,30 @@ def _scope_of(cases: Sequence[tuple[str, chain_layer.ChainComment]]) -> str:
         for key, comment in ordered
         if comment.anchor_status == "resolved" and not comment.anchor_text
     ]
-    unplaced = [(key, comment) for key, comment in ordered if comment.anchor_status != "resolved"]
+    position = [
+        (key, comment)
+        for key, comment in ordered
+        # The status is the reader's current word for a placed position;
+        # the reason is the word it used while the vocabulary had only two.
+        # Both spellings are the one fact, and both land here.
+        if comment.anchor_status == "position"
+        or (comment.anchor_status == "unknown" and comment.anchor_reason == POSITION_ANCHOR_REASON)
+    ]
+    unplaced = [
+        (key, comment)
+        for key, comment in ordered
+        if comment.anchor_status == "unknown" and comment.anchor_reason != POSITION_ANCHOR_REASON
+    ]
     parts: list[str] = []
     if quoted:
         parts.append(_SCOPE_LEAD + "; ".join(f'"{text}"' for text in quoted))
     if empty:
         parts.append(
             _EMPTY_ANCHOR_LEAD + "; ".join(f"the comment under {key!r}" for key, _ in empty)
+        )
+    if position:
+        parts.append(
+            _POSITION_ANCHOR_LEAD + "; ".join(f"the comment under {key!r}" for key, _ in position)
         )
     if unplaced:
         parts.append(

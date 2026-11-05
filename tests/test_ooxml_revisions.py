@@ -44,7 +44,7 @@ from docx_corpus import FIXTURES
 from docx_fixtures import Fixture, gold_for, write_fixture
 
 from labcairn.material.addressing import render_locator_key, split_locator_key
-from labcairn.material.ooxml import RevisionDocument, read_document
+from labcairn.material.ooxml import CommentEvent, RevisionDocument, read_document
 from labcairn.material.units import adapter_for, registered_kinds
 from labcairn.sources.locators import DocxLocator
 from labcairn.sources.source import SourceKind
@@ -329,7 +329,7 @@ def test_a_comment_whose_range_spans_two_paragraphs_has_no_resolvable_anchor(
     assert comment.anchor.end is None, (
         "the end offset belongs to the other paragraph and must not be borrowed"
     )
-    assert comment.anchor.text == ""
+    assert comment.anchor.text is None
 
     # The comment is still a comment: body, author and date are all there.
     assert comment.text == "This remark covers both paragraphs."
@@ -1252,3 +1252,361 @@ def _fixture(name: str) -> Fixture:
         if fixture.name == name:
             return fixture
     raise AssertionError(f"no fixture named {name!r}")
+
+
+# --------------------------------------------------------------------------- #
+# the anchor a deletion holds, and the anchor that is a position
+# --------------------------------------------------------------------------- #
+
+
+def _comments_part(*comments: tuple[str, str]) -> str:
+    """The comments part for the given ``(id, text)`` comments."""
+    bodies = "".join(
+        f'<w:comment w:id="{cid}" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        f'<w:p><w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>'
+        "</w:comment>"
+        for cid, text in comments
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:comments xmlns:w="{W}">{bodies}</w:comments>'
+    )
+
+
+def _comment_by_id(document: RevisionDocument, comment_id: str) -> CommentEvent:
+    for comment in document.comments:
+        if comment.comment_id == comment_id:
+            return comment
+    raise AssertionError(f"the document holds no comment {comment_id!r}")
+
+
+def test_a_comment_whose_markers_sit_inside_a_deletion_anchors_the_deleted_words() -> None:
+    """A comment Word wrapped in the deletion of the words it covers.
+
+    When a commented-upon span is later deleted, Word moves the comment's
+    range markers *inside* the ``w:del`` element, around the deleted runs.
+    The deleted text **is baseline text** -- the rejected view is the
+    manuscript as it read before the change -- so the anchor is the span
+    the words occupy, and the words themselves. A walk that entered a
+    top-level revision at the offset past its whole width recorded both
+    markers at that one point, sliced the empty string, and hashed it
+    into an integrity value: the pilot's three ``resolved`` rows with no
+    anchored text were exactly this shape, and the file held 66, 66 and
+    10 baseline characters the reader dropped.
+
+    **What breaks it:** reverting the walk to enter a revision at its
+    end offset. Every marker inside then collapses onto one point, the
+    anchor covers no words, and this test fails on the text.
+    """
+    lead, deleted, tail = "Lead in. ", "removed span", " Tail."
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="7"/>'
+        f'<w:r><w:delText xml:space="preserve">{deleted}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="7"/>'
+        '<w:r><w:commentReference w:id="7"/></w:r>'
+        "</w:del>"
+        '<w:commentRangeStart w:id="8"/>'
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body),
+            _comments_part(("7", "Reword this."), ("8", "The tail needs a comma.")),
+        )
+    )
+    assert not document.problems, [problem.code for problem in document.problems]
+
+    covered = _comment_by_id(document, "7")
+    anchor = covered.anchor
+    assert anchor.status == "resolved", (anchor.status, anchor.reason)
+    assert anchor.paragraph == 0
+    assert anchor.start == len(lead), (anchor.start, anchor.end)
+    assert anchor.end == len(lead) + len(deleted)
+    assert anchor.text == deleted
+    assert document.baseline_paragraphs[0][anchor.start : anchor.end] == deleted, (
+        "the anchored text is the text at the offsets the anchor names"
+    )
+
+    # The deletion's own span is the whole width it removes, unchanged:
+    # the walk counts the deletion's text once, at the top level, and the
+    # markers inside it are positioned within that span.
+    (revision,) = [r for r in document.revisions if r.kind == "del"]
+    assert (revision.baseline_start, revision.baseline_end) == (
+        len(lead),
+        len(lead) + len(deleted),
+    ), "the deletion's own span moved"
+
+    # And the good path is not collateral: the comment anchored on the
+    # tail run still resolves to the words it covers, cut from the same
+    # baseline the offsets are into.
+    tail_comment = _comment_by_id(document, "8")
+    assert tail_comment.anchor.status == "resolved"
+    assert tail_comment.anchor.text == tail
+    assert tail_comment.anchor.start == len(lead) + len(deleted)
+
+
+def test_a_range_opening_in_one_deletion_and_closing_in_another_anchors_across_them() -> None:
+    """A commented span that the deletions cut open at both ends.
+
+    This is the shape the pilot's two remaining stale rows are written in:
+    the ``w:commentRangeStart`` sits inside one ``w:del`` and the
+    ``w:commentRangeEnd`` inside a *different*, later one, with ordinary
+    runs and an insertion between the two. The baseline text -- the
+    rejected view, the coordinate every anchor in the store is measured
+    in -- holds the deleted words of both deletions and none of the
+    insertion's, so the anchor is:
+
+    * from the offset **before** the first deletion's text, because the
+      opening marker precedes it inside the element, to
+    * the offset **after** the second deletion's text, because the closing
+      marker follows it --
+    * a span whose text contains every deleted word between the markers
+      and none of the inserted ones.
+
+    **What breaks it:** the walk the SOW (2) correction replaced -- one
+    that enters a revision at the offset past its whole width. Both markers
+    are then recorded after their deletion's text, the opening marker
+    jumps to the end of the first deletion, the anchored text loses the
+    first deletion's words, and this test fails on the text. One marker
+    per deletion, as the single-deletion test above covers, cannot tell
+    that walk from this one; the crossing is what makes the start wrong
+    while the end happens to land right -- the asymmetry the pilot's two
+    rows show.
+    """
+    lead = "Lead in. "
+    first_cut = "removed"
+    kept = " middle "
+    inserted = "inserted"
+    second_cut = "cut"
+    tail = " end"
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="11"/>'
+        f'<w:r><w:delText xml:space="preserve">{first_cut}</w:delText></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{kept}</w:t></w:r>'
+        '<w:ins w:id="901" w:author="Prof. Lin" w:date="2026-03-02T09:31:00Z">'
+        f'<w:r><w:t xml:space="preserve">{inserted}</w:t></w:r>'
+        "</w:ins>"
+        '<w:del w:id="902" w:author="Prof. Lin" w:date="2026-03-02T09:32:00Z">'
+        f'<w:r><w:delText xml:space="preserve">{second_cut}</w:delText></w:r>'
+        '<w:commentRangeEnd w:id="11"/>'
+        '<w:r><w:commentReference w:id="11"/></w:r>'
+        "</w:del>"
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(
+            _document(body), _comments_part(("11", "Across both cuts."), ("12", "Just the tail."))
+        )
+    )
+    baseline = document.baseline_paragraphs[0]
+    assert baseline == lead + first_cut + kept + second_cut + tail, (
+        "the baseline must hold both deletions' words and none of the insertion's"
+    )
+
+    comment = _comment_by_id(document, "11")
+    assert comment.anchor.status == "resolved"
+    expected_start = len(lead)
+    expected_end = len(lead) + len(first_cut) + len(kept) + len(second_cut)
+    assert comment.anchor.paragraph == 0
+    assert (comment.anchor.start, comment.anchor.end) == (expected_start, expected_end)
+    assert comment.anchor.text == first_cut + kept + second_cut
+    assert inserted not in comment.anchor.text
+    assert comment.anchor.text == baseline[expected_start:expected_end]
+
+    # The good paths are not collateral: the deletion events keep their own
+    # spans, and a comment outside every revision is anchored as usual.
+    dels = sorted((r.baseline_start, r.baseline_end) for r in document.revisions if r.kind == "del")
+    assert dels == [
+        (len(lead), len(lead) + len(first_cut)),
+        (len(lead) + len(first_cut) + len(kept), expected_end),
+    ]
+    tail_comment = _comment_by_id(document, "12")
+    assert tail_comment.anchor.status == "unknown"
+
+
+def test_a_range_that_closes_where_it_opens_is_a_position_not_a_passage() -> None:
+    """A reviewer commenting on the place, not on words.
+
+    Word writes a comment whose range closes where it opens when the
+    reviewer comments at a point. The pre-fix reader reported that as
+    ``resolved`` with the empty string as the covered text -- the claim
+    nothing backs, stored on every zero-width row of the pilot -- and the
+    reader before the third status reported it as ``unknown``, which
+    called a placed comment unplaced. **The position is still a place the
+    reader found**, so the paragraph and the offset are kept, the anchor
+    is reported as a position, and the comment is reported with its body;
+    what is not reported is a passage.
+    """
+    lead = "Lead in. "
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        '<w:commentRangeStart w:id="8"/>'
+        '<w:commentRangeEnd w:id="8"/>'
+        '<w:r><w:commentReference w:id="8"/></w:r>'
+        '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body), _comments_part(("8", "Tighten here."))))
+    assert {problem.code for problem in document.problems} == {"docx_comment_position_anchor"}, (
+        "the position is disclosed, not passed in silence"
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "position"
+    assert anchor.reason is None, "a position is placed, not unknown: no failure to explain"
+    assert anchor.paragraph == 0, "the place the reader found is kept"
+    # The range closes where it opens: both offsets are the same number,
+    # and that number is where the markers sit -- the place travels with
+    # the anchor instead of being dropped with the words it does not cover.
+    assert anchor.start == len(lead)
+    assert anchor.end == len(lead)
+    assert anchor.text is None
+
+
+def test_a_comment_over_inserted_text_is_a_position_in_the_baseline() -> None:
+    """A comment covering words the revisions added, seen from the baseline.
+
+    The anchor's coordinates are the baseline's, and **inserted text is
+    not in the baseline** -- so a comment whose markers sit inside an
+    insertion covers a position there, whatever words the accepted view
+    shows. The pre-fix reader reported that position as ``resolved`` over
+    the empty string; the pilot's over-insertion rows were this shape,
+    eleven of the sixteen.
+    """
+    body = (
+        "<w:p>"
+        '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+        '<w:ins w:id="910" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+        '<w:commentRangeStart w:id="9"/>'
+        '<w:r><w:t xml:space="preserve">inserted words</w:t></w:r>'
+        '<w:commentRangeEnd w:id="9"/>'
+        '<w:r><w:commentReference w:id="9"/></w:r>'
+        "</w:ins>"
+        "</w:p>"
+    )
+    document = read_document(
+        _docx_bytes(_document(body), _comments_part(("9", "Check this addition.")))
+    )
+    (comment,) = document.comments
+    anchor = comment.anchor
+    assert anchor.status == "position"
+    assert anchor.reason is None
+    assert anchor.paragraph == 0
+    assert anchor.start is not None
+    assert anchor.end == anchor.start, "the place is kept: the range closes where it opens"
+    assert anchor.text is None
+    # The comment itself is not lost: its body, author and date are the
+    # file's, and they are reported with the position.
+    assert comment.text == "Check this addition."
+    assert comment.author == "Prof. Lin"
+
+
+# --------------------------------------------------------------------------- #
+# the two shapes the reader must report as absent
+# --------------------------------------------------------------------------- #
+#
+# Batch 7's material (chain-external) carries two ways of marking an edit
+# that are **not** the shapes this reader reads: words set in red font with
+# no `w:ins`/`w:del`, and reviewer opinions quoted as ordinary paragraphs
+# with no `word/comments.xml`. Both must be reported as absent -- the
+# reader's honesty is that it says "no revision" and "no comment" rather
+# than guessing from formatting or from a sentence that begins with a
+# reviewer's name. The pilot record
+# `docs/acceptance/LC-P2-14-cej-pilot.md` names those two shapes as the
+# design gap a future ingestion would have to close; these two witnesses
+# hold the negative half: the product does not misread them today.
+
+
+def test_red_font_is_not_a_revision_and_its_text_is_counted_once() -> None:
+    """A red run is formatting, and this reader does not guess an edit from it.
+
+    The file declares no ``w:ins``, no ``w:del``, no move and no row mark;
+    one run simply carries ``w:rPr/w:color w:val="FF0000"``. The reader
+    reports **no revision**, no comment and no problem, and the paragraph's
+    text is the whole sentence -- the red words included **exactly once**.
+
+    **What breaks it:** a reader that treats a red run as an insertion,
+    because a marked manuscript *usually* means tracked changes. That
+    mutation makes ``revisions`` non-empty; a second one, which counts the
+    red run both as a revision and as surviving text, makes the count of
+    the red words two. Both are what a colour-blind heuristic would do to
+    the real batch-7 files, which carry red runs across paragraphs and no
+    tracked changes at all.
+    """
+    lead = "The catalyst was prepared"
+    red = " under nitrogen"
+    tail = " and dried overnight."
+    body = (
+        "<w:p>"
+        f'<w:r><w:t xml:space="preserve">{lead}</w:t></w:r>'
+        f'<w:r><w:rPr><w:color w:val="FF0000"/></w:rPr>'
+        f'<w:t xml:space="preserve">{red}</w:t></w:r>'
+        f'<w:r><w:t xml:space="preserve">{tail}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    # The negative claim: colour is not a revision mark, and there is no
+    # comments part for it to be mistaken for an annotation.
+    assert document.revisions == ()
+    assert document.comments == ()
+    assert document.problems == ()
+
+    # And the text is counted once, in the same place in both views. A
+    # reader that reads the red run twice reports it twice here even though
+    # it reports no revision.
+    paragraph = f"{lead}{red}{tail}"
+    assert document.paragraphs == (paragraph,)
+    assert document.baseline_paragraphs == (paragraph,)
+    assert document.accepted_text == paragraph
+    assert document.rejected_text == paragraph
+    assert document.accepted_text.count(red) == 1
+
+
+def test_a_quoted_reviewer_paragraph_is_not_a_comment() -> None:
+    """An opinion pasted into the body is text, not a Word comment.
+
+    The document has no ``word/comments.xml`` and no comment range markers;
+    two ordinary paragraphs carry a reviewer's quoted opinion and the
+    authors' response. The reader reports **no comment** and **no
+    revision**, no problem, and both paragraphs once each, in order.
+
+    **What breaks it:** a reader that recognises the sentence "Reviewer #2:"
+    and mints a comment from the paragraph that follows it. That is the
+    tempting shortcut for a response letter, and it is a guess: the file
+    never says the paragraph is an annotation, the paragraph is part of the
+    letter's own text, and a comment minted from it would carry an author
+    the file does not state and an anchor the file does not mark. The
+    design gap is a **comment-source type** the product does not have yet
+    (see the pilot record); it is not a licence to infer one from the
+    prose.
+    """
+    quote = "Reviewer #2: The introduction overstates the novelty of this method."
+    answer = "Response: We have revised the introduction to name the prior work."
+    body = (
+        f'<w:p><w:r><w:t xml:space="preserve">{quote}</w:t></w:r></w:p>'
+        f'<w:p><w:r><w:t xml:space="preserve">{answer}</w:t></w:r></w:p>'
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    assert document.comments == ()
+    assert document.revisions == ()
+    assert document.problems == ()
+
+    # Both paragraphs are body text, and neither is duplicated into a
+    # comment or an event.
+    assert document.paragraphs == (quote, answer)
+    assert document.paragraphs.count(quote) == 1
+    assert document.accepted_text.count(quote) == 1

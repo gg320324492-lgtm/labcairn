@@ -278,6 +278,31 @@ def assess_configuration(arms: Sequence[ArmConfiguration]) -> ConfigurationOutco
     return ConfigurationOutcome(admissible=not violations, violations=tuple(violations))
 
 
+def assess_arrangement_set(arms: Sequence[ArmConfiguration]) -> ConfigurationOutcome:
+    """Assess exactly the protocol's B-only / B+C arrangement pair.
+
+    The five-arm set is assessed by :func:`assess_configuration`, which
+    requires five distinct letters. The arrangement pair is a separate
+    comparison with two configurations of the *same* B evidence and the same
+    arm id; it is admissible when every other field is held fixed and only
+    the roles differ. Any other shape — including a third configuration or
+    a pair over a letter other than B — is refused by name.
+    """
+    violations: list[str] = []
+    if len(arms) != 2:
+        violations.append(f"the arrangement pair needs exactly two B variants; got {len(arms)}")
+    for arm in arms:
+        if arm.arm_id != "B":
+            violations.append(f"arm {arm.arm_id!r} is not the protocol's B evidence")
+        if arm.inputs != EXPECTED_INPUTS["B"]:
+            violations.append(
+                f"arm {arm.arm_id!r} does not carry exactly the protocol's B evidence"
+            )
+    if len(arms) == 2:
+        violations.extend(assess_arrangement(arms[0], arms[1]).violations)
+    return ConfigurationOutcome(admissible=not violations, violations=tuple(violations))
+
+
 def arrangement_variants(arm: ArmConfiguration) -> tuple[ArmConfiguration, ArmConfiguration]:
     """The arrangement pair over one arm's evidence: B-only and B+C.
 

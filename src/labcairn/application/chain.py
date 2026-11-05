@@ -161,11 +161,11 @@ class ChainComment:
 
     **And the anchor's status travels with them, because the text alone
     does not say where the comment sits.** A comment the reader could not
-    place in the body carries the empty string as its anchored text, and
-    so does a comment the reader *did* place on a stretch of the
-    manuscript that holds no text. **Those are two different facts**: the
-    first is a remark the reader could not attach to anything, the second
-    is a remark about a place the reader found and that is empty.
+    place in the body carries no anchored text, and neither does a comment
+    the reader *did* place on a stretch of the manuscript that holds no
+    text. **Those are two different facts**: the first is a remark the
+    reader could not attach to anything, the second is a remark about a
+    place the reader found and that is empty.
 
     **So the layer carries the status and the reason, and a caller can
     ask.** A caller that cannot tell the two apart will say something
@@ -182,15 +182,18 @@ class ChainComment:
     #: The manuscript state the comment was written against.
     version_id: str
     comment_text: str
-    #: The text the comment was written against. **Empty when the reader
-    #: could not place the comment, and empty also when the place it
-    #: found holds no text** — which is why the status below is here.
-    anchor_text: str
-    #: ``resolved`` or ``unknown``: whether the reader placed the comment
-    #: in the body at all.
+    #: The text the comment was written against. **``None`` when the
+    #: anchor covers no text** -- a comment the reader could not place, or
+    #: one the reader placed on a position that holds no words -- which is
+    #: why the status below is here. Rows written while the schema forced
+    #: an empty string onto every anchor read as ``""`` here; both spell
+    #: the one fact, and neither is ever quoted as the advisor's words.
+    anchor_text: str | None
+    #: ``"resolved"``, ``"unknown"`` or ``"position"``.
     anchor_status: str
-    #: Why the anchor is unknown, or ``None`` when it resolved. **The
-    #: chain's own reason**, so a caller may name it.
+    #: Why the anchor is unknown, or ``None`` when it resolved or was
+    #: placed on a position. **The chain's own reason**, so a caller may
+    #: name it.
     anchor_reason: str | None
 
 

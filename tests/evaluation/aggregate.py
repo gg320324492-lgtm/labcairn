@@ -63,6 +63,7 @@ from pathlib import Path, PurePosixPath
 from typing import Final
 
 from . import manifest
+from .citation_sample import UNSUPPORTED, CitationSampleRow, measure_locator_validity
 from .corpus import CorpusMeasurement
 from .faults import CRASH_MATRIX_FILE, CrashMatrixCoverage, read_crash_matrix
 from .model import (
@@ -177,8 +178,12 @@ def _end_to_end_reason(facts: TreeFacts) -> str:
 def _evidence_locator_reason(facts: TreeFacts) -> str:
     """Why the evidence-locator metric could not be measured."""
     lead = (
-        "the protocol asks for a human-checked sample; the tree records none, "
-        "and a machine count is not a substitute for one"
+        "the protocol asks for a human-checked citation-support sample; the "
+        "machinery that loads and measures one is in this tree, and no "
+        "sample is: a person reads the produced reports and records each "
+        "citation's verdict, the table carries addresses into the real "
+        "corpus so it lives outside this public repository, and the run is "
+        "handed it with --citation-sample"
     )
     if not facts.ground_truth:
         return lead + "."
@@ -823,6 +828,8 @@ def _metric_value(
     coverage: CrashMatrixCoverage | None,
     classes: tuple[ClassResult, ...],
     total_seconds: float,
+    *,
+    citation_sample: tuple[CitationSampleRow, ...] | None = None,
 ) -> tuple[Measurement, tuple[Measurement, ...], tuple[str, ...]]:
     """A metric's own value, its further measurements, and its context."""
     context: list[str] = []
@@ -860,6 +867,26 @@ def _metric_value(
             (),
             tuple(context),
         )
+
+    if metric.key == "evidence-locator-validity":
+        if citation_sample is None:
+            return (
+                Measurement(status="NOT_MEASURED", reason=not_measured_reason(metric.key, facts)),
+                (),
+                tuple(context),
+            )
+        measured = measure_locator_validity(citation_sample)
+        if not measured.measured:
+            return measured, (), tuple(context)
+        unsupported = sorted(row.sample_id for row in citation_sample if row.verdict == UNSUPPORTED)
+        context.append(
+            "the citation-support sample the run was handed holds "
+            f"{len(citation_sample)} human-judged citation(s); the failure "
+            "cases are the sample's own rows, and the citations judged "
+            "unsupported are named here rather than averaged away: "
+            + (", ".join(unsupported) if unsupported else "none")
+        )
+        return measured, (), tuple(context)
 
     if metric.key == "recovery-correctness":
         value = _recovery_measurement(index, coverage)
@@ -901,6 +928,7 @@ def metric_rows(
     context: tuple[str, ...] = (),
     *,
     repo_root: Path,
+    citation_sample: tuple[CitationSampleRow, ...] | None = None,
 ) -> tuple[MetricRow, ...]:
     """One row per protocol metric.
 
@@ -921,7 +949,15 @@ def metric_rows(
     for metric in protocol.metrics:
         witnesses = manifest.METRIC_WITNESSES.get(metric.key, ())
         value, also, metric_context = _metric_value(
-            metric, index, corpus, public, facts, coverage, classes, total_seconds
+            metric,
+            index,
+            corpus,
+            public,
+            facts,
+            coverage,
+            classes,
+            total_seconds,
+            citation_sample=citation_sample,
         )
         rows.append(
             MetricRow(

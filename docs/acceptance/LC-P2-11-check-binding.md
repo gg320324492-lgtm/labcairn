@@ -37,8 +37,8 @@ Both rules are at **version 2, `confirmed`**; version 1 of each is
 | Field | Value |
 |---|---|
 | `issue_type` | `method_and_hypothesis` |
-| `statement` | 在叙述除藻剂对臭氧微纳米气泡的强化机制时，不应并列罗列多个可能的机理并以「或」连接，而应删去未加论证的那一个，写明所选机理的化学作用及其与臭氧的活化关系。 |
-| `context` | 在方法或机制段落中叙述硫酸铜等化学除藻剂强化臭氧微纳米气泡除藻作用的机理时。 |
+| `statement` | **the words are not carried here** (removed 1 fragment: 76 characters sha256 `11dee2520513`); the row is `rule-1fcc9d1a2573d7b0` v2 in the store |
+| `context` | **not carried here** (removed 1 fragment: 37 characters sha256 `68e5359047c9`) |
 | `proposed_by` / `confirmed_by` | `operator_proposal` / `owner` |
 
 Its sources are **four** revision events, and they are two deletions and
@@ -47,28 +47,28 @@ mechanism clause in place**:
 
 | Event | Kind | Text |
 |---|---|---|
-| `rv-999867b0995458ec` | `del` | 或 |
-| `rv-f9ca686e41905747` | `del` | 诱导表面氢氧根离子产生自由基的能垒的变化 |
-| `rv-d30278f57bec9599` | `ins` | 改成铜离子的极化 |
-| `rv-86f1b8152e74b208` | `ins` | 作用，活化臭氧等 |
+| `rv-999867b0995458ec` | `del` | the conjunction; **not carried here** (removed 1 fragment: 1 character sha256 `a2123d69506f`) |
+| `rv-f9ca686e41905747` | `del` | the unargued mechanism clause; **not carried here** (removed 1 fragment: 20 characters sha256 `e7749feb3f64`) |
+| `rv-d30278f57bec9599` | `ins` | the replacement naming the mechanism; **not carried here** (removed 1 fragment: 8 characters sha256 `f854a5ad4b7d`) |
+| `rv-86f1b8152e74b208` | `ins` | what it is said to do; **not carried here** (removed 1 fragment: 8 characters sha256 `512f50f9dcf0`) |
 
 **What the acts do, read together.** The paragraph the mentor was editing
 read, before the edit:
 
-> …对电子跃迁（**诱导表面氢氧根离子产生自由基的能垒的变化**，**或**改成铜离子的极化**作用，活化臭氧等**）…
+> **the paragraph is not reproduced** (removed 5 fragments: 5 characters sha256 `bce4d290fbb5`, 20 characters sha256 `e7749feb3f64`, 1 character sha256 `a2123d69506f`, 8 characters sha256 `f854a5ad4b7d`, 8 characters sha256 `512f50f9dcf0`): the span carries the deletion and the two insertions above, and the store holds it under the four `rv-` addresses
 
-The mentor **deleted the conjunctive 「或」**, **deleted the unargued
+The mentor **deleted the conjunction**, **deleted the unargued
 alternative** (the change in the barrier for surface hydroxyl radicals),
 and **kept the one mechanism that could be stated**, then spelled out its
 chemical action and its relation to ozone's activation (copper ions'
 polarization; activating ozone).
 
 The rule is therefore about a **selection**: one mechanism, argued, named
-with its chemistry — not a list of candidates joined by 「或」.
+with its chemistry — not a list of candidates joined by a conjunction.
 
 **What the scope says about the evidence.** The scope records that **two
 of the four source events have no readable changed paragraph** — the `del`
-of 「或」 and the `del` of the unargued mechanism. The paragraph quoted in
+of the conjunction and the `del` of the unargued mechanism. The paragraph quoted in
 the scope is what remains readable around them, so the *before* state of
 those two acts is inferred, not read. §5 says what that costs.
 
@@ -77,8 +77,8 @@ those two acts is inferred, not read. §5 says what that costs.
 | Field | Value |
 |---|---|
 | `issue_type` | `method_and_hypothesis` |
-| `statement` | 在给出气泡溃灭对除藻效果的量化结果时，不应只写「促进作用」，而应在括号或紧接的句中补出从溃灭到能量释放再到攻击藻体的因果链条。 |
-| `context` | 在方法或机制段落中量化描述离子存在对气泡溃灭的促进作用时。 |
+| `statement` | **not carried here** (removed 1 fragment: 62 characters sha256 `b3714d253a83`); the row is `rule-1006b8ca1120db13` v2 in the store |
+| `context` | **not carried here** (removed 1 fragment: 28 characters sha256 `44189305dd1e`) |
 | `proposed_by` / `confirmed_by` | `operator_proposal` / `owner` |
 
 Its sources are **two** revision events, both insertions, one minute apart
@@ -86,14 +86,14 @@ Its sources are **two** revision events, both insertions, one minute apart
 
 | Event | Kind | Text |
 |---|---|---|
-| `rv-566ce379929a90a4` | `ins` | （促进溃灭后，能量集中释放，加速 |
-| `rv-a250681fef20b2c3` | `ins` | 对藻的攻击） |
+| `rv-566ce379929a90a4` | `ins` | the opening of the causal chain; **not carried here** (removed 1 fragment: 15 characters sha256 `9f78fd828023`) |
+| `rv-a250681fef20b2c3` | `ins` | its closing; **not carried here** (removed 1 fragment: 5 characters sha256 `28fd872a9eeb`) |
 
 **What the acts do.** The paragraph the mentor was editing read:
 
-> …离子存在对气泡溃灭的促进作用量化**（促进溃灭后，能量集中释放，加速对藻的攻击）**，对电子跃迁（改成铜离子的极化作用，活化臭氧等）…
+> **the paragraph is not reproduced** (removed 3 fragments: 16 characters sha256 `7b66b38aa980`, 20 characters sha256 `2a329f43b90b`, 22 characters sha256 `b2ea1cf6cd52`): the span where the parenthetical chain was inserted, held by the store under the two `rv-` addresses above
 
-The mentor took the bare noun phrase 「促进作用」 and **appended a
+The mentor took the bare noun phrase for the enhancement and **appended a
 parenthetical that spells the chain**: bubble collapse → energy released
 in concentration → accelerated attack on the algae. The rule is about
 **spelling the chain where the number is given**, not about restating the
@@ -181,21 +181,21 @@ mentor's revisions.
 
 **question**
 
-> 文中描述强化机制处，是否只主张一个机理，并写明该机理的作用主体与被作用对象？
+> **the check's question, `check-a1de7d4db9d7cbda`, is not carried here** (removed 1 fragment: 37 characters sha256 `3b666b1424b7`)
 
 **pass_criterion**
 
-> 没有以「或」并列多个未论证机理；所主张的机理写清了谁作用于谁（如铜离子的极化作用于臭氧、将其活化）。
+> **its pass criterion is not carried here** (removed 1 fragment: 48 characters sha256 `b0a006455999`)
 
 ### 3.2 `check-5df4997384d6a0bd` — for the causal-chain rule
 
 **question**
 
-> 每处给出量化结果的地方，是否紧接写出该量所属的因果链条？
+> **the check's question, `check-5df4997384d6a0bd`, is not carried here** (removed 1 fragment: 27 characters sha256 `a10c6a70443f`)
 
 **pass_criterion**
 
-> 量化值旁有机理链条（气泡溃灭后能量集中释放，从而加速对藻的攻击），而不只写「促进」或「抑制」。
+> **its pass criterion is not carried here** (removed 1 fragment: 45 characters sha256 `e86a8efb401e`)
 
 **A check is two fields, and neither may be empty.** The question is what
 the reader runs; the criterion is the condition under which the answer is
@@ -303,12 +303,12 @@ read_rule_checks(rule-1006b8ca1120db13): 1
 retrieval card now carries the runnable question:
 
 ```
-query='机理'  -> rule-1fcc9d1a2573d7b0 v2
+query='<the mechanism term, not carried: removed 1 fragment: 2 characters sha256 `671fb59d9d0d`>'  -> rule-1fcc9d1a2573d7b0 v2
     check check-a1de7d4db9d7cbda [confirmed]
-      Q: 文中描述强化机制处，是否只主张一个机理，并写明该机理的作用主体与被作用对象？
-query='溃灭'  -> rule-1006b8ca1120db13 v2
+      Q: *(the question of `check-a1de7d4db9d7cbda`, not carried here)*
+query='<the collapse term, not carried: removed 1 fragment: 2 characters sha256 `f107621fc60c`>'  -> rule-1006b8ca1120db13 v2
     check check-5df4997384d6a0bd [confirmed]
-      Q: 每处给出量化结果的地方，是否紧接写出该量所属的因果链条？
+      Q: *(the question of `check-5df4997384d6a0bd`, not carried here)*
 ```
 
 **Both rules are served at version 2**, which is the version that carries
@@ -377,7 +377,7 @@ pytest tests/test_guidance_rules.py -k "may_name_only_a_confirmed_check or names
   *before* state of the deleted clause is inferred, not read.
 - **No false-positive case exists for either check.** There is no instance
   where the mentor **left** a parallel mechanism list in place, and none
-  where they left a bare 「促进作用」 in place. So neither pass criterion
+  where they left the bare enhancement noun in place. So neither pass criterion
   has been observed to *not fire* on material the mentor chose not to
   touch: **the criteria are derived from what the mentor did do, and are
   not validated by a negative case.**
@@ -395,7 +395,7 @@ pytest tests/test_guidance_rules.py -k "may_name_only_a_confirmed_check or names
 
 **This session did not write to the pilot database.** The session assigned
 this task was interrupted repeatedly and lost its turn each time; the
-parent session (`LabCairn 项目续开发`) therefore carried out the
+parent session (this conversation) therefore carried out the
 proposal, the owner's confirmation and the binding itself, at
 2026-11-03 13:07 local time, while this branch measured the doors and
 drafted the wording for the owner's second reader.

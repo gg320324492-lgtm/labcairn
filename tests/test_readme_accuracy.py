@@ -57,6 +57,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -698,13 +699,38 @@ _TRIGGER_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Qualifiers that make an aspirational sentence honest. Anything here in the
-#: *same sentence* exempts the sentence. Kept narrow on purpose: a broad list
-#: would launder over-claims instead of catching them.
+#: Qualifiers that make an aspirational clause honest. The exemption is
+#: clause-scoped (:func:`_needle_clause_unqualified`): a planning word covers
+#: its own clause, not the whole sentence, so a plan word cannot launder a
+#: present-tense claim elsewhere in the sentence. Kept narrow on purpose: a
+#: broad list would launder over-claims instead of catching them. The
+#: negated-assertion markers (不打算 / 不声称 / does not claim / makes no claim)
+#: are qualifiers in their own right — a sentence that denies the capability is
+#: not claiming it — and 打算 / 试图 were planning verbs the list never had.
 _QUALIFIER_RE = re.compile(
     r"planned|planning|not yet|will (?:be|add|ship)|future|roadmap|candidate|intended"
     r"|aims? to|is being built|designed to|target|"
-    r"规划|计划|尚未|将(?:会|要)?|预期|候选|目标|拟|旨在",
+    r"does not claim|makes no claim|"
+    r"规划|计划|打算|试图|尚未|将(?:会|要)?|预期|候选|目标|拟|旨在|不声称|不宣称",
+    re.IGNORECASE,
+)
+
+#: Clause boundaries inside one sentence. A qualifier stops here: a comma, a
+#: semicolon, a colon (ASCII and full-width), an em dash, and connectors that
+#: start an independent claim. The English and/or/but split is conditioned on a
+#: subject or verb-like word following it — an unconditional split would cut
+#: "DOCX and PDF support" and lift "PDF support" out of its planning clause.
+#: The Chinese adversatives (但 / 不过 / 然而) split unconditionally: they lead a
+#: contrasting clause, so a "not claimed, but provided" sentence is a laundering
+#: shape rather than a noun list.
+_CLAUSE_SPLIT_RE = re.compile(
+    r"[;,;：，；]"  # noqa: RUF001
+    r"|—"
+    r"|(?<![A-Za-z])(?:and|or|but)(?![A-Za-z])\s*"
+    r"(?=(?:the\s+)?(?:cli|tool|project|app(?:lication)?|labcairn|it|we|roadmap)\b"
+    r"|supports?\b|provides?\b|offers?\b|implements?\b|handles?\b|can\b"
+    r"|enables?\b|delivers?\b|allows?\b|comes?\s+with\b|is\b|are\b)"
+    r"|但|不过|然而",
     re.IGNORECASE,
 )
 
@@ -713,6 +739,20 @@ _OVERCLAIM_RE = re.compile(
     r"production[-\s]ready|fully implemented|now shipping|ready for production|generally available"
     r"|已上线|正式发布|现已支持|全面支持",
     re.IGNORECASE,
+)
+
+#: Phrases that grant rights the repository cannot grant. ``you may use`` is
+#: the spine of the longer list form: under the clause-scope qualifier check a
+#: phrase spanning commas can never sit inside one clause, so the list carries
+#: the comma-free form a clause can actually match.
+_GRANT_PHRASES: tuple[str, ...] = (
+    "mit licensed",
+    "licensed under the mit",
+    "licensed under mit",
+    "mit licence",
+    "permissively licensed",
+    "we grant",
+    "you may use",
 )
 
 #: A capability trigger only counts as a claim about *this project* when the
@@ -740,14 +780,32 @@ def _prose_only(text: str) -> str:
     return _LINK_OR_CODE_RE.sub(" ", stripped)
 
 
+def _needle_clause_unqualified(text: str, needle: Callable[[str], Any]) -> bool:
+    """True when some clause of ``text`` carries ``needle`` but no qualifier.
+
+    ``needle`` is a regex ``search`` method or an equivalent predicate; its
+    result is read as truthy, so a match object passes. The qualifier exemption
+    is clause-scoped: a planning word exempts its own clause, not the sentence
+    around it. "Targeted at researchers, the CLI supports batch extraction"
+    reports even though "targeted" is in the sentence — the clause carrying
+    "supports" carries no plan.
+    """
+    return any(
+        needle(clause) and not _QUALIFIER_RE.search(clause)
+        for clause in _CLAUSE_SPLIT_RE.split(text)
+    )
+
+
 def find_unsupported_claims(text: str) -> list[tuple[str, str, str]]:
     """Return ``(kind, sentence, reason)`` for every unqualified capability claim.
 
     A sentence is a line (so Markdown bullets stay intact) further split on
     sentence terminators. Two gates must both open before a trigger word becomes
-    a finding: the sentence must name a product subject, and it must carry no
-    planning qualifier. Released-status markers (:data:`_OVERCLAIM_RE`) need
-    neither — "production-ready" is false about this project in any sentence.
+    a finding: the sentence must name a product subject, and a clause carrying
+    the trigger must carry no planning qualifier (see
+    :func:`_needle_clause_unqualified`). Released-status markers
+    (:data:`_OVERCLAIM_RE`) need neither — "production-ready" is false about
+    this project in any sentence.
     """
     findings: list[tuple[str, str, str]] = []
     for line in _prose_only(text).splitlines():
@@ -759,17 +817,52 @@ def find_unsupported_claims(text: str) -> list[tuple[str, str, str]]:
             if (
                 _TRIGGER_RE.search(sentence)
                 and _SUBJECT_RE.search(sentence)
-                and not _QUALIFIER_RE.search(sentence)
+                and _needle_clause_unqualified(sentence, _TRIGGER_RE.search)
             ):
                 findings.append(
                     (
                         "capability-claim",
                         sentence,
                         "claims a capability that does not exist yet, with no planning "
-                        "qualifier in the same sentence",
+                        "qualifier in the clause that carries the claim",
                     )
                 )
     return findings
+
+
+def _unqualified_grant_claims(text: str) -> list[str]:
+    """Sentences carrying a licence-grant phrase with no planning qualifier.
+
+    "Planned licensing remains MIT" is the honest form and never appears here.
+    The exemption is clause-scoped: "The project is MIT licensed, planned for
+    v1.0" reports, because the clause carrying "MIT licensed" carries no plan.
+    """
+    prose = _prose_only(text)
+    hits: list[str] = []
+    for sentence in (s.strip() for s in _SENTENCE_SPLIT_RE.split(prose)):
+        low = sentence.lower()
+        if any(phrase in low for phrase in _GRANT_PHRASES) and _needle_clause_unqualified(
+            sentence, lambda clause: any(phrase in clause.lower() for phrase in _GRANT_PHRASES)
+        ):
+            hits.append(sentence)
+    return hits
+
+
+def _unqualified_overclaim_lines(text: str) -> list[str]:
+    """Non-quote lines carrying a released-status word with no planning qualifier.
+
+    The exemption is clause-scoped like the capability check: "production-ready
+    components, planned for later" reports, because the clause carrying the
+    status word carries no plan.
+    """
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+        and not line.lstrip().startswith(">")
+        and _OVERCLAIM_RE.search(line)
+        and _needle_clause_unqualified(line, _OVERCLAIM_RE.search)
+    ]
 
 
 def test_claim_detector_has_teeth() -> None:
@@ -841,13 +934,102 @@ def test_claim_detector_catches_forms_recorded_as_open_holes() -> None:
         assert findings, f"detector missed a recorded over-claim form: {sentence!r}"
 
 
+#: The whitewash shapes: a planning word and a present-tense capability claim
+#: sharing one sentence. Under the old whole-sentence qualifier rule every one
+#: of these was exempt -- the planning word laundered the claim. The
+#: clause-scope rule reports each of them.
+_LAUNDERED_CLAIMS = (
+    "Targeted at researchers, the CLI supports batch extraction.",
+    "The roadmap targets future releases and the CLI provides a web dashboard.",
+    "The CLI targets future releases and supports PDF parsing.",
+    "The tool has a built-in reader, intended for PDFs.",
+    "LabCairn 将支持 DOCX，现已支持 PDF 解析。",  # noqa: RUF001
+    "本项目拟提供批量导出，系统支持一键摘要。",  # noqa: RUF001
+    "不声称支持 DOCX，但系统提供 PDF 导出。",  # noqa: RUF001
+    # No comma before the adversative: these two are carried by the Chinese
+    # adversative splits alone -- with the comma the clause split already
+    # separates the claim from the plan.
+    "不声称支持 DOCX 但系统提供 PDF 导出。",
+    "LabCairn 已支持 DOCX 但计划重写导出器。",
+)
+
+#: The honest planning language the clause-scope rule must survive: the
+#: qualifier covers its own clause, and a sentence whose only trigger-carrying
+#: clauses are planning clauses stays clear. The negated-assertion markers
+#: (不打算 / 不声称 / does not claim) are qualifiers in their own right, and
+#: "will add DOCX and PDF support" shows the conditioned "and" split leaving a
+#: noun list inside one planning clause.
+_HONEST_PLANS = (
+    "We intend to support DOCX.",
+    "The roadmap targets DOCX support in the future.",
+    "DOCX support will be added.",
+    "We will add DOCX and PDF support.",
+    "项目将支持 DOCX。",
+    "Planned first release (Phase 1)",
+    "它计划把文献连接起来，让研究过程可定位来源、保留修改历史。",  # noqa: RUF001
+    "LabCairn 不打算取代科研判断，也不声称能自主完成科学发现。",  # noqa: RUF001
+    "We will add DOCX and PDF support, and the roadmap targets Q3.",
+)
+
+
+def test_a_planning_qualifier_covers_its_clause_not_the_whole_sentence() -> None:
+    """The qualifier exemption is clause-scoped, so a plan word cannot launder.
+
+    ``_QUALIFIER_RE`` used to exempt a whole sentence containing a planning
+    word, so "Targeted at researchers, the CLI supports batch extraction" was
+    exempt although the clause carrying "supports" carried no plan at all. The
+    exemption now covers only the clause the planning word sits in; this is the
+    hole LC-P2-25 recorded as still open, closed.
+    """
+    for sentence in _LAUNDERED_CLAIMS:
+        findings = find_unsupported_claims(sentence)
+        assert findings, (
+            f"a planning word laundered a present-tense claim: {sentence!r}. The qualifier "
+            "exemption is clause-scoped; a claim outside the planning clause is reported."
+        )
+    for sentence in _HONEST_PLANS:
+        findings = find_unsupported_claims(sentence)
+        assert not findings, (
+            f"detector false-positived on honest planning language {sentence!r}: {findings}"
+        )
+
+
+def test_a_qualifier_cannot_launder_a_licence_grant() -> None:
+    """The grant check is clause-scoped too: "MIT licensed, planned for v1.0" fails.
+
+    "Planned licensing remains MIT" is honest and stays clear; a grant phrase
+    whose own clause carries no qualifier is reported even when the sentence
+    also contains a plan.
+    """
+    hits = _unqualified_grant_claims(
+        "Planned licensing remains MIT for original code.\n"
+        "The project is MIT licensed, planned for v1.0.\n"
+    )
+    assert hits == ["The project is MIT licensed, planned for v1.0."], (
+        f"the clause-scoped grant check returned {hits!r}: a grant phrase must be reported "
+        "when its own clause carries no qualifier, and the planned-licence form must stay clear"
+    )
+
+
+def test_a_qualifier_cannot_launder_a_release_status_claim() -> None:
+    """The overclaim check is clause-scoped: "production-ready, planned" fails."""
+    lines = _unqualified_overclaim_lines(
+        "Planned components: none are production-ready.\n"
+        "production-ready components, planned for later.\n"
+    )
+    assert lines == ["production-ready components, planned for later."], (
+        f"the clause-scoped overclaim check returned {lines!r}: a released-status word must be "
+        "reported when its own clause carries no qualifier"
+    )
+
+
 def test_readme_makes_no_unqualified_capability_claim(repo_root: Path) -> None:
     """The README itself, checked with the detector exercised above."""
     findings = find_unsupported_claims(readme_text(repo_root))
     assert not findings, (
         "README.md asserts capabilities that do not exist in this repository. LC-P1-14 is "
-        "where release shape is settled; until then every such sentence needs a planning "
-        "qualifier in the same sentence, or must be deleted.\n"
+        "where release shape is settled; until then the clause carrying such a claim needs a "
+        "planning qualifier of its own, or the claim must be deleted.\n"
         + "\n".join(f"  [{kind}] {sentence!r} -- {reason}" for kind, sentence, reason in findings)
     )
 
@@ -1037,21 +1219,7 @@ def test_readme_contains_no_unqualified_license_grant(repo_root: Path) -> None:
     ``Planned licensing remains MIT`` is honest and passes; ``MIT licensed``
     without a qualifier fails.
     """
-    grant_phrases = (
-        "mit licensed",
-        "licensed under the mit",
-        "licensed under mit",
-        "mit licence",
-        "permissively licensed",
-        "we grant",
-        "you may use, copy, modify",
-    )
-    hits: list[str] = []
-    prose = _prose_only(readme_text(repo_root))
-    for sentence in (s.strip() for s in _SENTENCE_SPLIT_RE.split(prose)):
-        low = sentence.lower()
-        if any(phrase in low for phrase in grant_phrases) and not _QUALIFIER_RE.search(sentence):
-            hits.append(sentence)
+    hits = _unqualified_grant_claims(readme_text(repo_root))
     assert not hits, (
         "README.md contains an unqualified licence grant: "
         f"{hits}. LICENSE.PENDING.md §2: nothing in this repository is licensed to you, and "
@@ -1110,15 +1278,7 @@ def test_status_banner_names_the_current_phase(repo_root: Path) -> None:
 
 def test_no_status_claim_contradicts_the_banner(repo_root: Path) -> None:
     """Nothing further down may re-open the question the banner closed."""
-    text = readme_text(repo_root)
-    contradictions = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip()
-        and not line.lstrip().startswith(">")
-        and not _QUALIFIER_RE.search(line)
-        and _OVERCLAIM_RE.search(line)
-    ]
+    contradictions = _unqualified_overclaim_lines(readme_text(repo_root))
     assert not contradictions, (
         "README contains a released/shipped claim outside the status banner that contradicts "
         f"it: {contradictions}"

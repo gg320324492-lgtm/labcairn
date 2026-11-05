@@ -41,11 +41,13 @@ because the repository is public and the paper is not.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 from dataclasses import dataclass, fields
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from alembic import command as alembic_command
 from docx_fixtures import Comment, Fixture, Revision, write_fixture
 from feedback_chain_fixtures import (
     MOMENT,
@@ -56,7 +58,7 @@ from feedback_chain_fixtures import (
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from store_support import StoreEnv
+from store_support import StoreEnv, db_path_for
 from store_support import env as _shared_env
 
 from labcairn.application import chain as chain_layer
@@ -67,6 +69,7 @@ from labcairn.application.refusal import (
     chain_refusal_name,
 )
 from labcairn.application.sources import list_sources
+from labcairn.db.migrations import alembic_config
 from labcairn.db.models import (
     EditActionRow,
     FeedbackEventRow,
@@ -77,9 +80,16 @@ from labcairn.db.models import (
     ResponseLinkRow,
     VersionEdgeRow,
 )
+from labcairn.db.repository import TaskStore
+from labcairn.db.session import create_db_engine, create_session_factory
 from labcairn.guidance.retrieval import invalidated_rules, search_rules
 from labcairn.guidance.rules import confirm_rule, propose_rule
-from labcairn.material.ooxml import read_document
+from labcairn.material.ooxml import (
+    CommentAnchor,
+    CommentEvent,
+    RevisionDocument,
+    read_document,
+)
 from labcairn.papers.chain import ChainRefusal
 from labcairn.papers.edits import ActorClaim, EditAction, record_edits_from_revisions
 from labcairn.papers.feedback import (
@@ -106,6 +116,7 @@ from labcairn.papers.responses import (
     record_response,
 )
 from labcairn.papers.revisions import record_revision_events
+from labcairn.sources.locators import DocxLocator
 
 pytestmark = pytest.mark.integration
 
@@ -804,12 +815,11 @@ def test_the_layers_comment_carries_the_anchors_status_and_its_reason(
     place the remark in the body"*.
 
     **And the anchored text alone does not say it.** An unplaced comment
-    carries the empty string as its anchored text, and so does a comment
-    the reader *did* place on a stretch of the manuscript that holds no
-    text: **two different facts, one spelling.** A layer that carried the
-    text and left the status behind would make them indistinguishable —
-    and the scope of a distilled rule would then quote the empty string
-    as though it were the advisor's words.
+    carries no anchored text, and neither does a comment the reader *did*
+    place on a position that holds no text: **two different facts, one
+    spelling.** A layer that carried the text and left the status behind
+    would make them indistinguishable — and the scope of a distilled rule
+    would then quote the absence as though it were the advisor's words.
 
     **What breaks it:** the layer dropping ``anchor_status`` and
     ``anchor_reason`` on the way out of the store, which is exactly what
@@ -842,7 +852,7 @@ def test_the_layers_comment_carries_the_anchors_status_and_its_reason(
     assert unplaced.anchor_reason == "the comment carries no range markers", (
         "the reason is the chain's own, not a guess made here"
     )
-    assert unplaced.anchor_text == "", "an unplaced comment carries no anchored text"
+    assert unplaced.anchor_text is None, "an unplaced comment carries no anchored text"
 
 
 # --------------------------------------------------------------------------- #
@@ -2816,3 +2826,519 @@ def test_a_judgement_the_door_refuses_never_reaches_the_store(
     assert "nobody can lift" in caught.value.detail, (
         "the hold's refusal says why a hold names what it holds"
     )
+
+
+# --------------------------------------------------------------------------- #
+# A8  the anchor that is a position     a zero-width range is recorded as an
+#                                unknown anchor with its reason, and the
+#                                empty-string digest is never an integrity
+#                                value for anchored text
+# --------------------------------------------------------------------------- #
+
+#: The digest of the empty string, which is what a resolved claim over no
+#: text used to carry as its integrity value.
+_EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+
+#: The reason a position anchor carried while the vocabulary had only two
+#: words. Rows written under that vocabulary spell the position this way,
+#: and the readers of those rows must know the name.
+POSITION_REASON = "the comment's range is a position, not a passage of text"
+
+#: A document part whose comment's range markers sit **inside** the
+#: ``w:del`` of the words they cover -- the shape Word writes when a
+#: commented-upon span is later deleted, and the shape the pilot's three
+#: reader-defect rows carried. Written by hand because the fixture writer
+#: places markers beside revisions, never inside one.
+_DELETION_ANCHOR_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+    "<w:body>\n"
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+    '<w:del w:id="900" w:author="Prof. Lin" w:date="2026-03-02T09:30:00Z">'
+    '<w:commentRangeStart w:id="201"/>'
+    '<w:r><w:delText xml:space="preserve">removed span</w:delText></w:r>'
+    '<w:commentRangeEnd w:id="201"/>'
+    '<w:r><w:commentReference w:id="201"/></w:r>'
+    "</w:del>"
+    '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+#: A document part whose comment's range **closes where it opens** -- the
+#: reviewer commented on the place, not on words.
+_POINT_DOCUMENT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+    "<w:body>\n"
+    "<w:p>"
+    '<w:r><w:t xml:space="preserve">Lead in. </w:t></w:r>'
+    '<w:commentRangeStart w:id="201"/>'
+    '<w:commentRangeEnd w:id="201"/>'
+    '<w:r><w:commentReference w:id="201"/></w:r>'
+    '<w:r><w:t xml:space="preserve">Tail.</w:t></w:r>'
+    "</w:p>\n"
+    "</w:body>\n"
+    "</w:document>\n"
+)
+
+
+def test_the_words_a_deletion_covered_are_anchored(env: StoreEnv, tmp_path: Path) -> None:
+    """A comment inside a deletion anchors the words the deletion removed.
+
+    The deleted text is baseline text -- the rejected view is the
+    manuscript as it read before the change -- so the reader that walks a
+    deletion from its start records the markers where the words sit. The
+    pre-fix reader entered the deletion at the offset past its whole
+    width, recorded both markers there, sliced the empty string and
+    hashed it: the pilot's three ``resolved`` rows with no anchored text,
+    whose files held 66, 66 and 10 baseline characters, were this shape.
+
+    **What breaks it:** reverting the walk. The row then stores an empty
+    anchored text, a digest of nothing, and this test fails on the text.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_DELETION_ANCHOR_DOCUMENT,
+    )
+    (event,) = _record(built)
+    assert event.anchor_status == "resolved"
+    assert event.anchor_text == "removed span"
+    assert event.anchor_text_sha256 == hashlib.sha256(b"removed span").hexdigest()
+    assert event.anchor_text_sha256 != _EMPTY_SHA256
+    assert (event.anchor_start, event.anchor_end) == (
+        len("Lead in. "),
+        len("Lead in. ") + len("removed span"),
+    )
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "fresh"
+
+
+def test_a_position_anchor_is_recorded_and_never_fresh(env: StoreEnv, tmp_path: Path) -> None:
+    """A zero-width range is a position, and the row keeps the place.
+
+    The reader reports the range that closes where it opens as a
+    ``position`` anchor: the paragraph and the offset are kept, the words
+    the file does not record there are not invented, and the row carries
+    no digest -- there is no passage whose sameness one would guard.
+    **The row that used to store the digest of the empty string as the
+    integrity value of a resolved passage is the row this witness
+    forbids**: ``anchor_state`` answers ``unanchored`` for a position, the
+    verdict a row with no anchored text to confirm carries, never
+    ``fresh``.
+
+    **What breaks it:** a reader (or a door) that stores the zero-width
+    range as ``resolved`` again -- the row then claims anchored text, and
+    the status assertion fails -- or one that drops the offset the third
+    status exists to keep.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_POINT_DOCUMENT,
+    )
+    (event,) = _record(built)
+    assert event.anchor_status == "position"
+    assert event.anchor_reason is None, "a position is placed, not unknown: no failure to explain"
+    assert event.anchor_paragraph == 0, "the place the reader found is kept"
+    assert event.anchor_start == len("Lead in. "), "the offset is kept, not dropped"
+    assert event.anchor_end == len("Lead in. "), "the range closes where it opens"
+    assert event.anchor_text is None
+    assert event.anchor_text_sha256 is None, (
+        "a row that covers no text carries no digest, and the digest of the "
+        "empty string is not a substitute"
+    )
+    assert event.comment_text == a_comment("201").text, "the comment is not lost"
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "unanchored"
+
+
+def test_the_schema_refuses_an_anchor_row_that_does_not_hold_what_its_status_claims(
+    chain: ChainEnv,
+) -> None:
+    """The schema refuses a row whose anchor columns deny its status.
+
+    **The digest of the empty string has no legal path left.** A
+    ``position`` row covers no text, so its text and digest are pinned to
+    ``NULL`` -- a row that carries either is refused, and the offset the
+    third status exists to keep is demanded instead. An ``unknown`` row
+    covers no text either, and the old shape's forced placeholder -- the
+    empty string and its digest -- is refused with it. And a ``resolved``
+    row must carry real text: an empty anchored text was the shape the
+    sixteen pilot rows carried, and the schema no longer accepts the claim.
+
+    **What breaks it:** a schema that widens the vocabulary without
+    pinning the columns -- a ``position`` row carrying the digest of the
+    empty string would then pass, and the claim a null anchor passes an
+    integrity check with would be legal again.
+    """
+    session = chain.context.store.session
+    position_row = {
+        "feedback_id": "fb-position-ok",
+        "anchor_status": "position",
+        "anchor_reason": None,
+        "anchor_paragraph": 0,
+        "anchor_start": len("Lead in. "),
+        "anchor_end": len("Lead in. "),
+        "anchor_text": None,
+        "anchor_text_sha256": None,
+    }
+    _raw_insert(session, **position_row)
+    session.rollback()
+
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            **position_row
+            | {
+                "feedback_id": "fb-position-digest",
+                "anchor_text_sha256": hashlib.sha256(b"Lead").hexdigest(),
+            },
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session, **position_row | {"feedback_id": "fb-position-text", "anchor_text": "Lead"}
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            **position_row
+            | {"feedback_id": "fb-position-wide", "anchor_end": len("Lead in. ") + 1},
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session, **position_row | {"feedback_id": "fb-position-no-start", "anchor_start": None}
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            **position_row
+            | {"feedback_id": "fb-position-reason", "anchor_reason": POSITION_REASON},
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            **position_row
+            | {
+                "feedback_id": "fb-position-no-offset",
+                "anchor_start": None,
+                "anchor_end": None,
+            },
+        )
+    session.rollback()
+
+    # The old shape of an unknown row: no text, and the digest of the
+    # empty string standing as its integrity value.
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            feedback_id="fb-legacy-unknown",
+            anchor_status="unknown",
+            anchor_reason=POSITION_REASON,
+            anchor_paragraph=None,
+            anchor_start=None,
+            anchor_end=None,
+            anchor_text="",
+            anchor_text_sha256=_EMPTY_SHA256,
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            feedback_id="fb-unknown-text",
+            anchor_status="unknown",
+            anchor_reason=POSITION_REASON,
+            anchor_paragraph=None,
+            anchor_start=None,
+            anchor_end=None,
+            anchor_text="The",
+            anchor_text_sha256=hashlib.sha256(b"The").hexdigest(),
+        )
+    session.rollback()
+
+    # And the resolved row that claims a passage it does not hold.
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            feedback_id="fb-resolved-empty",
+            anchor_text="",
+            anchor_text_sha256=_EMPTY_SHA256,
+        )
+    session.rollback()
+    with pytest.raises(IntegrityError):
+        _raw_insert(
+            session,
+            feedback_id="fb-resolved-no-digest",
+            anchor_text="The",
+            anchor_text_sha256=None,
+        )
+    session.rollback()
+
+
+def test_a_legacy_row_is_read_and_re_recorded_without_a_false_stale(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """Rows written before the third status are re-recorded as themselves.
+
+    A store carries rows whose position anchors were spelled
+    ``unknown`` with the position reason; the reader spells them
+    ``position`` now. **The one fact must not become two verdicts**: a
+    re-recording compares the anchored text the row stands for with the
+    anchored text the reader found, and the empty-string digest a legacy
+    row was forced to carry reads as "no text" -- the same thing the new
+    spelling's ``NULL`` reads as. The row is returned, not refused as
+    stale and not silently re-pointed.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    built = build_chain(
+        env.store(),
+        workspace,
+        comments=(a_comment("201"),),
+        paragraphs=("The method estimates the parameter",),
+        document_xml=_POINT_DOCUMENT,
+    )
+    session = built.context.store.session
+    # The row the 0023 cleaning left behind: what the store recorded
+    # before the third status existed, with the placeholder the old shape
+    # forced cleaned away. The status and the reason are the legacy
+    # spelling; the text and the digest are the one shape every spelling
+    # of "no anchored text" cleans to. The locator is the comment's own
+    # address, as a real row carries it.
+    _raw_insert(
+        session,
+        feedback_id=_legacy_id(built),
+        comment_locator=DocxLocator(
+            part="word/comments.xml",
+            element_path="/w:document[1]/w:comments[1]/w:comment[1]",
+            view="accepted",
+            char_start=0,
+            char_end=39,
+        ).model_dump_json(),
+        anchor_status="unknown",
+        anchor_reason=POSITION_REASON,
+        anchor_paragraph=0,
+        anchor_start=None,
+        anchor_end=None,
+        anchor_text=None,
+        anchor_text_sha256=None,
+    )
+    session.rollback()
+    (event,) = _record(built)
+    assert event.feedback_id == _legacy_id(built), "the legacy row is the row that was found"
+    assert event.anchor_status == "unknown", "what was recorded is returned, not re-cast"
+    assert anchor_state(built.context, feedback_id=event.feedback_id, now=MOMENT) == "unanchored"
+
+
+def _legacy_id(built: ChainEnv) -> str:
+    from labcairn.papers.feedback import _feedback_id
+
+    return _feedback_id(built.version_id, "201")
+
+
+def test_a_row_claiming_an_empty_text_is_never_fresh(legacy_0022: ChainEnv) -> None:
+    """A resolved row whose anchored text is empty cannot be confirmed.
+
+    Stores recorded before the fix hold rows shaped ``resolved`` with an
+    empty anchored text and the digest of the empty string; the schema now
+    refuses to write one, so this witness is staged on a database still at
+    revision 0022 -- the shape such a store has, and the shape today's
+    code can still be pointed at, because opening a workspace does not
+    migrate it. **Empty matching empty is the false ``fresh``**: whatever
+    the file now reads, there are no words to still be there, so the row
+    is reported stale until it is re-derived against the file. The
+    manuscript here carries a *point* comment, so a re-read of the file
+    also covers no words -- the case where the two empty strings hash the
+    same and only the guards stand between the row and a false ``fresh``.
+    A mutation that returns ``fresh`` whenever a digest is present fails
+    here.
+    """
+    session = legacy_0022.context.store.session
+    # The shape a store recorded before the fix: a resolved claim, no
+    # anchored words, and the digest of the empty string as its integrity
+    # value. Revision 0022's checks still accept this shape.
+    _raw_insert(
+        session,
+        feedback_id=_legacy_id(legacy_0022),
+        anchor_status="resolved",
+        anchor_reason=None,
+        anchor_paragraph=0,
+        anchor_start=len("Lead in. "),
+        anchor_end=len("Lead in. "),
+        anchor_text="",
+        anchor_text_sha256=_EMPTY_SHA256,
+    )
+    session.rollback()
+    assert (
+        anchor_state(legacy_0022.context, feedback_id=_legacy_id(legacy_0022), now=MOMENT)
+        == "stale"
+    )
+
+
+def test_a_row_whose_text_the_file_no_longer_holds_is_never_fresh(
+    legacy_0022: ChainEnv,
+) -> None:
+    """A resolved row whose re-read names no words is confirmed by nothing.
+
+    The row here is a *legitimate* resolved row -- real text, a real
+    digest -- but the manuscript's comment now sits on a point, so the
+    re-read names no words: the address the row records no longer holds
+    the words it held. **The re-read is the second guard**, and it is the
+    one that runs when the row's own text is present: a mutation that
+    confirms a re-read which named no words turns this witness false.
+    """
+    session = legacy_0022.context.store.session
+    _raw_insert(
+        session,
+        feedback_id=_legacy_id(legacy_0022),
+        anchor_status="resolved",
+        anchor_reason=None,
+        anchor_paragraph=0,
+        anchor_start=0,
+        anchor_end=3,
+        anchor_text="The",
+        anchor_text_sha256=hashlib.sha256(b"The").hexdigest(),
+    )
+    session.rollback()
+    assert (
+        anchor_state(legacy_0022.context, feedback_id=_legacy_id(legacy_0022), now=MOMENT)
+        == "stale"
+    )
+
+
+def test_a_legacy_row_with_a_forced_placeholder_digest_is_re_recorded(
+    legacy_0022: ChainEnv,
+) -> None:
+    """A re-recording reads the placeholder digest as "no anchored text".
+
+    The store will ask for this the moment its owner reads the same
+    version again: the legacy row spells the position the old way --
+    ``unknown`` with the reason, and the placeholder digest the old
+    checks forced -- while today's reader spells it ``position`` with no
+    digest at all. **Both spell "no anchored text"**, so the row is found
+    and returned, not refused as stale because two spellings of one fact
+    failed to compare. Staged on a real 0022 database, because the head
+    schema refuses to hold the placeholder the re-recording must read.
+    """
+    session = legacy_0022.context.store.session
+    _raw_insert(
+        session,
+        feedback_id=_legacy_id(legacy_0022),
+        comment_locator=DocxLocator(
+            part="word/comments.xml",
+            element_path="/w:document[1]/w:comments[1]/w:comment[1]",
+            view="accepted",
+            char_start=0,
+            char_end=39,
+        ).model_dump_json(),
+        anchor_status="unknown",
+        anchor_reason=POSITION_REASON,
+        anchor_paragraph=0,
+        anchor_start=None,
+        anchor_end=None,
+        anchor_text="",
+        anchor_text_sha256=_EMPTY_SHA256,
+    )
+    session.rollback()
+    (event,) = _record(legacy_0022)
+    assert event.feedback_id == _legacy_id(legacy_0022), (
+        "the legacy row is the row that was found, not a stale refusal"
+    )
+
+
+@pytest.fixture()
+def legacy_0022(tmp_path: Path) -> Iterator[ChainEnv]:
+    """A chain over a database still at revision 0022.
+
+    Revision 0023's shape check refuses the rows the pilot store actually
+    carries until its data correction re-casts them, and opening a
+    workspace does not migrate it -- so a store at 0022 under today's code
+    is a state the product can be in, and the legacy-row witnesses are
+    staged on it rather than on an invented one.
+    """
+    path = db_path_for(tmp_path)
+    alembic_command.upgrade(alembic_config(path), "0022")
+    engine = create_db_engine(path)
+    session = create_session_factory(engine)()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    try:
+        yield build_chain(
+            TaskStore(session),
+            workspace,
+            comments=(a_comment("201"),),
+            paragraphs=("The method estimates the parameter",),
+            document_xml=_POINT_DOCUMENT,
+        )
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_the_door_refuses_a_resolved_anchor_that_covers_no_words(
+    chain: ChainEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The door refuses a resolved anchor that covers no words.
+
+    **The refusal is the seam, not the common path.** The reader reports
+    a position as an unknown anchor, so a ``resolved``-with-no-text
+    anchor reaching the door means a reader regression or a hand-built
+    claim. It is refused rather than stored with the digest of the empty
+    string as its integrity value, and nothing is written: a claim the
+    file does not back is not a comment the chain holds.
+    """
+    fabricated = RevisionDocument(
+        revisions=(),
+        comments=(
+            CommentEvent(
+                comment_id="201",
+                author="Prof. Lin",
+                date=datetime(2026, 3, 2, 9, 30, tzinfo=UTC),
+                text="Reword this.",
+                locator=DocxLocator(
+                    part="word/document.xml",
+                    element_path="/w:document[1]/w:body[1]/w:p[1]",
+                    view="accepted",
+                    char_start=0,
+                    char_end=12,
+                ),
+                anchor=CommentAnchor(
+                    status="resolved",
+                    reason=None,
+                    paragraph=0,
+                    start=0,
+                    end=0,
+                    text="",
+                ),
+                text_sha256=hashlib.sha256(b"Reword this.").hexdigest(),
+            ),
+        ),
+        accepted_text="The method estimates the parameter",
+        rejected_text="The method estimates the parameter",
+        paragraphs=("The method estimates the parameter",),
+        baseline_paragraphs=("The method estimates the parameter",),
+        problems=(),
+    )
+    monkeypatch.setattr("labcairn.papers.feedback.read_document", lambda data: fabricated)
+    with pytest.raises(ApplicationRefusedError) as caught:
+        _record(chain)
+    assert caught.value.reason == ApplicationRefusal.CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT
+    assert CHAIN_REFUSALS[ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT] is caught.value.reason, (
+        "the door's refusal is the new member's own name"
+    )
+    rows = chain.context.store.session.scalars(select(FeedbackEventRow)).all()
+    assert rows == [], "a refused claim writes nothing"

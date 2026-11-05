@@ -31,7 +31,38 @@ others are not judgeable *by this ring's question*, and they are listed in §4
 rather than quietly dropped. Beyond them sit the eight revision-derived rules,
 none of which this method can read at all — also §4.
 
+**Re-measured on 2026-11-04, after the SOW (2) data correction** (the store at
+schema `0023`; the three deletion-collapse rows re-anchored to their real text,
+the thirteen zero-width rows recast as `position`), and **re-measured again the
+same day after the two out-of-scope rows were re-recorded**
+([LC-P2-27](LC-P2-27-position-anchors.md) §7 — the store at `0023`, now
+59 fresh / 21 unanchored / 0 stale): **every number below is line-for-line
+what it measured then** — those two rows always carried non-empty text, so
+they were readable anchors under this test even while stale, and nothing in
+the funnel moved: the anchor test fails **12 of 32**, not 14 — the two keys
+carried by the re-anchored rows read as anchored — and **six of the sixteen
+comment-derived rules are judgeable**, not five. The new sixth is `rule-125072f804bf0f39`: its only anchored case sits on
+paragraph 171, whose text the old reader had collapsed to nothing, and the
+correction gave it back (ten characters, `fb-71edce76…`). The other re-anchored
+key belongs to a rule that was already judgeable through a different case, so
+the rule count moves by one, not by two. The numbers above stay as measured at
+`d693521` over the `0019` store — a claim about one store state does not carry
+to another — and the re-measurement is witnessed the same way: both states were
+run through the identical three tests, the before-state reproducing this
+record's 14 and 5 exactly. **The sixth rule's assessment was recorded on
+2026-11-04, on the owner's approval**, through the same door and under the same
+discipline as the five below — `assess-ring4-125072f804bf0f39`, basis
+`revised_manuscript`, assessor `model`, graded `observed` because the matched
+paragraph of the child carries the caption **byte for byte**, and the omission
+is seen rather than concluded: the comment asks for before-and-after figures
+made from the data, and at that address the child draft's addition is numeric
+prose in the body text, not a figure. **All six rows read `not_established`.**
+
 ## 2. The five assessments
+
+*(Five rows as written on 2026-11-03; the sixth, recorded 2026-11-04 after the
+data correction made its rule judgeable, is described in §1 above — six rows
+now, all `not_established`.)*
 
 All five were written **through `record_assessment`**, none by SQL, and each
 carries `basis="revised_manuscript"`, `assessor_kind="model"` — the judgement is
@@ -91,7 +122,11 @@ is no later version to read, and the ring has nothing to say about them.
 `rule-125072f804bf0f39`, `rule-3550b3e245fdee58`, `rule-4da1e823cb3afa4f`,
 `rule-af3ea5561e6c8217`, `rule-bafe38a22815e7e4`, `rule-e288246e5eae415c` and
 `rule-789806193d1568c3` are blocked by the empty anchor or by the advisor's own
-hand in the child paragraph.
+hand in the child paragraph. **One of these eleven moved after the list was
+written:** `rule-125072f804bf0f39` was blocked by the empty anchor on the case
+the reader had collapsed, and the SOW (2) correction of 2026-11-04 gave that
+anchor its real text — it is judgeable now and its assessment is recorded (§1).
+The other ten stand as listed.
 
 **And the container is the real finding, not the count.** Two structural facts
 came out of the attempt:

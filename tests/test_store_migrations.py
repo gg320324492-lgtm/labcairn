@@ -15,16 +15,19 @@ the type's impl — and this test stops anyone putting the dependency back.
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic import command as alembic_command
 from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint, Table, UniqueConstraint, inspect, text
 from store_support import (  # noqa: F401
     StoreEnv,
     db_path,
+    db_path_for,
     frozen_clock,
     make_run,
     make_task,
@@ -36,6 +39,7 @@ from labcairn.db.base import Base
 from labcairn.db.migrations import (
     ALEMBIC_INI,
     MIGRATIONS_DIR,
+    alembic_config,
     current_revision,
     downgrade_to_base,
     head_revision,
@@ -509,3 +513,231 @@ def test_an_annotation_event_commits_without_a_run(env: StoreEnv) -> None:
         text("SELECT COUNT(*) FROM events WHERE type = 'artifact_recorded' AND run_id IS NULL")
     ).scalar_one()
     assert null_runs == 1
+
+
+# --------------------------------------------------------------------------- #
+# LC-P2-27  the anchor that covers no text: the placeholder the old shape
+#           forced onto every unknown row is cleaned on the way through,
+#           and a position row downgrades to what it was called before
+# --------------------------------------------------------------------------- #
+
+
+#: The columns of ``feedback_events``, in the order the legacy rows below
+#: are spelled and read back. Spelled out rather than derived: a row the
+#: migration moved is read with nothing between it and the file.
+_LEGACY_COLUMNS = (
+    "feedback_id",
+    "project_id",
+    "version_id",
+    "comment_locator",
+    "anchor_paragraph",
+    "anchor_start",
+    "anchor_end",
+    "anchor_status",
+    "anchor_reason",
+    "anchor_text",
+    "anchor_text_sha256",
+    "comment_text",
+    "comment_text_sha256",
+    "author",
+    "author_unknown_reason",
+    "commented_at",
+    "date_unknown_reason",
+    "grade",
+    "issue_key",
+    "created_at",
+)
+
+
+def _legacy_feedback_row(feedback_id: str, *, status: str, reason: str | None) -> dict[str, object]:
+    """One feedback row in the shape revision 0022 demands.
+
+    A resolved row with real text, or the shape every unknown row was
+    forced into: no anchored words, and the digest of the empty string
+    standing as the integrity value of a text that is not there.
+    """
+    text_of = "" if status == "unknown" else "The"
+    digest_of = hashlib.sha256(text_of.encode()).hexdigest()
+    return {
+        "feedback_id": feedback_id,
+        "project_id": "proj-1",
+        "version_id": "ver-1",
+        "comment_locator": '{"locator_kind": "docx"}',
+        "anchor_paragraph": 0,
+        "anchor_start": 3 if status == "resolved" else None,
+        "anchor_end": 6 if status == "resolved" else None,
+        "anchor_status": status,
+        "anchor_reason": reason,
+        "anchor_text": text_of,
+        "anchor_text_sha256": digest_of,
+        "comment_text": "Define the parameter.",
+        "comment_text_sha256": hashlib.sha256(b"Define the parameter.").hexdigest(),
+        "author": "Prof. Lin",
+        "author_unknown_reason": None,
+        "commented_at": "2026-03-02T09:30:00+00:00",
+        "date_unknown_reason": None,
+        "grade": "observed",
+        "issue_key": None,
+        "created_at": "2026-03-02T09:30:00+00:00",
+    }
+
+
+def _sqlite_feedback_row(db: Path, feedback_id: str) -> tuple[object, ...] | None:
+    """One row read straight back, in the order the columns are listed."""
+    conn = sqlite3.connect(db)
+    try:
+        columns = ", ".join(_LEGACY_COLUMNS)
+        row: tuple[object, ...] | None = conn.execute(
+            f"SELECT {columns} FROM feedback_events WHERE feedback_id = ?", (feedback_id,)
+        ).fetchone()
+        return row
+    finally:
+        conn.close()
+
+
+def _sqlite_write_row(db: Path, row: dict[str, object]) -> None:
+    """One row written straight in, past the foreign keys.
+
+    The row under test is the row the checks refuse or keep, not the
+    foreign keys -- and the store the pilot has carries rows whose
+    project and version the schema alone cannot vouch for.
+    """
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("PRAGMA foreign_keys=OFF")
+        placeholders = ", ".join("?" for _ in _LEGACY_COLUMNS)
+        columns = ", ".join(_LEGACY_COLUMNS)
+        conn.execute(
+            f"INSERT INTO feedback_events ({columns}) VALUES ({placeholders})",
+            tuple(row.values()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_a_store_with_legacy_unknown_rows_upgrades_and_loses_nothing(tmp_path: Path) -> None:
+    """The placeholder the old shape forced is cleaned; nothing else moves.
+
+    A store recorded before the third anchor status carries unknown rows
+    whose anchored text is the empty string and whose digest is the digest
+    of the empty string -- values the old checks demanded, not facts the
+    reader saw. The upgrade writes ``NULL`` over those two columns and
+    **leaves every other column of every row exactly as it was**, resolved
+    rows included. It is the data move that makes the new shape check
+    installable, in the shape revision 0012's backfill took.
+
+    **What breaks it:** a cleaning that touches more than the two columns,
+    one that skips the rows -- the new check then fails to install on a
+    store that carries the placeholder -- or one that rewrites the row's
+    status, which is the store's data correction to decide, not a schema
+    revision's.
+    """
+    path = db_path_for(tmp_path)
+    alembic_command.upgrade(alembic_config(path), "0022")
+
+    legacy_ids = (
+        "fb-legacy-unknown",
+        "fb-legacy-plain-unknown",
+        "fb-legacy-resolved",
+    )
+    for feedback_id, status, reason in (
+        (
+            "fb-legacy-unknown",
+            "unknown",
+            "the comment's range is a position, not a passage of text",
+        ),
+        ("fb-legacy-plain-unknown", "unknown", "the comment carries no range markers"),
+        ("fb-legacy-resolved", "resolved", None),
+    ):
+        _sqlite_write_row(path, _legacy_feedback_row(feedback_id, status=status, reason=reason))
+    before = {fid: _sqlite_feedback_row(path, fid) for fid in legacy_ids}
+
+    upgrade_to_head(path)
+
+    text_ix = _LEGACY_COLUMNS.index("anchor_text")
+    digest_ix = _LEGACY_COLUMNS.index("anchor_text_sha256")
+
+    # The placeholder is gone, and only the placeholder.
+    for fid in ("fb-legacy-unknown", "fb-legacy-plain-unknown"):
+        after = _sqlite_feedback_row(path, fid)
+        assert after is not None
+        assert after[text_ix] is None and after[digest_ix] is None, (
+            "the forced empty string and its digest are cleaned to NULL"
+        )
+        # Every other column of the row is exactly what went in.
+        before_row = before[fid]
+        assert before_row is not None
+        expected = list(before_row)
+        expected[text_ix] = None
+        expected[digest_ix] = None
+        assert list(after) == expected, (
+            f"row {fid!r} moved no column but the two the cleaning names"
+        )
+    resolved = _sqlite_feedback_row(path, "fb-legacy-resolved")
+    assert resolved is not None
+    assert resolved[text_ix] == "The"
+    assert resolved[digest_ix] == hashlib.sha256(b"The").hexdigest(), (
+        "a resolved row's text and digest are untouched"
+    )
+    before_resolved = before["fb-legacy-resolved"]
+    assert before_resolved is not None
+    assert list(resolved) == list(before_resolved)
+
+
+def test_a_position_row_downgrades_to_what_it_was_called_before(tmp_path: Path) -> None:
+    """Downgrading calls a position what the two-word vocabulary called it.
+
+    A ``position`` row cannot survive a downgrade to 0022 -- the two-word
+    vocabulary has no word for it -- so the downgrade writes back the
+    status and the reason the reader used before the third word existed,
+    and the placeholder the old shape demands goes back onto the row with
+    it. Upgrading again cleans it away. **The row's content survives the
+    round trip; only its spelling changes.**
+    """
+    path = db_path_for(tmp_path)
+    upgrade_to_head(path)
+
+    position_row = _legacy_feedback_row("fb-position-roundtrip", status="resolved", reason=None)
+    position_row.update(
+        {
+            "anchor_status": "position",
+            "anchor_reason": None,
+            "anchor_start": 9,
+            "anchor_end": 9,
+            "anchor_text": None,
+            "anchor_text_sha256": None,
+        }
+    )
+    _sqlite_write_row(path, position_row)
+
+    alembic_command.downgrade(alembic_config(path), "0022")
+
+    status_ix = _LEGACY_COLUMNS.index("anchor_status")
+    reason_ix = _LEGACY_COLUMNS.index("anchor_reason")
+    text_ix = _LEGACY_COLUMNS.index("anchor_text")
+    digest_ix = _LEGACY_COLUMNS.index("anchor_text_sha256")
+    downgraded = _sqlite_feedback_row(path, "fb-position-roundtrip")
+    assert downgraded is not None
+    assert downgraded[status_ix] == "unknown"
+    assert downgraded[reason_ix] == "the comment's range is a position, not a passage of text", (
+        "the reason the reader used before the third word existed is written back"
+    )
+    assert downgraded[text_ix] == "" and downgraded[digest_ix] == hashlib.sha256(b"").hexdigest(), (
+        "the shape 0022 demands is restored"
+    )
+
+    alembic_command.upgrade(alembic_config(path), "head")
+    upgraded = _sqlite_feedback_row(path, "fb-position-roundtrip")
+    assert upgraded is not None
+    assert upgraded[text_ix] is None and upgraded[digest_ix] is None, (
+        "the upgrade cleans the placeholder it finds"
+    )
+    # The offset does not survive the downgrade, and the upgrade does not
+    # re-derive it: a store at 0022 has nowhere to keep a placed
+    # position's offset, and re-casting the row as a position again is
+    # the data correction's work, not a schema revision's. The row comes
+    # back as what the two-word vocabulary called it, cleaned.
+    assert upgraded[status_ix] == "unknown"
+    assert upgraded[_LEGACY_COLUMNS.index("anchor_start")] is None
+    assert upgraded[_LEGACY_COLUMNS.index("anchor_end")] is None

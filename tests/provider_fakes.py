@@ -56,6 +56,7 @@ def build_upstream_response(
     text: str = "",
     tool_calls: Sequence[tuple[str, dict[str, Any] | str]] = (),
     timestamp: datetime,
+    finish_reason: str | None = None,
 ) -> ModelResponse:
     """A pydantic-ai ``ModelResponse``, always with zero usage.
 
@@ -75,6 +76,7 @@ def build_upstream_response(
         usage=RequestUsage(),
         model_name="fake-endpoint",
         timestamp=timestamp,
+        finish_reason=finish_reason,  # type: ignore[arg-type]
     )
 
 
@@ -97,6 +99,8 @@ class Reply:
     raises: BaseException | None = None
     #: When true, ``request`` never returns — used only by the timeout test.
     hangs: bool = False
+    #: The provider's own completion reason, for the length-limit witness.
+    finish_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -110,6 +114,7 @@ class RecordedCall:
     allow_text_output: bool
     output_object_schema: dict[str, Any] | None
     prompted_output_template: str | None
+    model_settings: Any = None
 
     def rendered(self) -> str:
         """Everything the endpoint was told, as one searchable string.
@@ -173,6 +178,7 @@ class FakeEndpoint:
                 else None
             ),
             prompted_output_template=model_request_parameters.prompted_output_template,
+            model_settings=model_settings,
         )
         self.calls.append(record)
 
@@ -196,6 +202,7 @@ class FakeEndpoint:
             text=reply.text,
             tool_calls=reply.tool_calls,
             timestamp=_FIXED_TIMESTAMP,
+            finish_reason=reply.finish_reason,
         )
 
 

@@ -36,6 +36,38 @@ from labcairn.core.providers.protocol import ModelRequest
 
 
 @runtime_checkable
+class WireAuthorizedConsent(Protocol):
+    """A consent port whose single-use approval is spent at the wire.
+
+    The ordinary :class:`OutboundConsent` is asked immediately before the
+    provider builds its request and spends the approval there. A transport
+    fault after that point has already consumed it even though nothing left
+    the process. A port implementing this protocol keeps the approval granted
+    until a measurable provider response comes back. The wire sniffer then
+    calls :meth:`authorize_wire`, and the provider checks that the callback
+    really ran before it accepts the response. A response without a spent
+    approval is refused, so no unverifiable call can become an artefact.
+    """
+
+    def require(self, request: ModelRequest) -> None:
+        """Verify and reserve the approved decision before the request."""
+        ...
+
+    def authorize_wire(self) -> None:
+        """Spend the approval only after a measurable response came back.
+
+        :raises labcairn.providers.errors.OutboundRefusedError: the approval is
+            missing, refused, expired or already spent. No unverified response
+            may become a run artefact.
+        """
+        ...
+
+    def release_wire(self) -> None:
+        """Release a reservation whose request never reached the wire."""
+        ...
+
+
+@runtime_checkable
 class OutboundConsent(Protocol):
     """What the provider layer is handed before a request may leave.
 

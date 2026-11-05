@@ -49,7 +49,7 @@ import argparse
 import json
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -73,7 +73,7 @@ from labcairn.core.providers.usage import Known
 from labcairn.providers.budget import RunBudget
 from labcairn.providers.credentials import Protocol, ProviderSettings
 from labcairn.providers.errors import OutboundRefusedError
-from labcairn.providers.pydantic_models import build_http_client
+from labcairn.providers.pydantic_models import build_http_client, make_sniffer
 from labcairn.providers.usage_capture import HttpxUsageSniffer
 from labcairn.security.capabilities import CapabilityId
 
@@ -144,13 +144,16 @@ def _provider_settings(args: argparse.Namespace) -> ProviderSettings:
         model=args.model,
         base_url=args.base_url,
         credential_env=args.credential_env,
+        timeout_s=args.timeout_s,
     )
 
 
 def _dry_run(args: argparse.Namespace) -> int:
     out_dir = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="labcairn-blind-"))
     cases = _load_cases(Path(args.cases)) if args.cases else None
-    summary = blind_runner.run_dry(out_dir=out_dir, cases=cases)
+    summary = blind_runner.run_dry(
+        out_dir=out_dir, cases=cases, run_scope=args.run_scope or "five_arm"
+    )
     print("LC-P2-14 blind evaluation - DRY RUN")
     print("Nothing was sent to a model; every rating is the unknown label.")
     print(f"  out          : {summary.out_dir}")
@@ -179,44 +182,60 @@ def _real_run(args: argparse.Namespace) -> int:
     cases = _load_cases(Path(args.cases))
     budget = _load_budget(args)
     approvals = _load_approvals(Path(args.approvals)) if args.approvals else ()
-    required = len(cases) * 5
+    requests_per_case = 2 if args.arrangement_pair else 5
+    required = len(cases) * requests_per_case
     if len(approvals) < required:
         print(
-            f"refused: the run has {required} requests (5 arms x {len(cases)} cases) "
+            f"refused: the run has {required} requests "
+            f"({requests_per_case} arms x {len(cases)} cases) "
             f"but the owner supplied {len(approvals)} approvals; one approval "
             "covers one request, and the driver will not start a run it cannot "
             "finish",
             file=sys.stderr,
         )
         return EXIT_REFUSED
-    sniffer = _build_sniffer()
+    probe_capture = _build_sniffer()
     problems = blind_runner.missing_real_requirements(
         approvals=len(approvals),
         budget=budget,
         model=args.model,
-        usage_capture=sniffer,
+        usage_capture=probe_capture,
     )
     if problems:
         for problem in problems:
             print(f"refused: {problem}", file=sys.stderr)
         return EXIT_REFUSED
-    if sniffer is None:  # unreachable after missing_real_requirements, kept explicit
+    if probe_capture is None:  # unreachable after missing_real_requirements, kept explicit
         return EXIT_REFUSED
 
+    #: ``TaskId`` is a NewType, so it does not convert at runtime. The approval
+    #: ledger stores the task id as a UUID; handing it the raw command-line
+    #: string makes every granted approval fail with ``task_scope_mismatch``
+    #: before a single request leaves the process. Parse it *before* the
+    #: workspace is opened, so a malformed id is a refusal that reads no files.
+    try:
+        task_id = TaskId(UUID(args.task))
+    except (ValueError, AttributeError, TypeError) as error:
+        print(f"refused: --task must be a UUID: {error}", file=sys.stderr)
+        return EXIT_REFUSED
     location = WorkspaceLocation(root=Path(args.workspace_root).expanduser().resolve())
     config: WorkspaceConfig = read_config(location)
     out_dir = Path(args.out) if args.out else Path(tempfile.mkdtemp(prefix="labcairn-blind-"))
     settings = _provider_settings(args)
-    http_client = build_http_client(settings, sniffer=sniffer)
-    try:
-        with application_context(location, config, TaskId(args.task)) as context:
-            consent = blind_runner.ConsumingApprovals(context, approvals)
+    with application_context(location, config, task_id) as context:
+        consent = blind_runner.ConsumingApprovals(context, approvals)
+        sniffer = _build_sniffer(on_observed=consent.authorize_wire)
+        assert sniffer is not None  # the same constructor already succeeded above
+        http_client = build_http_client(settings, sniffer=sniffer)
+        try:
             provider = blind_runner.build_real_provider(
                 settings,
                 consent=consent,
                 budget=budget,
                 usage_capture=sniffer,
                 http_client=http_client,
+                max_output_tokens=args.max_output_tokens,
+                reasoning_effort=args.reasoning_effort,
             )
             summary = blind_runner.run_real(
                 provider=provider,
@@ -224,10 +243,18 @@ def _real_run(args: argparse.Namespace) -> int:
                 model=args.model,
                 budget=_budget_label(budget),
                 cases=cases,
+                arms=(
+                    blind_runner.arrangement_arms(model=args.model, budget=_budget_label(budget))
+                    if args.arrangement_pair
+                    else None
+                ),
+                run_scope=(
+                    "arrangement_pair" if args.arrangement_pair else (args.run_scope or "five_arm")
+                ),
             )
-    except OutboundRefusedError as error:
-        print(f"refused by the outbound bridge: {error}", file=sys.stderr)
-        return EXIT_OUTBOUND_REFUSED
+        except OutboundRefusedError as error:
+            print(f"refused by the outbound bridge: {error}", file=sys.stderr)
+            return EXIT_OUTBOUND_REFUSED
     print("LC-P2-14 blind evaluation - REAL RUN")
     print(f"  out           : {summary.out_dir}")
     print(f"  status        : {summary.status}")
@@ -277,20 +304,23 @@ def _budget_label(budget: RunBudget | None) -> str:
     return ", ".join(parts)
 
 
-def _build_sniffer() -> HttpxUsageSniffer | None:
+def _build_sniffer(*, on_observed: Callable[[], None] | None = None) -> HttpxUsageSniffer | None:
     """The one usage sniffer the run shares between its client and its capture.
 
-    The import is deferred so ``--help`` works in an environment where the
-    provider extras are not installed; a missing extra is a refusal, not a
-    traceback. The same object must become both the HTTP transport and the
-    provider's ``usage_capture``: two captures would let the run report a
-    ``Known`` count the probe could not confirm.
+    The provider extras are imported by ``make_sniffer`` at call time; a
+    missing extra is a refusal rather than a traceback. The same object must
+    become both the HTTP transport and the provider's ``usage_capture``: two
+    captures would let the run report a ``Known`` count the probe could not
+    confirm. ``on_observed`` is the consent port's wire callback; a provider
+    response is the evidence that a request really went out and came back.
     """
+    # The product's own sniffer owns a no-keep-alive transport. Constructing a
+    # separate AsyncHTTPTransport here would restore the event-loop fault for
+    # the real run while the product-level witness stayed green.
     try:
-        import httpx
+        return make_sniffer(on_observed=on_observed)
     except ImportError:
         return None
-    return HttpxUsageSniffer(httpx.AsyncHTTPTransport())
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -320,12 +350,43 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--base-url", help="the endpoint (openai_compatible requires it)")
     parser.add_argument("--credential-env", help="the environment variable holding the key")
+    parser.add_argument(
+        "--timeout-s",
+        type=float,
+        default=60.0,
+        help="per-request timeout in seconds (real mode); a long review needs longer than 60",
+    )
     parser.add_argument("--approvals", help="the owner's approval records (real mode)")
+    parser.add_argument(
+        "--arrangement-pair",
+        action="store_true",
+        help="run the protocol's two B role variants instead of the five arms",
+    )
+    parser.add_argument(
+        "--run-scope",
+        help=(
+            "the item space this run's anonymous ids live in (default: five_arm, "
+            "or arrangement_pair with --arrangement-pair); a second unseen paper "
+            "must run under its own scope so the two papers' item ids cannot collide"
+        ),
+    )
     parser.add_argument("--budget-max-total-tokens", type=int, help="a token ceiling (real mode)")
     parser.add_argument(
         "--budget-max-model-requests", type=int, help="a request ceiling (real mode)"
     )
     parser.add_argument("--budget-max-cost-usd", help="a cost ceiling (real mode)")
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=12000,
+        help="per-request output ceiling; a truncated answer is refused (real mode)",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=("low", "medium", "high"),
+        default="low",
+        help="the provider's reasoning-depth setting (real mode)",
+    )
     return parser
 
 

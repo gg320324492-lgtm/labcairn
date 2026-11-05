@@ -82,7 +82,6 @@ COMMENT = (
     "The comparison rests on the new estimator alone; where is the baseline"
     " the text promises in the introduction?"
 )
-ANCHOR = "The method estimates the parameter from a single observation."
 
 STEPS: tuple[str, ...] = (
     "1. The chain the loop reads",
@@ -205,8 +204,10 @@ def _plant(db_path: Path, workspace: Path) -> ApplicationContext:
             ),
             anchor_status="unknown",
             anchor_reason="the demonstration plants the chain as a fixture would",
-            anchor_text=ANCHOR,
-            anchor_text_sha256="0" * 64,
+            # An unknown anchor covers no words: the schema refuses a text or
+            # a digest on it, so the demonstration plants what the schema holds.
+            anchor_text=None,
+            anchor_text_sha256=None,
             comment_text=COMMENT,
             comment_text_sha256="0" * 64,
             grade="observed",

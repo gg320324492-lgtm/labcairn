@@ -288,6 +288,10 @@ class ApplicationRefusal(StrEnum):
     #: manuscript's bytes changed under the anchor, so it is **stale** --
     #: reported as stale rather than silently re-pointed.
     CHAIN_ANCHOR_STALE = "chain_anchor_stale"
+    #: An anchor that claims ``resolved`` while covering no words. A
+    #: position is recorded as an unknown anchor with its reason, never as
+    #: a resolved claim whose integrity value hashes nothing.
+    CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT = "chain_anchor_resolved_without_text"
     #: A model may not write a comment. **The row that holds a locator is
     #: the row the reader wrote**, and a model may not cause the system to
     #: claim the advisor said something -- ADR-0016's third promotion path.
@@ -595,6 +599,9 @@ CHAIN_REFUSALS: Mapping[ChainRefusal, ApplicationRefusal] = {
     ChainRefusal.MATERIAL_UNREADABLE: ApplicationRefusal.CHAIN_MATERIAL_UNREADABLE,
     ChainRefusal.MATERIAL_DRIFTED: ApplicationRefusal.CHAIN_MATERIAL_DRIFTED,
     ChainRefusal.ANCHOR_STALE: ApplicationRefusal.CHAIN_ANCHOR_STALE,
+    ChainRefusal.ANCHOR_RESOLVED_WITHOUT_TEXT: (
+        ApplicationRefusal.CHAIN_ANCHOR_RESOLVED_WITHOUT_TEXT
+    ),
     ChainRefusal.MODEL_MAY_NOT_WRITE_A_COMMENT: (
         ApplicationRefusal.CHAIN_MODEL_MAY_NOT_WRITE_A_COMMENT
     ),

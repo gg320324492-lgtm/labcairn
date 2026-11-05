@@ -326,3 +326,32 @@ it does **not** hold that branch: the run's approval-count check refuses
 first. The two witnesses are kept as two properties, not counted as one.
 The remaining witnesses await a pass, and the §4 table covers the four
 preparation modules rather than the driver.
+
+## 7. The first real material, added 2026-11-04
+
+The machinery above was built against invented fixtures. **The first unseen
+paper arrived on 2026-11-04**, and the whole of it — the leak check, the five
+arms, the blind sheet and the dry run — was walked over the real bytes and the
+real store, with zero provider calls and zero money spent. That work is its own
+record:
+[`LC-P2-14-unseen-material.md`](LC-P2-14-unseen-material.md).
+
+**Three things the real material taught the machinery, none of which changed a
+line of `src/` or `tests/`:**
+
+1. **The arm-exposure check needs a cap for every paper in reach, not only the
+   evaluated one.** An unnamed paper is read as having no cap, so every version
+   of every development paper comes back as `version-beyond-declared-cap`. The
+   behaviour is right — an undeclared reach is an unchecked reach — but an
+   assembler who does not know it gets five arms of false leaks.
+2. **The citable rule set is the product's serving answer, not the table's row
+   count.** 24 rules are confirmed in the store; `search_rules` served **9** to
+   this reader, because fifteen of them no longer stand on sources that resolve,
+   are reachable and carry a judgement that says the change answered. **A run
+   planned against 24 is a run planned against a number that does not exist at
+   the surface.**
+3. **A check the plan expected to bite could not bite.** The distinctive-number
+   test over the rules is vacuous on this data: **no confirmed rule statement
+   carries a digit at all**. It is reported as vacuous rather than as passed,
+   and the fragment test and the source-provenance gate carry the property
+   instead.

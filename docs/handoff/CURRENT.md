@@ -1,5 +1,136 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-04 · **every machine-buildable piece of Phase 2 is in the
+tree; what remains waits on the owner.**
+
+**Four deliveries landed on 2026-11-04.** The README guard's qualifier
+whitewash is closed — the exemption is clause-scoped, quantified before the
+change, and witnessed three ways
+([LC-P2-25](../acceptance/LC-P2-25-guard-of-the-guards.md)). The 16
+resolved-with-empty-text rows are adjudicated: 3 were a reader defect and are
+fixed, 13 are true zero-width position anchors recorded as unknown with the
+position reason — and the distillation carries a position bucket of its own, so
+it no longer calls a placed position unplaced. The retrieval metric's machinery
+is built: a five-field sample table whose loader refuses any sixth field, an
+empty sample that measures `NOT MEASURED` and never a 0/0 rate, a filled table
+handed in with `--citation-sample`
+([LC-P2-26](../acceptance/LC-P2-26-retrieval-metric-machinery.md)). The
+competitor baseline's machinery is built: one packaged task corpus both sides
+consume byte-identically, a paper-qa runner whose live mode refuses without the
+owner's approval file, an aligner that refuses a missing case or a mismatched
+pin, and the runbook the owner executes on approval
+([LC-P2-18 machinery](../acceptance/LC-P2-18-machinery.md)). The shard costs
+are re-measured at `6ccdfcc`. **And the SOW (2) data correction was executed on
+the real pilot store on 2026-11-04, on the owner's approval**: rehearsed green on
+a copy in both terminal variants first, then backup → the three
+deletion-collapse rows re-anchored to their real text → the chain to `0023` →
+the thirteen zero-width rows recast as `position` with their paragraph and
+offsets (variant B, the owner's choice). The store now measures 59 resolved / 8
+unknown / 13 position, with **no empty-text `resolved` row and no
+`sha256("")` digest anywhere left**, and the funnel re-measures at 12 anchored
+failures and six judgeable rules ([LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md) §1).
+The rollback point is the pre-correction file backup; the correction script
+refuses the real store without the owner's approval phrase. The correction made
+one more rule judgeable (`rule-125072…`), and on the owner's approval its
+assessment was recorded through the same door — the ring now holds **six
+assessments, all `not_established`**. **The two rows that correction left
+outside its scope — the same collapsed-`w:del` walk's output at a milder
+severity, real text truncated at its start — were re-recorded on the real
+store on 2026-11-04, also on the owner's approval**
+([LC-P2-27](../acceptance/LC-P2-27-position-anchors.md) §7): the reader was
+not touched (its own span for those rows equals the hand-counted file truth),
+the two rows moved and nothing else did, and the store now reads **59 fresh /
+21 unanchored / 0 stale over 80 rows** — no stale row left in the pilot. The
+funnel does not move: those two rows always carried non-empty text, so they
+were readable anchors under its test even while stale, and its `12 of 32`
+and six judgeable rules were re-measured line-for-line the same after the
+run.
+
+**What remains is the owner's, and each piece is listed where it is
+recorded**: the blind evaluation's 84-call scaled run is complete at
+398555 tokens (87.19% of the 457111-token ceiling); its blind packet
+has 84 distinct anonymous items, but two independent human raters, the
+arbiter and a second unseen paper are still needed before any
+significance verdict (§3 row 2; acceptance record §9). Also outstanding:
+the retrieval sample's human pass over three papers' reports (§3 row 5),
+the G1/G2 human review, and two material gaps — the second paper's
+version edges and the author-draft-versus-mentor-copy edge type. **The
+competitor run's budget approval and runbook execution (§3 row 6) happened on
+2026-11-04** — below, and in
+[LC-P2-18 live run](../acceptance/LC-P2-18-live-run.md).
+
+**Date:** 2026-11-04 · **the competitor baseline's live run happened: both
+sides ran for real on one task package, the six conditions hold, and the
+spend was a small fraction of its ceiling.**
+
+The pinned paper-qa at the re-pinned `57e89f7223b0960d5ee5ea048c69e3c47e088572`
+(full clone, the pin an ancestor of the remote tip `c692d0d`, verified 2026-11-04)
+and our side, driven through the LC-P2-01 model-call path under both consent
+gates with one single-use approval per call, ran the same twelve document-QA
+cases over the package whose manifest is `eda2a4f9b4174dfc…`; recovery ran as
+our side's real crash matrix (4/4 held, no model called) and as the competitor's
+declared absent surface. **The alignment is comparable — all six conditions met**
+— and the comparison document's pairs carry no winner's language:
+`recovery-correctness 4/4 against 0/4`, `unsupported-claim-detection 1/1 against
+1/1`; task 1 prints no pair, because our side's 69/89 cell exactness and the
+competitor's 183/232 statistic recall are different denominators on purpose.
+**The owner corrected the model mid-run** to `MiniMax-M3.1-Flash` (the live run
+was stopped, the approval file updated, and both sides re-run on the declared
+model); the operator's new key file's first key probed `ok` through the
+providers layer's own probe and the third line's key was not probed, as the
+instruction ordered. Three machinery defects the dry pipeline could not reach
+were fixed with witnesses — the side documents named no fixtures, the live seam
+read a question key nothing produces, and an empty cells list was refused where
+the empty fixture's own key declares none (now scored 0/0, the recall rule's
+reading of the same key; mutation-checked). The spend was a small fraction of
+the USD 50.00 ceiling; the token counts and the uncounted lines are in the
+record. The run's raw artifacts live outside the repository at
+`E:/labcairn-local/lc-p2-18-run/2026-11-04/`.
+Record: [LC-P2-18 live run](../acceptance/LC-P2-18-live-run.md).
+
+**2026-11-03 · the chain's fourth ring has been opened, and it says the
+advice mostly did not land.**
+
+**Five assessments are in `followup_assessments`, all five
+`not_established`.** They were written through `record_assessment` — the door
+whose `issue_key` hole closed the same day — with `basis=revised_manuscript`,
+`assessor_kind=model` and evidence refs that each name a version and a paragraph
+address. Three are graded `observed`, because the next draft carries the commented
+paragraph **byte for byte**, so the omission the advisor named is seen rather than
+concluded; two are `inferred`, because the passage moved and the reading rests on a
+nearest match at similarity 0.177 and 0.125. **The similarity numbers locate the
+paragraph; they are not the verdict.** Record:
+[LC-P2-11 fourth ring](../acceptance/LC-P2-11-fourth-ring.md).
+
+**The finding is the funnel, not the five.** As measured then over the `0019`
+store: of the 32 comment keys the confirmed rules were bound to, **14 carried no
+anchored words** and **9 sat on the newest draft of their project**, so **five of
+the sixteen comment-derived rules could be judged
+and eleven could not** — each named in the record with the test that failed it.
+**And none of the eight revision-derived rules can be read this way at all:** all
+thirty of their cases have an empty rejected view, because the mentor wrote his
+instruction **as a new paragraph**, so there is no earlier wording to compare
+against and no corresponding place in a later draft. The distillation chose the
+longest inserted text, and that chose his notes.
+
+**Two questions this leaves open, and neither is mine to settle.** *One:* in this
+material a "later version" is often the advisor's marked-up copy rather than the
+author's next draft — pilot-1's `v03 → v03-copy` step is a month later by the
+documents' own clock and carries up to **38** tracked insertions by him at one
+paragraph, so reading it as the advice borne out would credit the advice with its
+own restatement. Whether the chain's edges should be typed, or such an edge
+shouldn't exist, is the owner's call. *Two:* as measured then, **24 of the store's
+80 comment rows stored `sha256("")`** as their anchor digest — **16 of them under
+`anchor_status='resolved'`** (seven of those 16 were bound to confirmed rules) —
+so `anchor_state` could report `fresh` over an anchor that held nothing.
+**That debt is closed**: the reader fix, the `position` status and the SOW (2)
+correction landed, and the store as corrected holds **no such row** — zero
+empty-text `resolved` rows and zero `sha256("")` digests, measured 2026-11-04.
+
+**What the five rows do not change:** the retrieval still serves **9** rules and
+reports **15** unserved, re-measured after the write. An assessment is a judgement
+about a case, not a judgement that a comment was answered.
+
 **Date:** 2026-11-03 · **the evaluation harness now runs in CI on a weekly
 schedule, over the five classes it can run offline.**
 
@@ -330,12 +461,21 @@ versions under descriptive names (`v03-chinese-draft.docx`,
 advisor's comments and the tracked revisions **extracted per version**
 with the product's own OOXML reader, the annotation guide beside them,
 the untouched archive, and a manifest recording every file's original
-name, size and SHA-256. **Nothing of the paper is in the repository, and
-the two stale Office lock files were kept rather than deleted.** The
+name, size and SHA-256. **Nothing of the paper is in the repository** — a sentence
+this file had no right to print as a plain fact: on 2026-11-03 an audit found it
+standing in this very paragraph while the file itself quoted two of the advisor's
+comments and named the group's own writing template in its words, and two acceptance
+records carried a distilled rule statement of 76 characters and the manuscript
+paragraph a tracked change was made in. The quotations are gone, replaced by their
+lengths and digests; **the claim is now watched** by a per-file pin and a policy cap
+in `tests/test_no_reference_leakage.py`, and what that machinery cannot see is stated
+in [LC-P2-11: the material's words out of the records](../acceptance/LC-P2-11-material-words-out-of-the-records.md).
+**The two stale Office lock files were kept rather than deleted.** The
 advisor's comments are where the pilot's work is: version 8's are
 pasted references, and versions 3, 4, 4(2) and 5(1) carry the real
-critique — *"缺少量化数据…一定要用数据体现"*, *"这部分不要放到这里了，放到讨论
-中吧"* — alongside a few whose reading is genuinely arguable, which is
+critique -- one asks for a quantity to be shown with its data, the other to move a
+passage into the discussion (**the words are not carried here**: removed 4 fragments: 6 characters sha256 `c76d441c2913`, 8 characters sha256 `9a9fa445787f`, 15 characters sha256 `7204c3f5aee6`, 2 characters sha256 `2908f90181d4`; the store
+keeps each under its own `feedback_id`) -- alongside a few whose reading is genuinely arguable, which is
 where a blind-reading number has meaning.
 
 **The pilot's readers are three independent sessions** — two blind
@@ -613,9 +753,10 @@ beside them.
 
 **And the second corpus carries the thing this project is for: the
 group's own writing-skills specification.** Two documents sit in its
-`advisor-guidance/` folder, and one of them is titled *组内论文写作 Skills
-模板* -- and says so in its own words: *"把它当成'默认写法规则'"* and *"默认
-执行流程（像 skills 一样用）"*. **The project set out to turn an advisor into
+`advisor-guidance/` folder, and one of them is the group's own writing-skills
+template -- and it says so in its own words, calling itself the default writing
+rules and giving a default execution flow (**those lines are not carried here**:
+removed 7 fragments: 6 characters sha256 `716ee4f190f0`, 2 characters sha256 `62b95daecb7f`, 4 characters sha256 `9b56439d2376`, 6 characters sha256 `8d7974b785da`, 2 characters sha256 `844b8cc8dff7`, 6 characters sha256 `f415fc001ba3`, 3 characters sha256 `ac92f3ba67fc`; the library holds the file). **The project set out to turn an advisor into
 skills, and the group had already written a skill down.** Its shape is a
 complete one: how to use it; three core principles (state the whole before
 the parts, data before mechanism, results apart from discussion); a

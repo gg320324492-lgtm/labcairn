@@ -49,9 +49,10 @@ from pathlib import Path
 from typing import Any, Final
 from uuid import UUID
 
-from labcairn.application.approvals import ApprovalUse
+from labcairn.application.approvals import ApprovalUse, spendable_approval
 from labcairn.application.context import ApplicationContext
 from labcairn.application.outbound import OutboundApproval
+from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.core.ids import ApprovalId
 from labcairn.core.providers.protocol import (
     ModelProvider,
@@ -69,7 +70,16 @@ from labcairn.providers.pydantic_models import build_model
 from labcairn.providers.usage_capture import UsageCapture
 
 from . import blind_sheet, significance, split_check
-from .arms import ARM_IDS, EXPECTED_INPUTS, INPUT_FACES, ArmConfiguration, assess_configuration
+from .arms import (
+    ARM_IDS,
+    EXPECTED_INPUTS,
+    INPUT_FACES,
+    ROLE_CRITIQUE,
+    ArmConfiguration,
+    arrangement_variants,
+    assess_arrangement_set,
+    assess_configuration,
+)
 from .blind_sheet import ExcludedRating, ResolvedRating
 
 #: The mode labels a run record carries.
@@ -232,6 +242,8 @@ class ArtifactRecord:
     item_id: str
     case_id: str
     arm_id: str
+    roles: tuple[str, ...]
+    run_scope: str
     prompt_digest: str
     output: str
     provider: str
@@ -243,6 +255,8 @@ class ArtifactRecord:
             "item_id": self.item_id,
             "case_id": self.case_id,
             "arm_id": self.arm_id,
+            "roles": list(self.roles),
+            "run_scope": self.run_scope,
             "prompt_digest": self.prompt_digest,
             "output": self.output,
             "provider": self.provider,
@@ -287,17 +301,19 @@ class ApprovalGrant:
 class ConsumingApprovals:
     """The consent port a real run hands the provider: one approval per request.
 
-    The provider calls :meth:`require` once per request, and this object passes
-    that request to the application layer's own
-    :class:`~labcairn.application.outbound.OutboundApproval`, which spends the
-    approval through :func:`~labcairn.application.approvals.consume_approval`.
-    **No consent logic is re-implemented here**: this object only chooses which
-    granted approval to hand over next, and refuses when the owner supplied
-    fewer approvals than the run has requests.
+    :meth:`require` does **not** spend an approval. It verifies that the next
+    granted, unexpired approval still covers this use and reserves it for one
+    request. The wire sniffer calls :meth:`authorize_wire` only after a
+    measurable provider response arrived, and only there does
+    :class:`~labcairn.application.outbound.OutboundApproval` spend the row.
+    A local fault that closes an event loop before that point leaves the
+    authorization usable, instead of charging a person for a request that
+    never happened.
 
-    The queue is empty-checked here rather than by the provider, because the
-    provider's refusal is a per-request refusal and the run should stop with a
-    message about the missing approvals.
+    **No consent logic is re-implemented here**: checking and spending are the
+    application layer's own functions. The queue only chooses which approved
+    row belongs to the next request, and refuses when the owner supplied
+    fewer approvals than the run has requests.
     """
 
     def __init__(
@@ -315,32 +331,59 @@ class ConsumingApprovals:
         self._pending = list(grants)
         self._clock = clock if clock is not None else _utc_now
         self._spent = 0
+        self._reserved: ApprovalGrant | None = None
 
     @property
     def remaining(self) -> int:
-        """How many approvals the run has left to spend."""
-        return len(self._pending)
+        """How many approvals the run has left to reserve."""
+        return len(self._pending) - (1 if self._reserved is not None else 0)
 
     @property
     def spent(self) -> int:
-        """How many approvals the run has spent."""
+        """How many approvals have been spent at the wire."""
         return self._spent
 
     def require(self, request: ModelRequest) -> None:
-        """Spend the next approval on this request, or refuse the transmission."""
+        """Verify and reserve the next approval, without consuming it."""
+        del request
+        if self._reserved is not None:
+            raise OutboundRefusedError(
+                "the previous request never reached the wire, so its reserved "
+                "approval was not released; the run refuses to spend twice"
+            )
         if not self._pending:
             raise OutboundRefusedError(
                 "the run has no owner approval left for this request; the "
                 "provider refuses the transmission rather than sending it"
             )
-        grant = self._pending.pop(0)
+        grant = self._pending[0]
+        try:
+            spendable_approval(self._context, ApprovalId(grant.approval_id), now=self._clock())
+        except ApplicationRefusedError as error:
+            raise OutboundRefusedError(str(error)) from error
+        self._reserved = grant
+
+    def authorize_wire(self) -> None:
+        """Spend the reserved approval only after a response came back."""
+        if self._reserved is None:
+            raise OutboundRefusedError(
+                "no approval was reserved for this wire; the request is refused "
+                "rather than sent without a decision"
+            )
+        grant = self._reserved
         OutboundApproval(
             self._context,
             ApprovalId(grant.approval_id),
             grant.use,
             self._clock(),
-        ).require(request)
+        ).require(ModelRequest(prompt="outbound request authorized at the wire"))
+        self._pending.pop(0)
+        self._reserved = None
         self._spent += 1
+
+    def release_wire(self) -> None:
+        """Give back a reservation whose request never reached the wire."""
+        self._reserved = None
 
 
 def _utc_now() -> datetime:
@@ -410,14 +453,39 @@ def default_arms(*, model: str, budget: str) -> tuple[ArmConfiguration, ...]:
     )
 
 
-def item_id_for(arm_id: str, case_id: str) -> str:
+def arrangement_arms(*, model: str, budget: str) -> tuple[ArmConfiguration, ...]:
+    """The protocol's two B variants: guidance alone, then guidance + critique."""
+    return arrangement_variants(
+        ArmConfiguration(
+            arm_id="B",
+            model=model,
+            budget=budget,
+            inputs=EXPECTED_INPUTS["B"],
+        )
+    )
+
+
+def item_id_for(
+    arm_id: str,
+    case_id: str,
+    roles: Sequence[str] = (),
+    run_scope: str = "five_arm",
+) -> str:
     """The anonymous id of one arm's answer to one case.
 
     A digest, not a spelling: an id that says ``A`` would break the blind
-    sheet's anonymity before a rater opened it. The mapping is written to
-    ``unblinding.json`` and is not part of the blind packet.
+    sheet's anonymity before a rater opened it. The arrangement pair's two B
+    variants share an arm id, so their roles are part of the digest too: two
+    different answers must not become one blind-sheet item. The run scope
+    separates a five-arm B answer from the arrangement pair's B-only answer,
+    which have the same arm id, case and role but are independent calls. The
+    mapping is written to ``unblinding.json`` and is not part of the blind
+    packet.
     """
-    material = f"labcairn.blind.item.v1\x00{arm_id}\x00{case_id}".encode()
+    material = (
+        f"labcairn.blind.item.v1\x00{run_scope}\x00{arm_id}"
+        f"\x00{case_id}\x00{','.join(roles)}".encode()
+    )
     return "item-" + hashlib.sha256(material).hexdigest()[:16]
 
 
@@ -446,8 +514,17 @@ def render_prompt(case: CaseSpec, arm: ArmConfiguration) -> str:
         f"question: {case.question}",
         "",
         "Answer the question using only the material below.",
-        "",
     ]
+    if len(arm.roles) > 1:
+        sections.extend(
+            [
+                "",
+                "An independent critique role will review the guidance answer. "
+                "Return the complete revised review after that critique, not "
+                "the critique itself.",
+            ]
+        )
+    sections.append("")
     for face in INPUT_FACES:
         if face not in arm.inputs:
             continue
@@ -514,9 +591,27 @@ def synthetic_cases() -> tuple[CaseSpec, ...]:
     return tuple(cases)
 
 
+def _is_arrangement_pair(arms: Sequence[ArmConfiguration]) -> bool:
+    """Whether these arms are the protocol's two B role variants."""
+    return (
+        len(arms) == 2
+        and all(arm.arm_id == "B" for arm in arms)
+        and ROLE_CRITIQUE in arms[1].roles
+        and ROLE_CRITIQUE not in arms[0].roles
+    )
+
+
 def _check_configuration(arms: Sequence[ArmConfiguration]) -> None:
-    """Refuse a set of arms the protocol's own configuration check refuses."""
-    outcome = assess_configuration(tuple(arms))
+    """Refuse a set of arms the protocol's own configuration check refuses.
+
+    Five distinct letters go through :func:`assess_configuration`; the
+    arrangement pair's two same-id B variants go through
+    :func:`assess_arrangement_set`. Both are protocol-defined shapes, and
+    neither check is relaxed to fit the driver.
+    """
+    outcome = (
+        assess_arrangement_set(arms) if _is_arrangement_pair(arms) else assess_configuration(arms)
+    )
     if not outcome.admissible:
         raise RunRefusedError(
             "the arm configuration cannot be run: " + "; ".join(outcome.violations)
@@ -574,6 +669,7 @@ def _record_artifacts(
     cases: Sequence[CaseSpec],
     *,
     on_each: Callable[[ArtifactRecord], None] | None = None,
+    run_scope: str = "five_arm",
 ) -> tuple[tuple[ArtifactRecord, ...], int]:
     """Send one request per arm and case, and return what came back.
 
@@ -595,9 +691,11 @@ def _record_artifacts(
             response = provider.send(ModelRequest(prompt=prompt))
             calls += 1
             artifact = ArtifactRecord(
-                item_id=item_id_for(arm.arm_id, case.case_id),
+                item_id=item_id_for(arm.arm_id, case.case_id, arm.roles, run_scope),
                 case_id=case.case_id,
                 arm_id=arm.arm_id,
+                roles=arm.roles,
+                run_scope=run_scope,
                 prompt_digest=prompt_digest(prompt),
                 output=response.text,
                 provider=provider.name,
@@ -664,6 +762,8 @@ def _write_unblinding(
                 artifact.item_id: {
                     "arm": artifact.arm_id,
                     "case": artifact.case_id,
+                    "roles": list(artifact.roles),
+                    "run_scope": artifact.run_scope,
                 }
                 for artifact in artifacts
             },
@@ -675,8 +775,16 @@ def _write_unblinding(
     )
 
 
-def load_unblinding(path: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """Read an unblinding map, refusing a document that is not complete."""
+def load_unblinding(
+    path: Path, *, arrangement_pair: bool = False
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Read an unblinding map, refusing a document that is not complete.
+
+    The arrangement pair's two B variants share one arm id. For that
+    comparison the ``roles`` field is what separates them, so the reader
+    qualifies the arm key as ``B-only`` or ``B+critique`` rather than letting
+    two distinct answers collapse into one side of a contrast.
+    """
     document = json.loads(path.read_text(encoding="utf-8"))
     items = document.get("items")
     if not isinstance(items, Mapping):
@@ -686,7 +794,13 @@ def load_unblinding(path: Path) -> tuple[dict[str, str], dict[str, str]]:
     for item_id, entry in items.items():
         if not isinstance(entry, Mapping) or "arm" not in entry or "case" not in entry:
             raise ValueError(f"unblinding entry {item_id} carries no arm or case")
-        item_arms[str(item_id)] = str(entry["arm"])
+        arm = str(entry["arm"])
+        if arrangement_pair:
+            roles = entry.get("roles", ())
+            if not isinstance(roles, list):
+                raise ValueError(f"unblinding entry {item_id} carries no roles list")
+            arm = "B+critique" if ROLE_CRITIQUE in roles else "B-only"
+        item_arms[str(item_id)] = arm
         item_cases[str(item_id)] = str(entry["case"])
     return item_arms, item_cases
 
@@ -756,10 +870,13 @@ def _build_contrasts(
     excluded: Sequence[ExcludedRating],
     item_arms: Mapping[str, str],
     item_cases: Mapping[str, str],
+    *,
+    arrangement_pair: bool = False,
 ) -> tuple[significance.ContrastReport, ...]:
-    """Build both contrasts, each over all five dimensions."""
+    """Build the five-arm contrasts, or the one arrangement contrast."""
     reports: list[significance.ContrastReport] = []
-    for label, treatment, control in CONTRASTS:
+    contrasts = (("B+C vs B-only", "B+critique", "B-only"),) if arrangement_pair else CONTRASTS
+    for label, treatment, control in contrasts:
         reports.append(
             significance.build_report(
                 label,
@@ -903,7 +1020,7 @@ def _render_report(
             ]
         )
     if reports:
-        lines.extend(["## The two contrasts", ""])
+        lines.extend(["## The contrasts", ""])
         for report in reports:
             lines.append(f"### {report.contrast}")
             lines.append("")
@@ -923,7 +1040,7 @@ def _render_report(
     else:
         lines.extend(
             [
-                "## The two contrasts",
+                "## The contrasts",
                 "",
                 "**NOT RUN.** The protocol requires two independent raters and an",
                 "arbiter, and no rating sheets have been scored. This is an",
@@ -996,6 +1113,7 @@ def run_dry(
     out_dir: Path,
     cases: Sequence[CaseSpec] | None = None,
     arms: Sequence[ArmConfiguration] | None = None,
+    run_scope: str = "five_arm",
 ) -> RunSummary:
     """Run the whole pipeline against a stub, and claim nothing.
 
@@ -1024,7 +1142,7 @@ def run_dry(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     provider = DryRunProvider()
-    artifacts, stub_calls = _record_artifacts(provider, arms, case_set.cases)
+    artifacts, stub_calls = _record_artifacts(provider, arms, case_set.cases, run_scope=run_scope)
     _write_artifacts(out_dir, artifacts)
     _write_blind_packet(out_dir, artifacts, case_set.cases)
     _write_unblinding(out_dir, artifacts)
@@ -1053,8 +1171,13 @@ def run_dry(
     _write_json(ratings_dir / "arbiter.json", _arbiter_document())
 
     resolved, excluded = _resolve(sheets, _load_arbiter(ratings_dir / "arbiter.json"))
-    item_arms, item_cases = load_unblinding(out_dir / "unblinding.json")
-    reports = _build_contrasts(resolved, excluded, item_arms, item_cases)
+    arrangement_pair = _is_arrangement_pair(arms)
+    item_arms, item_cases = load_unblinding(
+        out_dir / "unblinding.json", arrangement_pair=arrangement_pair
+    )
+    reports = _build_contrasts(
+        resolved, excluded, item_arms, item_cases, arrangement_pair=arrangement_pair
+    )
     ratings = _ratings_summary(resolved, excluded, synthetic=True)
 
     record = _run_record(
@@ -1079,9 +1202,7 @@ def run_dry(
         "> Synthetic ratings: every label is the protocol's `unknown`, so every\n"
         "> verdict is the not-significant path by rule. These rows are not a\n"
         "> measurement of any arm's capability.\n\n"
-        + significance.render_report(reports[0])
-        + "\n"
-        + significance.render_report(reports[1]),
+        + "\n".join(significance.render_report(report) for report in reports),
     )
     _write_text(
         out_dir / "report.md",
@@ -1124,6 +1245,7 @@ def run_real(
     budget: str,
     cases: Sequence[CaseSpec],
     arms: Sequence[ArmConfiguration] | None = None,
+    run_scope: str = "five_arm",
 ) -> RunSummary:
     """Run the arms against a real provider and stop at AWAITING RATINGS.
 
@@ -1153,7 +1275,7 @@ def run_real(
     sent: list[ArtifactRecord] = []
     try:
         artifacts, provider_calls = _record_artifacts(
-            provider, arms, case_set.cases, on_each=sent.append
+            provider, arms, case_set.cases, on_each=sent.append, run_scope=run_scope
         )
     except OutboundRefusedError as error:
         # The answers already paid for are kept, and the record says how many
@@ -1264,11 +1386,22 @@ def run_score(
         ),
     )
     resolved, excluded = _resolve(sheets, _load_arbiter(arbiter))
-    item_arms, item_cases = load_unblinding(run_dir / "unblinding.json")
-    reports = _build_contrasts(resolved, excluded, item_arms, item_cases)
-    ratings = _ratings_summary(resolved, excluded, synthetic=False)
-
     previous = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    raw_arms_before_scoring = previous.get("arms", [])
+    arrangement_pair = isinstance(raw_arms_before_scoring, list) and _is_arrangement_pair(
+        tuple(
+            ArmConfiguration.from_document(one)
+            for one in raw_arms_before_scoring
+            if isinstance(one, Mapping)
+        )
+    )
+    item_arms, item_cases = load_unblinding(
+        run_dir / "unblinding.json", arrangement_pair=arrangement_pair
+    )
+    reports = _build_contrasts(
+        resolved, excluded, item_arms, item_cases, arrangement_pair=arrangement_pair
+    )
+    ratings = _ratings_summary(resolved, excluded, synthetic=False)
     model = str(previous.get("model", ""))
     budget = str(previous.get("budget", ""))
     provider_calls = int(previous.get("provider_calls", 0))
@@ -1396,6 +1529,8 @@ def build_real_provider(
     budget: RunBudget | None,
     usage_capture: UsageCapture | None,
     http_client: Any | None = None,
+    max_output_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> PydanticAiModelProvider:
     """The only place this driver constructs a real provider.
 
@@ -1434,4 +1569,7 @@ def build_real_provider(
         consent=consent,
         usage_capture=usage_capture,
         budget=budget,
+        timeout_s=settings.timeout_s,
+        max_output_tokens=max_output_tokens,
+        reasoning_effort=reasoning_effort,
     )
