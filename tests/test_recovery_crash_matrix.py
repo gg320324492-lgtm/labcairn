@@ -277,6 +277,48 @@ def test_at2b_the_write_counter_proves_no_second_write_during_reconciliation(env
     )
 
 
+def test_at2c_an_attempting_operation_is_refused_before_reconciliation_runs(env, tmp_path):  # type: ignore[no-untyped-def]
+    """The guard's ``ATTEMPTING`` arm, asked *before* recovery converts it.
+
+    AT-2 calls :meth:`mark_uncertain` first, so the operation is already
+    ``UNCERTAIN`` when either guard sees it — the ``ATTEMPTING`` arm of
+    :meth:`RecoveryCoordinator.assert_replayable` is never reached. A caller
+    that asks "may I replay this?" while the crash evidence is still untouched
+    is exactly the caller the arm exists for: the answer must be no, because
+    the effect may have landed and no probe has looked yet.
+
+    Both guards are asked while the row is still ``ATTEMPTING``, because they
+    are independent: one lives on the coordinator and one on the executor, and
+    each must refuse on its own rather than relying on the other.
+    """
+    scenario = build_scenario(env, tmp_path)
+    with pytest.raises(InjectedCrash):
+        _run(scenario, faults=arm(CrashPoint.AFTER_WRITE_BEFORE_CONFIRM))
+
+    after = scenario.restart()
+    operation_id = _sole_operation_id(after)
+
+    # No mark_uncertain: this is the state a crash leaves behind.
+    assert load_operation(after.session, operation_id).state is OperationState.ATTEMPTING
+
+    with pytest.raises(ReconciliationRequired) as guard:
+        after.recovery().assert_replayable(operation_id)
+    assert guard.value.state is OperationState.ATTEMPTING, (
+        "the refusal must name the state it saw; a generic refusal would hide "
+        "that the guard reached its ATTEMPTING arm"
+    )
+
+    counter = after.counter()
+    with pytest.raises(ReconciliationRequired) as executor:
+        after.executor().replay(
+            operation_id,
+            effect=counter.plan(RESOURCE, BODY),
+            args={"kind": "report"},
+        )
+    assert executor.value.state is OperationState.ATTEMPTING
+    assert counter.calls == 0, "a refused replay must not have called the effect at all"
+
+
 # --------------------------------------------------------------------------- #
 # AT-3 — crash after the commit, before the client is told
 # --------------------------------------------------------------------------- #

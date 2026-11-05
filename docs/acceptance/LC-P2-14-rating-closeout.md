@@ -233,3 +233,202 @@ verdict exists.
   annotated no current-test-set case is the owner's human judgement at rater
   selection. The machinery can only check that the arbiter's reader id is
   distinct from the two rater ids.
+
+
+## 8. The second paper's 91 volumes
+
+### 8.1 The two gaps, measured
+
+The second paper's authorized run produced 91 answers: 86 in the scaled run
+(60 five-arm calls over twelve cases, plus the 26 arrangement-pair calls over
+thirteen cases) and 5 calibration calls. Two things kept that corpus out of
+the rating table the close-out reads.
+
+**Gap 1 — the role pair was not in the table.** The blind packet the
+assembly produced covered 65 five-arm volumes. The 26 arrangement-pair
+volumes (`arrangement_pair_unseen2`: thirteen cases times two variants) were
+answered and were covered by the run's 91-entry unblinding, but no rating
+table held them, so the protocol's third comparison had nothing to compare.
+
+**Gap 2 — the ids had the wrong shape.** The close-out's identifier
+grammar accepts `volume-<hex>` only; the run's own item ids are
+`item-<hex>`. A withheld map keyed by the run's ids is refused
+(`the unblinding map carries a non-anonymous item id`), and the assembly
+itself refuses a sheet whose item ids are not anonymous
+(`rater-a carries a non-anonymous item id`). The two papers therefore
+spoke two different id languages, and the second paper's ids were the
+language the close-out could not read.
+
+### 8.2 The decision: re-mint, do not widen the grammar
+
+Two repairs were available: widen the close-out to accept `item-` ids as
+well, or mint the second paper's volumes into the `volume-` shape at
+assembly time. **The repair chosen is re-minting.** The reason is measured,
+not preferred:
+
+* The run's `item-` id is an unsalted digest of `(run_scope, arm, case,
+  roles)`. Rebuilding it from those four public fields reproduces
+  **91 of 91** of the run's ids. An id that a rater can invert is not an
+  anonymous id: it is a route back to the arm, carried on the face of the
+  sheet. The `volume-` id is salted per assembly, so the same four fields
+  do not produce it.
+* Widening `_IDENTIFIER` to accept two prefixes would put both id
+  languages in the same reader, and the reader could no longer tell from
+  the id alone which language a sheet speaks. Re-minting leaves the
+  grammar with one shape, so the first paper's sheets are unaffected **by
+  construction** rather than by a test that has to keep passing.
+
+The two properties the decision had to keep are therefore kept by
+construction, not by inspection: one answer is never designated by two
+anonymous ids (each volume is minted from the row's own name for its
+answer, and the assembly refuses two volumes that mint to one id), and the
+two run scopes' ids do not collide (91 run ids and 91 minted ids were
+measured to share **0**).
+
+### 8.3 What changed in the tree
+
+`tests/evaluation/blind_rating_closeout.py` — `build_volumes` now reads both
+row dialects, and nothing else changed:
+
+* **The answer's name.** One run names each answer by the file it wrote;
+  the other names it by the item id it minted. A row that names its answer
+  two ways, or names it not at all, is refused.
+* **The group.** A row that records no group still belongs to one: its run
+  scope names it (`five_arm_unseen2` → `five_arm`,
+  `arrangement_pair_unseen2` → `arrangement_pair`). A row whose scope
+  contradicts its group is refused, and a scope that names no protocol
+  group is refused rather than guessed at.
+* **One answer, one volume.** An answer claimed by two run scopes is
+  refused: the two scopes would be rating the same answer under two arms.
+  The separate "two answer volumes carry the same source id" check was
+  removed, because the claim map now holds that property and the old check
+  could no longer fire.
+
+`_IDENTIFIER`, `assemble_rating_sheets`, the anonymity checks, the pairing,
+the sign test and the rendering are untouched.
+
+### 8.4 The witnesses
+
+Eight witnesses were added to the existing preparation witness file (no new
+test file, so no shard, manifest or gate-class registration was needed).
+The file's count went from 99 to 107.
+
+* `TestTheSecondPapersAssembly::test_the_ninety_one_volumes_assemble_into_two_anonymous_sheets`
+  — 91 volumes (A–E 13 each, `B-only` 13, `B+critique` 13), 91 distinct
+  anonymous ids, no run id among them, two different rater orders, and the
+  anonymity check passes;
+* `::test_the_runs_own_item_id_is_not_an_anonymous_id` — the gap itself: a
+  withheld map keyed by a run's `item-` id is refused;
+* `::test_the_group_is_read_from_the_run_scope_when_the_row_records_none` —
+  the calibration rows, which record no group, join the same assembly;
+* `::test_a_row_whose_scope_contradicts_its_group_is_refused`;
+* `::test_a_run_scope_that_names_no_group_is_refused`;
+* `::test_one_answer_cannot_be_claimed_by_two_run_scopes`;
+* `::test_the_first_paper_is_unaffected_by_the_second_papers_shape` — the
+  first paper's 84 volumes still read exactly as before (12 per arm,
+  `volume-` ids, two different orders);
+* `::test_the_third_contrast_is_computable_once_the_arrangement_volumes_are_in_the_table`
+  — with all 91 volumes rated, the close-out returns three contrasts and the
+  arrangement pair is one of them.
+
+### 8.5 The mutations
+
+Seven mutations were applied to exactly one anchor each, the named witness
+was run, and both files were restored byte-for-byte afterwards (the
+restoration's SHA-256 was checked). The driver and its output live outside
+the tree at `E:\labcairn-local\tmp\pc-1\mutate.py` and
+`E:\labcairn-local\tmp\pc-1\mutations.txt`.
+
+| # | The property | The mutation | The red light |
+|---|---|---|---|
+| M1 | both row dialects are read | the answer name was taken from the answer file alone | `RatingRefusedError: call 1 names no answer file and no item id` |
+| M2 | the group is read from the scope | the scope was not consulted | `RatingRefusedError: call 1 carries no group and no run scope naming one` |
+| M3 | a contradicting scope is refused | the contradiction check was disabled | `Failed: DID NOT RAISE <class '...RatingRefusedError'>` |
+| M4 | an unknown scope is not guessed at | an unnamed scope fell back to the first group | `Failed: DID NOT RAISE <class '...RatingRefusedError'>` |
+| M5 | one answer is not claimed by two scopes | the cross-scope check was disabled | `RatingRefusedError: call 66 repeats answer item-...` (the refusal changed, so the witness is red) |
+| M6 | the volumes are re-minted, not carried over | the minted id was the run's own id | `RatingRefusedError: rater-a carries a non-anonymous item id` |
+| M7 | the third contrast is computed | the arrangement pair was dropped from the contrast list | `AssertionError: assert ['D vs C', 'E vs D'] == ['D vs C', 'E...+C vs B-only']` |
+
+### 8.6 The end-to-end rehearsal
+
+Outside the tree, in `E:\labcairn-local\blind6-arms\`, the rating kit gained
+an `assemble-unseen2` mode and a rehearsal script
+(`rehearse_unseen2.py`) ran the whole chain over the **real** 91 answers of
+the authorized run: assemble 91 volumes → both raters mark every label
+`yes` (a simulation, not a judgement) → denominators over the 13 cases →
+`close_out`. Measured output:
+
+* the withheld map holds 91 items, all `volume-`, all distinct; the 91 run
+  item ids and the 91 minted ids share **0** members;
+* arms: `A`–`E` 13 each, `B-only` 13, `B+critique` 13 — the 26
+  arrangement-pair volumes are in the table; 13 cases, 7 volumes each;
+* the two raters received different volume orders, and no sheet repeats an
+  item;
+* `close_out` returned **15 verdicts** over **3 contrasts** (`D vs C`,
+  `E vs D`, `B+C vs B-only`), each verdict 13 paired cases, 0 wins, 0
+  losses, 13 ties, and every verdict rendered **NOT SIGNIFICANT**.
+
+NOT SIGNIFICANT is the verdict the protocol calls a finding, not a failure
+of the run, and the rehearsal produced it from simulated ratings. The real
+sheets are still to be rated by two people and settled by a third; nothing
+in this rehearsal is that.
+
+The whole suite was run over the repository, with the temp directory outside
+the checkout: 4902 passed, 1 failed, 14 skipped. The single failure is
+`tests/test_fault_injection_e2e.py::test_a_task_continues_from_what_was_recorded_after_a_crash`,
+which raises `sqlite3.OperationalError: disk I/O error` on
+`PRAGMA journal_mode=WAL` — the flaky the database module's own comment
+records as failing roughly two runs in five on that line. That file passes
+on its own, and this change touches nothing in the database layer. The
+shard-cost witness came out green: this change edits two existing files and
+adds no new test file, so no measured per-file cost moved.
+
+
+## 9. The close-out ran — with model readers, not human ones
+
+**Status.** Both unseen papers' sheets were filled, checked, arbitrated and
+closed on 2026-11-05. The close-out's numbers exist. **The readers were
+independent agent sessions, not human beings.** The owner decided on
+2026-11-05 that an independent agent session — no memory of this project, no
+part in building it, given no account of the work — may stand in for a human
+reader; both raters and both arbiters were such sessions. This record states
+the substitution plainly rather than claiming a human performed the reading,
+and no capability claim is made from these numbers.
+
+**What ran.** Each rater was a fresh session with no project memory; the
+sheets carry no arm, and the readers did not open the unblinding maps. The
+second reader's counts and the arbiters' decisions are recorded in the
+rating logs and `arbiter.json` under each kit's `sheets/` directory
+(operator-side, outside this repository).
+
+| Paper | Labels | Agreement | Disagreements | Settled | Excluded |
+|---|---|---|---|---|---|
+| 1 (84 volumes) | 420 | **343/420 (81.7%)** | 77 | 420 | 0 |
+| 2 (91 volumes) | 455 | **441/455 (96.9%)** | 14 | 455 | 0 |
+
+Paper 1's third reader settled 77 disputes (75 yes, 2 unknown, 0 no);
+paper 2's settled 14 (14 yes, 0 unknown, 0 no).
+
+**Denominators.** The owner chose the **all-case wide mask** on 2026-11-05:
+every dimension over every case — 12 cases for paper 1, 13 for paper 2 —
+including hallucination and mis-citation. The protocol gives the five
+dimensions different denominators; this record states the owner's choice
+rather than treating the wide mask as the protocol's own.
+
+**Close-out.** Paper 1: **all 15 verdicts NOT SIGNIFICANT** — the only
+non-tied contrast is D vs C on `advisor_comprehension` (5 wins, 0 losses, 7
+ties, p = 0.0625); E vs D on the same dimension is 0 wins, 2 losses, 10
+ties, p = 0.5. Paper 2: **all 15 verdicts NOT SIGNIFICANT** — D vs C on
+`problem_identification` 3 wins, 0 losses, 10 ties, p = 0.25; D vs C on
+`advisor_comprehension` 2 wins, p = 0.5; E vs D on
+`problem_identification` 1 win, p = 1.0; E vs D on
+`advisor_comprehension` 2 wins, 1 loss, p = 1.0.
+
+**What this is, and what it is not.** The machinery ran end to end on both
+papers and produced data the close-out can read, with its denominators and
+its failure instances named. Under the owner's decision of 2026-11-05 the
+reader condition is met by independent agent sessions, and this run is
+recorded as such. It is still **not** evidence of a capability gain and
+**not** inter-human rater reliability — the agreement figure is
+agent-to-agent, not person-to-person. A human rating would replace these
+sheets rather than add to them.

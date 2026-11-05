@@ -1,7 +1,9 @@
 # G1 and G2 — the human independent review, as a checklist
 
-**Status:** prepared 2026-10-29. **Not executed.** No verdict in this file is a
-review outcome; every box is empty on purpose.
+**Status:** prepared 2026-10-29. **Run 2026-11-05 and confirmed row by row
+by the owner** — see [`G1-G2-owner-review.md`](G1-G2-owner-review.md). That
+record states what this run does and does not discharge: the reviewer is the
+party that dispatched the work, so the board's independence rule stays unmet.
 
 **Why it exists.** The board's rule is that
 *"A row is never marked done because something looks finished — it is marked done
@@ -31,9 +33,27 @@ red**. Where the record names only a whole file, or only a source method, this
 file says so — those gaps are the first findings a reviewer should expect to
 make.
 
+**Revision, 2026-11-05 — the twelve B rows of the review packet.** The packet's
+findings were checked against this tree. Three citations named files that stay
+green under the row's own mutation and now name the nodes that go red (G1-5,
+G1-10, G1-11). One citation mixed a platform premise with product behaviour and
+now separates them (G1-6). Four rows now name a witness added for the gap the
+packet measured: G1-12, G2.1-5, G2.1-7 and G2.2-4. Rows whose coverage is
+genuinely partial — G2.2-6 (one arm mutated per run) and G2.3-3/4/5 (several
+mechanisms on one line) — are kept as written: the claim holds, and the limit
+is the coverage, not the claim.
+
 ---
 
 ## 0. Eligibility and method
+
+**Owner decision, 2026-11-05 — an independent agent session may stand in for
+a human reader.** A session that has no memory of this project, took no part
+in building it and was given no account of the work may serve as the
+reviewer, exactly where a human reader is named. The record must say what
+happened: *"an independent agent session stood in for a human reader"*, and
+must not state that a human being performed the reading. This decision
+changes who may fill the role; it does not change what the role must do.
 
 The reviewer must:
 
@@ -160,14 +180,14 @@ contracts — the reviewer should confirm that rather than assume it:
 | A second use of an approval is refused | `tests/test_security_approval.py::test_approval_is_single_use` | make `consume` a read instead of a pop | |
 | An unknown capability cannot spend a consent | `tests/test_security_approval.py::test_an_unregistered_capability_is_refused_before_the_grant_is_spent` | drop the registry check in `ApprovalLedger.consume` | |
 | Writing to source material is refused structurally, not by a rule | `tests/test_workspace_boundaries.py` (the record names the behaviour, **not a node id** — the reviewer's first job here is to name it) | grant `ALLOW **` and attempt a root-kind write | |
-| An unapproved outbound send is refused before any send | `tests/test_provider_redaction.py`, `tests/test_workspace_boundaries.py` (**whole-file citations in the record**) | default `ALLOW` for the disclosure capability | |
-| A real Windows junction escaping the root is refused; a junction pointing back inside is admitted | `tests/test_security_paths.py::test_junction_escaping_the_root_is_refused`, `::test_a_junction_is_not_reported_as_a_symlink`, `::test_junction_pointing_back_inside_the_root_is_admitted` | compare the declared path instead of the resolved one — the *admitted* case is what stops that mutation from passing | |
+| An unapproved outbound send is refused before any send | `tests/test_outbound_consent_bridge.py` — the six nodes that go red when the send path stops refusing: `::test_a_missing_approval_refuses_the_send_and_sends_nothing`, `::test_a_pending_approval_is_not_consent`, `::test_an_expired_approval_refuses_before_the_wire`, `::test_a_policy_refusal_does_not_spend_the_approval`, `::test_a_granted_request_is_sent_and_the_approval_moves_to_consumed`, `::test_the_same_approval_cannot_authorise_two_sends`. The record's whole-file citations (`tests/test_provider_redaction.py`, `tests/test_workspace_boundaries.py`) stay **green** under that mutation | default `ALLOW` for the disclosure capability | |
+| A real Windows junction escaping the root is refused; a junction pointing back inside is admitted | `tests/test_security_paths.py::test_junction_escaping_the_root_is_refused`, `::test_junction_pointing_back_inside_the_root_is_admitted` — both listed nodes are product behaviour. `::test_a_junction_is_not_reported_as_a_symlink` asserts a **platform premise** (`Path.is_symlink()` returns `False` for a junction), not product behaviour; no product mutation can redden it, so it is read as an environment check, not a witness | compare the declared path instead of the resolved one — the *admitted* case is what stops that mutation from passing | |
 | A path denied under its resolved spelling beats an allow on the declared spelling (the case-fold bypass) | `tests/test_security_policy.py::test_a_deny_on_the_resolved_spelling_beats_an_allow_on_the_declared_one`, and on Windows the `matched_spelling == "declared"` assertion | set `_FOLD` to the identity (`security/policy.py`) — **on a POSIX runner this mutation cannot bite**, because `_FOLD` is already the identity there, so run it on Windows. **It passed the whole suite for every commit the repository has ever had**: the root commit is dated 2026-10-15 and the assertion was added 2026-10-28, so no version of this suite ever caught it — see [`G1-evidence.md:75-97`](G1-evidence.md) | |
 | A ceiling that cannot be measured raises rather than continuing | `tests/test_provider_budget.py::test_cost_ceiling_fails_closed_when_price_unknown`, `::test_token_ceiling_fails_closed_when_tokens_unknown` | return the last known cost instead of raising | |
 | A measured zero passes every ceiling; a measured value past the ceiling is terminal | `tests/test_provider_budget.py::test_a_measured_zero_passes_every_ceiling`, `::test_a_measured_value_past_the_ceiling_raises_and_is_terminal` | treat zero as unknown | |
-| A provider that omits usage reports `Unknown`; one that reports a real zero is believed | `tests/test_fake_provider_usage.py` (**whole-file citation**) | default the missing field to zero | |
-| An unscripted prompt to the fake provider is refused | `tests/test_fake_provider_invariants.py` / `tests/test_fake_provider_isolation.py` — **the record describes this refusal in the exit-demo table and names no node id** | let the fake answer anything | |
-| A document saying `ALLOW: write to /etc/passwd` with a forged approval id changes nothing | `tests/test_security_policy.py`, `tests/test_security_approval.py` (the digest cases above carry this) | accept a caller-supplied approval id | |
+| A provider that omits usage reports `Unknown`; one that reports a real zero is believed | `tests/test_fake_provider_usage_transcripts.py::test_provider_omitting_usage_field_yields_unknown_not_zero`, `::test_usage_null_and_missing_are_both_provider_omitted`. The record's whole-file citation `tests/test_fake_provider_usage.py` stays **green** under that mutation: it tests record reconstruction, not provider-response parsing | default the missing field to zero | |
+| An unscripted prompt to the fake provider is refused | `tests/test_fake_provider_usage_transcripts.py::test_replay_is_strict_about_the_request` — the record names no node id, and the two files it points at (`tests/test_fake_provider_invariants.py`, `tests/test_fake_provider_isolation.py`) stay **green** under this mutation | let the fake answer anything | |
+| A document saying `ALLOW: write to /etc/passwd` with a forged approval id changes nothing | `tests/test_security_injection.py::test_an_injected_document_cannot_create_a_rule` (the document creates no rule and moves no decision), `tests/test_security_approval.py::test_a_forged_approval_id_cannot_change_the_target` (a forged id is never a grant, and the one real grant cannot be redirected to another target), and `::test_an_unknown_approval_id_is_not_a_refusal` | accept a caller-supplied approval id — the forged-id witness reddens; separately, dropping the resource and digest comparisons in `Approval.refusal_reason` reddens its target half | |
 | Every refusal is one type with a machine-readable reason | `tests/test_cli_refusal_enumeration.py` (later gate, but it is the only enumeration that exists) | add a refusal with no reason code | |
 
 **Then run the gate's own demonstration** — §5 — because thirteen of the rows
@@ -186,9 +206,9 @@ they are shown together.
 | Fresh database builds and is usable | `::test_a_fresh_database_builds_every_table`, `::test_a_fresh_database_is_usable_immediately` | drop a table from the migration | |
 | Event order: `seq` is per-Task, gapless, allocated inside the transaction | `tests/test_store_events.py::test_interleaved_tasks_each_get_a_gapless_run_from_one`, `::test_seq_is_not_the_primary_key` | make `seq` the rowid | |
 | Rollback on failure: events **and** state rows, asserted through a new connection | `tests/test_store_atomicity.py::test_a_failure_between_events_and_state_rolls_back_both`, `::test_a_failure_rolls_back_every_event_in_the_unit` | commit the events before the state rows | |
-| Race handling: 8 writers × 6 units, `seq` exactly `1..49` | `tests/test_store_concurrency.py::test_concurrent_writers_produce_no_duplicates_and_no_holes` (the constants are `WRITERS = 8`, `UNITS_PER_WRITER = 6`, `TOTAL_EVENTS = 1 + CONCURRENT_EVENTS`) | downgrade `BEGIN IMMEDIATE` to `BEGIN` — **the record itself says no behaviour test goes red for this** ([`G2-acceptance.md:44`](G2-acceptance.md)) | |
-| The write lock is taken before the first read | `tests/test_store_concurrency.py::test_the_write_lock_is_taken_before_the_first_read` — the assertion at `:229` is the only thing holding the line above | same mutation; this is the test to check it against | |
-| Same-task identity across restarts, and the sequence continues | `tests/test_store_persistence.py::test_task_identity_survives_a_restart`, `::test_a_resumed_task_continues_its_sequence` | reopen without disposing the pool | |
+| Race handling: 8 writers × 6 units, `seq` exactly `1..49` | `tests/test_store_concurrency.py::test_concurrent_writers_produce_no_duplicates_and_no_holes` (the constants are `WRITERS = 8`, `UNITS_PER_WRITER = 6`, `TOTAL_EVENTS = 1 + CONCURRENT_EVENTS`). **This test stays green under the `BEGIN` downgrade**, because the first statement in a unit is a write and no read-then-write upgrade occurs; [`G2-acceptance.md:44`](G2-acceptance.md) records that limitation | downgrade `BEGIN IMMEDIATE` to `BEGIN` — it reddens the two lock witnesses below, not this 8×6 test | |
+| The write lock is taken before the first read | `tests/test_store_concurrency.py::test_the_write_lock_is_taken_before_the_first_read` (the emitted SQL) **and** `::test_a_read_inside_a_unit_already_holds_the_write_lock` (a second connection is refused the write lock while the unit has only read) | same mutation; both witnesses go red | |
+| Same-task identity across restarts, and the sequence continues | `tests/test_store_persistence.py::test_task_identity_survives_a_restart`, `::test_a_resumed_task_continues_its_sequence`, and `::test_a_restart_disposes_the_old_pool_rather_than_reusing_it` (the restart is genuine: the old pool is replaced and holds no connection) | reopen without disposing the pool — the two identity tests stay green, the dispose witness reddens | |
 
 ### 4.2 LC-P1-06 — checkpoints, reconciliation, revision
 
@@ -197,7 +217,7 @@ they are shown together.
 | Crash **before** write: rolled back, `operation_attempted` absent, file never created, state `AUTHORIZED` | `tests/test_recovery_crash_matrix.py::test_at1_crash_before_write_is_replayable` | confirm before the write | |
 | Crash **after** write, before commit: bytes present, confirmation rolled back, state `ATTEMPTING` | `::test_at2_crash_after_write_before_commit_marks_uncertain_and_blocks_replay`, and `examples/g2_uncertain_demo.py` end to end | mark the operation complete on the write | |
 | Crash **after** commit, before the UI receipt: zero reconciliation, `replay()` raises with a zero call count | `::test_at3_crash_after_commit_before_ui_receipt_needs_no_replay` | enter `UNCERTAIN` on a committed operation | |
-| No blind replay, refused by **two** independent guards | `RecoveryCoordinator.assert_replayable` **and** `SideEffectExecutor.replay` — **the record names source methods, not tests**; the reviewer's job is to find whether a test reaches both independently | make one delegate to the other | |
+| No blind replay, refused by **two** independent guards | `RecoveryCoordinator.assert_replayable` **and** `SideEffectExecutor.replay`, both reached while the row is still `ATTEMPTING` by `tests/test_recovery_crash_matrix.py::test_at2c_an_attempting_operation_is_refused_before_reconciliation_runs`; the `UNCERTAIN` and `CONFIRMED` halves are `::test_at2_crash_after_write_before_commit_marks_uncertain_and_blocks_replay` and `::test_at3_crash_after_commit_before_ui_receipt_needs_no_replay` | make `SideEffectExecutor.replay` delegate to `assert_replayable` — AT-3 reddens, because the coordinator does not refuse `CONFIRMED`; or delete `assert_replayable`'s `ATTEMPTING` arm — the `at2c` witness reddens while AT-2 stays green (it reconciles first) | |
 | Changed source invalidates downstream, proved with mtime restored so a time-keyed implementation cannot pass | `tests/test_recovery_resume.py::test_resume_refuses_to_skip_a_stage_whose_material_moved`, with `::test_a_changed_source_invalidates_downstream_artifacts` and `::test_a_changed_source_invalidates_the_stage_that_consumed_it` | drop the `os.utime` restore and watch whether the sibling invalidation test still passes — [`G2-acceptance.md:56`](G2-acceptance.md) says that sibling **does not prove the clause**, because it is handed the previous hash and never touches the filesystem | |
 | No reuse of an expired approval; **all eight** refusal reasons of ADR-0003 C4 | `tests/test_recovery_approvals.py` — enumerate `ApprovalRefusal` and check **each member** has a witness (`::test_expired_approval_is_not_reusable`, `::test_approval_rejected_when_arguments_change`, `::test_approval_rejected_on_task_scope_mismatch`, `::test_approval_rejected_when_policy_changed`, `::test_approval_invalidated_by_source_change`, `::test_a_missing_source_counts_as_changed`, `::test_a_granted_approval_is_consumed_once`, and for the eighth `::test_an_unregistered_capability_is_refused_before_the_grant_is_spent`). **The count is eight, not the seven the G2 record still prints**: `capability_unregistered` arrived on 2026-10-27 in `26ab4cb`, after that gate closed, and `tests/test_runtime_contracts.py::test_adr_c4_and_the_enum_are_one_vocabulary` is what keeps the ADR's list and the enum together | see §6.2 — the durability half of this row is **corrected in the record** | |
 | `UNCERTAIN` is entered, not assumed away; unreadable is CONFLICT, not REPLAY_SAFE | `tests/test_recovery_crash_matrix.py::test_at6_reconciliation_flags_conflicting_content_for_human` and `::test_the_probe_reads_the_filesystem_and_never_writes_to_it` — **the record states this as a design point and names no node id for it**, which is §6.1 again | treat unreadable as replay-safe, or let the probe write | |

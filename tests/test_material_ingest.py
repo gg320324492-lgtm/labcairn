@@ -280,6 +280,41 @@ def test_a_format_with_an_adapter_but_no_extension_still_declines() -> None:
     assert "no_adapter_for_kind" in {p.code for p in material.problems}
 
 
+def test_an_ole2_doc_is_inventoried_as_unparseable_not_an_empty_document() -> None:
+    """An OLE2 ``.doc`` is not a DOCX, and the ingestion says so.
+
+    The fixture is synthetic: the OLE2 signature, a zero-filled 512-byte
+    sector and no OOXML part. ``kind_for_path`` must keep the extension's
+    honest answer (``OTHER``), and the inventory must carry the bytes'
+    hash and a disclosure rather than zero addressable paragraphs that
+    look like a successful read.
+
+    **What breaks it:** treating the extension as a DOCX without reading
+    its container, or dropping ``no_adapter_for_kind`` from the unopenable
+    set. The first makes a binary file into an empty Word document; the
+    second keeps the problem but calls the source citable.
+    """
+    import hashlib
+
+    ole2 = bytes.fromhex("d0cf11e0a1b11ae1") + bytes(504)
+    material = ingest_bytes(
+        ole2,
+        relative_path="drafts/version-one.doc",
+        display_name="version-one.doc",
+        ingested_at=NOW,
+    )
+
+    assert kind_for_path("drafts/version-one.doc") is SourceKind.OTHER
+    assert material.source.kind is SourceKind.OTHER
+    assert material.source.content_sha256 == hashlib.sha256(ole2).hexdigest()
+    assert material.source.size_bytes == len(ole2)
+    assert material.texts == ()
+    assert {problem.code for problem in material.problems} == {"no_adapter_for_kind"}
+    assert material.source.readability.value == "unparseable"
+    assert material.source.readability_disclosure
+    assert material.extraction_version == "no-adapter"
+
+
 def test_every_unit_carries_the_canonical_key_and_a_text_hash() -> None:
     material = ingest_bytes(
         _xlsx(cells={"A1": "trial"}),

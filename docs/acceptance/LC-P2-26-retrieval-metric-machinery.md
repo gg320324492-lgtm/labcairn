@@ -145,3 +145,68 @@ re-measured by the runner at the next run, per the repository's rule.
 this machinery produces is a measurement of whatever sample a person has
 put behind it, and until that person has read the reports, the report's row
 says NOT MEASURED — which is the claim this piece delivers.
+
+---
+
+## 4. The metric, measured — 2026-11-05
+
+The sample the machinery was waiting for now exists. It was built from five
+candidate reports over the public fixtures (45 citations: 26 at text-line
+addresses, 19 at CSV cells), each row judged against the material at its
+address.
+
+| | |
+|---|---|
+| Sample | 45 rows — **36 `supported`, 9 `unsupported`**; the five-field table is `E:\labcairn-local\citation-sample\citation-support-sample.json`, outside this repository |
+| Judgement | the coordinator read each citation against its address and wrote a recommendation; the owner accepted all 45 on 2026-11-05 |
+| Run | `python -m tests.evaluation --citation-sample <the table> --out E:\labcairn-local\citation-sample\eval-run`, exit 0 |
+| Metric | **`evidence-locator-validity: 36/45` (80.0%)** |
+| Report | `E:\labcairn-local\citation-sample\eval-run\evaluation-report.md` (and `.json`), outside the repository |
+
+**What the number is, and what it is not.** It is the share of judged
+citations whose address supports the claim attached to it, over a sample of
+45 synthetic-fixture citations. It is **not** a human-checked sample: the
+judgement was the coordinator's reading, accepted by the owner, and this
+record states that mechanism rather than calling it a person's. Under the
+owner's decision of 2026-11-05 an independent agent session may stand in
+for a human reader; this sample was accepted from the coordinator's
+recommendations, so it is recorded as such.
+
+**What the run did not move.** The frozen P1 baseline was taken before this
+machinery existed and carries no locator-validity key, so the comparison
+still prints no pair for it — the first baseline taken after this sample is
+the one a later retrieval change will be compared against.
+
+---
+
+## 5. The frozen baseline over the filled sample — 2026-11-05
+
+The first baseline taken **after** the filled sample exists is
+[`LC-P2-26-baseline.json`](LC-P2-26-baseline.json). It was measured at
+`c5e1f40cc204a225e5f2a7c8aec711d00363b116`, on a clean worktree, Windows 11
+(Python 3.12.13), with `python -m tests.evaluation --citation-sample
+<the 45-row table> --out E:\labcairn-local\citation-sample\baseline-run2`.
+
+| | |
+|---|---|
+| Duration | **2082.2 s** |
+| Exit | **2** — `real_model_smoke` was selected and could not run (no provider credential); the five offline classes all ran with **zero failures** (unit 1878, integration 1714, negative 388, e2e 143, repository 798) |
+| `evidence-locator-validity` | **36/45** |
+| Other metrics | numeric extraction 84/84, unsupported-claim detection 1/1, recovery 4/4, latency/usage 2080407/4934 |
+| Comparison | `assess` reports **comparable** on all six conditions against the harness's own run basis |
+
+**Two failed starts, recorded rather than hidden.** The first baseline run
+stopped after 987.8 s with four classes `ran=False` and one integration setup
+error; the two affected tests passed when re-run alone. Its output was not
+frozen. The script also initially wrote the public fixtures' hashes into the
+comparison basis, where the harness uses the eleven `CORPUS_FIXTURES` and
+their `.expected.json` answer keys — a mismatch that would make every later
+comparison fail `matched_task` and `matched_task_versions`. Both were
+corrected before this document froze; no harness run was repeated for the
+basis fix, because the report and the tree it measured are unchanged.
+
+**The sample now has two independent readings.** The coordinator's 36/9
+judgement and an independent reader's 36/9 judgement agree **45/45**; the
+agreement record is `E:\labcairn-local\citation-sample\INDEPENDENT-AGREEMENT.md`.
+Neither is a human being's reading, and this record does not call the sample
+human-checked.

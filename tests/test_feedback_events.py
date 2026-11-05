@@ -62,6 +62,7 @@ from store_support import StoreEnv, db_path_for
 from store_support import env as _shared_env
 
 from labcairn.application import chain as chain_layer
+from labcairn.application.context import ApplicationContext
 from labcairn.application.refusal import (
     CHAIN_REFUSALS,
     ApplicationRefusal,
@@ -878,6 +879,47 @@ REPLY_LETTER: tuple[str, ...] = (
     "Response 2: We have removed the repetition.",
 )
 
+#: A response document whose answer spans more than one paragraph.
+#:
+#: **The words are invented.** The property is the paragraph count and the
+#: hash of the named paragraph, not any material of the owner's.
+ANSWER_RANGE_LETTER: tuple[str, ...] = (
+    "Point 1: State the unit for the second figure.",
+    "Response 1: The unit is now stated.",
+    "The caption names the unit.",
+    "The methods section repeats the same unit.",
+)
+
+#: The first two exchanges that the mixed-source witness repeats elsewhere.
+MIXED_SOURCE_FOREIGN_HEAD: tuple[str, ...] = (
+    "Point 1: State the unit for the second figure.",
+    "Response 1: The unit is now stated.",
+    "Point 2: Define the term used in section three.",
+    "Response 2: The term is defined before it is used.",
+)
+
+#: The remaining exchanges of the local paper's mixed letter.
+MIXED_SOURCE_LOCAL_TAIL: tuple[str, ...] = (
+    "Point 3: Report the blank in the table.",
+    "Response 3: The blank is reported in the caption.",
+    "Point 4: Correct the date in the cover letter.",
+    "Response 4: The cover date has been corrected.",
+)
+
+#: The remaining exchanges of the other paper's letter.
+MIXED_SOURCE_FOREIGN_TAIL: tuple[str, ...] = (
+    "Point 3: Describe the instrument drift.",
+    "Response 3: The drift is described in the methods.",
+    "Point 4: Name the calibration standard.",
+    "Response 4: The standard is named in the footnote.",
+)
+
+#: A mixed-source letter: the first two pairs are copied, the rest is local.
+MIXED_SOURCE_LETTER: tuple[str, ...] = MIXED_SOURCE_FOREIGN_HEAD + MIXED_SOURCE_LOCAL_TAIL
+
+#: The other paper's letter from which the mixed-source head was copied.
+MIXED_SOURCE_OTHER_LETTER: tuple[str, ...] = MIXED_SOURCE_FOREIGN_HEAD + MIXED_SOURCE_FOREIGN_TAIL
+
 
 @dataclass(frozen=True)
 class ReplyEnv:
@@ -894,7 +936,11 @@ class ReplyEnv:
 
 
 def _reply_project(
-    env: StoreEnv, tmp_path: Path, *, comments: tuple[Comment, ...] = ()
+    env: StoreEnv,
+    tmp_path: Path,
+    *,
+    comments: tuple[Comment, ...] = (),
+    paragraphs: tuple[str, ...] = REPLY_LETTER,
 ) -> ReplyEnv:
     """A project holding a manuscript and a response document beside it.
 
@@ -904,7 +950,10 @@ def _reply_project(
     the document is a material of the project like any other.**
 
     **The comments are a parameter**, because a settlement that says which
-    chain comment a reply is about needs the chain to hold one.
+    chain comment a reply is about needs the chain to hold one. **The
+    paragraphs are a parameter too**, because the batch-9 negative witnesses
+    need a response letter whose answer has more than one paragraph, not the
+    default two-exchange letter.
     """
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -915,7 +964,7 @@ def _reply_project(
     document = materials / "responses.docx"
     document.write_bytes(
         write_fixture(
-            Fixture(name="responses", paragraphs=REPLY_LETTER, purpose="The reply letter."),
+            Fixture(name="responses", paragraphs=paragraphs, purpose="The reply letter."),
             built,
         ).read_bytes()
     )
@@ -971,6 +1020,127 @@ def _record_replies(reply_env: ReplyEnv, *exchanges: ReplyExchange) -> tuple[Rep
         exchanges=exchanges,
         now=MOMENT,
     )
+
+
+@dataclass(frozen=True)
+class MixedReplyEnv:
+    """Two projects, one local mixed-source letter, and the other letter."""
+
+    context: ApplicationContext
+    local_project_id: str
+    mixed_version_id: str
+    other_project_id: str
+    other_version_id: str
+
+
+def _add_reply_version(
+    context: ApplicationContext,
+    *,
+    project_id: str,
+    version_id: str,
+    source_suffix: str,
+) -> None:
+    """Register one ingested response document as a version of a project."""
+    source = next(
+        view.source
+        for view in list_sources(context)
+        if view.source.relative_path.endswith(source_suffix)
+    )
+    context.store.session.add(
+        PaperVersionRow(
+            version_id=version_id,
+            project_id=project_id,
+            source_id=str(source.source_id),
+            source_content_sha256=str(source.content_sha256),
+            version_label_raw=source_suffix,
+            stage_candidate="unknown",
+            status="resolved",
+            created_at=MOMENT,
+        )
+    )
+
+
+def _mixed_reply_project(env: StoreEnv, tmp_path: Path) -> MixedReplyEnv:
+    """Two projects whose reply letters share the first two exchanges.
+
+    **The local letter is the mixed one.** Its first two exchanges are copied
+    byte-for-byte from the other project's letter, and its remaining exchanges
+    are its own. The property is not that the product can see the copying;
+    the property is that it refuses to lend the other project's version to this
+    project's reply set, and refuses to collapse the same words into one row.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    materials = workspace / "materials"
+    materials.mkdir(parents=True)
+    built = workspace / "built"
+    built.mkdir()
+
+    mixed_document = materials / "mixed-replies.docx"
+    other_document = materials / "other-replies.docx"
+    mixed_document.write_bytes(
+        write_fixture(
+            Fixture(
+                name="mixed",
+                paragraphs=MIXED_SOURCE_LETTER,
+                purpose="The mixed-source reply letter.",
+            ),
+            built,
+        ).read_bytes()
+    )
+    other_document.write_bytes(
+        write_fixture(
+            Fixture(
+                name="other",
+                paragraphs=MIXED_SOURCE_OTHER_LETTER,
+                purpose="The other project's reply letter.",
+            ),
+            built,
+        ).read_bytes()
+    )
+
+    chain = build_chain(env.store(), workspace)
+    context = chain.context
+    other_project_id = "proj-other"
+    context.store.session.add(
+        PaperProjectRow(
+            project_id=other_project_id,
+            workspace_id="ws-1",
+            subject_pseudonym="subject-other",
+            consent_ref=None,
+            created_at=MOMENT,
+        )
+    )
+    _add_reply_version(
+        context,
+        project_id=chain.project_id,
+        version_id="ver-mixed",
+        source_suffix="mixed-replies.docx",
+    )
+    _add_reply_version(
+        context,
+        project_id=other_project_id,
+        version_id="ver-other",
+        source_suffix="other-replies.docx",
+    )
+    context.store.session.commit()
+
+    return MixedReplyEnv(
+        context=context,
+        local_project_id=chain.project_id,
+        mixed_version_id="ver-mixed",
+        other_project_id=other_project_id,
+        other_version_id="ver-other",
+    )
+
+
+def _reply_schema_field_names() -> set[str]:
+    """The public names a reply record can carry, and no more."""
+    return {
+        field.name
+        for dataclass_fields in (fields(ReplyExchange), fields(Reply))
+        for field in dataclass_fields
+    }
 
 
 def _raw_reply(session: Session, **overrides: object) -> None:
@@ -1425,6 +1595,137 @@ def test_a_reply_names_no_paragraph_the_document_does_not_have(
 
     rows = session.scalars(select(ReplyRow)).all()
     assert len(rows) == 1, "a refused exchange writes nothing"
+
+
+def test_an_answer_that_spans_paragraphs_is_not_recorded_as_one_full_answer(
+    env: StoreEnv, tmp_path: Path
+) -> None:
+    """A `Point` can reach 1+N answer paragraphs, and one row is not that range.
+
+    **The fixture says so.** The reader keeps one objection paragraph and
+    three answer paragraphs. **The product's exchange has one answer place
+    only**, so recording paragraph 1 stores exactly paragraph 1 and names the
+    place it was read from. The continuation paragraphs stay in the document
+    and outside the row; the row cannot be read as a completed answer range.
+
+    **What breaks it:** a reader that silently folds the following answer
+    paragraphs into the single `answer_text` field, or an exchange that grows
+    a range field and thereby claims a 1+N answer as one address. The batch-9
+    pilot counted 35 such answers in 44 recorded pairs and left the
+    continuations outside the store; this witness keeps that loss visible
+    rather than pretending the row holds the whole reply.
+    """
+    reply_env = _reply_project(env, tmp_path, paragraphs=ANSWER_RANGE_LETTER)
+    document = read_document(reply_env.document.read_bytes())
+    assert document.paragraphs == ANSWER_RANGE_LETTER
+
+    (reply,) = _record_replies(reply_env, _exchange())
+    opening = ANSWER_RANGE_LETTER[1]
+    continuations = ANSWER_RANGE_LETTER[2:]
+
+    assert reply.answer_text == opening
+    assert reply.answer_paragraph == 1
+    assert reply.answer_text_sha256 == hashlib.sha256(opening.encode()).hexdigest()
+    assert all(paragraph not in reply.answer_text for paragraph in continuations)
+
+    field_names = _reply_schema_field_names()
+    assert "answer_paragraph" in field_names
+    assert not any(
+        name in {"answer_paragraph_end", "answer_end_paragraph", "answer_range"}
+        or name.endswith("_paragraphs")
+        for name in field_names
+    )
+
+    listed = list_replies(reply_env.chain.context, project_id=reply_env.chain.project_id)
+    assert len(listed) == 1
+    assert listed[0].answer_text == opening
+    assert listed[0].answer_paragraph == 1
+
+
+def test_a_mixed_source_letter_is_not_one_projects_reply_set(env: StoreEnv, tmp_path: Path) -> None:
+    """Same words in two papers stay two addressable replies, not one set.
+
+    **The fixture says so.** The mixed letter's first two exchanges are
+    byte-for-byte the other letter's first two exchanges, and its last two
+    exchanges are its own. The reply row names one project and one version;
+    **the same words copied into two letters are two rows with two derived
+    ids**. The product does not claim provenance it was not given: there is
+    no per-exchange source field, and the door refuses to borrow the other
+    project's version as this project's reply set.
+
+    **What breaks it:** dropping the version from the derived reply id, so
+    the two letters' common words become one row, or dropping the version's
+    project check, so the other letter can be recorded as this project's set.
+    Either would turn a mixed-source letter into a single paper's answer set
+    by guesswork; the batch-9 material has exactly that shape and this
+    witness refuses the guess.
+    """
+    mixed = _mixed_reply_project(env, tmp_path)
+    common_pairs = tuple(
+        _exchange(objection_paragraph=index, answer_paragraph=index + 1)
+        for index in range(0, len(MIXED_SOURCE_FOREIGN_HEAD), 2)
+    )
+    mixed_pairs = tuple(
+        _exchange(objection_paragraph=index, answer_paragraph=index + 1)
+        for index in range(0, len(MIXED_SOURCE_LETTER), 2)
+    )
+
+    recorded_mixed = record_replies(
+        mixed.context,
+        project_id=mixed.local_project_id,
+        version_id=mixed.mixed_version_id,
+        exchanges=mixed_pairs,
+        now=MOMENT,
+    )
+    recorded_other = record_replies(
+        mixed.context,
+        project_id=mixed.other_project_id,
+        version_id=mixed.other_version_id,
+        exchanges=common_pairs,
+        now=MOMENT,
+    )
+
+    assert len(recorded_mixed) == 4
+    assert len(recorded_other) == 2
+    assert [reply.project_id for reply in recorded_mixed] == [mixed.local_project_id] * 4
+    assert [reply.version_id for reply in recorded_mixed] == [mixed.mixed_version_id] * 4
+    assert [reply.project_id for reply in recorded_other] == [mixed.other_project_id] * 2
+    assert [reply.version_id for reply in recorded_other] == [mixed.other_version_id] * 2
+
+    assert {(reply.objection_text, reply.answer_text) for reply in recorded_mixed[:2]} == {
+        (reply.objection_text, reply.answer_text) for reply in recorded_other
+    }, "the copied pairs are byte-for-byte the same words"
+    assert {reply.reply_id for reply in recorded_mixed}.isdisjoint(
+        {reply.reply_id for reply in recorded_other}
+    ), "the same words in two versions are not one reply"
+
+    listed_mixed = list_replies(mixed.context, project_id=mixed.local_project_id)
+    listed_other = list_replies(mixed.context, project_id=mixed.other_project_id)
+    assert len(listed_mixed) == 4
+    assert len(listed_other) == 2
+    assert {reply.reply_id for reply in listed_mixed}.isdisjoint(
+        {reply.reply_id for reply in listed_other}
+    ), "one project's listing is not the other's answer set"
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        record_replies(
+            mixed.context,
+            project_id=mixed.local_project_id,
+            version_id=mixed.other_version_id,
+            exchanges=common_pairs,
+            now=MOMENT,
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_VERSION_NOT_FOUND
+
+    rows = mixed.context.store.session.scalars(select(ReplyRow)).all()
+    expected_ids = {reply.reply_id for reply in recorded_mixed} | {
+        reply.reply_id for reply in recorded_other
+    }
+    assert len(rows) == 6, "a refused mixed-source call writes nothing"
+    assert {reply.reply_id for reply in rows} == expected_ids
+
+    field_names = _reply_schema_field_names()
+    assert not {"source_project_id", "source_version_id", "origin_project_id"} & field_names
 
 
 # --------------------------------------------------------------------------- #

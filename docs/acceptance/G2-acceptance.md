@@ -41,7 +41,7 @@ The two skips are declared, not silent: one is the real-provider smoke needing a
 | Race handling | **PASS** | 8 threads × 6 units, one session each, producing `seq` 1..49 with no duplicate and no gap |
 | Same-task identity across restarts | **PASS** | Connection pool disposed, reopened from the file alone; the next event takes `seq` 4, not 1 (`test_a_resumed_task_continues_its_sequence` asserts the whole run `[1, 2, 3, 4]`) |
 
-**Recorded limitation.** Downgrading `BEGIN IMMEDIATE` to `BEGIN` leaves every concurrency *behaviour* test green, because this implementation's first statement is a write and no lock upgrade is needed. The assertion on the emitted SQL is what holds that line. This is stated because a reader should know which of the two is load-bearing.
+**Recorded limitation.** Downgrading `BEGIN IMMEDIATE` to `BEGIN` leaves every concurrency *behaviour* test green, because this implementation's first statement is a write and no lock upgrade is needed. The assertion on the emitted SQL is what holds that line. This is stated because a reader should know which of the two is load-bearing. *(Corrected 2026-11-05: the statement is true of the 8×6 allocation test, which is what it was measured against. A behaviour probe now exists that does distinguish the two — `tests/test_store_concurrency.py::test_a_read_inside_a_unit_already_holds_the_write_lock` holds the lock while the unit has only read and reddens under the downgrade. The allocation test still cannot see the change, for the reason above.)*
 
 ## LC-P1-06 — Checkpoint, operation reconciliation and revision
 

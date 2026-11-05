@@ -1,5 +1,113 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
+the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,
+and batches 8–10 are in the tree. What remains is the owner's: the licence,
+the CI provider credential, the next material batch, and the deferred
+delivery PR.**
+
+**What landed on 2026-11-05, with its record:**
+
+- **The unseen papers' blind evaluation closed out.** Both papers' sheets
+  were rated by independent reader sessions (no project memory, no account of
+  the work), checked and arbitrated; the owner decided on 2026-11-05 that an
+  **independent agent session may stand in for a human reader**, and the
+  records say the substitution plainly. Agreement: paper 1 **343/420**, paper
+  2 **441/455**; 77 and 14 disputes settled by third readers; **all 30
+  verdicts NOT SIGNIFICANT** (the closest: D vs C on advisor comprehension,
+  paper 1, 5 wins, p=0.0625). Records:
+  [LC-P2-14 rating close-out](../acceptance/LC-P2-14-rating-closeout.md) §9,
+  [unseen paper 2](../acceptance/LC-P2-14-unseen-material.md), commit
+  `4aeb2fb`; the model-reader decision is `8da3c55`.
+- **The G1/G2 checklist ran.** All 33 rows were measured and confirmed by
+  the owner: **21 A, 12 B, 0 C, 0 D**; the twelve B rows name witness
+  problems (wrong file cited, platform premise, partial coverage). Record
+  [G1-G2 owner review](../acceptance/G1-G2-owner-review.md), commit
+  `d63078c`. The independence clause is **not** discharged by that review —
+  the owner dispatched the work; an independent session is re-running it now.
+- **The citation-support metric is measured.** The first filled sample (45
+  rows: 36 supported, 9 unsupported) ran through the harness:
+  **`evidence-locator-validity 36/45`**. Record
+  [LC-P2-26](../acceptance/LC-P2-26-retrieval-metric-machinery.md) §4, commit
+  `d959044`. The frozen P1 baseline predates the key, so no baseline pair
+  prints yet.
+- **The rule layer's third rule has a check.** The one remaining candidate
+  was confirmed; its check was drafted by a model, confirmed by the owner as
+  the second reader, and bound to version 1 — with the negative that a
+  candidate check cannot be bound demonstrated on the real rows. The store
+  now holds **27 rule rows (25 confirmed, 2 disputed v1), 25 checks, 25
+  bindings**. Record
+  [LC-P2-11 check binding](../acceptance/LC-P2-11-check-binding.md) §8,
+  commit `e248a6d`.
+- **Batch 8's draft chain became a version graph.** Nine supplied files of
+  one paper (eight unique texts, a seven-step chain) were assembled into the
+  real pilot store: **9 versions, 7 owner-accepted edges, 2,289 revision
+  events**; no rule was distilled (the one rich channel is a translation
+  pass and the owner ruled it is not a distillation source). Record
+  [LC-P2-08 batch 8](../acceptance/LC-P2-08-batch8-version-graph.md), commit
+  `1d328fd`.
+
+- **Batch 9's response letters routed through `replies`.** The three-paper
+  batch was reconnoitred first: 8 English response letters, 72 `Point`
+  items (46 after de-duplication); the agriculture letters carry **20
+  clean pairs** and the MNB letters **24**; the water-supply letter is a
+  mixed-source re-issue (its first two points are verbatim MNB) and was
+  not touched; **the English revised manuscripts the letters describe are
+  not in the material**. The 44 pairs were written to a fresh scratch
+  store through `record_replies` and read back **44/44 with matching text
+  hashes**, parties `reviewer → author`, all `observed`. Record
+  [LC-P2-14 batch 9 pilot](../acceptance/LC-P2-14-batch9-pilot.md), commit
+  `c25bb6d8922c9e0bb6027d951d0786e110fa6541`.
+
+**Where `main` stands.** Ahead of `origin/main` by **37 commits**, all
+measured locally; the owner chose on 2026-11-05 to send delivery after the
+final whole-suite result. That result, on the final merged tree at
+`9653b85`, is **4,941 passed, 14 skipped, 0 failed, 1,161 warnings in
+1,860.32 s (31 m)** — Windows 11, Python 3.12.13, no `PYTHONPATH`, with the
+suite's own `TEMP`/`TMP`/`TMPDIR`/`MPLCONFIGDIR` and `--basetemp` outside the
+repository. The earlier 4,898/5 run was on a different tree, and its five
+reds were clone/wheel subprocess tests that pass (18/18) when the parent's
+`PYTHONPATH` is removed; the final run has no such contamination.
+
+**Three decisions landed later on 2026-11-05.** The locator baseline is
+frozen over the 45-row citation sample at `c5e1f40`
+(`evidence-locator-validity 36/45`; five offline classes green, an
+independent reader agrees 45/45) —
+[`LC-P2-26-baseline.json`](../acceptance/LC-P2-26-baseline.json), commit
+`d127819`. An independent agent session re-ran the G1/G2 checklist at
+`1d328fd` (19 A / 14 B / 0 C / 0 D), which satisfies the board's
+independence clause under the owner's reader decision; its clean whole
+suite was stopped when found concurrent with the baseline harness, so no
+whole-suite count is claimed — commit `925113d`. **The Phase 2 exit gate
+is CLOSED, PASS WITH NOTES**: no measured capability gain (30 verdicts NOT
+SIGNIFICANT, smallest p 0.0625), with five notes travelling with the
+verdict — [`LC-P2-14-phase2-exit-gate.md`](../acceptance/LC-P2-14-phase2-exit-gate.md),
+commit `54ac696`. **CEJ full ingestion is designed, not implemented**:
+[`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md) and
+[`LC-P2-28`](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
+separate quoted opinions, flagged text, version pairs and mixed-source
+refusal; commit `a9d1274`.
+
+**Batches 9 and 10.** Batch 9's water 3→5 version graph was rehearsed on a
+copy (3 versions, 1 unaccepted model edge, 345 revisions, 5 comments, 11
+mutations all red) and then written to the **real pilot store** on the
+owner's approval: the store moved from `c0256fd3…` to `1d089878…`, with a
+rollback point — commits `32cf6e1`, `ac8fe6f`. Four negative witnesses
+(answer range, red-font semantics, identical bytes, mixed-source letter)
+were added and mutation-checked — `3f9a313`, merged at `131ce4b`. Batch 10
+(a supplied archive, 184 files, an eight-directory draft chain with 17
+OLE2 `.doc` files) has
+three negative witnesses (OLE2 unparseable, marker words mint no events, a
+mixed folder inventories candidates without picking one) and an eight-row
+version graph: **8 versions, 7 unaccepted model edges, 0 fabricated revision
+or feedback events** in the real pilot store. Its first two-gate write stopped
+on a missing isolated TEMP directory, was rolled back to the exact pre-run
+bytes, then succeeded; the store moved to `fe1905fd6f38c13f03…` — commits
+`fc6d1db`, `0e83aa9`, `d19ea04`. The licence, the CI provider credential
+and the next material batch remain the owner's.
+
+---
+
 **Date:** 2026-11-04 · **every machine-buildable piece of Phase 2 is in the
 tree; what remains waits on the owner.**
 

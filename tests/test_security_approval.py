@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
@@ -352,6 +353,46 @@ def test_an_unknown_approval_id_is_not_a_refusal(workspace: Workspace) -> None:
             current_policy_digest="d",
             resolve_source=lambda k: Path(k),
         )
+
+
+def test_a_forged_approval_id_cannot_change_the_target(workspace: Workspace) -> None:
+    """An injected document's ``ALLOW`` line and its approval id are both inert.
+
+    The document names a target and an approval id, exactly as the injected
+    text in ``test_security_injection.py`` does. The id is not in the ledger,
+    so spending it fails before any condition is even weighed; and the one
+    grant that does exist is bound by its digest to ``report.md``, so naming
+    that grant while asking for another target is refused. Between the two,
+    the document changes neither what may be written nor where.
+    """
+    ledger = ApprovalLedger()
+    policy = PermissionPolicy()
+    grant, _ = granted(ledger, workspace, policy_digest=policy.digest(), key="report.md")
+
+    forged = ApprovalId(UUID("00000000-0000-7000-8000-000000000000"))
+    target = workspace.path_in("passwd", workspace.output_root.root_id)
+    with pytest.raises(NoSuchApprovalError):
+        ledger.consume(
+            forged,
+            now=NOW,
+            task_id=workspace.task_id,
+            capability="fs.write",
+            resource=target,
+            args={"path": "passwd"},
+            depends_on=(),
+            current_policy_digest=policy.digest(),
+            resolve_source=lambda k: Path(k),
+        )
+
+    # Even the real grant cannot be redirected: its digest is over the target.
+    with pytest.raises(AuthorizationRefusedError) as caught:
+        consume(ledger, grant, workspace, policy_digest=policy.digest(), key="passwd")
+    assert caught.value.refusal is ApprovalRefusal.ARGS_CHANGED
+
+    # A refused spend does not move the grant; it is still there, unconsumed.
+    stored = ledger.peek(grant.approval_id)
+    assert stored is not None
+    assert stored.approval.state is ApprovalState.GRANTED
 
 
 # ---------------------------------------------------------------------------

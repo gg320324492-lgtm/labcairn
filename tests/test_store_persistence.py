@@ -26,6 +26,7 @@ from typing import Any, NamedTuple
 import pytest
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import QueuePool
 from store_support import (  # noqa: F401
     StoreEnv,
     frozen_clock,
@@ -332,6 +333,38 @@ def test_the_events_table_survives_reopen_without_rewriting(env: StoreEnv) -> No
     finally:
         session.close()
         engine.dispose()
+
+
+def test_a_restart_disposes_the_old_pool_rather_than_reusing_it(env: StoreEnv) -> None:
+    """The word "restart" is load-bearing, so the test proves it is one.
+
+    Reopening a database through a pool that was never disposed would still
+    read the same rows — SQLite serves two connections to one file — and every
+    identity assertion above would pass while proving nothing about what
+    survived on disk. ``Engine.dispose`` replaces the pool, so the old pool
+    must hold no connection once the restart begins.
+    """
+    env.store().create_task(make_task())
+
+    old_pool = env.engine.pool
+    assert isinstance(old_pool, QueuePool), (
+        "the engine is expected to pool connections; a different pool class "
+        "would make the assertions below vacuous"
+    )
+    assert old_pool.checkedin() > 0, (
+        "the engine had no pooled connection before the restart; the witness "
+        "would pass for the wrong reason"
+    )
+
+    env.dispose()
+
+    assert env.engine.pool is not old_pool, (
+        "dispose did not replace the pool; a restart that reuses it reads "
+        "through the same connection the pre-restart code used"
+    )
+    assert old_pool.checkedin() == 0, (
+        "the disposed pool still holds a connection; the 'restart' is a reuse"
+    )
 
 
 def test_a_checkpoint_survives_a_restart_with_its_through_seq(env: StoreEnv) -> None:

@@ -244,6 +244,32 @@ def test_the_write_lock_is_taken_before_the_first_read(env: StoreEnv) -> None:
     )
 
 
+def test_a_read_inside_a_unit_already_holds_the_write_lock(env: StoreEnv) -> None:
+    """The lock is observable in behaviour, not only in the SQL text.
+
+    A unit that has only read still owns the write lock, because the lock was
+    taken at ``BEGIN``. A deferred ``BEGIN`` leaves it free until the first
+    write, so a second connection can commit a write in the meantime — and the
+    unit's own write then fails at the upgrade. The probe uses ``timeout=0``
+    so the outcome is a fact about the lock rather than a race against a timer.
+    """
+    task = make_task()
+    env.store().create_task(task)
+
+    with env.store().unit(task.task_id):
+        # The first statement opens the transaction. It is a read on purpose:
+        # under a deferred BEGIN this read would take no write lock at all.
+        env.session.execute(text("SELECT 1"))
+
+        probe = sqlite3.connect(str(env.db_path), timeout=0)
+        try:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                probe.execute("BEGIN IMMEDIATE")
+                probe.execute("UPDATE tasks SET title = title")
+        finally:
+            probe.close()
+
+
 def test_a_naive_deferred_begin_would_contend(env: StoreEnv) -> None:
     """A direct check that lock contention is *waited* on, not raised.
 

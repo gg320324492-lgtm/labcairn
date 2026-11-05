@@ -200,6 +200,73 @@ def _require_str(row: Mapping[str, Any], key: str, where: str) -> str:
     return value
 
 
+#: The protocol groups a call can belong to. A run row names its group either
+#: directly (``group``) or through the scope the driver recorded (``run_scope``).
+PROTOCOL_GROUPS: Final[tuple[str, ...]] = ("five_arm", "arrangement_pair")
+
+
+def _scope_group(scope: str) -> str | None:
+    """The protocol group one run scope names, or ``None``.
+
+    A scope is the group itself, optionally with a suffix that separates one
+    run of that group from another; ``five_arm_unseen2`` is the second paper's
+    five-arm run. No scope can name two groups, because no group's name is a
+    prefix of another.
+    """
+    for group in PROTOCOL_GROUPS:
+        if scope == group or scope.startswith(f"{group}_"):
+            return group
+    return None
+
+
+def _answer_name(row: Mapping[str, Any], where: str) -> str:
+    """The one name a row gives its answer body by.
+
+    One run writes each answer to a file and records its name; the runner of
+    another keys its answers by the item id it minted and records no file name
+    at all. Either is a name a body can be looked up by. A row that gives two
+    is refused rather than guessed at: which one the body sits under is not
+    something the reader should have to decide.
+    """
+    named = sorted(
+        {
+            value
+            for value in (row.get("answer_file"), row.get("item_id"))
+            if isinstance(value, str) and value
+        }
+    )
+    if not named:
+        raise RatingRefusedError(f"{where} names no answer file and no item id")
+    if len(named) > 1:
+        raise RatingRefusedError(f"{where} names its answer two ways: {', '.join(named)}")
+    return named[0]
+
+
+def _row_group(row: Mapping[str, Any], where: str) -> str:
+    """The protocol group of one row, read from its group or from its scope.
+
+    Deriving it from the scope is what lets the rows a run records without a
+    group — its calibration calls — join the same assembly as the rows it
+    records with one. Where a row carries both, they have to say the same
+    thing; a row whose scope contradicts its group is refused, because the
+    group is what decides whether the arm letter is taken as it stands or cast
+    into one of the arrangement pair's two variants.
+    """
+    scope = row.get("run_scope")
+    named = _scope_group(scope) if isinstance(scope, str) and scope else None
+    group = row.get("group")
+    if isinstance(group, str) and group:
+        if named is not None and named != group:
+            raise RatingRefusedError(
+                f"{where} names the group {group!r} under the run scope "
+                f"{scope!r}, which names {named!r}"
+            )
+        return group
+    if named is None:
+        raise RatingRefusedError(f"{where} carries no group and no run scope naming one")
+    return named
+
+
 def build_volumes(
     rows: Sequence[Mapping[str, Any]],
     answer_body: Mapping[str, str],
@@ -212,33 +279,46 @@ def build_volumes(
     ``ok`` is refused: a partial run does not produce a partial blind sheet.
     A case key or source id quoted inside an answer body is a route back to
     the answer; the route token is redacted before a rater sees the body.
+
+    The source id a volume is minted from is the row's own name for its
+    answer, never a name this reader invents. Two runs of one protocol record
+    that name differently, and both dialects are read here so that one
+    assembly covers every answer a run produced: one answer, one volume, and
+    one anonymous id per volume. One answer claimed by two run scopes is
+    refused rather than rated twice: the two scopes would then be rating the
+    same answer under two arms.
     """
     if not rows:
         raise RatingRefusedError("the run carries no call rows")
     case_ids = sorted({str(row["case"]) for row in rows if isinstance(row.get("case"), str)})
-    source_ids = sorted(
-        str(row["answer_file"]).removesuffix(".txt")
-        for row in rows
-        if isinstance(row.get("answer_file"), str)
-    )
+    names = [_answer_name(row, f"call {row.get('call', '?')}") for row in rows]
+    source_ids = sorted({name.removesuffix(".txt") for name in names})
     volumes: list[AnswerVolume] = []
-    seen: set[str] = set()
-    for row in rows:
+    claimed: dict[str, str] = {}
+    for row, name in zip(rows, names, strict=True):
         where = f"call {row.get('call', '?')}"
         if row.get("status") != "ok":
             raise RatingRefusedError(f"{where} is not complete")
-        name = _require_str(row, "answer_file", where)
-        if name in seen:
-            raise RatingRefusedError(f"{where} repeats answer file {name}")
-        seen.add(name)
+        source_id = name.removesuffix(".txt")
+        scope = row.get("run_scope")
+        scope_key = scope if isinstance(scope, str) else ""
+        before = claimed.get(source_id)
+        if before is not None:
+            if before != scope_key:
+                raise RatingRefusedError(
+                    f"the answer {source_id} is claimed by two run scopes: "
+                    f"{before!r} and {scope_key!r}"
+                )
+            raise RatingRefusedError(f"{where} repeats answer {name}")
+        claimed[source_id] = scope_key
         text = answer_body.get(name)
         if not isinstance(text, str) or not text.strip():
             raise RatingRefusedError(f"{where} has no answer body for {name}")
-        for source_id in source_ids:
-            text = text.replace(source_id, "[source-id redacted]")
+        for known in source_ids:
+            text = text.replace(known, "[source-id redacted]")
         for case_id in case_ids:
             text = text.replace(case_id, "[case-key redacted]")
-        group = _require_str(row, "group", where)
+        group = _row_group(row, where)
         case = _require_str(row, "case", where)
         raw_arm = _require_str(row, "arm", where)
         roles = row.get("roles")
@@ -252,14 +332,12 @@ def build_volumes(
             raise RatingRefusedError(f"{where} names an unknown group {group!r}")
         volumes.append(
             AnswerVolume(
-                source_id=name.removesuffix(".txt"),
+                source_id=source_id,
                 answer=text,
                 arm=arm,
                 case=case,
             )
         )
-    if len({volume.source_id for volume in volumes}) != len(volumes):
-        raise RatingRefusedError("two answer volumes carry the same source id")
     return tuple(volumes)
 
 

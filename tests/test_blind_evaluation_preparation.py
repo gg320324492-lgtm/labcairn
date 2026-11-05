@@ -1876,3 +1876,210 @@ class TestHumanRatingCloseout:
         assert by_dimension["evidence_support"].verdict.counts.cases == 9
         assert by_dimension[closeout.HALLUCINATION_DIMENSION].verdict.counts.cases == 12
         assert by_dimension["abstention"].verdict.counts.cases == 12
+
+
+# -- the second paper's assembly ---------------------------------------------
+
+
+def _unseen2_rows() -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """91 invented call rows in the second paper's shape, and their bodies.
+
+    These rows name their answers by the run's own item id instead of by a
+    file name, and they record the scope the driver ran them under. The five
+    calibration calls record no group at all: the scope says which group they
+    belong to. The bodies are English fixture sentences, not material and not
+    a real answer.
+    """
+    rows: list[dict[str, Any]] = []
+    bodies: dict[str, str] = {}
+    schedule: list[tuple[str, str, str, list[str], bool]] = []
+    for arm in ("A", "B", "C", "D", "E"):
+        schedule.append(("five_arm", arm, "b6-01", ["guidance"], False))
+    for case_number in range(2, 14):
+        for arm in ("A", "B", "C", "D", "E"):
+            schedule.append(("five_arm", arm, f"b6-{case_number:02d}", ["guidance"], True))
+    for case_number in range(1, 14):
+        schedule.append(("arrangement_pair", "B", f"b6-{case_number:02d}", ["guidance"], True))
+        schedule.append(
+            (
+                "arrangement_pair",
+                "B",
+                f"b6-{case_number:02d}",
+                ["guidance", "independent_critique"],
+                True,
+            )
+        )
+    assert len(schedule) == 91
+    scopes = {"five_arm": "five_arm_unseen2", "arrangement_pair": "arrangement_pair_unseen2"}
+    for call, (group, arm, case_key, roles, carries_group) in enumerate(schedule, start=1):
+        item_id = f"item-{call:016x}"
+        row: dict[str, Any] = {
+            "call": call,
+            "arm": arm,
+            "case": case_key,
+            "roles": roles,
+            "status": "ok",
+            "item_id": item_id,
+            "run_scope": scopes[group],
+        }
+        if carries_group:
+            row["group"] = group
+        rows.append(row)
+        bodies[item_id] = f"[synthetic answer volume {call}]"
+    return rows, bodies
+
+
+def _unseen2_volumes() -> tuple[closeout.AnswerVolume, ...]:
+    """The 91 volumes as the close-out reader parses them."""
+    rows, bodies = _unseen2_rows()
+    return closeout.build_volumes(rows, bodies)
+
+
+def _rated_sheet(sheet: Mapping[str, Any], *, rater: str) -> dict[str, Any]:
+    """One rater's sheet with every label set to the same considered value."""
+    items: list[dict[str, Any]] = []
+    for item in sheet["items"]:
+        assert isinstance(item, Mapping)
+        items.append(
+            {
+                "item_id": item["item_id"],
+                "answer": item["answer"],
+                "ratings": dict.fromkeys(DIMENSIONS, "yes"),
+            }
+        )
+    return {"sheet_id": sheet["sheet_id"], "rater": rater, "rated": True, "items": items}
+
+
+class TestTheSecondPapersAssembly:
+    """The second paper's 91 answers: two scopes, one anonymous shape."""
+
+    def test_the_ninety_one_volumes_assemble_into_two_anonymous_sheets(self) -> None:
+        """Every answer of the second paper is rated, and none of them leaks."""
+        volumes = _unseen2_volumes()
+        assert len(volumes) == 91
+        arms: dict[str, int] = {}
+        for volume in volumes:
+            arms[volume.arm] = arms.get(volume.arm, 0) + 1
+        assert arms == {
+            "A": 13,
+            "B": 13,
+            "C": 13,
+            "D": 13,
+            "E": 13,
+            "B-only": 13,
+            "B+critique": 13,
+        }
+        sheet_a, sheet_b, unblinding = closeout.assemble_rating_sheets(volumes)
+        assert len(unblinding["items"]) == 91
+        assert set(_item_ids(sheet_a)) == set(unblinding["items"])
+        assert set(_item_ids(sheet_b)) == set(unblinding["items"])
+        assert all(item_id.startswith("volume-") for item_id in unblinding["items"])
+        run_ids = {volume.source_id for volume in volumes}
+        assert run_ids.isdisjoint(unblinding["items"])
+        assert _item_ids(sheet_a) != _item_ids(sheet_b)
+        closeout.assert_anonymous_sheets(
+            sheet_a, sheet_b, closeout.make_leak_vocabulary(unblinding)
+        )
+
+    def test_the_runs_own_item_id_is_not_an_anonymous_id(self) -> None:
+        """The gap the second paper's rating table had: its ids were item-."""
+        rows, _ = _unseen2_rows()
+        run_item_id = str(rows[0]["item_id"])
+        assert run_item_id.startswith("item-")
+        with pytest.raises(closeout.RatingRefusedError, match="non-anonymous item id"):
+            closeout.read_unblinding({"items": {run_item_id: {"arm": "A", "case": "b6-01"}}})
+
+    def test_the_group_is_read_from_the_run_scope_when_the_row_records_none(self) -> None:
+        """A row that records no group still belongs to the group its scope names."""
+        rows, bodies = _unseen2_rows()
+        calibration = next(row for row in rows if "group" not in row)
+        assert calibration["run_scope"] == "five_arm_unseen2"
+        volumes = closeout.build_volumes(rows, bodies)
+        by_source = {volume.source_id: volume for volume in volumes}
+        assert by_source[str(calibration["item_id"])].arm == str(calibration["arm"])
+
+        without_group = [dict(row) for row in rows]
+        for row in without_group:
+            row.pop("group", None)
+        volumes = closeout.build_volumes(without_group, bodies)
+        arrangement = [volume for volume in volumes if volume.arm in {"B-only", "B+critique"}]
+        assert len(arrangement) == 26
+
+    def test_a_row_whose_scope_contradicts_its_group_is_refused(self) -> None:
+        """A scope that says another group is not read past the row that says it."""
+        rows, bodies = _unseen2_rows()
+        contradicted = [dict(row) for row in rows]
+        target = next(row for row in contradicted if row.get("group") == "five_arm")
+        target["run_scope"] = "arrangement_pair_unseen2"
+        with pytest.raises(closeout.RatingRefusedError, match="names the group"):
+            closeout.build_volumes(contradicted, bodies)
+
+    def test_a_run_scope_that_names_no_group_is_refused(self) -> None:
+        """A scope that names no protocol group is not guessed at."""
+        rows, bodies = _unseen2_rows()
+        unknown = [dict(row) for row in rows]
+        target = next(row for row in unknown if "group" not in row)
+        target["run_scope"] = "pilot_unseen2"
+        with pytest.raises(
+            closeout.RatingRefusedError, match="carries no group and no run scope naming one"
+        ):
+            closeout.build_volumes(unknown, bodies)
+
+    def test_one_answer_cannot_be_claimed_by_two_run_scopes(self) -> None:
+        """One answer under two scopes would be rated twice, under two arms."""
+        rows, bodies = _unseen2_rows()
+        collided = [dict(row) for row in rows]
+        five_arm_row = next(row for row in collided if row.get("group") == "five_arm")
+        arrangement_row = next(row for row in collided if row.get("group") == "arrangement_pair")
+        arrangement_row["item_id"] = five_arm_row["item_id"]
+        with pytest.raises(closeout.RatingRefusedError, match="claimed by two run scopes"):
+            closeout.build_volumes(collided, bodies)
+
+    def test_the_first_paper_is_unaffected_by_the_second_papers_shape(self) -> None:
+        """The first paper's 84 volumes read exactly as they did before."""
+        volumes = _closeout_volumes()
+        assert len(volumes) == 84
+        arms: dict[str, int] = {}
+        for volume in volumes:
+            arms[volume.arm] = arms.get(volume.arm, 0) + 1
+        assert arms == {
+            "A": 12,
+            "B": 12,
+            "C": 12,
+            "D": 12,
+            "E": 12,
+            "B-only": 12,
+            "B+critique": 12,
+        }
+        sheet_a, sheet_b, unblinding = closeout.assemble_rating_sheets(volumes)
+        assert len(unblinding["items"]) == 84
+        assert all(item_id.startswith("volume-") for item_id in unblinding["items"])
+        assert _item_ids(sheet_a) != _item_ids(sheet_b)
+
+    def test_the_third_contrast_is_computable_once_the_arrangement_volumes_are_in_the_table(
+        self,
+    ) -> None:
+        """With all 91 volumes rated, the arrangement pair is one of three."""
+        volumes = _unseen2_volumes()
+        sheet_a, sheet_b, unblinding = closeout.assemble_rating_sheets(volumes)
+        report = closeout.close_out(
+            _rated_sheet(sheet_a, rater=closeout.RATER_A),
+            _rated_sheet(sheet_b, rater=closeout.RATER_B),
+            {"reader": "third-reader", "arbitrations": []},
+            unblinding,
+            _all_denominators(unblinding),
+        )
+        assert [contrast.contrast for contrast in report.reports] == [
+            "D vs C",
+            "E vs D",
+            "B+C vs B-only",
+        ]
+        for contrast in report.reports:
+            assert len(contrast.rows) == len(DIMENSIONS)
+            for row in contrast.rows:
+                verdict = row.verdict
+                assert verdict.counts.wins == 0
+                assert verdict.counts.losses == 0
+                assert verdict.counts.ties == 13
+                assert verdict.significant is False
+        assert closeout.verdict_word(False) == "NOT SIGNIFICANT"
