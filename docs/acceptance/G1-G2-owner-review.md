@@ -101,3 +101,38 @@ The 33 rows are the checklist's own: G1's 13, G2's 7 + 7 + 6.
   lets an independent agent session stand in for a human reader, but this
   review was a project session's, so the rule still asks for a later review
   by an independent session that took no part in building the work.
+
+---
+
+## 5. The twelve B rows, followed up — 2026-11-05
+
+After the owner's confirmation the twelve B rows were worked through. The
+work is commit `eff2b68cb8dd1850a6f1ba5929aadedc2c419e0a`, merged into
+`main` after the review record; **the independence gap this record names is
+not changed by it**.
+
+**Four witness gaps were closed, each mutation-verified:**
+
+| B row | The gap | The witness added |
+|---|---|---|
+| G2.2-4 | deleting `assert_replayable`'s `ATTEMPTING` arm left the whole crash-matrix file green | `test_at2c_an_attempting_operation_is_refused_before_reconciliation_runs` — removing `ATTEMPTING` from the guard reddens it |
+| G1-12 | `security_policy.py` had no dedicated witness for "ALLOW cannot change the target" | `test_a_forged_approval_id_cannot_change_the_target` |
+| G2.1-5 | a `BEGIN IMMEDIATE` → `BEGIN` mutation left the concurrency test green | `test_a_read_inside_a_unit_already_holds_the_write_lock` |
+| G2.1-7 | deleting `env.dispose()` left the persistence tests green | `test_a_restart_disposes_the_old_pool_rather_than_reusing_it` |
+
+**Three checklist references were corrected** — G1-5, G1-10 and G1-11 now
+name the nodes that actually redden under the mutation, not the files the
+checklist had cited.
+
+**Five rows stay as limitations, not gaps:** G1-6 (a platform premise:
+`Path.is_symlink()` on a junction), G2.2-6 (one arm mutated, the other seven
+run at baseline only), and G2.3-3/4/5 (one row lists several mechanisms; a
+single mutation cannot cover all of them). No witness was manufactured for
+these.
+
+**The coordinator's verification.** The four files pass together (**53
+passed**); the witness ledger over the merge is `LOST — none` with **4 test
+functions added**; `ruff`, `ruff format` and `mypy` (397 source files) are
+green. The coordinator re-ran the `ATTEMPTING` mutation personally: the new
+witness reddens and the restored file turns green. The other three
+mutations were verified in the session that wrote the witnesses.
