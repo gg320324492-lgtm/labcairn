@@ -1,7 +1,9 @@
 # G1 and G2 — the human independent review, as a checklist
 
-**Status:** prepared 2026-10-29. **Not executed.** No verdict in this file is a
-review outcome; every box is empty on purpose.
+**Status:** prepared 2026-10-29. **Run 2026-11-05 and confirmed row by row
+by the owner** — see [`G1-G2-owner-review.md`](G1-G2-owner-review.md). That
+record states what this run does and does not discharge: the reviewer is the
+party that dispatched the work, so the board's independence rule stays unmet.
 
 **Why it exists.** The board's rule is that
 *"A row is never marked done because something looks finished — it is marked done
