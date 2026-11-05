@@ -450,3 +450,39 @@ drafts and not between two rows.
 - **No new test file was created.** The negative already has a witness in
   `tests/test_guidance_rules.py`, and the pilot run above measures the
   same property on real material.
+
+---
+
+## 8. The third rule's check — 2026-11-05
+
+The one rule that was still a `candidate` (`rule-fea4dea2b16b6759`,
+`data_quality`) was confirmed by the owner and given a check. The check was
+drafted by a model (`model_proposal`), confirmed by the owner as the second
+reader, and bound to the rule's **version 1** — the rule's only version.
+
+**The wording is not carried here.** The rule and its check are written in
+the material's language, Chinese; this repository's records are English, and
+the check row in the pilot store is the authority. Its id,
+`check-8da62cd8c2c07837`, is derived from the wording, the proposer and the
+instant, so the id and the wording are one fact.
+
+**The negative, measured on the real rows.** The bind was attempted while
+the check was still a `candidate` and was refused as
+`guidance_check_not_confirmed`; the real bind ran only after the
+confirmation. The order is the witness, not an assertion.
+
+**Read back.** The rule is `confirmed` at v1; the check is `confirmed` by
+`owner`; one binding decides the rule at v1. The store now holds 27 rule
+rows (25 `confirmed`, 2 `disputed` v1 rows superseded by their v2), 25
+checks — all `confirmed` — and 25 bindings.
+
+**The backup and the operator script.** The database was copied before the
+run to `E:\labcairn-local\checkbind-pilot4\labcairn.db.before_20261105T084935Z`
+(sha256 prefix `8d37ca218d997430`); the script that made the writes is
+`E:\labcairn-local\bind_candidate_check.py`. Both live outside this
+repository.
+
+**What this is.** One more rule now names a confirmed check. The served face
+is read through the binding, so this rule can be served the same way the
+other 24 are; a retrieval card for it is the next check, not part of this
+write.
