@@ -74,7 +74,37 @@ arbitration decisions are beside them; the unblinding maps are not part of
 any rater packet. The tree carries no answer text, arm label beside a rater
 sheet, material words or person names.
 
-## 5. Review of the claim
+## 5. The gate verdict — 2026-11-05
+
+**Owner decision: Phase 2's exit gate is CLOSED, PASS WITH NOTES.** The
+protocol allowed *"no measurable gain"* as an answer; the measurement was
+made, the answer was recorded in §2, and the gate is judged on whether the
+phase produced an honest, witnessed answer — not on whether the answer was
+favourable.
+
+**The notes that travel with the verdict:**
+
+1. **The readers were independent agent sessions, not human beings.** Under
+   the owner's 2026-11-05 decision they may stand in for human readers, but
+   the agreement figures are agent-to-agent, not inter-human reliability.
+2. **Windows only for the independent G1/G2 re-review**; POSIX-only
+   witnesses remain NOT MEASURED. Its clean whole-suite run was stopped
+   because it was found concurrent with the baseline harness, so no
+   whole-suite count backs that review — its 33 row-level mutations do.
+3. **The real-provider smoke is NOT RUN** in the frozen baseline (harness
+   exit 2) and the CI credential is the owner's.
+4. **The licence is unresolved** and the repository deliberately carries no
+   LICENSE file.
+5. **The delivery PR is deferred** by the owner's choice; `main` is ahead of
+   `origin/main` and nothing has been pushed.
+
+**What the verdict does not do.** It does not start Phase 3, does not
+claim a capability gain, does not turn a non-significant result into
+equivalence, and does not close the owner-side items above. A later human
+rating, if it ever exists, replaces the current sheets rather than adding
+to them.
+
+## 6. Review of the claim
 
 A record that says "no measured capability gain" is itself a claim about
 what was measured. Its witnesses are the close-out machinery's own: the
