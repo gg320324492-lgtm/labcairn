@@ -106,6 +106,8 @@ from labcairn.db.models import (
     GuidanceRuleCounterexampleRow,
     GuidanceRuleRow,
     GuidanceRuleSourceRow,
+    PaperProjectRow,
+    PaperVersionRow,
     ReplyRow,
     ResponseLinkRow,
 )
@@ -3515,6 +3517,61 @@ def test_the_layer_reads_the_projects_graph_and_only_its_accepted_edges(
     )
     assert alone.version_ids == frozenset({"ver-1"})
     assert alone.edges == ()
+
+
+def test_the_layer_refuses_a_version_that_belongs_to_another_project(
+    mentor_chain: _MentorChain,
+) -> None:
+    """A version the store holds under another project is not this chain's.
+
+    **"The version does not exist" and "the version is another project's"
+    are both outside this project**, and the guard refuses both for the
+    same reason: a listing narrowed to that version would answer about a
+    chain this one is not. The rows are written directly, the way the
+    version graph's scaffolding writes them -- a second project is not
+    something the product can be asked to write here -- and the version
+    **is** in the store, so this witness cannot pass by the id being
+    unknown.
+    """
+    session = mentor_chain.context.store.session
+    session.add(
+        PaperProjectRow(
+            project_id="proj-other",
+            workspace_id="ws-1",
+            subject_pseudonym="subject-other",
+            consent_ref=None,
+            created_at=_MOMENT,
+        )
+    )
+    session.add(
+        PaperVersionRow(
+            version_id="ver-other",
+            project_id="proj-other",
+            source_id=mentor_chain.chain.source_id,
+            source_content_sha256=None,
+            version_label_raw="manuscript.docx",
+            stage_candidate="advisor_reviewed",
+            status="resolved",
+            created_at=_MOMENT,
+        )
+    )
+    session.commit()
+
+    with pytest.raises(ApplicationRefusedError) as caught:
+        chain_layer.read_issue_keys(
+            mentor_chain.context,
+            project_id=mentor_chain.chain.project_id,
+            version_ids=("ver-other",),
+        )
+    assert caught.value.reason is ApplicationRefusal.CHAIN_VERSION_NOT_FOUND
+
+    # **And the project's own version is served**, so the refusal is about
+    # the version that does not belong and not about the listing.
+    assert chain_layer.read_issue_keys(
+        mentor_chain.context,
+        project_id=mentor_chain.chain.project_id,
+        version_ids=(mentor_chain.chain.version_id,),
+    ) == (_MENTOR_KEY,)
 
 
 # -- the chain's write doors ------------------------------------------------- #
