@@ -486,3 +486,22 @@ repository.
 is read through the binding, so this rule can be served the same way the
 other 24 are; a retrieval card for it is the next check, not part of this
 write.
+
+---
+
+## 9. The retrieval card — 2026-11-05
+
+The rule from §8 is served. On a **scratch copy** of the pilot store
+(`E:\labcairn-local\rule-card\ws`, the database copied, the real store never
+opened), `search_rules(issue_type="data_quality")` returned **1 hit**:
+`rule-fea4dea2b16b6759` v1, confirmed, with its check
+`check-8da62cd8c2c07837` (confirmed) and **1 source** standing. The card is
+`E:\labcairn-local\rule-card\card.json`; the question and pass criterion are
+in it, outside this repository.
+
+**A workspace note, so a re-run does not learn it the hard way.** The
+workspace guard refuses a junction whose source root resolves outside the
+workspace ("a source root the workspace does not contain is a root the
+operator's selection does not govern"). An **empty** materials root satisfied
+binding, and the search read only the database's rows — no material file was
+needed for this card.
