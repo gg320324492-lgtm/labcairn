@@ -382,3 +382,49 @@ records as failing roughly two runs in five on that line. That file passes
 on its own, and this change touches nothing in the database layer. The
 shard-cost witness came out green: this change edits two existing files and
 adds no new test file, so no measured per-file cost moved.
+
+
+## 9. The close-out ran — with model readers, not human ones
+
+**Status.** Both unseen papers' sheets were filled, checked, arbitrated and
+closed on 2026-11-05. The close-out's numbers exist. **They are not a human
+blind rating.** Both raters and both arbiters were independent model-reader
+sessions with no project context, and the owner chose that arrangement on
+2026-11-05. The protocol's condition — two independent **human** readers —
+therefore remains unmet, and no capability claim is made from these numbers.
+
+**What ran.** Each rater was a fresh session with no project memory; the
+sheets carry no arm, and the readers did not open the unblinding maps. The
+second reader's counts and the arbiters' decisions are recorded in the
+rating logs and `arbiter.json` under each kit's `sheets/` directory
+(operator-side, outside this repository).
+
+| Paper | Labels | Agreement | Disagreements | Settled | Excluded |
+|---|---|---|---|---|---|
+| 1 (84 volumes) | 420 | **343/420 (81.7%)** | 77 | 420 | 0 |
+| 2 (91 volumes) | 455 | **441/455 (96.9%)** | 14 | 455 | 0 |
+
+Paper 1's third reader settled 77 disputes (75 yes, 2 unknown, 0 no);
+paper 2's settled 14 (14 yes, 0 unknown, 0 no).
+
+**Denominators.** The owner chose the **all-case wide mask** on 2026-11-05:
+every dimension over every case — 12 cases for paper 1, 13 for paper 2 —
+including hallucination and mis-citation. The protocol gives the five
+dimensions different denominators; this record states the owner's choice
+rather than treating the wide mask as the protocol's own.
+
+**Close-out.** Paper 1: **all 15 verdicts NOT SIGNIFICANT** — the only
+non-tied contrast is D vs C on `advisor_comprehension` (5 wins, 0 losses, 7
+ties, p = 0.0625); E vs D on the same dimension is 0 wins, 2 losses, 10
+ties, p = 0.5. Paper 2: **all 15 verdicts NOT SIGNIFICANT** — D vs C on
+`problem_identification` 3 wins, 0 losses, 10 ties, p = 0.25; D vs C on
+`advisor_comprehension` 2 wins, p = 0.5; E vs D on
+`problem_identification` 1 win, p = 1.0; E vs D on
+`advisor_comprehension` 2 wins, 1 loss, p = 1.0.
+
+**What this is, and what it is not.** The machinery ran end to end on both
+papers and produced data the close-out can read, with its denominators and
+its failure instances named. It is **not** evidence of a capability gain,
+**not** inter-human rater reliability, and **not** a substitute for the
+human rating the protocol asks for. A human rating remains the owner's
+step; when it exists, it replaces these sheets rather than adding to them.
