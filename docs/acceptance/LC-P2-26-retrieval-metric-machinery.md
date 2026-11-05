@@ -176,3 +176,37 @@ recommendations, so it is recorded as such.
 machinery existed and carries no locator-validity key, so the comparison
 still prints no pair for it — the first baseline taken after this sample is
 the one a later retrieval change will be compared against.
+
+---
+
+## 5. The frozen baseline over the filled sample — 2026-11-05
+
+The first baseline taken **after** the filled sample exists is
+[`LC-P2-26-baseline.json`](LC-P2-26-baseline.json). It was measured at
+`c5e1f40cc204a225e5f2a7c8aec711d00363b116`, on a clean worktree, Windows 11
+(Python 3.12.13), with `python -m tests.evaluation --citation-sample
+<the 45-row table> --out E:\labcairn-local\citation-sample\baseline-run2`.
+
+| | |
+|---|---|
+| Duration | **2082.2 s** |
+| Exit | **2** — `real_model_smoke` was selected and could not run (no provider credential); the five offline classes all ran with **zero failures** (unit 1878, integration 1714, negative 388, e2e 143, repository 798) |
+| `evidence-locator-validity` | **36/45** |
+| Other metrics | numeric extraction 84/84, unsupported-claim detection 1/1, recovery 4/4, latency/usage 2080407/4934 |
+| Comparison | `assess` reports **comparable** on all six conditions against the harness's own run basis |
+
+**Two failed starts, recorded rather than hidden.** The first baseline run
+stopped after 987.8 s with four classes `ran=False` and one integration setup
+error; the two affected tests passed when re-run alone. Its output was not
+frozen. The script also initially wrote the public fixtures' hashes into the
+comparison basis, where the harness uses the eleven `CORPUS_FIXTURES` and
+their `.expected.json` answer keys — a mismatch that would make every later
+comparison fail `matched_task` and `matched_task_versions`. Both were
+corrected before this document froze; no harness run was repeated for the
+basis fix, because the report and the tree it measured are unchanged.
+
+**The sample now has two independent readings.** The coordinator's 36/9
+judgement and an independent reader's 36/9 judgement agree **45/45**; the
+agreement record is `E:\labcairn-local\citation-sample\INDEPENDENT-AGREEMENT.md`.
+Neither is a human being's reading, and this record does not call the sample
+human-checked.
