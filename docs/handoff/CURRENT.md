@@ -74,14 +74,26 @@ independent reader agrees 45/45) —
 independence clause under the owner's reader decision; its clean whole
 suite was stopped when found concurrent with the baseline harness, so no
 whole-suite count is claimed — commit `925113d`. **The Phase 2 exit gate
-is recorded as "no measured capability gain"**: 30 verdicts NOT
-SIGNIFICANT, smallest p 0.0625, no equivalence or generalisation claimed —
-[`LC-P2-14-phase2-exit-gate.md`](../acceptance/LC-P2-14-phase2-exit-gate.md).
-**CEJ full ingestion is designed, not implemented**: [`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md)
-and [`LC-P2-28`](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
+is CLOSED, PASS WITH NOTES**: no measured capability gain (30 verdicts NOT
+SIGNIFICANT, smallest p 0.0625), with five notes travelling with the
+verdict — [`LC-P2-14-phase2-exit-gate.md`](../acceptance/LC-P2-14-phase2-exit-gate.md),
+commit `54ac696`. **CEJ full ingestion is designed, not implemented**:
+[`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md) and
+[`LC-P2-28`](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
 separate quoted opinions, flagged text, version pairs and mixed-source
-refusal; commit `a9d1274`. The licence, the CI provider credential and the
-next material batch remain the owner's.
+refusal; commit `a9d1274`.
+
+**Batches 9 and 10.** Batch 9's water 3→5 version graph was rehearsed on a
+copy (3 versions, 1 unaccepted model edge, 345 revisions, 5 comments, 11
+mutations all red) and then written to the **real pilot store** on the
+owner's approval: the store moved from `c0256fd3…` to `1d089878…`, with a
+rollback point — commits `32cf6e1`, `ac8fe6f`. Four negative witnesses
+(answer range, red-font semantics, identical bytes, mixed-source letter)
+were added and mutation-checked — `3f9a313`, merged at `131ce4b`. Batch 10
+(`文字稿 (2).zip`, 184 files, a 稿1–稿8 chain with 17 OLE2 `.doc` files) was
+reconnoitred and judged fit for a version graph plus negative witnesses;
+both are in flight. The licence, the CI provider credential and the next
+material batch remain the owner's.
 
 ---
 
