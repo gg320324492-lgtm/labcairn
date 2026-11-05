@@ -8,9 +8,9 @@ readme = "README.md"
 # The upper bound keeps the LC-P1-01 CI matrix to exactly one interpreter.
 # Must stay in step with `.python-version` (currently `3.12`).
 requires-python = ">=3.12,<3.13"
-# NOTE: no `license` field. Licensing is NOT cleared — docs/plans/§8 requires
-# LICENSE.PENDING.md rather than a LICENSE file, and a placeholder grants nothing.
-# Adding `license = "MIT"` here would be an unowned legal claim.
+# The owner confirmed the copyright holder and authority to grant MIT on
+# 2026-11-06. The root LICENSE file is the grant; NOTICE holds third-party terms.
+license = "MIT"
 
 # Runtime dependencies. Declared from docs/ARCHITECTURE.md "Stack choices" so the
 # Phase 1 stack is pinned by the lockfile from LC-P1-01 onward.

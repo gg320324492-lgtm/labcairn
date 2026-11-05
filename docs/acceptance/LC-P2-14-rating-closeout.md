@@ -432,3 +432,12 @@ recorded as such. It is still **not** evidence of a capability gain and
 **not** inter-human rater reliability — the agreement figure is
 agent-to-agent, not person-to-person. A human rating would replace these
 sheets rather than add to them.
+
+---
+
+## Phase 2 administrative note (2026-11-06)
+
+The opening status is historical: the rating sheets were completed and
+closed out by independent agent sessions, not human beings, under the owner's
+2026-11-05 reader rule. §9 records the two papers' agreement and the 30
+verdicts; the exit gate is CLOSED, PASS WITH NOTES.

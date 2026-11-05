@@ -2,13 +2,13 @@
 
 **Research that leaves a trail. · 让每一步研究，都有迹可循。**
 
-> **Status: Phase 1 is through its six gates; Phase 2 is in progress.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are **prepared and not yet run**. The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
+> **Status: Phase 1 is through its six gates; Phase 2's exit gate is CLOSED, PASS WITH NOTES and its administrative closeout is CLOSED.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are measured and recorded, with no measured capability gain. The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
 
 **Read this page in:** English · [中文](#中文版--chinese-version) · the standalone Chinese document is [README.zh-CN.md](README.zh-CN.md).
 
-**LabCairn** is a local-first AI research workspace **under development, intended to be released as open source once copyright ownership is settled**. It is designed to help researchers work across papers, data, analysis and reports while keeping a traceable link between sources, claims, methods and outputs.
+**LabCairn** is a local-first AI research workspace **under development; its original code is distributed under the MIT license**. It is designed to help researchers work across papers, data, analysis and reports while keeping a traceable link between sources, claims, methods and outputs.
 
-**It is not open source yet.** No licence has been granted, so no rights to use, study, modify or redistribute it have been conveyed. See [Licence status](#licence-status--not-yet-granted).
+**License status: MIT.** The root `LICENSE` file is the grant for LabCairn original code; `NOTICE` records third-party material. See [Licence status](#licence-status--mit).
 
 LabCairn is not intended to replace scientific judgment or claim autonomous scientific discovery. It aims to make AI-assisted research **inspectable, reproducible where the underlying data and methods permit it, and easier to revise**.
 
@@ -161,26 +161,25 @@ The commands, and what each can do today:
 5. Network disclosure, code execution and external actions require explicit, inspectable authorization.
 6. Every milestone must include a reproducible demonstration and an honest limitations section.
 
-## Licence status — not yet granted
+## Licence status — MIT
 
-**License status: not yet granted.** The repository is public and readable, but it deliberately carries **no `LICENSE` file**: copyright ownership has not been cleared, so no open-source rights have been conveyed to anyone. Nothing here grants permission to use, study, modify or redistribute this code.
+**License status: MIT.** Copyright (c) 2026 Tonghe Du is the holder named in the root `LICENSE` file. That file is the grant for LabCairn original code; `pyproject.toml` declares the SPDX identifier, and a built wheel carries `licenses/LICENSE` and `licenses/NOTICE`. This README is a pointer, not the grant itself.
 
-- `LICENSE.PENDING.md` **does not** grant rights and must not be read as an MIT grant.
-- The absence of a restrictive `LICENSE` file is **not** permissiveness. Silence is not permission.
-- Planned licensing remains MIT for original LabCairn code, subject to a dependency review that is still open — `PyMuPDF` is AGPL/commercial dual-licensed and was named by LC-P1-08, but [ADR-0008](docs/adr/ADR-0008-pdf-ingestion-library.md) decided against it: the PDF dependency is `pdfplumber` and `pdfminer.six`, both MIT, so `PyMuPDF` is not in the dependency graph.
 - Third-party adaptations must retain required notices and comply with their own licences.
+- The dependency review is recorded in [ADR-0008](docs/adr/ADR-0008-pdf-ingestion-library.md): `PyMuPDF` is not in the dependency graph, and the PDF dependencies are `pdfplumber` and `pdfminer.six`.
+- The release member list is watched by the release workflow and `tests/test_release_workflow.py`.
 
-This README is not a substitute for a licence. LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
+LabCairn is independently developed and is not affiliated with OpenHands, Pydantic AI, Deep Agents, PaperQA2 or PaperSpine.
 
 ## 中文版 / Chinese version
 
 本节是本文件的完整中文版本；独立排版的中文文档见 [README.zh-CN.md](README.zh-CN.md)。两处内容一致。
 
-> **状态：设计阶段 / 第一阶段在建。** 本仓库是一个新项目。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
+> **状态：第一阶段的六个关口已过；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
 
-**LabCairn（研迹）**是一个面向科研人员的本地优先 AI 研究工作台，**正在建设中，计划在版权归属明确后以开源许可证发布；目前尚未授予任何开源权利**。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程可定位来源、保留修改历史并在必要时重新核验。
+**LabCairn（研迹）**是一个面向科研人员的本地优先 AI 研究工作台，**其原创代码按 MIT 许可证发布**。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程可定位来源、保留修改历史并在必要时重新核验。
 
-**它目前还不是开源软件。** 仓库尚未授予任何许可证，因此使用、研究、修改或再分发它都还没有获得授权。详见[许可证状态](#许可证状态--尚未授予)。
+**许可证状态：MIT。** 根目录 `LICENSE` 是原创代码的授权文件，`NOTICE` 记录第三方声明。详见[许可证状态](#许可证状态--mit)。
 
 LabCairn 不打算取代科研判断，也不声称能自主完成科学发现。它计划让 AI 辅助的研究**可检视、在数据与方法允许的范围内可复现、并且更容易修订**。
 
@@ -324,14 +323,13 @@ uv run labcairn --help
 5. 网络披露、代码执行与对外动作都需要明确且可检视的授权。
 6. 每个里程碑都必须包含一个可复现的演示和一节诚实的局限性说明。
 
-### 许可证状态 —— 尚未授予
+### 许可证状态 —— MIT
 
-**许可证状态：尚未授予。** 仓库公开可读，但它刻意**不带 `LICENSE` 文件**：版权归属尚未理清，因此没有向任何人授予任何开源权利。这里的任何内容都不授予使用、研究、修改或再分发本代码的许可。
+**许可证状态：MIT。** 版权行 `Copyright (c) 2026 Tonghe Du` 写在根目录 `LICENSE` 中；该文件是原创代码的授权文本，`pyproject.toml` 声明 SPDX 标识，构建出的 wheel 带有 `licenses/LICENSE` 与 `licenses/NOTICE`。
 
-- `LICENSE.PENDING.md` **不**授予任何权利，也不得被当作一份 MIT 授权来读。
-- 没有限制性 `LICENSE` 文件**不等于**宽松。沉默不是许可。
-- 计划中的许可证对 LabCairn 原创代码仍是 MIT，但这一决定取决于一次尚未结束的依赖审查——`PyMuPDF` 是 AGPL/商业双许可，并由 LC-P1-08 点名，但 [ADR-0008](docs/adr/ADR-0008-pdf-ingestion-library.md) 已决定不用它：PDF 依赖是 `pdfplumber` 与 `pdfminer.six`，两者均为 MIT，因此 `PyMuPDF` 不在依赖图里。
 - 第三方改编必须保留所要求的声明，并遵守它们各自的许可证。
+- 依赖审查见 [ADR-0008](docs/adr/ADR-0008-pdf-ingestion-library.md)；`PyMuPDF` 不在依赖图中。
+- release workflow 与 `tests/test_release_workflow.py` 看守发布包的许可证成员。
 
-本 README 不能替代许可证。LabCairn 独立开发，与 OpenHands、Pydantic AI、Deep Agents、PaperQA2 或 PaperSpine 无隶属关系。
+本 README 只是指针，不是授权文件。LabCairn 独立开发，与 OpenHands、Pydantic AI、Deep Agents、PaperQA2 或 PaperSpine 无隶属关系。
 

@@ -395,10 +395,9 @@ def test_the_corpus_holds_the_fixtures_the_protocol_asks_for() -> None:
 def test_every_fixture_declares_its_material_origin_and_licence() -> None:
     """The corpus states that it is synthetic, and says so at corpus level.
 
-    ``LICENSE.PENDING.md`` grants nothing yet, so the corpus cannot claim a
-    licence of its own. What it *can* state, and does, is that it contains
-    no third-party material -- which is the fact that decides whether a
-    future release carries a third-party notice.
+    The corpus states that it is synthetic and names the root MIT grant;
+    this witness watches both halves, so the manifest cannot claim a grant
+    the repository no longer carries or revert to the deleted placeholder.
     """
     manifest = _manifest()
     assert manifest["material_origin"] == "synthetic", (
@@ -408,9 +407,8 @@ def test_every_fixture_declares_its_material_origin_and_licence() -> None:
     notice = manifest["notice"].lower()
     assert "synthetic" in notice
     assert "third-party" in notice or "third party" in notice
-    assert "no rights" in notice or "grants nothing" in notice, (
-        "the notice must say the repository grants nothing yet, because that "
-        "is the licence position this corpus travels under"
+    assert "root license" in notice and "mit" in notice, (
+        "the notice must name the root MIT grant the corpus travels under"
     )
 
 

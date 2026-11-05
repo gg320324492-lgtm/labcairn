@@ -281,25 +281,25 @@ capability counts only when a code path constructs it.
 
 ---
 
-## 8. Licensing — no rights granted
+## 8. Licensing — MIT for original code
 
-**This repository carries no `LICENSE` file, and no open-source rights have been
-granted.** Copyright ownership has not been cleared. See
-[`LICENSE.PENDING.md`](LICENSE.PENDING.md) — which is a notice, **not** a
-license, and must never be read as an MIT grant.
+**LabCairn original code is licensed under MIT.** The grant is the root
+[`LICENSE`](LICENSE) file, with `Copyright (c) 2026 Tonghe Du`;
+`pyproject.toml` declares the SPDX identifier. `NOTICE` records third-party
+material and does not grant rights by itself.
 
-CI does **not** assert that a `LICENSE` file exists, and must not: such a check
-would be permanently red, assert nothing, or lock in a fiction. The real gate is
-LC-P1-14's license/NOTICE audit (G5).
+The repository's licensing witnesses now assert the grant rather than the
+absence of one: the root has one `LICENSE` and no placeholder, the README
+states MIT, the SPDX identifier agrees with the license text, and a built
+wheel carries `licenses/LICENSE` and `licenses/NOTICE`. The release workflow
+and `tests/test_release_workflow.py` watch those member names.
 
-`PyMuPDF` is AGPL/commercial dual-licensed and would constrain any future
-MIT release. **It is not a dependency.** LC-P1-08 named it, and
+`PyMuPDF` is AGPL/commercial dual-licensed and is **not a dependency**.
+LC-P1-08 named it, and
 [ADR-0008](docs/adr/ADR-0008-pdf-ingestion-library.md) decided against it in
 favour of `pdfplumber` and `pdfminer.six`, both MIT. Do not add PyMuPDF, or
 any other copyleft dependency, without a recorded licensing decision — and
 do not cite LC-P1-08 as the blocker it no longer is.
-[`LICENSE.PENDING.md`](LICENSE.PENDING.md) §6 still describes that decision
-as unmade; it predates ADR-0008 and has not been corrected.
 
 ---
 
@@ -411,7 +411,7 @@ the two tables must agree with the README in both directions.
 | A relative link in any `docs/**/*.md` resolves | `tests/test_status_consistency.py::test_relative_links_in_docs_resolve` |
 | A repository path the README names exists | `tests/test_readme_accuracy.py::test_readme_names_only_paths_that_exist` |
 | Every `labcairn` command the README shows exists in the CLI | `tests/test_readme_accuracy.py::test_the_readme_documents_only_commands_that_exist` — the CLI itself is the authority |
-| The README's licence wording matches the notice | `tests/test_readme_accuracy.py::test_readme_license_section_matches_license_pending` |
+| The README's MIT wording agrees with the grant | `tests/test_readme_accuracy.py::test_readme_license_section_matches_the_grant` |
 | The README makes no unqualified capability claim | `tests/test_readme_accuracy.py::test_readme_makes_no_unqualified_capability_claim` |
 | The threat model's citations and claims are witnessed | `tests/test_threat_model.py` |
 

@@ -1,20 +1,25 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-06 · **PR #148 has merged.** Local `main` is fast-forwarded
-to merge commit `0d654b2038051805eb0ab410783ea2fe90545506`; the delivery
-branch is deleted locally and on the remote. Batch 11's two-paper version
-graph, its approved real-store write and three negative witnesses are merged
-locally at `c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The owner expects no
-further paper-material batches. The owner has chosen MIT for the eventual
-licence grant and supplied `Copyright (c) 2026 Tonghe Du`, but requires the
-coordinated local commit to wait for the next delivery batch; the repository
-still has no `LICENSE`. The CI provider credential remains the owner's.
+**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED.** PR #148
+merged as `0d654b2038051805eb0ab410783ea2fe90545506`; its delivery branch was
+deleted locally and on the remote. Batch 11's two-paper version graph,
+approved real-store write and three negative witnesses were merged locally,
+and their scratch refs were deleted. The owner expects no further paper-material
+batches. The owner confirmed the holder and authority to grant MIT, so the root
+`LICENSE` now carries `Copyright (c) 2026 Tonghe Du`; `pyproject.toml`,
+READMEs, `NOTICE`, release metadata and their witnesses agree. The final open
+items are recorded in
+[`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md):
+35 model-proposal edges remain unaccepted, the real-provider smoke is NOT RUN
+and its credential is the owner's, POSIX-only G1/G2 witnesses remain NOT
+MEASURED, and the material gaps that further batches were meant to close are
+permanent. Phase 3 has not started.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,
 and batches 8–10 are in the tree. What remained at that time was the owner's:
 the licence, the CI provider credential, the next material batch, and the
-deferred delivery PR.** The 2026-11-05 entries below are the historical
+deferred delivery PR.** Those four were open at that time only; the 2026-11-05 entries below are the historical
 state immediately before PR #148; the 2026-11-06 paragraph above is the
 current pointer.
 
@@ -115,8 +120,9 @@ version graph: **8 versions, 7 unaccepted model edges, 0 fabricated revision
 or feedback events** in the real pilot store. Its first two-gate write stopped
 on a missing isolated TEMP directory, was rolled back to the exact pre-run
 bytes, then succeeded; the store moved to `fe1905fd6f38c13f03…` — commits
-`fc6d1db`, `0e83aa9`, `d19ea04`. The licence, the CI provider credential
-and the next material batch remain the owner's.
+`fc6d1db`, `0e83aa9`, `d19ea04`. At that 2026-11-05 point the licence, the CI provider credential
+and a next material batch remained the owner's. The licence is now granted;
+the credential remains the owner's and no further material is expected.
 
 ---
 
@@ -1726,9 +1732,8 @@ not human* stands until that review is executed and written back.
 (`acceptance/LC-P1-14-font-licence-audit.md`): no third-party font file
 reaches any artefact, so the GPL font reportlab bundles does not attach to
 what a user receives. **What is left is the owner's** — the copyright and
-the root licence, which `LICENSE.PENDING.md` grants no rights over today, and
-which blocks any open-source claim until it is replaced by an actual
-licence.
+the root licence; this was **closed on 2026-11-06** when the owner confirmed
+the holder and the MIT grant was written to `LICENSE`.
 
 **And the piece of work G5 found by accident is landed.** G1's exit
 demonstration had been broken since G1 closed, because nothing ran it, and the
@@ -1840,7 +1845,7 @@ Three facts about the rest of it are worth having before the code is written, be
 - **G2:** ~~`ArtifactLedger` is in memory. LC-P1-07's ledger does not survive a restart; the store does.~~ **Closed 2026-11-02**: `SqliteArtifactLedgerStore` writes the ledger to `artifact_ledger_entries` (migration 0022) and a new instance on the same database reads it back; the [acceptance record](../acceptance/LC-P1-06-artifact-ledger.md) lists the witnesses and the one measurement still owed to a runner (the shard cost).
 - **Cross-gate:** the Gitleaks allowlist guard is textual and has a multi-line/nested TOML weakness.
 - **Cross-gate:** the README capability-claim detector has known holes. It is a floor, not a truth-checker.
-- **Cross-gate:** copyright ownership is unresolved and there is still **no `LICENSE` file**. The project describes itself as in development with open-source licensing pending.
+- **Cross-gate:** ~~copyright ownership is unresolved and there is no `LICENSE` file~~. **Closed 2026-11-06**: the owner confirmed the holder and authority to grant MIT; `LICENSE` carries `Copyright (c) 2026 Tonghe Du`, and the placeholder is deleted.
 
 ## Merge authority
 
@@ -1848,4 +1853,4 @@ The implementing agent merges its own PRs after both the parent and a non-implem
 
 ## Escalate to the project lead
 
-Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, and major architecture change. The PyMuPDF licence obligation is now **resolved** (ADR-0008) and no longer needs escalating; **copyright ownership remains unresolved** and still does.
+Expanding data access scope, write permission to original material, unapproved outbound transmission, any model-generated code execution, and major architecture change. The PyMuPDF licence obligation is now **resolved** (ADR-0008) and no longer needs escalating; **copyright ownership was resolved on 2026-11-06** and no longer needs escalating.

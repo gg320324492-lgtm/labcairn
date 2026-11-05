@@ -586,10 +586,9 @@ def _slug(heading: str) -> str:
 
     **The spaces are why the order matters.** A heading that carries an
     em-dash between two words loses the dash and keeps *both* spaces, so
-    ``Licence status — not yet granted`` becomes
-    ``licence-status--not-yet-granted`` with two hyphens — while
-    ``许可证状态——尚未授予`` loses the dashes and keeps no space at all,
-    and becomes ``许可证状态尚未授予``. **A link that names one of those
+    ``Licence status — MIT`` becomes ``licence-status--mit`` with two
+    hyphens — while ``许可证状态——MIT`` loses the dashes and keeps no space
+    at all, and becomes ``许可证状态mit``. **A link that names one of those
     resolves and the other does not**, and a reader cannot tell which one
     the renderer produced.
     """

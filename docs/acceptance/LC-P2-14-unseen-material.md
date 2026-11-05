@@ -802,3 +802,11 @@ ledger, the answers and the operator-side report (with the approval phrase
 verbatim) live outside the repository under ``blind6-arms`` ``live`` paths;
 ``tests/test_no_reference_leakage.py`` keeps them out of the tree. **No USD
 is computed here**; the owner's billing console is the money source.
+
+---
+
+## Phase 2 administrative note (2026-11-06)
+
+The dry-run status in this record's opening is historical. The real run and
+its token accounting are recorded in §20 and the rating close-out; the exit
+gate is CLOSED, PASS WITH NOTES. No further paper-material batch is expected.

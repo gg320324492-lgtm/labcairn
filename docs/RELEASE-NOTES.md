@@ -13,10 +13,11 @@ not claims about `main` until the merge.
 those documents names its own commit.** A number belongs to the commit it
 was measured at.
 
-**This is a private preview, not an open-source release.** The repository
-carries **no `LICENSE` file** and no rights have been granted to anyone —
-see §4. If you are here to decide whether LabCairn is worth using, **read §2
-first**: it is the larger half of this document.
+**This is an unreleased private preview.** No tag has been cut. LabCairn
+original code is granted under MIT by the root `LICENSE`; see §4 for the
+third-party notices and the remaining owner-side credential. If you are here
+to decide whether LabCairn is worth using, **read §2 first**: it is the
+larger half of this document.
 
 ---
 
@@ -646,33 +647,30 @@ than left for the next reader to find.**
    witnesses are
    `tests/test_security_paths.py::test_a_new_file_under_a_short_spelled_root_is_not_refused`
    and `::test_a_path_outside_a_short_spelled_root_is_still_refused`.*
-4. **`LICENSE.PENDING.md` §6 predates the decision it describes.** It says
-   the PyMuPDF decision "has not been made". It was made on 2026-10-17:
-   [ADR-0008](../docs/adr/ADR-0008-pdf-ingestion-library.md) chose
-   `pdfplumber` and `pdfminer.six`, both MIT, and **PyMuPDF is not in the
-   dependency graph** — `pyproject.toml` names `pdfplumber`, not PyMuPDF.
-   The README's licence paragraph and the notice agree with each other and
-   both predate that decision. **The copyright question, which is the
-   blocking one, is untouched by it.**
+4. **The old placeholder predates the decisions it described.** It named
+   the PyMuPDF question as unmade; [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md)
+   chose `pdfplumber` and `pdfminer.six`, both MIT, on 2026-10-17, and the
+   owner confirmed the copyright holder and authority to grant MIT on
+   2026-11-06. The placeholder was deleted in the same commit as the root
+   `LICENSE` was added. This paragraph is a historical note, not the
+   current licensing statement; §4 is current.
 
 ---
 
 ## 4. Licence and security status
 
-**No rights have been granted.** The repository is public and readable, and
-it deliberately carries **no `LICENSE` file**: copyright ownership has not
-been cleared, so there is no licensor capable of making a grant. Until that
-is settled, the repository is **all-rights-reserved by default**.
+**LabCairn original code is granted under MIT.** The root `LICENSE` is the
+grant and names `Copyright (c) 2026 Tonghe Du`; `pyproject.toml` declares
+the SPDX identifier. The owner confirmed the copyright holder and authority
+to grant it on 2026-11-06.
 
-- `LICENSE.PENDING.md` **does not** grant rights and must not be read as an
-  MIT grant.
-- The absence of a restrictive `LICENSE` file is **not** permissiveness.
-  Silence is not permission.
-- MIT is the **planned** direction for original LabCairn code, contingent on
-  the conditions in `LICENSE.PENDING.md` §5 — **ownership is the blocking
-  one.**
-- Third-party adaptations must retain required notices and comply with their
-  own licences.
+- `NOTICE` records third-party material and grants no rights by itself.
+- A built wheel carries `licenses/LICENSE` and `licenses/NOTICE`; the
+  release workflow and its witness watch the member list.
+- The dependency review is recorded in [ADR-0008](adr/ADR-0008-pdf-ingestion-library.md):
+  `PyMuPDF` is not in the dependency graph.
+- Third-party adaptations must retain required notices and comply with
+  their own licences.
 
 **The security posture** is written down in the
 [threat model](THREAT-MODEL.md): six faces — writes, reads, network,

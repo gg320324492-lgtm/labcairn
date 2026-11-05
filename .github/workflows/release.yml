@@ -252,14 +252,14 @@ jobs:
               )
 
           # The wheel's metadata is exactly the six files the release
-          # declares. A seventh would be a licence file this project has not
-          # decided on, and it would ship without anybody deciding.
+          # declares. `licenses/LICENSE` and `licenses/NOTICE` were measured
+          # from a hatchling build with `license = "MIT"` and both root files.
           expected_metadata = {
               f"{dist_info}/METADATA",
               f"{dist_info}/RECORD",
               f"{dist_info}/WHEEL",
               f"{dist_info}/entry_points.txt",
-              f"{dist_info}/licenses/LICENSE.PENDING.md",
+              f"{dist_info}/licenses/LICENSE",
               f"{dist_info}/licenses/NOTICE",
           }
           if set(metadata) != expected_metadata:

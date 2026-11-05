@@ -130,14 +130,16 @@ record. Three of their surrounding facts have since changed:
   three negative witnesses were merged into local `main` at
   `c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The merge's witness ledger
   reported `LOST -- none`.
-- The owner chose MIT, confirmed an individual copyright holder and the
-  year 2026, and required a coordinated local commit that waits for the
-  next delivery batch. No `LICENSE` has been written yet, so "no rights
-  granted" remains true of the current tree. The owner also expects no
+- The owner chose MIT and confirmed an individual copyright holder and
+  the year 2026. In the final closeout, the root `LICENSE` was added,
+  `LICENSE.PENDING.md` deleted, and the current-state documents, release
+  metadata and witnesses were updated together. The owner also expects no
   further paper-material batches.
 
-The real-provider smoke is still NOT RUN and its CI credential is still
-the owner's; the POSIX-only witnesses in the independent G1/G2 re-review
-are still NOT MEASURED. Nothing in this section changes the measured
-answer, starts Phase 3, or converts the independent agent readers into
-human readers.
+Administrative closeout is recorded as **CLOSED** in CURRENT.md, ROADMAP.md
+and [`LC-P2-28-phase2-open-items.md`](LC-P2-28-phase2-open-items.md). The
+real-provider smoke is still NOT RUN and its CI credential is still the
+owner's; the POSIX-only witnesses in the independent G1/G2 re-review are
+still NOT MEASURED; 35 model-proposal edges remain unaccepted. Nothing in
+this section changes the measured answer, starts Phase 3, or converts the
+independent agent readers into human readers.

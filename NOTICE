@@ -19,13 +19,10 @@ commands that reproduce them.
 It records the third-party material that travels with a LabCairn distribution
 and the terms each item travels under.
 
-It grants no rights, and it asserts no licence for LabCairn itself.
-LICENSE.PENDING.md says in its own first line: "This file is not a license.
-It is a notice that no license has been granted." Nothing here changes that.
-The copyright in LabCairn is unresolved, so no statement in this file may be
-read as a claim that LabCairn is open source. The root licence that a future
-release would carry is the copyright owner's to grant, and this file is not
-where that grant is made.
+It grants no rights itself. LabCairn original code is granted under MIT by
+the root LICENSE file, `Copyright (c) 2026 Tonghe Du`. This NOTICE records
+the third-party terms that travel with a LabCairn distribution; it is not a
+second grant and does not modify the MIT terms.
 
 
 -------------------------------------------------------------------------------
@@ -39,7 +36,7 @@ Measured from the built artefacts:
       backend adds, PKG-INFO
   wheel (labcairn-0.1.0-py3-none-any.whl)
       the 147 files under src/labcairn, plus six .dist-info metadata members
-      (METADATA, RECORD, WHEEL, entry_points.txt, licenses/LICENSE.PENDING.md
+      (METADATA, RECORD, WHEEL, entry_points.txt, licenses/LICENSE
       and this NOTICE)
 
 The exact member counts for the release as built are in

@@ -3,21 +3,23 @@
 **Version:** LCR-PLAN-1.1  
 **Synchronized with:** `LC-P1-v1.1`, the Phase 1 work orders and gates in [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md). Phase plan and work orders are revised together; they must never drift apart.
 **Status:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH
-NOTES; later phases are strategic targets, not approved implementation work
-orders.
+NOTES and its administrative closeout is CLOSED; later phases are strategic
+targets, not approved implementation work orders.
 
 ## Current position
 
-**Delivery pointer (2026-11-06).** PR #148 merged as
-`0d654b2038051805eb0ab410783ea2fe90545506`; the delivery branch was deleted
-locally and on the remote. Batch 11's version-graph record, approved
-real-store write and three negative witnesses were then merged locally at
-`c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The owner expects no further
-paper-material batches. MIT is the chosen eventual licence, with
-`Copyright (c) 2026 Tonghe Du`, but the coordinated local commit waits for
-the next delivery batch and the repository still has no `LICENSE`. The CI
-provider credential remains the owner's. The 2026-11-05 end-of-day paragraph
-below is a historical snapshot, not the current delivery state.
+**Delivery pointer (2026-11-06). Phase 2 administrative closeout: CLOSED.**
+PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; that delivery
+branch was deleted. Batch 11's version graph, approved real-store write and
+three negative witnesses were merged locally and their scratch refs removed.
+The owner expects no further paper-material batches. The root `LICENSE` now
+grants MIT for LabCairn original code with `Copyright (c) 2026 Tonghe Du`;
+the current-state documents, release metadata and witnesses were updated in
+one coordinated commit. The final open items are recorded in
+[`LC-P2-28-phase2-open-items.md`](acceptance/LC-P2-28-phase2-open-items.md):
+unaccepted model edges, the owner-held provider credential, POSIX-only
+witnesses and the permanent material gaps. Phase 3 has not started. The
+2026-11-05 end-of-day paragraph below is a historical snapshot.
 
 **Phase:** P2 — Scientific Intelligence · **Phase 1:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
@@ -25,7 +27,7 @@ below is a historical snapshot, not the current delivery state.
 |---|---|
 | Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at `623e3ca` and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
 | Accepted and merged | **LC-P1-01 … LC-P1-14** — the engineering baseline (LC-P1-01), the trusted core (02–04, G1), the durable work and its recovery (05–07, G2), the evidence path (08 material and locators, 09 retrieval and the ledger, 10 bounded analysis and a deterministic figure), and the usable application (11 the report path, 12 the three surfaces behind the one application layer). **Every work order is `PASS WITH NOTES`**, each with its own acceptance review under [`acceptance/`](acceptance/), and every one of them was reviewed by the party that wrote the fixes — except **G3's three and G4's two**, which were also reviewed independently, at `d114810` and at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`. |
-| Next direction | **G5 is closed on two independent reviews, and it is the last of Phase 1.** **LC-P1-13** (the evaluation harness, the fault injection, the competitor baseline) and **LC-P1-14** (the public alpha handoff: the bilingual delivery documents, the release contents and the NOTICE, the review dossier, the licence audit). G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**: the outsider's path runs in a clean clone and is compared field by field, the three fixtures' answer keys are re-derived by code that is **not the product's**, the fault injection now goes **through the CLI and the service** and is killed at the process level, and the documents' commands are extracted and **run for real**. The fifth — the real-provider smoke — **has not run**: the harness reports it NOT RUN and exits 2, and **that is the owner's decision** (§1.4.2). **Two reviewers wrote none of the gate's fixes**; the first's verdict was **FAIL** on a property table that was entirely clean, and after every finding was fixed it **re-ran its own eleven mutations against the fixed code and passed**. **Twenty-four findings between them, all fixed**, and the gate found six more on its own. The [gate review](acceptance/G5-acceptance.md) records the method, both verdicts and what became of every finding. **What it handed over**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte**, and it is asserted rather than left as a sentence. **That hand-over is closed after the gate** — see the carried-issues list below: the surfaces now run the pass, refuse the second plan, and leave the answering to `labcairn task reconcile`. **The gate is closed; Phase 2 is under way** — the phase's pieces are merged
+| Next direction | **G5 is closed on two independent reviews, and it is the last of Phase 1.** **LC-P1-13** (the evaluation harness, the fault injection, the competitor baseline) and **LC-P1-14** (the public alpha handoff: the bilingual delivery documents, the release contents and the NOTICE, the review dossier, the licence audit). G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**: the outsider's path runs in a clean clone and is compared field by field, the three fixtures' answer keys are re-derived by code that is **not the product's**, the fault injection now goes **through the CLI and the service** and is killed at the process level, and the documents' commands are extracted and **run for real**. The fifth — the real-provider smoke — **has not run**: the harness reports it NOT RUN and exits 2, and **that is the owner's decision** (§1.4.2). **Two reviewers wrote none of the gate's fixes**; the first's verdict was **FAIL** on a property table that was entirely clean, and after every finding was fixed it **re-ran its own eleven mutations against the fixed code and passed**. **Twenty-four findings between them, all fixed**, and the gate found six more on its own. The [gate review](acceptance/G5-acceptance.md) records the method, both verdicts and what became of every finding. **What it handed over**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte**, and it is asserted rather than left as a sentence. **That hand-over is closed after the gate** — see the carried-issues list below: the surfaces now run the pass, refuse the second plan, and leave the answering to `labcairn task reconcile`. **The gate is closed; Phase 2 administrative closeout is CLOSED** — the phase's pieces are merged
 as they land, **the mentor's own material is in the chain and the memory
 serves one rule of sixteen**, and **the phase's exit gate cannot be judged
 yet**: the frozen P1 baseline exists (`LC-P2-00`, at `81babd5`), but the

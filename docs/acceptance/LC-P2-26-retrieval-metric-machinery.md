@@ -210,3 +210,14 @@ judgement and an independent reader's 36/9 judgement agree **45/45**; the
 agreement record is `E:\labcairn-local\citation-sample\INDEPENDENT-AGREEMENT.md`.
 Neither is a human being's reading, and this record does not call the sample
 human-checked.
+
+---
+
+## Phase 2 administrative note (2026-11-06)
+
+The opening status above is the machinery's state when it was written. After
+the owner-filled 45-row sample, the metric was measured and frozen at
+`evidence-locator-validity 36/45`; §4 of this record carries the later
+measurement. No second sample is expected: the owner reports no further
+paper-material batches. The status here is historical, not a current open
+work item.

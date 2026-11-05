@@ -355,3 +355,12 @@ line of `src/` or `tests/`:**
    carries a digit at all**. It is reported as vacuous rather than as passed,
    and the fragment test and the source-provenance gate carry the property
    instead.
+
+---
+
+## Phase 2 administrative note (2026-11-06)
+
+The opening "run has not happened" status is historical. Both unseen papers
+were assembled, rated by independent agent sessions under the owner's reader
+rule, arbitrated and closed out; the measured answer is 30 NOT SIGNIFICANT
+verdicts and no measured capability gain. See `LC-P2-14-phase2-exit-gate.md`.
