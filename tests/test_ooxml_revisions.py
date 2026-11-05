@@ -1610,3 +1610,38 @@ def test_a_quoted_reviewer_paragraph_is_not_a_comment() -> None:
     assert document.paragraphs == (quote, answer)
     assert document.paragraphs.count(quote) == 1
     assert document.accepted_text.count(quote) == 1
+
+
+def test_binary_marker_words_in_body_text_mint_no_events() -> None:
+    """Byte strings are not evidence that a binary format recorded an event.
+
+    A coarse scan of an OLE2 ``.doc`` may find -- or fail to find -- words
+    such as comment/revision markers in arbitrary byte ranges. Neither
+    result says what the binary object model recorded. This synthetic
+    OOXML document puts marker-like words in ordinary body text and
+    declares no comments part, no comment ranges and no revision
+    elements; the reader must report zero events and zero problems, and
+    keep the words once as paragraphs.
+
+    **What breaks it:** minting a ``CommentEvent`` from a marker word, or
+    minting a ``RevisionEvent`` from a word that resembles a binary
+    record tag. Both are guesses from bytes rather than readings of the
+    semantic structures this reader is allowed to use. The two CEJ
+    witnesses above cover red formatting and a reviewer-named paragraph;
+    this one covers the byte-string shortcut itself.
+    """
+    first = "comment Clx w:ins revision annotation"
+    second = "w:commentRangeStart grpprl w:delText"
+    body = (
+        f'<w:p><w:r><w:t xml:space="preserve">{first}</w:t></w:r></w:p>'
+        f'<w:p><w:r><w:t xml:space="preserve">{second}</w:t></w:r></w:p>'
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    assert document.comments == ()
+    assert document.revisions == ()
+    assert document.problems == ()
+    assert document.paragraphs == (first, second)
+    assert document.baseline_paragraphs == (first, second)
+    assert document.accepted_text == f"{first}\n{second}"
+    assert document.rejected_text == f"{first}\n{second}"
