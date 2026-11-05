@@ -1,19 +1,25 @@
-# Batch 11 — the two-paper version graph (rehearsal)
+# Batch 11 — the two-paper version graph (rehearsal and real-store write)
 
 **What this record covers.** A supplied material batch of two small papers was
 assembled in LC-P2-08's version-graph shape on a **rehearsal copy of the pilot
-store**, and the assembly was then checked by four witnesses and a mutation
-harness. Two paper projects, 30 version rows and 28 unaccepted model-proposal
-edges were written to the copy. Every tracked change and every Word comment
-that the material holds was written through the product's own door and
-reconciled against an independent count taken from the material's bytes.
+store**, checked by four witnesses and a mutation harness, and then written to
+the **real pilot store** after the owner approved the measured counts in a
+dialog. Two paper projects, 30 version rows and 28 unaccepted model-proposal
+edges were written to the copy and then to the real store. Every tracked change
+and every Word comment that the material holds was written through the
+product's own door and reconciled against an independent count taken from the
+material's bytes.
 
-**The real pilot store was not written.** The copy is at
-`E:\labcairn-local\batch11-graph\rehearsal.db`; the real store's sha256 was
-`fe1905fd6f38c13f03fc72641257a5193fb23be022cdc7aeee19ae489312fb0f` before
-the rehearsal and the same digest after it. The plan for a real-store run is
-`E:\labcairn-local\batch11-graph\write-plan.md`, and its status is
-**NOT EXECUTED**.
+**The real pilot store was written on 2026-11-05.** Its sha256 changed from
+`fe1905fd6f38c13f03fc72641257a5193fb23be022cdc7aeee19ae489312fb0f` to
+`f85181efb8318980f747cadb5f4843b8bedd4651c96cfc32842fb7cad230526a`. The
+rollback point is
+`E:\labcairn-local\pilot-ws\labcairn.db.backup.before-batch11-graph-20261105T171744Z`,
+a full SQLite backup taken before the run. The rehearsal copy is at
+`E:\labcairn-local\batch11-graph\rehearsal.db`; the plan and the execution log
+are `E:\labcairn-local\batch11-graph\write-plan.md` and
+`E:\labcairn-local\batch11-graph\real-write.out`. The write plan's status is
+**EXECUTED**.
 
 **What this record does not carry.** The material's title, file names,
 sentences, figure labels and names in revision metadata. The material and the
@@ -186,12 +192,34 @@ assembled copy.
 - **The batch supports no chain settlement.** There is no judgement or
   assessment row in the material.
 
-## 6. If the owner approves a real-store run
+## 6. The approved real-store run
 
-The run would write 30 version rows, 28 unaccepted model-proposal edges, 2
-projects, 2 access grants, 109 ingested material copies, 2,151 revision
-events and 5 feedback events, after taking a SQLite backup of the real store
-as the rollback point. The counts, the id list, the two gates, the rollback
-procedure and the four decisions that are still the owner's are in
+The owner approved the measured counts in a dialog on 2026-11-05. The run
+wrote 30 version rows, 28 unaccepted model-proposal edges, 2 projects,
+2 access grants, 109 ingested material copies, 2,151 revision events and
+5 feedback events, after taking the SQLite backup named in the opening as
+the rollback point.
+
+The run's first invocation used the machine's Python 3.10 and stopped at
+`ImportError: cannot import name 'UTC' from 'datetime'` before any write;
+the store's digest, row counts, material-copy count and backup count were
+unchanged. The second invocation used the project's Python 3.12.13 and
+completed with exit code 0. Both execution flags were present, and the
+owner's approval phrase was passed as `--owner-approved`.
+
+A table-by-table comparison against the backup found **no deleted rows** in
+any table. The one existing `tasks` row gained 109 `bound_source_ids` (87
+before, 196 after, none removed) and advanced its event sequence and update
+time; its task id, title, objective, criterion, revision, creation time and
+schema version did not change. `PRAGMA integrity_check` returned `ok` on
+both the store and the backup, and `PRAGMA foreign_key_check` returned no
+rows. All four read-only witnesses were rerun against the real store and
+passed. The mutation harness was not pointed at the real store.
+
+The id list, the two gates and the rollback procedure are in
 `E:\labcairn-local\batch11-graph\write-plan.md`, whose status is
-**NOT EXECUTED**.
+**EXECUTED**. The owner's approval settled two of the rehearsal's four
+open questions: the two papers became projects in the real store, and the
+text-identical re-issue received no separate version row. `F027`'s role and
+the editorial rounds' order remain open; every edge is still an unaccepted
+model proposal.
