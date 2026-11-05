@@ -24,8 +24,11 @@ decision with a person.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
+from labcairn.material.ingest import ingest_bytes
 from labcairn.papers.duplicates import (
     VersionSummary,
     check_duplicates,
@@ -33,6 +36,9 @@ from labcairn.papers.duplicates import (
 )
 
 pytestmark = pytest.mark.unit
+
+#: The one moment the file writes, so a hash in it is not a hash of a clock.
+MOMENT = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
 
 
 def _version(
@@ -92,6 +98,65 @@ def test_the_same_bytes_are_one_version_whatever_the_name() -> None:
     # And it is **not** reported as a name collision, because the bytes
     # agree: there is no unresolved question here.
     assert report.same_label_different_bytes == ()
+
+
+def test_two_byte_identical_files_are_one_content_and_not_two_versions() -> None:
+    """Two files with the same bytes are one content, whatever they are called.
+
+    **The bytes are the fixture.** Two files are ingested through the
+    product's own ingestion with the same bytes under two names, so the
+    content hash is **computed from the bytes** rather than declared by the
+    caller. The two are two locations and **one content**: the same hash
+    under two labels, which the duplicate check reports as one version with
+    a duplicate name -- and not as two versions whose relationship is
+    unresolved.
+
+    **What breaks it:** a content hash computed per file rather than per
+    bytes, which would give the two files two hashes and hide the duplicate
+    behind two unrelated contents -- the reading this witness refuses.
+    """
+    body = b"The same bytes, under two names.\n"
+    first = ingest_bytes(
+        body,
+        relative_path="materials/draft-3.md",
+        display_name="draft-3.md",
+        ingested_at=MOMENT,
+    )
+    second = ingest_bytes(
+        body,
+        relative_path="materials/draft-4.md",
+        display_name="draft-4.md",
+        ingested_at=MOMENT,
+    )
+
+    assert first.source.content_sha256 == second.source.content_sha256, (
+        "the same bytes are one content, whatever the files are called"
+    )
+    assert first.source.source_id != second.source.source_id, (
+        "the two names are two locations, which is what the report is about"
+    )
+
+    versions = [
+        VersionSummary(
+            version_id="v3",
+            content_sha256=first.source.content_sha256,
+            version_label_raw="draft-3.md",
+        ),
+        VersionSummary(
+            version_id="v4",
+            content_sha256=second.source.content_sha256,
+            version_label_raw="draft-4.md",
+        ),
+    ]
+
+    report = check_duplicates(versions)
+
+    assert report.same_bytes_different_labels == (("v3", "v4"),), (
+        "the two files are one content reported under two names"
+    )
+    assert report.same_label_different_bytes == (), (
+        "and the same bytes are not two versions with an unresolved relationship"
+    )
 
 
 def test_a_clean_archive_reports_no_duplicates() -> None:
