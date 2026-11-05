@@ -158,6 +158,72 @@ def test_the_walk_reads_what_an_allowing_policy_permits(
     assert "sources/public/ok.md" in {o.material.source.relative_path for o in report.outcomes}
 
 
+def test_a_mixed_version_folder_inventories_candidates_without_picking_one(
+    tmp_path: pathlib.Path, session: Any
+) -> None:
+    """Names in a working folder do not choose a manuscript version.
+
+    The synthetic folder holds three candidate texts, a named marked copy,
+    a discarded figure and an Origin source under one version directory.
+    All six are *materials*; none is an accepted version or an edge. The
+    walk inventories every file by its own path and hash and leaves the
+    version graph's tables empty: a person must decide which candidates
+    are versions and which files are only supporting material.
+
+    **What breaks it:** selecting one text by a name, mtime, size or
+    suffix; dropping figure/project files from the inventory; or writing
+    a version node/edge from a filename. Any of those turns a mixed
+    working folder into a guessed version chain.
+    """
+    from sqlalchemy import text as text_sql
+
+    root = tmp_path / "ws-candidates"
+    sources = root / "sources"
+    draft = sources / "draft-1"
+    figures = draft / "discarded-figures"
+    origin = draft / "origin-files"
+    figures.mkdir(parents=True)
+    origin.mkdir(parents=True)
+
+    candidates = {
+        "draft-1/first-candidate.md": b"candidate one\n",
+        "draft-1/second-candidate.md": b"candidate two\n",
+        "draft-1/third-candidate.md": b"candidate three\n",
+        "draft-1/marked-candidate.md": b"marked candidate\n",
+        "draft-1/discarded-figures/figure.tif": bytes.fromhex("49492a00"),
+        "draft-1/origin-files/chart.opju": b"origin project\n",
+    }
+    for key, data in candidates.items():
+        (sources / key).write_bytes(data)
+
+    ws = Workspace.bind(root, task_id=TaskId(new_id()), source_dirs=(sources,))
+    report = ingest_workspace(session, SourceMaterial(ws, _allowing_policy()), ingested_at=NOW)
+
+    assert report.failures == ()
+    assert report.skipped == (
+        "draft-1/discarded-figures/figure.tif",
+        "draft-1/origin-files/chart.opju",
+    )
+    assert len(report.outcomes) == 6
+    assert {outcome.material.source.relative_path for outcome in report.outcomes} == {
+        f"sources/{key}" for key in candidates
+    }
+    assert {outcome.material.source.kind.value for outcome in report.outcomes} == {
+        "markdown",
+        "other",
+    }
+    assert len({outcome.material.source.content_sha256 for outcome in report.outcomes}) == 6
+
+    stored_paths = {
+        row[0] for row in session.execute(text_sql("SELECT relative_path FROM sources")).fetchall()
+    }
+    assert stored_paths == {f"sources/{key}" for key in candidates}
+    versions = session.execute(text_sql("SELECT version_id FROM paper_versions")).fetchall()
+    edges = session.execute(text_sql("SELECT edge_id FROM version_edges")).fetchall()
+    assert versions == []
+    assert edges == []
+
+
 def test_a_failing_file_does_not_stop_the_walk_and_leaves_the_rest_stored(
     tmp_path: pathlib.Path, session: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
