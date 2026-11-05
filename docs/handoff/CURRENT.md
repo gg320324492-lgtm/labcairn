@@ -57,12 +57,31 @@ decisions are the human/independent review path and delivery.**
   [LC-P2-14 batch 9 pilot](../acceptance/LC-P2-14-batch9-pilot.md), commit
   `c25bb6d8922c9e0bb6027d951d0786e110fa6541`.
 
-**Where `main` stands.** Ahead of `origin/main` by **18 commits**, all
+**Where `main` stands.** Ahead of `origin/main` by **22 commits**, all
 measured locally; the owner chose on 2026-11-05 to keep accumulating rather
 than start CI. The last local suite on the tree: **4,898 passed, 5 failed,
 14 skipped**, and the five reds are clone/wheel subprocess tests that pass
 (18/18) when the parent's `PYTHONPATH` is removed — the review environment's
 contamination, not the tree's.
+
+**Three decisions landed later on 2026-11-05.** The locator baseline is
+frozen over the 45-row citation sample at `c5e1f40`
+(`evidence-locator-validity 36/45`; five offline classes green, an
+independent reader agrees 45/45) —
+[`LC-P2-26-baseline.json`](../acceptance/LC-P2-26-baseline.json), commit
+`d127819`. An independent agent session re-ran the G1/G2 checklist at
+`1d328fd` (19 A / 14 B / 0 C / 0 D), which satisfies the board's
+independence clause under the owner's reader decision; its clean whole
+suite was stopped when found concurrent with the baseline harness, so no
+whole-suite count is claimed — commit `925113d`. **The Phase 2 exit gate
+is recorded as "no measured capability gain"**: 30 verdicts NOT
+SIGNIFICANT, smallest p 0.0625, no equivalence or generalisation claimed —
+[`LC-P2-14-phase2-exit-gate.md`](../acceptance/LC-P2-14-phase2-exit-gate.md).
+**CEJ full ingestion is designed, not implemented**: [`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md)
+and [`LC-P2-28`](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
+separate quoted opinions, flagged text, version pairs and mixed-source
+refusal; commit `a9d1274`. The licence, the CI provider credential and the
+next material batch remain the owner's.
 
 ---
 
