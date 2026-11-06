@@ -48,9 +48,11 @@ proposals.
 
 `ADR-0020` and
 [`LC-P2-28-review-ingestion-task-breakdown.md`](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
-are **design only**: quoted opinions, flagged text, version pairs, mixed-source
-refusal and full review ingestion. They are not Phase 2 acceptance clauses and
-were not implemented by this closeout. The Workbench / desktop shell belongs
+were **design only**: quoted opinions, flagged text, version pairs,
+mixed-source refusal and full review ingestion. They were not Phase 2
+acceptance clauses and were not implemented by the closeout. The owner
+archived both as historical Phase 2 design on 2026-11-06; neither is accepted,
+renumbered into Phase 3, or dispatched. The Workbench / desktop shell belongs
 to the Phase 3 packaging row, which is a strategic target and not an approved
 work order here.
 
@@ -76,4 +78,6 @@ owner decision.
 it. The pack creates no work order, accepts no design-only ADR, and starts no
 Phase 3 implementation. It also records the boundary that a later
 operator-side WSL measurement of POSIX-only witnesses does not change this
-ledger's frozen gate result.
+ledger's frozen gate result. The owner's follow-up decisions keep local record
+commits local, defer every candidate scope family, and leave the
+real-provider smoke NOT RUN and unconfigured.

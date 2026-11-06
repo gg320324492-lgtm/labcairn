@@ -1,10 +1,11 @@
 # ADR-0020: An opinion quoted in a letter, and a revision marked in colour
 
-**Status:** Proposed — design only, 2026-11-05. No product code is changed by
-this ADR.
-**Work order:** a future LC-P2-28 (full ingestion of review–response–revision
-sets), not yet dispatched.
-**Date:** 2026-11-05
+**Status:** Archived as historical Phase 2 design, 2026-11-06. Written as
+`Proposed — design only` on 2026-11-05; no product code was changed by this
+ADR.
+**Work order:** none. The owner archived the LC-P2-28 design on 2026-11-06;
+it was never dispatched.
+**Date:** 2026-11-05 · **Archived:** 2026-11-06
 
 ## Context and concrete problem
 
@@ -104,6 +105,6 @@ reason rather than average the two sources.
    an existing insert/delete row would still assert a direction the file
    never states.
 4. **Do nothing and keep only the negative witnesses.** Valid, but the
-   owner chose on 2026-11-05 to write the design down; this ADR is the
-   record of what a future ingestion would have to prove, not permission
-   to start it.
+   owner chose on 2026-11-05 to write the design down. The owner archived
+   that design on 2026-11-06; this ADR is the historical record of what a
+   future ingestion would have had to prove, not permission to start it.

@@ -34,6 +34,10 @@ The links are the records.
 - The owner authorised a Phase 3 scoping / ADR pack only. It records
   boundaries, dependencies and owner decisions; it creates no work order and
   starts no Phase 3 implementation.
+- The owner's follow-up decisions keep the local record commits local,
+  archive `ADR-0020` and `LC-P2-28` as historical Phase 2 design, defer
+  every candidate Phase 3 scope family, and leave the real-provider smoke
+  NOT RUN with no credential configured.
 - An operator-side WSL measurement of the POSIX-only path and session-directory
   witnesses is recorded outside the repository. It does not change the frozen
   Phase 2 gate record.

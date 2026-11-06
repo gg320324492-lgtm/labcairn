@@ -5,8 +5,8 @@ PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
 as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally and
 on the remote. `origin/main` is `791f2334…`; local `main` was
-fast-forwarded to that merge and now carries one further local-only record
-commit. The witness ledger over `0d654b2..791f233` reported `LOST -- none`
+fast-forwarded to that merge and now carries local-only record commits.
+The witness ledger over `0d654b2..791f233` reported `LOST -- none`
 and six added witnesses. **The local record commits are local-only**: they
 are not pushed, do not open another PR, and start no CI run.
 
@@ -27,7 +27,10 @@ at this local commit. That operator-side measurement is outside the frozen
 Phase 2 gate record and does not change its verdict. Phase 3 has not started.
 The owner authorised only the
 [`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md); no Phase 3
-work order or implementation is approved.
+work order or implementation is approved. The follow-up decisions keep the
+local record commits local, archive `ADR-0020` and `LC-P2-28` as historical
+Phase 2 design, open no candidate scope family next, and leave the
+real-provider smoke NOT RUN and unconfigured.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,

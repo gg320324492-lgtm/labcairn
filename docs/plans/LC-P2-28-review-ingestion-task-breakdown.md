@@ -1,9 +1,10 @@
 # LC-P2-28 — Full ingestion of review–response–revision sets — task breakdown
 
-**Status:** design only, 2026-11-05. No work dispatched, no product code
-changed. **ADR:** [`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md).
-**Priority:** behind the Phase 2 exit gate; it adds source honesty, not a
-measured capability gain.
+**Status:** archived as historical Phase 2 design, 2026-11-06. It was written
+as design only on 2026-11-05; no work dispatched, no product code changed.
+**ADR:** [`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md).
+**Priority:** retired by the owner's 2026-11-06 archive decision; it added
+source honesty, not a measured capability gain.
 
 ## 0. Why this exists
 

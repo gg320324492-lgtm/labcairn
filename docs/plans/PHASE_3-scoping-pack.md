@@ -7,7 +7,7 @@ an approval to build one.
 
 **Why a pack exists before a board.** The roadmap's P3 row is a strategic
 target, not an implementation work order
-([`ROADMAP.md:5-7`](../ROADMAP.md), [`ROADMAP.md:75-76`](../ROADMAP.md)).
+([`ROADMAP.md`](../ROADMAP.md)).
 Phase 2's administrative closeout is CLOSED
 ([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 The owner's 2026-11-06 decision authorises this scoping pack so that a
@@ -28,13 +28,13 @@ Current-state documents say the same thing: Phase 3 has not started
 says *"The project does not proceed to Phase 3 without a new owner
 decision"* and calls the workbench / desktop shell a strategic target,
 not an approved work order
-([`LC-P2-28-phase2-open-items.md:47-55,71-72`](../acceptance/LC-P2-28-phase2-open-items.md)).
+([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 
 This pack does not revise the roadmap's version or create a board. The
 existing planning discipline requires a roadmap and its work orders to be
 revised together
-([`ROADMAP.md:3-4`](../ROADMAP.md),
-[`PHASE_1_WORKORDERS.md:19,21`](../PHASE_1_WORKORDERS.md)). A board can be
+([`ROADMAP.md`](../ROADMAP.md),
+[`PHASE_1_WORKORDERS.md`](../PHASE_1_WORKORDERS.md)). A board can be
 written only after the owner decides its numbering, gate split and reviewer
 form.
 
@@ -43,17 +43,17 @@ form.
 ### 2.1 Permanent Phase 2 limitations
 
 The 35 model-proposal version edges remain unaccepted
-([`LC-P2-28-phase2-open-items.md:7-14`](../acceptance/LC-P2-28-phase2-open-items.md)).
+([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 The owner expects no further paper-material batches, so the second paper's
 missing connecting edge, the unestablished author-draft / mentor-copy edge
 type, undecided `F027` role and branch-shaped editorial rounds are permanent
 limitations of the measured record
-([`LC-P2-28-phase2-open-items.md:16-28`](../acceptance/LC-P2-28-phase2-open-items.md)).
+([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 
 The real-provider smoke remains `NOT RUN`; no human rated a blind sheet,
 settled a dispute, or performed the independent G1/G2 re-review; and
 agent-to-agent agreement is not inter-human reliability
-([`LC-P2-28-phase2-open-items.md:30-45`](../acceptance/LC-P2-28-phase2-open-items.md)).
+([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 The 2026-11-05 review record's `POSIX-only witnesses remain NOT MEASURED`
 line is a dated snapshot. A 2026-11-06 WSL run of the POSIX-only path and
 session-directory witnesses passed, but that operator-side measurement is
@@ -69,18 +69,21 @@ manual dispatch only and is not a required `pull_request` check. Branch
 protection, evaluation-trigger policy, future human reading, signing
 credentials and release tag authority remain owner decisions.
 
-### 2.3 Design-only material
+### 2.3 Archived Phase 2 design
 
-[`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md) is `Proposed`;
-the [`LC-P2-28` breakdown](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
-is design only. The final open-item ledger says they were not Phase 2
-acceptance clauses and were not implemented
-([`LC-P2-28-phase2-open-items.md:47-52`](../acceptance/LC-P2-28-phase2-open-items.md)).
-ADR-0020 itself says it is the record of what a future ingestion would have
+[`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md) and the
+[`LC-P2-28` breakdown](../plans/LC-P2-28-review-ingestion-task-breakdown.md)
+are now archived historical Phase 2 design. Both were written as design only;
+neither was accepted or dispatched. On 2026-11-06 the owner archived them
+rather than renumbering them into Phase 3, so they carry no implementation
+order. The final open-item ledger says they were not Phase 2 acceptance
+clauses and were not implemented
+([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
+ADR-0020 is the historical record of what a future ingestion would have had
 to prove, not permission to start it
-([`ADR-0020:106-109`](../adr/ADR-0020-opinion-and-flag-sources.md)). A
-future owner decision must either archive that design or move it into a
-newly approved board; this pack does neither.
+([`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md)). The
+owner's expectation of no further paper-material batches makes this archive
+the design's final disposition, not a deferred work order.
 
 ## 3. Candidate scope families
 
@@ -91,39 +94,45 @@ approval, ADR and acceptance clauses before implementation.
 |---|---|---|
 | `packaging-artefact-hardening` | Which wheel/sdist content and release checks become the reproducible publication contract? | `pyproject.toml`, [`release.yml`](../../.github/workflows/release.yml), [`LC-P1-14-release-contents.md`](../acceptance/LC-P1-14-release-contents.md), owner channel and tag authority. |
 | `cross-platform-distribution` | Which Windows/macOS/Linux install and upgrade paths, signing, notarisation and published release are in scope? | Package hardening, [`UPSTREAM_REFERENCES.md`](../UPSTREAM_REFERENCES.md), owner-held signing/account credentials, a decision about `web/package.json`'s `UNLICENSED`. |
-| `desktop-shell-selection` | Is there a desktop shell at all, and what evidence must a real browser measurement produce first? | [`LC-P2-16-task-breakdown.md:68-76,200-203`](../plans/LC-P2-16-task-breakdown.md), [`THREAT-MODEL.md:984`](../THREAT-MODEL.md), existing `web/src/app/` and `web/src/views/`. |
-| `plugin-mcp-trust-model` | Are third-party plugin/MCP extensions allowed, and what registration and capability-grant boundary would they have? | [`ADR-0006`](../adr/ADR-0006-capability-namespaces.md), [`THREAT-MODEL.md:245,260-283`](../THREAT-MODEL.md), `src/labcairn/security/`, owner decision on third-party execution. |
-| `stronger-isolation` | Is the deployment explicitly single-user, or is a real multi-user isolation scheme designed? | [`PHASE_2-capability-reuse-matrix.md:397-401`](../plans/PHASE_2-capability-reuse-matrix.md), [`LC-P2-18-competitor-baseline-brief.md`](../plans/LC-P2-18-competitor-baseline-brief.md), [`THREAT-MODEL.md:310`](../THREAT-MODEL.md). |
-| `observability-interface` | Which privacy-safe structured interface is allowed, and which vendor rule applies? | [`ARCHITECTURE.md:24`](../ARCHITECTURE.md), [`ADR-0003:181`](../adr/ADR-0003-event-and-permission-model.md), owner vendor decision. |
-| `robustness-and-browser-witness` | Which real-browser, recovery and non-concurrent whole-suite measurements become P3 acceptance evidence? | [`THREAT-MODEL.md:984`](../THREAT-MODEL.md), [`LC-P2-14-phase2-exit-gate.md:90-93`](../acceptance/LC-P2-14-phase2-exit-gate.md), owner decision on gate membership. |
-| `operational-limits-docs` | Which measured limits ship with a release, and which current-state documents are revised together? | Results from the other families, [`ROADMAP.md:4`](../ROADMAP.md), owner version and tag decision. |
-| `benchmark-expansion` | Which corpus, human reading and comparison basis may extend the benchmark? | [`ROADMAP.md:189-190`](../ROADMAP.md), external corpus and budget, evaluation manifest and shard registrations. |
+| `desktop-shell-selection` | Is there a desktop shell at all, and what evidence must a real browser measurement produce first? | [`LC-P2-16-task-breakdown.md`](../plans/LC-P2-16-task-breakdown.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md), existing `web/src/app/` and `web/src/views/`. |
+| `plugin-mcp-trust-model` | Are third-party plugin/MCP extensions allowed, and what registration and capability-grant boundary would they have? | [`ADR-0006`](../adr/ADR-0006-capability-namespaces.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md), `src/labcairn/security/`, owner decision on third-party execution. |
+| `stronger-isolation` | Is the deployment explicitly single-user, or is a real multi-user isolation scheme designed? | [`PHASE_2-capability-reuse-matrix.md`](../plans/PHASE_2-capability-reuse-matrix.md), [`LC-P2-18-competitor-baseline-brief.md`](../plans/LC-P2-18-competitor-baseline-brief.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md). |
+| `observability-interface` | Which privacy-safe structured interface is allowed, and which vendor rule applies? | [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`ADR-0003`](../adr/ADR-0003-event-and-permission-model.md), owner vendor decision. |
+| `robustness-and-browser-witness` | Which real-browser, recovery and non-concurrent whole-suite measurements become P3 acceptance evidence? | [`THREAT-MODEL.md`](../THREAT-MODEL.md), [`LC-P2-14-phase2-exit-gate.md`](../acceptance/LC-P2-14-phase2-exit-gate.md), owner decision on gate membership. |
+| `operational-limits-docs` | Which measured limits ship with a release, and which current-state documents are revised together? | Results from the other families, [`ROADMAP.md`](../ROADMAP.md), owner version and tag decision. |
+| `benchmark-expansion` | Which corpus, human reading and comparison basis may extend the benchmark? | [`ROADMAP.md`](../ROADMAP.md), external corpus and budget, evaluation manifest and shard registrations. |
 
-Two ADR-0020 work shapes remain recorded as design only: quoted-opinion
+Two ADR-0020 work shapes remain in the archived design: quoted-opinion
 identity with reply join, and flagged-text events with version alignment
-([`ADR-0020:83-84`](../adr/ADR-0020-opinion-and-flag-sources.md)). Their
-stage assignment is an owner decision, not an output of this pack.
+([`ADR-0020`](../adr/ADR-0020-opinion-and-flag-sources.md)). The owner
+archived rather than renumbered them on 2026-11-06; they are not Phase 3
+work orders.
 
 ## 4. Decisions before any implementation
 
 1. Whether and when to create a Phase 3 board, its numbering, gate split and
    roadmap version.
-2. Whether ADR-0020 / LC-P2-28 are archived as Phase 2 design or renumbered
-   into a future board; whether ADR-0020 is accepted or superseded.
-3. Whether a desktop shell is in scope; a selection ADR and real-browser
+2. Whether a desktop shell is in scope; a selection ADR and real-browser
    measurement may be required before any commitment.
-4. Which credentials, signing, notarisation, store accounts, tag authority
+3. Which credentials, signing, notarisation, store accounts, tag authority
    and spending the owner retains.
-5. Whether third-party plugin/MCP execution is allowed at all.
-6. Whether any P3 robustness ticket may include Phase 2 residuals; the 35
+4. Whether third-party plugin/MCP execution is allowed at all.
+5. Whether any P3 robustness ticket may include Phase 2 residuals; the 35
    edges, human-reader claims and frozen gate verdicts stay excluded.
-7. Whether provider smoke remains schedule / manual dispatch only.
-8. Who supplies the independent review at a named commit, and how a
+6. Who supplies the independent review at a named commit, and how a
    non-human substitute is disclosed.
+
+**Decisions already settled (2026-11-06).** The two local record commits
+stay local until a later owner release; no push, pull request or CI run is
+started for them. ADR-0020 and LC-P2-28 are archived as historical Phase 2
+design, not renumbered. No candidate scope family is opened in the next
+round; the scoping pack is the whole authorised output for now. The
+real-provider smoke stays `NOT RUN`, with its four configuration values
+unset by this session and its schedule / manual-dispatch rule unchanged.
 
 ## 5. Acceptance discipline for a future board
 
-[`PHASE_1_WORKORDERS.md:19,21`](../PHASE_1_WORKORDERS.md) defines the board
+[`PHASE_1_WORKORDERS.md`](../PHASE_1_WORKORDERS.md) defines the board
 as the completion record: a status changes in the same commit as its
 evidence, and a row is done when an independent review at a named commit
 says so. The vocabulary is `NOT STARTED`, `IN PROGRESS`, `PASS`, `PASS WITH

@@ -35,8 +35,11 @@ local commit. That operator-side measurement is outside the frozen Phase 2
 gate record and does not change its verdict. Phase 3 has not started. The
 owner authorised only the
 [`PHASE_3-scoping-pack.md`](plans/PHASE_3-scoping-pack.md), not a work
-order or implementation. The 2026-11-05 end-of-day paragraph below is a
-historical snapshot.
+order or implementation. The owner also chose to keep the local record
+commits local, archive `ADR-0020` and `LC-P2-28` as historical Phase 2
+design, open no candidate scope family next, and leave the real-provider
+smoke NOT RUN and unconfigured. No provider request was spent. The
+2026-11-05 end-of-day paragraph below is a historical snapshot.
 
 **Phase:** P2 — Scientific Intelligence · **Phase 1:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
