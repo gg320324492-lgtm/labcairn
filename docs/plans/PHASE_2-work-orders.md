@@ -8,6 +8,13 @@ tickets) and [`PHASE_2-mentor-trajectory-work-orders.md`](PHASE_2-mentor-traject
 planned, and as the acceptance clauses and file-ownership maps each piece
 was built under.
 
+**Administrative closeout (2026-11-06).** The phase's measured exit gate is
+CLOSED, PASS WITH NOTES, and its administrative closeout is CLOSED. The owner
+expects no further paper-material batches; the final open items are recorded in
+[`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md).
+This work order and the acceptance records below remain the history of how
+the phase was judged, not a list of open implementation tasks.
+
 **What changed and what did not.** The numbering is retired: the phase
 was planned as seventeen tickets (`LC-P2-00` … `LC-P2-16`) and is built
 as **one line of work with one exit gate**. **Every acceptance record

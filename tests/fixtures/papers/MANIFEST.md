@@ -46,7 +46,7 @@ table, and two of the cells were corrupted by delimiter collision —
 also truncated one paper to five of its ten authors. CC BY 4.0 §3(a)(1)(A)
 asks for identification of the creator(s), so a list that silently drops
 five of ten is not a formatting nit; it is an unmet condition on a
-repository that has no `LICENSE` file to carry it instead.
+repository whose root `LICENSE` cannot supply the missing attribution.
 
 ### `arx-2610.10596.pdf`
 

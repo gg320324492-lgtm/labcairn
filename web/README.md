@@ -208,5 +208,6 @@ script with the user's material in it.
 
 ## Licence status
 
-The repository carries no `LICENSE` file yet and no open-source rights have been
-granted. Do not add one here.
+LabCairn original code is licensed under MIT. The grant is the root
+[`LICENSE`](../LICENSE) file; `NOTICE` records third-party terms. Do not add a
+second licence notice here.

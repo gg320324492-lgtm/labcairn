@@ -115,3 +115,31 @@ mutation-checked in
 [`LC-P2-14-rating-closeout.md`](LC-P2-14-rating-closeout.md) §§2–6. This
 paragraph adds no new witness; it says which existing ones carry the
 sentence above.
+
+## 7. Delivery follow-up (2026-11-06)
+
+The five notes in §5 and the "does not discharge" sentence in §3 are a
+2026-11-05 snapshot; they are kept verbatim as the gate's own historical
+record. Three of their surrounding facts have since changed:
+
+- PR #148 merged as
+  `0d654b2038051805eb0ab410783ea2fe90545506`, with all required checks
+  green. The delivery branch was deleted locally and on the remote. The
+  deferred-PR note no longer describes the current delivery state.
+- Batch 11's version-graph record, its approved real-store write and the
+  three negative witnesses were merged into local `main` at
+  `c2cd25a2f817a7a28e37f3ed2b571af8e979961f`. The merge's witness ledger
+  reported `LOST -- none`.
+- The owner chose MIT and confirmed an individual copyright holder and
+  the year 2026. In the final closeout, the root `LICENSE` was added,
+  `LICENSE.PENDING.md` deleted, and the current-state documents, release
+  metadata and witnesses were updated together. The owner also expects no
+  further paper-material batches.
+
+Administrative closeout is recorded as **CLOSED** in CURRENT.md, ROADMAP.md
+and [`LC-P2-28-phase2-open-items.md`](LC-P2-28-phase2-open-items.md). The
+real-provider smoke is still NOT RUN and its CI credential is still the
+owner's; the POSIX-only witnesses in the independent G1/G2 re-review are
+still NOT MEASURED; 35 model-proposal edges remain unaccepted. Nothing in
+this section changes the measured answer, starts Phase 3, or converts the
+independent agent readers into human readers.

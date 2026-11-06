@@ -464,6 +464,7 @@ def _build_a_release_tree(root: Path, fonts: tuple[str, ...]) -> None:
     package = root / "src" / "labcairn"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text('"""A package."""\n', encoding="utf-8")
+    (root / "LICENSE").write_text("MIT License\n", encoding="utf-8")
     (root / "NOTICE").write_text("A notice.\n", encoding="utf-8")
 
     planted: list[str] = []
@@ -474,7 +475,7 @@ def _build_a_release_tree(root: Path, fonts: tuple[str, ...]) -> None:
         planted.append(f"fonts/{name}")
 
     _git(root, "init", "--quiet")
-    _git(root, "add", "--", "src/labcairn/__init__.py", "NOTICE", *planted)
+    _git(root, "add", "--", "LICENSE", "NOTICE", "src/labcairn/__init__.py", *planted)
     _git(
         root,
         "-c",
@@ -487,7 +488,7 @@ def _build_a_release_tree(root: Path, fonts: tuple[str, ...]) -> None:
         "a release tree",
     )
 
-    members = ["NOTICE", "src/labcairn/__init__.py", *planted]
+    members = ["LICENSE", "NOTICE", "src/labcairn/__init__.py", *planted]
     dist = root / "dist"
     dist.mkdir()
     with tarfile.open(dist / "labcairn-0.1.0.tar.gz", "w:gz") as archive:
@@ -502,7 +503,7 @@ def _build_a_release_tree(root: Path, fonts: tuple[str, ...]) -> None:
         "RECORD",
         "WHEEL",
         "entry_points.txt",
-        "licenses/LICENSE.PENDING.md",
+        "licenses/LICENSE",
         "licenses/NOTICE",
     )
     with zipfile.ZipFile(dist / "labcairn-0.1.0-py3-none-any.whl", "w") as archive:

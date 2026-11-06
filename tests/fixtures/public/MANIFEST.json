@@ -1,7 +1,7 @@
 {
   "schema": "labcairn.public-fixtures/1",
   "corpus_version": "2026-10-25.1",
-  "notice": "Every byte of fixture material in this corpus is synthetic, authored for the LabCairn public fixture corpus. No third-party material is reproduced here, so no third-party licence, attribution or restriction travels with it. The corpus is released under the same terms as the repository itself; see LICENSE.PENDING.md, which grants nothing yet.",
+  "notice": "Every byte of fixture material in this corpus is synthetic, authored for the LabCairn public fixture corpus. No third-party material is reproduced here, so no third-party licence, attribution or restriction travels with it. The corpus is released under the same terms as the repository itself; see the root LICENSE file, which grants MIT for LabCairn original code.",
   "material_origin": "synthetic",
   "fixtures": [
     {

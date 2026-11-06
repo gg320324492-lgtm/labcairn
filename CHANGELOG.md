@@ -4,8 +4,8 @@
 **Versioning:** the package declares `0.1.0` in `pyproject.toml`.
 
 **No tag has been cut and no release has been published.** Everything below
-is **unreleased**, and the repository grants no rights to anyone — see
-[`LICENSE.PENDING.md`](LICENSE.PENDING.md) and the
+is **unreleased**. LabCairn original code is granted under MIT by the root
+[`LICENSE`](LICENSE) file; third-party terms are in `NOTICE`. See the
 [licence status](docs/RELEASE-NOTES.md#4-licence-and-security-status).
 
 The changelog is organised by **gate**, because the gates are how this
@@ -17,6 +17,20 @@ The links are the records.
 ## [Unreleased]
 
 ### Since the gates closed
+
+### Phase 2 final closeout (2026-11-06)
+
+- PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; its delivery
+  branch was deleted locally and on the remote.
+- Batch 11's two-paper version graph, approved real-store write and three
+  negative witnesses landed locally; both scratch refs were deleted.
+- The owner confirmed the holder and authority to grant MIT. The root
+  `LICENSE` carries `Copyright (c) 2026 Tonghe Du`;
+  `LICENSE.PENDING.md` was deleted, and the current-state documents,
+  release metadata and licensing witnesses were updated together.
+- Phase 2 administrative closeout is CLOSED; the final open items are in
+  [`LC-P2-28-phase2-open-items.md`](docs/acceptance/LC-P2-28-phase2-open-items.md).
+  Phase 3 has not started.
 
 **Added**
 

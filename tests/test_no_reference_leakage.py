@@ -204,7 +204,7 @@ REQUIRED_PROJECT_FILES: Final = ("pyproject.toml", "README.md")
 
 #: Copied when present. Not required: a future refactor may legitimately drop
 #: one of these without breaking the build, and the probe should not fail for it.
-OPTIONAL_PROJECT_FILES: Final = ("LICENSE.PENDING.md", ".python-version", "conftest.py")
+OPTIONAL_PROJECT_FILES: Final = ("LICENSE", ".python-version", "conftest.py")
 
 #: Directories copied wholesale into the probe project.
 COPIED_PROJECT_TREES: Final = ("src", "tests", "scripts")
@@ -1492,7 +1492,7 @@ CJK_RUN_CEILINGS: Final[dict[str, int]] = {
     "docs/research/upstream-study/PeerRead.md": 11,
     "tests/test_version_alignment.py": 11,
     "docs/plans/PHASE_2-work-orders.md": 10,
-    "tests/test_status_consistency.py": 9,
+    "tests/test_status_consistency.py": 5,
     "docs/plans/LC-P2-06-task-breakdown.md": 8,
     "docs/plans/LC-P2-11-task-breakdown.md": 8,
     "src/labcairn/db/models.py": 8,

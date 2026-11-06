@@ -25,22 +25,21 @@ Four independent claims are checked:
    settled). Sentence-level scanning rejects "supports / provides / 支持 / 实现"
    claims that carry no planning qualifier. The existing "planned" and "not yet
    shipped" language is deliberately exempt — those annotations are correct.
-3. **Licensing consistency.** LC-P1-01 is binding that no ``LICENSE`` file exists
-   while copyright ownership is uncleared, and that the README must state the
-   true status. If somebody later drops a real ``LICENSE`` into the root, this
-   fails loudly instead of letting the README quietly become a lie.
+3. **Licensing consistency.** The owner confirmed the copyright holder and
+   authority to grant MIT on 2026-11-06. The root ``LICENSE`` is the grant;
+   the README, ``pyproject.toml``, ``NOTICE``, the release member list and the
+   clean-room probe must agree with it. A missing grant, a second placeholder,
+   or a stale "not granted" sentence is refused by a witness.
 4. **Status honesty.** The status banner must be at the top of the file, must
    name the planning posture, and must carry a non-empty disclaimer.
 
-A note on one thing this file deliberately does **not** assert
--------------------------------------------------------------
-``LICENSE.PENDING.md`` §2 forbids *third parties* from calling LabCairn
-"open source", and the README does describe itself as "an open-source, local-first
-AI research workspace" — while holding no license at all, which in OSI terms is
-the opposite of open source. That tension is real and is reported to the project
-lead rather than asserted away here: deciding how a license-less project should
-describe itself is a positioning call, not a fact a test should silently settle.
-Forcing it with a regex would have turned a judgement into a wall.
+A note on positioning
+---------------------
+The old placeholder was a positioning call made before copyright ownership had
+been settled. It was deliberately not a grant. The owner has since settled the
+holder and chosen MIT, so the repository now carries one root ``LICENSE`` and no
+placeholder. The witnesses below watch that fact; they do not decide the legal
+position, and they do not add a second grant to the README.
 
 Determinism rule (docs/plans/LC-P1-01-task-breakdown.md §5.2): no wall clock, no
 RNG. The subprocess calls below are the only I/O this module performs and they
@@ -1159,72 +1158,81 @@ def test_readme_names_only_paths_that_exist(repo_root: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_repository_really_has_no_license_file(repo_root: Path) -> None:
-    """The load-bearing fact behind every licensing statement in the README.
+def test_repository_has_exactly_one_mit_license_file(repo_root: Path) -> None:
+    """The root grant is present, unique, and no placeholder survives.
 
-    If this fails, somebody has added a real license and the README — which says
-    no rights have been granted — has become false. LICENSE.PENDING.md §5 requires
-    ``LICENSE`` and ``LICENSE.PENDING.md`` to land in the same commit and never
-    coexist, so this is the moment to reconcile the two, not to relax the test.
+    The owner confirmed the holder and authority to grant MIT. A second root
+    file starting with ``LICENSE`` would make the grant ambiguous; a restored
+    ``LICENSE.PENDING.md`` would contradict the grant that has been made.
     """
     root = repo_root
     licence_files = sorted(
         p.name for p in root.iterdir() if p.is_file() and p.name.startswith("LICENSE")
     )
-    unexpected = [name for name in licence_files if name != "LICENSE.PENDING.md"]
-
-    assert not unexpected, (
-        f"repository root now contains {unexpected}. LICENSE.PENDING.md §3 explains why a "
-        "file named LICENSE carries a meaning a placeholder cannot: GitHub renders it as "
-        "the project licence and forks inherit a claim never made. Either ownership was "
-        "cleared (in which case update LICENSE.PENDING.md, the README and LC-P1-14 "
-        "together) or remove the file. Do not simply update this assertion."
+    assert licence_files == ["LICENSE"], (
+        f"the root must carry exactly LICENSE; it carries {licence_files}. "
+        "A placeholder and a grant must never coexist."
     )
-
-    assert (root / "LICENSE.PENDING.md").is_file(), (
-        "LICENSE.PENDING.md is missing. Without it the repository silently states nothing "
-        "about its licensing, which is the failure mode §2 of that file exists to prevent."
+    text = (root / "LICENSE").read_text(encoding="utf-8")
+    assert text.startswith("MIT License\n"), "LICENSE is not the MIT grant"
+    assert "Copyright (c) 2026 Tonghe Du" in text, (
+        "LICENSE does not carry the owner-confirmed copyright line"
     )
 
 
-def test_readme_license_section_matches_license_pending(repo_root: Path) -> None:
-    """README's licence wording must agree with LICENSE.PENDING.md, point by point.
-
-    Each required phrase is checked as a substring of the lowercased README rather
-    than by regex, so the assertion is about the sentence a human would read, not
-    about a pattern that could be loosened. ``*`` emphasis markers are stripped
-    first — otherwise bolding a word splits the phrase and the gate would report a
-    licensing problem where the sentence is in fact correct.
-    """
+def test_readme_license_section_matches_the_grant(repo_root: Path) -> None:
+    """The README names the same grant, holder and release members as LICENSE."""
     text = readme_text(repo_root).lower().replace("*", "")
     required = {
-        "states that no licence has been granted": "license status: not yet granted",
-        "states that no LICENSE file exists": "no `license` file",
-        "names the placeholder and denies it grants rights": "does not grant rights",
-        "forbids reading the placeholder as MIT": "not be read as an mit grant",
-        "marks MIT as planned rather than granted": "planned licensing remains mit",
-        "names the unresolved PyMuPDF decision": "pymupdf",
+        "states the MIT status": "license status: mit",
+        "names the root grant": "the root `license` file is the grant",
+        "names the SPDX identifier": "spdx identifier",
+        "names the wheel licence member": "licenses/license",
+        "names the wheel notice member": "licenses/notice",
+        "records the dependency decision": "pymupdf` is not in the dependency graph",
     }
     missing = [description for description, phrase in required.items() if phrase not in text]
     assert not missing, (
-        f"README.md licence statement does not match LICENSE.PENDING.md; missing: {missing}. "
-        "LC-P1-01 requires the README to state the true licensing status — not granted, no "
-        "LICENSE file, MIT is a plan, PyMuPDF unresolved."
+        f"README.md does not agree with the MIT grant; missing: {missing}. "
+        "The README is a pointer to LICENSE, not a second grant."
+    )
+
+
+def test_project_license_identifiers_agree_with_the_grant(repo_root: Path) -> None:
+    """The SPDX field, license bytes and README all name the same MIT grant."""
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project.get("license") == "MIT", (
+        "pyproject.toml does not declare the root grant's SPDX identifier"
+    )
+    licence_text = (repo_root / "LICENSE").read_text(encoding="utf-8")
+    assert licence_text.startswith("MIT License\n"), "the root grant is not MIT"
+    assert "Copyright (c) 2026 Tonghe Du" in licence_text, (
+        "the root grant does not carry the owner-confirmed copyright line"
+    )
+    assert "license status: mit" in readme_text(repo_root).lower(), (
+        "the README does not name the grant that pyproject.toml declares"
     )
 
 
 def test_readme_contains_no_unqualified_license_grant(repo_root: Path) -> None:
-    """Assert no sentence claims a grant.
-
-    ``Planned licensing remains MIT`` is honest and passes; ``MIT licensed``
-    without a qualifier fails.
-    """
+    """The README points to LICENSE; it does not make a second, loose grant."""
     hits = _unqualified_grant_claims(readme_text(repo_root))
     assert not hits, (
-        "README.md contains an unqualified licence grant: "
-        f"{hits}. LICENSE.PENDING.md §2: nothing in this repository is licensed to you, and "
-        "silence is not permission."
+        f"README.md contains a licence grant outside the root LICENSE: {hits}. "
+        "The grant is the LICENSE file, and the README is its pointer."
     )
+
+
+# Compatibility witnesses: the ledger counts file/function pairs, so the old
+# names stay as wrappers rather than disappearing while their property changed.
+def test_repository_really_has_no_license_file(repo_root: Path) -> None:
+    """Historical name, now bound to the grant's own witness."""
+    test_repository_has_exactly_one_mit_license_file(repo_root)
+
+
+def test_readme_license_section_matches_license_pending(repo_root: Path) -> None:
+    """Historical name, now bound to the grant's own witness."""
+    test_readme_license_section_matches_the_grant(repo_root)
 
 
 # ---------------------------------------------------------------------------

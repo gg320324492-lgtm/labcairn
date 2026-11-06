@@ -94,7 +94,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | LC-P1-00 evidence diary | [LC-P1-00 evidence](acceptance/LC-P1-00-evidence.md) |
 | Binding decisions for LC-P1-01 | [Approved amendments](plans/LC-P1-01-approved-amendments.md) |
 | Task breakdowns | [LC-P1-09](plans/LC-P1-09-task-breakdown.md) · [LC-P1-10](plans/LC-P1-10-task-breakdown.md) · [LC-P1-11 and LC-P1-12](plans/LC-P1-11-12-task-breakdown.md) |
-| License | **Not granted.** No `LICENSE` file, no rights conveyed. The repository describes itself as in development with open-source licensing pending — see the [README](../README.md#licence-status--not-yet-granted) |
+| License | **MIT.** LabCairn original code is granted by the root `LICENSE` file, `Copyright (c) 2026 Tonghe Du`; third-party terms are in `NOTICE` — see the [README](../README.md#licence-status--mit) |
 | LC-P1-01 | **Accepted and merged.** `PASS WITH NOTES` at `c23ef775`, merged [`89c16d4`](https://github.com/gg320324492-lgtm/labcairn/commit/89c16d4c40da857e42f34cef27d11617278e9670) via [PR #2](https://github.com/gg320324492-lgtm/labcairn/pull/2). [Evidence](acceptance/LC-P1-01-evidence.md) |
 
 All reviews must identify subject commit SHA, actual inspected evidence, tests run (or not run), open issues and next action.

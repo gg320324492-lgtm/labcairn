@@ -414,3 +414,13 @@ advisor wrote and was not tried against a case he left alone — **the same gap
 the fourth pilot's record states for its six.** A check derived from a
 mentor's behaviour is a standard read out of that behaviour; it has not been
 validated by a case that did not fire.
+
+---
+
+## Phase 2 administrative note (2026-11-06)
+
+The opening status above records the state before the corpus's rules were
+sent and distilled. Phase 2's measured gate and administrative closeout are
+now CLOSED; see `LC-P2-14-phase2-exit-gate.md` and
+`LC-P2-28-phase2-open-items.md`. This record's body is kept as the history
+of that absorption, not as a current open task.

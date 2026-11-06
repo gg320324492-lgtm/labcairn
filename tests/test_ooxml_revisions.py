@@ -34,6 +34,8 @@ because of an unrelated encoding or lint matter is not a witness.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import sys
 import zipfile
 from datetime import UTC, datetime
@@ -44,8 +46,10 @@ from docx_corpus import FIXTURES
 from docx_fixtures import Fixture, gold_for, write_fixture
 
 from labcairn.material.addressing import render_locator_key, split_locator_key
+from labcairn.material.ingest import ingest_bytes
 from labcairn.material.ooxml import CommentEvent, RevisionDocument, read_document
 from labcairn.material.units import adapter_for, registered_kinds
+from labcairn.papers.duplicates import VersionSummary, check_duplicates
 from labcairn.sources.locators import DocxLocator
 from labcairn.sources.source import SourceKind
 
@@ -122,6 +126,67 @@ def _document(body: str) -> str:
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W}"><w:body>{body}</w:body></w:document>'
     )
+
+
+def _image_container_bytes(image: bytes, *, colour: str) -> bytes:
+    """A one-paragraph OOXML document with an image and no ``w:t`` at all.
+
+    The image bytes are the only variable part. The part name, relationship,
+    document XML and archive timestamps are fixed, so a different image is
+    the one reason two archives can differ. No real document is read here.
+    """
+    document_xml = _document(
+        '<w:p><w:r><w:drawing xmlns:wp="'
+        "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+        '"><wp:inline><wp:extent cx="1" cy="1"/><wp:docPr id="1" name="figure"/>'
+        '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        "<pic:blipFill>"
+        '<a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        ' r:embed="rIdFigure"/>'
+        "</pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline>"
+        "</w:drawing></w:r></w:p>"
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="'
+        "application/vnd.openxmlformats-package.relationships+xml"
+        '"/><Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="bin" ContentType="application/octet-stream"/>'
+        '<Override PartName="/word/document.xml" ContentType="'
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+        '"/></Types>'
+    )
+    package_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="'
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+        '" Target="word/document.xml"/></Relationships>'
+    )
+    document_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rIdFigure" Type="'
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+        '" Target="media/figure.bin"/></Relationships>'
+    )
+    labelled_image = colour.encode("ascii") + b":" + image
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, content in (
+            ("[Content_Types].xml", content_types.encode("utf-8")),
+            ("_rels/.rels", package_rels.encode("utf-8")),
+            ("word/document.xml", document_xml.encode("utf-8")),
+            ("word/_rels/document.xml.rels", document_rels.encode("utf-8")),
+            ("word/media/figure.bin", labelled_image),
+        ):
+            info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, content)
+    return buffer.getvalue()
 
 
 # --------------------------------------------------------------------------- #
@@ -1645,3 +1710,180 @@ def test_binary_marker_words_in_body_text_mint_no_events() -> None:
     assert document.baseline_paragraphs == (first, second)
     assert document.accepted_text == f"{first}\n{second}"
     assert document.rejected_text == f"{first}\n{second}"
+
+
+# Batch 11's three refusals. The reconnaissance is chain-external at
+# ``E:\labcairn-local\batch11-recon\RECON.md`` §3/§5; its material is not
+# read here. Each fixture below is synthetic, carries no manuscript words,
+# and depends only on the structural property its witness refuses.
+
+
+def test_ee0000_and_ff0000_are_formatting_not_tracked_revisions() -> None:
+    """Neither of the observed red colour values mints a revision.
+
+    The CEJ witness above holds the general negative property with
+    ``FF0000``; this one pins the second concrete colour value, ``EE0000``,
+    beside it. Both are direct ``w:color`` values on ordinary runs. The
+    package declares no ``w:ins``, ``w:del``, move, comment or row mark,
+    so the reader must report **zero events**, no problem, and keep both
+    runs' words once in each view.
+
+    **What breaks it:** a colour-specific shortcut that treats ``EE0000``
+    as an insertion. A mutation that only handles ``FF0000`` would leave
+    the existing CEJ witness green and must make this one red.
+    """
+    first = "A synthetic first clause"
+    second = " and a synthetic second clause."
+    body = (
+        "<w:p>"
+        f'<w:r><w:rPr><w:color w:val="FF0000"/></w:rPr>'
+        f'<w:t xml:space="preserve">{first}</w:t></w:r>'
+        f'<w:r><w:rPr><w:color w:val="EE0000"/></w:rPr>'
+        f'<w:t xml:space="preserve">{second}</w:t></w:r>'
+        "</w:p>"
+    )
+    document = read_document(_docx_bytes(_document(body)))
+
+    assert document.revisions == ()
+    assert document.comments == ()
+    assert document.problems == ()
+    assert document.paragraphs == (first + second,)
+    assert document.baseline_paragraphs == (first + second,)
+    assert document.accepted_text == first + second
+    assert document.rejected_text == first + second
+    assert document.accepted_text.count(first) == 1
+    assert document.accepted_text.count(second) == 1
+
+
+def test_two_empty_text_image_containers_are_not_one_version() -> None:
+    """An empty text hash is not a content identity.
+
+    Two synthetic OOXML packages each hold one empty-text paragraph with
+    an embedded image. The two images have different bytes and the two
+    archives therefore have different raw SHA-256 values, while both
+    document texts are the empty string. A reader that merges versions by
+    the body-text hash alone would make these one version; the byte-level
+    identity and the product's duplicate check must keep them distinct.
+
+    **What breaks it:** computing ``content_sha256`` from the extracted
+    text rather than from the original bytes. Both containers then receive
+    the empty-string hash, so the byte-identity and duplicate-report
+    assertions below fail.
+    """
+    moment = datetime(2026, 4, 1, 9, 0, tzinfo=UTC)
+    empty_text_hash = hashlib.sha256(b"").hexdigest()
+    first_bytes = _image_container_bytes(b"image-bytes-one", colour="one")
+    second_bytes = _image_container_bytes(b"image-bytes-two", colour="two")
+    first = ingest_bytes(
+        first_bytes,
+        relative_path="figures/container-one.docx",
+        display_name="container-one.docx",
+        ingested_at=moment,
+    )
+    second = ingest_bytes(
+        second_bytes,
+        relative_path="figures/container-two.docx",
+        display_name="container-two.docx",
+        ingested_at=moment,
+    )
+
+    assert first_bytes != second_bytes
+    assert hashlib.sha256(first_bytes).hexdigest() != hashlib.sha256(second_bytes).hexdigest()
+    assert first.source.content_sha256 == hashlib.sha256(first_bytes).hexdigest()
+    assert second.source.content_sha256 == hashlib.sha256(second_bytes).hexdigest()
+    assert first.source.source_id != second.source.source_id
+    for material in (first, second):
+        assert len(material.texts) == 1
+        assert material.texts[0].text == ""
+        assert material.texts[0].text_sha256 == empty_text_hash
+        assert material.problems == ()
+
+    text_only = [
+        VersionSummary(
+            version_id="v1",
+            content_sha256=empty_text_hash,
+            version_label_raw="container-one.docx",
+        ),
+        VersionSummary(
+            version_id="v2",
+            content_sha256=empty_text_hash,
+            version_label_raw="container-two.docx",
+        ),
+    ]
+    assert check_duplicates(text_only).same_bytes_different_labels == (("v1", "v2"),), (
+        "a text-hash-only reading would wrongly merge the two containers"
+    )
+    assert check_duplicates(text_only) != check_duplicates(
+        [
+            VersionSummary(
+                version_id="v1",
+                content_sha256=first.source.content_sha256,
+                version_label_raw="container-one.docx",
+            ),
+            VersionSummary(
+                version_id="v2",
+                content_sha256=second.source.content_sha256,
+                version_label_raw="container-two.docx",
+            ),
+        ]
+    ), "the byte-level reading and the text-only reading must disagree"
+
+    versions = [
+        VersionSummary(
+            version_id="v1",
+            content_sha256=first.source.content_sha256,
+            version_label_raw="container-one.docx",
+        ),
+        VersionSummary(
+            version_id="v2",
+            content_sha256=second.source.content_sha256,
+            version_label_raw="container-two.docx",
+        ),
+    ]
+    report = check_duplicates(versions)
+    assert report.same_bytes_different_labels == (), (
+        "two different image containers are not one version"
+    )
+    assert report.same_label_different_bytes == ()
+    assert report.has_duplicates is False
+
+
+def test_a_marked_changes_filename_mints_no_revision_event() -> None:
+    """A display name is not a tracked change.
+
+    The synthetic package has a name that says it carries marked changes,
+    but its document XML has no red ``w:color``, no ``w:ins``, no
+    ``w:del``, no move and no comments part. The reader must report zero
+    revisions, comments and problems and keep its ordinary body text once.
+
+    **What breaks it:** a reader or ingestion adapter that takes the
+    display name as evidence and mints a revision event from it. The
+    document itself gives no revision to report.
+    """
+    sentence = "A synthetic document with no marked changes."
+    body = f'<w:p><w:r><w:t xml:space="preserve">{sentence}</w:t></w:r></w:p>'
+    document_bytes = _docx_bytes(_document(body))
+    result = adapter_for(SourceKind.DOCX).extract(document_bytes)
+    filename = "draft with marked changes.docx"
+    material = ingest_bytes(
+        document_bytes,
+        relative_path=f"drafts/{filename}",
+        display_name=filename,
+        ingested_at=datetime(2026, 4, 1, 9, 0, tzinfo=UTC),
+    )
+
+    document = read_document(document_bytes)
+    assert "marked changes" in material.source.display_name
+    assert document.revisions == ()
+    assert document.comments == ()
+    assert document.problems == ()
+    assert document.paragraphs == (sentence,)
+    assert document.accepted_text == sentence
+    assert result.problems == ()
+    assert [unit.text for unit in result.units] == [sentence]
+    assert "w:ins" not in _document(body)
+    assert "w:del" not in _document(body)
+    assert "w:color" not in _document(body)
+    assert material.problems == ()
+    assert len(material.texts) == 1
+    assert material.texts[0].text == sentence
