@@ -1,14 +1,20 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED.** PR #148
-merged as `0d654b2038051805eb0ab410783ea2fe90545506`; its delivery branch was
-deleted locally and on the remote. Batch 11's two-paper version graph,
-approved real-store write and three negative witnesses were merged locally,
-and their scratch refs were deleted. The owner expects no further paper-material
-batches. The owner confirmed the holder and authority to grant MIT, so the root
-`LICENSE` now carries `Copyright (c) 2026 Tonghe Du`; `pyproject.toml`,
-READMEs, `NOTICE`, release metadata and their witnesses agree. The final open
-items are recorded in
+**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED and delivered.**
+PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
+as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
+failing and 1 declared skip. Both delivery branches were deleted locally and
+on the remote. Local `main` is fast-forwarded to `origin/main` at `791f2334…`;
+the witness ledger over `0d654b2..791f233` reported `LOST -- none` and six
+added witnesses. **This record commit is local-only**: it is not pushed, does
+not open another PR, and starts no CI run.
+
+Batch 11's two-paper version graph, approved real-store write and three
+negative witnesses are in the delivered tree; their scratch refs were deleted.
+The owner expects no further paper-material batches. The owner confirmed the
+holder and authority to grant MIT, so the root `LICENSE` carries
+`Copyright (c) 2026 Tonghe Du`; `pyproject.toml`, READMEs, `NOTICE`, release
+metadata and their witnesses agree. The final open items are recorded in
 [`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md):
 35 model-proposal edges remain unaccepted, the real-provider smoke is NOT RUN
 and its credential is the owner's, POSIX-only G1/G2 witnesses remain NOT
