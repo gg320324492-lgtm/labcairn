@@ -80,6 +80,18 @@ The links are the records.
   implementation is authorised, and no runner result is claimed before the
   pull request reports one.
 
+### Phase 3 gap-register correction (2026-11-07)
+
+- Two independent read-only session audits checked the delivered Q1-Q96
+  traceability and the code-facing gap register. The Q1-Q96 status table
+  passed with all 96 rows and all seven unresolved source questions intact.
+- The gap register now distinguishes a fidelity-preserving manuscript edit
+  from the existing report-only DOCX writer, names the existing source-root
+  read-only guard and `RetrievalTelemetry`, states that existing tests do not
+  all carry `pytestmark`, and records that the web workflow is Ubuntu-only.
+- No product source, test, workflow or migration file is changed by this
+  correction. It remains a planning proposal, not a work order.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
