@@ -1,19 +1,39 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED.** PR #148
-merged as `0d654b2038051805eb0ab410783ea2fe90545506`; its delivery branch was
-deleted locally and on the remote. Batch 11's two-paper version graph,
-approved real-store write and three negative witnesses were merged locally,
-and their scratch refs were deleted. The owner expects no further paper-material
-batches. The owner confirmed the holder and authority to grant MIT, so the root
-`LICENSE` now carries `Copyright (c) 2026 Tonghe Du`; `pyproject.toml`,
-READMEs, `NOTICE`, release metadata and their witnesses agree. The final open
-items are recorded in
+**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED and delivered.**
+PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
+as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
+failing and 1 declared skip. Both delivery branches were deleted locally and
+on the remote. `origin/main` was `791f2334…` after PR #149; local
+`main` was fast-forwarded to that merge and then carried local record
+commits. The witness ledger over `0d654b2..791f233` reported `LOST -- none`
+and six added witnesses. **Those record commits were held locally until the
+2026-11-06 tidy delivery.** A later owner decision authorised one delivery
+PR and one runner run for the records and the repository tidy; there is no
+direct push to `main`, and no runner result is claimed before the PR reports it.
+
+Batch 11's two-paper version graph, approved real-store write and three
+negative witnesses are in the delivered tree; their scratch refs were deleted.
+The owner expects no further paper-material batches. The owner confirmed the
+holder and authority to grant MIT, so the root `LICENSE` carries
+`Copyright (c) 2026 Tonghe Du`; `pyproject.toml`, READMEs, `NOTICE`, release
+metadata and their witnesses agree. The final open items are recorded in
 [`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md):
 35 model-proposal edges remain unaccepted, the real-provider smoke is NOT RUN
-and its credential is the owner's, POSIX-only G1/G2 witnesses remain NOT
-MEASURED, and the material gaps that further batches were meant to close are
-permanent. Phase 3 has not started.
+and its credential is the owner's, and the material gaps that further batches
+were meant to close are permanent. The 2026-11-05 review record's
+`POSIX-only witnesses remain NOT MEASURED` line is a dated snapshot: on
+2026-11-06 the seven `@requires_posix` path tests, the POSIX drive-form
+refusal and `test_the_session_directory_can_still_be_entered` passed on WSL
+at this local commit. That operator-side measurement is outside the frozen
+Phase 2 gate record and does not change its verdict. Phase 3 has not started.
+The owner authorised only the
+[`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md); no Phase 3
+work order or implementation is approved. The follow-up decisions archive
+`ADR-0020` and `LC-P2-28` as historical Phase 2 design, open no candidate
+scope family next, and leave the real-provider smoke NOT RUN and
+unconfigured. A later same-day decision authorised one tidy delivery PR and
+one runner run; it does not open Phase 3.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,

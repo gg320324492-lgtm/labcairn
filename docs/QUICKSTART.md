@@ -13,10 +13,10 @@ exit code is the assertion — §3.
 
 **What this page is not.** It is not a product tour, and it does not
 describe a finished application. The report and the figure are reached
-through the application layer's own operations, because there is no CLI
-command that renders either — §4.7 says so precisely, and the
-[release notes](RELEASE-NOTES.md) carry it as a known limitation rather than
-a surprise.
+through the application layer's own operations: `labcairn task report` and
+`labcairn task figure` (§4.7). The
+[release notes](RELEASE-NOTES.md) carry the remaining limits rather than a
+surprise.
 
 ---
 

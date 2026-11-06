@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "LabCairn local research workbench UI (Phase 1 baseline skeleton, no product features yet).",
-  "license": "UNLICENSED",
+  "description": "LabCairn local research workbench UI.",
+  "license": "MIT",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=24.16.0 <25",

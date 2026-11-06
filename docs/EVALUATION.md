@@ -2,7 +2,7 @@
 
 **Version:** LC-P1-v1.1  
 **Updated:** 2026-10-15  
-**Status:** Test protocol definition; no results have been measured yet.
+**Status:** Phase 1 evaluation protocol; the measured results live in the acceptance records, not in this document.
 
 ## Fixed public fixtures
 
