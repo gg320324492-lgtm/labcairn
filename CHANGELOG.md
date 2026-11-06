@@ -56,6 +56,30 @@ The links are the records.
   local records online. This changelog claims no runner result before the
   pull request reports one.
 
+### Phase 3 planning proposal (2026-11-06)
+
+- The owner accepted a proposed Phase 3 exit gate: a Windows research-group
+  internal trial with one complete DOCX revision loop, substitute-first
+  validation and one bounded real-model check. Multi-platform public
+  distribution moves to a later work package. This is a planning direction,
+  not an approved work order.
+- Two Chinese working drafts were found untracked and were not delivered.
+  Byte-for-byte copies and the owner-supplied Word/PDF source stay outside
+  the repository. They were replaced by an English
+  [`PHASE_3-execution-plan.md`](docs/plans/PHASE_3-execution-plan.md) and
+  [`PHASE_3-design-traceability.md`](docs/plans/PHASE_3-design-traceability.md),
+  both marked `Proposal — not approved, not dispatched`.
+- The execution proposal adds a code-facing gap register that names real
+  entry points and missing capabilities. No product source, test, workflow
+  or migration file is changed by this planning proposal.
+- A dated [`PHASE_3-planning-decisions-2026-11-06.md`](docs/acceptance/PHASE_3-planning-decisions-2026-11-06.md)
+  records the four owner decisions and the decisions that remain open.
+  Q76, Q77, Q81, Q82, Q86, Q87 and Q96 stay unresolved.
+- The owner authorised one planning-delivery PR and one runner run. No
+  provider credential, real-model request, signing, tag, release or Phase 3
+  implementation is authorised, and no runner result is claimed before the
+  pull request reports one.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

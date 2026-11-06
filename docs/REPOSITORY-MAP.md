@@ -61,7 +61,7 @@ itself. Their historical-looking names are not permission to prune them.
 | `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. |
 | `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` | Current phase, delivery pointer and handoff state. Dated sections below the current pointer are historical snapshots. |
 | `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
-| `docs/plans/` | Task breakdowns, ADR impact matrices, scoping pack and design-only records. |
+| `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal, Q1–Q96 traceability and other design-only records. |
 | `docs/adr/` | Architecture decisions. `Proposed`, `Accepted` and archived states are part of the decision record. |
 | `docs/acceptance/` | Named-commit acceptance reports and measured gate verdicts. Do not rewrite a frozen verdict to make it look current; add a dated current pointer instead. |
 | `docs/research/`, `docs/UPSTREAM_REFERENCES.md` | Upstream source study and binding exclusion checklist. |

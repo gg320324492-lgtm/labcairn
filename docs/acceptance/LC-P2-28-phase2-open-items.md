@@ -84,3 +84,13 @@ smoke NOT RUN and unconfigured. A later same-day decision authorised one
 repository-tidy delivery PR and one runner run for the local records; that
 changes only their delivery disposition, not the measured gate result or the
 Phase 3 boundary.
+
+**Planning-proposal note (2026-11-06).** A later owner decision accepted a
+proposed Windows research-group internal-trial exit gate, authorised an
+English planning proposal, and asked for its gaps to be repaired against
+the actual tree. The
+[`PHASE_3-planning-decisions-2026-11-06.md`](PHASE_3-planning-decisions-2026-11-06.md)
+record is the authority for that decision; the execution and traceability
+documents are proposals, not a board or dispatched work orders. The 35
+unaccepted edges, the real-provider smoke `NOT RUN`, the human-reader
+limitations and this ledger's frozen Phase 2 verdict are unchanged.

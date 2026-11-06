@@ -1,9 +1,13 @@
 # Phase 3 — Scoping Pack
 
-**Status:** scoping only, 2026-11-06. The owner authorised a scoping / ADR
-pack and nothing beyond it. Phase 3 implementation has not started, no
-`LC-P3-xx` work order exists, and this document is neither a work order nor
-an approval to build one.
+**Status:** dated scoping record, 2026-11-06. The earlier owner decision
+authorised this scoping / ADR pack and no Phase 3 implementation beyond it.
+A later same-day decision accepted a proposed Windows internal-trial exit
+gate and authorised an English planning proposal; see
+[`PHASE_3-planning-decisions-2026-11-06.md`](../acceptance/PHASE_3-planning-decisions-2026-11-06.md)
+and [`PHASE_3-execution-plan.md`](PHASE_3-execution-plan.md). Phase 3
+implementation has not started, no `LC-P3-xx` work order exists, and neither
+document is a work order or an approval to build one.
 
 **Why a pack exists before a board.** The roadmap's P3 row is a strategic
 target, not an implementation work order
@@ -16,18 +20,22 @@ silently reopening closed acceptance records.
 
 ## 1. Strategic boundary
 
-The P3 row names: stronger isolation, packaging, plugin/MCP trust,
-Windows/macOS/Linux distribution, robustness, observability, documentation
-and benchmark expansion. Its exit gate is a secure, maintainable,
-multi-platform public release and documented operational limits. P4 is
-continuous improvement and is outside this boundary.
+The earlier P3 row named stronger isolation, packaging, plugin/MCP
+trust, Windows/macOS/Linux distribution, robustness, observability,
+documentation and benchmark expansion, with a secure, maintainable,
+multi-platform public release as its exit gate. The owner's later
+2026-11-06 decision proposes a Windows research-group internal trial as the
+Phase 3 exit gate and moves public, multi-platform distribution to a later
+work package. The ROADMAP and this paragraph are revised together in the
+planning-proposal delivery. P4 remains continuous improvement and is outside
+this boundary. This is a planning direction, not an approved board.
 
-Current-state documents say the same thing: Phase 3 has not started
+The current handoff record still says that Phase 3 implementation has not
+started
 ([`handoff/CURRENT.md`](../handoff/CURRENT.md),
-[`CHANGELOG.md`](../../CHANGELOG.md)). The final Phase 2 open-item ledger
-says *"The project does not proceed to Phase 3 without a new owner
-decision"* and calls the workbench / desktop shell a strategic target,
-not an approved work order
+[`CHANGELOG.md`](../../CHANGELOG.md)). The later planning decision is a new
+owner decision; it authorises a proposal, not a work order. The final Phase 2
+open-item ledger records the boundary and remains a frozen gate record
 ([`LC-P2-28-phase2-open-items.md`](../acceptance/LC-P2-28-phase2-open-items.md)).
 
 This pack does not revise the roadmap's version or create a board. The
@@ -123,14 +131,17 @@ work orders.
    non-human substitute is disclosed.
 
 **Decisions already settled (2026-11-06).** ADR-0020 and LC-P2-28 are
-archived as historical Phase 2 design, not renumbered. No candidate scope
-family is opened in the next round; the scoping pack remains the whole
-authorised Phase 3 output. The real-provider smoke stays `NOT RUN`, with its
-four configuration values unset by this session and its schedule /
-manual-dispatch rule unchanged. The local record commits were initially held
-locally; a later same-day owner decision authorised one repository-tidy
-delivery PR and one runner run to carry them online. That decision changes
-the delivery disposition only, not the Phase 3 boundary.
+archived as historical Phase 2 design, not renumbered. The owner later
+superseded this pack's "no candidate scope family is opened in the next
+round" line: a proposed Windows internal-trial exit gate and an English
+planning proposal are now authorised. That decision does not open a board,
+approve a numbering system, approve a gate split, approve a reviewer form,
+authorise provider spend, or start implementation. The real-provider smoke
+stays `NOT RUN`, with its four configuration values unset by this session
+and its schedule / manual-dispatch rule unchanged. The repository-tidy
+delivery PR and runner run already landed; a separate later decision
+authorises one planning-delivery PR and one runner run. Neither delivery
+changes the frozen Phase 2 gate result.
 
 ## 5. Acceptance discipline for a future board
 
@@ -157,6 +168,6 @@ correct. This pack does not rewrite those historical records.
 It does not create a work order, accept ADR-0020, revise the roadmap's
 version, implement product code, change a Phase 2 verdict, accept a model
 edge, add a credential, spend provider money, enable auto-merge, or claim a
-Phase 3 gate result. A separate later owner decision authorises one
-repository-tidy delivery PR and one runner run for these records; that
-delivery does not turn this scoping pack into a work order.
+Phase 3 gate result. A later dated decision record and the English planning
+proposal revise the proposed P3 exit gate; they still do not turn this
+scoping pack or that proposal into a work order.

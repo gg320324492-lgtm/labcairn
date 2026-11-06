@@ -4,13 +4,13 @@
 PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
 as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally and
-on the remote. `origin/main` was `791f2334…` after PR #149; local
-`main` was fast-forwarded to that merge and then carried local record
-commits. The witness ledger over `0d654b2..791f233` reported `LOST -- none`
-and six added witnesses. **Those record commits were held locally until the
-2026-11-06 tidy delivery.** A later owner decision authorised one delivery
-PR and one runner run for the records and the repository tidy; there is no
-direct push to `main`, and no runner result is claimed before the PR reports it.
+on the remote. The repository-tidy delivery was merged as PR #150 at
+`b3fba5f1581b066e64c2bc7b884ebc952605245d`; local `main` and `origin/main`
+are aligned there. Its witness ledger reported `LOST -- none`. The owner
+then chose to hold any further post-merge pointer update locally. The Phase 3
+planning proposal on this branch is a later, separate delivery authorised
+as one PR and one runner run; no runner result is claimed before that PR
+reports it.
 
 Batch 11's two-paper version graph, approved real-store write and three
 negative witnesses are in the delivered tree; their scratch refs were deleted.
@@ -26,14 +26,21 @@ were meant to close are permanent. The 2026-11-05 review record's
 2026-11-06 the seven `@requires_posix` path tests, the POSIX drive-form
 refusal and `test_the_session_directory_can_still_be_entered` passed on WSL
 at this local commit. That operator-side measurement is outside the frozen
-Phase 2 gate record and does not change its verdict. Phase 3 has not started.
-The owner authorised only the
-[`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md); no Phase 3
-work order or implementation is approved. The follow-up decisions archive
-`ADR-0020` and `LC-P2-28` as historical Phase 2 design, open no candidate
-scope family next, and leave the real-provider smoke NOT RUN and
-unconfigured. A later same-day decision authorised one tidy delivery PR and
-one runner run; it does not open Phase 3.
+Phase 2 gate record and does not change its verdict. Phase 3
+implementation has not started. The earlier
+[`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md) remains a dated
+scoping record. On 2026-11-06 the owner later accepted a proposed
+Windows internal-trial exit gate and asked for an English planning proposal
+that repairs gaps against the actual tree; see the
+[decision record](../acceptance/PHASE_3-planning-decisions-2026-11-06.md),
+[execution proposal](../plans/PHASE_3-execution-plan.md) and
+[Q1–Q96 traceability draft](../plans/PHASE_3-design-traceability.md). These
+are proposals, not a board or dispatched work orders. Source questions
+Q76, Q77, Q81, Q82, Q86, Q87 and Q96 stay unresolved, and Phase 2's 35
+unaccepted model edges, `real_model_smoke = NOT RUN` and archived
+ADR-0020 / LC-P2-28 are unchanged. A later same-day decision authorised one
+planning-delivery PR and one runner run; it does not open Phase 3
+implementation.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,

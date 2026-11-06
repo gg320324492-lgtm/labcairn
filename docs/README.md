@@ -77,6 +77,9 @@ This index reflects a strategic plan that originally specified **14 work orders 
 - [Repository map](REPOSITORY-MAP.md)
 - [Phase 1 work orders](PHASE_1_WORKORDERS.md)
 - [Phase 3 scoping pack](plans/PHASE_3-scoping-pack.md)
+- [Phase 3 planning proposal](plans/PHASE_3-execution-plan.md)
+- [Phase 3 Q1–Q96 traceability](plans/PHASE_3-design-traceability.md)
+- [Phase 3 planning decisions](acceptance/PHASE_3-planning-decisions-2026-11-06.md)
 - [Architecture](ARCHITECTURE.md)
 - [Evaluation](EVALUATION.md)
 - [Upstream reference study](UPSTREAM_REFERENCES.md)
@@ -89,7 +92,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Item | Value |
 |---|---|
-| Current phase | **Phase 1 closed at G5; Phase 2 exit gate CLOSED, PASS WITH NOTES; administrative closeout CLOSED.** Phase 3 has not started. Current pointers: [ROADMAP.md](ROADMAP.md), [handoff/CURRENT.md](handoff/CURRENT.md), [LC-P2-28-phase2-open-items.md](acceptance/LC-P2-28-phase2-open-items.md) and [PHASE_3-scoping-pack.md](plans/PHASE_3-scoping-pack.md). The rows below are dated gate records. |
+| Current phase | **Phase 1 closed at G5; Phase 2 exit gate CLOSED, PASS WITH NOTES; administrative closeout CLOSED.** Phase 3 implementation has not started. The owner accepted a proposed Windows internal-trial exit gate and an English planning proposal; no board or work order is approved. Current pointers: [ROADMAP.md](ROADMAP.md), [handoff/CURRENT.md](handoff/CURRENT.md), [planning decisions](acceptance/PHASE_3-planning-decisions-2026-11-06.md), [execution proposal](plans/PHASE_3-execution-plan.md), [Q1–Q96 traceability](plans/PHASE_3-design-traceability.md) and [scoping pack](plans/PHASE_3-scoping-pack.md). The rows below are dated gate records. |
 | Gate G3 | **closed** — [LC-P1-08 `PASS WITH NOTES`](acceptance/LC-P1-08-acceptance.md) · [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`) · [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged. The independent review that closed the gate is [recorded in the gate review](acceptance/G3-acceptance.md) |
 | Gate G4 | **closed** — [LC-P1-11 `PASS WITH NOTES`](acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 `PASS WITH NOTES`](acceptance/LC-P1-12-acceptance.md) — the report path and the three surfaces, and the exit test — *"CLI and Web produce same versioned report"* — **demonstrated**: the CLI's task document and the local service's, field by field, and the report's bytes by hash. The independent review that closed the gate is at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`, verdict **PASS WITH NOTES**, and is [recorded in the gate review](acceptance/G4-acceptance.md) |
 | G3's independent review | At `d114810` — a reviewer that wrote none of the fixes broke each of the gate's fourteen fixes, implementation only and never the test, and **no mutation survived**; verdict `PASS WITH NOTES`. Its three findings are fixed in `f0f7563` (PR #70) |
