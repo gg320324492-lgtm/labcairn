@@ -13,13 +13,14 @@ delivered.** PR #148 merged as
 `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged as
 `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally
-and on the remote. `origin/main` was `791f2334…` after PR #149; local
-`main` was fast-forwarded to that merge and then carried local record
-commits. The witness ledger over `0d654b2..791f233` reported `LOST -- none`.
-**The local record commits were held locally until the 2026-11-06 tidy
-delivery.** A later owner decision authorised one delivery PR and one
-runner run for those records and the repository tidy; there is no direct
-push to `main`, and no runner result is claimed before the PR reports it.
+and on the remote. The repository-tidy delivery was merged as PR #150
+at `b3fba5f1581b066e64c2bc7b884ebc952605245d`; local `main` and
+`origin/main` are aligned there. Its witness ledger reported
+`LOST -- none`. That delivery carried the local record commits and the
+repository classification; the owner then chose to hold any further
+post-merge pointer update locally. The Phase 3 planning proposal on this
+branch is a later, separate delivery authorised as one PR and one runner
+run; no runner result is claimed before that PR reports it.
 
 Batch 11's version graph, approved real-store write and three negative
 witnesses are in the delivered tree; their scratch refs were deleted. The
@@ -43,13 +44,20 @@ design, open no candidate scope family next, and leave the real-provider
 smoke NOT RUN and unconfigured. No provider request was spent. The
 2026-11-05 end-of-day paragraph below is a historical snapshot.
 
-**Phase:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH NOTES, and its administrative closeout is CLOSED; Phase 3 has not started. The dated rows below are historical records; see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
+**Phase:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH
+NOTES, and its administrative closeout is CLOSED. The owner has accepted a
+proposed Windows internal-trial exit gate for Phase 3 and authorised an
+English planning proposal; Phase 3 implementation has not started and no
+board is open. The dated rows below are historical records; see
+[`handoff/CURRENT.md`](handoff/CURRENT.md) and
+[`PHASE_3-planning-decisions-2026-11-06.md`](acceptance/PHASE_3-planning-decisions-2026-11-06.md)
+for the authoritative pointers.
 
 | | |
 |---|---|
 | Completed | **LC-P1-00** — upstream source study, three architecture ADRs, pinned reference index. `PASS WITH NOTES`, reviewed at `623e3ca` and merged as PR #1 (`9b445cd`). Those are the **review subject and merge commit**, not the current tip. |
 | Accepted and merged | **LC-P1-01 … LC-P1-14** — the engineering baseline (LC-P1-01), the trusted core (02–04, G1), the durable work and its recovery (05–07, G2), the evidence path (08 material and locators, 09 retrieval and the ledger, 10 bounded analysis and a deterministic figure), and the usable application (11 the report path, 12 the three surfaces behind the one application layer). **Every work order is `PASS WITH NOTES`**, each with its own acceptance review under [`acceptance/`](acceptance/), and every one of them was reviewed by the party that wrote the fixes — except **G3's three and G4's two**, which were also reviewed independently, at `d114810` and at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`. |
-| Current direction (2026-11-06) | **Phase 2 is administratively CLOSED.** The [final open-item ledger](acceptance/LC-P2-28-phase2-open-items.md) names the permanent limits, and the [`PHASE_3-scoping-pack.md`](plans/PHASE_3-scoping-pack.md) is scoping only. No Phase 3 work order or implementation is approved. |
+| Current direction (2026-11-06) | **Phase 2 is administratively CLOSED.** The [final open-item ledger](acceptance/LC-P2-28-phase2-open-items.md) names the permanent limits. The owner has accepted a proposed Phase 3 direction: a Windows research-group internal trial with one DOCX revision loop, substitute-first validation and one bounded real-model check. The [English planning proposal](plans/PHASE_3-execution-plan.md), [Q1–Q96 traceability draft](plans/PHASE_3-design-traceability.md) and [decision record](acceptance/PHASE_3-planning-decisions-2026-11-06.md) are **proposals**, not work orders. No Phase 3 board or implementation is approved; the earlier [`PHASE_3-scoping-pack.md`](plans/PHASE_3-scoping-pack.md) remains a dated scoping record. |
 | Historical direction (2026-11-05 snapshot) | **G5 is closed on two independent reviews, and it is the last of Phase 1.** **LC-P1-13** (the evaluation harness, the fault injection, the competitor baseline) and **LC-P1-14** (the public alpha handoff: the bilingual delivery documents, the release contents and the NOTICE, the review dossier, the licence audit). G5's exit test is *"outsider fresh install, 3 fixtures, fault injection, docs and real-provider smoke"*, and **four of the five are delivered and watched**: the outsider's path runs in a clean clone and is compared field by field, the three fixtures' answer keys are re-derived by code that is **not the product's**, the fault injection now goes **through the CLI and the service** and is killed at the process level, and the documents' commands are extracted and **run for real**. The fifth — the real-provider smoke — **has not run**: the harness reports it NOT RUN and exits 2, and **that is the owner's decision** (§1.4.2). **Two reviewers wrote none of the gate's fixes**; the first's verdict was **FAIL** on a property table that was entirely clean, and after every finding was fixed it **re-ran its own eleven mutations against the fixed code and passed**. **Twenty-four findings between them, all fixed**, and the gate found six more on its own. The [gate review](acceptance/G5-acceptance.md) records the method, both verdicts and what became of every finding. **What it handed over**: the surfaces never run the recovery pass, so a crash through the CLI leaves an operation `ATTEMPTING` for ever and the next run plans a second one — **the side effect is not duplicated**, so this is a repeated *operation* rather than a repeated *byte**, and it is asserted rather than left as a sentence. **That hand-over is closed after the gate** — see the carried-issues list below: the surfaces now run the pass, refuse the second plan, and leave the answering to `labcairn task reconcile`. **The gate is closed; Phase 2 administrative closeout is CLOSED** — the phase's pieces are merged
 as they land, **the mentor's own material is in the chain and the memory
 serves one rule of sixteen**, and **the phase's exit gate cannot be judged
@@ -78,7 +86,7 @@ order](plans/PHASE_2-work-orders.md).
 |---|---|---|
 | P1 — Foundation & MVP | Standalone local-first Agent, typed tools, task/resume, evidence anchors, bounded analysis with a deterministic scientific plot, a first-party research Skill, report delivery, CLI + local Web | Fresh external install and end-to-end evidence-backed task, with security/recovery/quality tests |
 | P2 — Scientific Intelligence | Better retrieval, citation identity/support, advanced analysis sandbox, higher-fidelity scientific plots, editing, expanded research Skills, conditional reviewers/subagents, **and the mentor-guidance trajectory line** (learning a paper's revision history, not its final text) | Measured capability gain against a frozen P1 baseline, no scientific-claim inflation |
-| P3 — Production & Ecosystem | Stronger isolation, packaging, plugin/MCP trust, Windows/macOS/Linux distribution, robustness, observability, docs, benchmark expansion | Secure, maintainable, multi-platform public release and documented operational limits |
+| P3 — Production & Ecosystem | Stronger isolation, packaging, plugin/MCP trust, Windows/macOS/Linux distribution, robustness, observability, docs, benchmark expansion | **Proposed owner decision (2026-11-06):** a Windows research-group internal trial with one DOCX revision loop and one bounded real-model check; multi-platform public release moves to a later work package. This row is a planning proposal, not an approved work order. |
 | P4 — Continuous Improvement | User feedback, targeted refinements, provider/format coverage, incremental UX/performance improvements | Small reviewable releases with regression tests and clear changelogs |
 
 Phase 2 items listed against scientific plots and research Skills are **upgrades** of Phase 1 capabilities, not their first delivery. Phase 1 **delivers** a deterministic plot (`LC-P1-10`) and a first-party `research-report` Skill (`LC-P1-07`) — both are on the status board as `PASS WITH NOTES`; Phase 2 raises their fidelity and breadth.
