@@ -31,6 +31,12 @@ The links are the records.
 - Phase 2 administrative closeout is CLOSED; the final open items are in
   [`LC-P2-28-phase2-open-items.md`](docs/acceptance/LC-P2-28-phase2-open-items.md).
   Phase 3 has not started.
+- The owner authorised a Phase 3 scoping / ADR pack only. It records
+  boundaries, dependencies and owner decisions; it creates no work order and
+  starts no Phase 3 implementation.
+- An operator-side WSL measurement of the POSIX-only path and session-directory
+  witnesses is recorded outside the repository. It does not change the frozen
+  Phase 2 gate record.
 
 **Added**
 

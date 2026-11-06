@@ -74,6 +74,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 - [Roadmap](ROADMAP.md)
 - [Phase 1 work orders](PHASE_1_WORKORDERS.md)
+- [Phase 3 scoping pack](plans/PHASE_3-scoping-pack.md)
 - [Architecture](ARCHITECTURE.md)
 - [Evaluation](EVALUATION.md)
 - [Upstream reference study](UPSTREAM_REFERENCES.md)

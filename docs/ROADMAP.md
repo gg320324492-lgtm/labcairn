@@ -13,10 +13,11 @@ delivered.** PR #148 merged as
 `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged as
 `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally
-and on the remote. Local `main` is fast-forwarded to `origin/main` at
-`791f2334…`; the witness ledger over `0d654b2..791f233` reported
-`LOST -- none`. **This record commit is local-only**: it is not pushed,
-does not open another PR, and starts no CI run.
+and on the remote. `origin/main` is `791f2334…`; local `main` was
+fast-forwarded to that merge and now carries local-only record commits.
+The witness ledger over `0d654b2..791f233` reported `LOST -- none`.
+**The local record commits are local-only**: they are not pushed, do not
+open another PR, and start no CI run.
 
 Batch 11's version graph, approved real-store write and three negative
 witnesses are in the delivered tree; their scratch refs were deleted. The
@@ -25,9 +26,17 @@ MIT for LabCairn original code with `Copyright (c) 2026 Tonghe Du`; the
 current-state documents, release metadata and witnesses were updated in one
 coordinated commit. The final open items are recorded in
 [`LC-P2-28-phase2-open-items.md`](acceptance/LC-P2-28-phase2-open-items.md):
-unaccepted model edges, the owner-held provider credential, POSIX-only
-witnesses and the permanent material gaps. Phase 3 has not started. The
-2026-11-05 end-of-day paragraph below is a historical snapshot.
+unaccepted model edges, the owner-held provider credential and the permanent
+material gaps. The 2026-11-05 review record's `POSIX-only witnesses remain
+NOT MEASURED` line is a dated snapshot: on 2026-11-06 the seven
+`@requires_posix` path tests, the POSIX drive-form refusal and
+`test_the_session_directory_can_still_be_entered` passed on WSL at this
+local commit. That operator-side measurement is outside the frozen Phase 2
+gate record and does not change its verdict. Phase 3 has not started. The
+owner authorised only the
+[`PHASE_3-scoping-pack.md`](plans/PHASE_3-scoping-pack.md), not a work
+order or implementation. The 2026-11-05 end-of-day paragraph below is a
+historical snapshot.
 
 **Phase:** P2 — Scientific Intelligence · **Phase 1:** G0, G1, G2, G3, G4 and **G5 closed**; the last three closures rest on an independent review rather than on an owner decision — G3's at `d114810`, G4's at `9381036af0104172f16fe94a6edd2e8cb6d9ae04` and G5's at `72154cd`, verdicts **PASS WITH NOTES**, and for G5 the first scope's verdict moved from **FAIL** to **PASS** after its findings were fixed · see [`handoff/CURRENT.md`](handoff/CURRENT.md) for the authoritative pointer
 
