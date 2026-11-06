@@ -93,7 +93,7 @@ approval, ADR and acceptance clauses before implementation.
 | Family | Scope question | Named dependencies |
 |---|---|---|
 | `packaging-artefact-hardening` | Which wheel/sdist content and release checks become the reproducible publication contract? | `pyproject.toml`, [`release.yml`](../../.github/workflows/release.yml), [`LC-P1-14-release-contents.md`](../acceptance/LC-P1-14-release-contents.md), owner channel and tag authority. |
-| `cross-platform-distribution` | Which Windows/macOS/Linux install and upgrade paths, signing, notarisation and published release are in scope? | Package hardening, [`UPSTREAM_REFERENCES.md`](../UPSTREAM_REFERENCES.md), owner-held signing/account credentials, a decision about `web/package.json`'s `UNLICENSED`. |
+| `cross-platform-distribution` | Which Windows/macOS/Linux install and upgrade paths, signing, notarisation and published release are in scope? | Package hardening, [`UPSTREAM_REFERENCES.md`](../UPSTREAM_REFERENCES.md), owner-held signing/account credentials, and a decision about the web package's public metadata; `web/package.json` now declares MIT. |
 | `desktop-shell-selection` | Is there a desktop shell at all, and what evidence must a real browser measurement produce first? | [`LC-P2-16-task-breakdown.md`](../plans/LC-P2-16-task-breakdown.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md), existing `web/src/app/` and `web/src/views/`. |
 | `plugin-mcp-trust-model` | Are third-party plugin/MCP extensions allowed, and what registration and capability-grant boundary would they have? | [`ADR-0006`](../adr/ADR-0006-capability-namespaces.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md), `src/labcairn/security/`, owner decision on third-party execution. |
 | `stronger-isolation` | Is the deployment explicitly single-user, or is a real multi-user isolation scheme designed? | [`PHASE_2-capability-reuse-matrix.md`](../plans/PHASE_2-capability-reuse-matrix.md), [`LC-P2-18-competitor-baseline-brief.md`](../plans/LC-P2-18-competitor-baseline-brief.md), [`THREAT-MODEL.md`](../THREAT-MODEL.md). |
@@ -122,13 +122,15 @@ work orders.
 6. Who supplies the independent review at a named commit, and how a
    non-human substitute is disclosed.
 
-**Decisions already settled (2026-11-06).** The two local record commits
-stay local until a later owner release; no push, pull request or CI run is
-started for them. ADR-0020 and LC-P2-28 are archived as historical Phase 2
-design, not renumbered. No candidate scope family is opened in the next
-round; the scoping pack is the whole authorised output for now. The
-real-provider smoke stays `NOT RUN`, with its four configuration values
-unset by this session and its schedule / manual-dispatch rule unchanged.
+**Decisions already settled (2026-11-06).** ADR-0020 and LC-P2-28 are
+archived as historical Phase 2 design, not renumbered. No candidate scope
+family is opened in the next round; the scoping pack remains the whole
+authorised Phase 3 output. The real-provider smoke stays `NOT RUN`, with its
+four configuration values unset by this session and its schedule /
+manual-dispatch rule unchanged. The local record commits were initially held
+locally; a later same-day owner decision authorised one repository-tidy
+delivery PR and one runner run to carry them online. That decision changes
+the delivery disposition only, not the Phase 3 boundary.
 
 ## 5. Acceptance discipline for a future board
 
@@ -154,5 +156,7 @@ correct. This pack does not rewrite those historical records.
 
 It does not create a work order, accept ADR-0020, revise the roadmap's
 version, implement product code, change a Phase 2 verdict, accept a model
-edge, add a credential, spend provider money, push, open a pull request,
-start CI, enable auto-merge, or claim a Phase 3 gate result.
+edge, add a credential, spend provider money, enable auto-merge, or claim a
+Phase 3 gate result. A separate later owner decision authorises one
+repository-tidy delivery PR and one runner run for these records; that
+delivery does not turn this scoping pack into a work order.

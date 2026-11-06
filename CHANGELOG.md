@@ -34,13 +34,27 @@ The links are the records.
 - The owner authorised a Phase 3 scoping / ADR pack only. It records
   boundaries, dependencies and owner decisions; it creates no work order and
   starts no Phase 3 implementation.
-- The owner's follow-up decisions keep the local record commits local,
-  archive `ADR-0020` and `LC-P2-28` as historical Phase 2 design, defer
-  every candidate Phase 3 scope family, and leave the real-provider smoke
-  NOT RUN with no credential configured.
+- The owner's follow-up decisions archive `ADR-0020` and `LC-P2-28` as
+  historical Phase 2 design, defer every candidate Phase 3 scope family, and
+  leave the real-provider smoke NOT RUN with no credential configured. The
+  local record commits were initially held locally.
 - An operator-side WSL measurement of the POSIX-only path and session-directory
   witnesses is recorded outside the repository. It does not change the frozen
   Phase 2 gate record.
+
+### Repository tidy (2026-11-06)
+
+- A read-only classification found 727 tracked files, 199 Python test files,
+  3,419 declared test functions and no exact-byte duplicate groups. The
+  [`REPOSITORY-MAP.md`](docs/REPOSITORY-MAP.md) records where each class
+  lives; no witness, fixture or historical acceptance record was removed.
+- Current-state pointers in the bilingual READMEs, documentation index,
+  roadmap, handoff and `web/package.json` now agree with MIT and the CLOSED
+  Phase 2 closeout. Dated gate snapshots keep their original wording.
+- The GitHub repository description no longer says licensing is pending.
+- The owner authorised one tidy delivery PR and one runner run to carry the
+  local records online. This changelog claims no runner result before the
+  pull request reports one.
 
 **Added**
 

@@ -64,6 +64,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Document class | Directory | Holds |
 |---|---|---|
+| Repository map | [`REPOSITORY-MAP.md`](REPOSITORY-MAP.md) | Where product code, witnesses, records, generated files and current pointers live |
 | Work orders | [`PHASE_1_WORKORDERS.md`](PHASE_1_WORKORDERS.md) | Per-batch goals, implementation requirements, acceptance criteria, and a **status board** updated in the same commit as any state change |
 | Architecture decisions | [`adr/`](adr/) | Technical choices, upstream reference, trade-off rationale, and later supersession |
 | Acceptance reports | [`acceptance/`](acceptance/) | Subject commit SHA, inspected evidence, findings, verdict. One per reviewed commit |
@@ -73,6 +74,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 ## Index
 
 - [Roadmap](ROADMAP.md)
+- [Repository map](REPOSITORY-MAP.md)
 - [Phase 1 work orders](PHASE_1_WORKORDERS.md)
 - [Phase 3 scoping pack](plans/PHASE_3-scoping-pack.md)
 - [Architecture](ARCHITECTURE.md)
@@ -87,7 +89,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 
 | Item | Value |
 |---|---|
-| Latest gate | **G4 closed** — LC-P1-11 and LC-P1-12 are both `PASS WITH NOTES`, and the gate closed on an **independent review** (verdict `PASS WITH NOTES`; two reviewers who wrote none of the gate's fixes — one of whom **failed the gate five times on a clean property table**, had its findings fixed and re-reviewed by itself each time, and the other of whom **came back BLOCKED five times and FAIL once** — the first on two blockers and six notes, one of the blockers sitting directly under the gate's own exit test, and the last, at `47259e0`, on **this round's four findings** — the shared rule's own witness, one command-level refusal, the pairing by value, and the crash fix's two catches — **were fixed, and the review re-verified its own findings against the fixed code and passed**; every finding is fixed, and both reviewers re-ran their own mutations against the fixed code). [G4 acceptance](acceptance/G4-acceptance.md) · [LC-P1-11 acceptance](acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 acceptance](acceptance/LC-P1-12-acceptance.md) · G3: [Acceptance](acceptance/G3-acceptance.md) · G2: [Acceptance](acceptance/G2-acceptance.md) · [narrative record](acceptance/G2-evidence.md) |
+| Current phase | **Phase 1 closed at G5; Phase 2 exit gate CLOSED, PASS WITH NOTES; administrative closeout CLOSED.** Phase 3 has not started. Current pointers: [ROADMAP.md](ROADMAP.md), [handoff/CURRENT.md](handoff/CURRENT.md), [LC-P2-28-phase2-open-items.md](acceptance/LC-P2-28-phase2-open-items.md) and [PHASE_3-scoping-pack.md](plans/PHASE_3-scoping-pack.md). The rows below are dated gate records. |
 | Gate G3 | **closed** — [LC-P1-08 `PASS WITH NOTES`](acceptance/LC-P1-08-acceptance.md) · [LC-P1-09 `PASS WITH NOTES`](acceptance/LC-P1-09-acceptance.md) (merged `a7a2f48`) · [LC-P1-10 `PASS WITH NOTES`](acceptance/LC-P1-10-acceptance.md) — all eleven subtasks merged. The independent review that closed the gate is [recorded in the gate review](acceptance/G3-acceptance.md) |
 | Gate G4 | **closed** — [LC-P1-11 `PASS WITH NOTES`](acceptance/LC-P1-11-acceptance.md) · [LC-P1-12 `PASS WITH NOTES`](acceptance/LC-P1-12-acceptance.md) — the report path and the three surfaces, and the exit test — *"CLI and Web produce same versioned report"* — **demonstrated**: the CLI's task document and the local service's, field by field, and the report's bytes by hash. The independent review that closed the gate is at `9381036af0104172f16fe94a6edd2e8cb6d9ae04`, verdict **PASS WITH NOTES**, and is [recorded in the gate review](acceptance/G4-acceptance.md) |
 | G3's independent review | At `d114810` — a reviewer that wrote none of the fixes broke each of the gate's fourteen fixes, implementation only and never the test, and **no mutation survived**; verdict `PASS WITH NOTES`. Its three findings are fixed in `f0f7563` (PR #70) |

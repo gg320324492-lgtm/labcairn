@@ -74,10 +74,13 @@ material gaps above. The project does not proceed to Phase 3 without a new
 owner decision.
 
 **Scoping note (2026-11-06).** The owner later authorised a Phase 3
-[`scoping / ADR pack`](../plans/PHASE_3-scoping-pack.md) and nothing beyond
-it. The pack creates no work order, accepts no design-only ADR, and starts no
-Phase 3 implementation. It also records the boundary that a later
-operator-side WSL measurement of POSIX-only witnesses does not change this
-ledger's frozen gate result. The owner's follow-up decisions keep local record
-commits local, defer every candidate scope family, and leave the
-real-provider smoke NOT RUN and unconfigured.
+[`scoping / ADR pack`](../plans/PHASE_3-scoping-pack.md) and no Phase 3
+implementation beyond it. The pack creates no work order, accepts no
+design-only ADR, and starts no Phase 3 implementation. It also records the
+boundary that a later operator-side WSL measurement of POSIX-only witnesses
+does not change this ledger's frozen gate result. The owner's follow-up
+decisions defer every candidate scope family and leave the real-provider
+smoke NOT RUN and unconfigured. A later same-day decision authorised one
+repository-tidy delivery PR and one runner run for the local records; that
+changes only their delivery disposition, not the measured gate result or the
+Phase 3 boundary.
