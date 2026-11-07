@@ -92,6 +92,45 @@ The links are the records.
 - No product source, test, workflow or migration file is changed by this
   correction. It remains a planning proposal, not a work order.
 
+### Board answers and the multisource supplement (2026-11-07)
+
+- The owner answered the board-opening decision dialogs. Confirmed: the
+  `LC-P3-00`…`LC-P3-08` numbering, the Windows internal-trial exit gate with
+  the §4 checklist as written, and the existing reviewer rules (agent
+  stand-ins disclose literally; the arbiter is a third reader; the G4 row
+  needs real advisor use). Deferred: the real-model provider fields stay
+  unnamed, so `LC-P3-06` cannot start. Frozen from live measurement on the
+  machine the owner named as the trial machine: Windows 11 Pro 26H2
+  (build 26300) and Microsoft Office 2010 (14.0.7252.5000), verified via
+  App Paths, the WOW6432Node InstallRoot and the ProgID. Reaffirmed: the
+  desktop shell stays as scoped (`LC-P3-05`; signing deferred with W28) and
+  the historical public-boundary entries stay untouched.
+- The seven source gaps were ruled: Q76/Q81/Q86 recommendations adopted as
+  owner decisions; Q86 and Q87 additionally received fresh owner segments;
+  the project-workspace row closes by the owner's reverse-infer instruction
+  (stem and options were preserved in the extraction with the selection
+  recorded); Q77's per-layer rules and Q82's original remain open at their
+  triggers. The in-tree traceability rows are unchanged until the drafted
+  upgrade lands as its own batched commit on the owner's word.
+- `docs/plans/MULTISOURCE-research-learning-plan.md` lands: the owner's
+  research-event learning supplement (meeting audio, presentation,
+  manuscript and paper as one project case; reviewed learning project-only
+  by default; group publication behind advisor review and a separate
+  sharing grant; a later phase for production ingestion). Its status
+  sentences were aligned with this record before landing — the board is not
+  open and nothing is dispatched.
+- The §6 gap register gained a measured path-length row: the workspace
+  atomic write names a 46-character temp file under a deep output layout;
+  the 259/260-character Windows ceiling switch was reproduced with and
+  without project code. The repair is an implementation-stage decision, not
+  part of this proposal.
+- The full-suite local recheck finished: 4964 passed, 1 failed, 14 skipped.
+  The single failure was measured to the recheck run's own long
+  `--basetemp` prefix — three green reruns at a short one, two red at a
+  long one — not to these commits, and the witness ledger reported
+  `LOST -- none`. These changes land as a third local documentation commit
+  of the batch; no push, PR or CI run is authorised by them.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

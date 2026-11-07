@@ -40,7 +40,20 @@ Q76, Q77, Q81, Q82, Q86, Q87 and Q96 stay unresolved, and Phase 2's 35
 unaccepted model edges, `real_model_smoke = NOT RUN` and archived
 ADR-0020 / LC-P2-28 are unchanged. A later same-day decision authorised one
 planning-delivery PR and one runner run; it does not open Phase 3
-implementation.
+implementation. On 2026-11-07 the owner answered the board-opening decision
+dialogs and supplied the [multisource research-learning
+supplement](../plans/MULTISOURCE-research-learning-plan.md): the numbering,
+gate split and reviewer form are confirmed; the trial-machine support matrix
+is frozen at the values measured live on this machine (Windows 11 Pro 26H2,
+build 26300; Microsoft Office 2010, file version 14.0.7252.5000); the seven
+source gaps are ruled on the operator-side ledger (Q76/Q81/Q86
+recommendations adopted, Q86/Q87 fresh owner segments received, tree `Q96`
+closed by reverse-inference from the preserved options, Q77's per-layer
+rules and Q82's original still open). The `LC-P3-00` board record itself is
+not yet written, and the traceability status upgrades exist only as a draft
+outside the repository; both would land as batched documentation commits on
+the owner's delivery word. Until then the in-tree rows still read
+`UNRESOLVED`, and no board is open.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,
