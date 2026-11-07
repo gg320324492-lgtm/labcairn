@@ -45,15 +45,18 @@ dialogs and supplied the [multisource research-learning
 supplement](../plans/MULTISOURCE-research-learning-plan.md): the numbering,
 gate split and reviewer form are confirmed; the trial-machine support matrix
 is frozen at the values measured live on this machine (Windows 11 Pro 26H2,
-build 26300; Microsoft Office 2010, file version 14.0.7252.5000); the seven
-source gaps are ruled on the operator-side ledger (Q76/Q81/Q86
-recommendations adopted, Q86/Q87 fresh owner segments received, tree `Q96`
-closed by reverse-inference from the preserved options, Q77's per-layer
-rules and Q82's original still open). The `LC-P3-00` board record itself is
-not yet written, and the traceability status upgrades exist only as a draft
-outside the repository; both would land as batched documentation commits on
-the owner's delivery word. Until then the in-tree rows still read
-`UNRESOLVED`, and no board is open.
+build 26300; DOCX hosts: WPS Office 12.1.0.29690 as the primary acceptance
+host and Microsoft Office 2010, file version 14.0.7252.5000, as the
+compatibility reference); the seven source gaps were ruled through the
+owner's dialogs (Q76/Q81/Q86 recommendations adopted, Q86/Q87 fresh owner
+segments received, the project-workspace row closed by reverse-inference
+from the preserved options; Q77's per-layer rules and Q82's original stay
+open at their triggers). The
+[`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md)
+board-opening decision record lands with the traceability status upgrades
+as the fourth batched local documentation commit; five rows now read
+`CONFIRMED`. No implementation ticket is dispatched, and push, PR and CI
+still wait for the owner's word.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,

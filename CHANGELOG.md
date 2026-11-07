@@ -131,6 +131,30 @@ The links are the records.
   `LOST -- none`. These changes land as a third local documentation commit
   of the batch; no push, PR or CI run is authorised by them.
 
+### LC-P3-00 board record and the WPS-primary baseline (2026-11-07)
+
+- The board-opening decision record lands at
+  [`docs/acceptance/LC-P3-00-board-opening-decisions.md`](docs/acceptance/LC-P3-00-board-opening-decisions.md)
+  with the traceability status upgrades in the same commit: five of the
+  seven recorded source gaps close by the owner's rulings of the day
+  (recommendations adopted for Q76/Q81/Q86, fresh owner segments for Q86
+  and Q87, the project-workspace row closed under the owner's
+  reverse-infer instruction from preserved stems and options), while Q77
+  and Q82 — for which nothing survived to reconstruct — stay unresolved
+  at their triggers. The ticket numbering is adopted; adoption is not
+  dispatch.
+- The DOCX host baseline is corrected the same day, after the owner asked
+  whether WPS was present: this machine carries WPS Office 12.1.0.29690
+  (App Paths for wps/et/wpp, ProgIDs `KWPS.Document` and
+  `KWPS.Application`) alongside Microsoft Office 2010. The owner ruled
+  WPS the primary acceptance host, Word 2010 the compatibility
+  reference; the §4 reopen rows and `LC-P3-02` are judged accordingly.
+  The entry above naming Word 2010 alone stands as the dated text of its
+  moment; this entry is the correction.
+- The write-seam path-length row remains registered in §6 for the
+  implementation batch, reaffirmed by the owner. No dispatch, no push,
+  no PR, no CI run.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

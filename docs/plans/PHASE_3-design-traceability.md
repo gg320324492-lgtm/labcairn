@@ -12,7 +12,7 @@
 
 These relative links resolve from `docs/plans/` in the public repository; all five targets exist in the working tree. The Word and PDF source material, their extracted text and the Chinese working drafts remain outside the repository. The public repository keeps only English decision summaries, candidate work-package labels, acceptance language and a gap register. No source sentence, long scenario, example, personal name, unpublished material content or specific research-direction term is copied here; a synthetic research domain and a sample DOCX stand in for source examples.
 
-Candidate labels are not ticket ids. `LC-P3-00` through `LC-P3-08`, `W10` through `W29`, and `G0` through `G4` are proposal labels only. A later owner decision record is required before any of them becomes a work order. The gaps at Q76, Q77, Q81, Q82, Q86, Q87 and Q96 are retained as gaps; this draft does not supply answers on the owner's behalf.
+Candidate labels became ticket ids on 2026-11-07: the owner decision record [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) adopts `LC-P3-00` through `LC-P3-08` as the formal numbering; `W10` through `W29` and `G0` through `G4` remain proposal labels until their own owner decisions. Adopting a label is not dispatch — a ticket starts only on the owner's word. Of the gaps recorded at Q76, Q77, Q81, Q82, Q86, Q87 and Q96, five were ruled that day (see `LC-P3-00` section 8); Q77 and Q82 remain. This file supplies no answers on the owner's behalf.
 
 Status vocabulary: `CONFIRMED`, `SUPERSEDED_BY_LATER_QUESTION`, `RECOMMENDED_ONLY`, `ORIGINAL_MISSING`, `CONFIRMATION_MISSING`, `UNRESOLVED`. `RECOMMENDED_ONLY`, `ORIGINAL_MISSING` and `CONFIRMATION_MISSING` always appear with `UNRESOLVED`. Q23 -> Q57 and Q25 -> Q54 are the two superseded rows. Q36, Q47, Q59 and Q74 were confirmed later in the source material and are `CONFIRMED`.
 
@@ -38,14 +38,14 @@ Any later test added for a candidate label must carry `pytestmark`, be listed in
 | Q47-Q53 | Candidate: W15, W18, W21. |
 | Q54-Q63 | Candidate: LC-P3-01, LC-P3-02, LC-P3-03, LC-P3-04, LC-P3-05, LC-P3-07, LC-P3-08, W17, W28. |
 | Q64-Q75 | Candidate: LC-P3-03, LC-P3-06, LC-P3-07, W10, W11, W12, W14, W16, W17, W19. |
-| Q76-Q81 | Candidate: W13, W15, W18, W19 for confirmed rows only; Q76, Q77 and Q81 are unresolved. |
-| Q82-Q87 | Candidate only: W20 or W25 for confirmed rows; no work package can be inferred from a missing original question. Q82, Q86 and Q87 are unresolved. |
+| Q76-Q81 | Candidate: W13, W15, W18, W19; Q76 and Q81 were ruled owner decisions on 2026-11-07 (`LC-P3-00` section 8); Q77 has no stem or options recorded and stays unresolved at the memory-interface trigger. |
+| Q82-Q87 | Candidate only: W20 or W25 for confirmed rows; Q86 and Q87 were ruled by owner segments on 2026-11-07 (`LC-P3-00` section 8); Q82 has neither stem, options nor conclusion anywhere and stays unresolved at the baseline-freeze trigger. |
 | Q88-Q95 | Candidate: W22, W23, W24, W25, W26, W27. |
 | Q96 (trigger only) | Before any project-workspace acceptance clause is written. |
 
 ## Question-by-question traceability
 
-Every candidate landing below is a proposal label, not a ticket id. Q1-Q96 rows are English topic summaries, not quotations.
+The `LC-P3-*` ids were adopted as formal ticket numbering by `LC-P3-00` on 2026-11-07; `W*` and `G*` landings stay proposal labels. Q1-Q96 rows are English topic summaries, not quotations.
 
 | Question | Design topic | status | Candidate landing |
 |---|---|---|---|
@@ -124,18 +124,18 @@ Every candidate landing below is a proposal label, not a ticket id. Q1-Q96 rows 
 | Q73 | Risk-isolated local code, file and tool actions. | `CONFIRMED` | Candidate: LC-P3-03, LC-P3-05, LC-P3-07, W10, W11, W12. |
 | Q74 | Unified tool registry across native and external capabilities. | `CONFIRMED` | Candidate: LC-P3-05, LC-P3-07, W10, W11, W12, W14, W16, W17, W19; later confirmation recorded. |
 | Q75 | Govern third-party extensions by trust and isolation. | `CONFIRMED` | Candidate: LC-P3-07, W10, W11, W16, W17, W19. |
-| Q76 | Self-service agent creation and cultivation. | `RECOMMENDED_ONLY` + `UNRESOLVED` | Trigger: before self-service agent creation is opened. |
-| Q77 | Memory-layer definition. | `ORIGINAL_MISSING` + `UNRESOLVED` | Trigger: before a memory interface is frozen. |
+| Q76 | Self-service agent creation and cultivation. | `CONFIRMED` | Owner ruling 2026-11-07 (see `LC-P3-00`): the recorded recommendation is adopted as the decision. |
+| Q77 | Memory-layer definition. | `ORIGINAL_MISSING` + `UNRESOLVED` | No stem and no options survive — the interview jumps 76 to 78; the five knowledge tiers are recoverable from Q78's answer, the per-tier boundaries, write rules and lifecycle are not. Trigger: before a memory interface is frozen, as a design task, not a reconstruction. |
 | Q78 | Arbitrate knowledge by evidence, scope and age. | `CONFIRMED` | Candidate: W13, W15, W18, W19, W21. |
 | Q79 | Separate evidence completeness from scientific correctness. | `CONFIRMED` | Candidate: LC-P3-04, LC-P3-08, W21, W22. |
 | Q80 | Bulk historical import preserves originals and reviewable links. | `CONFIRMED` | Candidate: LC-P3-02, W13, W15, W18, W19. |
-| Q81 | Separate paper submission from learning authorisation. | `RECOMMENDED_ONLY` + `UNRESOLVED` | Trigger: before persistent learning or shared contribution is accepted. |
-| Q82 | Original question and conclusion unavailable. | `ORIGINAL_MISSING` + `UNRESOLVED` | Trigger: before a later requirements baseline is frozen. |
+| Q81 | Separate paper submission from learning authorisation. | `CONFIRMED` | Owner ruling 2026-11-07: the recorded recommendation is adopted; the fresher confirmation segment arrived cut off mid-sentence and the material stream has ended, so the adoption governs unless the owner restates. |
+| Q82 | Original question and conclusion unavailable. | `ORIGINAL_MISSING` + `UNRESOLVED` | Nothing survives — no stem, no options, no conclusion; the reverse-infer route cannot reach this row. Trigger: before a later requirements baseline is frozen; only an owner statement fills it. |
 | Q83 | Attribution, licensing and contribution rights for shared knowledge. | `CONFIRMED` | Candidate: W20, W25. |
 | Q84 | Tiered quality governance for shared knowledge. | `CONFIRMED` | Candidate: W20, W25. |
 | Q85 | Show source, scope, evidence and uncertainty. | `CONFIRMED` | Candidate: LC-P3-04, LC-P3-08, W20, W25. |
-| Q86 | Literature capture, citation and verification. | `RECOMMENDED_ONLY` + `UNRESOLVED` | Trigger: before a literature-management sub-ticket is split. |
-| Q87 | Original question and conclusion unavailable. | `ORIGINAL_MISSING` + `UNRESOLVED` | Trigger: before a later requirements baseline is frozen. |
+| Q86 | Literature capture, citation and verification. | `CONFIRMED` | Owner ruling 2026-11-07: recommendation adopted, and a fresh confirmation segment arrived the same day — Option D, a dedicated literature centre with lifecycle management; authenticity checks rest on verifiable publication evidence. |
+| Q87 | Full-text acquisition strategy across legitimate channels. | `CONFIRMED` | The original question arrived with the owner's 2026-11-07 segment — multi-channel retrieval, no paywall or licence circumvention, and metadata/abstract/full text kept as distinct tiers; Option D confirmed. |
 | Q88 | From single-item analysis to domain synthesis. | `CONFIRMED` | Candidate: W22, W23, W24, W25, W26, W27. |
 | Q89 | Track hypothesis, plan, execution and verification states. | `CONFIRMED` | Candidate: W22, W23, W24, W25, W26, W27. |
 | Q90 | Staged instrument integration after data standardisation. | `CONFIRMED` | Candidate: W22, W23, W24, W25, W26, W27. |
@@ -144,10 +144,10 @@ Every candidate landing below is a proposal label, not a ticket id. Q1-Q96 rows 
 | Q93 | Layered checks with independent recomputation of key results. | `CONFIRMED` | Candidate: LC-P3-04, LC-P3-08, W22, W23, W24, W25, W26, W27. |
 | Q94 | Reproducible chart creation and editing. | `CONFIRMED` | Candidate: W22, W23, W24, W25, W26, W27. |
 | Q95 | Editable presentation output linked to real artifacts. | `CONFIRMED` | Candidate: W22, W23, W24, W25, W26, W27. |
-| Q96 | Project-centred workspace; Option D selected; confirmation segment missing from source material. | `CONFIRMATION_MISSING` + `UNRESOLVED` | Trigger: before any project-workspace acceptance clause is written. |
+| Q96 | Project-centred workspace with per-project isolation and authorised sharing. | `CONFIRMED` | Option D; the confirmation segment never arrived in the material, and the owner's ruling of 2026-11-07 closes this row by reverse-inference from the preserved stem and options. The formal name and detailed design expand at the workspace trigger. |
 
 ## Source and gaps
 
 Q1-Q96 are traced from an external Word document. The rows above are short English decision topics, not question-by-question copies of the original text; no question text, options, long scenarios, examples, personal names or unpublished material content are reproduced. The related PDF material and the Chinese working drafts also stay outside the public repository.
 
-Q77, Q82 and Q87 have no original question or conclusion in the source material. Q76, Q81 and Q86 carry a recommendation only, with no confirmation sentence. Q96 records Option D selected; confirmation segment missing from source material. The seven gaps are not closed by this draft, and no work package is inferred from a missing original question. Any later work order must first have an owner decision record that resolves the relevant gap; until then these rows remain triggers for a decision, not approval to build.
+The seven gaps recorded by the first draft — Q76, Q77, Q81, Q82, Q86, Q87 and Q96 — were ruled by the owner's dialogs of 2026-11-07, and the rulings are in [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md): five rows closed (recommendations adopted as decisions, owner segments received, and the workspace row by the owner's reverse-infer ruling from preserved stems and options); Q77 and Q82 remain open, and the reverse-infer route does not reach them because neither has preserved options. No work package is inferred from a missing original question; open rows remain triggers for a decision, not approval to build.

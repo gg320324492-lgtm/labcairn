@@ -70,9 +70,12 @@ is deliberately placed in later work package `W28`, not in this exit gate.
 
 ## 3. Candidate work orders and gate split
 
-These are **candidate labels**, not ticket ids. Formal numbering, gate names,
-owners and reviewer form require a later owner decision before any board is
-opened. The sequence `00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
+These are candidate labels, formalised on 2026-11-07: the owner decision
+record [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md)
+adopts `LC-P3-00` through `LC-P3-08` as the ticket numbering and records
+the gate, reviewer form and support matrix. Adoption is not dispatch — a
+ticket starts only on the owner's word. The sequence
+`00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
 proposal; `01` and `02` may run independently.
 
 | Candidate | Stage | Deliverable and completion evidence |
@@ -190,17 +193,23 @@ The product owner keeps scope, sign-off, budget and distribution authority.
 
 ## 8. Unresolved source questions
 
-The traceability companion records all Q1–Q96 rows. These entries constrain
-this proposal and must not be silently closed:
+The traceability companion records all Q1–Q96 rows, and
+[`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) holds the
+owner rulings of 2026-11-07 that closed five of the seven recorded gaps:
+Q76, Q81 and Q86 had their recommendations adopted as decisions; Q86 and
+Q87 additionally received fresh owner segments; the project-workspace row
+(Q96) closes by the owner's reverse-infer instruction from the preserved
+stem and options. Two rows remain, and the reverse-infer route does not
+reach either because no options survived for them:
 
 | Source question | Status | Trigger |
 |---|---|---|
-| Q76 | Recommended only; no confirmation sentence in the source material. | Before any self-service agent-creation capability is opened. |
-| Q77 | Original question and options missing; five knowledge sources are reconstructed from Q78 only. | Before a memory interface is frozen. |
-| Q81 | Recommended only; no confirmation sentence. The default "import is not learning authorisation" is a proposed conservative implementation default, not a closed decision. | Before persistent learning or shared contribution is accepted. |
-| Q82, Q87 | Original question and conclusion missing; no work package can be inferred. | Before a later requirements baseline is frozen. |
-| Q86 | Recommended only; no confirmation sentence. | Before a literature-management sub-ticket is split. |
-| Q96 | Option D selected, but the source material ends before a confirmation segment; the formal name and detailed design are missing. | Before any project-workspace acceptance clause is written. |
+| Q77 | No stem and no options in the material (the interview jumps 76 to 78); the five knowledge tiers are recoverable from Q78's answer, the per-tier boundaries, write rules and lifecycle were never defined. | Before a memory interface is frozen — a design task, not a reconstruction. |
+| Q82 | Nothing survives: no stem, no options, no conclusion. | Before a later requirements baseline is frozen; only an owner statement can fill it. |
+
+No row is silently closed, and no work package is inferred from a missing
+original question; the open rows remain triggers for a decision, not
+approval to build.
 
 ## 9. Delivery and evidence discipline
 
