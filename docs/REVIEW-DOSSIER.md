@@ -540,11 +540,12 @@ applied to this document, one at a time, and each turned the witness red:
 ## 6. The security boundary this dossier does not cross
 
 **The upstream trees contain a measured prompt-injection corpus, and none of it
-is here.** The five clones contain **139 files named `AGENTS.md`, `CLAUDE.md` or
+is here.** The five cloned projects (six clone directories — `paper-qa` is
+cloned twice) contain **139 files named `AGENTS.md`, `CLAUDE.md` or
 `SKILL.md`** (`docs/UPSTREAM_REFERENCES.md:142`): `pydantic-ai` 59, `deepagents`
 43, `openhands-sdk` 29, `paperspine` 8, `paper-qa` 0. `SKILL.md` is an entire
 file format whose purpose is to instruct an agent, and three of the five
-repositories ship 22–26 of them. `paperspine` is the sharpest instance: its top
+projects ship 21, 22 and 26 of them. `paperspine` is the sharpest instance: its top
 level holds an agent instruction file and an installation guide next to an
 installer pair, so the four highest-risk artefacts are the four most
 conveniently reachable files in the tree (`docs/UPSTREAM_REFERENCES.md:143`).

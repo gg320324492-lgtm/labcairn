@@ -27,7 +27,7 @@ were meant to close are permanent. The 2026-11-05 review record's
 `POSIX-only witnesses remain NOT MEASURED` line is a dated snapshot: on
 2026-11-06 the seven `@requires_posix` path tests, the POSIX drive-form
 refusal and `test_the_session_directory_can_still_be_entered` passed on WSL
-at this local commit. That operator-side measurement is outside the frozen
+at the local commit of that date. That operator-side measurement is outside the frozen
 Phase 2 gate record and does not change its verdict. Phase 3
 implementation has not started. The earlier
 [`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md) remains a dated
@@ -55,8 +55,8 @@ segments received, the project-workspace row closed by reverse-inference
 from the preserved options; Q77's per-layer rules and Q82's original stay
 open at their triggers). The
 [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md)
-board-opening decision record lands with the traceability status upgrades
-as the fourth batched local documentation commit; five rows now read
+board-opening decision record landed with the traceability status upgrades
+among the local documentation commits of 2026-11-07; five rows now read
 `CONFIRMED`. No implementation ticket is dispatched, and push, PR and CI
 still wait for the owner's word.
 

@@ -213,6 +213,31 @@ The links are the records.
   outside the repository instead. No product source, test, workflow or
   migration file is changed; no push, PR or CI run is authorised.
 
+### C4–C8 wording corrections (2026-11-08)
+
+- The five wording and coverage judgements the freshness scan left to the
+  owner are applied. `docs/README.md`'s current-phase row is dated
+  (2026-11-07; re-read 2026-11-08) and no longer carries the batch ordinal;
+  the same ordinal is removed from `docs/ROADMAP.md` and
+  `docs/handoff/CURRENT.md`.
+- The English and Chinese README banners now say the Phase 3 board is open
+  (`LC-P3-00`, decisions of 2026-11-07), that implementation has not started,
+  that no ticket is dispatched and no delivery is authorised, and point at
+  the roadmap's current position.
+- `docs/handoff/CURRENT.md` says "at the local commit of that date" instead
+  of "at this local commit", so the 2026-11-06 WSL measurement no longer
+  reads as a claim about the current tip.
+- `CONTRIBUTING.md` no longer calls eleven commands "the README's command
+  table": it names the ten fenced commands together with the
+  `uv run labcairn --help` line as the eleven `VERIFIED_COMMANDS` entries.
+- The upstream clone count paragraph now says five cloned projects, six
+  clone directories (`paper-qa` is cloned twice), 139 files re-walked on
+  2026-11-08, and three of the five projects ship 21, 22 and 26 `SKILL.md`
+  files. The same correction is carried in `docs/UPSTREAM_REFERENCES.md`
+  and `docs/REVIEW-DOSSIER.md`; the "22–26" range was wrong at 21.
+- No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
