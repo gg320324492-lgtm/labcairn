@@ -187,6 +187,16 @@ The links are the records.
   `shard: [0, 1, 2, 3, 4]` — so the rule now says five shards and ten
   `pytest` jobs, matching `CLAUDE.md`, `.github/CI.md` and the repository
   map, all of which already said five.
+- A further lag surfaced after the scan, from measuring the two things it
+  had to leave open: the roadmap's live position stated
+  `tests/test_no_reference_leakage.py` as `99 tests`, where `--collect-only`
+  on this tree reports 110. The count is dropped rather than updated, because
+  a collected number moves with every witness added and a live position is
+  not where a run's number belongs; the figure stays in the dated records
+  that measured it, where it is true of that commit. The other open item
+  resolved the same way: `tests/test_ci_shard_coverage.py` passes 16 nodes
+  here, since a change only forces a re-measurement when it could unbalance
+  the partition.
 - No merge identifier and no runner tally is written into these pointers: the
   A1/A6 ruling of 2026-11-07 keeps post-merge CI evidence operator-side. No
   dated snapshot is rewritten — one pre-existing malformed table row in the
