@@ -155,6 +155,20 @@ The links are the records.
   implementation batch, reaffirmed by the owner. No dispatch, no push,
   no PR, no CI run.
 
+### Repository map re-anchored (2026-11-07)
+
+- The current index is re-measured from the tracked tree: 733 files against
+  the 727 of the 2026-11-06 scan. The six files since are the map itself and
+  five Phase 3 planning and decision records; Markdown is the only class
+  that moved, from 163 to 169. The 199 Python test files, 3,419 declared
+  test functions, 38 fixtures and zero exact-byte duplicate groups were
+  re-measured and are unchanged.
+- `docs/plans/` now names the execution plan and the multisource supplement;
+  `docs/acceptance/` now names dated owner decision records as a class.
+  This is a current-pointer correction, not a rewrite of a dated snapshot.
+  No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
