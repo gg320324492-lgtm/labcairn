@@ -16,9 +16,10 @@ Phase 3 Plan` were supplied as external product-design material. Two Chinese
 working drafts were found untracked in the checkout:
 `docs/plans/PHASE_3-execution-plan.md` and
 `docs/plans/PHASE_3-design-traceability.md`. They had not been committed,
-pushed, opened as a pull request, or measured by CI. Byte-for-byte copies of
-those Chinese drafts and the Word extraction are kept outside the repository
-under `E:\labcairn-local\phase3-plan-review\`.
+pushed, opened as a pull request, or measured by CI. Byte-for-byte copies
+of those Chinese drafts and the Word extraction are retained outside the
+repository in an operator-side review workspace; the workspace path is
+intentionally not recorded here.
 
 The earlier claim that a "complete execution plan" had been delivered is not
 borne out by the repository state: the drafts were untracked. This record
