@@ -169,6 +169,31 @@ The links are the records.
   No product source, test, workflow or migration file is changed; no push,
   PR or CI run is authorised.
 
+### Current pointers re-anchored (2026-11-08)
+
+- A read-only freshness scan of the current pointers found seven live claims
+  that lagged the tree, and all seven are corrected here. The handoff and the
+  roadmap no longer say `main` and `origin/main` are aligned at the tidy
+  delivery's merge, and no longer describe the Phase 3 planning proposal as a
+  later, separate delivery: that proposal has been delivered, and `main` now
+  sits ahead of `origin/main` by the batched local documentation commits,
+  unpushed and un-pull-requested by the owner's choice. The pointer labels
+  above the corrected paragraphs are re-read to 2026-11-08.
+- The roadmap's status line no longer says no board is open. `LC-P3-00`
+  opened the board record; it authorises no implementation and dispatches
+  nothing, which is what the rest of that line continues to say.
+- `CONTRIBUTING.md` said six shards per platform, and that a push therefore
+  starts twelve Python jobs. The workflow's matrix is the authority —
+  `shard: [0, 1, 2, 3, 4]` — so the rule now says five shards and ten
+  `pytest` jobs, matching `CLAUDE.md`, `.github/CI.md` and the repository
+  map, all of which already said five.
+- No merge identifier and no runner tally is written into these pointers: the
+  A1/A6 ruling of 2026-11-07 keeps post-merge CI evidence operator-side. No
+  dated snapshot is rewritten — one pre-existing malformed table row in the
+  roadmap's 2026-11-05 historical section is left as landed and recorded
+  outside the repository instead. No product source, test, workflow or
+  migration file is changed; no push, PR or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

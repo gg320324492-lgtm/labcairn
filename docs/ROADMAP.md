@@ -8,19 +8,21 @@ targets, not approved implementation work orders.
 
 ## Current position
 
-**Delivery pointer (2026-11-06). Phase 2 administrative closeout: CLOSED and
-delivered.** PR #148 merged as
+**Delivery pointer (2026-11-06, re-read 2026-11-08). Phase 2 administrative
+closeout: CLOSED and delivered.** PR #148 merged as
 `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged as
 `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally
 and on the remote. The repository-tidy delivery was merged as PR #150
-at `b3fba5f1581b066e64c2bc7b884ebc952605245d`; local `main` and
-`origin/main` are aligned there. Its witness ledger reported
+at `b3fba5f1581b066e64c2bc7b884ebc952605245d`; its witness ledger reported
 `LOST -- none`. That delivery carried the local record commits and the
-repository classification; the owner then chose to hold any further
-post-merge pointer update locally. The Phase 3 planning proposal on this
-branch is a later, separate delivery authorised as one PR and one runner
-run; no runner result is claimed before that PR reports it.
+repository classification. `origin/main` has since moved past that commit:
+the Phase 3 planning proposal was authorised as one PR and one runner run
+and has been delivered; its merged identifier and runner tally stay
+operator-side (the A1/A6 ruling of 2026-11-07), and no runner result is
+claimed here. Local `main` carries the batched local documentation commits
+ahead of `origin/main`, unpushed and un-pull-requested by the owner's
+choice.
 
 Batch 11's version graph, approved real-store write and three negative
 witnesses are in the delivered tree; their scratch refs were deleted. The
@@ -47,8 +49,11 @@ smoke NOT RUN and unconfigured. No provider request was spent. The
 **Phase:** Phase 1 closed at G5; Phase 2's exit gate is CLOSED, PASS WITH
 NOTES, and its administrative closeout is CLOSED. The owner has accepted a
 proposed Windows internal-trial exit gate for Phase 3 and authorised an
-English planning proposal; Phase 3 implementation has not started and no
-board is open. The dated rows below are historical records; see
+English planning proposal. Phase 3 implementation has not started and no
+ticket is dispatched; the board record itself was opened by
+[`LC-P3-00`](acceptance/LC-P3-00-board-opening-decisions.md), which
+authorises no implementation and dispatches nothing. The dated rows below
+are historical records; see
 [`handoff/CURRENT.md`](handoff/CURRENT.md) and
 [`PHASE_3-planning-decisions-2026-11-06.md`](acceptance/PHASE_3-planning-decisions-2026-11-06.md)
 for the authoritative pointers.

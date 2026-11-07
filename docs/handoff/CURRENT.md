@@ -1,16 +1,18 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED and delivered.**
+**Date:** 2026-11-06, re-read 2026-11-08 · **Phase 2 administrative closeout: CLOSED and delivered.**
 PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
 as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally and
 on the remote. The repository-tidy delivery was merged as PR #150 at
-`b3fba5f1581b066e64c2bc7b884ebc952605245d`; local `main` and `origin/main`
-are aligned there. Its witness ledger reported `LOST -- none`. The owner
-then chose to hold any further post-merge pointer update locally. The Phase 3
-planning proposal on this branch is a later, separate delivery authorised
-as one PR and one runner run; no runner result is claimed before that PR
-reports it.
+`b3fba5f1581b066e64c2bc7b884ebc952605245d`; its witness ledger reported
+`LOST -- none`. `origin/main` has since moved past that commit: the Phase 3
+planning proposal was authorised as one PR and one runner run and has been
+delivered. Its merged identifier and runner tally stay operator-side (the
+A1/A6 ruling of 2026-11-07), and no runner result is claimed here. Local
+`main` now carries the batched local documentation commits ahead of
+`origin/main`, unpushed and un-pull-requested by the owner's choice; the
+owner chose to hold post-merge pointer updates locally.
 
 Batch 11's two-paper version graph, approved real-store write and three
 negative witnesses are in the delivered tree; their scratch refs were deleted.

@@ -1,6 +1,6 @@
 # Contributing to LabCairn
 
-**Version:** LC-P1-v1.1 · **Updated:** 2026-10-15 · **Work order:** LC-P1-01
+**Version:** LC-P1-v1.1 · **Updated:** 2026-11-08 · **Work order:** LC-P1-01
 
 This file is the operating procedure for the LabCairn repository. It exists
 because **part of what protects this repository cannot be expressed as
@@ -363,7 +363,7 @@ mattered.
 
 ## 11. A new test file means a shard entry
 
-**The suite is split into six shards per platform**, and
+**The suite is split into five shards per platform**, and
 `.github/ci-shards.json` is the hand-edited file that says which. A test file
 that is in **no shard is a test CI never runs**, and every other check would
 stay green while it went — `tests/test_ci_shard_coverage.py` is what says so,
@@ -451,8 +451,8 @@ on the whole of a body of work rather than on each piece of it. So the
 pieces are reviewed and merged into `main` **locally**, and the pull request
 and the run come afterwards, for all of it.
 
-**Do not push to start a run.** The suite is six shards per platform, so a
-push starts twelve python jobs; that is the owner's call, not the session's.
+**Do not push to start a run.** The suite is five shards per platform, so a
+push starts ten python jobs; that is the owner's call, not the session's.
 **Do not open a pull request** for a finished piece of work, a document, or a
 commit that is "ready to be reviewed". The work lands in the tree, the record
 says what it is, and the pull request waits for the owner.
