@@ -81,6 +81,19 @@ machine (the A3/A4/A5 reaffirmation of 2026-11-07); post-merge CI evidence
 stays outside the tree (the A1/A6 decision of 2026-11-07); the no-material
 policy and its CJK ceiling keep guarding new files as before.
 
+The A1-A6 labels named here are the six record-repair candidates put to
+the owner in the dialogs of 2026-11-07 and adjudicated there: A1 and A6
+would have written the PR #151 merge SHA and runner counts into current
+pointers and the changelog — declined, that evidence stays operator-side;
+A2 replaced the owner-side absolute workspace path in the
+`PHASE_3-planning-decisions-2026-11-06` record with neutral English
+wording (local commit
+`fc3813c18be98f74f88fec1012cd52ec6d8a8c94`); A3, A4 and A5 concern a
+historical actor handle, a dated material-boundary paragraph and dated
+pilot-method workspace paths inside dated records — reaffirmed untouched.
+The labels identify candidates across the dialogs; this section is their
+definition wherever they appear in the tree.
+
 ## 8. The seven recorded source gaps — rulings
 
 | Row | Ruling of 2026-11-07 |
