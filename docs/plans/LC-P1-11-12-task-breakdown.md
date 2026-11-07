@@ -4,7 +4,7 @@
 **Work orders:** [LC-P1-11](../PHASE_1_WORKORDERS.md) — report assembly, export
 and artefact versioning · [LC-P1-12](../PHASE_1_WORKORDERS.md) — CLI and local
 Web research workbench
-**Status:** written, not implemented. **The four decisions in §1.4 were taken by the
+**Status:** written, not implemented. **The five decisions in §1.4 were taken by the
 owner on 2026-10-20**; each one is recorded below with what it costs.
 **Date:** 2026-10-20
 

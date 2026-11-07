@@ -185,7 +185,7 @@ The links are the records.
 - `CONTRIBUTING.md` said six shards per platform, and that a push therefore
   starts twelve Python jobs. The workflow's matrix is the authority —
   `shard: [0, 1, 2, 3, 4]` — so the rule now says five shards and ten
-  `pytest` jobs, matching `CLAUDE.md`, `.github/CI.md` and the repository
+  python jobs, matching `CLAUDE.md`, `.github/CI.md` and the repository
   map, all of which already said five.
 - A further lag surfaced after the scan, from measuring the two things it
   had to leave open: the roadmap's live position stated
@@ -197,6 +197,15 @@ The links are the records.
   resolved the same way: `tests/test_ci_shard_coverage.py` passes 16 nodes
   here, since a change only forces a re-measurement when it could unbalance
   the partition.
+- A post-repair re-scan found two further live lags, both corrected in the
+  same batch. The changelog's own account of the shard rule used the test
+  runner's name where `CONTRIBUTING.md` and `CLAUDE.md` say "ten python
+  jobs"; the quotation — not the arithmetic — is corrected. The LC-P1-11
+  and LC-P1-12 task breakdown's status line said four decisions in §1.4
+  where the same file's §1.4 names five and the two other live pointers
+  already say five; it now says five. The re-scan's third claim, that the
+  A1/A6 labels have no in-tree definition, was refuted by `LC-P3-00` §7,
+  which defines them, and nothing was changed for it.
 - No merge identifier and no runner tally is written into these pointers: the
   A1/A6 ruling of 2026-11-07 keeps post-merge CI evidence operator-side. No
   dated snapshot is rewritten — one pre-existing malformed table row in the
