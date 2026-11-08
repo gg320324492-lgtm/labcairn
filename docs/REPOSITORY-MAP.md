@@ -1,20 +1,22 @@
 # Repository Map
 
-**Status:** current index, 2026-11-06. This document classifies the tracked
+**Status:** current index, 2026-11-07. This document classifies the tracked
 tree. It does not retire historical records, rewrite frozen acceptance
 evidence, or authorise Phase 3 implementation.
 
-## 1. Classification measured on 2026-11-06
+## 1. Classification measured on 2026-11-07
 
-The read-only scan measured **727 tracked files** before this map was
-added: 448 Python files, 163 Markdown files, 27 JSON files, 24 TSX files, 23
-TypeScript files, 13 CSV files, 7 workflow YAML files, and the remaining
-configuration, fixture and binary files. It found **0 exact-byte duplicate
-groups**, **199 Python test files**, **3,419 declared test functions**, and
-**38 fixture files**. This map is one further tracked Markdown file in the
-same tidy delivery. Test paths are keys in `.github/ci-shards.json`,
-`tests/evaluation/manifest.py` and the witness ledger; they are kept and are
-not renamed by a cosmetic tidy.
+The read-only scan measured **733 tracked files** at
+`7029bc28500f2d676a01b9586f04c17419dc0493`; the 2026-11-06 figure was **727**
+before this map was added, and the six files since are this map and five
+Phase 3 planning and decision records: 448 Python files, 169 Markdown
+files, 27 JSON files, 24 TSX files, 23 TypeScript files, 13 CSV files, 7
+workflow YAML files, and the remaining configuration, fixture and binary
+files. It found **0 exact-byte duplicate groups**, **199 Python test files**,
+**3,419 declared test functions**, and **38 fixture files**; all four were
+re-measured on 2026-11-07 and none of them moved. Test paths are keys in
+`.github/ci-shards.json`, `tests/evaluation/manifest.py` and the witness
+ledger; they are kept and are not renamed by a cosmetic tidy.
 
 The twelve names that look historical — `ADR_TEMPLATE.md`, `gold_set`,
 `*-draft.md`, `test_scaffolding.py` and similar — all have live references in
@@ -61,9 +63,9 @@ itself. Their historical-looking names are not permission to prune them.
 | `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. |
 | `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` | Current phase, delivery pointer and handoff state. Dated sections below the current pointer are historical snapshots. |
 | `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
-| `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal, Q1–Q96 traceability and other design-only records. |
+| `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal and its execution plan, the Q1–Q96 design traceability, the multisource research-learning supplement of 2026-11-07 and other design-only records. |
 | `docs/adr/` | Architecture decisions. `Proposed`, `Accepted` and archived states are part of the decision record. |
-| `docs/acceptance/` | Named-commit acceptance reports and measured gate verdicts. Do not rewrite a frozen verdict to make it look current; add a dated current pointer instead. |
+| `docs/acceptance/` | Named-commit acceptance reports, measured gate verdicts and dated owner decision records. Do not rewrite a frozen verdict to make it look current; add a dated current pointer instead. |
 | `docs/research/`, `docs/UPSTREAM_REFERENCES.md` | Upstream source study and binding exclusion checklist. |
 | `docs/EVALUATION.md`, `docs/THREAT-MODEL.md`, `docs/RELEASE-NOTES.md`, `docs/REVIEW-DOSSIER.md` | Evaluation protocol, threat model, release record and review dossier. |
 

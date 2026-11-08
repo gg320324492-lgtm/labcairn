@@ -4,7 +4,7 @@
 **Work orders:** [LC-P1-11](../PHASE_1_WORKORDERS.md) — report assembly, export
 and artefact versioning · [LC-P1-12](../PHASE_1_WORKORDERS.md) — CLI and local
 Web research workbench
-**Status:** written, not implemented. **The four decisions in §1.4 were taken by the
+**Status:** written, not implemented. **The five decisions in §1.4 were taken by the
 owner on 2026-10-20**; each one is recorded below with what it costs.
 **Date:** 2026-10-20
 
@@ -229,7 +229,7 @@ lands in the tree and the record says what it is; the pull request and the
 CI run are the owner's to call, not the session's.
 
 **Why it was taken.** The gate's own review found that the cost of a run had
-gone up for a reason nobody had decided: the suite is now six shards per
+gone up for a reason nobody had decided: the suite was then six shards per
 platform, so a single push starts twelve python jobs, and the `push`
 trigger ran on every branch, so a change was checked three times over. That
 is not a cost the owner asked for, and the answer is not "CI should be

@@ -1,9 +1,12 @@
 # P2-AMD-01 — The suppliers and the data categories: what is measured, and what is not
 
 **Status:** drafted 2026-10-30, **as decision support** for the first of the
-owner's four decisions in the adjustment's §10.5 — *"which suppliers and
-which data categories are permitted"*. **It decides nothing.** It says what
-has been measured, what has not, and what each choice would mean.
+owner's four decisions in the adjustment's §10.5 (the owner-side P2-AMD-01
+adjustment of 2026-10-30; transcribed in
+[`P2-AMD-01-impact-matrix.md`](P2-AMD-01-impact-matrix.md) §5) — *"which
+suppliers and which data categories are permitted"*. **It decides nothing.**
+It says what has been measured, what has not, and what each choice would
+mean.
 
 **The one thing to know before choosing:** **a supplier's name is not a
 capability.** The route is a **configuration** (`协议:模型`, e.g.
@@ -116,8 +119,10 @@ measure.
 
 **What is not recommended and not decided:** which supplier that is, what
 data classes the pilot may use, what the budget is, and whether the pilot
-runs at all. **Those are the owner's, and the four decisions in §10.5 are
-where they are written down.**
+runs at all. **Those are the owner's, and the four decisions in §10.5 — the
+owner-side P2-AMD-01 adjustment of 2026-10-30, transcribed in
+[`P2-AMD-01-impact-matrix.md`](P2-AMD-01-impact-matrix.md) §5 — are where
+they are written down.**
 
 **And one thing that is true regardless of the choice:** **the repository's
 own configuration carries a fake provider and nothing else**, so a fresh

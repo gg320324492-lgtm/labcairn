@@ -6,6 +6,7 @@
 `git rev-parse HEAD` before this proposal was written.
 **Companions:**
 [`PHASE_3-design-traceability.md`](PHASE_3-design-traceability.md),
+[Multisource research learning supplement](MULTISOURCE-research-learning-plan.md),
 [`PHASE_3-planning-decisions-2026-11-06.md`](../acceptance/PHASE_3-planning-decisions-2026-11-06.md),
 [`PHASE_3-scoping-pack.md`](PHASE_3-scoping-pack.md),
 [`CURRENT.md`](../handoff/CURRENT.md),
@@ -69,9 +70,12 @@ is deliberately placed in later work package `W28`, not in this exit gate.
 
 ## 3. Candidate work orders and gate split
 
-These are **candidate labels**, not ticket ids. Formal numbering, gate names,
-owners and reviewer form require a later owner decision before any board is
-opened. The sequence `00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
+These are candidate labels, formalised on 2026-11-07: the owner decision
+record [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md)
+adopts `LC-P3-00` through `LC-P3-08` as the ticket numbering and records
+the gate, reviewer form and support matrix. Adoption is not dispatch — a
+ticket starts only on the owner's word. The sequence
+`00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
 proposal; `01` and `02` may run independently.
 
 | Candidate | Stage | Deliverable and completion evidence |
@@ -151,15 +155,16 @@ not an implementation instruction and not evidence that code was changed.
 | Existing entry point | Measured state at the baseline | Gap to close before the candidate stage can pass |
 |---|---|---|
 | `web/src/app/Workbench.tsx`, `web/src/views/`, `web/src/app/useEventStream.ts` | Workbench views, API contract and browser unit tests exist. | No real-browser end-to-end evidence against a live local service; `docs/THREAT-MODEL.md` records this as an unexercised boundary. `LC-P3-01` must measure it before a shell is chosen. |
-| `src/labcairn/material/ooxml.py`, `src/labcairn/papers/revisions.py`, `src/labcairn/papers/alignment.py` | High-fidelity reading of comments and tracked revisions, revision events and version alignment exist. | No proved high-fidelity *write* path, marked-draft and clean-draft export, or Word open/reopen matrix. `LC-P3-02` must decide this with short samples and an editing ADR. |
-| `src/labcairn/application/`, `src/labcairn/security/paths.py`, `src/labcairn/security/untrusted.py` | Task/Stage/Operation, recovery, allowed roots, path canonicalisation and untrusted-text boundaries exist. | No project-scoped import receipt, read-only original enforcement, independent-copy transaction or publication receipt for a revision loop. `LC-P3-03` must add and witness these. |
+| `src/labcairn/material/ooxml.py`, `src/labcairn/papers/revisions.py`, `src/labcairn/papers/alignment.py`, `src/labcairn/reports/render/docx.py` | High-fidelity reading of comments and tracked revisions, revision events, version alignment and a report-only DOCX writer exist. | No proved fidelity-preserving edit to an existing manuscript, no marked-draft and clean-draft export from that edit, and no Word open/reopen matrix. `LC-P3-02` must decide this with short samples and an editing ADR. |
+| `src/labcairn/application/`, `src/labcairn/security/paths.py`, `src/labcairn/security/untrusted.py`, `src/labcairn/workspace/readonly.py` | Task/Stage/Operation, recovery, allowed roots, path canonicalisation, untrusted-text boundaries and a source-root read-only guard exist. | No project-scoped import receipt that binds the read-only guard, independent-copy transaction and publication receipt into one revision loop. `LC-P3-03` must add and witness that integration. |
 | `src/labcairn/papers/replies.py`, `chain.py`, `versions.py`, `src/labcairn/roles/` | Replies, feedback chain, version graph and on-demand role execution exist. | No point-by-point proposal-to-approved-edit-to-response-table binding, no quality report separating file delivery from research quality, and no explicit unresolved-evidence state for the new loop. `LC-P3-04` must wire these. |
 | `web/`, `.github/workflows/web.yml`, `.github/workflows/release.yml` | A React/TypeScript workbench, wheel/sdist release checks and web quality gates exist. | No Electron/Tauri/PyInstaller configuration, desktop process lifecycle, installer, signing or upgrade/rollback drill. `LC-P3-05` is a selection and measurement stage before implementation. |
+| `src/labcairn/workspace/outputs.py` | The atomic write names its temp file with a fixed 46-character `.lc-write-<hex>.tmp` form under `<ws>/output/<uuid>/analysis/<capability>/`. The full-suite recheck of 2026-11-07 observed `FileNotFoundError` opening that temp name exactly when the visible path length crossed 260 characters, and reproduced the 259/260 switch bare — directory creation succeeds, the exclusive open fails; three green and two red single-node runs tie the observation to path length, not a race (see the operator-side recheck record). | The write seam carries no path-length budget: a real installed workspace under a deep root can meet the same wall. The fix — a shorter temp name or a depth-checked output layout, plus a witness that writes near the ceiling — belongs to a batched implementation stage decision, not to this proposal, and no code change is made here. |
 | `src/labcairn/application/model_request.py`, `src/labcairn/providers/`, `tests/test_real_provider_smoke.py` | Outbound gate, consent, budget, adapter boundary and a loud `NOT RUN` smoke harness exist. | No owner-credentialed single-model bounded run through the new revision loop, and no receipt that links model output to a reviewable suggestion. `LC-P3-06` requires a separate spend decision. |
 | `src/labcairn/application/recovery.py`, `tests/test_fault_injection_e2e.py` | Reconciliation after a crash and fault-injection witnesses exist for the current surfaces. | The two new side-effectful interruption points around publication are not witnessed, and installed-build diagnostics and rollback are not written. `LC-P3-07` must add them. |
 | `src/labcairn/skills/`, `src/labcairn/security/capabilities.py` | First-party skills and capability namespaces exist. | No third-party plugin/MCP registry, signed manifest, sandbox or revocation path. This stays an owner decision; no execution is authorised here. |
-| `docs/ARCHITECTURE.md` observability constraint, `src/labcairn/api/session.py` | Privacy-safe structured-logging constraint and local session boundaries are written. | No independent telemetry module and no installed-build diagnostic bundle. Later work packages must not carry source excerpts, credentials or user content. |
-| `tests/test_ci_shard_coverage.py`, `.github/ci-shards.json`, `tests/evaluation/manifest.py` | Shard coverage, runner-measured costs and the evaluation class manifest are watched. | Any new test file must declare `pytestmark`, appear in exactly one `.github/ci-shards.json` shard, and be registered in `tests/evaluation/manifest.py`; costs must be re-measured from a runner log with `.github/remeasure_shards.py <run-id>`. A local timing is not a runner cost. |
+| `docs/ARCHITECTURE.md` observability constraint, `src/labcairn/api/session.py`, `src/labcairn/evidence/retrieval.py` | Privacy-safe structured-logging constraint, local session boundaries and an in-process `RetrievalTelemetry` record exist. | No independent telemetry module, no installed-build diagnostic bundle, and no proven Windows build telemetry. Later work packages must not carry source excerpts, credentials or user content. |
+| `tests/test_ci_shard_coverage.py`, `.github/ci-shards.json`, `tests/evaluation/manifest.py` | Shard coverage, runner-measured costs and the evaluation class manifest are watched. Existing test files do not all carry `pytestmark`; the registry is the authority for gate classes. | Any new test file must declare its gate class with `pytestmark`, appear in exactly one `.github/ci-shards.json` shard, and be registered in `tests/evaluation/manifest.py`; costs must be re-measured from a runner log with `.github/remeasure_shards.py <run-id>`. A local timing is not a runner cost. The web gate currently runs on Ubuntu only, so a Windows browser measurement is a separate gap for `LC-P3-01`. |
 
 No product source, test, workflow or migration file is changed by this
 proposal. The gap register is deliberately written so a later board cannot
@@ -188,17 +193,23 @@ The product owner keeps scope, sign-off, budget and distribution authority.
 
 ## 8. Unresolved source questions
 
-The traceability companion records all Q1–Q96 rows. These entries constrain
-this proposal and must not be silently closed:
+The traceability companion records all Q1–Q96 rows, and
+[`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) holds the
+owner rulings of 2026-11-07 that closed five of the seven recorded gaps:
+Q76, Q81 and Q86 had their recommendations adopted as decisions; Q86 and
+Q87 additionally received fresh owner segments; the project-workspace row
+(Q96) closes by the owner's reverse-infer instruction from the preserved
+stem and options. Two rows remain, and the reverse-infer route does not
+reach either because no options survived for them:
 
 | Source question | Status | Trigger |
 |---|---|---|
-| Q76 | Recommended only; no confirmation sentence in the source material. | Before any self-service agent-creation capability is opened. |
-| Q77 | Original question and options missing; five knowledge sources are reconstructed from Q78 only. | Before a memory interface is frozen. |
-| Q81 | Recommended only; no confirmation sentence. The default "import is not learning authorisation" is a proposed conservative implementation default, not a closed decision. | Before persistent learning or shared contribution is accepted. |
-| Q82, Q87 | Original question and conclusion missing; no work package can be inferred. | Before a later requirements baseline is frozen. |
-| Q86 | Recommended only; no confirmation sentence. | Before a literature-management sub-ticket is split. |
-| Q96 | Option D selected, but the source material ends before a confirmation segment; the formal name and detailed design are missing. | Before any project-workspace acceptance clause is written. |
+| Q77 | No stem and no options in the material (the interview jumps 76 to 78); the five knowledge tiers are recoverable from Q78's answer, the per-tier boundaries, write rules and lifecycle were never defined. | Before a memory interface is frozen — a design task, not a reconstruction. |
+| Q82 | Nothing survives: no stem, no options, no conclusion. | Before a later requirements baseline is frozen; only an owner statement can fill it. |
+
+No row is silently closed, and no work package is inferred from a missing
+original question; the open rows remain triggers for a decision, not
+approval to build.
 
 ## 9. Delivery and evidence discipline
 

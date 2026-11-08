@@ -1,16 +1,18 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-06 · **Phase 2 administrative closeout: CLOSED and delivered.**
+**Date:** 2026-11-06, re-read 2026-11-08 · **Phase 2 administrative closeout: CLOSED and delivered.**
 PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
 as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
 failing and 1 declared skip. Both delivery branches were deleted locally and
 on the remote. The repository-tidy delivery was merged as PR #150 at
-`b3fba5f1581b066e64c2bc7b884ebc952605245d`; local `main` and `origin/main`
-are aligned there. Its witness ledger reported `LOST -- none`. The owner
-then chose to hold any further post-merge pointer update locally. The Phase 3
-planning proposal on this branch is a later, separate delivery authorised
-as one PR and one runner run; no runner result is claimed before that PR
-reports it.
+`b3fba5f1581b066e64c2bc7b884ebc952605245d`; its witness ledger reported
+`LOST -- none`. `origin/main` has since moved past that commit: the Phase 3
+planning proposal was authorised as one PR and one runner run and has been
+delivered. Its merged identifier and runner tally stay operator-side (the
+A1/A6 ruling of 2026-11-07), and no runner result is claimed here. Local
+`main` now carries the batched local documentation commits ahead of
+`origin/main`, unpushed and un-pull-requested by the owner's choice; the
+owner chose to hold post-merge pointer updates locally.
 
 Batch 11's two-paper version graph, approved real-store write and three
 negative witnesses are in the delivered tree; their scratch refs were deleted.
@@ -25,7 +27,7 @@ were meant to close are permanent. The 2026-11-05 review record's
 `POSIX-only witnesses remain NOT MEASURED` line is a dated snapshot: on
 2026-11-06 the seven `@requires_posix` path tests, the POSIX drive-form
 refusal and `test_the_session_directory_can_still_be_entered` passed on WSL
-at this local commit. That operator-side measurement is outside the frozen
+at the local commit of that date. That operator-side measurement is outside the frozen
 Phase 2 gate record and does not change its verdict. Phase 3
 implementation has not started. The earlier
 [`PHASE_3-scoping-pack.md`](../plans/PHASE_3-scoping-pack.md) remains a dated
@@ -40,7 +42,23 @@ Q76, Q77, Q81, Q82, Q86, Q87 and Q96 stay unresolved, and Phase 2's 35
 unaccepted model edges, `real_model_smoke = NOT RUN` and archived
 ADR-0020 / LC-P2-28 are unchanged. A later same-day decision authorised one
 planning-delivery PR and one runner run; it does not open Phase 3
-implementation.
+implementation. On 2026-11-07 the owner answered the board-opening decision
+dialogs and supplied the [multisource research-learning
+supplement](../plans/MULTISOURCE-research-learning-plan.md): the numbering,
+gate split and reviewer form are confirmed; the trial-machine support matrix
+is frozen at the values measured live on this machine (Windows 11 Pro 26H2,
+build 26300; DOCX hosts: WPS Office 12.1.0.29690 as the primary acceptance
+host and Microsoft Office 2010, file version 14.0.7252.5000, as the
+compatibility reference); the seven source gaps were ruled through the
+owner's dialogs (Q76/Q81/Q86 recommendations adopted, Q86/Q87 fresh owner
+segments received, the project-workspace row closed by reverse-inference
+from the preserved options; Q77's per-layer rules and Q82's original stay
+open at their triggers). The
+[`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md)
+board-opening decision record landed with the traceability status upgrades
+among the local documentation commits of 2026-11-07; five rows now read
+`CONFIRMED`. No implementation ticket is dispatched, and push, PR and CI
+still wait for the owner's word.
 
 **Date:** 2026-11-05 · **Phase 2's exit gate is CLOSED, PASS WITH NOTES;
 the two unseen papers' close-out, the G1/G2 checklist, the locator baseline,

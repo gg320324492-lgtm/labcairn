@@ -103,9 +103,12 @@ decision, and it trades the duplicate-work saving for the second platform.
 
 ## The Ubuntu slow file: `tests/test_cli.py`
 
+**Measured 2026-11-02.** The figures below are that measurement; re-measure
+them from a runner log before treating them as current.
+
 **What it is.** On Ubuntu, shard 0 is one file: `tests/test_cli.py`. The
 partition is not broken — the other four shards are balanced at 264.7s each
-against the file's 325.8s (measured at `cf081e4`, the commit recorded in
+against the file's 325.8s (measured at `cf081e4`, then the commit recorded in
 `ci-shards.json`), a balance factor of 1.176 inside the 1.6 limit. The file
 is simply the floor: no arrangement of the remaining files makes the shard
 that holds it any shorter.

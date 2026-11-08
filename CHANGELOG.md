@@ -80,6 +80,209 @@ The links are the records.
   implementation is authorised, and no runner result is claimed before the
   pull request reports one.
 
+### Phase 3 gap-register correction (2026-11-07)
+
+- Two independent read-only session audits checked the delivered Q1-Q96
+  traceability and the code-facing gap register. The Q1-Q96 status table
+  passed with all 96 rows and all seven unresolved source questions intact.
+- The gap register now distinguishes a fidelity-preserving manuscript edit
+  from the existing report-only DOCX writer, names the existing source-root
+  read-only guard and `RetrievalTelemetry`, states that existing tests do not
+  all carry `pytestmark`, and records that the web workflow is Ubuntu-only.
+- No product source, test, workflow or migration file is changed by this
+  correction. It remains a planning proposal, not a work order.
+
+### Board answers and the multisource supplement (2026-11-07)
+
+- The owner answered the board-opening decision dialogs. Confirmed: the
+  `LC-P3-00`…`LC-P3-08` numbering, the Windows internal-trial exit gate with
+  the §4 checklist as written, and the existing reviewer rules (agent
+  stand-ins disclose literally; the arbiter is a third reader; the G4 row
+  needs real advisor use). Deferred: the real-model provider fields stay
+  unnamed, so `LC-P3-06` cannot start. Frozen from live measurement on the
+  machine the owner named as the trial machine: Windows 11 Pro 26H2
+  (build 26300) and Microsoft Office 2010 (14.0.7252.5000), verified via
+  App Paths, the WOW6432Node InstallRoot and the ProgID. Reaffirmed: the
+  desktop shell stays as scoped (`LC-P3-05`; signing deferred with W28) and
+  the historical public-boundary entries stay untouched.
+- The seven source gaps were ruled: Q76/Q81/Q86 recommendations adopted as
+  owner decisions; Q86 and Q87 additionally received fresh owner segments;
+  the project-workspace row closes by the owner's reverse-infer instruction
+  (stem and options were preserved in the extraction with the selection
+  recorded); Q77's per-layer rules and Q82's original remain open at their
+  triggers. The in-tree traceability rows are unchanged until the drafted
+  upgrade lands as its own batched commit on the owner's word.
+- `docs/plans/MULTISOURCE-research-learning-plan.md` lands: the owner's
+  research-event learning supplement (meeting audio, presentation,
+  manuscript and paper as one project case; reviewed learning project-only
+  by default; group publication behind advisor review and a separate
+  sharing grant; a later phase for production ingestion). Its status
+  sentences were aligned with this record before landing — the board is not
+  open and nothing is dispatched.
+- The §6 gap register gained a measured path-length row: the workspace
+  atomic write names a 46-character temp file under a deep output layout;
+  the 259/260-character Windows ceiling switch was reproduced with and
+  without project code. The repair is an implementation-stage decision, not
+  part of this proposal.
+- The full-suite local recheck finished: 4964 passed, 1 failed, 14 skipped.
+  The single failure was measured to the recheck run's own long
+  `--basetemp` prefix — three green reruns at a short one, two red at a
+  long one — not to these commits, and the witness ledger reported
+  `LOST -- none`. These changes land as a third local documentation commit
+  of the batch; no push, PR or CI run is authorised by them.
+
+### LC-P3-00 board record and the WPS-primary baseline (2026-11-07)
+
+- The board-opening decision record lands at
+  [`docs/acceptance/LC-P3-00-board-opening-decisions.md`](docs/acceptance/LC-P3-00-board-opening-decisions.md)
+  with the traceability status upgrades in the same commit: five of the
+  seven recorded source gaps close by the owner's rulings of the day
+  (recommendations adopted for Q76/Q81/Q86, fresh owner segments for Q86
+  and Q87, the project-workspace row closed under the owner's
+  reverse-infer instruction from preserved stems and options), while Q77
+  and Q82 — for which nothing survived to reconstruct — stay unresolved
+  at their triggers. The ticket numbering is adopted; adoption is not
+  dispatch.
+- The DOCX host baseline is corrected the same day, after the owner asked
+  whether WPS was present: this machine carries WPS Office 12.1.0.29690
+  (App Paths for wps/et/wpp, ProgIDs `KWPS.Document` and
+  `KWPS.Application`) alongside Microsoft Office 2010. The owner ruled
+  WPS the primary acceptance host, Word 2010 the compatibility
+  reference; the §4 reopen rows and `LC-P3-02` are judged accordingly.
+  The entry above naming Word 2010 alone stands as the dated text of its
+  moment; this entry is the correction.
+- The write-seam path-length row remains registered in §6 for the
+  implementation batch, reaffirmed by the owner. No dispatch, no push,
+  no PR, no CI run.
+
+### Repository map re-anchored (2026-11-07)
+
+- The current index is re-measured from the tracked tree: 733 files against
+  the 727 of the 2026-11-06 scan. The six files since are the map itself and
+  five Phase 3 planning and decision records; Markdown is the only class
+  that moved, from 163 to 169. The 199 Python test files, 3,419 declared
+  test functions, 38 fixtures and zero exact-byte duplicate groups were
+  re-measured and are unchanged.
+- `docs/plans/` now names the execution plan and the multisource supplement;
+  `docs/acceptance/` now names dated owner decision records as a class.
+  This is a current-pointer correction, not a rewrite of a dated snapshot.
+  No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
+### Current pointers re-anchored (2026-11-08)
+
+- A read-only freshness scan of the current pointers found seven live claims
+  that lagged the tree, and all seven are corrected here. The handoff and the
+  roadmap no longer say `main` and `origin/main` are aligned at the tidy
+  delivery's merge, and no longer describe the Phase 3 planning proposal as a
+  later, separate delivery: that proposal has been delivered, and `main` now
+  sits ahead of `origin/main` by the batched local documentation commits,
+  unpushed and un-pull-requested by the owner's choice. The pointer labels
+  above the corrected paragraphs are re-read to 2026-11-08.
+- The roadmap's status line no longer says no board is open. `LC-P3-00`
+  opened the board record; it authorises no implementation and dispatches
+  nothing, which is what the rest of that line continues to say.
+- `CONTRIBUTING.md` said six shards per platform, and that a push therefore
+  starts twelve Python jobs. The workflow's matrix is the authority —
+  `shard: [0, 1, 2, 3, 4]` — so the rule now says five shards and ten
+  python jobs, matching `CLAUDE.md`, `.github/CI.md` and the repository
+  map, all of which already said five.
+- A further lag surfaced after the scan, from measuring the two things it
+  had to leave open: the roadmap's live position stated
+  `tests/test_no_reference_leakage.py` as `99 tests`, where `--collect-only`
+  on this tree reports 110. The count is dropped rather than updated, because
+  a collected number moves with every witness added and a live position is
+  not where a run's number belongs; the figure stays in the dated records
+  that measured it, where it is true of that commit. The other open item
+  resolved the same way: `tests/test_ci_shard_coverage.py` passes 16 nodes
+  here, since a change only forces a re-measurement when it could unbalance
+  the partition.
+- A post-repair re-scan found two further live lags, both corrected in the
+  same batch. The changelog's own account of the shard rule used the test
+  runner's name where `CONTRIBUTING.md` and `CLAUDE.md` say "ten python
+  jobs"; the quotation — not the arithmetic — is corrected. The LC-P1-11
+  and LC-P1-12 task breakdown's status line said four decisions in §1.4
+  where the same file's §1.4 names five and the two other live pointers
+  already say five; it now says five. The re-scan's third claim, that the
+  A1/A6 labels have no in-tree definition, was refuted by `LC-P3-00` §7,
+  which defines them, and nothing was changed for it.
+- No merge identifier and no runner tally is written into these pointers: the
+  A1/A6 ruling of 2026-11-07 keeps post-merge CI evidence operator-side. No
+  dated snapshot is rewritten — one pre-existing malformed table row in the
+  roadmap's 2026-11-05 historical section is left as landed and recorded
+  outside the repository instead. No product source, test, workflow or
+  migration file is changed; no push, PR or CI run is authorised.
+
+### C4–C8 wording corrections (2026-11-08)
+
+- The five wording and coverage judgements the freshness scan left to the
+  owner are applied. `docs/README.md`'s current-phase row is dated
+  (2026-11-07; re-read 2026-11-08) and no longer carries the batch ordinal;
+  the same ordinal is removed from `docs/ROADMAP.md` and
+  `docs/handoff/CURRENT.md`.
+- The English and Chinese README banners now say the Phase 3 board is open
+  (`LC-P3-00`, decisions of 2026-11-07), that implementation has not started,
+  that no ticket is dispatched and no delivery is authorised, and point at
+  the roadmap's current position.
+- `docs/handoff/CURRENT.md` says "at the local commit of that date" instead
+  of "at this local commit", so the 2026-11-06 WSL measurement no longer
+  reads as a claim about the current tip.
+- `CONTRIBUTING.md` no longer calls eleven commands "the README's command
+  table": it names the ten fenced commands together with the
+  `uv run labcairn --help` line as the eleven `VERIFIED_COMMANDS` entries.
+- The upstream clone count paragraph now says five cloned projects, six
+  clone directories (`paper-qa` is cloned twice), 139 files re-walked on
+  2026-11-08, and three of the five projects ship 21, 22 and 26 `SKILL.md`
+  files. The same correction is carried in `docs/UPSTREAM_REFERENCES.md`
+  and `docs/REVIEW-DOSSIER.md`; the "22–26" range was wrong at 21.
+- No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
+### Eleventh-commit audit follow-ups (2026-11-08)
+
+- The independent audit of `8aaea7b` found one live lag and two wording
+  tails, all corrected here. `docs/UPSTREAM_REFERENCES.md` now says
+  `Updated: 2026-11-08` and dates the 139-file walk in the sentence that
+  carries it; `CONTRIBUTING.md` drops a redundant "each"; and the upstream
+  checklist now says five cloned projects rather than five clones. No
+  product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
+### P2-AMD-01 §10.5 pointer annotated (2026-11-08)
+
+- `docs/plans/P2-AMD-01-provider-and-data-options.md` now says, in both
+  places where it cites "the adjustment's §10.5", that §10.5 is the
+  owner-side P2-AMD-01 adjustment of 2026-10-30 and that its four decisions
+  are transcribed in `P2-AMD-01-impact-matrix.md` §5. The reference was
+  correct but unnamed; the annotation makes the external owner-side section
+  and the in-tree transcription distinguishable. No product source, test,
+  workflow or migration file is changed; no push, PR or CI run is
+  authorised.
+
+### Rescan and rendering fixes (2026-11-08)
+
+- The 13-commit live-pointer re-scan found six live lags. The mechanical
+  ones are corrected here: `CONTRIBUTING.md` names the in-repo
+  `scripts/witness_ledger.py`; `docs/ROADMAP.md` uses "at the local commit
+  of that date" and limits its Phase 3 authorisation sentence to the
+  2026-11-05 snapshot; the roadmap's current-direction label is dated
+  2026-11-07; the LC-P1-11/12 task breakdown says "was then six shards".
+- `README.md` and `README.zh-CN.md` no longer claim the two Chinese texts
+  are identical; the standalone Chinese document is still the independent
+  translation.
+- `.github/CI.md`'s Ubuntu slow-file section is dated 2026-11-02 and its
+  old anchor is described as "then the commit recorded" rather than as the
+  current one.
+- The merge-authority rule is made consistent: the producer-never-merges
+  sentence in `docs/README.md` and `CONTRIBUTING.md` is marked historical
+  (through 2026-10-24), and the executing-agent rule in `docs/README.md`
+  remains current.
+- `docs/ROADMAP.md`'s 2026-11-05 historical row is rejoined onto one
+  physical line (content unchanged), because the seven-line form rendered
+  as a broken table row.
+- No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
