@@ -21,7 +21,7 @@ Exempt are changes that cannot alter project facts — typos, formatting, broken
 Two consequences worth stating explicitly:
 
 - A status-board update ships **in the same PR as the work it reports**, so the board can never drift from the code it describes.
-- A PR is opened for review and is **not** merged by the party that produced it. See the division of responsibility below.
+- A PR is opened for review. **The rule that the producing party never merges is historical (through 2026-10-24)**; the current merge authority is stated below.
 
 ### Division of responsibility
 

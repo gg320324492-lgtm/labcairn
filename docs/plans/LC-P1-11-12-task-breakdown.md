@@ -229,7 +229,7 @@ lands in the tree and the record says what it is; the pull request and the
 CI run are the owner's to call, not the session's.
 
 **Why it was taken.** The gate's own review found that the cost of a run had
-gone up for a reason nobody had decided: the suite is now six shards per
+gone up for a reason nobody had decided: the suite was then six shards per
 platform, so a single push starts twelve python jobs, and the `push`
 trigger ran on every branch, so a change was checked three times over. That
 is not a cost the owner asked for, and the answer is not "CI should be

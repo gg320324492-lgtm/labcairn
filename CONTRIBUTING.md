@@ -462,15 +462,17 @@ push starts ten python jobs; that is the owner's call, not the session's.
 commit that is "ready to be reviewed". The work lands in the tree, the record
 says what it is, and the pull request waits for the owner.
 
-**A PR is never merged by the party that produced it**, and a review names a
-**commit SHA**, never a conversation (§2).
+**A PR was never merged by the party that produced it under the rule that ran
+through 2026-10-24**; from LC-P1-01 onward the executing agent merges after
+both layers sign off (see `docs/README.md` "Merge authority"). A review names
+a **commit SHA**, never a conversation (§2).
 
 **After a merge, run the witness ledger.** A merge that resolves conflicts
 can keep a *deletion* as well as a change, and a witness can disappear
 silently while every test still passes:
 
 ```bash
-python C:\Users\pc\labcairn-g4\recover\witness_ledger.py <before> <after>
+python scripts/witness_ledger.py <before> <after>
 ```
 
 ---

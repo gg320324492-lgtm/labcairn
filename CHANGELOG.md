@@ -259,6 +259,30 @@ The links are the records.
   workflow or migration file is changed; no push, PR or CI run is
   authorised.
 
+### Rescan and rendering fixes (2026-11-08)
+
+- The 13-commit live-pointer re-scan found six live lags. The mechanical
+  ones are corrected here: `CONTRIBUTING.md` names the in-repo
+  `scripts/witness_ledger.py`; `docs/ROADMAP.md` uses "at the local commit
+  of that date" and limits its Phase 3 authorisation sentence to the
+  2026-11-05 snapshot; the roadmap's current-direction label is dated
+  2026-11-07; the LC-P1-11/12 task breakdown says "was then six shards".
+- `README.md` and `README.zh-CN.md` no longer claim the two Chinese texts
+  are identical; the standalone Chinese document is still the independent
+  translation.
+- `.github/CI.md`'s Ubuntu slow-file section is dated 2026-11-02 and its
+  old anchor is described as "then the commit recorded" rather than as the
+  current one.
+- The merge-authority rule is made consistent: the producer-never-merges
+  sentence in `docs/README.md` and `CONTRIBUTING.md` is marked historical
+  (through 2026-10-24), and the executing-agent rule in `docs/README.md`
+  remains current.
+- `docs/ROADMAP.md`'s 2026-11-05 historical row is rejoined onto one
+  physical line (content unchanged), because the seven-line form rendered
+  as a broken table row.
+- No product source, test, workflow or migration file is changed; no push,
+  PR or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

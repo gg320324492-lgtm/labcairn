@@ -173,7 +173,7 @@ LabCairn is independently developed and is not affiliated with OpenHands, Pydant
 
 ## 中文版 / Chinese version
 
-本节是本文件的完整中文版本；独立排版的中文文档见 [README.zh-CN.md](README.zh-CN.md)。两处内容一致。
+本节是本文件的中文版本；独立排版的中文文档见 [README.zh-CN.md](README.zh-CN.md)。
 
 > **状态：第一阶段已在 G5 关闭；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。第三阶段看板已开启（[LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md)，2026-11-07 决定），实施尚未开始，未派发工单，未授权交付；当前位置见 [docs/ROADMAP.md](docs/ROADMAP.md#current-position)。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
 
