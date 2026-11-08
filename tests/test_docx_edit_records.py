@@ -32,8 +32,15 @@ import re
 from pathlib import Path
 from typing import Final
 
+import pytest
+
 from labcairn.editing.drafts import REFUSALS
-from labcairn.editing.evidence import MAX_PATH, PRESENCE_BY_CLASS
+from labcairn.editing.evidence import (
+    MAX_PATH,
+    PRESENCE_BY_CLASS,
+    PathBudgetError,
+    visible_path,
+)
 from labcairn.editing.samples import REFUSED, SAMPLES, WRITABLE
 from labcairn.editing.survey import SUPPORT, StructureClass
 
@@ -74,6 +81,26 @@ def test_the_three_records_exist_and_are_dated() -> None:
         assert "f24aad6" in text or "f24aad68b91938e7e93954726363a99785215fa4" in text, (
             f"{path.name} prints no commit its numbers belong to"
         )
+
+
+def test_the_visible_path_guard_refuses_the_length_the_machine_refuses(
+    tmp_path: Path,
+) -> None:
+    """The ceiling is measured at its boundary, not read back from a constant.
+
+    The review measured this machine on 2026-11-08: a visible path of 259
+    characters was created and one of 260 was refused with
+    ``FileNotFoundError``. The guard must refuse the first length the machine
+    refuses, or it hands the caller a path that fails after the run has begun.
+    """
+    base = str(tmp_path)
+    room = MAX_PATH - len(base) - 1
+    assert room > 0, f"the temporary root is already longer than {MAX_PATH} characters"
+    accepted = "a" * room
+    assert len(str((tmp_path / accepted).absolute())) == MAX_PATH
+    assert visible_path(tmp_path, accepted) == tmp_path / accepted
+    with pytest.raises(PathBudgetError):
+        visible_path(tmp_path, accepted + "a")
 
 
 def test_the_matrix_names_every_class_the_enum_has_exactly_once() -> None:
@@ -187,8 +214,8 @@ def test_the_run_record_states_the_open_half_as_open() -> None:
     """
     text = RUN_RECORD.read_text(encoding="utf-8")
     assert "NOT RUN" in text, "the record states no open half"
-    assert "held open pending the owner" in text.lower() or "held open" in text.lower(), (
-        "the real-sample half is not stated as held open"
+    assert "real-sample loop: NOT RUN — held open pending the owner's sample" in text, (
+        "the real-sample half does not carry the exact label §5.9 names"
     )
     for phrase in ("PASS WITH NOTES", "the gate passed", "accepted on review"):
         assert phrase not in text, f"the record claims {phrase!r} without an independent review"

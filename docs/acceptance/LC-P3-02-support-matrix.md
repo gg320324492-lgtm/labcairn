@@ -7,7 +7,7 @@
 `labcairn.editing.survey.SUPPORT`, re-derived by
 `tests/test_docx_edit_records.py`.
 
-The corpus is **synthetic**: 30 samples, 10 the seam writes and 20 it refuses.
+The corpus is **synthetic**: 31 samples, 11 the seam writes and 20 it refuses.
 The real advisor sample is held open for the owner; no host result is claimed
 here.
 

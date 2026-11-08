@@ -5,17 +5,17 @@
 
 ## What ran
 
-30 samples, 10 the seam writes and 20 it refuses; 240 results over the four
-options and two forms (`marked`, `clean`); 20 artifacts; 40 reopen checklist
+31 samples, 11 the seam writes and 20 it refuses; 248 results over the four
+options and two forms (`marked`, `clean`); 22 artifacts; 44 reopen checklist
 rows. The run was local on the trial machine; no runner took these numbers.
 
-Artifact digests from the manifest bridge include
+Sample-input digests from the manifest bridge include
 `63d24818b2a5529d870412349d27ed6b9b6520751a642ad37d6c721b5fcb8ca4`,
 `4db47fb725a52e2cd83bc5b48a2b4f70ff5aec3fbc7539e7f389e8f10101280b` and
 `6dd5b3eba9cafc1c8def5aa0b60063e3efcf53317f7ea5350908338d6d4cf8db`.
-The longest visible path was 139 characters; the run stayed under the 260
-character wall (`MAX_PATH` is 260), and `LongPathsEnabled` is recorded with
-the host snapshot.
+The longest visible path was 139 characters; the run stayed under the measured
+259-character ceiling (`MAX_PATH` is 259; 260 is the first length the machine
+refuses), and `LongPathsEnabled` is read from the registry in the host snapshot.
 
 ## The four options, counted
 
@@ -39,5 +39,6 @@ region rows.
 
 The human half is **NOT RUN**. No operator launched WPS Office 12.1.0.29690 or
 Microsoft Office 2010, and no host result is claimed; the dual-host reopen
-checklist is held open pending the owner. The real advisor sample is held open
-pending the owner as well. No ticket verdict is claimed here.
+checklist is held open pending the owner. The real advisor sample is
+**real-sample loop: NOT RUN — held open pending the owner's sample**. No ticket
+verdict is claimed here.

@@ -663,6 +663,16 @@ _SAMPLES: Final[tuple[Sample, ...]] = (
         hyperlink_rid="rId5",
     ),
     _sample(
+        "06b-hyperlink-target-inside-the-wrap",
+        "an edit aimed at the run inside an external hyperlink",
+        (_B.BODY_TEXT, _B.HYPERLINKS),
+        para(TARGET) + hyperlink("rId5", LINKED) + para(TAIL),
+        _edit(2, LINKED, REPLACED),
+        focus=_B.HYPERLINKS,
+        role="editable",
+        hyperlink_rid="rId5",
+    ),
+    _sample(
         "07-everything-at-once",
         "the composite: comments, revisions, a table, an equation, an image, a link",
         (

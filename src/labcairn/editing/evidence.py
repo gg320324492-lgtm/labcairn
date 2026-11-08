@@ -47,6 +47,7 @@ rather than an absent field.
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,13 +68,14 @@ __all__ = [
     "visible_path",
 ]
 
-#: The ceiling this machine enforces. Measured live 2026-11-08: the registry
-#: key ``HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem`` carries
-#: ``LongPathsEnabled = 0``, so a visible path of 260 characters is the wall
-#: and 259 is not. §7 decides what the *product* does about it; this constant
-#: is what the evidence writer does about it in the meantime, and the record
-#: of the difference is the ADR's §"what this does not decide".
-MAX_PATH: Final[int] = 260
+#: The longest visible path this machine accepts. Measured live 2026-11-08:
+#: the registry key ``HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem``
+#: carries ``LongPathsEnabled = 0``; a path of 259 characters was created and
+#: a path of 260 was refused with ``FileNotFoundError``. §7 decides what the
+#: *product* does about it; this constant is what the evidence writer does
+#: about it in the meantime, and the record of the difference is the ADR's
+#: §"what this does not decide".
+MAX_PATH: Final[int] = 259
 
 #: The columns a reopen row carries, in the order the checklist prints them.
 #: **The human columns are in the list** so a row that has not been performed
@@ -172,6 +174,32 @@ class ReopenRow:
         )
 
 
+def _long_paths_enabled() -> str:
+    """Read the registry value this machine's path ceiling depends on.
+
+    **The value is read, not remembered.** The 259-character ceiling is only a
+    fact about a machine whose ``LongPathsEnabled`` value is ``0``; a record
+    that prints the literal would keep saying so after the setting changed.
+    On a host where the value cannot be read, the snapshot says so rather than
+    inventing a zero.
+    """
+    if sys.platform != "win32":
+        return "unknown"
+    try:
+        import winreg
+    except ImportError:
+        return "unknown"
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+    except OSError:
+        return "unknown"
+    return str(int(value))
+
+
 def host_snapshot(measured_at: str, head: str) -> dict[str, str]:
     """The hosts as measured, with no host started.
 
@@ -185,7 +213,7 @@ def host_snapshot(measured_at: str, head: str) -> dict[str, str]:
     return {
         "measured_at": measured_at,
         "head": head,
-        "long_paths_enabled": "0",
+        "long_paths_enabled": _long_paths_enabled(),
         "primary_host": HOSTS[0][1],
         "primary_version": HOSTS[0][2],
         "reference_host": HOSTS[1][1],

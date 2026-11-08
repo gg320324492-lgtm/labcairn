@@ -58,6 +58,7 @@ from labcairn.editing.evidence import (
     ROW_COLUMNS,
     PathBudgetError,
     artifact_name,
+    host_snapshot,
     visible_path,
 )
 from labcairn.editing.fidelity import ArmResult, RegionStatus, run_arm, sha256
@@ -341,6 +342,7 @@ def report_json(run: Run, head: str, measured_at: str, evidence_root: Path) -> d
         "ticket": "LC-P3-02",
         "head": head,
         "measured_at": measured_at,
+        "host_snapshot": host_snapshot(measured_at, head),
         "machine": "the trial machine, Windows, measured locally: no runner took these numbers",
         "samples": len(SAMPLES),
         "written_samples": sum(1 for sample in SAMPLES if sample.written),
