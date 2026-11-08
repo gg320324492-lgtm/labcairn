@@ -502,6 +502,10 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # is missing; the gate class is what it would be charged to if it ran.
     "test_workbench_serve_helper.py": ("e2e", "web-task"),
     "test_workbench_real_browser.py": ("e2e", "web-task"),
+    "test_docx_edit_samples.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_docx_edit_refusal.py": ("negative", "crash-between-write-and-confirm"),
+    "test_docx_edit_fidelity.py": ("integration", "artifact-hashes"),
+    "test_docx_edit_records.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),

@@ -46,7 +46,9 @@
         "tests/test_material_adapters.py",
         "tests/test_analysis_report_build.py",
         "tests/test_provider_capabilities.py",
-        "tests/test_workbench_real_browser.py"
+        "tests/test_workbench_real_browser.py",
+        "tests/test_docx_edit_fidelity.py",
+        "tests/test_docx_edit_records.py"
       ],
       [
         "tests/test_cli_workspace_refusals.py",
@@ -87,7 +89,8 @@
         "tests/test_analysis_grouped.py",
         "tests/test_provider_adapter.py",
         "tests/test_baseline_document.py",
-        "tests/test_refusal_witnesses.py"
+        "tests/test_refusal_witnesses.py",
+        "tests/test_docx_edit_samples.py"
       ],
       [
         "tests/test_material_pdf.py",
@@ -130,7 +133,8 @@
         "tests/test_intake_guards.py",
         "tests/test_capability_namespaces.py",
         "tests/test_analysis_selection.py",
-        "tests/test_workspace_boundaries.py"
+        "tests/test_workspace_boundaries.py",
+        "tests/test_docx_edit_refusal.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -209,7 +213,8 @@
         "tests/test_analysis_report_manifest.py",
         "tests/test_security_injection.py",
         "tests/test_review_dossier.py",
-        "tests/test_workspace_path_length.py"
+        "tests/test_workspace_path_length.py",
+        "tests/test_docx_edit_records.py"
       ],
       [
         "tests/test_application_layer.py",
@@ -279,7 +284,8 @@
         "tests/test_real_provider_smoke.py",
         "tests/test_capability_namespaces.py",
         "tests/test_refusal_witnesses.py",
-        "tests/test_workbench_real_browser.py"
+        "tests/test_workbench_real_browser.py",
+        "tests/test_docx_edit_fidelity.py"
       ],
       [
         "tests/test_guidance_rules.py",
@@ -315,7 +321,8 @@
         "tests/test_security_paths.py",
         "tests/test_analysis_selection.py",
         "tests/test_provider_capabilities.py",
-        "tests/test_material_addressing.py"
+        "tests/test_material_addressing.py",
+        "tests/test_docx_edit_samples.py"
       ],
       [
         "tests/test_analysis_report_checks.py",
@@ -350,7 +357,8 @@
         "tests/test_fake_provider_isolation.py",
         "tests/test_gold_set_corpus.py",
         "tests/test_material_adapters.py",
-        "tests/test_security_approval.py"
+        "tests/test_security_approval.py",
+        "tests/test_docx_edit_refusal.py"
       ]
     ]
   },
