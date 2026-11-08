@@ -283,6 +283,41 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push,
   PR or CI run is authorised.
 
+### Phase 3 G1 work orders issued (2026-11-08)
+
+- [`docs/plans/PHASE_3-work-orders.md`](docs/plans/PHASE_3-work-orders.md) is the
+  Phase 3 board's first work-order file: the official G1 work orders for
+  **`LC-P3-01`** (real-browser baseline) and **`LC-P3-02`** (dual-host DOCX
+  fidelity), written from the owner-approved preparation package. Both board
+  rows read **`NOT STARTED`**. No implementation has begun, no window was
+  opened, no witness ran, no real browser and no desktop host was started, and
+  no Phase 3 gate is claimed closed.
+- The owner's decisions of 2026-11-08 are recorded with them, each with where it
+  binds: **Playwright** with the system-browser channel where one exists; **COM
+  and ProgID automation not allowed**, so the WPS and Office reopen checks are
+  human checklist steps with recorded evidence; the **real advisor sample after**
+  the synthetic and substitute-first work, held as a named gap until it arrives;
+  the **§4 checklist split** — `LC-P3-01` carries the real-browser baseline and
+  the dual-host reopen checks, `LC-P3-02` the DOCX revision loop and the
+  real-sample half; the **provider's seven fields after G1**, so `LC-P3-06` stays
+  `BLOCKED`; the **write-seam path-length (MAX_PATH) repair rides this batch**;
+  and **Q77 and Q82 stay at their triggers**.
+- The file names the gate-label collision the tree needs: Phase 3's `G0` … `G4`
+  are not Phase 1's five closed gates, and a row that says "G1" there means
+  Phase 3 G1.
+- Two items the preparation draft carried were corrected against this tree rather
+  than copied. The "never `EventSource`" sentence belongs to
+  `docs/THREAT-MODEL.md` **§6.2**, not §6.1; and the draft's raw-Windows
+  long-path direction did not reproduce in its own freshness review, so the seam
+  is stated through `src/labcairn/security/paths.py`'s deliberate refusal rather
+  than as an errno.
+- The current pointers move in the same commit: `docs/ROADMAP.md`,
+  `docs/handoff/CURRENT.md`, `docs/README.md` and `docs/REPOSITORY-MAP.md`.
+  `docs/README.md`'s status line no longer says that no work order exists, and
+  the roadmap's `2026-11-07` direction row is now an earlier dated row.
+- No product source, test, workflow or migration file is changed; no push, PR or
+  CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

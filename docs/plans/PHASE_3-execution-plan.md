@@ -78,6 +78,13 @@ ticket starts only on the owner's word. The sequence
 `00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
 proposal; `01` and `02` may run independently.
 
+**Pointer, 2026-11-08.** The first two are no longer candidates:
+[`PHASE_3-work-orders.md`](PHASE_3-work-orders.md) carries the issued work
+orders for `LC-P3-01` and `LC-P3-02`, both `NOT STARTED`, with the owner's
+decisions of 2026-11-08 recorded against them. `LC-P3-06` is `BLOCKED` on the
+unnamed provider fields; `LC-P3-03` … `LC-P3-08` stay proposals until their own
+owner word. The rows below are unchanged.
+
 | Candidate | Stage | Deliverable and completion evidence |
 |---|---|---|
 | `LC-P3-00` scope and acceptance baseline | G0 | A dated decision record for the exit gate, Windows and Word support matrix, sample classification and reviewer form. Records the local threat boundary, outbound-data rules, DOCX write path and trial-distribution decisions with their triggers. |

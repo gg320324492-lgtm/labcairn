@@ -1,5 +1,23 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is
+built.** [`LC-P3-01` (real-browser baseline) and `LC-P3-02` (dual-host DOCX
+fidelity)](../plans/PHASE_3-work-orders.md) are the board's first work orders,
+issued on the owner's answers to the six open G1 decision points: **Playwright**,
+using the system-browser channel where one exists; **no COM or ProgID automation
+of WPS or Word**, so the dual-host reopen checks are human checklist steps with
+recorded evidence; the **real advisor sample after** the synthetic and
+substitute-first work, held as a named gap until it is supplied; `LC-P3-01`
+carrying the real-browser baseline and the dual-host reopen checks and
+`LC-P3-02` the DOCX revision loop and the real-sample half; the provider's seven
+fields decided **after G1**, so `LC-P3-06` stays `BLOCKED`; the write-seam
+path-length (MAX_PATH) repair **riding this batch**; and Q77 and Q82 staying at
+their triggers. Both board rows read `NOT STARTED`: no window is open on either
+ticket, no witness has run, no real browser and no desktop host was started, and
+no Phase 3 gate is closed. No push, pull request or CI run is authorised. The
+dated 2026-11-06 and 2026-11-07 sentences below describe those dates — including
+the one that says no ticket is dispatched, which was true at them.
+
 **Date:** 2026-11-06, re-read 2026-11-08 · **Phase 2 administrative closeout: CLOSED and delivered.**
 PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged
 as `791f2334d2ecec3c7796524b5e1a79bc95e2d901` with 18 checks passing, 0
