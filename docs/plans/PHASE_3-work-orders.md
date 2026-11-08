@@ -414,6 +414,15 @@ Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
 
+**5.10 The empty row, and who watches it.** A record may leave a cell empty
+because the evidence for it has not been taken. That is honest only while a
+witness watches the row: a test that fails if the row disappears, if the empty
+cell is read as a result, or if the label changes from "not run" to a verdict.
+An empty row with no witness is not a pending measurement; it is a claim the
+tree cannot tell from a pass. The reopen checklist's human cells are empty and
+`tests/test_docx_edit_records.py` watches them; the real-sample row carries the
+exact label §5.9 names, and the same witness reads that label.
+
 ---
 
 ## 6. What this file does not do
