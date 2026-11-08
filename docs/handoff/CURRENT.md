@@ -1,5 +1,22 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-09 · **Phase 3's G1 batch has landed
+locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's
+path-length repair, and `LC-P3-02`'s DOCX editing seam are merged into local `main`
+in separate merge commits, each with its evidence in the same commit. `LC-P3-02`'s
+record is [`../acceptance/LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md)
+with [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and
+[`../adr/ADR-0021-manuscript-editing-rewrite.md`](../adr/ADR-0021-manuscript-editing-rewrite.md);
+both G1 rows read `IN PROGRESS`. What is **not** closed: the §4.9 human dual-host
+reopen checklist (`NOT RUN` in both acceptance records), the real advisor sample
+(§5.9, held open as a named gap), the ADR's final adoption (it stays `proposed`,
+adoption provisional), and the runner-measured shard costs — locally
+`test_the_shards_are_balanced` and
+`test_the_recorded_costs_cover_every_test_file` are expected red until the batch's
+one runner run. The fifth independent review's PASS and the merge are this batch's
+gate; nothing here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a
+CI run, and none is authorised by this document.
+
 **Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is
 built.** [`LC-P3-01` (real-browser baseline) and `LC-P3-02` (dual-host DOCX
 fidelity)](../plans/PHASE_3-work-orders.md) are the board's first work orders,
@@ -15,8 +32,8 @@ path-length (MAX_PATH) repair **riding this batch**; and Q77 and Q82 staying at
 their triggers. Both board rows read `NOT STARTED`: no window is open on either
 ticket, no witness has run, no real browser and no desktop host was started, and
 no Phase 3 gate is closed. No push, pull request or CI run is authorised. The
-dated 2026-11-06 and 2026-11-07 sentences below describe those dates — including
-the one that says no ticket is dispatched, which was true at them.
+dated 2026-11-06, 2026-11-07 and 2026-11-08 sentences below describe those dates —
+including the one that says no ticket is dispatched, which was true at them.
 
 **Date:** 2026-11-06, re-read 2026-11-08 · **Phase 2 administrative closeout: CLOSED and delivered.**
 PR #148 merged as `0d654b2038051805eb0ab410783ea2fe90545506`; PR #149 merged

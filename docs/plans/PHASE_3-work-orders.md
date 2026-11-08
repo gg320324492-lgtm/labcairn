@@ -2,9 +2,10 @@
 
 **Status:** the official Phase 3 G1 work orders, issued 2026-11-08 on the
 owner's decisions recorded in §2. **Issuing a work order is not doing the work.**
-No implementation has begun, no window has been opened, no witness has run, no
-real browser or desktop host was started, no Phase 3 gate has passed, and no
-push, pull request or CI run is authorised by this document.
+At issue, no implementation had begun, no window had been opened, no witness had
+run, no real browser or desktop host was started, no Phase 3 gate had passed, and
+no push, pull request or CI run is authorised by this document. The board rows in
+§1 carry the current status and move in the same commit as their evidence.
 
 **Date:** 2026-11-08.
 
@@ -52,7 +53,7 @@ it, and never because something looks finished.
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
 | `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
-| `LC-P3-02` | Phase 3 G1 | **`NOT STARTED`** — work order issued 2026-11-08 (§5) | This file. No sample was written, opened or reopened. |
+| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md); the §4.9 human dual-host reopen checklist, the real advisor sample (§5.9) and the runner-measured shard costs (§3 rule 3) remain open | The dated run record and its witnesses, measured locally on the synthetic substitute set; no host result, no real-sample loop and no PASS is claimed, and the shard-balance witness is expected red until the batch runner run. |
 | `LC-P3-03`, `LC-P3-04` | Phase 3 G2 | `NOT STARTED` — no work order written | Execution plan §3; `03` follows `01` and `02`. |
 | `LC-P3-05` | Phase 3 G3 | `NOT STARTED` — no work order written | Execution plan §3; scoped as written per `LC-P3-00` §6. |
 | `LC-P3-06` | Phase 3 G3 | **`BLOCKED`** | `LC-P3-00` §4 and §2 item 5 below: the seven provider fields are unnamed. |
@@ -376,7 +377,8 @@ at merge; this window reports its entries (§3 rule 3).
 **5.7 Deliverables.**
 
 1. The **editing ADR** (`ADR-0021`, §5.5): the options, what each measurement
-   showed, the adopted option, and what a no-fidelity result does.
+   showed, the provisional option adopted for the substitute set, and what a
+   no-fidelity result does.
 2. The **support matrix**: host, version, open and reopen result, and the
    preserved-or-refused structure classes for every sample run.
 3. **Refusal witnesses**: a structure outside the support matrix fed to the
@@ -430,8 +432,21 @@ exact label §5.9 names, and the same witness reads that label.
 It dispatches no window and opens no worktree. It authorises no push, pull request
 or CI run. It writes no product source, no test, no migration and no workflow
 file. It closes no gate and marks no ticket done. It quotes no commit other than
-the two printed in the header. Its `NOT STARTED` rows are the truth at this commit,
-and the board changes in the same commit as any evidence that moves one.
+the two printed in the header. Its status rows are the truth at this commit,
+and the board changes in the same commit as any evidence that moves one. **The
+landing moves are commander-owned at merge:** the board rows, the registration
+files §3 rule 3 names, and every live status pointer that moves with a row — the
+two README banners, `README.zh-CN.md`, `docs/README.md`, `docs/ROADMAP.md`,
+`docs/handoff/CURRENT.md`, `CHANGELOG.md`, `docs/REPOSITORY-MAP.md` and
+`docs/plans/PHASE_3-execution-plan.md`. A window reports what its evidence says;
+it does not move a row or a pointer, because the row and the pointer must move in
+one commit and only the merge commit carries both.
+
+The order is fixed: `LC-P3-02`'s substitute round-trip outputs and records land
+before `LC-P3-01`'s row may move to `PASS` or `PASS WITH NOTES`, because §4.9's
+human dual-host reopen checklist consumes those outputs and has not been
+performed. `LC-P3-01`'s existing `IN PROGRESS` move (local `main`, the LC-P3-01
+merge) did not violate this; a `PASS` move now would.
 
 ---
 

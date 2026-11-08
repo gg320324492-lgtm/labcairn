@@ -80,8 +80,11 @@ proposal; `01` and `02` may run independently.
 
 **Pointer, 2026-11-08.** The first two are no longer candidates:
 [`PHASE_3-work-orders.md`](PHASE_3-work-orders.md) carries the issued work
-orders for `LC-P3-01` and `LC-P3-02`, both `NOT STARTED`, with the owner's
-decisions of 2026-11-08 recorded against them. `LC-P3-06` is `BLOCKED` on the
+orders for `LC-P3-01` and `LC-P3-02`, both `IN PROGRESS` — `01`'s real-browser
+baseline and `02`'s DOCX fidelity seam have landed locally, each in the same commit
+as its evidence, with neither ticket `PASS` and the human dual-host reopen checklist,
+the real advisor sample and the runner-measured costs all still open. The owner's
+decisions of 2026-11-08 are recorded against them. `LC-P3-06` is `BLOCKED` on the
 unnamed provider fields; `LC-P3-03` … `LC-P3-08` stay proposals until their own
 owner word. The rows below are unchanged.
 

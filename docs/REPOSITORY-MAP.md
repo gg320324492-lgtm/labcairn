@@ -17,7 +17,7 @@ files. It found **0 exact-byte duplicate groups**, **199 Python test files**,
 re-measured on 2026-11-07 and none of them moved. **Read 2026-11-08:** those
 figures are the scan at the commit named, not a running total — the Phase 3 G1
 work-order board `docs/plans/PHASE_3-work-orders.md` joined the tree on
-2026-11-08 and moves the Markdown count by one whenever the scan next runs. Test paths are keys in
+2026-11-08 and moves the Markdown count by one whenever the scan next runs. **Read 2026-11-09:** the Phase 3 G1 batch adds seventeen files to the tree — nine under `src/labcairn/editing/`, three documents (`docs/adr/ADR-0021-manuscript-editing-rewrite.md`, `docs/acceptance/LC-P3-02-support-matrix.md`, `docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md`) and five test-side files, one of which is not a `test_*.py` and so carries no shard entry — and every figure above is the scan at the commit named, not this total. The re-scan is a dated follow-up, not a merge-time claim. Test paths are keys in
 `.github/ci-shards.json`, `tests/evaluation/manifest.py` and the witness
 ledger; they are kept and are not renamed by a cosmetic tidy.
 
@@ -31,7 +31,7 @@ references are removed in the same change.
 
 | Directory | Holds |
 |---|---|
-| `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures and reports. |
+| `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures, reports and the manuscript editing seam. |
 | `migrations/versions/` | Ordered schema migrations. A deployed store keeps every prior migration. |
 | `web/src/` | The local workbench: app shell, views, generated API contract and browser tests. |
 

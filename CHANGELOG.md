@@ -352,6 +352,28 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push, PR
   or CI run is authorised.
 
+### Phase 3 G1 batch: LC-P3-01, the write seam and LC-P3-02 land locally (2026-11-08)
+
+- `LC-P3-01`'s real-browser baseline merged locally; its row moved to
+  `IN PROGRESS` in the merge commit and its record is
+  [`docs/acceptance/LC-P3-01-browser-baseline.md`](docs/acceptance/LC-P3-01-browser-baseline.md).
+- The write seam's path-length repair (the MAX_PATH batch item, §2 decision 6)
+  merged locally, with its witness reading the product's own naming function.
+- `LC-P3-02`'s DOCX editing seam merged locally: `src/labcairn/editing/`, the
+  substitute corpus, the four test files and the helper
+  `tests/evaluation_docx_edit_fidelity.py`; the editing ADR is
+  [`docs/adr/ADR-0021-manuscript-editing-rewrite.md`](docs/adr/ADR-0021-manuscript-editing-rewrite.md)
+  (`proposed`, adoption provisional), and the two dated records are
+  [`docs/acceptance/LC-P3-02-support-matrix.md`](docs/acceptance/LC-P3-02-support-matrix.md)
+  and [`docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md`](docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md).
+  Both G1 rows read `IN PROGRESS`, and the live pointers moved in the same commit.
+- What remains open: the §4.9 human dual-host reopen checklist (`NOT RUN` in both
+  records), the real advisor sample (§5.9), the ADR's final adoption, and the
+  runner-measured shard costs — locally `test_the_shards_are_balanced` and
+  `test_the_recorded_costs_cover_every_test_file` are red by expectation, not by
+  defect.
+- No `PASS`, no gate closed, no ADR adopted, no push, pull request or CI run.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
