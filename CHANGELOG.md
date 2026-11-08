@@ -248,6 +248,17 @@ The links are the records.
   product source, test, workflow or migration file is changed; no push, PR
   or CI run is authorised.
 
+### P2-AMD-01 §10.5 pointer annotated (2026-11-08)
+
+- `docs/plans/P2-AMD-01-provider-and-data-options.md` now says, in both
+  places where it cites "the adjustment's §10.5", that §10.5 is the
+  owner-side P2-AMD-01 adjustment of 2026-10-30 and that its four decisions
+  are transcribed in `P2-AMD-01-impact-matrix.md` §5. The reference was
+  correct but unnamed; the annotation makes the external owner-side section
+  and the in-tree transcription distinguishable. No product source, test,
+  workflow or migration file is changed; no push, PR or CI run is
+  authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
