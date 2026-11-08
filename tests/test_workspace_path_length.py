@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import errno
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Final
 
@@ -152,7 +152,7 @@ def _near_ceiling_workspace(base: Path, ceiling: int) -> tuple[Workspace, str, P
     fixed = _visible(parent_prefix) + 1
     pad = ceiling + 1 - LEGACY_TEMP_NAME_CHARS - 1 - fixed
     if not 1 <= pad <= _MAX_PAD_CHARS:
-        pytest.skip(_NO_CEILING)
+        pytest.fail(_NO_CEILING)
 
     key = f"budget/{'a' * pad}/result.bin"
     return workspace, key, parent_prefix / ("a" * pad) / "result.bin"
@@ -168,12 +168,16 @@ def _plain_workspace(base: Path) -> tuple[Workspace, str, Path]:
 
 
 def _seam_temp_name(hex_digits: str) -> str:
-    """Rebuild the seam's temp name from the module's own naming parts.
+    """Rebuild the seam's temp name through the product's own naming function.
 
-    The length of this name is the quantity under test. Reading the naming parts
-    from ``outputs.py`` prevents the witness from silently drifting away from the
-    product's own spelling.
+    The length of this name is the quantity under test. Calling the product's
+    function rather than rebuilding the string here means a change inside
+    ``_temporary_name`` is caught by the witnesses that plant or count names,
+    instead of being hidden behind a duplicated constant.
     """
+    builder: Callable[[str], str] | None = getattr(outputs_module, "_temporary_name", None)
+    if builder is not None:
+        return builder(hex_digits)
     marker = getattr(outputs_module, "_WRITE_TEMP_MARKER", LEGACY_TEMP_MARKER)
     suffix = getattr(outputs_module, "_WRITE_TEMP_SUFFIX", ".tmp")
     entropy = getattr(outputs_module, "_TEMP_NAME_CHARS", None)
@@ -304,6 +308,26 @@ def test_a_past_budget_write_still_reports_the_os_refusal(tmp_path: Path, ceilin
     deeper_key = f"budget/{'a' * pad}/{'b' * 50}/result.bin"
     with pytest.raises((FileNotFoundError, WorkspaceError, OutputRefusedError)):
         area.write(deeper_key, b"past the budget", fsync=False)
+
+
+def test_a_new_short_leftover_is_visible_to_the_older_sweep(tmp_path: Path, ceiling: int) -> None:
+    """A planted short-name leftover is still discoverable by name."""
+    workspace, key, destination = _near_ceiling_workspace(tmp_path, ceiling)
+
+    TaskOutputArea(workspace).write(key, b"leftover", fsync=False)
+    leftover = destination.parent / _seam_temp_name(new_id().hex)
+    leftover.write_bytes(b"leftover")
+    try:
+        assert LEGACY_TEMP_MARKER in leftover.name, (
+            "the marker check in tests/test_workspace_boundaries.py would not "
+            "see a leftover from the repaired seam"
+        )
+        visible = {path.name for path in _sweep_output_area(workspace, destination)}
+        assert leftover.name in visible, (
+            "the repaired seam's leftover is not visible to the name-based sweep"
+        )
+    finally:
+        leftover.unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("extra_chars", [0, 1, 2])
