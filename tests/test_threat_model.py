@@ -1035,20 +1035,32 @@ def test_the_source_tree_carries_no_remote_url_except_the_provider_defaults() ->
     is expensive: the honest way to silence one is to widen the allowlist,
     and a widened allowlist is a hole.
 
-    **So the exception is as narrow as it can be.** The one host allowed is
-    ``schemas.openxmlformats.org``, and it is allowed **only** in a string
-    that is a namespace constant -- the test asserts that the only
-    occurrences are the namespace declarations the OOXML reader needs, and
-    that the reader never builds a URL out of one.
+    **So the exception is as narrow as it can be.** The OOXML/OPC vocabulary
+    hosts are allowed only where the URL is an *identifier*: the whole string
+    is a namespace URI, the URI is inside a Clark-notation element name, the
+    URI is an ``xmlns`` declaration, or the URI is an OPC relationship
+    ``Type`` identifier. A URL that merely begins with one of those hosts and
+    then names an API path is still an offender. The editing seam names three
+    vocabulary hosts because OOXML itself does:
+    ``schemas.openxmlformats.org`` (the core vocabularies),
+    ``www.w3.org`` (the XML namespace and XML-signature vocabulary), and
+    ``schemas.microsoft.com`` (Word's ``wps`` and ``w14`` vocabularies).
+    None is resolved by :mod:`labcairn.editing`; they are matched against
+    markup the manuscript already carries or written into the synthetic
+    substitute set.
+
+    **The synthetic fixture target is not a product endpoint.** The corpus's
+    external hyperlink needs a syntactically external target, and
+    ``https://example.org/reference`` uses the IANA-reserved documentation
+    name. The witness allows it only as the whole string in
+    ``editing/samples.py``, never as an endpoint the product code builds.
     """
     root = _repo_root() / "src" / "labcairn"
     allowed_hosts = ("api.openai.com", "api.anthropic.com", "127.0.0.1", "localhost")
-    #: A namespace vocabulary, not a host the product reaches. See the
-    #: docstring: the one allowed exception, and it is checked again below.
-    namespace_hosts = ("schemas.openxmlformats.org",)
 
     offenders: list[str] = []
     for path in sorted(root.rglob("*.py")):
+        relative = path.relative_to(root).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         docstrings = _docstring_constants(tree)
         for node in ast.walk(tree):
@@ -1062,17 +1074,125 @@ def test_the_source_tree_carries_no_remote_url_except_the_provider_defaults() ->
                     host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts
                 ):
                     continue
-                # A namespace vocabulary is an identifier, not a host the
-                # product reaches. It is allowed only where the whole
-                # string **is** the namespace -- so a URL that merely
-                # mentions the vocabulary somewhere in its path is still
-                # an offender.
-                if host in namespace_hosts and node.value == match.group(0):
+                if _url_is_vocabulary_or_fixture(node.value, match, relative):
                     continue
-                offenders.append(f"{path.relative_to(root).as_posix()}:{node.lineno} names {host}")
+                # A namespace vocabulary is an identifier, not a host the
+                # product reaches. It is allowed only in the identifier
+                # shapes named above, so a URL that merely mentions a
+                # vocabulary host in an API path is still an offender.
+                offenders.append(f"{relative}:{node.lineno} names {host}")
     assert not offenders, (
         "these lines name a remote host the threat model does not list:\n  "
         + "\n  ".join(offenders)
+    )
+
+
+_VOCABULARY_URIS: Final[tuple[str, ...]] = (
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "http://schemas.openxmlformats.org/markup-compatibility/2006",
+    "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "http://schemas.openxmlformats.org/drawingml/2006/picture",
+    "http://schemas.openxmlformats.org/package/2006/content-types",
+    "http://schemas.openxmlformats.org/package/2006/relationships",
+    "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+    "http://schemas.microsoft.com/office/word/2010/wordml",
+    "http://www.w3.org/XML/1998/namespace",
+    "http://www.w3.org/2000/09/xmldsig#",
+)
+_RELATIONSHIP_TYPE_URIS: Final[tuple[str, ...]] = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject",
+)
+_SYNTHETIC_FIXTURE_URIS: Final[tuple[str, ...]] = ("https://example.org/reference",)
+
+
+def _url_is_vocabulary_or_fixture(value: str, match: re.Match[str], relative: str) -> bool:
+    """Whether one URL occurrence is an OOXML identifier or synthetic fixture.
+
+    **The shape is the claim, and the URI is named.** A bare host is not
+    enough: the witness allows only the exact namespace URIs OOXML needs,
+    namespace URIs in Clark-notation element names or ``xmlns`` declarations,
+    the exact OPC relationship-type URIs the sample builder writes, and the
+    one IANA-reserved synthetic fixture target in the sample builder.
+    """
+    url = match.group(0)
+    if url in _VOCABULARY_URIS or url in _RELATIONSHIP_TYPE_URIS:
+        return True
+    before = value[: match.start(0)]
+    if before.endswith("{") and url.split("}", 1)[0] in _VOCABULARY_URIS:
+        return True
+    quoted_uri = value[match.start(0) : value.find('"', match.start(0))]
+    xmlns_pattern = r'xmlns(?::[A-Za-z_][\w.-]*)?="$'
+    type_pattern = r'\bType="$'
+    if re.search(xmlns_pattern, before) and quoted_uri in _VOCABULARY_URIS:
+        return True
+    if re.search(type_pattern, before) and quoted_uri in _RELATIONSHIP_TYPE_URIS:
+        return True
+    return relative == "editing/samples.py" and url in _SYNTHETIC_FIXTURE_URIS
+
+
+def test_the_remote_url_allowlist_covers_only_identifier_shapes() -> None:
+    """The vocabulary exception must not become a host-wide hole.
+
+    **Why this witness exists.** The branch's OOXML code must name XML
+    namespaces and OPC relationship vocabularies, but the threat model must
+    still reject the same host when it names an API endpoint or appears in
+    prose. This test pins the helper's URI-and-shape rule rather than trusting
+    a broad host allowlist.
+    """
+
+    def match(value: str) -> re.Match[str]:
+        found = re.search(r"https?://([^\s`\"'()]+)", value)
+        assert found is not None, f"the probe has no URL: {value!r}"
+        return found
+
+    assert _url_is_vocabulary_or_fixture(
+        "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        match("http://schemas.openxmlformats.org/wordprocessingml/2006/main"),
+        "editing/samples.py",
+    )
+    assert _url_is_vocabulary_or_fixture(
+        "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t",
+        match("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"),
+        "editing/library.py",
+    )
+    assert _url_is_vocabulary_or_fixture(
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+        match('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'),
+        "editing/samples.py",
+    )
+    assert _url_is_vocabulary_or_fixture(
+        '<Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+        'relationships/officeDocument">',
+        match(
+            '<Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+            'relationships/officeDocument">'
+        ),
+        "editing/samples.py",
+    )
+    assert _url_is_vocabulary_or_fixture(
+        "https://example.org/reference",
+        match("https://example.org/reference"),
+        "editing/samples.py",
+    )
+
+    for value in (
+        "https://schemas.openxmlformats.org/api/v1/documents",
+        "See https://www.w3.org/TR/xml/ for the syntax.",
+        "POST https://schemas.microsoft.com/office/import",
+    ):
+        assert not _url_is_vocabulary_or_fixture(value, match(value), "editing/samples.py"), value
+    assert not _url_is_vocabulary_or_fixture(
+        "https://example.org/reference",
+        match("https://example.org/reference"),
+        "editing/drafts.py",
     )
 
 
