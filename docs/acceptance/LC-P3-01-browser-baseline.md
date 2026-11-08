@@ -74,6 +74,10 @@ window's environment record outside the repository:
    `windows-latest` as the witness is designed to, and the fix is one
    owner-authorised run (`python .github/remeasure_shards.py <run-id>`). No
    run id exists: this window started no CI.
+6. **The workbench has no version-control surface.** The §4.8 promise of
+   version switching is a named gap: the run exercises task selection only,
+   and no version control, version switch or versioned draft was started. It
+   is recorded in the work order §8; this record does not claim it.
 
 ## 3. What this record does not carry
 

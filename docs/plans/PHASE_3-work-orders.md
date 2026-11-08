@@ -70,7 +70,7 @@ Source questions **Q77** and **Q82** stay open at their own triggers
 | 1 | **Browser driver: Playwright**, taking the **system-browser channel** where one exists so the run does not add a browser download. The driver package itself still has to be installed. | The choice the preparation package left to the owner. | §4.4, §4.5, §4.10 |
 | 2 | **COM and ProgID automation of a desktop host: not allowed.** The WPS and Office reopen checks are **human-performed checklist steps with recorded evidence**. | Whether the project may drive real desktop applications programmatically. It may not. | §3 rule 2, §4.9, §5.8 |
 | 3 | **The real advisor sample comes after** the synthetic and substitute-first work, and until it is supplied it stays a **named gap**. | The timing `LC-P3-02` was waiting on. | §5.9, §8 |
-| 4 | **The §4 checklist split, confirmed:** `LC-P3-01` carries the real-browser baseline **and** the dual-host reopen checks; `LC-P3-02` carries the DOCX revision loop **and** the real-sample half. | Which ticket is the basis for which row, and who runs the checklist. | §4.11, §5.8 |
+| 4 | **The §4 checklist split, re-decided:** `LC-P3-01` carries the real-browser baseline **and** the dual-host reopen checks; `LC-P3-02` carries the DOCX revision loop **and** the real-sample half. | Which ticket is the basis for which row after the re-split, and who runs the checklist. | §4.11, §5.8 |
 | 5 | **The seven provider fields are decided after G1; `LC-P3-06` stays `BLOCKED`.** | No G1 ticket waits on the provider, and no G1 ticket may make an outbound call. | §1, §3 rule 1, §8 |
 | 6 | **The write-seam path-length (MAX_PATH) repair rides the G1 implementation batch.** | Which batch takes the repair the gap register called "a batched implementation stage decision". | §7, §5.6 |
 | 7 | **Q77 and Q82 stay at their triggers.** | Nothing is inferred from a source question whose original is missing. | §1, §8 |
@@ -111,7 +111,11 @@ window that skips one.
 4. **File ownership is the contract.** The areas in §4.5 and §5.5 are the map. A
    window that needs a file outside its area says so instead of reaching for it.
    `01` and `02` may run in parallel precisely because their areas do not
-   overlap; §7's write seam is a third area, not a shared one.
+   overlap; §7's write seam is a third area, not a shared one. A new product
+   dependency is an owner decision: a window that needs one reports the
+   package, version, licence and lockfile change, and does not edit
+   `pyproject.toml`, `uv.lock`, `web/package.json` or `web/pnpm-lock.yaml`
+   itself.
 5. **A claim is a witness, and the witness must fail for the property.** Each
    assertion below is checked by its counter-mutation before any record reports
    it as holding; a mutation that leaves the assertion green tested nothing.
@@ -215,10 +219,12 @@ reports its entries (§3 rule 3).
 
 **4.8 Acceptance evidence — the minimum assertion set.**
 
-- *Task and version switching.* The page drives `POST /task/select`; the rendered
-  state panel shows `GET /task` bytes identical to `task status --json` for the
-  same task — the field-for-field comparison the live-service witness established,
-  now through a socket and a render.
+- *Task selection, and the version-switching gap.* The page drives
+  `POST /task/select`; the rendered state panel shows `GET /task` bytes identical
+  to `task status --json` for the same task — the field-for-field comparison the
+  live-service witness established, now through a socket and a render. The
+  workbench has no version-control surface; version switching is recorded as a
+  named gap in §8, not claimed as exercised.
 - *Comment display.* An imported comment-bearing synthetic sample is visible in the
   workbench view that reads it.
 - *Approval.* An approval action taken from the page produces the recorded state
@@ -311,7 +317,9 @@ is what `pyproject.toml` declares — measured live 2026-11-08) against a Window
 host adaptation path, on short synthetic samples covering mixed comments and
 tracked revisions, tables, equations and images. What is measured: the host and its
 version, open and reopen results, what survived in the regions the edit did not
-target, and what was refused.
+target, and what was refused. Any Windows-adaptation dependency is an owner
+decision under §3 rule 4; the window reports it rather than editing
+`pyproject.toml` or `uv.lock`.
 
 **5.4 Non-goals.** Not the integrated loop: no project-scoped import receipt, no
 read-only-original guard integration, no publication receipt (`LC-P3-03`); no
@@ -472,4 +480,5 @@ do not edit these; both sequence against them.
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
+| Version switching in the workbench | A version-selection surface and a browser witness; named gap, not claimed | §4.8 |
 | Work orders for `LC-P3-03` … `LC-P3-08` | Not written. This file issues the G1 pair and nothing else. | §1 |

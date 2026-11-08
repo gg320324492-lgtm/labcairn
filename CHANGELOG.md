@@ -336,6 +336,22 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push, PR
   or CI run is authorised.
 
+### G1 work-order NOTE fixes (2026-11-08)
+
+- The remaining G1 work-order audit NOTEs were triaged. The §4 checklist split
+  is now labelled a re-decision, not a confirmation; a new product dependency
+  is an owner decision (a window reports package, version, licence and
+  lockfile change and does not edit the lockfiles); and the §4.8
+  version-switch claim is recorded as a named gap — the workbench has no
+  version-control surface, so task selection is what is witnessed. The
+  baseline record and the §8 gap table carry the same statement.
+- The operator-side environment preparation report reconciles the uv cache
+  path with the project cache (`E:\LabCairn\.local\uv-cache`).
+- The merge-time items (#6/#9/#11) and the dated notes (#1/#8) remain as the
+  triage lists them.
+- No product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
