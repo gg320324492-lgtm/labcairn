@@ -451,9 +451,14 @@ different number and only a POSIX run may state it.
   re-run verbatim before any ADR quotes an errno for this seam.
 
 **Ownership for the batch.** `src/labcairn/workspace/outputs.py`,
-`src/labcairn/security/paths.py` and `tests/test_workspace_boundaries.py` belong to
-this item while the batch runs. `LC-P3-01` and `LC-P3-02` do not edit them; both
-sequence against them.
+`src/labcairn/security/paths.py`, `tests/test_workspace_boundaries.py` and the
+dedicated witness `tests/test_workspace_path_length.py` belong to this item while
+the batch runs. The new file is separate because
+`tests/test_workspace_boundaries.py` is a `no-unauthorized-write-or-disclosure`
+blocker witness: a POSIX skip inside it would break the blocker denominator. The
+new file carries its own `pytest.mark.integration`, registers in the shard and
+manifest tables, and leaves the blocker file unchanged. `LC-P3-01` and `LC-P3-02`
+do not edit these; both sequence against them.
 
 ---
 

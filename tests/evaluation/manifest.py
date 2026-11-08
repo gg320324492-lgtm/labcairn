@@ -448,6 +448,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_security_paths.py": ("negative", "path-traversal"),
     "test_security_policy.py": ("unit", "permission-resolution"),
     "test_workspace_boundaries.py": ("negative", "path-traversal"),
+    # The workspace seam's own measured path budget. It is integration because it
+    # writes through the real seam, not because it traverses a root.
+    "test_workspace_path_length.py": ("integration", "typed-contracts"),
     # -- the skills ---------------------------------------------------------
     "test_skill_approval.py": ("unit", "approvals"),
     "test_skill_contracts.py": ("unit", "typed-contracts"),

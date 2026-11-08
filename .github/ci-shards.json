@@ -173,7 +173,8 @@
         "tests/test_real_provider_smoke.py",
         "tests/test_evidence_gate.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_workbench_serve_helper.py"
+        "tests/test_workbench_serve_helper.py",
+        "tests/test_workspace_path_length.py"
       ]
     ],
     "windows-latest": [
@@ -207,7 +208,8 @@
         "tests/test_consent_refusal_vocabulary.py",
         "tests/test_analysis_report_manifest.py",
         "tests/test_security_injection.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_workspace_path_length.py"
       ],
       [
         "tests/test_application_layer.py",
