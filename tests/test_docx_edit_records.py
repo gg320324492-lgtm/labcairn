@@ -101,7 +101,7 @@ def test_the_three_records_exist_and_are_dated() -> None:
         assert path.is_file(), f"{path.name} is not in the tree"
         text = path.read_text(encoding="utf-8")
         assert "2026-11-08" in text, f"{path.name} carries no date"
-        assert "940cd7a" in text or "940cd7a6a738d287dfd6d819330cf767d6e90591" in text, (
+        assert "bbed26c" in text or "bbed26cf0c0468c0bc625542bd94ac9f0bd948ad" in text, (
             f"{path.name} prints no commit its numbers belong to"
         )
 

@@ -1,6 +1,6 @@
 # ADR-0021 — Manuscript editing: a surgical run splice on a temporary copy
 
-**Date:** 2026-11-08. **Head:** `940cd7a6a738d287dfd6d819330cf767d6e90591`.
+**Date:** 2026-11-08. **Head:** `bbed26cf0c0468c0bc625542bd94ac9f0bd948ad`.
 **Status:** proposed. The independent copy is **temporary**, and the adoption
 is provisional until the real-sample run and the human reopen checklist exist.
 

@@ -1,6 +1,6 @@
 # LC-P3-02 — substitute-set run record (2026-11-08)
 
-**Date:** 2026-11-08. **Head:** `940cd7a6a738d287dfd6d819330cf767d6e90591`.
+**Date:** 2026-11-08. **Head:** `bbed26cf0c0468c0bc625542bd94ac9f0bd948ad`.
 **Type:** dated machine-side run record for `LC-P3-02` §5.7–§5.10.
 
 ## What ran
@@ -13,8 +13,8 @@ Sample-input digests from the manifest bridge include
 `63d24818b2a5529d870412349d27ed6b9b6520751a642ad37d6c721b5fcb8ca4`,
 `4db47fb725a52e2cd83bc5b48a2b4f70ff5aec3fbc7539e7f389e8f10101280b` and
 `6dd5b3eba9cafc1c8def5aa0b60063e3efcf53317f7ea5350908338d6d4cf8db`.
-The evidence root was `LC-P3-02-fourth-fix-2026-11-08` under a
-36-character measurement parent; its longest visible path was 141 characters.
+The evidence root was `LC-P3-02-fifth-fix-2026-11-09` under a
+36-character measurement parent; its longest visible path was 140 characters.
 The run stayed under the measured 259-character ceiling (`MAX_PATH` is 259; 260
 is the first length the machine refuses), and `LongPathsEnabled` is read from
 the registry in the host snapshot.
