@@ -45,7 +45,8 @@
         "tests/test_ooxml_revisions.py",
         "tests/test_material_adapters.py",
         "tests/test_analysis_report_build.py",
-        "tests/test_provider_capabilities.py"
+        "tests/test_provider_capabilities.py",
+        "tests/test_workbench_real_browser.py"
       ],
       [
         "tests/test_cli_workspace_refusals.py",
@@ -171,7 +172,8 @@
         "tests/test_evidence_anchor_registry.py",
         "tests/test_real_provider_smoke.py",
         "tests/test_evidence_gate.py",
-        "tests/test_docx_fixture_corpus.py"
+        "tests/test_docx_fixture_corpus.py",
+        "tests/test_workbench_serve_helper.py"
       ]
     ],
     "windows-latest": [
@@ -239,7 +241,8 @@
         "tests/test_source_contracts.py",
         "tests/test_security_listing_canonical.py",
         "tests/test_provider_adapter.py",
-        "tests/test_analysis_report_build.py"
+        "tests/test_analysis_report_build.py",
+        "tests/test_workbench_serve_helper.py"
       ],
       [
         "tests/test_api.py",
@@ -273,7 +276,8 @@
         "tests/test_runtime_contracts.py",
         "tests/test_real_provider_smoke.py",
         "tests/test_capability_namespaces.py",
-        "tests/test_refusal_witnesses.py"
+        "tests/test_refusal_witnesses.py",
+        "tests/test_workbench_real_browser.py"
       ],
       [
         "tests/test_guidance_rules.py",
@@ -510,6 +514,8 @@
       "test_version_duplicates.py": 0.43,
       "test_version_store.py": 2.81,
       "test_workbench_live_service.py": 7.23,
+      "test_workbench_real_browser.py": 1.2,
+      "test_workbench_serve_helper.py": 12.0,
       "test_workspace_boundaries.py": 0.01
     },
     "windows-latest": {
@@ -673,6 +679,8 @@
       "test_version_duplicates.py": 0.86,
       "test_version_store.py": 8.79,
       "test_workbench_live_service.py": 12.42,
+      "test_workbench_real_browser.py": 1.6,
+      "test_workbench_serve_helper.py": 26.0,
       "test_workspace_boundaries.py": 1.34
     }
   }

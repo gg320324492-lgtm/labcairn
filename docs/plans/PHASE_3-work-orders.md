@@ -51,7 +51,7 @@ it, and never because something looks finished.
 | Ticket | Stage | Status | What the row rests on |
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
-| `LC-P3-01` | Phase 3 G1 | **`NOT STARTED`** — work order issued 2026-11-08 (§4) | This file. No browser was started and no witness ran. |
+| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
 | `LC-P3-02` | Phase 3 G1 | **`NOT STARTED`** — work order issued 2026-11-08 (§5) | This file. No sample was written, opened or reopened. |
 | `LC-P3-03`, `LC-P3-04` | Phase 3 G2 | `NOT STARTED` — no work order written | Execution plan §3; `03` follows `01` and `02`. |
 | `LC-P3-05` | Phase 3 G3 | `NOT STARTED` — no work order written | Execution plan §3; scoped as written per `LC-P3-00` §6. |
