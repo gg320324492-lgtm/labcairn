@@ -29,16 +29,21 @@ declares a protocol marker as a contradiction.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Final
 
 import pytest
+from evaluation_docx_edit_fidelity import reopen_rows, run_substitute_set
+from test_workspace_path_length import _measure_ceiling
 
 from labcairn.editing.drafts import REFUSALS
 from labcairn.editing.evidence import (
     MAX_PATH,
     PRESENCE_BY_CLASS,
     PathBudgetError,
+    _long_paths_enabled,
+    host_snapshot,
     visible_path,
 )
 from labcairn.editing.samples import REFUSED, SAMPLES, WRITABLE
@@ -101,6 +106,62 @@ def test_the_visible_path_guard_refuses_the_length_the_machine_refuses(
     assert visible_path(tmp_path, accepted) == tmp_path / accepted
     with pytest.raises(PathBudgetError):
         visible_path(tmp_path, accepted + "a")
+
+
+def test_the_recorded_ceiling_is_the_one_this_machine_enforces(tmp_path: Path) -> None:
+    """The constant is anchored to a probe, not to itself.
+
+    A witness that computes both sides from ``MAX_PATH`` stays green when the
+    constant moves. This test measures the machine's exclusive-create ceiling
+    with the probe ``tests/test_workspace_path_length.py`` uses and compares it
+    with the number the evidence writer carries.
+    """
+    if sys.platform != "win32":
+        pytest.skip("the 259-character ceiling is this machine's Windows path semantics")
+    assert _measure_ceiling(tmp_path / "probe") == MAX_PATH
+
+
+def test_the_host_snapshot_reports_the_registry_reader() -> None:
+    """The snapshot and the reader must be one value, not two stories."""
+    snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
+    assert snapshot["long_paths_enabled"] == _long_paths_enabled()
+
+
+def test_the_reopen_cells_are_empty_only_where_a_person_decides(tmp_path: Path) -> None:
+    """§5.10's empty row: 44 rows, machine cells filled, human cells empty."""
+    run = run_substitute_set()
+    rows = reopen_rows(run, tmp_path)
+    human_columns = (
+        "operator",
+        "opened_at",
+        "open_result",
+        "prompt_verbatim_or_NONE",
+        "presence_after_open",
+        "close_action",
+        "reopened_at",
+        "presence_after_reopen",
+        "reopen_result",
+        "save_performed",
+        "sha256_after",
+        "byte_size_after",
+        "hash_changed",
+    )
+    machine_columns = (
+        "file_path",
+        "file_path_chars",
+        "sha256_before",
+        "byte_size_before",
+        "host_name",
+        "host_file_version",
+        "host_version_measured_at",
+        "expected_presence",
+    )
+    assert len(rows) == 44
+    for row in rows:
+        assert row["verdict"] == "PENDING-HUMAN"
+        assert all(row[column] == "" for column in human_columns), row["row_id"]
+        assert all(row[column] != "" for column in machine_columns), row["row_id"]
+        assert "body-text" in row["expected_presence"], row["row_id"]
 
 
 def test_the_matrix_names_every_class_the_enum_has_exactly_once() -> None:

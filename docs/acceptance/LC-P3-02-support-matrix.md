@@ -41,7 +41,7 @@ it.
 
 | `date_not_iso_8601` | the edit's own stamp is not the form the format declares | `23-refuse-a-date-that-is-not-a-date` |
 |---|---|---|
-| `part_outside_support_matrix` | the change is aimed at a part the seam does not rewrite | `17-refuse-edit-aimed-at-the-comment-part` |
+| `part_outside_support_matrix` | the change is aimed at a part the seam does not rewrite | `17-refuse-edit-aimed-at-the-comment-part`, `12c-refuse-edit-aimed-at-a-media-part` |
 | `package_outside_support_matrix` | the package carries a part class never rewritten here | `14-refuse-package-carrying-macros`, `15-refuse-package-carrying-an-embedded-object`, `16-refuse-package-carrying-custom-xml`, `16b-refuse-package-carrying-a-digital-signature` |
 | `edit_changes_nothing` | there is no change to write | `21-refuse-unchanged-edit` |
 | `package_unreadable` | the bytes are not a package the seam can plan against | `25-refuse-a-package-that-is-not-a-package`, `26-refuse-a-package-with-no-document-part` |

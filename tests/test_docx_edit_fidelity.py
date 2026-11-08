@@ -48,7 +48,7 @@ from labcairn.editing.fidelity import (
     part_inventory,
     run_arm,
 )
-from labcairn.editing.samples import SAMPLES, WRITABLE, Sample, sample_bytes
+from labcairn.editing.samples import LINKED, REPLACED, SAMPLES, WRITABLE, Sample, sample_bytes
 from labcairn.editing.survey import DOCUMENT_PART, element_spans
 from labcairn.material.ooxml import read_document
 
@@ -163,6 +163,28 @@ def test_the_structure_classes_the_document_held_all_survived_the_write(
             if line.status is not RegionStatus.IDENTICAL
         ]
         assert not offenders, f"{row.label}: classes that did not survive: {offenders}"
+
+
+def test_the_hyperlink_wrap_stays_around_the_aimed_write() -> None:
+    """The aimed hyperlink sample keeps its element and its relationship.
+
+    The class comparison skips the paragraph the edit names, so a write that
+    replaces the run but drops its ``w:hyperlink`` wrapper would otherwise
+    pass. This witness looks inside the wrap: the new label is there, the old
+    label is gone, and the relationships part is byte-for-byte unchanged.
+    """
+    sample = BY_NAME["06b-hyperlink-target-inside-the-wrap"]
+    original = sample_bytes(sample)
+    produced = surgical_bytes(original, sample.edit, DraftForm.CLEAN)
+    with zipfile.ZipFile(io.BytesIO(original)) as before:
+        relationships_before = before.read("word/_rels/document.xml.rels")
+    with zipfile.ZipFile(io.BytesIO(produced)) as after:
+        document = after.read("word/document.xml").decode()
+        relationships_after = after.read("word/_rels/document.xml.rels")
+    assert relationships_after == relationships_before
+    assert "<w:hyperlink" in document
+    assert REPLACED in document
+    assert LINKED not in document
 
 
 def test_the_marked_draft_records_the_change_as_a_tracked_revision(
