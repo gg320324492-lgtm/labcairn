@@ -98,7 +98,16 @@ window that skips one.
    runner log by `python .github/remeasure_shards.py <run-id>`. A local timing is
    not a runner cost, and a file in no shard is a test a runner never runs
    (execution plan §6, last row). Extending an existing file skips the
-   registration, not the shard-cost witness.
+   registration, not the shard-cost witness. The registration files themselves
+   are **commander-owned at merge**: a window reports the entries it needs and
+   does not edit `.github/ci-shards.json` or `tests/evaluation/manifest.py`
+   directly. Until the batch's own runner run, the shard-balance witness is
+   expected red on `windows-latest`; that run's `--durations=0` log is the only
+   source for the cost re-measurement, and no local timing is substituted.
+   A browser witness that cannot find Playwright or a system browser on a
+   runner **skips with a named reason** (`playwright` or system browser
+   absent) and records the skip; a missing local browser must not turn the
+   shard jobs red. The LC-P3-01 window supplies the browser evidence locally.
 4. **File ownership is the contract.** The areas in §4.5 and §5.5 are the map. A
    window that needs a file outside its area says so instead of reaching for it.
    `01` and `02` may run in parallel precisely because their areas do not
@@ -168,7 +177,9 @@ path works and what it shows, and how well is not a question this ticket answers
 
 It does **not** own `src/labcairn/workspace/outputs.py` or
 `src/labcairn/security/paths.py` (§7), and it edits no dated Phase 1 or Phase 2
-record.
+record. The two registration files (`.github/ci-shards.json`,
+`tests/evaluation/manifest.py`) are commander-owned at merge; this window
+reports its entries (§3 rule 3).
 
 **4.6 Dependencies.**
 
@@ -234,7 +245,9 @@ host's version re-measured at run time**, whether the file opened without a repa
 prompt, what survived and what did not, who performed the step, when, and where
 the evidence sits. The form to follow is the project's existing
 [`../acceptance/G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md),
-which is a Phase 1 record.
+which is a Phase 1 record. For this batch the named performer is **the project
+owner** (owner decision of 2026-11-08); every row records that name and the
+date it was performed.
 
 | Step | Primary host — WPS Office, the acceptance host | Reference host — Microsoft Office 2010, the compatibility reference |
 |---|---|---|
@@ -320,7 +333,9 @@ structures and hosts actually measured.
 It does **not** own `src/labcairn/workspace/outputs.py` or
 `src/labcairn/security/paths.py`: the write seam is §7's area in this batch, and
 the dependency runs through §5.6 as a sequence, not through an edit. It does not
-edit [`../THREAT-MODEL.md`](../THREAT-MODEL.md).
+edit [`../THREAT-MODEL.md`](../THREAT-MODEL.md). The two registration files
+(`.github/ci-shards.json`, `tests/evaluation/manifest.py`) are commander-owned
+at merge; this window reports its entries (§3 rule 3).
 
 **5.6 Dependencies, named rather than assumed.**
 

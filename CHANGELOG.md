@@ -318,6 +318,24 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push, PR or
   CI run is authorised.
 
+### G1 work-order audit corrections (2026-11-08)
+
+- The independent audit of the G1 work orders found three structural gaps and
+  two environment-fact errors. The work orders now name the commander as the
+  owner of `.github/ci-shards.json` and `tests/evaluation/manifest.py` at merge
+  (windows report their entries instead of editing those files), state that
+  the shard-balance witness is expected red on `windows-latest` until the
+  batch's own runner run supplies the costs, require a browser witness to skip
+  with a named reason when Playwright or a system browser is absent, and name
+  the project owner as the human-checklist performer.
+- The Chinese README status line now matches the English one: the two G1 work
+  orders are issued and both read `NOT STARTED`.
+- The operator-side environment preparation report records the corrected facts:
+  `PLAYWRIGHT_BROWSERS_PATH` is User-scope only, the WPS App Paths read uses
+  `HKCU`, and the project's uv cache is `E:\LabCairn\.local\uv-cache`.
+- No product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
