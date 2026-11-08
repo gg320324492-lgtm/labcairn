@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Final
 
 import pytest
-from evaluation_docx_edit_fidelity import option_numbers, reopen_rows, run_substitute_set
+from evaluation_docx_edit_fidelity import Run, option_numbers, reopen_rows, run_substitute_set
 from test_workspace_path_length import _NO_CEILING, _measure_ceiling
 
 from labcairn.editing.drafts import REFUSALS, EditRefusedError, plan_edit
@@ -55,6 +55,11 @@ ADR: Final[Path] = (
     Path(__file__).resolve().parent.parent / "docs/adr/ADR-0021-manuscript-editing-rewrite.md"
 )
 
+#: The measurement-parent length the record names for its evidence root. It is a
+#: property of the recorded run, not of this test's temporary directory.
+_CANONICAL_PARENT_CHARS: Final[int] = 36
+_SEP: Final[str] = "\\" if sys.platform == "win32" else "/"
+
 
 #: A markdown table row's cells, split on the pipe and stripped.
 def _rows(text: str, heading: str) -> list[list[str]]:
@@ -74,6 +79,20 @@ def _rows(text: str, heading: str) -> list[list[str]]:
         rows.append(cells)
     assert rows, f"no rows found under {heading!r}"
     return rows
+
+
+def _longest_relative_visible_path(run: Run, root: Path) -> int:
+    """Write the substitute set under a temporary root and return the longest relative path."""
+    longest = 0
+    for folder, paths in (("samples", run.inputs), ("outputs", run.artifacts)):
+        for name, data in paths.items():
+            if folder == "samples" and run.sample(name.removesuffix(".docx")).hostile:
+                continue
+            path = root / folder / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            longest = max(longest, len(str(path.relative_to(root))))
+    return longest
 
 
 def test_the_three_records_exist_and_are_dated() -> None:
@@ -129,7 +148,7 @@ def test_the_recorded_ceiling_is_the_one_this_machine_enforces(tmp_path: Path) -
 def test_the_host_snapshot_reports_the_registry_reader() -> None:
     """The snapshot is checked against the registry, not its own helper."""
     if sys.platform != "win32":
-        pytest.skip("the LongPathsEnabled registry value is Windows-only")
+        pytest.skip("the LongPathsEnabled registry value is a Windows facility")
     snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
     import winreg
 
@@ -152,7 +171,7 @@ def test_the_host_snapshot_follows_a_changed_registry_value(
     reading the registry, so neither witness alone is enough.
     """
     if sys.platform != "win32":
-        pytest.skip("the LongPathsEnabled registry value is Windows-only")
+        pytest.skip("the LongPathsEnabled registry value is a Windows facility")
     import winreg
 
     def changed(_key: object, name: str) -> tuple[int, int]:
@@ -437,3 +456,48 @@ def test_the_sample_counts_in_the_records_match_the_corpus() -> None:
         assert printed == {observed}, (
             f"the records say {sorted(printed)} for {sentence!r}; a fresh run says {observed}"
         )
+
+
+def test_the_recorded_path_length_is_the_canonical_structural_bound(tmp_path: Path) -> None:
+    """The record must name its root, parent and the measured longest path.
+
+    A bare number cannot be watched without the root; a machine-specific root
+    would make the test green on one machine and false on another. The record
+    therefore names the evidence-root label and the measurement-parent length,
+    while the relative artifact path is recomputed from the substitute set.
+    """
+    text = RUN_RECORD.read_text(encoding="utf-8")
+    match = re.search(
+        r"The evidence root was\s+`(?P<root>[^`]+)`\s+under a\s+"
+        r"(?P<parent>\d+)-character measurement parent;\s*"
+        r"its longest visible path was\s+(?P<length>\d+) characters\.",
+        text,
+    )
+    assert match is not None, (
+        "the run record does not name the evidence root, measurement parent "
+        "and longest visible path in one sentence"
+    )
+
+    root_name = match["root"]
+    parent = int(match["parent"])
+    printed = int(match["length"])
+
+    assert parent == _CANONICAL_PARENT_CHARS, (
+        f"the record names a {parent}-character measurement parent; "
+        f"the stored evidence root sits under a {_CANONICAL_PARENT_CHARS}-character parent"
+    )
+
+    run = run_substitute_set()
+    longest_relative = _longest_relative_visible_path(run, tmp_path / root_name)
+    recomputed = parent + len(_SEP) + len(root_name) + len(_SEP) + longest_relative
+
+    assert printed == recomputed, (
+        f"the record prints a {printed}-character path; the canonical structural bound is "
+        f"{recomputed} = {parent} parent + separator + {len(root_name)} root + "
+        f"separator + {longest_relative} longest relative artifact path"
+    )
+
+    assert recomputed < MAX_PATH, (
+        f"the canonical structural bound is {recomputed} characters, "
+        f"which is not below the {MAX_PATH}-character ceiling this ticket records"
+    )
