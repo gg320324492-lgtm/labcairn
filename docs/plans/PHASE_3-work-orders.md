@@ -51,7 +51,7 @@ it, and never because something looks finished.
 | Ticket | Stage | Status | What the row rests on |
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
-| `LC-P3-01` | Phase 3 G1 | **`NOT STARTED`** — work order issued 2026-11-08 (§4) | This file. No browser was started and no witness ran. |
+| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
 | `LC-P3-02` | Phase 3 G1 | **`NOT STARTED`** — work order issued 2026-11-08 (§5) | This file. No sample was written, opened or reopened. |
 | `LC-P3-03`, `LC-P3-04` | Phase 3 G2 | `NOT STARTED` — no work order written | Execution plan §3; `03` follows `01` and `02`. |
 | `LC-P3-05` | Phase 3 G3 | `NOT STARTED` — no work order written | Execution plan §3; scoped as written per `LC-P3-00` §6. |
@@ -70,7 +70,7 @@ Source questions **Q77** and **Q82** stay open at their own triggers
 | 1 | **Browser driver: Playwright**, taking the **system-browser channel** where one exists so the run does not add a browser download. The driver package itself still has to be installed. | The choice the preparation package left to the owner. | §4.4, §4.5, §4.10 |
 | 2 | **COM and ProgID automation of a desktop host: not allowed.** The WPS and Office reopen checks are **human-performed checklist steps with recorded evidence**. | Whether the project may drive real desktop applications programmatically. It may not. | §3 rule 2, §4.9, §5.8 |
 | 3 | **The real advisor sample comes after** the synthetic and substitute-first work, and until it is supplied it stays a **named gap**. | The timing `LC-P3-02` was waiting on. | §5.9, §8 |
-| 4 | **The §4 checklist split, confirmed:** `LC-P3-01` carries the real-browser baseline **and** the dual-host reopen checks; `LC-P3-02` carries the DOCX revision loop **and** the real-sample half. | Which ticket is the basis for which row, and who runs the checklist. | §4.11, §5.8 |
+| 4 | **The §4 checklist split, re-decided:** `LC-P3-01` carries the real-browser baseline **and** the dual-host reopen checks; `LC-P3-02` carries the DOCX revision loop **and** the real-sample half. | Which ticket is the basis for which row after the re-split, and who runs the checklist. | §4.11, §5.8 |
 | 5 | **The seven provider fields are decided after G1; `LC-P3-06` stays `BLOCKED`.** | No G1 ticket waits on the provider, and no G1 ticket may make an outbound call. | §1, §3 rule 1, §8 |
 | 6 | **The write-seam path-length (MAX_PATH) repair rides the G1 implementation batch.** | Which batch takes the repair the gap register called "a batched implementation stage decision". | §7, §5.6 |
 | 7 | **Q77 and Q82 stay at their triggers.** | Nothing is inferred from a source question whose original is missing. | §1, §8 |
@@ -95,14 +95,31 @@ window that skips one.
    cost:** `pytestmark` naming a gate class from `tests/evaluation/manifest.py`'s
    protocol classes, exactly one shard in `.github/ci-shards.json`, and a row in
    `tests/evaluation/manifest.py`'s gate table — with costs re-measured from a
-   runner log by `python .github/remeasure_shards.py <run-id>`. A local timing is
+   runner log by `python .github/remeasure_shards.py <run-id>`. **A
+   repository-class file is the exception:** it declares no `pytestmark` and is
+   filed under `REPOSITORY_CLASS` with the `repository-gate` clause; the
+   harness requires a marker-less file in that class. The LC-P3-02 substitute
+   corpus and record witnesses are the current examples. A local timing is
    not a runner cost, and a file in no shard is a test a runner never runs
    (execution plan §6, last row). Extending an existing file skips the
-   registration, not the shard-cost witness.
+   registration, not the shard-cost witness. The registration files themselves
+   are **commander-owned at merge**: a window reports the entries it needs and
+   does not edit `.github/ci-shards.json` or `tests/evaluation/manifest.py`
+   directly. Until the batch's own runner run, the shard-balance witness is
+   expected red on `windows-latest`; that run's `--durations=0` log is the only
+   source for the cost re-measurement, and no local timing is substituted.
+   A browser witness that cannot find Playwright or a system browser on a
+   runner **skips with a named reason** (`playwright` or system browser
+   absent) and records the skip; a missing local browser must not turn the
+   shard jobs red. The LC-P3-01 window supplies the browser evidence locally.
 4. **File ownership is the contract.** The areas in §4.5 and §5.5 are the map. A
    window that needs a file outside its area says so instead of reaching for it.
    `01` and `02` may run in parallel precisely because their areas do not
-   overlap; §7's write seam is a third area, not a shared one.
+   overlap; §7's write seam is a third area, not a shared one. A new product
+   dependency is an owner decision: a window that needs one reports the
+   package, version, licence and lockfile change, and does not edit
+   `pyproject.toml`, `uv.lock`, `web/package.json` or `web/pnpm-lock.yaml`
+   itself.
 5. **A claim is a witness, and the witness must fail for the property.** Each
    assertion below is checked by its counter-mutation before any record reports
    it as holding; a mutation that leaves the assertion green tested nothing.
@@ -168,7 +185,9 @@ path works and what it shows, and how well is not a question this ticket answers
 
 It does **not** own `src/labcairn/workspace/outputs.py` or
 `src/labcairn/security/paths.py` (§7), and it edits no dated Phase 1 or Phase 2
-record.
+record. The two registration files (`.github/ci-shards.json`,
+`tests/evaluation/manifest.py`) are commander-owned at merge; this window
+reports its entries (§3 rule 3).
 
 **4.6 Dependencies.**
 
@@ -204,10 +223,12 @@ record.
 
 **4.8 Acceptance evidence — the minimum assertion set.**
 
-- *Task and version switching.* The page drives `POST /task/select`; the rendered
-  state panel shows `GET /task` bytes identical to `task status --json` for the
-  same task — the field-for-field comparison the live-service witness established,
-  now through a socket and a render.
+- *Task selection, and the version-switching gap.* The page drives
+  `POST /task/select`; the rendered state panel shows `GET /task` bytes identical
+  to `task status --json` for the same task — the field-for-field comparison the
+  live-service witness established, now through a socket and a render. The
+  workbench has no version-control surface; version switching is recorded as a
+  named gap in §8, not claimed as exercised.
 - *Comment display.* An imported comment-bearing synthetic sample is visible in the
   workbench view that reads it.
 - *Approval.* An approval action taken from the page produces the recorded state
@@ -234,7 +255,9 @@ host's version re-measured at run time**, whether the file opened without a repa
 prompt, what survived and what did not, who performed the step, when, and where
 the evidence sits. The form to follow is the project's existing
 [`../acceptance/G1-G2-human-review-checklist.md`](../acceptance/G1-G2-human-review-checklist.md),
-which is a Phase 1 record.
+which is a Phase 1 record. For this batch the named performer is **the project
+owner** (owner decision of 2026-11-08); every row records that name and the
+date it was performed.
 
 | Step | Primary host — WPS Office, the acceptance host | Reference host — Microsoft Office 2010, the compatibility reference |
 |---|---|---|
@@ -298,7 +321,9 @@ is what `pyproject.toml` declares — measured live 2026-11-08) against a Window
 host adaptation path, on short synthetic samples covering mixed comments and
 tracked revisions, tables, equations and images. What is measured: the host and its
 version, open and reopen results, what survived in the regions the edit did not
-target, and what was refused.
+target, and what was refused. Any Windows-adaptation dependency is an owner
+decision under §3 rule 4; the window reports it rather than editing
+`pyproject.toml` or `uv.lock`.
 
 **5.4 Non-goals.** Not the integrated loop: no project-scoped import receipt, no
 read-only-original guard integration, no publication receipt (`LC-P3-03`); no
@@ -320,7 +345,9 @@ structures and hosts actually measured.
 It does **not** own `src/labcairn/workspace/outputs.py` or
 `src/labcairn/security/paths.py`: the write seam is §7's area in this batch, and
 the dependency runs through §5.6 as a sequence, not through an edit. It does not
-edit [`../THREAT-MODEL.md`](../THREAT-MODEL.md).
+edit [`../THREAT-MODEL.md`](../THREAT-MODEL.md). The two registration files
+(`.github/ci-shards.json`, `tests/evaluation/manifest.py`) are commander-owned
+at merge; this window reports its entries (§3 rule 3).
 
 **5.6 Dependencies, named rather than assumed.**
 
@@ -387,6 +414,15 @@ Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
 
+**5.10 The empty row, and who watches it.** A record may leave a cell empty
+because the evidence for it has not been taken. That is honest only while a
+witness watches the row: a test that fails if the row disappears, if the empty
+cell is read as a result, or if the label changes from "not run" to a verdict.
+An empty row with no witness is not a pending measurement; it is a claim the
+tree cannot tell from a pass. The reopen checklist's human cells are empty and
+`tests/test_docx_edit_records.py` watches them; the real-sample row carries the
+exact label §5.9 names, and the same witness reads that label.
+
 ---
 
 ## 6. What this file does not do
@@ -436,9 +472,14 @@ different number and only a POSIX run may state it.
   re-run verbatim before any ADR quotes an errno for this seam.
 
 **Ownership for the batch.** `src/labcairn/workspace/outputs.py`,
-`src/labcairn/security/paths.py` and `tests/test_workspace_boundaries.py` belong to
-this item while the batch runs. `LC-P3-01` and `LC-P3-02` do not edit them; both
-sequence against them.
+`src/labcairn/security/paths.py`, `tests/test_workspace_boundaries.py` and the
+dedicated witness `tests/test_workspace_path_length.py` belong to this item while
+the batch runs. The new file is separate because
+`tests/test_workspace_boundaries.py` is a `no-unauthorized-write-or-disclosure`
+blocker witness: a POSIX skip inside it would break the blocker denominator. The
+new file carries its own `pytest.mark.integration`, registers in the shard and
+manifest tables, and leaves the blocker file unchanged. `LC-P3-01` and `LC-P3-02`
+do not edit these; both sequence against them.
 
 ---
 
@@ -452,4 +493,5 @@ sequence against them.
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
+| Version switching in the workbench | A version-selection surface and a browser witness; named gap, not claimed | §4.8 |
 | Work orders for `LC-P3-03` … `LC-P3-08` | Not written. This file issues the G1 pair and nothing else. | §1 |

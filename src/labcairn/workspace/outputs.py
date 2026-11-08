@@ -13,10 +13,10 @@ acceptance) structural rather than a matter of every call site remembering.
 file in the *same directory* as the target, are flushed and ``fsync``-ed, and
 are then moved into place with :func:`os.replace`. Same-directory matters:
 ``os.replace`` is only atomic within a volume, and a temp file in the system temp
-directory would silently give up that guarantee. After a crash the target is
-therefore either the old content or the new content, never a half-written file
-— which is what lets LC-P1-06's reconciliation probe find a matching content
-hash and conclude *landed* rather than guessing.
+directory would silently give up that guarantee; the short temp name pays its
+own visible path budget. After a crash the target is either the old content or
+the new content, never a half-written file — which lets LC-P1-06's probe find
+a matching content hash and conclude *landed* rather than guessing.
 
 What atomicity does **not** give
 --------------------------------
@@ -139,8 +139,8 @@ class TaskOutputArea:
         3. flush and ``fsync`` so the bytes are durable before they are visible
            under the real name,
         4. :func:`os.replace`, which is atomic within a volume,
-        5. clean up the temp file on any failure, so a crashed write leaves
-           either the old file or the new one.
+        5. clean up only a temp file this call created, so a crashed write
+           leaves the old file or the new one, not another writer's name.
 
         :param fsync: on by default. Disabling it is for a caller writing a
             large intermediate that will be rewritten; it is not the default
@@ -161,22 +161,22 @@ class TaskOutputArea:
         for observer in self._observers:
             observer(target.resolved_key, destination, len(data))
 
-        temp = destination.parent / f".lc-write-{new_id().hex}.tmp"
+        created = False
+        temp = destination.parent / _temporary_name(new_id().hex)
         try:
             with temp.open("xb") as handle:
+                created = True
                 handle.write(data)
                 handle.flush()
                 if fsync:
                     os.fsync(handle.fileno())
-            # Path.replace is os.replace: a same-directory rename, atomic
-            # within the volume. Same-directory is why the temp file is a
-            # sibling of the target rather than a system temp file.
+            # Path.replace is os.replace: a same-directory, same-volume rename.
             temp.replace(destination)
         except BaseException:
-            # A crash or an error here must not leave the temp file behind: a
-            # leftover is a half-written artifact that a later listing would
-            # present as if it were real output.
-            temp.unlink(missing_ok=True)
+            # O_EXCL refusals did not create this file; delete only our own.
+            # A crashed temp file must not look like real output.
+            if created:
+                temp.unlink(missing_ok=True)
             raise
 
         if fsync:
@@ -220,3 +220,16 @@ __all__ = [
     "WriteOutcome",
     "WriteReceipt",
 ]
+
+
+#: The seam's path-name budget. Keeping it below the documented write primitives
+#: preserves the threat model's line citations; the marker stays intact for the
+#: existing leftover sweep in ``tests/test_workspace_boundaries.py``.
+_TEMP_NAME_CHARS = 8
+_WRITE_TEMP_MARKER = ".lc-write-"
+_WRITE_TEMP_SUFFIX = ".tmp"
+
+
+def _temporary_name(id_hex: str) -> str:
+    """Return a short sibling temp name from the random tail of a UUIDv7 hex."""
+    return f"{_WRITE_TEMP_MARKER}{id_hex[-_TEMP_NAME_CHARS:]}{_WRITE_TEMP_SUFFIX}"
