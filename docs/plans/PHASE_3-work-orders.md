@@ -95,7 +95,11 @@ window that skips one.
    cost:** `pytestmark` naming a gate class from `tests/evaluation/manifest.py`'s
    protocol classes, exactly one shard in `.github/ci-shards.json`, and a row in
    `tests/evaluation/manifest.py`'s gate table — with costs re-measured from a
-   runner log by `python .github/remeasure_shards.py <run-id>`. A local timing is
+   runner log by `python .github/remeasure_shards.py <run-id>`. **A
+   repository-class file is the exception:** it declares no `pytestmark` and is
+   filed under `REPOSITORY_CLASS` with the `repository-gate` clause; the
+   harness requires a marker-less file in that class. The LC-P3-02 substitute
+   corpus and record witnesses are the current examples. A local timing is
    not a runner cost, and a file in no shard is a test a runner never runs
    (execution plan §6, last row). Extending an existing file skips the
    registration, not the shard-cost witness. The registration files themselves
