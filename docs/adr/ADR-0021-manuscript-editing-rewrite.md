@@ -1,6 +1,6 @@
 # ADR-0021 — Manuscript editing: a surgical run splice on a temporary copy
 
-**Date:** 2026-11-08. **Head:** `f24aad68b91938e7e93954726363a99785215fa4`.
+**Date:** 2026-11-08. **Head:** `9765527ba16c2bfdafc61d32ce78616d2aa2deb1`.
 **Status:** proposed. The independent copy is **temporary**, and the adoption
 is provisional until the real-sample run and the human reopen checklist exist.
 
@@ -19,17 +19,17 @@ host open/reopen half is a human checklist.
 
 ## Alternatives
 
-- **surgical** — locate the one run and splice the text; 71 of 71 class rows
-  stayed identical, 62 of 62 region rows stayed identical, declaration and
+- **surgical** — locate the one run and splice the text; 76 of 76 class rows
+  stayed identical, 66 of 66 region rows stayed identical, declaration and
   entry order were kept, and the marked draft carried the change. One reopen
   problem remains: `docx_nested_revision`.
-- **reserialize** — 64 of 64 class rows identical but 22 region rows respelled,
+- **reserialize** — 68 of 68 class rows identical but 22 region rows respelled,
   declaration dropped, `w14` ignorable missing; the marked draft did not carry
   the change.
-- **library** — 64 of 64 class rows identical and 62 of 62 region rows
+- **library** — 68 of 68 class rows identical and 66 of 66 region rows
   identical, but declaration and entry order were not kept and the marked
   draft did not carry the change; six parts changed.
-- **rebuild** — 52 of 64 class rows changed or missing and all region rows
+- **rebuild** — 52 of 68 class rows changed or missing and all region rows
   changed or missing; 19 parts changed; the marked draft did not carry the
   change.
 
