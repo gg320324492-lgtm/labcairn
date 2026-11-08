@@ -41,6 +41,7 @@ from urllib.parse import urlparse
 
 import pytest
 import workbench_serve_support as support
+from feedback_chain_fixtures import ChainEnv, a_comment, build_chain
 from workbench_serve_support import (
     WEB_DIST_DIR,
     BrowserLaunch,
@@ -52,8 +53,10 @@ from workbench_serve_support import (
 )
 
 from labcairn.application.approvals import ApprovalRequest, ApprovalUse, request_approval
+from labcairn.application.chain import record_feedback
 from labcairn.cli.workspace import application_context, locate, read_config
 from labcairn.core.ids import TaskId
+from labcairn.papers.feedback import set_issue_key
 from labcairn.security.capabilities import CapabilityId
 
 pytestmark = pytest.mark.e2e
@@ -655,5 +658,135 @@ def test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none(
         refused = workbench.served.get("/events?follow=false")
         assert refused.status == 403, refused.body[:200]
         assert refused.json()["reason"] == "not_implemented", refused.body[:200]
+    finally:
+        page.close()
+
+
+# --------------------------------------------------------------------------- #
+# §4.8's second bullet, §4.4 row 10: the comment the chain holds, on the screen
+# --------------------------------------------------------------------------- #
+
+CHAIN_TASK = (
+    "Chain baseline",
+    "Whether the chain's comment is visible in the view that reads it.",
+    "The comment's own words are on the screen.",
+)
+
+#: The chain's key for the one synthetic comment this fixture seeds. A key is a
+#: name a person gave an issue; the words are the comment's, and they are what
+#: §4.8's second bullet asks to see.
+ISSUE_KEY = "p3-01-baseline"
+
+CHAIN_COMMENT_TEXT = "Please define the parameter before the first paragraph ends."
+
+
+@pytest.fixture(scope="module")
+def chain_run(
+    workbench: WorkbenchRun,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[tuple[ServedWorkbench, ChainEnv]]:
+    """A second service, in a workspace whose chain holds one comment.
+
+    **The comment is written the way the product writes one.** The chain's door is
+    `application.chain.record_feedback`, which reads the comments a manuscript
+    version actually carries and refuses an anchor that no longer matches its
+    text; the manuscript itself is the synthetic fixture `feedback_chain_fixtures`
+    builds (one DOCX, one comment, no advisor material — §4.1). It is written
+    **before** the service starts, through the same layer, into the same
+    workspace store the service then serves — the browser witnesses what a
+    reader of this workspace would see, not what a test process held in memory.
+
+    **The panel is form-driven, and the form is part of the property.** The
+    Trajectory panel lists the chain's issue keys for a project and draws a
+    comment only under a key the reader names. So the browser names the project,
+    asks for the list, picks the key out of what the service listed, and only
+    then asserts the words — a page that invented a key or drew the comment
+    without the chain's answer would fail here.
+    """
+    root = tmp_path_factory.mktemp("chain")
+    workspace = _make_workspace(root / "workspace", CHAIN_TASK)
+    task_id = _current_task(workspace)["task"]["task_id"]
+    location = locate(workspace)
+    config = read_config(location)
+    with application_context(location, config, TaskId(uuid.UUID(task_id))) as context:
+        built = build_chain(
+            context.store,
+            workspace,
+            comments=(a_comment(ISSUE_KEY, text=CHAIN_COMMENT_TEXT),),
+        )
+        feedback = record_feedback(
+            built.context,
+            project_id=built.project_id,
+            version_id=built.version_id,
+            now=datetime.now(UTC),
+        )[0]
+        # A key is a person's judgement and is given, never derived: the chain's
+        # rows hold no key until somebody names one, and the Issues panel lists
+        # keyed comments only.
+        set_issue_key(
+            built.context,
+            feedback_id=feedback.feedback_id,
+            issue_key=ISSUE_KEY,
+            now=datetime.now(UTC),
+        )
+
+    served = start_served_workbench(workspace=workspace, dist_dir=WEB_DIST_DIR)
+    try:
+        yield served, built
+    finally:
+        served.stop()
+
+
+def test_a_chain_comment_is_visible_in_the_view_that_reads_it(
+    workbench: WorkbenchRun,
+    chain_run: tuple[ServedWorkbench, ChainEnv],
+) -> None:
+    """§4.4 row 10's second half: the comment, in the workbench, in a real browser.
+
+    Three steps, each of which fails for its own breakage: the Issues panel lists
+    the chain's key for the project; picking that key draws the trajectory; and
+    the trajectory carries the comment's own words. The last is the assertion
+    §4.8's second bullet asks for — an imported comment-bearing sample, visible
+    in the view that reads it.
+    """
+    served, built = chain_run
+    page = workbench.browser.new_page()
+    try:
+        page.goto(f"{served.origin}/", wait_until="load")
+        page.wait_for_selector("h1.workbench__title", timeout=15000)
+        page.wait_for_timeout(int(SETTLE_SECONDS * 1000))
+
+        # The form is the Trajectory panel's own: the Issues panel has no input of
+        # its, it answers the project the Trajectory panel named.
+        trajectory = page.locator("section.panel", has_text="Trajectory").first
+        trajectory.get_by_label("Project id").fill(built.project_id)
+        trajectory.get_by_role("button", name="List the issues").click()
+
+        issues = page.locator("section.panel", has_text="Issues").first
+        listed = issues.get_by_role("button", name="Draw this issue")
+        deadline = time.monotonic() + 20.0
+        while time.monotonic() < deadline and listed.count() == 0:
+            page.wait_for_timeout(200)
+        assert listed.count() >= 1, (
+            "the Issues panel listed no issue for the project the chain holds"
+        )
+
+        names = issues.locator(".record__name")
+        shown = [names.nth(index).inner_text() for index in range(names.count())]
+        assert ISSUE_KEY in shown, f"the Issues panel listed {shown}, not the chain's key"
+
+        listed.first.click()
+
+        deadline = time.monotonic() + 20.0
+        while time.monotonic() < deadline and CHAIN_COMMENT_TEXT not in trajectory.inner_text():
+            page.wait_for_timeout(200)
+
+        drawn = trajectory.inner_text()
+        assert CHAIN_COMMENT_TEXT in drawn, (
+            f"the trajectory did not carry the comment's own words; the panel drew: {drawn[:600]!r}"
+        )
+        assert built.version_id in drawn, (
+            "the trajectory did not name the manuscript version the comment was written against"
+        )
     finally:
         page.close()
