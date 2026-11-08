@@ -493,7 +493,9 @@ def write_evidence(run: Run, root: Path, head: str, now: datetime) -> dict[str, 
     )
     return {
         "evidence_root": str(root),
-        "inputs": sum(1 for name in run.inputs if not run.sample(name.removesuffix(".docx")).hostile),
+        "inputs": sum(
+            1 for name in run.inputs if not run.sample(name.removesuffix(".docx")).hostile
+        ),
         "hostile_inputs": sum(
             1 for name in run.inputs if run.sample(name.removesuffix(".docx")).hostile
         ),

@@ -110,6 +110,7 @@ ROW_COLUMNS: Final[tuple[str, ...]] = (
 
 #: What the person is asked to look for, in the words a row can carry.
 PRESENCE_BY_CLASS: Final[Mapping[StructureClass, str]] = {
+    StructureClass.BODY_TEXT: "body-text",
     StructureClass.COMMENTS: "comments",
     StructureClass.COMMENT_PART: "comment-bodies",
     StructureClass.TRACKED_REVISIONS: "tracked-revisions",

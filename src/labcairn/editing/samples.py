@@ -379,7 +379,7 @@ def _content_types(sample: Sample) -> str:
         lines.append('<Default Extension="bin" ContentType="application/octet-stream"/>')
     if sample.signature:
         lines.append(
-            "<Default Extension=\"xml\" ContentType=\"application/vnd.oasis.opendocument.text\"/>"
+            '<Default Extension="xml" ContentType="application/vnd.oasis.opendocument.text"/>'
         )
     lines.append(
         f'<Override PartName="/word/document.xml" ContentType="{_DOC_TYPE}.document.main+xml"/>'
@@ -504,8 +504,7 @@ def sample_parts(sample: Sample) -> dict[str, bytes]:
         parts["customXml/itemProps1.xml"] = (_XML_HEAD + "<dataObject/>").encode()
     if sample.signature:
         parts["signatures/xmlSignature1.xml"] = (
-            _XML_HEAD
-            + '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">'
+            _XML_HEAD + '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">'
             "<SignedInfo/></Signature>"
         ).encode()
     parts[DOCUMENT_PART] = (
@@ -660,7 +659,7 @@ _SAMPLES: Final[tuple[Sample, ...]] = (
         para(TARGET) + hyperlink("rId5", LINKED) + para(TAIL),
         _edit(1, TARGET, REPLACED),
         focus=_B.HYPERLINKS,
-        role="editable",
+        role="preserve",
         hyperlink_rid="rId5",
     ),
     _sample(
@@ -761,6 +760,18 @@ _SAMPLES: Final[tuple[Sample, ...]] = (
         written=False,
         reason="target_inside_unsupported_structure",
         focus=_B.IMAGES,
+        role="refused",
+        media=True,
+    ),
+    _sample(
+        "12c-refuse-edit-aimed-at-a-media-part",
+        "an edit aimed at a caption whose only home is a media-backed VML shape",
+        (_B.BODY_TEXT, _B.IMAGES, _B.TEXT_BOXES, _B.MEDIA),
+        para(TARGET) + vml_figure(BOXED),
+        _edit(3, BOXED, "The media-hosted caption was rewritten."),
+        written=False,
+        reason="target_inside_unsupported_structure",
+        focus=_B.MEDIA,
         role="refused",
         media=True,
     ),
