@@ -117,7 +117,7 @@ checkouts at the same commit) contain **139 files named `AGENTS.md`, `CLAUDE.md`
 or `SKILL.md`** (re-walked 2026-11-08; per-clone counts in
 `docs/UPSTREAM_REFERENCES.md`) — `SKILL.md` is a file format whose entire
 purpose is to instruct an agent, and three of the five ship 21, 22 and 26
-`SKILL.md` files each. One of them (`paperspine`) keeps `CLAUDE.md`,
+`SKILL.md` files. One of them (`paperspine`) keeps `CLAUDE.md`,
 `INSTALL.md`, `install.sh` and `install.ps1` at its top level.
 
 - **Never execute** an installer, setup script, fixture script, `SKILL.md`

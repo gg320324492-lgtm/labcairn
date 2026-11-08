@@ -238,6 +238,16 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push,
   PR or CI run is authorised.
 
+### Eleventh-commit audit follow-ups (2026-11-08)
+
+- The independent audit of `8aaea7b` found one live lag and two wording
+  tails, all corrected here. `docs/UPSTREAM_REFERENCES.md` now says
+  `Updated: 2026-11-08` and dates the 139-file walk in the sentence that
+  carries it; `CONTRIBUTING.md` drops a redundant "each"; and the upstream
+  checklist now says five cloned projects rather than five clones. No
+  product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third
