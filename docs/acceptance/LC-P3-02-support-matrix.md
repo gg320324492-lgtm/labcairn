@@ -1,6 +1,6 @@
 # LC-P3-02 — DOCX structure support matrix (2026-11-08)
 
-**Date:** 2026-11-08. **Head:** `9765527ba16c2bfdafc61d32ce78616d2aa2deb1`.
+**Date:** 2026-11-08. **Head:** `b471e9b783f879452b6d62e13e6da2d356007203`.
 **Type:** dated record for the support table in
 `docs/plans/PHASE_3-work-orders.md` §5. The class list is
 `labcairn.editing.survey.StructureClass`; the verdicts are

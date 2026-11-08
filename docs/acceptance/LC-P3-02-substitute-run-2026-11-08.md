@@ -1,6 +1,6 @@
 # LC-P3-02 — substitute-set run record (2026-11-08)
 
-**Date:** 2026-11-08. **Head:** `9765527ba16c2bfdafc61d32ce78616d2aa2deb1`.
+**Date:** 2026-11-08. **Head:** `b471e9b783f879452b6d62e13e6da2d356007203`.
 **Type:** dated machine-side run record for `LC-P3-02` §5.7–§5.10.
 
 ## What ran
