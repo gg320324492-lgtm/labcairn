@@ -44,6 +44,7 @@ import pytest
 
 from labcairn.editing.drafts import REFUSALS
 from labcairn.editing.samples import REFUSED, SAMPLES, WRITABLE, Sample, sample_bytes
+from labcairn.editing.survey import StructureClass
 
 # An independent statement of what evidences each class, keyed on the element
 # names the format declares. It is written out here rather than imported from
@@ -301,7 +302,7 @@ def test_the_authors_are_the_two_invented_reviewers_and_the_product() -> None:
         authors = {match for blob in blobs for match in re.findall(r'w:author="([^"]+)"', blob)}
         assert authors <= allowed, f"{sample.name} carries authorship {sorted(authors - allowed)}"
         text = " ".join(blobs)
-        assert not re.search(r"[㐀-鿿]{5,}", text), (
+        assert not re.search(r"[\u3400-\u9fff]{5,}", text), (
             f"{sample.name} carries a Chinese run of five or more characters; the "
             "corpus is synthetic English and the CJK ceiling watches new files"
         )
@@ -371,8 +372,14 @@ def test_the_refusal_samples_name_the_class_or_the_gate_they_refuse_on() -> None
     reasons = {sample.reason for sample in REFUSED}
     assert reasons <= gates, f"reasons outside the gate vocabulary: {sorted(reasons - gates)}"
     for sample in REFUSED:
-        assert isinstance(sample.focus, type(sample.focus)), f"{sample.name}: no focus class"
         if sample.reason == "target_inside_unsupported_structure":
             assert sample.focus is not None, (
                 f"{sample.name}: a structure refusal with no structure named"
+            )
+            assert sample.focus in StructureClass, (
+                f"{sample.name}: {sample.focus!r} is not a structure class"
+            )
+        elif sample.focus is not None:
+            assert sample.focus in StructureClass, (
+                f"{sample.name}: {sample.focus!r} is not a structure class"
             )

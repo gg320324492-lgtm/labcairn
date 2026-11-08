@@ -49,7 +49,7 @@ it.
 | `paragraph_holds_no_plain_run` | the paragraph holds nothing a run splice can replace | `24-refuse-a-paragraph-with-no-plain-run` |
 | `text_not_located` | the passage is not the whole text of any one run | `19-refuse-edit-cutting-a-run-in-two`, `20-refuse-absent-text` |
 | `text_ambiguous` | the passage occurs more than once, so the seam would be guessing | `18-refuse-ambiguous-occurrence` |
-| `target_inside_unsupported_structure` | the passage sits inside a class the seam may carry but not write | `10-refuse-edit-inside-an-equation`, `11-refuse-edit-inside-a-text-box`, `12-refuse-edit-of-a-fields-cached-answer`, `12b-refuse-edit-of-a-vml-figure-caption`, `12c-refuse-edit-aimed-at-a-media-part`, `13-refuse-edit-inside-a-content-control` |
+| `target_inside_unsupported_structure` | the passage sits inside a class the seam may carry but not write | `10-refuse-edit-inside-an-equation`, `11-refuse-edit-inside-a-text-box`, `12-refuse-edit-of-a-fields-cached-answer`, `12b-refuse-edit-of-a-vml-figure-caption`, `13-refuse-edit-inside-a-content-control` |
 
 ## The human half
 

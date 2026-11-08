@@ -34,19 +34,18 @@ from pathlib import Path
 from typing import Final
 
 import pytest
-from evaluation_docx_edit_fidelity import reopen_rows, run_substitute_set
-from test_workspace_path_length import _measure_ceiling
+from evaluation_docx_edit_fidelity import option_numbers, reopen_rows, run_substitute_set
+from test_workspace_path_length import _NO_CEILING, _measure_ceiling
 
-from labcairn.editing.drafts import REFUSALS
+from labcairn.editing.drafts import REFUSALS, EditRefusedError, plan_edit
 from labcairn.editing.evidence import (
     MAX_PATH,
     PRESENCE_BY_CLASS,
     PathBudgetError,
-    _long_paths_enabled,
     host_snapshot,
     visible_path,
 )
-from labcairn.editing.samples import REFUSED, SAMPLES, WRITABLE
+from labcairn.editing.samples import REFUSED, SAMPLES, WRITABLE, sample_bytes
 from labcairn.editing.survey import SUPPORT, StructureClass
 
 RECORDS: Path = Path(__file__).resolve().parent.parent / "docs/acceptance"
@@ -118,13 +117,51 @@ def test_the_recorded_ceiling_is_the_one_this_machine_enforces(tmp_path: Path) -
     """
     if sys.platform != "win32":
         pytest.skip("the 259-character ceiling is this machine's Windows path semantics")
-    assert _measure_ceiling(tmp_path / "probe") == MAX_PATH
+    try:
+        measured = _measure_ceiling(tmp_path / "probe")
+    except AssertionError as exc:
+        if _NO_CEILING in str(exc):
+            pytest.skip(str(exc))
+        raise
+    assert measured == MAX_PATH
 
 
 def test_the_host_snapshot_reports_the_registry_reader() -> None:
-    """The snapshot and the reader must be one value, not two stories."""
+    """The snapshot is checked against the registry, not its own helper."""
+    if sys.platform != "win32":
+        pytest.skip("the LongPathsEnabled registry value is Windows-only")
     snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
-    assert snapshot["long_paths_enabled"] == _long_paths_enabled()
+    import winreg
+
+    with winreg.OpenKey(
+        winreg.HKEY_LOCAL_MACHINE,
+        r"SYSTEM\CurrentControlSet\Control\FileSystem",
+    ) as key:
+        value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+    assert snapshot["long_paths_enabled"] == str(int(value))
+
+
+def test_the_host_snapshot_follows_a_changed_registry_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A literal in the snapshot fails when the registry value is not that literal.
+
+    The direct-registry witness above catches a reader replaced by a constant;
+    this one catches a snapshot replaced by the literal the current machine
+    happens to return. Both are green in a tree where the snapshot stopped
+    reading the registry, so neither witness alone is enough.
+    """
+    if sys.platform != "win32":
+        pytest.skip("the LongPathsEnabled registry value is Windows-only")
+    import winreg
+
+    def changed(_key: object, name: str) -> tuple[int, int]:
+        assert name == "LongPathsEnabled"
+        return 1, 4  # REG_DWORD
+
+    monkeypatch.setattr(winreg, "QueryValueEx", changed)
+    snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
+    assert snapshot["long_paths_enabled"] == "1"
 
 
 def test_the_reopen_cells_are_empty_only_where_a_person_decides(tmp_path: Path) -> None:
@@ -255,13 +292,19 @@ def test_the_refusal_vocabulary_in_the_record_covers_every_reason_the_gate_gives
         f"reasons the code gives and the record does not print: {sorted(set(REFUSALS) - printed)}; "
         f"reasons printed with no raise site: {sorted(printed - set(REFUSALS))}"
     )
+    by_name = {sample.name: sample for sample in REFUSED}
     for row in _rows(text, "## What the gate refuses, and with what words"):
         reason, samples = row[0].strip("`"), row[2]
         named = re.findall(r"`([^`]+)`", samples)
         assert named, f"{reason}: the record names no sample behind it"
         for name in named:
-            assert name in {sample.name for sample in REFUSED}, (
-                f"{reason}: {name} is not a refusal sample"
+            sample = by_name.get(name)
+            assert sample is not None, f"{reason}: {name} is not a refusal sample"
+            with pytest.raises(EditRefusedError) as refused:
+                plan_edit(sample_bytes(sample), sample.edit)
+            assert refused.value.refusal.reason == reason, (
+                f"{reason}: {name} is recorded under this reason but the gate raises "
+                f"{refused.value.refusal.reason}"
             )
 
 
@@ -290,10 +333,24 @@ def test_the_run_record_reports_the_options_and_what_each_cost() -> None:
     text = RUN_RECORD.read_text(encoding="utf-8")
     for option in ("surgical", "reserialize", "library", "rebuild"):
         assert option in text, f"the run record never mentions {option}"
-    for row in _rows(text, "## The four options, counted"):
-        assert row[0].strip("`") in {"surgical", "reserialize", "library", "rebuild"}
-        digits = re.findall(r"\d+", " ".join(row[1:]))
-        assert digits, f"the {row[0]} row carries no numbers"
+    run = run_substitute_set()
+    printed = {row[0].strip("`"): row for row in _rows(text, "## The four options, counted")}
+    assert set(printed) == {"surgical", "reserialize", "library", "rebuild"}
+    for option, numbers in ((option, option_numbers(run, option)) for option in printed):
+        cells = [cell.strip().lower() for cell in printed[option][1:]]
+        expected = (
+            str(numbers["produced"]),
+            str(numbers["refused"]),
+            str(numbers["classes_identical"]),
+            str(numbers["regions_identical"]),
+            str(numbers["regions_respelled"]),
+            "yes" if numbers["declaration_kept"] else "no",
+            "yes" if numbers["entry_order_kept"] else "no",
+            "yes" if numbers["marked_draft_carries_the_change"] else "no",
+        )
+        assert tuple(cells) == expected, (
+            f"{option}: the record prints {cells}, a fresh run prints {expected}"
+        )
 
 
 def test_the_record_cites_hashes_and_counts_and_no_sample_text() -> None:
@@ -342,27 +399,41 @@ def test_the_presence_vocabulary_covers_every_class_a_row_can_ask_for() -> None:
     list is what turns "the table survived" into a row a person can answer,
     so each class the matrix says is carried must have one.
     """
-    answered = set(PRESENCE_BY_CLASS.values())
     for structure, support in SUPPORT.items():
-        if support.carried and structure.value.replace("-", "_").replace("-", "") and True:
-            if structure in PRESENCE_BY_CLASS:
-                continue
-            assert structure.value in answered or support.editable is False, (
+        if support.carried:
+            assert structure in PRESENCE_BY_CLASS, (
                 f"{structure.value} is claimed carried and no checklist row asks for it"
             )
+    assert len(set(PRESENCE_BY_CLASS.values())) == len(PRESENCE_BY_CLASS), (
+        "two carried classes share one word, so a row cannot name them apart"
+    )
 
 
 def test_the_sample_counts_in_the_records_match_the_corpus() -> None:
     """Every count the records print about the corpus is the corpus's own size."""
     text = RUN_RECORD.read_text(encoding="utf-8") + MATRIX_RECORD.read_text(encoding="utf-8")
     numbers = {int(match) for match in re.findall(r"(\d+) samples", text)}
-    assert len(SAMPLES) in numbers or not numbers, (
+    assert numbers == {len(SAMPLES)}, (
         f"the records say {sorted(numbers)} samples and the corpus holds {len(SAMPLES)}"
     )
     written = {
         int(match)
         for match in re.findall(r"(\d+)(?: of the \d+)? (?:samples )?the seam writes", text)
     }
-    assert not written or len(WRITABLE) in written, (
+    assert written == {len(WRITABLE)}, (
         f"the records say the seam writes {sorted(written)} and the corpus has {len(WRITABLE)}"
     )
+    refused = {int(match) for match in re.findall(r"(\d+) it refuses", text)}
+    assert refused == {len(REFUSED)}, (
+        f"the records say the seam refuses {sorted(refused)} and the corpus has {len(REFUSED)}"
+    )
+    run = run_substitute_set()
+    for sentence, observed in (
+        (r"(\d+) results", len(run.results)),
+        (r"(\d+) artifacts", len(run.artifacts)),
+        (r"(\d+) reopen checklist\s+rows", len(reopen_rows(run, RECORDS))),
+    ):
+        printed = {int(match) for match in re.findall(sentence, text)}
+        assert printed == {observed}, (
+            f"the records say {sorted(printed)} for {sentence!r}; a fresh run says {observed}"
+        )
