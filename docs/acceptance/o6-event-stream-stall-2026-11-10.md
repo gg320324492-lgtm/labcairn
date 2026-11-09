@@ -263,6 +263,27 @@ shape, the O6 mechanism, the closed half, and the still-unwired half. The witnes
 that reads that section checks the §6.2 heading and the presence of
 `/events/stream`, both of which still hold.
 
+**The witness ledger, run against the two commits.** `scripts/witness_ledger.py
+9f1f94b31fb858d3db96885825c5f9908253b94f 4afb82969bcc0a69dadce5cc823a57499655a6d4`
+reported **3,511 test functions before and 3,512 after**, and named every delta:
+
+```
+LOST -- 1 test function(s) that existed before and do not now:
+  test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none   (was in tests/test_workbench_real_browser.py)
+
+ADDED -- 2 test function(s):
+  test_one_unwired_event_stream_leaves_the_service_able_to_answer   (now in tests/test_api_concurrency.py)
+  test_the_events_panel_says_the_stream_was_refused_on_a_service_that_has_none   (now in tests/test_workbench_real_browser.py)
+```
+
+**The one LOST row is this record's own rename, not a loss.** A composition that
+renames a witness looks, to anything that matches names, exactly like a composition
+that deletes one — which is the failure the ledger exists to catch, and it caught
+this one. The row is not gone: it is the second ADDED entry, the same file and the
+same three assertions (the page's stream read, the panel's sentence, the service's
+`not_implemented`), with the assertion flipped from the disagreement to the
+agreement §5 describes. Nothing else that existed before is missing.
+
 ## 6. What is still open
 
 1. **The stream is not wired.** `labcairn serve` passes no event source. This fix
