@@ -264,7 +264,7 @@ that reads that section checks the §6.2 heading and the presence of
 `/events/stream`, both of which still hold.
 
 **The witness ledger, run against the two commits.** `scripts/witness_ledger.py
-9f1f94b31fb858d3db96885825c5f9908253b94f 4afb82969bcc0a69dadce5cc823a57499655a6d4`
+9f1f94b31fb858d3db96885825c5f9908253b94f e2b1a2faa4ea0f971cab661a6392da7faead7523`
 reported **3,511 test functions before and 3,512 after**, and named every delta:
 
 ```
