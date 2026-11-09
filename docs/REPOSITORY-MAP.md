@@ -14,7 +14,10 @@ files, 27 JSON files, 24 TSX files, 23 TypeScript files, 13 CSV files, 7
 workflow YAML files, and the remaining configuration, fixture and binary
 files. It found **0 exact-byte duplicate groups**, **199 Python test files**,
 **3,419 declared test functions**, and **38 fixture files**; all four were
-re-measured on 2026-11-07 and none of them moved. Test paths are keys in
+re-measured on 2026-11-07 and none of them moved. **Read 2026-11-08:** those
+figures are the scan at the commit named, not a running total — the Phase 3 G1
+work-order board `docs/plans/PHASE_3-work-orders.md` joined the tree on
+2026-11-08 and moves the Markdown count by one whenever the scan next runs. **Read 2026-11-09:** the Phase 3 G1 batch adds seventeen files to the tree — nine under `src/labcairn/editing/`, three documents (`docs/adr/ADR-0021-manuscript-editing-rewrite.md`, `docs/acceptance/LC-P3-02-support-matrix.md`, `docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md`) and five test-side files, one of which is not a `test_*.py` and so carries no shard entry — and every figure above is the scan at the commit named, not this total. The re-scan is a dated follow-up, not a merge-time claim. Test paths are keys in
 `.github/ci-shards.json`, `tests/evaluation/manifest.py` and the witness
 ledger; they are kept and are not renamed by a cosmetic tidy.
 
@@ -28,7 +31,7 @@ references are removed in the same change.
 
 | Directory | Holds |
 |---|---|
-| `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures and reports. |
+| `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures, reports and the manuscript editing seam. |
 | `migrations/versions/` | Ordered schema migrations. A deployed store keeps every prior migration. |
 | `web/src/` | The local workbench: app shell, views, generated API contract and browser tests. |
 
@@ -62,8 +65,8 @@ itself. Their historical-looking names are not permission to prune them.
 | `README.md`, `README.zh-CN.md` | Public current-state entry points and the status banner. |
 | `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. |
 | `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` | Current phase, delivery pointer and handoff state. Dated sections below the current pointer are historical snapshots. |
-| `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
-| `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal and its execution plan, the Q1–Q96 design traceability, the multisource research-learning supplement of 2026-11-07 and other design-only records. |
+| `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md`, `docs/plans/PHASE_3-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
+| `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal and its execution plan, the Q1–Q96 design traceability, the multisource research-learning supplement of 2026-11-07, the Phase 3 G1 work orders issued 2026-11-08 and other design-only records. |
 | `docs/adr/` | Architecture decisions. `Proposed`, `Accepted` and archived states are part of the decision record. |
 | `docs/acceptance/` | Named-commit acceptance reports, measured gate verdicts and dated owner decision records. Do not rewrite a frozen verdict to make it look current; add a dated current pointer instead. |
 | `docs/research/`, `docs/UPSTREAM_REFERENCES.md` | Upstream source study and binding exclusion checklist. |

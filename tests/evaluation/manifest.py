@@ -448,6 +448,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_security_paths.py": ("negative", "path-traversal"),
     "test_security_policy.py": ("unit", "permission-resolution"),
     "test_workspace_boundaries.py": ("negative", "path-traversal"),
+    # The workspace seam's own measured path budget. It is integration because it
+    # writes through the real seam, not because it traverses a root.
+    "test_workspace_path_length.py": ("integration", "typed-contracts"),
     # -- the skills ---------------------------------------------------------
     "test_skill_approval.py": ("unit", "approvals"),
     "test_skill_contracts.py": ("unit", "typed-contracts"),
@@ -491,6 +494,18 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # The workbench's first live-service witness: the CLI and the API the UI
     # reads, driven against one running service.
     "test_workbench_live_service.py": ("e2e", "web-task"),
+    # -- LC-P3-01: the real-browser baseline --------------------------------
+    # The arrangement the baseline must hold (§4.1), and the built workbench
+    # loaded by a real browser (§4.6). Both belong to the local Web task: one
+    # drives the served API over a socket, the other drives it through a page.
+    # The browser file skips where no driver is installed, and says which piece
+    # is missing; the gate class is what it would be charged to if it ran.
+    "test_workbench_serve_helper.py": ("e2e", "web-task"),
+    "test_workbench_real_browser.py": ("e2e", "web-task"),
+    "test_docx_edit_samples.py": (REPOSITORY_CLASS, "repository-gate"),
+    "test_docx_edit_refusal.py": ("negative", "crash-between-write-and-confirm"),
+    "test_docx_edit_fidelity.py": ("integration", "artifact-hashes"),
+    "test_docx_edit_records.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_public_fixtures.py": ("unit", "dataset-locators"),
     # -- LC-P2-14's mechanical preparation ----------------------------------
     "test_blind_evaluation_preparation.py": ("unit", "typed-contracts"),

@@ -283,6 +283,97 @@ The links are the records.
 - No product source, test, workflow or migration file is changed; no push,
   PR or CI run is authorised.
 
+### Phase 3 G1 work orders issued (2026-11-08)
+
+- [`docs/plans/PHASE_3-work-orders.md`](docs/plans/PHASE_3-work-orders.md) is the
+  Phase 3 board's first work-order file: the official G1 work orders for
+  **`LC-P3-01`** (real-browser baseline) and **`LC-P3-02`** (dual-host DOCX
+  fidelity), written from the owner-approved preparation package. Both board
+  rows read **`NOT STARTED`**. No implementation has begun, no window was
+  opened, no witness ran, no real browser and no desktop host was started, and
+  no Phase 3 gate is claimed closed.
+- The owner's decisions of 2026-11-08 are recorded with them, each with where it
+  binds: **Playwright** with the system-browser channel where one exists; **COM
+  and ProgID automation not allowed**, so the WPS and Office reopen checks are
+  human checklist steps with recorded evidence; the **real advisor sample after**
+  the synthetic and substitute-first work, held as a named gap until it arrives;
+  the **§4 checklist split** — `LC-P3-01` carries the real-browser baseline and
+  the dual-host reopen checks, `LC-P3-02` the DOCX revision loop and the
+  real-sample half; the **provider's seven fields after G1**, so `LC-P3-06` stays
+  `BLOCKED`; the **write-seam path-length (MAX_PATH) repair rides this batch**;
+  and **Q77 and Q82 stay at their triggers**.
+- The file names the gate-label collision the tree needs: Phase 3's `G0` … `G4`
+  are not Phase 1's five closed gates, and a row that says "G1" there means
+  Phase 3 G1.
+- Two items the preparation draft carried were corrected against this tree rather
+  than copied. The "never `EventSource`" sentence belongs to
+  `docs/THREAT-MODEL.md` **§6.2**, not §6.1; and the draft's raw-Windows
+  long-path direction did not reproduce in its own freshness review, so the seam
+  is stated through `src/labcairn/security/paths.py`'s deliberate refusal rather
+  than as an errno.
+- The current pointers move in the same commit: `docs/ROADMAP.md`,
+  `docs/handoff/CURRENT.md`, `docs/README.md` and `docs/REPOSITORY-MAP.md`.
+  `docs/README.md`'s status line no longer says that no work order exists, and
+  the roadmap's `2026-11-07` direction row is now an earlier dated row.
+- No product source, test, workflow or migration file is changed; no push, PR or
+  CI run is authorised.
+
+### G1 work-order audit corrections (2026-11-08)
+
+- The independent audit of the G1 work orders found three structural gaps and
+  two environment-fact errors. The work orders now name the commander as the
+  owner of `.github/ci-shards.json` and `tests/evaluation/manifest.py` at merge
+  (windows report their entries instead of editing those files), state that
+  the shard-balance witness is expected red on `windows-latest` until the
+  batch's own runner run supplies the costs, require a browser witness to skip
+  with a named reason when Playwright or a system browser is absent, and name
+  the project owner as the human-checklist performer.
+- The Chinese README status line now matches the English one: the two G1 work
+  orders are issued and both read `NOT STARTED`.
+- The operator-side environment preparation report records the corrected facts:
+  `PLAYWRIGHT_BROWSERS_PATH` is User-scope only, the WPS App Paths read uses
+  `HKCU`, and the project's uv cache is `E:\LabCairn\.local\uv-cache`.
+- No product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
+### G1 work-order NOTE fixes (2026-11-08)
+
+- The remaining G1 work-order audit NOTEs were triaged. The §4 checklist split
+  is now labelled a re-decision, not a confirmation; a new product dependency
+  is an owner decision (a window reports package, version, licence and
+  lockfile change and does not edit the lockfiles); and the §4.8
+  version-switch claim is recorded as a named gap — the workbench has no
+  version-control surface, so task selection is what is witnessed. The
+  baseline record and the §8 gap table carry the same statement.
+- The operator-side environment preparation report reconciles the uv cache
+  path with the project cache (`E:\LabCairn\.local\uv-cache`).
+- The merge-time items (#6/#9/#11) and the dated notes (#1/#8) remain as the
+  triage lists them.
+- No product source, test, workflow or migration file is changed; no push, PR
+  or CI run is authorised.
+
+### Phase 3 G1 batch: LC-P3-01, the write seam and LC-P3-02 land locally (2026-11-08)
+
+- `LC-P3-01`'s real-browser baseline merged locally; its row moved to
+  `IN PROGRESS` in the merge commit and its record is
+  [`docs/acceptance/LC-P3-01-browser-baseline.md`](docs/acceptance/LC-P3-01-browser-baseline.md).
+- The write seam's path-length repair (the MAX_PATH batch item, §2 decision 6)
+  merged locally, with its witness reading the product's own naming function.
+- `LC-P3-02`'s DOCX editing seam merged locally: `src/labcairn/editing/`, the
+  substitute corpus, the four test files and the helper
+  `tests/evaluation_docx_edit_fidelity.py`; the editing ADR is
+  [`docs/adr/ADR-0021-manuscript-editing-rewrite.md`](docs/adr/ADR-0021-manuscript-editing-rewrite.md)
+  (`proposed`, adoption provisional), and the two dated records are
+  [`docs/acceptance/LC-P3-02-support-matrix.md`](docs/acceptance/LC-P3-02-support-matrix.md)
+  and [`docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md`](docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md).
+  Both G1 rows read `IN PROGRESS`, and the live pointers moved in the same commit.
+- What remains open: the §4.9 human dual-host reopen checklist (`NOT RUN` in both
+  records), the real advisor sample (§5.9), the ADR's final adoption, and the
+  runner-measured shard costs — locally `test_the_shards_are_balanced` and
+  `test_the_recorded_costs_cover_every_test_file` are red by expectation, not by
+  defect.
+- No `PASS`, no gate closed, no ADR adopted, no push, pull request or CI run.
+
 **Added**
 
 - **The manuscript read ceiling is 96 MB, raised from 64 MB.** The third

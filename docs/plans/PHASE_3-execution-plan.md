@@ -78,10 +78,20 @@ ticket starts only on the owner's word. The sequence
 `00 → 01/02 → 03 → 04 → 05/06 → 07 → 08` is a dependency
 proposal; `01` and `02` may run independently.
 
+**Pointer, 2026-11-08.** The first two are no longer candidates:
+[`PHASE_3-work-orders.md`](PHASE_3-work-orders.md) carries the issued work
+orders for `LC-P3-01` and `LC-P3-02`, both `IN PROGRESS` — `01`'s real-browser
+baseline and `02`'s DOCX fidelity seam have landed locally, each in the same commit
+as its evidence, with neither ticket `PASS` and the human dual-host reopen checklist,
+the real advisor sample and the runner-measured costs all still open. The owner's
+decisions of 2026-11-08 are recorded against them. `LC-P3-06` is `BLOCKED` on the
+unnamed provider fields; `LC-P3-03` … `LC-P3-08` stay proposals until their own
+owner word. The rows below are unchanged.
+
 | Candidate | Stage | Deliverable and completion evidence |
 |---|---|---|
 | `LC-P3-00` scope and acceptance baseline | G0 | A dated decision record for the exit gate, Windows and Word support matrix, sample classification and reviewer form. Records the local threat boundary, outbound-data rules, DOCX write path and trial-distribution decisions with their triggers. |
-| `LC-P3-01` real-browser baseline | G1 | Runs the existing API and workbench in a real browser against an offline sample. Evidence for task and version switching, comment display, approval, event reconnection and refusal behaviour; measured gaps are named, not assumed away. |
+| `LC-P3-01` real-browser baseline | G1 | Runs the existing API and workbench in a real browser against an offline sample. Evidence for task selection and the named version-switching gap, comment display, approval, event reconnection and refusal behaviour; measured gaps are named, not assumed away. |
 | `LC-P3-02` DOCX fidelity experiment | G1 | Compares local OOXML rewriting with a Windows Word adaptation path on small samples. Covers mixed comments and revisions, tables, equations and images; records Word version, open and reopen results, preservation of non-target regions, and refusal for unsupported structures. Produces an editing ADR and a support matrix. |
 | `LC-P3-03` project authorisation and versioned writes | G2 | Import, read-only original, independent copy, content hash, publication receipt and recovery path. Real file operations prove that cross-project access, path escape, stale approval and duplicate requests are refused. |
 | `LC-P3-04` comment-to-revision loop | G2 | The existing workbench and runtime carry import, proposal, per-item review, approved application and the four deliverables. A substitute model supplies reproducible input and output; opinions needing an experiment or missing evidence stay unresolved as explicit tasks. |

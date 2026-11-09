@@ -594,7 +594,34 @@ one workspace at the same time (`src/labcairn/api/app.py:80-114`).
 **This is the larger half of the document.** A threat model that only says what
 is protected is a brochure.
 
-### 6.1 The workbench has still never run in a browser; the service has now been driven by a test
+### 6.1 The workbench has now run in a browser — once, on this machine, with named bounds
+
+**The first browser run is measured, and its bounds are part of the claim.**
+Measured 2026-11-08 (`LC-P3-01`, G1 window): `tests/test_workbench_real_browser.py`
+loaded the **built** workbench — `web/dist`, made by `pnpm install
+--frozen-lockfile && pnpm build` from the frozen lockfile — from the service's
+own origin (`labcairn serve --static-dir`: a socket, on a port the operating
+system chose) in **Edge 156.0.4314.58**, through Playwright 1.64.1's `msedge`
+channel, and witnessed on that page: the declared reads of
+`web/src/api/paths.ts`, each answered 200; that **no request the page made
+left the loopback address**; the session read, with the token's file named by
+the page's own footer and the token itself kept off the screen; a selection
+made from the page and reported, field for field, by the CLI; an approval
+granted from the page, with a second grant refused; and a chain comment drawn
+under its key by the Trajectory panel. The arrangement the run must hold — a
+helper, a temporary workspace outside the repository, the browser cache pinned
+**before the driver starts** (with the pin applied after the driver's start,
+the driver resolved to the machine-wide cache of another project) — is
+witnessed by `tests/test_workbench_serve_helper.py`.
+
+**The bounds are: one machine, one run, one channel.** The run happened on the
+development machine, not on a runner; it drove the system Edge, not a
+downloaded build; and it asserts what that page did, not what every browser on
+every platform would do. A runner run of the same witnesses is the step that
+would widen it, and none has been authorised. The two supports the page's
+reads lean on — the socket-level origin guard and the build served from the
+service's own origin — are in `tests/test_workbench_serve_helper.py`, and they
+carry no browser at all.
 
 **Every web test still stops at the `fetch` boundary.** `web/src/test/fakeApi.ts`
 is a fake that answers `fetch`, and the workbench's own tests stub the global
@@ -602,7 +629,8 @@ is a fake that answers `fetch`, and the workbench's own tests stub the global
 fake's own docstring says the point is that *the component, the client, the
 paths and the session scheme are all exercised exactly as they are in the
 browser* — which is true of the code between the screen and the wire, and
-**not** of the wire.
+**not** of the wire. That is still what CI runs, because the browser witnesses
+skip where no driver is installed, and a skip is not a pass.
 
 **The service itself has now been driven from outside the fake — measured
 2026-11-02.** `tests/test_workbench_live_service.py` builds the service with
@@ -611,10 +639,10 @@ browser* — which is true of the code between the screen and the wire, and
 as the console script in a subprocess. It compares `GET /task` — the exact
 endpoint `web/src/app/useWorkbench.ts` reads for the state panel — with
 `task status --json`, field for field, **before and after a selection made
-through `POST /task/select`**. What remains unmeasured is the browser: the
-screen is `reads.state.data` verbatim, so identical bytes at the endpoint the
-screen reads are what "identical Task state" can mean without running React
-in a browser.
+through `POST /task/select`**. What that measurement could not reach was the
+browser: the screen is `reads.state.data` verbatim, so identical bytes at the
+endpoint the screen reads are what "identical Task state" can mean without
+running React in a browser. The 2026-11-08 run above is what reached it.
 
 **The G4 exit demonstration still says what it said.** It drives the service
 through `fastapi.testclient.TestClient` — an in-process ASGI transport, not a
@@ -622,13 +650,14 @@ browser — and reads `GET /task` and `GET /artifacts`
 (`examples/g4_exit_demo.py:798-820`). The demonstration says so in its own
 output (`examples/g4_exit_demo.py:1216-1221`): *"The React application was not
 run in a browser. The workbench is driven here through the API it reads."*
-That paragraph was written before the live-service witness existed, and this
-section records the newer measurement rather than rewriting the old one.
+That paragraph was written before either newer measurement existed, and this
+section records them rather than rewriting it.
 
-**What was actually compared there** is that the CLI's report and the API's
-report agree byte-for-byte. That is a real and useful property. It is **not**
-a claim that a browser renders the same thing, and this document does not make
-one.
+**What the browser run added** is the comparison the earlier ones could not
+make: the screen the reader sees, drawn on the wire. What it did **not** add
+is a claim that the rendering was verified against a design, or that the run
+covered the panels a fresh workspace cannot fill — the stream's state is
+§6.2's, and it is named there as measured, not assumed away.
 
 ### 6.2 The workbench reads the API's event stream
 
@@ -649,6 +678,26 @@ missed and cannot ask for anything to be done.
 
 **What a reviewer can now expect:** a change that alters the event stream
 alone shows up in the Events panel, with the connection's state beside it.
+
+**And what is measured about the stream the CLI-served service actually has —
+2026-11-08, and it is a gap, not a pass.** `labcairn serve` builds the service
+without an event source: the route's answer for the JSON read (`GET /events`)
+refuses honestly (403, `not_implemented`), but the stream route raises the same
+refusal *after* its own `200` and `text/event-stream` headers are sent, so a
+client receives a stream that opens and ends with nothing in it while the
+service logs `RuntimeError: Caught handled exception, but response already
+started.` On that service the Events panel prints *"The event stream is live;
+the service has sent no event for this task yet"* — the panel is honest about
+the stream it saw and wrong about the service it saw, because there is nothing
+to deliver the log from. Both halves are asserted, as a gap witness meant to go
+red when either side changes:
+`tests/test_workbench_serve_helper.py::test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`
+and
+`tests/test_workbench_real_browser.py::test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none`.
+The wiring belongs to `src/labcairn/api/events.py` (`UnwiredEventSource`) and
+`src/labcairn/cli/commands.py` (`serve`, which passes no source); it is
+reported rather than fixed, and until it is, **the stream's liveness claims
+are about a service that cannot keep them**.
 
 ### 6.3 The workbench can switch the selected project
 

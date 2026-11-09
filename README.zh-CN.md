@@ -4,7 +4,7 @@
 
 **本文档：** 本仓库 README 的独立中文版。英文原文见 [README.md](README.md)。
 
-> **状态：第一阶段已在 G5 关闭；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。第三阶段看板已开启（[LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md)，2026-11-07 决定），实施尚未开始，未派发工单，未授权交付；当前位置见 [docs/ROADMAP.md](docs/ROADMAP.md#current-position)。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
+> **状态：第一阶段已在 G5 关闭；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。第三阶段看板已开启（[LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md)，2026-11-07 决定），其两个 G1 工单已签发（[LC-P3-01 与 LC-P3-02](docs/plans/PHASE_3-work-orders.md)，2026-11-08），状态均为 `IN PROGRESS`：实施已在本地合并，关口未闭，未授权交付；当前位置见 [docs/ROADMAP.md](docs/ROADMAP.md#current-position)。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
 
 **LabCairn（研迹）**是一个面向科研人员的本地优先 AI 研究工作台，**其原创代码按 MIT 许可证发布**。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程可定位来源、保留修改历史并在必要时重新核验。
 
