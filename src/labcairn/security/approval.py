@@ -60,6 +60,7 @@ from labcairn.runtime.operation import (
     Approval,
     ApprovalRefusal,
     ApprovalState,
+    BoundSource,
     compute_args_digest,
 )
 from labcairn.security.capabilities import resolve_capability
@@ -363,6 +364,7 @@ def make_approval(
     args: Mapping[str, object],
     depends_on: tuple[str, ...] = (),
     expires_at: datetime,
+    bound_sources: Iterable[SourceBinding] = (),
 ) -> Approval:
     """Build a pending :class:`Approval` bound to this exact request.
 
@@ -370,6 +372,18 @@ def make_approval(
     :meth:`ApprovalLedger.consume` will recompute, so a caller cannot
     accidentally record an approval for one thing and attempt another. It is
     still re-derived at use; this is the *expected* value, not a cache.
+
+    **``bound_sources`` is what makes the row carry the material.** The
+    :class:`~labcairn.runtime.operation.Approval` contract has held
+    ``bound_sources`` since LC-P2-02, and the spend reads it off the row —
+    but until now nothing minted it, so every approval the layer granted
+    covered *no* source file and ``sources_intact`` had nothing to re-hash.
+    A consent whose source binding is minted at the moment of use would be a
+    consent the caller could restate as anything, which is the reason
+    :class:`~labcairn.runtime.operation.BoundSource` says the binding is
+    *carried on the row, not passed to the spend*. This parameter is the mint:
+    the caller states the hashes **at the grant**, the row stores them, and a
+    later re-hash is compared against what was agreed then.
     """
     return Approval(
         task_id=task_id,
@@ -385,6 +399,10 @@ def make_approval(
         ),
         state=ApprovalState.PENDING,
         expires_at=expires_at,
+        bound_sources=tuple(
+            BoundSource(resource_key=binding.resource_key, expected_hash=binding.expected_hash)
+            for binding in bound_sources
+        ),
     )
 
 

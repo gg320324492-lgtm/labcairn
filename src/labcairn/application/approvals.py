@@ -75,7 +75,7 @@ from labcairn.runtime.operation import (
     OperationState,
     compute_args_digest,
 )
-from labcairn.security.approval import ApprovalGrant, make_approval
+from labcairn.security.approval import ApprovalGrant, SourceBinding, make_approval
 from labcairn.security.capabilities import CapabilityId
 
 
@@ -100,12 +100,22 @@ class ApprovalRequest:
 
     ``run_id`` and ``stage_name`` say where the operation lives; an approval
     belongs to an operation, and an operation belongs to a stage inside a run.
+
+    ``bound_sources`` is the material the consent is about, with the hash each
+    file had **at the ask**. The frozen :class:`Approval` contract has carried
+    ``bound_sources`` since LC-P2-02 and the spend re-hashes whatever the row
+    holds — but until LC-P3-03 nothing minted it, so every approval the layer
+    granted covered no file and ``sources_intact`` had nothing to compare. A
+    caller that could hand the binding over at the moment of use could hand
+    over any binding, which is why it is stated here, at the ask, and carried
+    on the row from then on.
     """
 
     use: ApprovalUse
     expires_at: datetime
     run_id: RunId | None = None
     stage_name: str = "approval"
+    bound_sources: tuple[SourceBinding, ...] = ()
 
 
 class ApprovalRequested(Result):
@@ -188,6 +198,7 @@ def request_approval(
         args=digest_arguments,
         depends_on=use.depends_on,
         expires_at=request.expires_at,
+        bound_sources=request.bound_sources,
     )
     awaiting, pending, _blocked = records.plan_approval(
         context,
@@ -241,7 +252,21 @@ def grant_approval(
     # would leave the spend comparing nothing with nothing.
     digest = context.policy.digest()
     granted = granted.model_copy(update={"grant_policy_digest": digest})
-    context.ledger.issue(ApprovalGrant(approval=granted, policy_digest=digest))
+    # **The binding travels with the grant.** The row carries ``bound_sources``
+    # (LC-P2-02), and an in-memory ledger's grant must carry the same facts or
+    # the two ledgers would answer the same question with different evidence:
+    # the stored ledger reads the bindings off the row, and this one would
+    # have read none. They are minted once, at the ask, and copied forward.
+    context.ledger.issue(
+        ApprovalGrant(
+            approval=granted,
+            policy_digest=digest,
+            sources=tuple(
+                SourceBinding(resource_key=b.resource_key, expected_hash=b.expected_hash)
+                for b in granted.bound_sources
+            ),
+        )
+    )
     recorded = records.move_approval(
         context,
         granted,

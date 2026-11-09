@@ -45,9 +45,10 @@ is that path, and it parks the stage as ``BLOCKED`` with the reason on it.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 from labcairn.application import consent, records, recovery
@@ -164,6 +165,7 @@ def run_stage(
     work: StageWork,
     *,
     now: datetime | None = None,
+    resolve_source: Callable[[str], Path] | None = None,
 ) -> StageRun:
     """Run one stage: consent, bookkeeping, the effect, the record.
 
@@ -218,6 +220,7 @@ def run_stage(
             approval_id=request.approval_id,
             now=moment,
             depends_on=request.depends_on,
+            resolve_source=resolve_source,
         )
     elif authorisation.permission is Permission.ASK:
         raise ApplicationRefusedError(

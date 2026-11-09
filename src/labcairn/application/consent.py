@@ -33,9 +33,10 @@ caller that passes its own ``path`` has it overwritten rather than honoured.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -217,6 +218,7 @@ def consume(
     approval_id: ApprovalId,
     now: datetime,
     depends_on: tuple[str, ...] = (),
+    resolve_source: Callable[[str], Path] | None = None,
 ) -> ApprovalGrant:
     """The approval, consumed — or a refusal naming why not.
 
@@ -225,10 +227,21 @@ def consume(
     stored digest would be satisfied by any row at all, since whoever can write
     a row can write its digest.
 
+    **``resolve_source`` says where the bound material lives.** The default
+    resolves a bound source against the root of the resource being written,
+    which is right for every effect that reads and writes the same root — and
+    wrong for one that copies *from* a source root *into* the output area:
+    there, resolving the original against the output root would hash a file
+    that is not the original, or fail to find it, and ``SOURCE_CHANGED`` would
+    be reported for material that never moved. A caller that knows which root
+    its material lives in says so; guessing from the write target is how a
+    re-hash becomes a fiction.
+
     :raises ApplicationRefusedError: no such approval, or one that does not
         cover this request.
     """
     root_id = authorisation.resource.root_id
+    resolver = resolve_source or (lambda key: context.workspace.path_in(key, root_id).real_path)
     try:
         return context.ledger.consume(
             approval_id,
@@ -239,7 +252,7 @@ def consume(
             args=authorisation.digest_arguments(),
             depends_on=depends_on,
             current_policy_digest=context.policy.digest(),
-            resolve_source=lambda key: context.workspace.path_in(key, root_id).real_path,
+            resolve_source=resolver,
         )
     except NoSuchApprovalError as error:
         raise ApplicationRefusedError(
