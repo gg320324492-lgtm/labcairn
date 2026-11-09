@@ -183,30 +183,43 @@ def _long_paths_enabled() -> str:
     On a host where the value cannot be read, the snapshot says so rather than
     inventing a zero.
     """
-    if sys.platform != "win32":
+    if _this_platform_is_not_windows():
         return "unknown"
     return _long_paths_enabled_windows()
+
+
+def _this_platform_is_not_windows() -> bool:
+    """Whether this host is not Windows, asked through a call.
+
+    **Compared through a function so no checker narrows it away.** A checker
+    running on Linux constant-folds ``sys.platform`` and judges the Windows
+    half of this module unreachable; routing the question through a call
+    keeps the runtime behaviour identical while every platform's checker
+    sees the same reachable body.
+    """
+    return sys.platform != "win32"
 
 
 def _long_paths_enabled_windows() -> str:
     """The Windows-only half of :func:`_long_paths_enabled`.
 
     **Split out so every platform's type checker sees the same function.**
-    ``winreg`` exists on Windows only, and a checker running on another
-    platform judged the import-and-read body unreachable -- a false positive
-    this file's own rule ("the value is read, not remembered") does not need.
-    The module-level guard above is the only caller.
+    ``winreg`` exists on Windows only: a checker running elsewhere reports the
+    import unreachable and the module's attributes missing, which are false
+    positives about the platform split, not about the reading. The runtime
+    guard in the caller is the real protection; each use site carries the
+    scoped ignore the project's convention asks for.
     """
     try:
-        import winreg
+        import winreg  # type: ignore[import-unreachable,unused-ignore]
     except ImportError:  # pragma: no cover - Windows always ships winreg
         return "unknown"
     try:
-        with winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
+        with winreg.OpenKey(  # type: ignore[attr-defined,unused-ignore]
+            winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined,unused-ignore]
             r"SYSTEM\CurrentControlSet\Control\FileSystem",
         ) as key:
-            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")  # type: ignore[attr-defined,unused-ignore]
     except OSError:
         return "unknown"
     return str(int(value))

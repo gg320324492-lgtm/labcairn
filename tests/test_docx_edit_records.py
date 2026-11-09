@@ -28,8 +28,8 @@ declares a protocol marker as a contradiction.
 
 from __future__ import annotations
 
+import os
 import re
-import sys
 from pathlib import Path
 from typing import Final
 
@@ -58,7 +58,7 @@ ADR: Final[Path] = (
 #: The measurement-parent length the record names for its evidence root. It is a
 #: property of the recorded run, not of this test's temporary directory.
 _CANONICAL_PARENT_CHARS: Final[int] = 36
-_SEP: Final[str] = "\\" if sys.platform == "win32" else "/"
+_SEP: Final[str] = "\\" if os.name == "nt" else "/"
 
 
 #: A markdown table row's cells, split on the pipe and stripped.
@@ -138,6 +138,18 @@ def test_the_recorded_ceiling_is_the_one_this_machine_enforces(tmp_path: Path) -
     assert measured == MAX_PATH
 
 
+def _this_platform_is_not_windows() -> bool:
+    """Whether this test's Windows-only body should skip.
+
+    **Compared through a function so no checker narrows it away.** A checker
+    running on Linux constant-folds ``sys.platform`` inside a module and
+    judges everything after the skip unreachable; routing the question
+    through a call keeps the runtime behaviour identical while every
+    platform's checker sees the same reachable body.
+    """
+    return os.name != "nt"
+
+
 def _measured_ceiling_or_skip(tmp_path: Path) -> int:
     """The probe result on Windows; a skip on any other platform.
 
@@ -146,7 +158,7 @@ def _measured_ceiling_or_skip(tmp_path: Path) -> int:
     ``sys.platform != "win32"`` skip unreachable, which is a false positive
     about test structure, not about the ceiling.
     """
-    if sys.platform != "win32":
+    if _this_platform_is_not_windows():
         pytest.skip("the 259-character ceiling is this machine's Windows path semantics")
     try:
         return _measure_ceiling(tmp_path / "probe")
@@ -168,15 +180,15 @@ def _registry_long_paths_enabled() -> str:
     **The guard lives in a helper so both platforms type-check the same
     body**, for the reason :func:`_measured_ceiling_or_skip` states.
     """
-    if sys.platform != "win32":
+    if _this_platform_is_not_windows():
         pytest.skip("the LongPathsEnabled registry value is a Windows facility")
-    import winreg
+    import winreg  # type: ignore[import-unreachable,unused-ignore]
 
-    with winreg.OpenKey(
-        winreg.HKEY_LOCAL_MACHINE,
+    with winreg.OpenKey(  # type: ignore[attr-defined,unused-ignore]
+        winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined,unused-ignore]
         r"SYSTEM\CurrentControlSet\Control\FileSystem",
     ) as key:
-        value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+        value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")  # type: ignore[attr-defined,unused-ignore]
     return str(int(value))
 
 
@@ -199,9 +211,9 @@ def _snapshot_with_stubbed_registry(monkeypatch: pytest.MonkeyPatch) -> str:
     **The guard lives in a helper so both platforms type-check the same
     body**, for the reason :func:`_measured_ceiling_or_skip` states.
     """
-    if sys.platform != "win32":
+    if _this_platform_is_not_windows():
         pytest.skip("the LongPathsEnabled registry value is a Windows facility")
-    import winreg
+    import winreg  # type: ignore[import-unreachable,unused-ignore]
 
     def changed(_key: object, name: str) -> tuple[int, int]:
         assert name == "LongPathsEnabled"

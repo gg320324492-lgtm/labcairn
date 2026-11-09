@@ -353,7 +353,7 @@ class ServedWorkbench:
 
     def _ask_to_stop(self) -> None:
         """Ask the service's own process group to stop."""
-        if os.name == "nt":
+        if _this_platform_is_windows():
             self._process.send_signal(_windows_group_stop_signal())
         else:
             self._process.terminate()
@@ -502,22 +502,37 @@ def _spawn(arguments: list[str], log_path: Path) -> subprocess.Popen[str]:
         log_file.close()
 
 
+def _this_platform_is_windows() -> bool:
+    """Whether this host is Windows, asked through a call.
+
+    **Compared through a function so no checker narrows it away.** A checker
+    running on Linux constant-folds ``os.name`` and judges the Windows-only
+    attribute accesses unreachable; routing the question through a call
+    keeps the runtime behaviour identical while every platform's checker
+    sees the same reachable body.
+    """
+    return os.name == "nt"
+
+
 def _windows_group_stop_signal() -> signal.Signals:
     """The signal a Windows process group is asked to stop with.
 
-    **Split out so both platforms type-check the same body.** The Windows
-    constants exist on Windows only; a checker running elsewhere judges the
-    guarded attribute access unreachable, which is a false positive about
-    the platform split, not about the stop protocol.
+    See :func:`_this_platform_is_windows` for why the Windows-only read
+    lives in a helper behind a call. ``CTRL_BREAK_EVENT`` is a Windows-only
+    constant, so its use site carries the project's scoped ignore.
     """
-    assert os.name == "nt"
-    return signal.Signals(signal.CTRL_BREAK_EVENT)
+    signal_value: int = signal.CTRL_BREAK_EVENT  # type: ignore[attr-defined,unused-ignore]
+    return signal.Signals(signal_value)
 
 
 def _windows_process_group_flags() -> int:
-    """The creation flags that put the service in its own process group."""
-    assert os.name == "nt"
-    return subprocess.CREATE_NEW_PROCESS_GROUP
+    """The creation flags that put the service in its own process group.
+
+    See :func:`_this_platform_is_windows` for why the Windows-only read
+    lives in a helper behind a call.
+    """
+    flags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined,unused-ignore]
+    return flags
 
 
 def _refuse_a_workspace_inside_the_repository(workspace: Path) -> None:
