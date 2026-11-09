@@ -32,7 +32,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from docx_fixtures import Comment, Fixture, write_fixture
-from labcairn.db.repository import TaskStore
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.papers import ProjectRequest, record_project
@@ -40,6 +39,7 @@ from labcairn.application.revision_loop import LoopOpened, open_loop
 from labcairn.application.tasks import create_task
 from labcairn.db.materials import put_source
 from labcairn.db.models import PaperVersionRow
+from labcairn.db.repository import TaskStore
 from labcairn.editing.drafts import ApprovedEdit
 from labcairn.material.ingest import ingest_bytes
 from labcairn.papers.binding import BindingOpened, open_binding

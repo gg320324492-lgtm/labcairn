@@ -389,9 +389,18 @@ _ALLOWED_STORE_READERS = frozenset(
         # property this guard exists to protect. They are recorded here
         # because a module that reaches the store must be named.
         "labcairn.papers.assessments",
+        "labcairn.papers.binding",
         "labcairn.papers.chain",
         "labcairn.papers.edits",
         "labcairn.papers.feedback",
+        # LC-P3-04's binding: the comment-to-revision loop. It is the paper
+        # domain's operation rather than a surface, and like the chain's
+        # operations beside it **it asks the policy about the material before
+        # it reads a byte of it** -- the opinions are read through
+        # ``record_feedback``, and the rows it mints from the approval
+        # records go through the store's own writers with the grant check
+        # asked explicitly. It is recorded here because a module that
+        # reaches the store must be named.
         # The reply's writer: one row per exchange a response document
         # holds -- a reviewer's objection and the authors' answer. It is
         # the paper domain's operation rather than a surface, and like the

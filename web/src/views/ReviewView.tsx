@@ -171,8 +171,8 @@ export function ReviewView({ artifacts, cycle }: ReviewViewProps): JSX.Element |
           {() => (
             <p className="panel__error" role="status">
               The dossier manifest at {dossier.receipt.receipt_id} did not parse as one. The
-              binding's record is that receipt's bytes, and this panel draws no second spelling
-              of them.
+              binding's record is that receipt's bytes, and this panel draws no second spelling of
+              them.
             </p>
           )}
         </Panel>
