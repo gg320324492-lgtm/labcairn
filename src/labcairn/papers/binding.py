@@ -86,7 +86,6 @@ from labcairn.editing.drafts import (
 )
 from labcairn.material.ingest import ingest_bytes
 from labcairn.papers.chain import feedback_row
-from labcairn.db.models import EditActionRow
 from labcairn.papers.edits import ACTOR_KINDS
 from labcairn.papers.feedback import (
     FeedbackEvent,
@@ -94,9 +93,11 @@ from labcairn.papers.feedback import (
     list_feedback_events,
     record_feedback,
 )
+from labcairn.db.models import EditActionRow, ResponseLinkRow
 from labcairn.papers.responses import (
     AnswerProposal,
     ResponseLink,
+    _link_from_row,
     propose_responses,
     record_response,
 )
@@ -926,6 +927,20 @@ def _fill_chain(
                 "records a model's change, and a vocabulary that has lost the "
                 "model is a vocabulary the binding cannot speak.",
             )
+        # **A row already written is not written twice.** The id is derived
+        # from the correspondence, so a second binding over the same
+        # suggestions mints the same id — and the row it names is already
+        # the record of that correspondence. Writing a second row under it
+        # would be a primary-key collision wearing a duplicate's clothes.
+        existing = context.store.session.get(EditActionRow, edit_action_id)
+        if existing is not None:
+            bound.append(
+                ResponseBoundEdit(
+                    feedback_id=suggestion.feedback_id,
+                    edit_action_id=edit_action_id,
+                )
+            )
+            continue
         with store_refusals():
             context.store.session.add(
                 EditActionRow(
@@ -978,21 +993,39 @@ def _record_judgements(
     """
     if not edits:
         return ()
-    proposals = [
-        AnswerProposal(feedback_id=edit.feedback_id, edit_action_id=edit.edit_action_id)
-        for edit in edits
-    ]
-    propose_responses(
-        context,
-        proposals=proposals,
-        proposed_by="model",
-        now=now,
-    )
+    # **A judgement already written is not written again.** The id is derived
+    # from the triple it decided, so a second binding over the same
+    # suggestions and the same verdicts mints the same id — and the row it
+    # names is already the record of that judgement. The pairs whose
+    # judgement exists are filtered out of the proposals too, because a
+    # settled correspondence is not put forward again: the chain's own guard,
+    # honoured here rather than caught.
+    pending_pairs: list[ResponseBoundEdit] = []
     recorded: list[ResponseLink] = []
     for edit in edits:
         decision = verdicts.get(edit.feedback_id)
         if decision is None:
             continue
+        judgement_id = _judgement_id(edit.feedback_id, edit.edit_action_id, decision)
+        existing = context.store.session.get(ResponseLinkRow, judgement_id)
+        if existing is not None:
+            recorded.append(_link_from_row(existing))
+            continue
+        pending_pairs.append(edit)
+    if pending_pairs:
+        propose_responses(
+            context,
+            proposals=[
+                AnswerProposal(
+                    feedback_id=edit.feedback_id, edit_action_id=edit.edit_action_id
+                )
+                for edit in pending_pairs
+            ],
+            proposed_by="model",
+            now=now,
+        )
+    for edit in pending_pairs:
+        decision = verdicts[edit.feedback_id]
         state = VERDICT_RESPONSE_STATES[decision.verdict]
         recorded.append(
             record_response(
