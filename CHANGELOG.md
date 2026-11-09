@@ -16,6 +16,20 @@ The links are the records.
 
 ## [Unreleased]
 
+### Phase 3 G1 aftermath: work orders and platform rule (2026-11-09)
+
+- [ADR-0022](docs/adr/ADR-0022-platform-conditional-code-keeps-one-reachable-body.md)
+  accepted: platform-conditional code keeps one reachable body on both checker
+  platforms — guards route through helper calls, Windows-only attribute reads
+  carry scoped ignores, runtime semantics are preserved exactly. The five CI
+  repair rounds it records were PR #153's own history.
+- `docs/plans/PHASE_3-work-orders.md` carries the ratified work orders for
+  `LC-P3-03` … `LC-P3-08` (§8–§14, drafted against main `571e4346` by an
+  independent session and issued on the owner's selection). `LC-P3-06` stays
+  `BLOCKED` on the provider's seven fields; every ticket whose §14 decision is
+  unanswered stays `NOT STARTED`. The trailing sections renumbered to §15–§17.
+- `PHASE_3-work-orders.md` §3 rule 3a names the ADR's shape as a standing rule.
+
 ### Since the gates closed
 
 ### Phase 2 final closeout (2026-11-06)
