@@ -104,7 +104,9 @@
         "tests/test_real_provider_smoke.py",
         "tests/test_material_adapters.py",
         "tests/test_docx_fixture_corpus.py",
-        "tests/test_security_injection.py"
+        "tests/test_security_injection.py",
+        "tests/test_revision_loop.py",
+        "tests/test_revision_loop_refusals.py"
       ],
       [
         "tests/test_material_pdf.py",
@@ -284,7 +286,9 @@
         "tests/test_docx_edit_refusal.py",
         "tests/test_gold_set_corpus.py",
         "tests/test_capability_namespaces.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_revision_loop.py",
+        "tests/test_revision_loop_refusals.py"
       ],
       [
         "tests/test_feedback_events.py",
@@ -531,7 +535,9 @@
       "test_workbench_real_browser.py": 0.52,
       "test_workbench_serve_helper.py": 25.33,
       "test_workspace_boundaries.py": 0.01,
-      "test_workspace_path_length.py": 0.01
+      "test_workspace_path_length.py": 0.01,
+      "test_revision_loop.py": 0.0,
+      "test_revision_loop_refusals.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 3.87,
@@ -701,7 +707,9 @@
       "test_workbench_real_browser.py": 0.76,
       "test_workbench_serve_helper.py": 50.83,
       "test_workspace_boundaries.py": 1.11,
-      "test_workspace_path_length.py": 0.01
+      "test_workspace_path_length.py": 0.01,
+      "test_revision_loop.py": 0.0,
+      "test_revision_loop_refusals.py": 0.0
     }
   }
 }

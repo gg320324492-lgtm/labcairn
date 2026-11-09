@@ -365,6 +365,13 @@ _ALLOWED_STORE_READERS = frozenset(
         # operations beside it do; LC-P2-09 T00 added it.
         "labcairn.application.papers",
         "labcairn.application.records",
+        # LC-P3-03's revision loop: an operation in the application layer,
+        # reading the store's own source/artifact readers and event writer to
+        # bind the import receipt, the independent copy and the publication
+        # receipt into one loop. Every effect of the loop goes through the
+        # layer's consent and stage machinery; it is recorded here because a
+        # module that reaches the store must be named.
+        "labcairn.application.revision_loop",
         # The scholarly-identifier shelf (LC-P2-17). Its operations are layer
         # operations like the writers beside it: each evaluates the policy
         # about the task's own area before it touches the store, and the

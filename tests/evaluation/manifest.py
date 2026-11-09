@@ -441,6 +441,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_recovery_crash_matrix.py": ("negative", "crash-between-write-and-confirm"),
     "test_recovery_resume.py": ("integration", "restart-recovery"),
     "test_recovery_stage_bridge.py": ("unit", "typed-contracts"),
+    # LC-P3-03: the loop binds the pieces; its refusals are negative.
+    "test_revision_loop.py": ("integration", "approvals"),
+    "test_revision_loop_refusals.py": ("negative", "path-traversal"),
     # -- security -----------------------------------------------------------
     "test_security_approval.py": ("integration", "approvals"),
     "test_security_injection.py": ("negative", "untrusted-instructions"),
