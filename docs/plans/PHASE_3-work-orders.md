@@ -753,12 +753,12 @@ the G1 work orders): the seven provider fields are unnamed and the decision
 was deferred until after G1. **G1 has now closed its batch** (PR #153, merge
 `571e4346…`), so the deferral has run its course: the seven fields are due an
 owner answer, and the decision-support package for exactly that answer exists
-outside the repository —
-[`PROVIDER-SEVEN-FIELDS-QUESTIONS-2026-11-08.md`](E:/labcairn-local/phase3-plan-review/PROVIDER-SEVEN-FIELDS-QUESTIONS-2026-11-08.md)
+outside the repository — `PROVIDER-SEVEN-FIELDS-QUESTIONS-2026-11-08.md`
 (seven self-contained questions, Q1–Q7) resting on
-[`PROVIDER-SEVEN-FIELDS-PREP-2026-11-08.md`](E:/labcairn-local/phase3-plan-review/PROVIDER-SEVEN-FIELDS-PREP-2026-11-08.md).
-Those files decide nothing; this draft does not summarise them into new
-claims — the owner reads them and answers them.
+`PROVIDER-SEVEN-FIELDS-PREP-2026-11-08.md`, both under the operator's
+plan-review directory on the trial machine. Those files decide nothing; this
+draft does not summarise them into new claims — the owner reads them and
+answers them.
 
 **4.3 Scope boundaries — what it is NOT.**
 
