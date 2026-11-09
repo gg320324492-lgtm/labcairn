@@ -26,10 +26,11 @@ authored in the test tree.
 | What | Where | How measured |
 |---|---|---|
 | 17 witnesses (two new files) | Windows 11 Pro 10.0.26300, CPython 3.12, local venv at `E:\LabCairn\.venv`, `PYTHONPATH` pointed at this worktree's `src` | `python -m pytest tests/test_binding_loop.py tests/test_binding_loop_refusals.py --basetemp=E:\labcairn-local\tmp\b404\btN` → **17 passed** (`bt33`; repeated `bt6` through `bt32` while the code was being fixed). |
-| The whole suite | same machine, same interpreter | `python -m pytest --basetemp=E:\labcairn-local\tmp\p304-suite\bt1` → the count is recorded in §5 below, measured on this tree at `62c02c9…`. |
+| The whole suite (first full run) | same machine, same interpreter, `PYTHONPATH` pointed at this worktree's `src` | `python -m pytest --basetemp=E:\labcairn-local\tmp\p304-suite\bt1` → **13 failed, 5093 passed, 26 skipped** in 1783.85 s, at `62c02c9…`. Every failure was re-run individually and classified — see §5. |
+| The whole suite (verification runs) | same machine, same interpreter | After the classification's fixes landed (`2bb9f35…`): `tests/test_outsider_path.py tests/test_readme_accuracy.py` → **48 passed** (`bt16`); `tests/test_ci_shard_coverage.py` + the partition witness → **4 failed** — the registration reds §3 rule 3 expects, naming only the two new files (`bt17`); `tests/test_no_reference_leakage.py::test_wheel_installs_clean_and_imports` → **passed** when run without `PYTHONPATH` (`bt7`), failed with it (`bt6`) — see §5 item 3. |
 | Six counter-mutations | same machine | `run_mutations.py` in `E:\labcairn-local\tmp\p304-mutations`; each patch applied to the product module with raw bytes, one witness run, module restored. All six ended **RED** — see §4. |
 | The witness ledger | same machine | `python scripts/witness_ledger.py 4855ea6 62c02c9` → **LOST — none**; **ADDED — 17**. |
-| The workbench | same machine | `pnpm typecheck`, `pnpm lint`, `npx vitest run` in `web/` → **14 files, 129 tests passed**, lint clean. |
+| The workbench | same machine | `pnpm typecheck`, `pnpm lint`, `npx vitest run` in `web/` → **14 files, 129 tests passed**, lint clean; re-verified after the prettier fix (`ReviewView.test.tsx` 5 passed). |
 
 Every pytest run set `TEMP`, `TMP` and `TMPDIR` to
 `E:\labcairn-local\tmp\…` (outside the repository) and pinned
@@ -109,7 +110,52 @@ The mutation harness lives outside the repository
 (`E:\labcairn-local\tmp\p304-mutations\run_mutations.py`), as LC-P3-03's
 does.
 
-## 5. Measured gaps
+## 5. The first full run's 13 failures, classified
+
+The first full-suite run's 13 failures were each re-run individually before
+being believed, per the tree's own rule (a red is asked what made it red
+before it is trusted). Three classes:
+
+**Class A — expected registration reds (5).** The two new test files are in
+no shard and no gate class, which is §3 rule 3's own design: the window
+reports the entries (§7) and the registration files are commander-owned at
+merge. `test_ci_shard_coverage.py` (3) and `test_evaluation_harness.py`
+(1) name exactly `test_binding_loop.py` and `test_binding_loop_refusals.py`
+and nothing else; the fourth shard test (`test_the_costs_belong_to_the_tree…`)
+is the tree-witness red that any `src/` or `tests/` change produces, and the
+shard-cost re-measurement is owed from a runner log, not a local timing.
+
+**Class B — real failures this window fixed (2).**
+
+- `test_application_layer.py::test_no_module_outside_the_layer_reaches_past_it`:
+  the binding reaches the store and was not named in
+  `_ALLOWED_STORE_READERS`. Fixed at `2bb9f35…` in the same commit as the
+  reason: it is the paper domain's operation, joining the chain's operations
+  beside it, and the policy is asked before the material is read.
+- `test_readme_accuracy.py::test_readme_commands_run` (and, through the same
+  two format slips, `test_outsider_path.py`'s walk): the per-file lint this
+  window ran had missed the support module's import order and the review
+  panel's prettier style; the README's own verified commands
+  (`uv run ruff check .`, `pnpm format:check`) caught what the per-file run
+  did not. Both fixed at `2bb9f35…`, and the outsider path re-run from that
+  commit's HEAD → **48 passed**.
+
+**Class C — measurement-environment artefacts, not failures (2 families).**
+
+- `test_no_reference_leakage.py::test_wheel_installs_clean_and_imports`:
+  the clean-room assertion failed because the run's own `PYTHONPATH` — set
+  for this worktree's `src`, per the worktree discipline — was inherited by
+  the probe subprocess and shadowed the wheel with the editable install.
+  Without `PYTHONPATH` the same test **passes** (`bt7`). The wheel is not
+  broken; the environment around it was.
+- `test_outsider_path.py`'s six, in the first full run: the walk clones the
+  repository **HEAD**, and the fixes of Class B were still uncommitted, so
+  the clone carried the format slips. After committing (`2bb9f35…`) the
+  whole file passes from the new HEAD (`bt16`). Within the first run these
+  were the same Class-B failures seen through a clone; nothing in them was
+  independent of the tree.
+
+## 6. Measured gaps
 
 1. **The chain's listings do not see the output area.**
    `source.inventory` and `source.read` declare source roots only
@@ -144,7 +190,7 @@ does.
    runner run, exactly as §3 rule 3 states. No local timing is offered as
    a cost.
 
-## 6. Registration entries reported to the commander (§3 rule 3)
+## 7. Registration entries reported to the commander (§3 rule 3)
 
 The window does not edit the registration files. The entries it needs:
 
@@ -157,7 +203,7 @@ The window does not edit the registration files. The entries it needs:
 collects no tests and needs no shard entry. Both test files declare their
 `pytestmark` (`integration`, `negative`) already.
 
-## 7. What reproducibility meant in this run
+## 8. What reproducibility meant in this run
 
 The substitute model is `binding_support.substitute_suggester`: **a pure
 function of the opinion it is given** — the same comment yields the same
@@ -170,7 +216,7 @@ deterministic, and every hash, state and render is a pure function of
 those. The real-model loop is LC-P3-08's deliverable and §9 2.3's held-open
 half; CI stays on substitutes (LC-P3-00 §4).
 
-## 8. What stays open
+## 9. What stays open
 
 - The §14 item 5 decision is **answered** (2026-11-09: provisional is
   sufficient); ADR-0021's record stays `proposed`, and this ticket edited
