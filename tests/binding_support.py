@@ -32,7 +32,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from docx_fixtures import Comment, Fixture, write_fixture
-from store_support import StoreEnv
+from labcairn.db.repository import TaskStore
 
 from labcairn.application.context import ApplicationContext
 from labcairn.application.papers import ProjectRequest, record_project
@@ -183,7 +183,7 @@ def _grant(context: ApplicationContext, project_id: str) -> None:
     context.store.session.commit()
 
 
-def build_binding_fixture(env_store: StoreEnv, workspace_root: Path) -> BindingFixture:
+def build_binding_fixture(env_store: TaskStore, workspace_root: Path) -> BindingFixture:
     """Bind a workspace whose source directory holds the three-case manuscript.
 
     The project and the version are written through the application layer's
@@ -372,9 +372,7 @@ def feedback_id_of(fixture: BindingFixture, comment_id: str) -> str:
 
 def output_area_path(fixture: BindingFixture, key: str) -> Path:
     """The absolute path a key in the task output area lands at."""
-    return (
-        fixture.workspace_root / "output" / str(fixture.context.task_id) / Path(*key.split("/"))
-    )
+    return fixture.workspace_root / "output" / str(fixture.context.task_id) / Path(*key.split("/"))
 
 
 def read_dossier(fixture: BindingFixture, key: str) -> str:

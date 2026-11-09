@@ -33,7 +33,6 @@ from typing import Final
 
 from labcairn.reports.render.markdown import escape_markdown
 
-
 #: The characters an identifier the product minted may carry. A matched id is
 #: rendered **verbatim**, because an escaped id is an id a reader cannot copy
 #: back into a query — and ``escape_markdown`` escapes ``-``, which every id
@@ -57,6 +56,7 @@ def _id(value: str) -> str:
             "whitelist is a text value: escape it, do not print it as an id."
         )
     return value
+
 
 __all__ = [
     "DELIVERY_SECTION",
@@ -126,9 +126,7 @@ def render_quality_report_markdown(manifest_json: str) -> bytes:
     lines.append(f"## {QUALITY_SECTION}")
     lines.append("")
     located = sum(1 for o in manifest.opinions if o.location_state == "located")
-    uncertain = sum(
-        1 for o in manifest.opinions if o.location_state == "uncertain_location"
-    )
+    uncertain = sum(1 for o in manifest.opinions if o.location_state == "uncertain_location")
     lines.append(
         f"{len(manifest.opinions)} opinions were read from the input version: "
         f"{located} located, {uncertain} at an uncertain location."

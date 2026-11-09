@@ -21,14 +21,10 @@ from pathlib import Path
 
 import pytest
 from binding_support import (
-    EDITABLE_TEXT,
-    EVIDENCE_TEXT,
     MODEL_ACTOR_ID,
     MOMENT,
     OPERATOR,
     PARAGRAPH_TEXT,
-    SECOND_PARAGRAPH_TEXT,
-    UNPLACEABLE_TEXT,
     WINDOW_END,
     BindingFixture,
     build_binding_fixture,
@@ -48,7 +44,7 @@ from labcairn.papers.binding import (
     apply_approved_edits,
     open_binding,
 )
-from labcairn.papers.edits import list_edit_actions
+from labcairn.papers.feedback import FeedbackEvent
 from labcairn.papers.responses import list_response_links, list_unaddressed
 from labcairn.reports.quality_report import render_quality_report_markdown
 from labcairn.reports.response_table import render_response_table_markdown
@@ -240,9 +236,7 @@ def test_the_chain_rings_are_filled_from_the_published_bytes(fixture: BindingFix
 
     unaddressed = list_unaddressed(fixture.context, project_id=fixture.project_id)
     remaining = {item.feedback.feedback_id: item.reason for item in unaddressed}
-    assert evidence in remaining, (
-        "the opinion left pending stays on the unaddressed listing"
-    )
+    assert evidence in remaining, "the opinion left pending stays on the unaddressed listing"
 
 
 def test_unresolved_opinions_surface_as_explicit_tasks(fixture: BindingFixture) -> None:
@@ -302,9 +296,7 @@ def test_the_response_table_names_every_opinion(fixture: BindingFixture) -> None
         now=MOMENT,
     )
 
-    every_id = tuple(
-        feedback_id_of(fixture, comment_id) for comment_id in ("c-1", "c-2", "c-3")
-    )
+    every_id = tuple(feedback_id_of(fixture, comment_id) for comment_id in ("c-1", "c-2", "c-3"))
     manifest_json = read_dossier(fixture, closed.dossier_key)
     table = render_response_table_markdown(manifest_json).decode("utf-8")
     for feedback_id in every_id:
@@ -445,7 +437,7 @@ def test_the_binding_refuses_a_binding_with_no_decisions(fixture: BindingFixture
             input_version_id=fixture.version_id,
             opened=opened,
             decisions=(),
-                source_root_id=fixture.source_root_id,
+            source_root_id=fixture.source_root_id,
             source_key=fixture.source_key,
             output_label="binding-round-1",
             window_end=WINDOW_END,
@@ -464,8 +456,6 @@ def test_the_unplaceable_opinion_is_never_asked_for_a_suggestion(
     def recording_suggester(event: FeedbackEvent) -> ApprovedEdit | None:
         asked.append(event.feedback_id)
         return None
-
-    from labcairn.papers.binding import open_binding
 
     open_binding(
         fixture.context,

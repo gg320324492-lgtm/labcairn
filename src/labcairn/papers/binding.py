@@ -77,6 +77,7 @@ from labcairn.application.revision_loop import (
 )
 from labcairn.core.ids import new_id
 from labcairn.db.materials import put_source
+from labcairn.db.models import EditActionRow, ResponseLinkRow
 from labcairn.db.repository import list_access_grants, load_paper_project
 from labcairn.editing.drafts import (
     ApprovedEdit,
@@ -93,7 +94,6 @@ from labcairn.papers.feedback import (
     list_feedback_events,
     record_feedback,
 )
-from labcairn.db.models import EditActionRow, ResponseLinkRow
 from labcairn.papers.responses import (
     AnswerProposal,
     ResponseLink,
@@ -116,6 +116,7 @@ from labcairn.workspace.readonly import SourceMaterial
 __all__ = [
     "BINDING_PRODUCER_ID",
     "REVIEW_DECIDER",
+    "VERDICT_RESPONSE_STATES",
     "BindingClosed",
     "BindingOpened",
     "DossierManifest",
@@ -126,7 +127,6 @@ __all__ = [
     "ReviewDecision",
     "ReviewVerdict",
     "UnresolvedOpinion",
-    "VERDICT_RESPONSE_STATES",
     "apply_approved_edits",
     "close_binding",
     "open_binding",
@@ -861,10 +861,15 @@ def _require_the_named_grant(
     with store_refusals():
         grants = list_access_grants(context.store.session)
     project = load_paper_project(context.store.session, project_id)
+    if project is None:
+        raise ApplicationRefusedError(
+            ApplicationRefusal.SOURCE_NOT_FOUND,
+            f"the store holds no paper project with the id {project_id!r}. A binding "
+            "binds a project's opinions, and a binding about a project nobody holds "
+            "binds nothing.",
+        )
     consent_ref = project.consent_ref
-    named = [
-        grant for grant in grants if consent_ref is not None and grant.grant_id == consent_ref
-    ]
+    named = [grant for grant in grants if consent_ref is not None and grant.grant_id == consent_ref]
     decision = may_use(
         named,
         permission="store_read",
@@ -906,7 +911,6 @@ def _fill_chain(
     correspondence proposed twice would mint the same row, so a retried
     binding cannot double-record a change.
     """
-    import hashlib
 
     bound: list[ResponseBoundEdit] = []
     for suggestion in applied:
@@ -1016,9 +1020,7 @@ def _record_judgements(
         propose_responses(
             context,
             proposals=[
-                AnswerProposal(
-                    feedback_id=edit.feedback_id, edit_action_id=edit.edit_action_id
-                )
+                AnswerProposal(feedback_id=edit.feedback_id, edit_action_id=edit.edit_action_id)
                 for edit in pending_pairs
             ],
             proposed_by="model",
@@ -1056,7 +1058,6 @@ def _judgement_id(
     answers. The derivation carries the verdict, so a changed verdict under
     the same pair is a different row rather than a silent overwrite.
     """
-    import hashlib
 
     seed = f"{feedback_id}\x00{edit_action_id}\x00{decision.verdict.value}"
     digest = hashlib.sha256(seed.encode()).hexdigest()
@@ -1194,9 +1195,7 @@ def close_binding(
         receipt_id=str(new_id()),
         task_id=str(context.task_id),
         kind=ArtifactKind.MANIFEST,
-        relative_path=written.absolute_path.relative_to(
-            context.workspace.selected_root
-        ).as_posix(),
+        relative_path=written.absolute_path.relative_to(context.workspace.selected_root).as_posix(),
         content_sha256=written.content_hash,
         size_bytes=written.size_bytes,
         produced_by=ArtifactProducerKind.STAGE,

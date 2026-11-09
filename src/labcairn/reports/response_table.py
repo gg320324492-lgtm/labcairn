@@ -24,9 +24,17 @@ that says ``# Not a heading`` must not become one in the file.
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from labcairn.reports.render.markdown import escape_markdown
+
+if TYPE_CHECKING:
+    from labcairn.papers.binding import (
+        DecisionEntry,
+        OpinionEntry,
+        ResponseEntry,
+        SuggestionEntry,
+    )
 
 __all__ = [
     "RESPONSE_TABLE_COLUMNS",
@@ -86,11 +94,7 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
         every time: the table is a pure function of the manifest.
     """
     from labcairn.papers.binding import (
-        DecisionEntry,
         DossierManifest,
-        OpinionEntry,
-        ResponseEntry,
-        SuggestionEntry,
     )
 
     manifest = DossierManifest.model_validate_json(manifest_json)

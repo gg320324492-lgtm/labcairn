@@ -47,12 +47,12 @@ from store_support import env as _shared_env
 from labcairn.application.refusal import ApplicationRefusedError
 from labcairn.editing.drafts import ApprovedEdit
 from labcairn.papers.binding import (
+    BindingOpened,
     ModelSuggestion,
     ReviewDecision,
     ReviewVerdict,
     apply_approved_edits,
 )
-from labcairn.papers.binding import BindingOpened
 
 pytestmark = pytest.mark.negative
 
