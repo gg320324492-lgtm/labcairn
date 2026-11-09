@@ -6,7 +6,7 @@
 is named here because this is a local run record, not a public-boundary
 document).
 **Base:** `26f816b2ecaf03a3d62b914d685edd4f54e0356b`.
-**Head of this work:** `7f1bd6c954279ef62dc74dfeede6af2859ed5a00`.
+**Head of this work:** the last commit on this worktree branch when the record was written; its full SHA is printed by `git rev-parse HEAD` in the checkout, and the three code/evidence commits are `20a4fbd…` (loop), `7f1bd6c…` (witnesses) and `b889872…` (record). The record-correction commit that follows them changes only this file.
 **Status:** local evidence only. No push, no pull request, no CI run. The
 board row is the commander's to move; this record does not claim `PASS` for
 Phase 3 G2.
@@ -25,7 +25,8 @@ or UI automation. Every byte in every witness is authored in the test tree.
 | Whose numbers these are | — | Every number above and below is **locally measured on this machine**, not a runner number. `TEMP`, `TMP`, `TMPDIR` and `MPLCONFIGDIR` all pointed under `E:\labcairn-local\tmp`; every `--basetemp` was a distinct directory outside the repository. Status was read from each command's own exit code, never from a pipe. |
 | Static gates | same machine | `ruff check .` → All checks passed; `ruff format --check .` → 467 files already formatted; `mypy --strict src tests` → Success, 418 source files. |
 | Public-boundary witnesses | same machine | 193 passed, 2 failed at `bt11`. One failure was a fresh `I001` in a new test (fixed); the other was `test_wheel_installs_clean_and_imports`, whose wheel was shadowed by the worktree's own `PYTHONPATH` — re-run without that variable at `bt13` → **1 passed**. This is the editable-install shadow, not a product failure. |
-| Witness ledger | same machine | `python scripts/witness_ledger.py 26f816b2… 7f1bd6c9…` → **LOST -- none**, **ADDED -- 17**. |
+| Final targeted run, the witness-and-record tree `b889872…` | same machine | **142 passed, 1 failed** at `bt-final`. The failure is the shard-cost freshness witness naming `tests/test_application_layer.py`, which this window changed to register the new store reader. It is the expected red of §6 gap 1, not a lost witness: re-measure on the runner and regenerate the shard file. |
+| Witness ledger | same machine | `python scripts/witness_ledger.py 26f816b2… b889872…` → before 3511, after 3528, **LOST -- none**, **ADDED -- 17**. |
 
 The end-to-end probe's printed facts, in order: the import receipt's
 `original_sha256` equalled the real file's SHA-256; the manifest existed on
@@ -151,8 +152,10 @@ sample.
    both platforms — a placeholder that says "not measured", not a timing.
    `tests/test_ci_shard_coverage.py`'s freshness witness is **expected red**
    until the batch's own runner run and `remeasure_shards.py <run-id>` supply
-   real per-file costs and a new `measured_at`. This is the G1 precedent, not
-   a skipped check.
+   real per-file costs and a new `measured_at`. The final targeted run names
+   the concrete file: `tests/test_application_layer.py` changed here (the new
+   store reader had to be registered), so the freshness witness reports it by
+   name. This is the G1 precedent, not a skipped check.
 2. **The recovery drill is a state injection, not a process kill.** It puts a
    committed `CONFIRMED` operation row back to `ATTEMPTING` through the store's
    own session, then runs the real recovery pass and probe. That is the exact
