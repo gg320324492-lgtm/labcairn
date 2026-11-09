@@ -679,25 +679,39 @@ missed and cannot ask for anything to be done.
 **What a reviewer can now expect:** a change that alters the event stream
 alone shows up in the Events panel, with the connection's state beside it.
 
-**And what is measured about the stream the CLI-served service actually has —
-2026-11-08, and it is a gap, not a pass.** `labcairn serve` builds the service
-without an event source: the route's answer for the JSON read (`GET /events`)
-refuses honestly (403, `not_implemented`), but the stream route raises the same
-refusal *after* its own `200` and `text/event-stream` headers are sent, so a
-client receives a stream that opens and ends with nothing in it while the
-service logs `RuntimeError: Caught handled exception, but response already
-started.` On that service the Events panel prints *"The event stream is live;
-the service has sent no event for this task yet"* — the panel is honest about
-the stream it saw and wrong about the service it saw, because there is nothing
-to deliver the log from. Both halves are asserted, as a gap witness meant to go
-red when either side changes:
-`tests/test_workbench_serve_helper.py::test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`
-and
-`tests/test_workbench_real_browser.py::test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none`.
-The wiring belongs to `src/labcairn/api/events.py` (`UnwiredEventSource`) and
-`src/labcairn/cli/commands.py` (`serve`, which passes no source); it is
-reported rather than fixed, and until it is, **the stream's liveness claims
-are about a service that cannot keep them**.
+**What is measured about the stream the CLI-served service actually has.**
+`labcairn serve` builds the service without an event source, and the honest
+answer is a refusal: both `GET /events` and `GET /events/stream` answer `403`
+with `not_implemented`, asserted by
+`tests/test_workbench_serve_helper.py::test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`.
+
+**The gap this row carried is closed, and how it was closed.** Measured
+2026-11-08, the stream route raised the same refusal *after* its own `200` and
+`text/event-stream` headers were sent, so a client received a stream that
+opened and ended with nothing in it, the service logged
+`RuntimeError: Caught handled exception, but response already started.`, and
+the Events panel printed *"The event stream is live; the service has sent no
+event for this task yet"* — honest about the stream it had seen, wrong about
+the service it had seen. Measured 2026-11-10, that traceback was also a
+**service-availability defect**: 6,205 bytes written into the service's own
+output per short stream, against an 8,192-byte pipe capacity, so a caller that
+captures that output in a pipe it does not read parks the event loop in a write
+and the service answers nothing after it — `/health` and `/openapi.json`
+included, while the process stays alive and the port still accepts a
+connection. The row is named O6 and recorded in
+`docs/acceptance/o6-event-stream-stall-2026-11-10.md`. The route now refuses an
+unwired source **before it starts a response**, so the refusal is a response,
+the service writes nothing to refuse it, and the panel reports the stream
+interrupted or disconnected rather than live:
+`tests/test_workbench_real_browser.py::test_the_events_panel_says_the_stream_was_refused_on_a_service_that_has_none`,
+with the request capacity itself witnessed by
+`tests/test_api_concurrency.py::test_one_unwired_event_stream_leaves_the_service_able_to_answer`.
+
+**What is still a gap.** The stream is **not wired**. `serve` passes no event
+source (`src/labcairn/cli/commands.py`), and until it does, a panel that
+reported a live stream on this service would be reporting a source the service
+does not have. **The stream's liveness claims are about a service that cannot
+keep them**; what the reader gets today is the refusal, in the open.
 
 ### 6.3 The workbench can switch the selected project
 

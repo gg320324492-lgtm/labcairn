@@ -124,22 +124,57 @@ BURST_ROUNDS: int = 40
 #: serving at all, and not one route being slow.
 O6_READS: tuple[str, ...] = ("/health", "/openapi.json", "/session", "/tasks")
 
-#: How many unwired short streams the O6 probe opens.
+#: How much one unwired stream costs the unfixed service.
 #:
-#: Measured on this machine: the service writes about 944 bytes at start-up,
-#: nothing for an ordinary read, and **6,205 bytes for one unwired stream**
-#: (two tracebacks). The anonymous-pipe capacity is **8,192 bytes**. One stream
-#: fits, with 2,043 bytes to spare; two do not. So this is the smallest dose
-#: that is certain to fill the pipe on the unfixed code, rather than a dose
-#: that depends on what else happened to be in the pipe.
-O6_DOSE: int = 2
+#: Measured on this machine on 2026-11-10: **6,205 bytes for one short unwired
+#: stream** (two tracebacks, each through the full ASGI stack), against **0
+#: bytes for an ordinary read** and about 944 for start-up. It is used here as a
+#: *floor* rather than as the number a dose is computed from: a traceback of
+#: that size is what this build writes, and the dose is sized from the pipe's
+#: own measured capacity divided by this floor.
+O6_UNWIRED_STREAM_FLOOR: int = 1024
+
+#: How many unwired short streams the probe opens, as a floor.
+#:
+#: Two is the measured dose that overflowed this machine's 8,192-byte pipe on
+#: the unfixed code (944 + 2 x 6,205). The probe raises it to whatever the pipe
+#: in front of it actually needs — see `_pipe_capacity` — because the capacity
+#: is not one number across platforms.
+O6_DOSE_MIN: int = 2
+
+#: The ceiling on that dose.
+#:
+#: The dose exists to overflow the pipe, and a pipe that needs 64 streams to
+#: overflow is a pipe whose probe would spend 64 timeouts of 8 seconds each on
+#: the unfixed code — a run that takes ten minutes to be red. The cap keeps the
+#: worst case under three minutes, and the probe reports the capacity it measured
+#: alongside the number it used, so a dose that was capped is visible rather than
+#: silently too small.
+O6_DOSE_MAX: int = 20
+
+#: The capacity the probe asks its pipe for, where the platform takes the
+#: request (it does on Linux, and does not on Windows).
+#:
+#: A bounded pipe is what keeps the dose bounded. The dose is sized from the
+#: pipe's measured capacity, so against a default Linux pipe of 65,536 bytes it
+#: would need some 65 streams and the probe would spend its life opening streams.
+#: 16 KiB overflows comfortably at the measured per-stream cost and keeps the
+#: capped dose able to fill it.
+O6_PIPE_CAPACITY_REQUEST: int = 16384
+
+#: The request, as a keyword mapping, for the reason given in
+#: `_new_anonymous_pipe`: the platform's own type stubs are what `mypy --strict`
+#: reads, and the Windows ones do not know the keyword.
+O6_PIPE_CAPACITY_KWARGS: dict[str, int] = {"pipe_size": O6_PIPE_CAPACITY_REQUEST}
 
 #: The ceiling on what the service may write into its own output across the
-#: O6 probe — half the measured pipe capacity.
+#: probe.
 #:
-#: The unfixed service blew through it (about 13 kilobytes for this dose); the
-#: fixed one writes only what a refusal that *is a response* costs, which is
-#: nothing: no traceback, no exception, nothing to drain.
+#: It is several times the 6,205 bytes one unwired stream used to write, and a
+#: fraction of the capacity the probe asks for. The unfixed service blew through
+#: it by an order of magnitude; the fixed one writes only what a refusal that
+#: *is a response* costs, which is nothing: no traceback, no exception, nothing
+#: to drain.
 O6_LOG_BUDGET: int = 4096
 
 #: How long one ordinary read may take before the probe calls it unanswered.
@@ -752,7 +787,63 @@ def _free_loopback_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
+def _new_anonymous_pipe() -> tuple[int, int]:
+    """An anonymous pipe, with a requested capacity where the platform takes one.
+
+    Linux accepts ``pipe_size``; Windows does not, and its default is small
+    enough already. Asking for a bounded capacity is what keeps the probe's dose
+    bounded on a platform whose default pipe is an order of magnitude larger —
+    the dose is sized from the pipe (see `_pipe_capacity`), so a pipe that needs
+    a hundred streams to fill is a probe that spends a hundred timeouts getting
+    to its red.
+
+    The keyword goes through a dict rather than in the call, because the type
+    stubs are the platform's: the Windows stubs say ``os.pipe()`` takes no
+    argument, and naming one there would be a claim about the platform this file
+    is type-checked on rather than about the code. The ``TypeError`` is the
+    platform saying so, and it is the path Windows takes.
+    """
+    try:
+        return os.pipe(**O6_PIPE_CAPACITY_KWARGS)
+    except TypeError:
+        return os.pipe()
+
+
+def _pipe_capacity() -> int:
+    """How many bytes a fresh anonymous pipe holds before a write stops fitting.
+
+    Measured, not carried: it is the quantity the stall depends on, and it is
+    not one number — **4,096 bytes on this machine** (measured 2026-11-10, and a
+    `subprocess.PIPE` sweep put the same boundary between 4,096 and 4,608), while
+    a Linux pipe defaults to an order of magnitude more. A witness with a
+    hard-coded dose would be a witness on one platform and an anecdote on the
+    other.
+
+    **It is measured with a non-blocking writer, and that is not an
+    implementation detail.** On a full pipe a blocking write does not raise — it
+    waits (measured: 4,096 bytes accepted, then the writer parked with no error).
+    That *is* the defect, so a capacity probe that writes in blocking mode is a
+    probe that reproduces the defect on itself and hangs. `BlockingIOError` is
+    what says the pipe is full, and only a non-blocking descriptor produces it.
+    """
+    read_fd, write_fd = _new_anonymous_pipe()
+    try:
+        os.set_blocking(write_fd, False)
+        fitted = 0
+        while True:
+            try:
+                # What `os.write` *says* it wrote, not what was asked for: a
+                # partial write returns the count it managed, and adding 1024
+                # per call would report a capacity the pipe never held.
+                fitted += os.write(write_fd, b"x" * 1024)
+            except BlockingIOError:
+                return fitted
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def _o6_arrangement(root: Path, *, drained: bool, dose: int) -> dict[str, object]:
     """One service, one unwired stream, and the reads on both sides of it.
 
     **Why a subprocess at all.** The stall is a blocked write to the *process's
@@ -776,14 +867,16 @@ def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
     for exactly this reason, and the selection window's probes used a pipe
     nobody read.
 
-    The output is redirected with ``dup2`` onto a real anonymous pipe rather
-    than onto a file object, because the thing being probed is a *pipe's
-    capacity* — 8,192 bytes on this machine, measured — and a file has no
-    capacity to fill.
+    The output is redirected with ``dup2`` onto a real anonymous pipe rather than
+    onto a file object, because the thing being probed is a *pipe's capacity* and
+    a file has no capacity to fill. It is the same kind of pipe the capacity probe
+    measured (`_new_anonymous_pipe`), so the dose the parent computed is a dose for
+    the pipe this arrangement is actually running against — and both the measured
+    capacity and the dose it produced are in the report.
     """
     import uvicorn
 
-    pipe_read, pipe_write = os.pipe()
+    pipe_read, pipe_write = _new_anonymous_pipe()
     saved_out, saved_err = os.dup(1), os.dup(2)
     os.dup2(pipe_write, 1)
     os.dup2(pipe_write, 2)
@@ -821,7 +914,13 @@ def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
                     with urllib.request.urlopen(base + path, timeout=timeout) as reply:
                         reply.read()
                         status: object = reply.status
-                except (urllib.error.URLError, OSError) as exc:
+                except urllib.error.HTTPError as exc:
+                    # A refusal the client can see. The unwired stream's answer
+                    # is one of these, and it is recorded as the status it is
+                    # rather than as a failure: the point of the refusal is that
+                    # it reached the reader.
+                    status = exc.code
+                except (urllib.error.URLError, OSError, TimeoutError) as exc:
                     status = f"no answer: {type(exc).__name__}"
                 return {
                     "path": path,
@@ -835,7 +934,19 @@ def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
                 time.sleep(0.1)
 
             before = [ask(path) for path in O6_READS]
-            streams = [ask("/events/stream?follow=false", timeout=30.0) for _ in range(O6_DOSE)]
+            streams: list[dict[str, object]] = []
+            stalled_after: int | None = None
+            for index in range(dose):
+                streams.append(ask("/events/stream?follow=false", timeout=30.0))
+                # Watch for the stall between the streams rather than only after
+                # the whole dose. On the unfixed service the pipe fills partway
+                # through, and a probe that pays every remaining 8-second
+                # timeout is a probe that takes minutes to say what it already
+                # knows — while this line says *at which stream* the service
+                # stopped answering.
+                if ask("/health", timeout=2.0)["status"] != 200:
+                    stalled_after = index + 1
+                    break
             after = [ask(path) for path in O6_READS]
             answered = sum(1 for r in after if r["status"] == 200)
 
@@ -868,12 +979,21 @@ def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
         "streams": streams,
         "after": after,
         "answered_after": f"{answered} / {len(after)}",
+        "dose": dose,
+        "stalled_after_stream": stalled_after,
         "service_output_bytes": sum(len(chunk) for chunk in captured),
     }
 
 
 def _o6_main(workspace: Path) -> int:
     """Run both arrangements and write what each one saw.
+
+    **The dose is sized from the pipe, not from a remembered number.** The
+    capacity is measured on the machine running this probe and divided by the
+    measured per-stream cost, floored at the dose that overflowed this machine's
+    pipe and capped so a red run stays fast. The numbers the probe used are in
+    the report, so a dose that had to be capped is visible in the failure rather
+    than silently too small to witness anything.
 
     The report is written after *each* arrangement: on the unfixed service the
     second one ends with the application parked in a write, and a report that
@@ -882,12 +1002,20 @@ def _o6_main(workspace: Path) -> int:
     report = workspace / "o6-report.json"
     phases: dict[str, object] = {}
 
+    capacity = _pipe_capacity()
+    needed = -(-capacity // O6_UNWIRED_STREAM_FLOOR) + 1
+    dose = max(O6_DOSE_MIN, min(needed, O6_DOSE_MAX))
+
     def publish() -> None:
         report.write_text(json.dumps(phases), encoding="utf-8")
 
-    phases["drained"] = _o6_arrangement(workspace / "drained", drained=True)
+    phases["pipe_capacity_bytes"] = capacity
+    phases["dose"] = dose
+    phases["dose_capped"] = needed > O6_DOSE_MAX
     publish()
-    phases["undrained"] = _o6_arrangement(workspace / "undrained", drained=False)
+    phases["drained"] = _o6_arrangement(workspace / "drained", drained=True, dose=dose)
+    publish()
+    phases["undrained"] = _o6_arrangement(workspace / "undrained", drained=False, dose=dose)
     publish()
     return 0
 
@@ -905,13 +1033,21 @@ def test_one_unwired_event_stream_leaves_the_service_able_to_answer(tmp_path: Pa
     **What the measurement says the mechanism was.** The refusal was raised
     *after* the ``200`` and ``text/event-stream`` headers had gone out, so it
     could not become a response; what the service wrote instead was a traceback
-    — **6,205 bytes for one short stream, measured** against a pipe capacity of
-    **8,192 bytes, measured** — into whatever the caller had attached to its
-    output. A caller that captures that output in a pipe it does not read has a
-    pipe that fills, and a writer parked in a full pipe is an event loop that
-    has stopped serving every request in the process. That is why the dose here
-    is two streams: start-up writes ~944 bytes and one stream's 6,205 fit, two
-    do not.
+    — **6,205 bytes for one short stream, measured**, against a pipe that holds
+    **8,192 bytes here and 4,096 for a subprocess pipe here, measured** — into
+    whatever the caller had attached to its output. A caller that captures that
+    output in a pipe it does not read has a pipe that fills, and a writer parked
+    in a full pipe is an event loop that has stopped serving every request in
+    the process.
+
+    **The dose is sized from the pipe, not from a remembered number,** because
+    the capacity is not one number across platforms: the probe measures the
+    capacity it is about to work against and opens enough streams to overflow
+    it at the measured per-stream cost. That is the difference between a witness
+    and a Windows-only anecdote. The capacity, the dose and whether the dose had
+    to be capped are all in the report, and the test asserts the dose could fill
+    the pipe at all — a dose that could not is a witness witnessing nothing, and
+    it says so rather than passing.
 
     **What the test asserts is the property, not the mechanism:** after streams
     it was never going to answer, the service answers every ordinary read. Both
@@ -952,25 +1088,36 @@ def test_one_unwired_event_stream_leaves_the_service_able_to_answer(tmp_path: Pa
     )
 
     phases = json.loads(report.read_text(encoding="utf-8"))
+
+    capacity = phases["pipe_capacity_bytes"]
+    dose = phases["dose"]
+    assert isinstance(capacity, int) and isinstance(dose, int), phases
+    assert dose * O6_UNWIRED_STREAM_FLOOR > capacity, (
+        f"the probe opened {dose} stream(s) against a {capacity}-byte pipe, and at the "
+        f"{O6_UNWIRED_STREAM_FLOOR}-byte-per-stream floor that dose cannot fill the pipe. "
+        "The witness would be asserting a property in an arrangement that could not have "
+        "shown the defect: raise O6_DOSE_MAX, or measure the arrangement again on a "
+        "machine whose pipe this dose can overflow."
+    )
+
     for label in ("drained", "undrained"):
         assert label in phases, f"the probe never ran the {label} arrangement: {phases}"
         phase = phases[label]
         assert isinstance(phase, dict), phase
         expected = f"{len(O6_READS)} / {len(O6_READS)}"
         assert phase["answered_after"] == expected, (
-            f"the service stopped answering ordinary reads after {O6_DOSE} unwired "
-            f"stream(s) in the {label} arrangement — this is O6, back: "
-            f"{json.dumps(phase['after'])}"
+            f"the service stopped answering ordinary reads after {phase['dose']} unwired "
+            f"stream(s) in the {label} arrangement — this is O6, back, and it stalled at "
+            f"stream {phase['stalled_after_stream']}: {json.dumps(phase['after'])}"
         )
 
     drained_phase = phases["drained"]
     assert isinstance(drained_phase["service_output_bytes"], int)
     assert drained_phase["service_output_bytes"] < O6_LOG_BUDGET, (
         f"the service wrote {drained_phase['service_output_bytes']} bytes into its own "
-        f"output across the probe, over the {O6_LOG_BUDGET}-byte budget that is half the "
-        "measured pipe capacity. That is the stall's fuel: the number is what the "
-        "service costs itself to refuse an unwired stream, and an unwired refusal "
-        "answered as a response costs it nothing."
+        f"output across the probe, over the {O6_LOG_BUDGET}-byte budget. That is the "
+        "stall's fuel: the number is what the service costs itself to refuse an unwired "
+        "stream, and an unwired refusal answered as a response costs it nothing."
     )
 
 
