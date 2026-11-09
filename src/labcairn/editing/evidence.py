@@ -185,9 +185,21 @@ def _long_paths_enabled() -> str:
     """
     if sys.platform != "win32":
         return "unknown"
+    return _long_paths_enabled_windows()
+
+
+def _long_paths_enabled_windows() -> str:
+    """The Windows-only half of :func:`_long_paths_enabled`.
+
+    **Split out so every platform's type checker sees the same function.**
+    ``winreg`` exists on Windows only, and a checker running on another
+    platform judged the import-and-read body unreachable -- a false positive
+    this file's own rule ("the value is read, not remembered") does not need.
+    The module-level guard above is the only caller.
+    """
     try:
         import winreg
-    except ImportError:
+    except ImportError:  # pragma: no cover - Windows always ships winreg
         return "unknown"
     try:
         with winreg.OpenKey(

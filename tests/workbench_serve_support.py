@@ -354,7 +354,7 @@ class ServedWorkbench:
     def _ask_to_stop(self) -> None:
         """Ask the service's own process group to stop."""
         if os.name == "nt":
-            self._process.send_signal(signal.CTRL_BREAK_EVENT)
+            self._process.send_signal(_windows_group_stop_signal())
         else:
             self._process.terminate()
 
@@ -496,10 +496,28 @@ def _spawn(arguments: list[str], log_path: Path) -> subprocess.Popen[str]:
             # Its own process group: the stop is addressed to the group, so a service
             # that spawned something cannot keep the port open after the run that
             # started it says it is finished.
-            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+            creationflags=_windows_process_group_flags(),
         )
     finally:
         log_file.close()
+
+
+def _windows_group_stop_signal() -> signal.Signals:
+    """The signal a Windows process group is asked to stop with.
+
+    **Split out so both platforms type-check the same body.** The Windows
+    constants exist on Windows only; a checker running elsewhere judges the
+    guarded attribute access unreachable, which is a false positive about
+    the platform split, not about the stop protocol.
+    """
+    assert os.name == "nt"
+    return signal.Signals(signal.CTRL_BREAK_EVENT)
+
+
+def _windows_process_group_flags() -> int:
+    """The creation flags that put the service in its own process group."""
+    assert os.name == "nt"
+    return subprocess.CREATE_NEW_PROCESS_GROUP
 
 
 def _refuse_a_workspace_inside_the_repository(workspace: Path) -> None:

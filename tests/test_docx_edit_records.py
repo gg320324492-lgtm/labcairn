@@ -134,22 +134,42 @@ def test_the_recorded_ceiling_is_the_one_this_machine_enforces(tmp_path: Path) -
     with the probe ``tests/test_workspace_path_length.py`` uses and compares it
     with the number the evidence writer carries.
     """
+    measured = _measured_ceiling_or_skip(tmp_path)
+    assert measured == MAX_PATH
+
+
+def _measured_ceiling_or_skip(tmp_path: Path) -> int:
+    """The probe result on Windows; a skip on any other platform.
+
+    **The guard lives in a helper so both platforms type-check the same
+    body.** A checker running on Linux judges the code after a
+    ``sys.platform != "win32"`` skip unreachable, which is a false positive
+    about test structure, not about the ceiling.
+    """
     if sys.platform != "win32":
         pytest.skip("the 259-character ceiling is this machine's Windows path semantics")
     try:
-        measured = _measure_ceiling(tmp_path / "probe")
+        return _measure_ceiling(tmp_path / "probe")
     except AssertionError as exc:
         if _NO_CEILING in str(exc):
             pytest.skip(str(exc))
         raise
-    assert measured == MAX_PATH
 
 
 def test_the_host_snapshot_reports_the_registry_reader() -> None:
     """The snapshot is checked against the registry, not its own helper."""
+    snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
+    assert snapshot["long_paths_enabled"] == _registry_long_paths_enabled()
+
+
+def _registry_long_paths_enabled() -> str:
+    """The registry value read directly, skipping off Windows.
+
+    **The guard lives in a helper so both platforms type-check the same
+    body**, for the reason :func:`_measured_ceiling_or_skip` states.
+    """
     if sys.platform != "win32":
         pytest.skip("the LongPathsEnabled registry value is a Windows facility")
-    snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
     import winreg
 
     with winreg.OpenKey(
@@ -157,7 +177,7 @@ def test_the_host_snapshot_reports_the_registry_reader() -> None:
         r"SYSTEM\CurrentControlSet\Control\FileSystem",
     ) as key:
         value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
-    assert snapshot["long_paths_enabled"] == str(int(value))
+    return str(int(value))
 
 
 def test_the_host_snapshot_follows_a_changed_registry_value(
@@ -170,6 +190,15 @@ def test_the_host_snapshot_follows_a_changed_registry_value(
     happens to return. Both are green in a tree where the snapshot stopped
     reading the registry, so neither witness alone is enough.
     """
+    assert _snapshot_with_stubbed_registry(monkeypatch) == "1"
+
+
+def _snapshot_with_stubbed_registry(monkeypatch: pytest.MonkeyPatch) -> str:
+    """The snapshot value with the registry answer stubbed to ``1``.
+
+    **The guard lives in a helper so both platforms type-check the same
+    body**, for the reason :func:`_measured_ceiling_or_skip` states.
+    """
     if sys.platform != "win32":
         pytest.skip("the LongPathsEnabled registry value is a Windows facility")
     import winreg
@@ -179,8 +208,7 @@ def test_the_host_snapshot_follows_a_changed_registry_value(
         return 1, 4  # REG_DWORD
 
     monkeypatch.setattr(winreg, "QueryValueEx", changed)
-    snapshot = host_snapshot("2026-11-08T00:00:00Z", "0" * 40)
-    assert snapshot["long_paths_enabled"] == "1"
+    return host_snapshot("2026-11-08T00:00:00Z", "0" * 40)["long_paths_enabled"]
 
 
 def test_the_reopen_cells_are_empty_only_where_a_person_decides(tmp_path: Path) -> None:
