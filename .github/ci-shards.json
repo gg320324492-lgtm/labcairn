@@ -31,7 +31,9 @@
         "tests/test_provider_adapter.py",
         "tests/test_capability_namespaces.py",
         "tests/test_analysis_report_build.py",
-        "tests/test_review_dossier.py"
+        "tests/test_review_dossier.py",
+        "tests/test_provider_deidentification.py",
+        "tests/test_provider_bounded_rehearsal.py"
       ],
       [
         "tests/test_evidence_index.py",
@@ -216,7 +218,9 @@
         "tests/test_security_injection.py",
         "tests/test_analysis_selection.py",
         "tests/test_evidence_normalize.py",
-        "tests/test_workspace_path_length.py"
+        "tests/test_workspace_path_length.py",
+        "tests/test_provider_deidentification.py",
+        "tests/test_provider_bounded_rehearsal.py"
       ],
       [
         "tests/test_application_layer.py",
@@ -537,7 +541,9 @@
       "test_workspace_boundaries.py": 0.01,
       "test_workspace_path_length.py": 0.01,
       "test_revision_loop.py": 0.0,
-      "test_revision_loop_refusals.py": 0.0
+      "test_revision_loop_refusals.py": 0.0,
+      "test_provider_deidentification.py": 0.0,
+      "test_provider_bounded_rehearsal.py": 0.0
     },
     "windows-latest": {
       "test_access_grant_schema.py": 3.87,
@@ -709,7 +715,9 @@
       "test_workspace_boundaries.py": 1.11,
       "test_workspace_path_length.py": 0.01,
       "test_revision_loop.py": 0.0,
-      "test_revision_loop_refusals.py": 0.0
+      "test_revision_loop_refusals.py": 0.0,
+      "test_provider_deidentification.py": 0.0,
+      "test_provider_bounded_rehearsal.py": 0.0
     }
   }
 }
