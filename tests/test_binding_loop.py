@@ -267,6 +267,12 @@ def test_unresolved_opinions_surface_as_explicit_tasks(fixture: BindingFixture) 
     assert reasons[evidence] == "needs_evidence", (
         "the reviewer's flag is the binding's own unresolved task"
     )
+    # And the pending verdict applied nothing: a suggestion the reviewer has
+    # not decided is not a change the binding may make — applying it would
+    # be the model deciding.
+    assert all(edit.feedback_id != evidence for edit in closed.edits), (
+        "a pending verdict's suggestion produced no change"
+    )
     assert reasons[unplaceable] == "uncertain_location", (
         "the unplaceable comment is a location failure with a name"
     )
