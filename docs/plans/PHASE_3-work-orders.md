@@ -380,7 +380,7 @@ Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
 
-**The corpus is identified; the sample is not yet picked.** On 2026-11-09 the
+**The corpus is identified; the sample is picked.** On 2026-11-09 the
 owner confirmed the uploaded micro-nano-bubble reference batches as this
 direction's corpus and named batch A (the two MSc papers whose
 advisor-annotated versions carry the advisor's comments and tracked
@@ -388,9 +388,19 @@ revisions) as the initial advisor-material batch. All four batches were
 fingerprinted the same day into an operator-side registry **outside the
 repository** (111 `.docx` files: sha256, byte size, comment/revision/media
 counts; structure-only, no prose extracted, no file enters the tree — the
-no-material policy and its CJK ceiling hold). Which single file becomes
-§5.9's real sample, and when, stay open (§14 item 4's open half); until that
-pick the named-gap label above stands unchanged.
+no-material policy and its CJK ceiling hold). Later the same day the owner
+picked the real sample from batch A's fingerprint ranking: the file behind
+sha256 `9154e56c5fe47da151fdb636b3cc4f8170965a8ccdbca94f292390254607652d`
+(4 443 105 bytes; 4 comments, 270 insertions, 119 deletions, 10 media
+parts), the green-algae inhibition paper's advisor-annotated version. The
+project's own structure survey, run on the picked file the same day,
+carries `BODY_TEXT`, `TRACKED_REVISIONS`, `COMMENTS`, `TABLES`,
+`EQUATIONS`, `IMAGES`, `COMMENT_PART` and `MEDIA`, and blocks nothing — a
+wider structural coverage than most synthetic samples. The file itself
+stays outside the repository; the tree records its digest and counts,
+never its name or its content. The named-gap label above stands unchanged:
+the real-sample half is `NOT RUN` until the full loop runs on this file
+and is recorded.
 
 **5.10 The empty row, and who watches it.** A record may leave a cell empty
 because the evidence for it has not been taken. That is honest only while a
@@ -1083,10 +1093,14 @@ below carries its answer in place, with the question's original wording kept.
    fingerprinted the same day into an operator-side registry outside the
    repository (111 `.docx` files: sha256, byte size, comment/revision/media
    counts; no prose extracted, no file enters the tree — the no-material
-   policy holds). (b) The supply date is still open: which single file
-   becomes §5.9's real sample, and when, are not yet fixed, so the three
-   items this supply serves (§5.9's real-sample half, ADR-0021's final
-   adoption, `LC-P3-08`'s trial) stay honestly held open as named gaps.
+   policy holds). (b) **The sample is picked** (later the same day): batch
+   A's fingerprint ranking pointed at the green-algae inhibition paper's
+   advisor-annotated version, the owner confirmed it, and its digest is
+   recorded at §5.9 (`9154e56c…7652d`, 4 comments / 270 ins / 119 del / 10
+   media parts; the project's structure survey carries eight classes and
+   blocks none). What is still open is the loop itself: §5.9's real-sample
+   half, ADR-0021's final adoption and `LC-P3-08`'s trial stay honestly
+   held open as named gaps until that loop has run and been recorded.
 5. **ADR-0021's provisional adoption as `LC-P3-04`'s foundation.** Whether 04
    may build on the provisional adoption (record `proposed`) or waits for
    real-sample evidence. The drafts' dependency tables assume provisional is
@@ -1198,7 +1212,7 @@ do not edit these; both sequence against them.
 
 | Gap | Waiting on | Where it is stated |
 |---|---|---|
-| The real advisor sample and its full loop | The owner picking which corpus file becomes the sample, and supplying it (§14 item 4's open half: batch A is named, the file and date are not) | §5.9, §14 item 4 |
+| The real advisor sample and its full loop | The loop itself, run on the picked sample and recorded (the sample was picked 2026-11-09: batch A, digest at §5.9; the file stays outside the repository) | §5.9, §14 item 4 |
 | `LC-P3-06`'s real-model row | `LC-P3-04`'s proposal path (the thing the real model exercises) and the de-identified domain sample; the seven authorisation fields themselves are answered (§14 item 3, tabled at §11's §4.9) | §1, §11, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
 | A Windows browser pass a runner has run | A runner run, which the owner starts | §3 rule 6, execution plan §6 last row |
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |

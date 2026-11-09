@@ -46,6 +46,15 @@ The links are the records.
   fingerprinted into an operator-side registry outside the repository —
   structure-only, no prose in the tree, §5.9's label unchanged until the
   single sample file is picked.
+- **The sample was picked the same day**: from batch A's fingerprint ranking
+  the owner chose the green-algae inhibition paper's advisor-annotated
+  version (sha256 `9154e56c…7652d`, 4 comments / 270 ins / 119 del / 10
+  media parts; the project's structure survey carries eight classes, blocks
+  none). Its digest and counts are recorded at §5.9 and §14 item 4; the file
+  itself stays outside the repository, and the real-sample half's `NOT RUN`
+  label stands until the full loop runs on it. The selection stage's ADR
+  number was corrected the same day: ADR-0022 is taken, so `LC-P3-05`'s
+  selection ADR names ADR-0023 as of this writing and re-checks at issuing.
 
 ### Since the gates closed
 
