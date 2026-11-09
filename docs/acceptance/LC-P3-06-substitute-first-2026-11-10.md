@@ -4,9 +4,12 @@
 **Branch:** `claude/nice-merkle-5b4007` (worktree
 `E:\LabCairn\.claude\worktrees\nice-merkle-5b4007`).
 **Base:** `4855ea66d71ea8363aa578e7ca6b00e03efde7de`.
-**Head of the implementation:** `06d8c7544aeb7daaf12bce704fbf1053418f3d0b`
-(two commits: `0b4cf89` product modules, `06d8c75` witnesses and
-registration; the record commit that follows changes only this file).
+**Code head:** `06d8c7544aeb7daaf12bce704fbf1053418f3d0b` (two commits:
+`0b4cf89` product modules, `06d8c75` witnesses and registration).
+**Final head of this work:** `899da8368a66449dcdfe301759c6ef2a9f804e2d`,
+the record commit; the follow-up correction changes only this heading
+block. The full SHA of any later head is printed by `git rev-parse HEAD`
+in the checkout.
 **Status:** local evidence only. No push, no pull request, no CI run, no
 merge. The board row stays the commander's to move; this record claims no
 `PASS` for Phase 3 G3 or for the "One real model" acceptance row.
