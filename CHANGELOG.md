@@ -16,6 +16,45 @@ The links are the records.
 
 ## [Unreleased]
 
+### Phase 3 G2/G3 batch: three windows land locally (2026-11-10)
+
+Three windows reviewed and merged into `main` by the conductor session, each
+on its own branch, one ledger run per merge (`LOST -- none` in all three):
+
+- **`LC-P3-03` — the project revision loop lands** (merge `4855ea6`).
+  `src/labcairn/application/revision_loop.py` carries the loop from import
+  receipt through read-only original, independent copy and publication
+  receipt to the recovery path; four refusal classes
+  (`cross_project_access`, path escape, stale approval,
+  `loop_already_published`) are witnessed, and all four counter-mutation
+  families were caught. 17 new witnesses registered in three places; the
+  acceptance record is
+  [`LC-P3-03-substitute-run-2026-11-10.md`](docs/acceptance/LC-P3-03-substitute-run-2026-11-10.md).
+- **`LC-P3-06` substitute-first half lands** (merge `7d5be74`).
+  `src/labcairn/providers/deidentify.py` (8-word n-gram pipeline, outbound
+  CJK ceiling, named-secret scrub; three sample classes) and
+  `src/labcairn/providers/bounded_run.py` (the refusal ladder harness,
+  per-excerpt digest binding, the Q7 two-arm stop-loss, the
+  digests-and-counts run record). 33 witnesses, 12/12 counter-mutations;
+  every ladder tier fails to zero calls on budget or consent. The
+  acceptance record is
+  [`LC-P3-06-substitute-first-2026-11-10.md`](docs/acceptance/LC-P3-06-substitute-first-2026-11-10.md).
+  The real half still waits on `LC-P3-04` and the sample.
+- **O6 — the event-stream stall is fixed** (merge `9cdb19a`). The mechanism
+  is measured, no longer open: a refusal raised after the `200` and
+  `text/event-stream` headers were sent became a traceback written into the
+  service's own output, and a caller holding it in an undrained pipe
+  blocked the event loop (pipe capacity 4,096 bytes, measured; one short
+  stream wrote 6,205 bytes). The fix refuses an unwired stream at the route
+  entry, before the headers; `events.py` holds the refusal sentence as the
+  single source for both paths. The record is
+  [`o6-event-stream-stall-2026-11-10.md`](docs/acceptance/o6-event-stream-stall-2026-11-10.md).
+  The browser-gap row it replaced was re-measured, not deleted: the old
+  witness asserted a contradiction that the fix removes, and the new one
+  keeps the service-side half of the old assertion.
+- The selection stage's O6 row was cross-referenced to the fix record, and
+  `docs/THREAT-MODEL.md` gained the stall's own entry.
+
 ### Phase 3 G1 aftermath: work orders and platform rule (2026-11-09)
 
 - [ADR-0022](docs/adr/ADR-0022-platform-conditional-code-keeps-one-reachable-body.md)
