@@ -449,6 +449,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     # spends one digest-bound approval per request (approvals).
     "test_provider_deidentification.py": ("unit", "provider-redaction"),
     "test_provider_bounded_rehearsal.py": ("integration", "approvals"),
+    # LC-P3-04: the binding loop's witnesses; its refusals are negative.
+    "test_binding_loop.py": ("integration", "approvals"),
+    "test_binding_loop_refusals.py": ("negative", "missing-material"),
     # -- security -----------------------------------------------------------
     "test_security_approval.py": ("integration", "approvals"),
     "test_security_injection.py": ("negative", "untrusted-instructions"),

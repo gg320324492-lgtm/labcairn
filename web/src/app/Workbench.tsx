@@ -53,6 +53,7 @@ import { GuidanceView } from '../views/GuidanceView'
 import { PlanView } from '../views/PlanView'
 import { ProposalsView } from '../views/ProposalsView'
 import { ProjectsView } from '../views/ProjectsView'
+import { ReviewView } from '../views/ReviewView'
 import { RevisionsView } from '../views/RevisionsView'
 import { SourcesView } from '../views/SourcesView'
 import { StepsView } from '../views/StepsView'
@@ -186,6 +187,7 @@ export function Workbench(): JSX.Element {
       <EvidenceView plan={reads.plan} steps={reads.steps} />
       <ArtefactsView artifacts={reads.artifacts} />
       <RevisionsView artifacts={reads.artifacts} />
+      <ReviewView artifacts={reads.artifacts.data ?? []} cycle={readCycle} />
       <TrajectoryView cycle={readCycle} />
       <GuidanceView cycle={readCycle} onChanged={readAgain} />
       <ProposalsView cycle={readCycle} onChanged={readAgain} />
