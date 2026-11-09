@@ -668,7 +668,7 @@ stage is still a complete result.
 | the shell configuration and lifecycle modules the chosen framework requires, under a layout the window records | Process lifecycle, runtime lifecycle, local API session boundaries. |
 | `web/` preload and IPC tightening | The reuse half of the scope sentence. 04's review UI may share `web/` — see §0 table; the owner's dispatch split names who owns what. |
 | the installer configuration | Install, upgrade drill, uninstall, rollback. |
-| a selection-and-measurement record and an ADR at the next free number (**ADR-0022**, measured live 2026-11-09: ADR-0021 is the highest present) | The three candidates, what each measurement showed, which option the record adopts, what a candidate's refusal means. |
+| a selection-and-measurement record and an ADR at the next free number (**ADR-0023** as of this writing — ADR-0022 was taken on 2026-11-09 by the platform-conditional-code rule, §3 rule 3a; the window re-checks the directory before issuing) | The three candidates, what each measurement showed, which option the record adopts, what a candidate's refusal means. |
 | a dated record under `docs/acceptance/` for the clean-Windows drill | Install, launch, upgrade, uninstall, rollback, support limits, signing status. |
 
 It does not own `src/labcairn/application/`, `src/labcairn/papers/`,
@@ -692,7 +692,7 @@ It does not own `src/labcairn/application/`, `src/labcairn/papers/`,
 
 **3.6 Deliverables.**
 
-1. The **selection-and-measurement record** and **ADR-0022**: candidates,
+1. The **selection-and-measurement record** and the selection ADR (the next free number, §3.4): candidates,
    measurements, the adopted option, the failure branch.
 2. The **shell implementation** with tightened preload and IPC, navigation,
    file opening, runtime lifecycle and local API session boundaries, each
