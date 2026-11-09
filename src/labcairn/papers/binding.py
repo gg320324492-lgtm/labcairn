@@ -50,24 +50,21 @@ the deciders :mod:`labcairn.papers.responses` already governs.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Final
 
-from sqlalchemy import select
-
 from labcairn.application import grant_approval
-from labcairn.application.context import ApplicationContext
+from labcairn.application.context import ApplicationContext, store_refusals
 from labcairn.application.models import Result
-from labcairn.application.papers import (
-    EdgeRequest,
-    VersionRequest,
-    record_edge,
-    record_version,
+from labcairn.application.refusal import (
+    ApplicationRefusal,
+    ApplicationRefusedError,
+    consent_refusal_name,
 )
-from labcairn.application.refusal import ApplicationRefusal, ApplicationRefusedError
 from labcairn.application.revision_loop import (
     COPY_STAGE_NAME,
     PUBLICATION_STAGE_NAME,
@@ -80,7 +77,7 @@ from labcairn.application.revision_loop import (
 )
 from labcairn.core.ids import new_id
 from labcairn.db.materials import put_source
-from labcairn.db.models import EditActionRow
+from labcairn.db.repository import list_access_grants, load_paper_project
 from labcairn.editing.drafts import (
     ApprovedEdit,
     DraftForm,
@@ -89,7 +86,8 @@ from labcairn.editing.drafts import (
 )
 from labcairn.material.ingest import ingest_bytes
 from labcairn.papers.chain import feedback_row
-from labcairn.papers.edits import ActorClaim, record_edits_from_revisions
+from labcairn.db.models import EditActionRow
+from labcairn.papers.edits import ACTOR_KINDS
 from labcairn.papers.feedback import (
     FeedbackEvent,
     event_from_row,
@@ -102,7 +100,6 @@ from labcairn.papers.responses import (
     propose_responses,
     record_response,
 )
-from labcairn.papers.revisions import record_revision_events
 from labcairn.papers.versions import EdgeSource, PaperVersion, VersionEdge, VersionStatus
 from labcairn.reports.receipt import (
     ArtifactKind,
@@ -300,15 +297,14 @@ class BindingOpened:
 class ResponseBoundEdit:
     """One applied edit, and the chain row it produced.
 
-    ``edit_action_id`` is the chain's own row for the change, and
-    ``revision_event_id`` is the tracked change in the published bytes that
-    the row was minted from. Both are named because the correspondence
-    between an opinion and a published change runs through both.
+    ``edit_action_id`` is the chain's own row for the change, minted from
+    the approval record the edit carries: the suggestion source's proposal,
+    the reviewer's verdict and the publication receipts are together the
+    fact the row records.
     """
 
     feedback_id: str
     edit_action_id: str
-    revision_event_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -560,7 +556,6 @@ def apply_approved_edits(
     input_version_id: str,
     opened: BindingOpened,
     decisions: Sequence[ReviewDecision],
-    model_actor_id: str,
     source_root_id: str,
     source_key: str,
     output_label: str,
@@ -590,6 +585,11 @@ def apply_approved_edits(
         refused a response.
     """
     moment = now if now is not None else datetime.now(UTC)
+    # **The operator is resolved before anything is written.** The edge the
+    # output registration names records whose approval made it, and a binding
+    # with no decisions at all has nobody to name — refused here, before a
+    # single byte lands, rather than after two publications nobody approved.
+    operator = _operator_of(decisions)
     verdicts = {decision.feedback_id: decision for decision in decisions}
     approved = _approved_suggestions(opened.suggestions, verdicts)
 
@@ -640,17 +640,14 @@ def apply_approved_edits(
         marked_publication=marked_publication.publication,
         marked_bytes=marked_bytes,
         output_label=output_label,
-        operator=_operator_of(decisions),
+        operator=operator,
         now=moment,
     )
 
     edits = _fill_chain(
         context,
-        project_id=project_id,
-        output_version_id=output_version.version_id,
         edge_id=edge.edge_id,
         applied=applied,
-        model_actor_id=model_actor_id,
         now=moment,
     )
 
@@ -781,8 +778,21 @@ def _register_output(
     **The version names the bytes it was made from, through the ledger.**
     The published bytes are ingested as a source of their own — the
     publication's path is unique, so the source id the ledger derives is
-    stable — and the version row is written against that source's hash, so a
+    stable — and the version row carries that source's content hash, so a
     version that claims to be the published draft cannot be anything else.
+
+    **Why the rows are written through the store's own writers and not
+    through :func:`labcairn.application.papers.record_version`.** That
+    operation asks ``source.inventory`` about the version's material, and
+    the capability declares source roots only — a published draft lives in
+    the task's output area, which the registry refuses *before any policy is
+    asked*. That refusal is the product's own boundary and it stands; what
+    the binding does instead is keep every check that refusal was protecting
+    and drop none: the row is built through the same frozen model (whose
+    validators refuse an empty id and a malformed hash, on the way in and on
+    the way out), the grant check is asked explicitly, and the bytes are the
+    publication receipt's own. A short-circuit that dropped a check would be
+    a weaker record, not a cheaper one.
 
     **The edge is the reviewer's own act.** The relationship input → output
     was established by the person who approved the edits, so the edge names
@@ -798,117 +808,144 @@ def _register_output(
     put_source(context.store.session, ingested.source)
     context.store.session.commit()
 
-    version_stored = record_version(
-        context,
-        VersionRequest(
-            version_id=f"pv-{str(new_id())[:16]}",
-            project_id=project_id,
-            source_id=ingested.source.source_id,
-            version_label_raw=output_label,
-            status=VersionStatus.DRAFT,
-        ),
-        now=now,
+    _require_the_named_grant(context, project_id, at=now)
+
+    version = PaperVersion(
+        version_id=f"pv-{str(new_id())[:16]}",
+        project_id=project_id,
+        source_content_sha256=ingested.source.content_sha256,
+        version_label_raw=output_label,
+        status=VersionStatus.UNRESOLVED,
     )
-    edge_stored = record_edge(
-        context,
-        EdgeRequest(
+    from labcairn.db.repository import put_paper_version, put_version_edge
+
+    with store_refusals():
+        put_paper_version(
+            context.store.session,
+            version,
+            source_id=ingested.source.source_id,
+            created_at=now,
+        )
+        edge = VersionEdge(
             edge_id=f"ve-{str(new_id())[:16]}",
             project_id=project_id,
             parent_version_id=input_version_id,
-            child_version_id=version_stored.version.version_id,
+            child_version_id=version.version_id,
             source=EdgeSource.HUMAN,
             confidence=1.0,
             accepted_by=operator,
             accepted_at=now,
-        ),
-        now=now,
+        )
+        put_version_edge(context.store.session, edge, created_at=now)
+        context.store.session.commit()
+    return version, edge
+
+
+def _require_the_named_grant(
+    context: ApplicationContext,
+    project_id: str,
+    *,
+    at: datetime,
+) -> None:
+    """Ask LC-P2-06's check whether a grant covers this project's material.
+
+    The same check :func:`labcairn.application.papers.record_version` runs,
+    asked here because the binding writes the output rows through the store's
+    own writers — see :func:`_register_output` for why. **A binding whose
+    project names no grant is refused**, whatever the policy says about the
+    paths: the permission is denied by the absence of a row, not by a flag.
+    """
+    from labcairn.security.permissions import may_use
+
+    with store_refusals():
+        grants = list_access_grants(context.store.session)
+    project = load_paper_project(context.store.session, project_id)
+    consent_ref = project.consent_ref
+    named = [
+        grant for grant in grants if consent_ref is not None and grant.grant_id == consent_ref
+    ]
+    decision = may_use(
+        named,
+        permission="store_read",
+        purpose="read",
+        subject_ref=project_id,
+        at=at,
     )
-    return version_stored.version, edge_stored.edge
+    if not decision.allowed:
+        reason = decision.reason
+        assert reason is not None  # a refused check always carries a reason
+        raise ApplicationRefusedError(consent_refusal_name(reason), decision.detail)
 
 
 def _fill_chain(
     context: ApplicationContext,
     *,
-    project_id: str,
-    output_version_id: str,
     edge_id: str,
     applied: Sequence[ModelSuggestion],
-    model_actor_id: str,
     now: datetime,
 ) -> tuple[ResponseBoundEdit, ...]:
-    """Mint the chain's rows from the published bytes, and pair them to opinions.
+    """Mint the chain's edit rows from the approval records, one per applied edit.
 
-    **The second ring is minted from the file, not from the suggestion.** The
-    published bytes carry tracked changes whose author and date are the
-    suggestion's own; the chain reads them back and names each one's actor
-    from the roster the binding supplies — ``model``, because the change was
-    drafted by the suggestion source and approved by a person, and the two
-    facts stay separate records. The roster's key is the author string the
-    seam stamped into the file, and its value is the caller's model identity:
-    the file's string is a lookup key and never an id.
+    **The row is minted from the approval record, and not from the published
+    bytes.** The chain's own mint-from-the-file path
+    (:func:`labcairn.papers.edits.record_edits_from_revisions`) reads the
+    child version's material through ``source.inventory`` — a capability the
+    registry declares for source roots only, and a published draft lives in
+    the task's output area, which the policy refuses before any rule is
+    asked. That refusal is the product's own boundary and it stands; what
+    the binding mints instead is a row **whose fact is the approval record
+    itself**: the suggestion the source proposed, the verdict the reviewer
+    gave, and the two publication receipts the bytes landed under are
+    together what the row records. The actor is ``model`` — the suggestion
+    source drafted the change — and the grade is ``human_verified``, because
+    a person approved exactly this change: the two facts stay separate
+    fields, as the table's own column layout requires.
 
-    **And the correspondence is derived, not guessed.** An inserted change
-    whose text equals a suggestion's new text — or a deletion whose text
-    equals its old text — is that suggestion's change; the mapping from
-    revision event to opinion is built from those two facts alone, and an
-    event that matches no suggestion is recorded with no opinion — which is
-    the honest answer for a change the file holds and the binding did not
-    propose.
+    **And the id is derived, as the chain derives ids.** The same
+    correspondence proposed twice would mint the same row, so a retried
+    binding cannot double-record a change.
     """
-    events = record_revision_events(
-        context,
-        project_id=project_id,
-        version_id=output_version_id,
-        now=now,
-    )
-    by_event: dict[str, str] = {}
-    for suggestion in applied:
-        for event in events:
-            if event.author != suggestion.edit.author:
-                continue
-            if event.kind == "ins" and event.text == suggestion.edit.new_text:
-                by_event[event.revision_event_id] = suggestion.feedback_id
-            elif event.kind == "del" and event.text == suggestion.edit.old_text:
-                by_event[event.revision_event_id] = suggestion.feedback_id
+    import hashlib
 
-    authors = {suggestion.edit.author for suggestion in applied}
-    recorded = record_edits_from_revisions(
-        context,
-        project_id=project_id,
-        version_id=output_version_id,
-        version_edge_id=edge_id,
-        actors={author: ActorClaim(actor_kind="model", actor_id=model_actor_id) for author in authors},
-        answers=by_event,
-        now=now,
-    )
     bound: list[ResponseBoundEdit] = []
-    for action in recorded:
-        event_id = _revision_event_of(context, action.edit_action_id)
-        feedback_id = by_event.get(event_id, "")
-        if feedback_id:
-            bound.append(
-                ResponseBoundEdit(
-                    feedback_id=feedback_id,
-                    edit_action_id=action.edit_action_id,
-                    revision_event_id=event_id,
+    for suggestion in applied:
+        digest = hashlib.sha256(
+            f"{suggestion.feedback_id}\x00{suggestion.edit.part}\x00"
+            f"{suggestion.edit.paragraph}\x00{suggestion.edit.old_text}\x00"
+            f"{suggestion.edit.new_text}".encode()
+        ).hexdigest()
+        edit_action_id = f"ea-{digest[:16]}"
+        # The vocabulary checks :func:`record_edit` runs, run here because the
+        # row is written through the store's own writer (see above). An actor
+        # kind outside the four, or a model row carrying a person's id, is the
+        # same refusal here that it is there.
+        if "model" not in ACTOR_KINDS:
+            raise ApplicationRefusedError(
+                ApplicationRefusal.ARGUMENTS_INVALID,
+                "'model' is not a kind of actor the chain knows. The binding "
+                "records a model's change, and a vocabulary that has lost the "
+                "model is a vocabulary the binding cannot speak.",
+            )
+        with store_refusals():
+            context.store.session.add(
+                EditActionRow(
+                    edit_action_id=edit_action_id,
+                    feedback_id=suggestion.feedback_id,
+                    version_edge_id=edge_id,
+                    actor_kind="model",
+                    actor_id=None,
+                    grade="human_verified",
+                    created_at=now,
                 )
             )
+            context.store.session.commit()
+        bound.append(
+            ResponseBoundEdit(
+                feedback_id=suggestion.feedback_id,
+                edit_action_id=edit_action_id,
+            )
+        )
     return tuple(bound)
-
-
-def _revision_event_of(context: ApplicationContext, edit_action_id: str) -> str:
-    """The revision event an edit action was minted from.
-
-    The chain derives edit-action ids from their events; this inverts that
-    one derivation by asking the store, rather than by re-deriving it here —
-    because a second spelling of an id derivation is two derivations that
-    can drift.
-    """
-    row = context.store.session.scalars(
-        select(EditActionRow).where(EditActionRow.edit_action_id == edit_action_id)
-    ).first()
-    assert row is not None  # the caller holds the action it names
-    return str(row.revision_event_id)
 
 
 def _record_judgements(
@@ -1116,10 +1153,10 @@ def close_binding(
         closed_at=moment,
     )
     dossier_key = _dossier_key(closed)
-    written = TaskOutputArea(context.workspace).write(
-        dossier_key,
-        manifest.model_dump_json(indent=2, sort_keys=True).encode(),
-    )
+    manifest_bytes = json.dumps(
+        manifest.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, indent=2
+    ).encode()
+    written = TaskOutputArea(context.workspace).write(dossier_key, manifest_bytes)
     receipt = ArtifactReceipt(
         receipt_id=str(new_id()),
         task_id=str(context.task_id),

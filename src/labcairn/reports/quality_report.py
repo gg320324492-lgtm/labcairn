@@ -28,9 +28,35 @@ LabCairn's own (ADR-0013's boundary).
 
 from __future__ import annotations
 
+import re
 from typing import Final
 
 from labcairn.reports.render.markdown import escape_markdown
+
+
+#: The characters an identifier the product minted may carry. A matched id is
+#: rendered **verbatim**, because an escaped id is an id a reader cannot copy
+#: back into a query — and ``escape_markdown`` escapes ``-``, which every id
+#: this build mints carries. The whitelist is what keeps the verbatim id from
+#: becoming structure: an id that matched could not carry a backslash, a
+#: bracket or a pipe, so it cannot open a span, a link or a table cell.
+_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]*\Z")
+
+
+def _id(value: str) -> str:
+    """One product-minted identifier, checked and then verbatim.
+
+    :raises ValueError: the value carries a character the whitelist does not
+        name — which would make it a text value, and text values are escaped,
+        never verbatim.
+    """
+    if not _ID_PATTERN.match(value):
+        raise ValueError(
+            f"{value!r} is not an identifier the product minted. Identifiers are "
+            "rendered verbatim so a reader can copy them, and a value outside the "
+            "whitelist is a text value: escape it, do not print it as an id."
+        )
+    return value
 
 __all__ = [
     "DELIVERY_SECTION",
@@ -64,18 +90,18 @@ def render_quality_report_markdown(manifest_json: str) -> bytes:
     # -- the file-delivery section ------------------------------------- #
     lines.append(f"## {DELIVERY_SECTION}")
     lines.append("")
-    lines.append(f"Task: `{escape_markdown(manifest.task_id)}`")
-    lines.append(f"Input version: `{escape_markdown(manifest.input_version_id)}`")
-    lines.append(f"Output version: `{escape_markdown(manifest.output_version_id)}`")
-    lines.append(f"Edge: `{escape_markdown(manifest.edge_id)}`")
+    lines.append(f"Task: `{_id(manifest.task_id)}`")
+    lines.append(f"Input version: `{_id(manifest.input_version_id)}`")
+    lines.append(f"Output version: `{_id(manifest.output_version_id)}`")
+    lines.append(f"Edge: `{_id(manifest.edge_id)}`")
     lines.append("")
     lines.append(
-        f"Marked draft: receipt `{escape_markdown(manifest.marked_receipt_id)}`, "
-        f"sha256 `{escape_markdown(manifest.marked_sha256)}`."
+        f"Marked draft: receipt `{_id(manifest.marked_receipt_id)}`, "
+        f"sha256 `{_id(manifest.marked_sha256)}`."
     )
     lines.append(
-        f"Clean draft: receipt `{escape_markdown(manifest.clean_receipt_id)}`, "
-        f"sha256 `{escape_markdown(manifest.clean_sha256)}`."
+        f"Clean draft: receipt `{_id(manifest.clean_receipt_id)}`, "
+        f"sha256 `{_id(manifest.clean_sha256)}`."
     )
     lines.append("")
     delivered = len(manifest.suggestions) - len(manifest.handovers)
@@ -89,9 +115,8 @@ def render_quality_report_markdown(manifest_json: str) -> bytes:
         lines.append("")
         for handover in manifest.handovers:
             lines.append(
-                f"- `{escape_markdown(handover.feedback_id)}` — "
-                f"{escape_markdown(handover.reason)}: {escape_markdown(handover.detail)} "
-                f"{escape_markdown(handover.handover)}"
+                f"- `{_id(handover.feedback_id)}` — {handover.reason}: "
+                f"{escape_markdown(handover.detail)} {escape_markdown(handover.handover)}"
             )
     else:
         lines.append("Handed to a person: none. The seam applied every approved edit.")
@@ -115,9 +140,8 @@ def render_quality_report_markdown(manifest_json: str) -> bytes:
         for decision in manifest.decisions:
             marker = " — needs evidence" if decision.needs_evidence else ""
             lines.append(
-                f"- `{escape_markdown(decision.feedback_id)}`: "
-                f"{escape_markdown(decision.verdict)}{marker}, "
-                f"by {escape_markdown(decision.operator)}"
+                f"- `{_id(decision.feedback_id)}`: "
+                f"{decision.verdict}{marker}, by {escape_markdown(decision.operator)}"
             )
     else:
         lines.append("The reviewer decided nothing in this binding.")
@@ -136,8 +160,7 @@ def render_quality_report_markdown(manifest_json: str) -> bytes:
     if manifest.unresolved:
         for task in manifest.unresolved:
             lines.append(
-                f"- `{escape_markdown(task.feedback_id)}` — "
-                f"{escape_markdown(task.reason)}: {escape_markdown(task.detail)}"
+                f"- `{_id(task.feedback_id)}` — {task.reason}: {escape_markdown(task.detail)}"
             )
     else:
         lines.append(

@@ -23,6 +23,7 @@ that says ``# Not a heading`` must not become one in the file.
 
 from __future__ import annotations
 
+import re
 from typing import Final
 
 from labcairn.reports.render.markdown import escape_markdown
@@ -31,6 +32,31 @@ __all__ = [
     "RESPONSE_TABLE_COLUMNS",
     "render_response_table_markdown",
 ]
+
+
+#: The characters an identifier the product minted may carry. A matched id is
+#: rendered **verbatim**, because an escaped id is an id a reader cannot copy
+#: back into a query — and ``escape_markdown`` escapes ``-``, which every id
+#: this build mints carries. The whitelist is what keeps the verbatim id from
+#: becoming structure: an id that matched could not carry a backslash, a
+#: bracket or a pipe, so it cannot open a span, a link or a table cell.
+_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/-]*\Z")
+
+
+def _id(value: str) -> str:
+    """One product-minted identifier, checked and then verbatim.
+
+    :raises ValueError: the value carries a character the whitelist does not
+        name — which would make it a text value, and text values are escaped,
+        never verbatim.
+    """
+    if not _ID_PATTERN.match(value):
+        raise ValueError(
+            f"{value!r} is not an identifier the product minted. Identifiers are "
+            "rendered verbatim so a reader can copy them, and a value outside the "
+            "whitelist is a text value: escape it, do not print it as an id."
+        )
+    return value
 
 
 #: The table's columns, in the order a reader meets them. The order is part
@@ -61,6 +87,7 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
     """
     from labcairn.papers.binding import (
         DecisionEntry,
+        DossierManifest,
         OpinionEntry,
         ResponseEntry,
         SuggestionEntry,
@@ -75,10 +102,10 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
     lines: list[str] = []
     lines.append("# Point-by-point response table")
     lines.append("")
-    lines.append(f"Input version: `{escape_markdown(manifest.input_version_id)}`")
-    lines.append(f"Output version: `{escape_markdown(manifest.output_version_id)}`")
-    lines.append(f"Marked draft receipt: `{escape_markdown(manifest.marked_receipt_id)}`")
-    lines.append(f"Clean draft receipt: `{escape_markdown(manifest.clean_receipt_id)}`")
+    lines.append(f"Input version: `{_id(manifest.input_version_id)}`")
+    lines.append(f"Output version: `{_id(manifest.output_version_id)}`")
+    lines.append(f"Marked draft receipt: `{_id(manifest.marked_receipt_id)}`")
+    lines.append(f"Clean draft receipt: `{_id(manifest.clean_receipt_id)}`")
     lines.append("")
     lines.append("| " + " | ".join(RESPONSE_TABLE_COLUMNS) + " |")
     lines.append("|" + "|".join("---" for _ in RESPONSE_TABLE_COLUMNS) + "|")
@@ -91,12 +118,12 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
             "| "
             + " | ".join(
                 (
-                    escape_markdown(opinion.feedback_id),
-                    escape_markdown(_location_cell(opinion)),
-                    escape_markdown(_suggestion_cell(suggestion)),
-                    escape_markdown(_verdict_cell(decision)),
-                    escape_markdown(_change_cell(response)),
-                    escape_markdown(_state_cell(response)),
+                    _id(opinion.feedback_id),
+                    _location_cell(opinion),
+                    _suggestion_cell(suggestion),
+                    _verdict_cell(decision),
+                    _change_cell(response),
+                    _state_cell(response),
                 )
             )
             + " |"
@@ -108,8 +135,8 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
     if manifest.unresolved:
         for task in manifest.unresolved:
             lines.append(
-                f"- `{escape_markdown(task.feedback_id)}` — "
-                f"{escape_markdown(task.reason)}: {escape_markdown(task.detail)}"
+                f"- `{_id(task.feedback_id)}` — {escape_markdown(task.reason)}: "
+                f"{escape_markdown(task.detail)}"
             )
     else:
         lines.append("None. Every supported opinion is resolved in this table.")
@@ -119,8 +146,8 @@ def render_response_table_markdown(manifest_json: str) -> bytes:
     if manifest.handovers:
         for handover in manifest.handovers:
             lines.append(
-                f"- `{escape_markdown(handover.feedback_id)}` — "
-                f"{escape_markdown(handover.reason)}: {escape_markdown(handover.handover)}"
+                f"- `{_id(handover.feedback_id)}` — {escape_markdown(handover.reason)}: "
+                f"{escape_markdown(handover.handover)}"
             )
     else:
         lines.append("None. The seam applied every approved edit.")
@@ -137,10 +164,14 @@ def _location_cell(opinion: OpinionEntry) -> str:
 
 
 def _suggestion_cell(suggestion: SuggestionEntry | None) -> str:
-    """What the Suggestion column says, when the source proposed one."""
+    """What the Suggestion column says, when the source proposed one.
+
+    The author string is retrieved text — escaped; the paragraph number is a
+    number, and cannot carry a span.
+    """
     if suggestion is None:
         return NOTHING_SUGGESTED
-    return f"paragraph {suggestion.paragraph}, by {suggestion.author}"
+    return f"paragraph {suggestion.paragraph}, by {escape_markdown(suggestion.author)}"
 
 
 def _verdict_cell(decision: DecisionEntry | None) -> str:
