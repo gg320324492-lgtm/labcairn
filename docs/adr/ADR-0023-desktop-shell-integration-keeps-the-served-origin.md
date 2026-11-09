@@ -239,13 +239,46 @@ adopts none of them as a dependency.
 - **The measured stall is the largest risk, and it is not the shell's.** Against
   the real built workbench, the token-bearing `POST /task/select` answered 200 in
   **1 of 20** attempts (nineteen 8 s timeouts); against a minimal page **20 of
-  20** (4–12 ms); from a non-browser client **5 of 5** (0.02–0.06 s). The built
-  bundle names `/events/stream`, and `routes.py:790-814` documents that a stream
-  still in a transaction holds SQLite's **write** lock. Measured: the correlation.
-  Not measured: that the stream is the cause. **Whichever shell is chosen, a
-  desktop window is the first client that keeps a stream open continuously, and
-  the write path as it stands does not answer it.** A shell built on top of this
-  without closing that gap would look like the shell's defect and be the store's.
+  20** (4–12 ms); from a non-browser client **5 of 5** (0.02–0.06 s). A decisive
+  control settled the correlation: a minimal page that opens `/events/stream` on
+  purpose answers **0 of 10** mutations in each of two runs, while the same page
+  without the stream answers **10 of 10** in each of two; and a plain HTTP client
+  with no browser and no shell answers 6/6 before a stream, 0/6 during it, and
+  **0/6 even after its side of the stream is closed**. So the failure is
+  **service-side**, not a property of Electron, Chromium or the workbench bundle.
+  `LC-P3-01`'s row 1 and `test_workbench_serve_helper.py:386` already record the
+  adjacent defect (`UnwiredEventSource` refusing after the stream's headers are
+  sent); this window's runs reproduce its `RuntimeError: Caught handled
+  exception, but response already started.` in the service's own output.
+
+  Two follow-up measurements corrected the narrow description "write path" and
+  "long-lived": after an unwired stream raises, `GET /health`, `/tasks`,
+  `/session` and `/papers` all time out too while the process stays alive; and a
+  single short `GET /events/stream?follow=false` is enough — a dose-response on
+  eight independent services shows **one** short stream stops the service. A
+  no-stream control answers 6/6 before and 6/6 after 40 s idle with zero
+  tracebacks, and 20 concurrent reads answer in 47 ms before any stream but all
+  time out after eight short ones. `routes.py:790-814` documents that a stream
+  still in a transaction holds SQLite's **write** lock, but a direct witness
+  asked an independent connection to the same database for `BEGIN IMMEDIATE`
+  before and after the stream raised: it succeeded in 0 ms both times. **The
+  write lock is not the cause**, and sync-worker exhaustion is disfavoured (one
+  stream versus a measured 40-token AnyIO limiter). After one short stream, a
+  raw TCP connection still succeeds in 16 ms while `/health`, `/docs` and
+  `/openapi.json` all time out — the last two touch neither the guards nor the
+  store — so the failure sits in the ASGI application. Its second traceback
+  passes through `starlette/middleware/base.py:149→:208`
+  (`BaseHTTPMiddleware`, installed at `app.py:389`); the first is the streaming
+  response's collapsing task group raising `RuntimeError: Caught handled
+  exception, but response already started.` **No causal claim is made, the
+  mechanism is not identified, and no product code was changed.**
+
+  **Whichever shell is chosen, a desktop shell that opens the workbench's event
+  stream stops the service answering anything.** A shell built on top of this
+  without closing that gap would look like the shell's defect and be the
+  service's. The trigger and scope are measured; the mechanism and fix are
+  named-open and belong to `src/labcairn/api/`, not to this ADR — and should be
+  raised before implementation, since the failure is independent of the shell.
 - **Token reachability in a Node-reachable process.** Measured on Electron's main
   process: `GET /session` returns the token to a client carrying no origin. That
   is the service behaving as designed (the CLI needs to point a person at the
@@ -300,10 +333,13 @@ needs a witness that fails when the property is broken:
    never through the main process, and a native API surface cannot read it.
    Electron's own guidance names the failure mode (exposing raw `ipcRenderer`,
    and validating the sender's **origin** rather than its URL).
-4. **The write path answers while a stream is open.** The §"Risks" stall, turned
-   into a witness: a stream held open, a token-bearing mutation, an answer.
-   Until it exists, the stall stays a named-open row (O6) and no claim about
-   desktop responsiveness is made.
+4. **The service keeps answering requests after the workbench opens its event
+   stream.** The §"Risks" failure, turned into a witness owned by
+   `src/labcairn/api/`: one short stream, then a token-bearing mutation **and** a
+   read (including a guard-free endpoint), all answered. Until it exists, the
+   failure stays named-open (O6) and no claim about desktop responsiveness is
+   made. This witness is a prerequisite to shell implementation, not a shell
+   witness: §11g/§11h show the failure without any shell at all.
 5. **Install, launch, upgrade drill, uninstall and rollback preserving user
    data** on a clean Windows environment, with the evidence naming commit,
    package hash, OS and host versions (§3.6 row 3, execution plan §4's

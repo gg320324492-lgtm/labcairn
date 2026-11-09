@@ -311,7 +311,7 @@ One correction to a guess recorded here: the first probe used
 such port** — its CLI's built-in dev server defaults to **1430** and its Vite
 guide uses 5173. 1420 is kept in the tables only as the disproof of the guess.
 
-## 9. The measured finding this stage did not expect: the token-bearing mutation stalls
+## 9. The measured finding this stage did not expect: one event stream stops the whole service
 
 Repeated against the real built workbench, the mutation that carries the token is
 **not reliably answered**:
@@ -332,21 +332,97 @@ go before the next poll"*. `LC-P3-01`'s record row 1 is the adjacent fact: on th
 service the CLI starts, the event source is **`UnwiredEventSource`** — the stream
 is open, and it has nothing to send.
 
-**What is claimed and what is not.** Measured: with a stream-less page the write
-answers every time; with the real page it almost never does; from a non-browser
-client it answers every time. **Not measured:** that the stream *is* the cause. A
-decisive control — a minimal page that deliberately opens `/events/stream` before
-issuing the ten mutations — was in flight while this record was written; its
-result is recorded in the operator-side record's §11a, and the row stays
-named-open here as O6 until that result is read and this section is amended.
+**What is claimed and what is settled.** Measured: with a stream-less page the
+write answers every time; with the real page it almost never does; from a
+non-browser client it answers every time. The decisive control then landed
+(operator-side record §11a): a **minimal** page with no application bundle that
+opens `/events/stream` on purpose reproduces the stall — **0 / 10** mutations
+answered in each of two runs, all hitting the 8 s timeout — while the same page
+without the stream answers **10 / 10** in each of two runs. And a **plain-HTTP
+client**, with no browser and no shell at all, reproduces it in three phases
+(§11b): 6/6 before the stream, 0/6 with one long-lived stream held open, and
+**0/6 even after the client closes its side of that stream**.
+
+So the stall is **not an Electron property, not a Chromium property and not a
+property of the workbench bundle**. It is a service-side failure that an event
+stream triggers. `LC-P3-01`'s record row 1 and its witness
+`test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`
+(`tests/test_workbench_serve_helper.py:386`) already name the adjacent defect:
+the CLI starts the service with `UnwiredEventSource`, and `GET /events/stream`
+raises its `not_implemented` refusal **after** the `200` and
+`text/event-stream` headers have been sent, so the client sees a stream that
+opens and ends empty while the service logs
+`RuntimeError: Caught handled exception, but response already started.` This
+window's runs reproduce that exact traceback in the service's own output.
+
+**Two corrections the follow-up measurements forced on this record.** It first
+called this a *write-path* failure caused by a *long-lived* stream. Both words
+were too narrow:
+
+1. **It is not only writes.** The 40-second control and the read/write split
+   (§11c) show that after an unwired stream raises, `GET /health`, `GET /tasks`,
+   `GET /session` and `GET /papers` all time out too, while the service process
+   stays alive (`process alive: True`). A service that never opens a stream
+   answers 6/6 writes before and 6/6 after 40 s idle, with zero tracebacks, so
+   elapsed time and repeated writes are ruled out. Before any stream, 20
+   concurrent `GET /health` all answer in 47 ms; after eight short streams, 20
+   concurrent reads all time out (§11d).
+2. **It is not only long-lived streams.** A single
+   `GET /events/stream?follow=false` — the short form that returns on its first
+   page and never enters the `time.sleep` poll loop — is enough to stop all
+   subsequent reads and writes (§11e). So "a desktop window keeps a stream open
+   continuously" is not the trigger; a stream route raising after its headers
+   were sent is.
+
+**The mechanism is still not measured, and the obvious candidates were tested and
+refuted.** `routes.py:790-814` documents that a stream still in a transaction
+holds SQLite's write lock, and `frames()` calls `session.rollback()` only after
+`source.page()` returns — which an `UnwiredEventSource` never does — with
+`finally: session.close()`. But a direct witness (§11f) asked an **independent
+connection to the same database** for `BEGIN IMMEDIATE` before and after the
+unwired stream raised: it succeeded in 0 ms both times, on both the control and
+the experiment service. The write lock is **not** being held. Sync-worker
+exhaustion is also disfavoured: a dose-response on eight independent services
+(§11g) shows **one** short stream is enough to stop the service, while this
+environment's AnyIO default limiter is 40 tokens (`anyio 4.15.1`, measured from
+inside an event loop).
+
+**Where the failure sits is measured.** After one short stream (§11h): a raw TCP
+connection still succeeds in 16 ms and the process is alive, but `GET /health`,
+`GET /docs` and `GET /openapi.json` all time out — the last two touch neither the
+product's guards nor its store. So uvicorn is accepting connections and the ASGI
+application has stopped serving requests. The service's second traceback passes
+through `starlette/middleware/base.py:149` → `:208 raise app_exc`
+(`BaseHTTPMiddleware`); the service installs one at `app.py:389`
+(`@app.middleware("http")`, `_guards`, which calls `call_next`), and the first
+traceback is the streaming response's collapsing task group raising
+`RuntimeError: Caught handled exception, but response already started.` after
+`UnwiredEventSource.page` (`events.py:87-94`) refused. Those two facts sit next
+to each other in the log; **no causal claim is made here**, and no product code
+was changed to test them.
+
+**One honesty note about which tree was measured.** The console script is the
+project venv's installed launcher, whose editable-install `.pth` points at the
+**main checkout** (`E:\LabCairn\src` — the traceback paths say so), not at this
+worktree. Checked: `git diff main..HEAD -- src/` is empty and `routes.py`,
+`events.py`, `app.py` and `guards.py` have identical SHA-256 in both trees, so
+the failure was measured on exactly the code this record cites (§11i).
+
+**Bottom line for this stage:** the trigger is measured (an unwired event stream),
+the scope is measured (the whole ASGI application stops answering), and the
+mechanism is named-open. O6 is therefore "what the stream route leaves the ASGI
+application waiting for, and what fixes it", and it belongs to whoever owns
+`src/labcairn/api/` — not to the shell selection.
 
 **Why this belongs in a *selection* record.** It is the concrete answer to "what
-does a shell do to the local API session boundary": a desktop shell is the first
-client that keeps the workbench open continuously, and the write path as it
-stands does not answer that client. Whichever candidate the owner picks, the
-implementation stage inherits this as a measured precondition, and the witness
-that settles it belongs to the implementation, not to a probe that happens to
-pass.
+does a shell do to the local API session boundary": the workbench's first act in
+a desktop window is to open its event stream, and on the service the CLI starts
+today that one act stops the service answering anything. Whichever candidate the
+owner picks, the implementation stage inherits this as a measured precondition —
+and §11g/§11h show the failure is independent of the shell, so it is a
+prerequisite to raise before implementation, not a cost any candidate adds. The
+witness that settles it belongs with `src/labcairn/api/`, not to a probe that
+happens to pass.
 
 ## 10. Named-open rows — what is not settled here, and what would settle it
 
@@ -360,7 +436,7 @@ that produced it, or one of these:
 | O3 | **How a Python runtime ships inside a Tauri or Electron product.** Not attempted; a shell wrapping a frozen service, a bundled interpreter, or a sidecar are three different arrangements and none was measured. | A measured trial in the implementation stage, once the shell is chosen. |
 | O4 | **CI gate cost for a shell candidate.** No workflow today carries a Rust, Node-build, Electron or PyInstaller step; the shard cost table is runner-measured by rule and a local timing is not a runner cost (§3 rule 3). | The batch's runner run. A new test file would also need its three registrations, reported by this window to the commander rather than written here: none was added, because this stage adds no test file. |
 | O5 | **What it takes to make a frozen build of *this* product start** — the `PYDANTIC_DISABLE_PLUGINS=1` flag, a build-time hook, or a dependency graph that does not install the `logfire` extra. | A freeze against the *installed* product's graph (not a scratch venv) plus one run with each option. |
-| O6 | **Whether the event stream is the cause of §9's stall**, or something else the bundle does. | The §11a control (a minimal page that opens the stream on purpose), and then a witness in the implementation stage that measures the write path with a stream held open. |
+| O6 | **What the unwired stream route leaves the ASGI application waiting for, and what fixes it.** §11a–§11h settle the trigger (one event stream, even a short `follow=false` one), the scope (all HTTP requests stop while TCP and the process stay alive, §11g one-stream dose, §11h guard-free endpoints), and rule out elapsed time (§11c) and the SQLite write lock (§11f). The mechanism is not identified; no product code was changed. | A witness that measures the service's request capacity across an unwired stream, plus a fix witnessed to restore it. **This is a service-side defect, not a shell-selection question**, and belongs with whoever owns `src/labcairn/api/` — and it should be raised before implementation, because §11h shows the failure is independent of which shell is chosen. |
 | O7 | **Signing.** Recorded as deferred behind `W28` (`LC-P3-00` §6); this stage records status, produces no signature. Tauri documents installer hooks, Electron documents a signing step in its distribution flow, PyInstaller documents **no** Windows signing. | The owner's decision at `W28`'s own trigger. |
 | O8 | **`file://` and `app://` pages against the service in a *shipped* configuration** (the probes here were single-page scratch windows with `sandbox: true`, `contextIsolation: true`). | The implementation stage's own boundary witnesses, per §0 rule 5. |
 
@@ -463,8 +539,10 @@ beyond the two-process mechanics; no PyInstaller Windows signing.
 1. §11's integration shape, as a constraint to witness rather than a suggestion.
 2. §7.3's token-reachability finding: preload/IPC tightening has a specific
    subject — keep the token out of the main process.
-3. §9's stall and O6: the write path measured against a client that keeps a
-   stream open. This is the first thing to reproduce, whichever shell is chosen.
+3. §9's failure and O6: one unwired event stream stops the whole ASGI
+   application answering (§11g one-stream dose, §11h guard-free endpoints).
+   This is the first thing to raise with `src/labcairn/api/`, independently of
+   whichever shell is chosen; the mechanism and fix are named-open.
 4. §10's named-open list, unchanged, as the implementation stage's opening
    inventory.
 5. The board row stays where it is. It moves with the owner's dispatch.
