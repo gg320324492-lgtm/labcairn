@@ -8,6 +8,7 @@ Anchors, printed live while this record was written:
 | base commit (what everything was measured against) | `9f1f94b31fb858d3db96885825c5f9908253b94f` |
 | `main` at the time of writing | `4855ea66d71ea8363aa578e7ca6b00e03efde7de` |
 | fix commit | `102904819eee29fd37c574ab9a48f7ef9cb54d40` |
+| branch head the measurements and the ledger run were taken at | `9122bb510a66fc0a72df992824582e07317f2d8c` |
 | starlette / anyio / fastapi / uvicorn / Python | 1.8.0 / 4.15.1 / 0.151.0 / 0.54.0 / 3.12.13 (MSC v.1944, AMD64) |
 | platform | Windows 11 Pro, one machine, one run per measurement unless a row says otherwise |
 
@@ -17,8 +18,10 @@ operator-side record `E:\labcairn-local\phase3-g3-evidence\LC-P3-05\2026-11-10-e
 §11a–§11i. That record deliberately **did not name a mechanism** — it refuted two
 candidates and left the row open. This record names the mechanism, fixes it, and
 witnesses it. Where this record's measurements sharpen or correct the selection
-record's numbers, it says so here rather than editing that record's text; the one
-change made there is the cross-reference in `docs/THREAT-MODEL.md` §6.2.
+record's numbers, it says so here rather than editing that record's text. The two
+changes made in other records are the correction in `docs/THREAT-MODEL.md` §6.2 and
+the cross-reference added to §10's O6 row here — which adds to that row and leaves
+its §11 measurements as they were written.
 
 ## 1. What the defect was, in one line
 
@@ -317,9 +320,10 @@ shape, the O6 mechanism, the closed half, and the still-unwired half. The witnes
 that reads that section checks the §6.2 heading and the presence of
 `/events/stream`, both of which still hold.
 
-**The witness ledger, run against the two commits.** `scripts/witness_ledger.py
-9f1f94b31fb858d3db96885825c5f9908253b94f e2b1a2faa4ea0f971cab661a6392da7faead7523`
-reported **3,511 test functions before and 3,512 after**, and named every delta:
+**The witness ledger, run against the base and the branch head.**
+`scripts/witness_ledger.py 9f1f94b31fb858d3db96885825c5f9908253b94f
+9122bb510a66fc0a72df992824582e07317f2d8c` reported **3,511 test functions before and
+3,512 after**, and named every delta:
 
 ```
 LOST -- 1 test function(s) that existed before and do not now:
@@ -392,6 +396,9 @@ agreement §5 describes. Nothing else that existed before is missing.
 - `tests/test_workbench_serve_helper.py`, `tests/test_workbench_real_browser.py` —
   the two gap rows, re-measured into the new shape.
 - `docs/THREAT-MODEL.md` §6.2 — the sentence the fix made false, corrected.
+- `docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md` §10's O6 row — a
+  cross-reference **added** to the row; the row's own text and §11's measurements are
+  unchanged.
 - this record.
 
 `src/labcairn/application/`, `src/labcairn/editing/`, `web/` product code and
