@@ -220,6 +220,60 @@ read from the process and never from a pipe:
 | `tests/test_workbench_serve_helper.py` | **11 passed, 2 skipped** in 57.12 s |
 | ruff check / ruff format --check / mypy --strict | clean over `src/labcairn/api/` and the changed test files |
 
+**The whole suite, once, on this machine.** `pytest -q` with
+`--basetemp=E:\labcairn-local\tmp\bt-full-o6`, at head
+`9f0edf2c9a1a89ca651f04f86a894c4b9bc6e37e`:
+
+```
+5 failed, 5068 passed, 26 skipped, 1161 warnings in 1925.62s (0:32:05)
+```
+
+The 26 skips are the browser rows and the provider-gated rows (`web/dist` is not built
+here; no credential is named). **The 5 failures are not in the files this change
+touched** — the diff from `9f1f94b` names eight files, none of them
+`tests/test_no_reference_leakage.py` or `tests/test_outsider_path.py`. They were
+attributed rather than assumed, and the attribution has two parts.
+
+**One failure is this window's own measurement arrangement.** The wheel's clean-room
+row failed on its own guard:
+
+```
+AssertionError: labcairn resolved to …, outside the clean venv at ….
+The editable install of the working tree shadowed the wheel, so this assertion proved nothing.
+```
+
+The cause is mine: this window ran the suite with `PYTHONPATH=<worktree>/src` (the rule
+for measuring a worktree rather than the editable install), and that test builds the
+child's environment with `{**os.environ, "PYTHONIOENCODING": "utf-8"}`, so the path
+leaked in and the import resolved to this checkout instead of the wheel. Re-running the
+file **without** `PYTHONPATH` changes what fails: the shadowing assertion no longer
+trips, and the row errors earlier, at the build.
+
+**The other failures are this machine's network, measured and reproduced at the base
+commit.** `uv` cannot reach PyPI here:
+
+```
+curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed   (status 000)
+uv: Failed to fetch: `https://pypi.org/simple/hatchling/` … tls handshake eof
+```
+
+so `uv build` (the reference-leakage probe's build) and the outsider walk's `uv sync`
+both fail at the same place, in **both** trees. The control run at the base commit — a
+detached worktree at `9f1f94b31fb858d3db96885825c5f9908253b94f`, no `PYTHONPATH` —
+reports the same failure set:
+
+| file | head `9f0edf2`, no PYTHONPATH | base `9f1f94b`, no PYTHONPATH |
+|---|---|---|
+| `tests/test_no_reference_leakage.py` | 102 passed, **8 errors** | 102 passed, **8 errors** |
+| `tests/test_outsider_path.py` | **6 failed**, 11 passed | **6 failed**, 11 passed |
+
+The walk's clone steps are `[ok]` in both (clone made, outside the repository, clean
+tree, same commit); it stops at *"the README's `uv sync` succeeded"*. **The set is
+compared, not the count**: the failure set at head equals the failure set at the base,
+and both are pinned to a network condition this machine currently has. That is what
+licenses saying these five are not this change's. §6 names the network as an open
+condition rather than claiming a green suite here.
+
 **The existing LC-P3-01 witness, and what its honesty now consists of.**
 `test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts`
 recorded a gap by asserting it: the stream **must** answer 200 with an empty body,
@@ -293,7 +347,25 @@ agreement §5 describes. Nothing else that existed before is missing.
    with `pnpm install --frozen-lockfile && pnpm build` in `web/` and a playwright
    driver re-measures them. Until then the panel half of this finding is
    source-derived, not observed.
-3. **The harness rule is a rule, not a guard.** A caller that puts the service's
+3. **This machine cannot reach PyPI, and two test files depend on it.** Measured:
+   `curl` to `https://pypi.org/simple/hatchling/` fails at the TLS handshake (status
+   000), and `uv` reports the same failure at `tls handshake eof`. That is why
+   `tests/test_no_reference_leakage.py` (8 errors, at the build of its probe project)
+   and `tests/test_outsider_path.py` (6 failed, at the walk's `uv sync`) fail here in
+   **both** the head tree and the base tree — and why the clean-Windows and
+   installed-wheel claims those two files witness are **not currently re-measurable on
+   this machine at all**. A run with network, or a warm `uv` cache, re-measures them;
+   nothing in this record claims they pass.
+4. **One deviation in this window's own measuring, recorded.** The whole-suite run
+   (§5) was started at `4afb82969bcc0a69dadce5cc823a57499655a6d4`, and the tree was
+   committed twice while it ran — `e2b1a2faa4ea0f971cab661a6392da7faead7523` and
+   `9f0edf2c9a1a89ca651f04f86a894c4b9bc6e37e`, both touching only `docs/acceptance/`,
+   which no test reads. The project's rule is *do not change the tree while a
+   measurement runs*, and that rule was broken here. The §5 suite numbers belong to the
+   tree as it stood when the run started, with a documentation-only change landing
+   underneath them; the re-runs that decide the failure set (§5's table) were run
+   afterwards with the tree clean at `9f0edf2`, and the attribution rests on those.
+5. **The harness rule is a rule, not a guard.** A caller that puts the service's
    output in a pipe it never reads can still park *any* service that writes
    anything — the product's structured logging is not the only writer (uvicorn's
    own error path is another). What the fix removes is the service's **traceback
@@ -301,7 +373,7 @@ agreement §5 describes. Nothing else that existed before is missing.
    handed an undrainable sink is still a service that can be blocked by its own
    logging. `src/labcairn/api/` does not own how a host captures its output, and
    no guard here pretends otherwise.
-4. **The capacity numbers belong to this machine and to the versions in the anchor
+6. **The capacity numbers belong to this machine and to the versions in the anchor
    table.** 4,096 bytes is this machine's anonymous-pipe capacity; Linux's default
    is an order of magnitude larger, which is why the witness measures the capacity
    it works against (and requests a bounded pipe where the platform takes the
