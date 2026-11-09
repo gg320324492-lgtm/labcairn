@@ -386,36 +386,43 @@ def test_the_development_server_s_origins_are_answered_to_by_default(
 def test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_starts(
     served: ServedWorkbench,
 ) -> None:
-    """Measured gap, with its evidence address: the refusal never reaches the reader.
+    """The stream the page reads is still unwired — and now says so to the reader.
 
     ``labcairn serve`` builds the service without an event source — the command's own
-    docstring says the stream belongs to the packages that own it — and the route's
-    answer is a refusal raised *inside* the response generator. The JSON read
-    (``GET /events``) carries the refusal honestly. The stream (``GET /events/stream``)
-    has already sent its ``200`` and ``text/event-stream`` headers by then, so what a
-    client gets is a stream that opens and ends with nothing in it, and what the
-    service logs is a traceback.
+    docstring says the stream belongs to the packages that own it — so the honest
+    answer is a refusal, and it is one this test measures rather than carries: both
+    reads answer ``403`` with ``not_implemented``.
 
-    **Why this is a test and not a note.** The Events panel is one of the reads §4.6
-    row 9 asks the page to make against the real service. If the panel were to show a
-    live stream on a service that has no source, that would be a screen claiming
-    something the service does not have; and a refusal that the client cannot see is a
-    refusal nobody acts on. The wiring belongs to `src/labcairn/api/`, which is not
-    this window's file area (§4.5), so the finding is recorded here and carried to the
-    owner rather than fixed here.
+    **What this test used to record, and what closed it.** Until 2026-11-10 the stream
+    route raised the same refusal *inside* its response generator, by which point the
+    ``200`` and ``text/event-stream`` headers had been sent: the client saw a stream
+    that opened and ended with nothing in it, the service logged a traceback, and the
+    Events panel said *"the event stream is live"*. That traceback was measured at
+    6,205 bytes for one short stream against an 8,192-byte pipe capacity, and a service
+    whose output is a pipe nobody drains parks in the write and answers nothing after
+    that — the defect named O6. The route now refuses an unwired source before it
+    starts a response (`src/labcairn/api/routes.py`, `get_event_stream`), so the
+    refusal is a response, and the record is
+    `docs/acceptance/o6-event-stream-stall-2026-11-10.md`.
+
+    **Why it is still a test and not a note.** The stream is *not wired*: a service
+    that answered this read with a live stream would be claiming an event source it
+    does not have. What the read is for is that the refusal reaches the reader in the
+    same two fields the JSON read carries — a refusal the client cannot see is a
+    refusal nobody acts on.
     """
     page_read = served.get("/events", timeout=20.0)
     assert page_read.status == 403, page_read.body[:200]
     assert page_read.json()["reason"] == "not_implemented", page_read.body[:200]
 
+    # The gap is closed: the refusal reaches the reader, in the same two
+    # fields the JSON read carries. It used to open a 200 stream that then
+    # died with nothing in it and left the service to log a traceback — the
+    # traceback that, measured, was the fuel of the O6 stall (see
+    # docs/acceptance/o6-event-stream-stall-2026-11-10.md).
     stream = served.get("/events/stream?follow=false", timeout=20.0)
-    assert stream.status == 200, (
-        "the stream was expected to open with its own headers already sent — that is "
-        f"the gap this test records; it answered {stream.status} instead: {stream.body[:200]}"
+    assert stream.status == 403, (
+        "the stream no longer carries its refusal as a response: it answered "
+        f"{stream.status} with {stream.body[:200]!r}"
     )
-    assert "text/event-stream" in stream.headers.get("content-type", "")
-    assert stream.body == "", (
-        "the stream carried a body, so the gap this test records is no longer the "
-        f"service's behaviour and this test needs re-measuring: {stream.body[:200]!r}"
-    )
-    assert "not_implemented" not in stream.body
+    assert stream.json()["reason"] == "not_implemented", stream.body[:200]

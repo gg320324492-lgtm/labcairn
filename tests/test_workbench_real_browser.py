@@ -301,9 +301,12 @@ def test_the_page_makes_every_read_the_workbench_declares(workbench: WorkbenchRu
             (path, statuses.get(path)) for path in ANSWERED_READS if statuses.get(path) != 200
         ]
         assert not unanswered, f"the service did not answer these reads: {unanswered}"
-        assert statuses["/events/stream"] == 200, (
-            "the stream read no longer opens with its own headers, so the gap recorded "
-            "by test_workbench_serve_helper.py has changed shape and needs re-measuring"
+        assert statuses["/events/stream"] == 403, (
+            "the stream read no longer answers its refusal as a response. A 200 here "
+            "means the route started a response before deciding it had nothing to read "
+            "from — the shape O6 was measured in (docs/acceptance/"
+            "o6-event-stream-stall-2026-11-10.md). Any other status means this read has "
+            f"changed shape and needs re-measuring: {statuses['/events/stream']}"
         )
     finally:
         page.close()
@@ -614,30 +617,31 @@ def test_an_approval_answered_from_the_page_is_recorded_and_a_second_answer_is_r
 # --------------------------------------------------------------------------- #
 
 
-def test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none(
+def test_the_events_panel_says_the_stream_was_refused_on_a_service_that_has_none(
     workbench: WorkbenchRun,
 ) -> None:
-    """The gap this run found, asserted as measured: the screen and the service disagree.
+    """The screen and the service now agree: the panel reports the refusal.
 
-    Measured on 2026-11-08, on this machine, in this arrangement: the page's stream read
-    resolves with ``200 text/event-stream`` and carries nothing, because the service
-    ``labcairn serve`` builds was given no event source and the stream route raises its
-    refusal *after* its own headers are sent; and the Events panel, whose states are
-    ``connecting``, ``live``, ``reconnecting`` and ``disconnected``, reports
-    **"the event stream is live"** on that service. The panel is not wrong about what it
-    saw — it saw a stream that opened. The service is wrong about what it offered: a
-    reader is told the log of the work is being delivered when there is nothing to
-    deliver it from.
+    What this row used to measure (2026-11-08) was a disagreement. The page's stream
+    read resolved with ``200 text/event-stream`` and carried nothing — the service
+    ``labcairn serve`` builds was given no event source, and the route raised its
+    refusal *after* its own headers were sent — while the Events panel, whose states
+    are ``connecting``, ``live``, ``reconnecting`` and ``disconnected``, reported
+    **"the event stream is live"**. The panel was honest about the stream it had seen
+    and wrong about the service, because there was nothing to deliver the log from.
 
-    **This test is a gap witness, and it is meant to go red.** It asserts the
-    contradiction — the panel's ``live`` *and* the service's own
-    ``not_implemented`` refusal on ``GET /events`` — so it fails the moment either side
-    changes: when the stream is wired, the panel's sentence is no longer the whole
-    truth, and when the refusal reaches the client, the panel stops saying ``live``.
-    Either way the row is re-measured rather than carried forward. The wiring belongs to
-    `src/labcairn/api/events.py` (`UnwiredEventSource`) and `src/labcairn/cli/commands.py`
-    (`serve`, which passes no source), and neither is in this window's file area (§4.5):
-    the finding is reported, not fixed here.
+    **What is asserted now, and why it is the same row.** The refusal reaches the
+    reader: the page's read answers ``403`` with the refusal body, the client turns a
+    non-``ok`` stream response into an ``ApiRefusal``, and the panel draws an
+    interrupted or disconnected line rather than a live one. The disagreement is gone,
+    so the witness asserts its replacement — and it keeps asserting the service's
+    half, the ``not_implemented`` on ``GET /events``, because **the stream is still
+    unwired**: a panel that reported ``live`` on this service would be reporting an
+    event source the service does not have, which is the same lie in new clothes.
+
+    Closing the disagreement does not wire the stream. ``labcairn serve`` still passes
+    no event source (`src/labcairn/cli/commands.py`), and that remains the owner's
+    call.
     """
     page, _requested, answered = _load(workbench)
     try:
@@ -646,13 +650,22 @@ def test_the_events_panel_reports_the_stream_live_on_a_service_that_has_none(
         status = panel.locator("p.panel__status, p.panel__error")
         assert status.count() >= 1, "the Events panel drew no status line"
         text = status.first.inner_text()
-        assert _answers(answered)["/events/stream"] == 200, (
-            "the page's stream read no longer opens with 200, so the disagreement this "
-            "test records has changed shape"
+
+        assert _answers(answered)["/events/stream"] == 403, (
+            "the page's stream read no longer carries its refusal as a response, so the "
+            "disagreement this row records has changed shape: "
+            f"{_answers(answered)['/events/stream']}"
         )
-        assert "is live" in text.lower(), (
-            f"the Events panel no longer reports the stream live ({text!r}); the gap "
-            "recorded here has changed and needs re-measuring with the panel's new state"
+        assert "is live" not in text.lower(), (
+            f"the Events panel reports the stream live on a service that has no event "
+            f"source ({text!r}); the service refused the read, so the reader is being "
+            "told the log of the work is being delivered when nothing can deliver it"
+        )
+        assert "interrupted" in text.lower() or "disconnected" in text.lower(), (
+            f"the Events panel neither reports the stream interrupted nor disconnected "
+            f"({text!r}); on a service whose stream read is refused, one of those two is "
+            "the only honest sentence, and the row needs re-measuring against whatever "
+            "the panel says instead"
         )
 
         refused = workbench.served.get("/events?follow=false")
