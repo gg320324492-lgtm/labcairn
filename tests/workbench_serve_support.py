@@ -526,19 +526,16 @@ def _windows_group_stop_signal() -> signal.Signals:
 
 
 def _windows_process_group_flags() -> int:
-    """The creation flags that put the service in its own process group.
+    """The Windows creation flags, or zero on a platform without them.
 
     See :func:`_this_platform_is_windows` for why the Windows-only read
     lives in a helper behind a call. ``CREATE_NEW_PROCESS_GROUP`` exists on
-    Windows only; on any other platform the attribute is absent from
-    :mod:`subprocess`, so this helper is reached only behind the platform
-    guard in the one caller.
+    Windows only; the original spawn expression passed zero elsewhere, and
+    the helper keeps that runtime answer while every platform's checker
+    still sees the same reachable body.
     """
-    if not hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
-        raise AssertionError(
-            "the Windows process-group flags were requested on a platform whose "
-            "subprocess module does not define them"
-        )
+    if not _this_platform_is_windows():
+        return 0
     flags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined,unused-ignore]
     return flags
 
