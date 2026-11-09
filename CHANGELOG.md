@@ -52,6 +52,19 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   The browser-gap row it replaced was re-measured, not deleted: the old
   witness asserted a contradiction that the fix removes, and the new one
   keeps the service-side half of the old assertion.
+- **`LC-P3-04` — the binding loop lands** (merge `2dce121`).
+  `src/labcairn/papers/binding.py` carries the loop's five rings — opinion →
+  locate → suggest → apply → dossier — with the model's suggestion and the
+  human's judgement held as separate records and the unresolved-opinion
+  state an explicit three-way task; `reports/response_table.py` and
+  `quality_report.py` render it inside ADR-0013's boundary, and the
+  workbench gains a per-item review panel (`web/src/views/ReviewView.tsx`)
+  consuming the existing artifacts/content endpoints. 17 Python witnesses
+  (12 integration, 5 negative) and 5 web witnesses; 6 counter-mutations
+  caught. The acceptance record is
+  [`LC-P3-04-binding-loop-2026-11-10.md`](docs/acceptance/LC-P3-04-binding-loop-2026-11-10.md).
+  The real-model half of `LC-P3-06` is what this unlocks; the shard costs
+  of the day's four new test files wait on the batch runner run.
 - The selection stage's O6 row was cross-referenced to the fix record, and
   `docs/THREAT-MODEL.md` gained the stall's own entry.
 
