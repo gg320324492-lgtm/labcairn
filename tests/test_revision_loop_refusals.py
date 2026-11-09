@@ -309,9 +309,9 @@ def test_a_write_to_the_original_through_the_read_only_door_is_refused(
     refuses and the hash holds; remove the guard's check and both assertions
     turn red.
     """
-    from labcairn.workspace.readonly import SourceIsReadOnlyError, SourceMaterial
-
     import hashlib
+
+    from labcairn.workspace.readonly import SourceIsReadOnlyError, SourceMaterial
 
     material = SourceMaterial(fixture.context.workspace, fixture.context.policy)
     before = hashlib.sha256(fixture.original_path.read_bytes()).hexdigest()
