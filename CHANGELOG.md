@@ -29,6 +29,23 @@ The links are the records.
   `BLOCKED` on the provider's seven fields; every ticket whose §14 decision is
   unanswered stays `NOT STARTED`. The trailing sections renumbered to §15–§17.
 - `PHASE_3-work-orders.md` §3 rule 3a names the ADR's shape as a standing rule.
+- **The §14 owner decisions were answered the same day** (items 1–7, through
+  the session's decision dialogs; answers recorded in place under each item):
+  G2 runs `LC-P3-03` → `LC-P3-04` sequentially; the `LC-P3-05` selection
+  stage may start; all seven provider fields are answered and tabled as the
+  authorisation record at §11's §4.9 (MiniMax endpoint and model, 20-request
+  / 50 000-token budget, per-excerpt digest-bound outbound scope,
+  `credential_file` on the trial machine, the scheduled-smoke GitHub secret
+  uncreated this phase, synthetic samples first, compound operator-watched
+  stop-loss, dev build before the installed build); ADR-0021's provisional
+  adoption suffices for `LC-P3-04`; `LC-P3-03`'s temporary-mechanism
+  disposition leaves the ADR's text alone; `LC-P3-08` runs with the
+  "One real model" row held open. The real advisor sample stays a named gap:
+  the owner named batch A of the uploaded micro-nano-bubble corpus as the
+  initial advisor material, and the whole corpus (111 `.docx` files) was
+  fingerprinted into an operator-side registry outside the repository —
+  structure-only, no prose in the tree, §5.9's label unchanged until the
+  single sample file is picked.
 
 ### Since the gates closed
 

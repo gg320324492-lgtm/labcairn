@@ -12,7 +12,7 @@ it, and never because something looks finished.
 | `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md); the §4.9 human dual-host reopen checklist, the real advisor sample (§5.9) and the runner-measured shard costs (§3 rule 3) remain open | The dated run record and its witnesses, measured locally on the synthetic substitute set; no host result, no real-sample loop and no PASS is claimed, and the shard-balance witness is expected red until the batch runner run. |
 | `LC-P3-03`, `LC-P3-04` | Phase 3 G2 | `NOT STARTED` — no work order written | Execution plan §3; `03` follows `01` and `02`. |
 | `LC-P3-05` | Phase 3 G3 | `NOT STARTED` — no work order written | Execution plan §3; scoped as written per `LC-P3-00` §6. |
-| `LC-P3-06` | Phase 3 G3 | **`BLOCKED`** | `LC-P3-00` §4 and §2 item 5 below: the seven provider fields are unnamed. |
+| `LC-P3-06` | Phase 3 G3 | **`BLOCKED`** — seven provider fields answered 2026-11-09 (§14 item 3, tabled at §11's §4.9); the substitute-first half may start, the real call still waits on `LC-P3-04` and the sample | `LC-P3-00` §4; the authorisation record now exists at §11's §4.9, and the real-model row stays gated by §4.8's right column. |
 | `LC-P3-07`, `LC-P3-08` | Phase 3 G4 | `NOT STARTED` — no work order written | Execution plan §3. |
 
 Source questions **Q77** and **Q82** stay open at their own triggers
@@ -380,6 +380,18 @@ Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
 
+**The corpus is identified; the sample is not yet picked.** On 2026-11-09 the
+owner confirmed the uploaded micro-nano-bubble reference batches as this
+direction's corpus and named batch A (the two MSc papers whose
+advisor-annotated versions carry the advisor's comments and tracked
+revisions) as the initial advisor-material batch. All four batches were
+fingerprinted the same day into an operator-side registry **outside the
+repository** (111 `.docx` files: sha256, byte size, comment/revision/media
+counts; structure-only, no prose extracted, no file enters the tree — the
+no-material policy and its CJK ceiling hold). Which single file becomes
+§5.9's real sample, and when, stay open (§14 item 4's open half); until that
+pick the named-gap label above stands unchanged.
+
 **5.10 The empty row, and who watches it.** A record may leave a cell empty
 because the evidence for it has not been taken. That is honest only while a
 witness watches the row: a test that fails if the row disappears, if the empty
@@ -396,7 +408,8 @@ exact label §5.9 names, and the same witness reads that label.
 Issued 2026-11-09 on the owner's ratification of the drafting round
 (`P302-NEXT-WORK-ORDERS-DRAFT-2026-11-09.md`, drafted by an independent agent
 session against main `571e4346…`). The drafts' scope is the execution plan's
-own; §14's owner decisions remain open until answered, and a ticket whose
+own; §14's owner decisions were answered by the owner on 2026-11-09 (items
+1–7; each answer is recorded in place under its item), and a ticket whose
 decision is unanswered stays `NOT STARTED`/`BLOCKED` exactly as §1 states.
 Board rows move when a window is dispatched, not by this issuance.
 
@@ -443,7 +456,8 @@ mocked filesystems — to refuse the four named refusal classes.
 
 It does not own `src/labcairn/papers/` (04's), `src/labcairn/providers/`
 (06's), `web/` beyond whatever import surface the G2 dispatch split assigns
-at the owner's word (§7 item 1), or the registration files (§0 rule 3).
+at the owner's word (§14 item 1 — answered 2026-11-09: no split, 03 and 04
+run sequentially), or the registration files (§0 rule 3).
 
 **1.5 Dependencies — named, one-directional.**
 
@@ -456,7 +470,10 @@ at the owner's word (§7 item 1), or the registration files (§0 rule 3).
   mechanism is either replaced by the product mechanism or absorbed into it,
   and 03's record states which happened. Whether that disposition may also
   touch ADR-0021's text, or waits for that ADR's final adoption (which §5.9
-  binds to the real-sample run), is **a proposal for the owner** (§7 item 6).
+  binds to the real-sample run), is **a proposal for the owner** (§14 item 6).
+  **Answered 2026-11-09 (§14 item 6): the disposition does not touch
+  ADR-0021's text** — 03's own record states what happened to the temporary
+  mechanism; the ADR's wording is settled at its final adoption.
 - **Not on `LC-P3-04`** — the arrow runs the other way: 04's approved
   application is a write, and writes require the transaction and receipt this
   ticket delivers. Execution plan §3's sequence (`03 → 04`) is the order
@@ -530,7 +547,7 @@ outcome names for G2 — *"G2 reproduces the offline revision loop."*
 - Not a claim that ADR-0021 is adopted. The record stays `proposed` with
   adoption provisional until the real-sample run it must cite exists (G1
   §5.9). Whether building 04 on the *provisional* adoption is acceptable is
-  **a proposal for the owner** (§7 item 5).
+  **a proposal for the owner** (§14 item 5).
 
 **2.4 Areas the window would own.**
 
@@ -543,7 +560,7 @@ outcome names for G2 — *"G2 reproduces the offline revision loop."*
 
 It does not own `src/labcairn/application/`'s receipt/transaction modules
 (03's) — it *wires onto* what 03 delivered, per the dispatch split the owner
-names (§7 item 1). It does not own `src/labcairn/providers/`, the installer,
+names (§14 item 1). It does not own `src/labcairn/providers/`, the installer,
 or the registration files.
 
 **2.5 Dependencies — named, one-directional.**
@@ -553,7 +570,10 @@ or the registration files.
   (`03 → 04`), kept as written.
 - **On ADR-0021 and the support matrix, as inputs.** The edit seam and its
   refusal semantics exist; 04 builds on the *provisional* adoption pending
-  the owner's answer (§7 item 5).
+  the owner's answer (§14 item 5).
+  **Answered 2026-11-09 (§14 item 5): provisional is sufficient** — 04 builds
+  on the provisional adoption; the ADR's record stays `proposed`, and final
+  adoption still cites the real-sample run when it exists.
 - **On `LC-P3-01`'s browser baseline, as an input.** The workbench surfaces
   04 wires have their real-browser evidence; 04 extends them, it does not
   re-measure them.
@@ -710,7 +730,7 @@ measurement stage is where that is decided.
 
 ---
 
-## 11. `LC-P3-06` — one-model bounded validation (Phase 3 G3) — `BLOCKED`
+## 11. `LC-P3-06` — one-model bounded validation (Phase 3 G3) — `BLOCKED` (seven fields answered 2026-11-09; the real half now waits on `LC-P3-04`, and the substitute-first half may start)
 
 **4.1 Purpose.** Execution plan §3: *"One real model exercises the proposal
 path within an owner-authorised scope. Records model, sample fingerprint,
@@ -762,13 +782,21 @@ the tree), the credential store, or any other ticket's modules.
   fields 3–7 (outbound scope, ceiling, credential holder, sample class,
   stop-loss) are the authorisation that configuration runs under (the
   questions package's own framing, quoted for structure only).
+  **Answered 2026-11-09 (§14 item 3; the answers are tabled at §4.9).** The
+  seven fields are named; what remains on this arrow is the substitute-first
+  half starting (§4.8's left column) and the real call waiting for its
+  sample-class preconditions, not for an answer.
 - **On `LC-P3-04`.** What the real model exercises is the proposal path 04
   wires; a validation of a path that does not exist validates nothing.
 - **On the authorised machine.** The questions package records that no
   record names the machine for credentials yet (`LC-P3-00` §5 names the trial
   machine for the §4 acceptance rows; the credential machine is Q5's unknown).
+  **Answered 2026-11-09 (§4.9, Q5 row): the trial machine**, credentials held
+  by the owner via `credential_file`, the file outside the repository.
 - **On the de-identified, owner-authorised domain sample** — the second of
   the execution plan's three sample classes. Its supply is owner material.
+  **Answered 2026-11-09 (§4.9, Q6 row): synthetic samples first**; the real
+  advisor sample stays a named gap and is not promised.
 
 **4.6 Deliverables.**
 
@@ -791,7 +819,10 @@ unavailability have explicit degraded paths. This result belongs to Phase 3
 and does not rewrite Phase 2's `real_model_smoke = NOT RUN`."* Note the row's
 own precondition — *the installed build* — which makes `LC-P3-05`'s output the
 run's vehicle; whether 06 waits for 05 or runs earlier on the dev build is
-**a proposal for the owner** (§7 item 3's second half).
+**a proposal for the owner** (§14 item 3's second half).
+**Answered 2026-11-09 (§14 item 3): 06 runs on the dev build**, before
+`LC-P3-05`'s installed build exists; the record says so, and the migration
+to the installed build is 05's acceptance business, not 06's rerun.
 
 **4.8 Substitute-first / real-material split** — this ticket is the one whose
 split is structural:
@@ -807,6 +838,19 @@ split is structural:
 the authorised machine; whether the GitHub secret for the scheduled smoke is
 wanted this phase (Q5's deferrable part — the questions package notes it can
 be deferred indefinitely without blocking). All owner.
+
+**Answered 2026-11-09 (§14 item 3) — the seven fields are now the ticket's
+authorisation record**, and §11's heading drops its `BLOCKED` for the
+substitute-first half (the real call stays gated on §4.8's right column):
+
+| Field | The owner's answer (2026-11-09) |
+|---|---|
+| Q1+Q2 — supplier endpoint and model | The owner's own MiniMax endpoint, `anthropic` protocol, model `MiniMax-M3.1-Flash` — the route whose capability record (2026-10-28) is the only measured one; no new probe spend. |
+| Q3 — outbound scope | Per-excerpt digest binding (the pilot's 2026-10-31 shape): each excerpt leaves only under its own digest-bound approval; `ExchangeRecord` carries digests and counts, never text. Real manuscript material stays off the outbound ladder. |
+| Q4 — budget ceiling | 20 requests / 50 000 tokens per bounded run; the preflight refuses without the number, and stops at it. |
+| Q5 — credential holder | The owner, on the trial machine, via `credential_file` — the file lives outside the repository (`E:\labcairn-local\secrets\` is the standing location); `providers.json` names the path, never the secret. Sub-decision: the scheduled `provider-smoke` GitHub secret stays **uncreated** this phase; the channel stays fail-closed. |
+| Q6 — sample class | Synthetic samples first (the G1 sequencing decision stands); the real advisor sample is not promised and stays a named gap until supplied. |
+| Q7 — stop-loss | Compound trigger watched by the operator per case: three consecutive failed requests, or a per-case proposal refusal rate above 50%, stops the run (the LC-P2-18 runbook's operator-side pattern). |
 
 ---
 
@@ -935,9 +979,12 @@ rule, quoted for the record).
 - **On `LC-P3-06`.** The §4 table's "One real model" row is one of the gate
   rows; if `LC-P3-06` is still `BLOCKED` when the trial is ready, how the
   trial proceeds — with that row held open as a named gap, or after 06
-  unlocks — is **a proposal for the owner** (§7 item 7). This draft does not
+  unlocks — is **a proposal for the owner** (§14 item 7). This draft does not
   decide it, and does not let the row pass on a substitute: `LC-P3-00` §3
   forbids exactly that.
+  **Answered 2026-11-09 (§14 item 7): the trial runs with the row held
+  open** — the "One real model" row carries its named gap, the remaining
+  rows run, and the trial does not wait on the provider.
 - **On `LC-P3-07`.** The operator manual, backup/rollback and known limits
   are the handover products the trial participant operates from.
 - **On owner material:** the real advisor sample (the same named gap G1 §5.9
@@ -980,7 +1027,9 @@ exercised once, bounded, under separate owner authorisation.
 ## 14. The owner decisions these drafts surface
 
 Numbered so the owner can answer by number. Items already recorded as blocked
-are restated for completeness, not re-decided.
+are restated for completeness, not re-decided. **Items 1–7 were answered by
+the owner on 2026-11-09** (through the session's decision dialogs); each item
+below carries its answer in place, with the question's original wording kept.
 
 1. **G2 dispatch shape.** `LC-P3-03` and `LC-P3-04` both write into
    `src/labcairn/application/` (03 adds the receipt/transaction integration;
@@ -991,11 +1040,17 @@ are restated for completeness, not re-decided.
    drafts recommend the sequence as written and propose no reordering** — the
    recommendation is stated once here so the owner can overrule it, not to
    decide it.
+   **Answered 2026-11-09: sequential 03 → 04**, as the drafts recommended. No
+   parallel sub-area split; a window for 04 is dispatched only after 03's
+   work has landed.
 2. **`LC-P3-05` shell and dependencies.** The selection stage can start with
    no new material; the shell choice (Electron/Tauri/PyInstaller or none) and
    the resulting desktop dependency approvals are owner decisions made on the
    selection record's measurements (§0 rule 4's process, which the window
    follows).
+   **Answered 2026-11-09: the selection stage may start now**; the shell
+   choice itself stays open until the selection record's measurements exist,
+   exactly as the item's own process states.
 3. **`LC-P3-06`: the seven fields, now due.** G1's batch has landed; the
    2026-11-08 deferral ("decided after G1") has run its course. The seven
    questions (Q1–Q7) are ready in the questions package. Sub-decisions: the
@@ -1003,24 +1058,59 @@ are restated for completeness, not re-decided.
    secret is wanted this phase (Q5's deferrable part). Also for the owner:
    whether 06 runs on the dev build before `LC-P3-05` or waits for the
    installed build (§4.7).
+   **Answered 2026-11-09 — all seven fields and the three sub-decisions**;
+   the answers are recorded as the authorisation fields in §11.4 below. In
+   short: the owner's MiniMax endpoint (`MiniMax-M3.1-Flash`, `anthropic`
+   protocol, the one measured capability record); a budget of 20 requests /
+   50 000 tokens; the scheduled `provider-smoke` GitHub secret stays
+   uncreated this phase (the channel stays fail-closed); credentials held on
+   the trial machine via `credential_file` (the file lives outside the
+   repository, per ADR-0018 C14/D2); synthetic samples first, the real
+   advisor sample staying a named gap; outbound scope bound per-excerpt by
+   digest (the pilot's shape); a compound stop-loss (three consecutive failed
+   requests, or a per-case proposal refusal rate above 50%) watched by the
+   operator; and 06 runs on the dev build before `LC-P3-05` lands.
 4. **The real advisor sample's supply date.** One supply serves three open
    items: `LC-P3-02` §5.9's real-sample half, ADR-0021's final adoption
    (which must cite the real-sample run), and `LC-P3-08`'s trial. A date
    unblocks all three in order; its absence keeps all three honestly held
    open as named gaps.
+   **Answered 2026-11-09, in two parts.** (a) The material is identified:
+   the owner confirmed the uploaded micro-nano-bubble reference batches as
+   this direction's corpus and named batch A (the two MSc papers whose
+   advisor-annotated versions carry the advisor's comments and tracked
+   revisions) as the initial advisor-material batch. All four batches were
+   fingerprinted the same day into an operator-side registry outside the
+   repository (111 `.docx` files: sha256, byte size, comment/revision/media
+   counts; no prose extracted, no file enters the tree — the no-material
+   policy holds). (b) The supply date is still open: which single file
+   becomes §5.9's real sample, and when, are not yet fixed, so the three
+   items this supply serves (§5.9's real-sample half, ADR-0021's final
+   adoption, `LC-P3-08`'s trial) stay honestly held open as named gaps.
 5. **ADR-0021's provisional adoption as `LC-P3-04`'s foundation.** Whether 04
    may build on the provisional adoption (record `proposed`) or waits for
    real-sample evidence. The drafts' dependency tables assume provisional is
    sufficient for the *substitute* loop and flag the assumption for the owner
    to confirm or refuse.
+   **Answered 2026-11-09: provisional is sufficient.** `LC-P3-04` builds on
+   the provisional adoption; ADR-0021's record stays `proposed`, and its
+   final adoption still waits for the real-sample run it must cite.
 6. **ADR-0021's `temporary` independent-copy mechanism.** At `LC-P3-03`'s
    landing the temporary mechanism is replaced or absorbed; whether the
    disposition may edit ADR-0021's text or waits for final adoption is the
    owner's call (§1.5).
+   **Answered 2026-11-09: the disposition does not touch ADR-0021's text.**
+   `LC-P3-03`'s own record states what happened to the temporary mechanism
+   (replaced or absorbed, and where it went); the ADR's wording is settled
+   at its final adoption.
 7. **`LC-P3-08` under an unlocked-or-not provider.** If the trial is ready
    while `LC-P3-06` is still `BLOCKED`: hold the "One real model" row open as
    a named gap and run the rest, or wait. The drafts state the row cannot
    pass on a substitute either way (`LC-P3-00` §3).
+   **Answered 2026-11-09: run the trial with the row held open.** If
+   `LC-P3-06` is still `BLOCKED` when the trial is ready, the "One real
+   model" row carries its named gap and the remaining rows run; the trial
+   does not wait on the provider.
 8. **The §4.9 human dual-host reopen checklist (G1 leftover, owner
    personally).** Not a decision about these drafts, but it is the open item
    the G1 records name first, its inputs (`LC-P3-02`'s substitute-run
@@ -1108,13 +1198,13 @@ do not edit these; both sequence against them.
 
 | Gap | Waiting on | Where it is stated |
 |---|---|---|
-| The real advisor sample and its full loop | The owner supplying the sample (§2 item 3) | §5.9 |
-| `LC-P3-06` — one bounded real-model validation | Provider, model, permitted outbound scope, call and cost ceiling, credential holder, sample class, stop-loss (§2 item 5) | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
+| The real advisor sample and its full loop | The owner picking which corpus file becomes the sample, and supplying it (§14 item 4's open half: batch A is named, the file and date are not) | §5.9, §14 item 4 |
+| `LC-P3-06`'s real-model row | `LC-P3-04`'s proposal path (the thing the real model exercises) and the de-identified domain sample; the seven authorisation fields themselves are answered (§14 item 3, tabled at §11's §4.9) | §1, §11, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
 | A Windows browser pass a runner has run | A runner run, which the owner starts | §3 rule 6, execution plan §6 last row |
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
 | Version switching in the workbench | A version-selection surface and a browser witness; named gap, not claimed | §4.8 |
-| Work orders for `LC-P3-03` … `LC-P3-08` | The owner decisions §14 lists; a ticket whose decision is unanswered stays `NOT STARTED`/`BLOCKED` | §8–§14, §17 |
+| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8); the operation page and CSV inputs exist outside the repository | §5.8, §14 item 8 |
 
 ---
