@@ -27,15 +27,30 @@ log that says nothing. So the burst is a separate process, and the test
 asserts on what that process reports: its exit status, and whether any
 response was wrong. A segfault then arrives as a non-zero exit and a signal
 number — a *finding* — rather than as a dead test runner.
+
+**The file's second property is about what one request did to every other
+one.** `test_one_unwired_event_stream_leaves_the_service_able_to_answer`
+watches the service's *request capacity across an unwired event stream* — the
+defect the LC-P3-05 selection window measured and named O6, where one short
+``GET /events/stream`` was followed by no answer to anything, ``/openapi.json``
+included. It runs the service in a subprocess for the same reason the burst
+does, and for one more: the stall is a blocked write to the process's own
+stdout, and a pytest process whose stdout is a pipe nobody reads is exposed to
+exactly that.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -100,6 +115,39 @@ BURST_PATHS: tuple[str, ...] = (
 #: once": it is "**no** request is ever wrong", so the assertion is over
 #: every response of every round, not over a sample.
 BURST_ROUNDS: int = 40
+
+#: The reads the O6 probe makes on either side of an unwired stream.
+#:
+#: ``/openapi.json`` is in the list on purpose: it is FastAPI's own endpoint,
+#: behind neither the product's guards nor its store. When the stall was live,
+#: it timed out too — which is what says the failure is the application not
+#: serving at all, and not one route being slow.
+O6_READS: tuple[str, ...] = ("/health", "/openapi.json", "/session", "/tasks")
+
+#: How many unwired short streams the O6 probe opens.
+#:
+#: Measured on this machine: the service writes about 944 bytes at start-up,
+#: nothing for an ordinary read, and **6,205 bytes for one unwired stream**
+#: (two tracebacks). The anonymous-pipe capacity is **8,192 bytes**. One stream
+#: fits, with 2,043 bytes to spare; two do not. So this is the smallest dose
+#: that is certain to fill the pipe on the unfixed code, rather than a dose
+#: that depends on what else happened to be in the pipe.
+O6_DOSE: int = 2
+
+#: The ceiling on what the service may write into its own output across the
+#: O6 probe — half the measured pipe capacity.
+#:
+#: The unfixed service blew through it (about 13 kilobytes for this dose); the
+#: fixed one writes only what a refusal that *is a response* costs, which is
+#: nothing: no traceback, no exception, nothing to drain.
+O6_LOG_BUDGET: int = 4096
+
+#: How long one ordinary read may take before the probe calls it unanswered.
+#:
+#: The stall's own signature: every read of every path ended at the client's
+#: timeout, 8 seconds, while the process stayed alive and the port still
+#: accepted a connection.
+O6_REQUEST_TIMEOUT: float = 8.0
 
 #: How many rounds of one write beside seven reads the write test makes.
 WRITE_ROUNDS: int = 10
@@ -693,9 +741,245 @@ def _approvals_asked(env: StoreEnv, context: ApplicationContext) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# the burst, as a program
+# O6: one unwired event stream used to stop the whole service
+# --------------------------------------------------------------------------- #
+
+
+def _free_loopback_port() -> int:
+    """Ask the kernel for a port, the way every other socket here does."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def _o6_arrangement(root: Path, *, drained: bool) -> dict[str, object]:
+    """One service, one unwired stream, and the reads on both sides of it.
+
+    **Why a subprocess at all.** The stall is a blocked write to the *process's
+    own stdout*, and a pytest process whose stdout is a pipe nobody reads is
+    exposed to it exactly as the service is. A probe that parked the pytest
+    process would take the run down instead of reporting what it saw, so the
+    service runs in a child of this file and reports through a file.
+
+    The service is built the way the product builds it — ``create_app`` over a
+    real store in a real workspace, and no event source — and it is served by a
+    real uvicorn on a real loopback port. It is not the console script: that
+    script is a compiled launcher whose editable-install ``.pth`` can point at
+    another checkout's ``src``, so a measurement taken through it can be a
+    measurement of somebody else's code. A child of this file imports this
+    checkout, which is what the change landed in.
+
+    ``drained`` says whether anything reads the service's output while it runs.
+    That is the whole difference between the two arrangements, and it is the
+    difference between the arrangement that stalls and the one that does not:
+    ``tests/workbench_serve_helper.py`` writes the service's log to a *file*
+    for exactly this reason, and the selection window's probes used a pipe
+    nobody read.
+
+    The output is redirected with ``dup2`` onto a real anonymous pipe rather
+    than onto a file object, because the thing being probed is a *pipe's
+    capacity* — 8,192 bytes on this machine, measured — and a file has no
+    capacity to fill.
+    """
+    import uvicorn
+
+    pipe_read, pipe_write = os.pipe()
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    os.dup2(pipe_write, 1)
+    os.dup2(pipe_write, 2)
+
+    captured: list[bytes] = []
+
+    def drain() -> None:
+        while True:
+            try:
+                chunk = os.read(pipe_read, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            captured.append(chunk)
+
+    drain_thread: threading.Thread | None = None
+    if drained:
+        drain_thread = threading.Thread(target=drain, daemon=True)
+        drain_thread.start()
+
+    try:
+        with _service(root) as (app, _task_id):
+            port = _free_loopback_port()
+            server = uvicorn.Server(
+                uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+            )
+            loop_thread = threading.Thread(target=server.run, daemon=True)
+            loop_thread.start()
+            base = f"http://127.0.0.1:{port}"
+
+            def ask(path: str, timeout: float = O6_REQUEST_TIMEOUT) -> dict[str, object]:
+                started = time.monotonic()
+                try:
+                    with urllib.request.urlopen(base + path, timeout=timeout) as reply:
+                        reply.read()
+                        status: object = reply.status
+                except (urllib.error.URLError, OSError) as exc:
+                    status = f"no answer: {type(exc).__name__}"
+                return {
+                    "path": path,
+                    "status": status,
+                    "ms": round((time.monotonic() - started) * 1000),
+                }
+
+            for _ in range(200):
+                if ask("/health", timeout=2.0)["status"] == 200:
+                    break
+                time.sleep(0.1)
+
+            before = [ask(path) for path in O6_READS]
+            streams = [ask("/events/stream?follow=false", timeout=30.0) for _ in range(O6_DOSE)]
+            after = [ask(path) for path in O6_READS]
+            answered = sum(1 for r in after if r["status"] == 200)
+
+            # The rescue the mechanism was measured with. If nothing has been
+            # reading this output, start reading it now: a loop parked in a
+            # write to a full pipe is stopped by nothing else, and a probe that
+            # leaves it parked ends by hanging rather than by reporting. On the
+            # fixed service this changes nothing — there is nothing parked.
+            if drain_thread is None:
+                drain_thread = threading.Thread(target=drain, daemon=True)
+                drain_thread.start()
+
+            server.should_exit = True
+            loop_thread.join(timeout=60)
+    finally:
+        # Put the process's own output back before anything else, so a failure
+        # after here can still be reported. Then close the pipe's write end and
+        # let a drain thread finish collecting what it read.
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+        os.close(pipe_write)
+        if drain_thread is not None:
+            drain_thread.join(timeout=20)
+        os.close(pipe_read)
+
+    return {
+        "before": before,
+        "streams": streams,
+        "after": after,
+        "answered_after": f"{answered} / {len(after)}",
+        "service_output_bytes": sum(len(chunk) for chunk in captured),
+    }
+
+
+def _o6_main(workspace: Path) -> int:
+    """Run both arrangements and write what each one saw.
+
+    The report is written after *each* arrangement: on the unfixed service the
+    second one ends with the application parked in a write, and a report that
+    is only written at the end is a report a red run never gets to read.
+    """
+    report = workspace / "o6-report.json"
+    phases: dict[str, object] = {}
+
+    def publish() -> None:
+        report.write_text(json.dumps(phases), encoding="utf-8")
+
+    phases["drained"] = _o6_arrangement(workspace / "drained", drained=True)
+    publish()
+    phases["undrained"] = _o6_arrangement(workspace / "undrained", drained=False)
+    publish()
+    return 0
+
+
+def test_one_unwired_event_stream_leaves_the_service_able_to_answer(tmp_path: Path) -> None:
+    """O6, witnessed: the service still answers everything across an unwired stream.
+
+    **The defect, as it was measured** (`docs/acceptance/`'s O6 record; the
+    selection window's §9 and §11): on a service with no event source, one
+    ``GET /events/stream`` — even the short ``follow=false`` form — was followed
+    by **nothing**. Every later request timed out at the client's 8 seconds,
+    ``/health`` and ``/openapi.json`` included, while the process stayed alive
+    and the port still accepted a connection.
+
+    **What the measurement says the mechanism was.** The refusal was raised
+    *after* the ``200`` and ``text/event-stream`` headers had gone out, so it
+    could not become a response; what the service wrote instead was a traceback
+    — **6,205 bytes for one short stream, measured** against a pipe capacity of
+    **8,192 bytes, measured** — into whatever the caller had attached to its
+    output. A caller that captures that output in a pipe it does not read has a
+    pipe that fills, and a writer parked in a full pipe is an event loop that
+    has stopped serving every request in the process. That is why the dose here
+    is two streams: start-up writes ~944 bytes and one stream's 6,205 fit, two
+    do not.
+
+    **What the test asserts is the property, not the mechanism:** after streams
+    it was never going to answer, the service answers every ordinary read. Both
+    arrangements are run — the service's output drained, and its output in a
+    pipe nobody reads — because the second is the arrangement the defect was
+    measured in, and a witness that only runs in the safe one witnesses nothing.
+    The drained arm is the control that says the probe itself is sound, and its
+    byte count is the mechanism-level assertion: a refusal that reaches the
+    client *as a response* costs the service nothing to write, so a number over
+    the budget means the service is producing a traceback again.
+    """
+    workspace = tmp_path / "o6"
+    workspace.mkdir()
+
+    environment = dict(os.environ)
+    environment["PYTHONIOENCODING"] = "utf-8"
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), "--o6", str(workspace)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        timeout=900,
+    )
+    died = _how_it_died(result.returncode)
+    report = workspace / "o6-report.json"
+    seen = report.read_text(encoding="utf-8") if report.is_file() else "<no report>"
+    assert result.returncode == 0, (
+        f"the O6 probe did not survive: exit {result.returncode}"
+        + (f", {died}" if died else "")
+        + f"\n--- what it got to ---\n{seen}\n--- stdout ---\n{result.stdout}\n"
+        f"--- stderr ---\n{result.stderr}"
+    )
+    assert report.is_file(), (
+        "the O6 probe survived and reported nothing, which means the probe is "
+        f"not measuring the thing it is named for: {report}"
+    )
+
+    phases = json.loads(report.read_text(encoding="utf-8"))
+    for label in ("drained", "undrained"):
+        assert label in phases, f"the probe never ran the {label} arrangement: {phases}"
+        phase = phases[label]
+        assert isinstance(phase, dict), phase
+        expected = f"{len(O6_READS)} / {len(O6_READS)}"
+        assert phase["answered_after"] == expected, (
+            f"the service stopped answering ordinary reads after {O6_DOSE} unwired "
+            f"stream(s) in the {label} arrangement — this is O6, back: "
+            f"{json.dumps(phase['after'])}"
+        )
+
+    drained_phase = phases["drained"]
+    assert isinstance(drained_phase["service_output_bytes"], int)
+    assert drained_phase["service_output_bytes"] < O6_LOG_BUDGET, (
+        f"the service wrote {drained_phase['service_output_bytes']} bytes into its own "
+        f"output across the probe, over the {O6_LOG_BUDGET}-byte budget that is half the "
+        "measured pipe capacity. That is the stall's fuel: the number is what the "
+        "service costs itself to refuse an unwired stream, and an unwired refusal "
+        "answered as a response costs it nothing."
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the burst and the O6 probe, as programs
 # --------------------------------------------------------------------------- #
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--o6":
+        raise SystemExit(_o6_main(Path(sys.argv[2])))
     raise SystemExit(_burst_main(Path(sys.argv[1])))

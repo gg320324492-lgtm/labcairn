@@ -408,14 +408,14 @@ def test_the_event_stream_the_page_reads_is_unwired_in_the_service_the_cli_start
     assert page_read.status == 403, page_read.body[:200]
     assert page_read.json()["reason"] == "not_implemented", page_read.body[:200]
 
+    # The gap is closed: the refusal reaches the reader, in the same two
+    # fields the JSON read carries. It used to open a 200 stream that then
+    # died with nothing in it and left the service to log a traceback — the
+    # traceback that, measured, was the fuel of the O6 stall (see
+    # docs/acceptance/o6-event-stream-stall-2026-11-10.md).
     stream = served.get("/events/stream?follow=false", timeout=20.0)
-    assert stream.status == 200, (
-        "the stream was expected to open with its own headers already sent — that is "
-        f"the gap this test records; it answered {stream.status} instead: {stream.body[:200]}"
+    assert stream.status == 403, (
+        "the stream no longer carries its refusal as a response: it answered "
+        f"{stream.status} with {stream.body[:200]!r}"
     )
-    assert "text/event-stream" in stream.headers.get("content-type", "")
-    assert stream.body == "", (
-        "the stream carried a body, so the gap this test records is no longer the "
-        f"service's behaviour and this test needs re-measuring: {stream.body[:200]!r}"
-    )
-    assert "not_implemented" not in stream.body
+    assert stream.json()["reason"] == "not_implemented", stream.body[:200]

@@ -58,7 +58,7 @@ from labcairn.api.contracts import (
     TaskSelectBody,
     Trajectory,
 )
-from labcairn.api.events import EventSource, sse_frame
+from labcairn.api.events import EventSource, UnwiredEventSource, sse_frame, unwired_refusal
 from labcairn.api.guards import OriginPolicy
 from labcairn.api.selection import TaskSelector
 from labcairn.api.session import SessionToken
@@ -783,8 +783,29 @@ def get_event_stream(
     reading until the client goes away. The frames are the same page the JSON
     endpoint returns, serialised by the same model, so a client that
     reconnects reads the same cursor either way.
+
+    **An unwired stream is refused here, before any response starts.** The
+    refusal is the same 403 and the same two fields ``GET /events`` answers
+    with, and it is raised while the request still has an answer it can be
+    given. It used to be raised inside ``frames()``, which runs after the
+    ``200`` and ``text/event-stream`` headers have been sent: at that point a
+    refusal cannot become a response, and what the service wrote instead was a
+    traceback — 6,205 bytes for one short stream, measured — into whatever the
+    caller had attached to the service's output. A caller that captures that
+    output in a pipe it does not read has a pipe with a capacity (8,192 bytes
+    on Windows, measured), and a writer that blocks on a full pipe is an
+    event loop that stops serving: the service answered nothing after one such
+    stream, and answered everything again once someone started reading. That
+    is O6, and it is recorded in
+    ``docs/acceptance/o6-event-stream-stall-2026-11-10.md``. Refusing at the
+    entry is what removes the service's half of it; the other half — do not
+    hand the service a sink nobody drains — is the harness's rule, and
+    ``tests/workbench_serve_support.py`` already keeps it by writing the
+    service's log to a file.
     """
     source = _event_source(request)
+    if isinstance(source, UnwiredEventSource):
+        raise unwired_refusal()
 
     def frames() -> Iterator[str]:
         """The stream's own session, for the life of the stream.

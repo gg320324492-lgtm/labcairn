@@ -73,6 +73,35 @@ class EventSource(Protocol):
         ...
 
 
+#: The one sentence the unwired refusal says, wherever it is raised.
+#:
+#: It lives here rather than in the two places that raise it because the
+#: refusal is the service's answer, and an answer spelled twice can drift
+#: into two answers.
+UNWIRED_REFUSAL_MESSAGE = (
+    "the event stream was not given a source to read from. The service "
+    "answers the request for an event page with this refusal rather than "
+    "an empty page, because an empty page would say the task has no events "
+    "and a task that has events and a stream that cannot see them is a "
+    "service lying about the state of the work. The source belongs to the "
+    "application layer, which owns every other read of the task's rows."
+)
+
+
+def unwired_refusal() -> ApplicationRefusedError:
+    """The refusal, as the layer spells it.
+
+    Both sites that refuse an unwired stream raise this one object: the
+    source, when it is asked to read, and the stream route, when it looks at
+    its source **before** any response has started. The order is the whole
+    point: a refusal raised after the ``200`` and ``text/event-stream``
+    headers have gone out cannot become a response, only a traceback — and
+    the traceback is what stopped the service (see
+    ``docs/acceptance/o6-event-stream-stall-2026-11-10.md``).
+    """
+    return ApplicationRefusedError(ApplicationRefusal.NOT_IMPLEMENTED, UNWIRED_REFUSAL_MESSAGE)
+
+
 class UnwiredEventSource:
     """The source used when the host supplied none.
 
@@ -82,6 +111,13 @@ class UnwiredEventSource:
     page says "the task has no events", and a task that has events and a
     stream that cannot see them would be a service quietly lying about the
     state of the work.
+
+    **On the service this method is not where the refusal happens any more.**
+    The stream route recognises this source and refuses the request before it
+    starts a response (``routes.py``, ``get_event_stream``), so the client's
+    answer is the same 403 and the same two fields ``GET /events`` answers
+    with. The refusal here is the source's own contract — what any caller
+    that asked it directly would get.
     """
 
     def page(self, session: Session, request: EventStreamRequest) -> EventStreamPage:
@@ -90,15 +126,7 @@ class UnwiredEventSource:
         :raises ApplicationRefusedError: always.
         """
         del session, request
-        raise ApplicationRefusedError(
-            ApplicationRefusal.NOT_IMPLEMENTED,
-            "the event stream was not given a source to read from. The service "
-            "answers the request for an event page with this refusal rather than "
-            "an empty page, because an empty page would say the task has no events "
-            "and a task that has events and a stream that cannot see them is a "
-            "service lying about the state of the work. The source belongs to the "
-            "application layer, which owns every other read of the task's rows.",
-        )
+        raise unwired_refusal()
 
 
 def sse_frame(page: EventStreamPage) -> str:
@@ -111,4 +139,10 @@ def sse_frame(page: EventStreamPage) -> str:
     return f"data: {page.model_dump_json()}\n\n"
 
 
-__all__ = ["EventSource", "UnwiredEventSource", "sse_frame"]
+__all__ = [
+    "UNWIRED_REFUSAL_MESSAGE",
+    "EventSource",
+    "UnwiredEventSource",
+    "sse_frame",
+    "unwired_refusal",
+]
