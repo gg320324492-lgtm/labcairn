@@ -529,8 +529,16 @@ def _windows_process_group_flags() -> int:
     """The creation flags that put the service in its own process group.
 
     See :func:`_this_platform_is_windows` for why the Windows-only read
-    lives in a helper behind a call.
+    lives in a helper behind a call. ``CREATE_NEW_PROCESS_GROUP`` exists on
+    Windows only; on any other platform the attribute is absent from
+    :mod:`subprocess`, so this helper is reached only behind the platform
+    guard in the one caller.
     """
+    if not hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+        raise AssertionError(
+            "the Windows process-group flags were requested on a platform whose "
+            "subprocess module does not define them"
+        )
     flags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined,unused-ignore]
     return flags
 
