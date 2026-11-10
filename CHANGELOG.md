@@ -60,6 +60,15 @@ drafts, not an owner classification or gate verdict. No process was
 killed, no workflow was changed, no runner or CI run was started, and no
 push, pull request or commit was authorised by the reports themselves.
 
+Three further decisions were answered by the owner on 2026-11-11: the G4
+31-row checklist stays `PENDING` until the gate's implementation (the
+installed build and the trial) is complete, at which point the named human
+reviewer, independent agent second reader and third reader are designated;
+the 74-commit accumulated batch stays unpushed for a later owner-authorised
+delivery; and the remaining 40 dual-host checklist rows continue through
+owner-supplied WPS screenshots with the conductor's two-stage confirmation
+flow.
+
 ### Delivery preparation reports, still local only (2026-11-10)
 
 Four further read-only windows prepared delivery material outside the
