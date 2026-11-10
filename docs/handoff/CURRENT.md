@@ -16,7 +16,10 @@ packages: 10 MIT, 2 ISC, 1 Apache-2.0) is ready and awaits the owner's
 licence decision. The owner's eight G4 decisions, the Electron shell choice,
 and three later decisions on the in-flight batch are recorded in
 [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
-§§12–13 and [`../../CHANGELOG.md`](../../CHANGELOG.md). Shard costs were
+§§12–13. The changelog split on 2026-11-11 moved every dated section into
+[`../changelog/phase-3.md`](../changelog/phase-3.md) and its two phase
+archives; [`../../CHANGELOG.md`](../../CHANGELOG.md) keeps the container,
+the archives index and the dated entry that records the split. Shard costs were
 re-measured from runner run `42733499009` at
 `46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
 carried by the balance witness's slack rule until the next runner re-measure.

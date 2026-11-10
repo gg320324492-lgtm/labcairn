@@ -70,6 +70,7 @@ This index reflects a strategic plan that originally specified **14 work orders 
 | Acceptance reports | [`acceptance/`](acceptance/) | Subject commit SHA, inspected evidence, findings, verdict. One per reviewed commit |
 | Roadmap & progress | [`ROADMAP.md`](ROADMAP.md) | Current phase, what is done, open issues, next direction |
 | Handoff | [`handoff/CURRENT.md`](handoff/CURRENT.md) | Short current-state summary so a new session or another agent can resume |
+| Changelog archives | [`changelog/phase-1.md`](changelog/phase-1.md), [`changelog/phase-2.md`](changelog/phase-2.md), [`changelog/phase-3.md`](changelog/phase-3.md) | The changelog's dated record, split by phase on 2026-11-11; the root `CHANGELOG.md` keeps the container and the index |
 
 ## Index
 
