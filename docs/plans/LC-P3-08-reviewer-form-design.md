@@ -59,7 +59,7 @@ away:
 | F-08 Second reader's disclosure | `independent agent session stood in for a human reader; no human being performed this reading` | Decision 7 fixes the agent second reader, so this field is required and must equal B-03 verbatim. A paraphrase or a blank is a failed disclosure check. |
 | F-09 Memory boundary | `[enter: how the agent session's lack of project memory was established]` | The second reader reads the named record and its evidence, not the project's prior conclusions as instructions. |
 | F-10 Real-advisor rows' human coverage | `[enter: which real-advisor rows the named human reviewer read]` | Decision 7: those rows are not read by agents alone. If any was read only by the agent session, the review is incomplete. |
-| F-11 Arbiter | `[enter: third reader's name, or NONE — no disagreement]` | A third reader, never one of the two readers, and required when F-20 records a disagreement. |
+| F-11 Arbiter | `[enter: third reader's name, or NONE — no disagreement]` | A third reader, never one of the two readers, and required when a §5.1 disagreement row (D-01…) records a disagreement. With no such row, the only allowed value is `NONE — no disagreement`. |
 | F-12 Owner signature | `[enter: owner's decision and date, or PENDING]` | The owner signs the classification with the exit decision. The reviewer does not sign for the owner. |
 
 ## 2. Reader A — named human reviewer (fillable)
@@ -103,6 +103,18 @@ between the two is a disagreement and goes to the third reader (§6). The
 owner signs the classification with the exit decision. No finding passes on a
 note alone: a note is text, not a classification.
 
+**Precedence, added after the synthetic dry run of 2026-11-10 (FO-01).** The
+three predicates below are evaluated in the order `blocker` > `measured gap`
+> `routed defect`, with one exception that outranks all three: **an
+owner-authorised named gap under §12 decision 5 / §14 item 7 is
+`measured gap`, not `blocker`.** Without that carve-out the held-open "One
+real model" row satisfies both B (its §4 passing-condition evidence is
+absent) and G (the owner ruled it a named gap), and a reviewer could keep
+the exit decision blocked against the owner's own answer. Every other §4
+row whose required passing-condition evidence is absent is `blocker`. The
+C row prints the predicate that fired, so a classification is a checked
+value rather than a label chosen after the fact.
+
 | Class | Judging standard | What the evidence address must carry | Effect on the exit decision |
 |---|---|---|---|
 | `blocker` | The failure is in core security, original protection or delivery gating, or the trial record cannot show a §4 row its passing condition requires. Execution plan §4's "Distribution and review" row names the first three expressly. A claim with no evidence address, a simulated real-advisor row, or a raw-sample leak is also a blocker of the record's honesty. | A repository-relative record path or authorised evidence path, its section anchor, the digest/count/refusal class that identifies the observation, the named commit, and the §4 row id. For a core-security failure: the injected case and the observed refusal or its absence. | **Keeps the decision blocked with its evidence address.** It is not converted to a note or a gap by the reviewer or the arbiter on this form. |
@@ -121,11 +133,17 @@ minting is its own finding and is classified on its own evidence.
 
 ### 4.1 Fillable finding rows
 
-| Id | Finding (one sentence) | §4 row or record section | Evidence address (path + anchor + digest/count/refusal class) | Class (`blocker` / `measured gap` / `routed defect`) | Reader raising it | Owner-signature state |
-|---|---|---|---|---|---|---|
-| C-01 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
-| C-02 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
-| C-03 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
+| Id | Finding (one sentence) | §4 row or record section | Evidence address (path + anchor + digest/count/refusal class) | Fired predicate (`B` / `G` / `D` / `owner-authorised named gap`) | Class (`blocker` / `measured gap` / `routed defect`) | Reader raising it | Owner-signature state |
+|---|---|---|---|---|---|---|---|
+| C-01 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
+| C-02 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
+| C-03 | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[enter]` | `[A or B]` | `[PENDING / signed with exit decision]` |
+
+The fired-predicate column is what makes the precedence rule checkable: `B`,
+`G` and `D` name the three standards in the order they were evaluated, and
+`owner-authorised named gap` is the carve-out whose class is forced to
+`measured gap`. A row whose predicate and class disagree is a failed
+honesty check, routed to the third reader as a disagreement.
 
 Add rows as needed. A row with a blank evidence address is not a finding the
 owner can sign. A row whose class is a note, an observation or "PASS WITH
