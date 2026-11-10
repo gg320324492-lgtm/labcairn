@@ -142,24 +142,25 @@ O6_UNWIRED_STREAM_FLOOR: int = 1024
 #: is not one number across platforms.
 O6_DOSE_MIN: int = 2
 
-#: The ceiling on that dose.
-#:
-#: The dose exists to overflow the pipe, and a pipe that needs 64 streams to
-#: overflow is a pipe whose probe would spend 64 timeouts of 8 seconds each on
-#: the unfixed code — a run that takes ten minutes to be red. The cap keeps the
-#: worst case under three minutes, and the probe reports the capacity it measured
-#: alongside the number it used, so a dose that was capped is visible rather than
-#: silently too small.
-O6_DOSE_MAX: int = 20
+#: The dose is derived from the capacity the probe measured on this machine,
+#: not from a number remembered from the development machine's pipe. A Linux
+#: runner answered a 16 KiB request with a 65,536-byte pipe on 2026-11-10;
+#: a fixed dose of 20 streams could not fill it, and the witness refused to
+#: claim a property in an arrangement that could not have shown the defect.
+#: The ceiling here is a bound on the probe's own cost, not an assertion
+#: about the capacity: the fixed service answers each stream with one 403,
+#: while the unfixed service is stopped by the first /health probe after the
+#: pipe fills, so the dose is paid in full only on a tree that is already
+#: green.
+O6_DOSE_CEILING: int = 128
 
 #: The capacity the probe asks its pipe for, where the platform takes the
 #: request (it does on Linux, and does not on Windows).
 #:
-#: A bounded pipe is what keeps the dose bounded. The dose is sized from the
-#: pipe's measured capacity, so against a default Linux pipe of 65,536 bytes it
-#: would need some 65 streams and the probe would spend its life opening streams.
-#: 16 KiB overflows comfortably at the measured per-stream cost and keeps the
-#: capped dose able to fill it.
+#: A bounded pipe keeps the dose bounded where the kernel honours the request.
+#: The runner of 2026-11-10 did not: it reported 65,536 bytes. The dose is
+#: sized from the capacity the probe *measured*, not from this request, so a
+#: kernel that ignores it costs more streams rather than an unwitnessed run.
 O6_PIPE_CAPACITY_REQUEST: int = 16384
 
 #: The request, as a keyword mapping, for the reason given in
@@ -991,9 +992,10 @@ def _o6_main(workspace: Path) -> int:
     **The dose is sized from the pipe, not from a remembered number.** The
     capacity is measured on the machine running this probe and divided by the
     measured per-stream cost, floored at the dose that overflowed this machine's
-    pipe and capped so a red run stays fast. The numbers the probe used are in
-    the report, so a dose that had to be capped is visible in the failure rather
-    than silently too small to witness anything.
+    pipe and bounded by a ceiling that is a guard on the probe's own cost, not
+    a reason to underfill the pipe. The numbers the probe used are in the
+    report, and the test refuses an arrangement whose dose cannot fill the
+    pipe at all.
 
     The report is written after *each* arrangement: on the unfixed service the
     second one ends with the application parked in a write, and a report that
@@ -1004,14 +1006,14 @@ def _o6_main(workspace: Path) -> int:
 
     capacity = _pipe_capacity()
     needed = -(-capacity // O6_UNWIRED_STREAM_FLOOR) + 1
-    dose = max(O6_DOSE_MIN, min(needed, O6_DOSE_MAX))
+    dose = max(O6_DOSE_MIN, min(needed, O6_DOSE_CEILING))
 
     def publish() -> None:
         report.write_text(json.dumps(phases), encoding="utf-8")
 
     phases["pipe_capacity_bytes"] = capacity
     phases["dose"] = dose
-    phases["dose_capped"] = needed > O6_DOSE_MAX
+    phases["dose_capped"] = needed > O6_DOSE_CEILING
     publish()
     phases["drained"] = _o6_arrangement(workspace / "drained", drained=True, dose=dose)
     publish()
@@ -1044,8 +1046,10 @@ def test_one_unwired_event_stream_leaves_the_service_able_to_answer(tmp_path: Pa
     the capacity is not one number across platforms: the probe measures the
     capacity it is about to work against and opens enough streams to overflow
     it at the measured per-stream cost. That is the difference between a witness
-    and a Windows-only anecdote. The capacity, the dose and whether the dose had
-    to be capped are all in the report, and the test asserts the dose could fill
+    and a Windows-only anecdote: a 65,536-byte runner pipe needs 65 streams,
+    and a fixed cap of 20 would have witnessed nothing there. The capacity, the
+    dose and whether the dose hit the ceiling are all in the report, and the
+    test asserts the dose could fill
     the pipe at all — a dose that could not is a witness witnessing nothing, and
     it says so rather than passing.
 
@@ -1096,8 +1100,8 @@ def test_one_unwired_event_stream_leaves_the_service_able_to_answer(tmp_path: Pa
         f"the probe opened {dose} stream(s) against a {capacity}-byte pipe, and at the "
         f"{O6_UNWIRED_STREAM_FLOOR}-byte-per-stream floor that dose cannot fill the pipe. "
         "The witness would be asserting a property in an arrangement that could not have "
-        "shown the defect: raise O6_DOSE_MAX, or measure the arrangement again on a "
-        "machine whose pipe this dose can overflow."
+        "shown the defect: raise O6_DOSE_CEILING, or measure the arrangement again "
+        "on a machine whose pipe this dose can overflow."
     )
 
     for label in ("drained", "undrained"):
