@@ -43,8 +43,9 @@ const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
  *
  * A fixed port is how this rehearsal's own leftover bit it: an earlier run
  * died in the shell's boot path, its Electron outlived the rehearsal, and the
- * next run's Chromium refused to bind — `bind() returned an error: 每个套接字
- * 地址只允许使用一次` — and the run failed for a cause that had nothing to do
+ * next run's Chromium refused to bind — Windows socket error 10048, *only one
+ * usage of each socket address is normally permitted* — and the run failed for
+ * a cause that had nothing to do
  * with what it was measuring. The rehearsal now takes a free port and, on any
  * failure, ends the shell children it started.
  */
