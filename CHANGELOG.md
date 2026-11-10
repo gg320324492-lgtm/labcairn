@@ -77,7 +77,9 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   every ladder tier fails to zero calls on budget or consent. The
   acceptance record is
   [`LC-P3-06-substitute-first-2026-11-10.md`](docs/acceptance/LC-P3-06-substitute-first-2026-11-10.md).
-  The real half still waits on `LC-P3-04` and the sample.
+  The real half was still waiting on `LC-P3-04` and the sample when this
+  entry was written; it ran the same day and is recorded in the
+  2026-11-10 G4 entry above.
 - **O6 — the event-stream stall is fixed** (merge `9cdb19a`). The mechanism
   is measured, no longer open: a refusal raised after the `200` and
   `text/event-stream` headers were sent became a traceback written into the
