@@ -6,6 +6,25 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### Three readiness designs report, and the phase archives land (2026-11-11)
+
+- **The shell's 27 Node tests have no CI coverage; a design recommends a
+  new workflow.** The design window mapped all six `.test.mjs` files and
+  the `pnpm test` command; no `.github/workflows/*.yml` references
+  `shell/`. The recommended path is a new `.github/workflows/shell.yml`
+  with a single `shell-test` job on both platforms, plus extending the
+  job-name uniqueness witness to all workflow files. The report is
+  outside the repository.
+- **A Phase 3 work-order gap scan finds no uncovered §4 row** but names
+  14 gaps (6 load-bearing), all owner decisions or inside LC-P3-05's
+  not-yet-dispatched implementation stage. The report is outside the
+  repository.
+- **A shell named-gaps deep dive details T08, T09 and AC-6's minimal
+  viable products**, tool lists and unsigned-executable boundaries. The
+  report is outside the repository.
+- The phase archives themselves landed in the same batch (merge
+  `6251771`); the root `CHANGELOG.md` is now a 48-line container.
+
 ### The changelog splits into phase archives (2026-11-11)
 
 - **Every dated section that had accumulated under `[Unreleased]` moves to a
