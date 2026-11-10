@@ -190,17 +190,29 @@ class Cdp {
 }
 
 async function pageState(cdp) {
-  return cdp.evaluate(`(() => {
-    const strip = document.getElementById('labcairn-shell-status')
-    const service = (window.labcairnShell !== undefined) ? window.labcairnShell.status() : null
+  // One expression per fact, rather than one multi-line object literal: a
+  // multi-line expression that fails reports "Unexpected end of input" and
+  // says nothing about which part of it the page disagreed with.
+  const strip = await cdp.evaluate(`(() => {
+    const node = document.getElementById('labcairn-shell-status');
+    if (node === null) return null;
+    const label = node.querySelector('[data-shell-label]');
+    const detail = node.querySelector('[data-shell-detail]');
     return {
-      location: location.origin,
-      stripStatus: strip === null ? null : strip.getAttribute('data-shell-status'),
-      stripLabel: strip === null ? null : strip.textContent,
-      bridgeStatus: service,
-      documentTitle: document.title,
-    }
-  })()`)
+      status: node.getAttribute('data-shell-status'),
+      label: label === null ? null : label.textContent,
+      detail: detail === null ? null : detail.textContent
+    };
+  })()`);
+  const bridgeStatus = await cdp.evaluate(`(typeof window.labcairnShell === 'object' && window.labcairnShell !== null) ? window.labcairnShell.status() : null`)
+  const location = await cdp.evaluate('location.origin')
+  return {
+    location,
+    stripStatus: strip === null ? null : strip.status,
+    stripLabel: strip === null ? null : strip.label,
+    stripDetail: strip === null ? null : strip.detail,
+    bridgeStatus,
+  }
 }
 
 function startShell({ workspace, label }) {
@@ -416,8 +428,83 @@ pidIsGone(servicePidTwo, 'act 2 after the shell closed its window')
 await assertPortFree(servicePortTwo, 'act 2 after the shell exited')
 log('act 2 result: window closed -> shell exit 0 -> no service pid, port free')
 
+// --------------------------------------------------------------------------- #
+// Act 3: the security baseline, read from inside a real window.
+//
+// The pure-layer tests assert the object the window is built with and the
+// guards' decisions; this act asserts what a renderer actually finds — no
+// `process`, no `require`, no `ipcRenderer` on the page — and that a foreign
+// window-open and a foreign navigation are refused, with the refusal printed
+// by the main process rather than inferred from an absence.
+// --------------------------------------------------------------------------- #
+log('=== act 3: the baseline and the guards, from inside the window ===')
+const workspaceThree = makeWorkspace('closure-act3')
+const shellThree = startShell({ workspace: workspaceThree, label: 'act3' })
+await shellThree.waitLine(/loaded (\S+)/)
+const serviceOriginThree = (await shellThree.waitLine(/service origin=(\S+)/))[1]
+const servicePidThree = Number.parseInt((await shellThree.waitLine(/child pid=(\d+)/))[1], 10)
+const servicePortThree = new URL(serviceOriginThree).port
+
+const pagesThree = await listTargets()
+const cdpThree = new Cdp(pagesThree[0].webSocketDebuggerUrl)
+await pollUntil(() => pageState(cdpThree), (state) => state.stripStatus === 'connected', 15_000, 'act 3 reaching the connected state')
+
+const rendererSurface = {
+  hasProcess: await cdpThree.evaluate(`(typeof process !== 'undefined')`),
+  hasRequire: await cdpThree.evaluate(`(typeof require !== 'undefined')`),
+  hasIpcRenderer: await cdpThree.evaluate(`(typeof ipcRenderer !== 'undefined')`),
+  hasModule: await cdpThree.evaluate(`(typeof module !== 'undefined')`),
+  bridgeKeys: await cdpThree.evaluate(`Object.keys(window.labcairnShell).sort()`),
+  bridgeStatusType: await cdpThree.evaluate(`typeof window.labcairnShell.status`),
+  // What the bridge can carry as *data*: the surface is enumerable, so every
+  // value on it is readable here. A token could only reach the page as a
+  // string on this surface, and none is.
+  bridgeStringValues: await cdpThree.evaluate(`Object.values(window.labcairnShell).filter((value) => typeof value === 'string')`),
+}
+log('act 3 renderer surface:', JSON.stringify(rendererSurface))
+assert.equal(rendererSurface.hasProcess, false, 'the renderer could see `process` — nodeIntegration is not off')
+assert.equal(rendererSurface.hasRequire, false, 'the renderer could see `require`')
+assert.equal(rendererSurface.hasIpcRenderer, false, 'the renderer could see `ipcRenderer`')
+assert.equal(rendererSurface.hasModule, false, 'the renderer could see `module`')
+assert.deepEqual(rendererSurface.bridgeKeys, ['status'], `the exposed surface is not the one the preload declares: ${JSON.stringify(rendererSurface.bridgeKeys)}`)
+assert.equal(rendererSurface.bridgeStatusType, 'function')
+assert.deepEqual(rendererSurface.bridgeStringValues, [], 'the native surface carries a string value the page could read as data')
+
+const FOREIGN_URL = 'http://labcairn.example.invalid/escape'
+
+// A new window to a foreign origin: denied, and the denial is printed.
+const popupResult = await cdpThree.evaluate(`(() => { const opened = window.open(${JSON.stringify(FOREIGN_URL)}); return opened === null ? 'no window' : 'window returned' })()`)
+assert.equal(popupResult, 'no window', `window.open returned ${popupResult} although the handler denies`)
+const openRefusal = await shellThree.waitLine(/refused window-open (\S+)/, 10_000)
+assert.equal(openRefusal[1], FOREIGN_URL, 'the printed window-open refusal names another URL')
+log(`act 3 window-open refused: ${openRefusal[1]}`)
+
+// A renderer-initiated navigation to a foreign origin: prevented, the page
+// stays on the service origin, and the prevention is printed.
+const locationBefore = (await pageState(cdpThree)).location
+await cdpThree.evaluate(`(() => { location.assign(${JSON.stringify(FOREIGN_URL)}) })()`)
+const navigateRefusal = await shellThree.waitLine(/refused will-navigate (\S+)/, 10_000)
+assert.equal(navigateRefusal[1], FOREIGN_URL, 'the printed navigation refusal names another URL')
+const locationAfter = (await pageState(cdpThree)).location
+assert.equal(locationAfter, locationBefore, `the page moved to ${locationAfter} although the navigation was refused`)
+log(`act 3 navigation refused: ${navigateRefusal[1]}; the page stayed on ${locationAfter}`)
+
+// The window is closed from outside, as in act 2 — killing the shell here
+// would skip `before-quit` and leave the service child behind, which is the
+// orphan the rehearsal is supposed to catch rather than cause.
+await cdpThree.send('Target.closeTarget', { targetId: pagesThree[0].id })
+cdpThree.close()
+
+const electronGoneThree = await waitForExit(shellThree.child, 30_000)
+assert.ok(electronGoneThree, 'the shell did not exit after its window closed')
+assert.equal(shellThree.child.exitCode, 0, `the shell exited with code ${shellThree.child.exitCode}, not 0`)
+pidIsGone(servicePidThree, 'act 3 after the shell closed its window')
+await assertPortFree(servicePortThree, 'act 3 after the shell exited')
+log('act 3 result: no node surface in the renderer; bridge is {status}; both refusals printed and effective; clean close')
+
 log('=== closure rehearsal passed ===')
 log(`scratch workspace (act 1): ${workspaceOne}`)
 log(`scratch workspace (act 2): ${workspaceTwo}`)
-log(`drained logs: ${path.join(scratchRoot, 'closure-act1-service.log')}, ${path.join(scratchRoot, 'closure-act2-service.log')}`)
+log(`scratch workspace (act 3): ${workspaceThree}`)
+log(`drained logs: ${path.join(scratchRoot, 'closure-act1-service.log')}, ${path.join(scratchRoot, 'closure-act2-service.log')}, ${path.join(scratchRoot, 'closure-act3-service.log')}`)
 void os // reserved for platform branches; kept explicit rather than imported-unused

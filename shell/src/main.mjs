@@ -71,6 +71,9 @@ async function boot() {
 
   const { win, refusals } = createShellWindow({
     allowedOrigins: { get current() { return state.allowedOrigins } },
+    // A refusal is printed, not only recorded: §5.2's "external navigation is
+    // refused" is a claim a witness has to be able to see from outside.
+    report: (entry) => process.stdout.write(`refused ${entry.kind} ${entry.url}\n`),
   })
   state.window = win
   state.refusals = refusals

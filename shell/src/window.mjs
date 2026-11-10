@@ -10,7 +10,7 @@ import path from 'node:path'
 import { BrowserWindow } from 'electron'
 import { shellWebPreferences, attachNavigationGuards } from './window-security.mjs'
 
-export function createShellWindow({ allowedOrigins }) {
+export function createShellWindow({ allowedOrigins, report = null }) {
   const preloadPath = path.join(import.meta.dirname, 'preload.cjs')
   const webPreferences = shellWebPreferences({ preloadPath })
   const win = new BrowserWindow({
@@ -21,6 +21,6 @@ export function createShellWindow({ allowedOrigins }) {
     webPreferences,
   })
   const refusals = []
-  attachNavigationGuards(win.webContents, { allowedOrigins: () => allowedOrigins.current, refusals })
+  attachNavigationGuards(win.webContents, { allowedOrigins: () => allowedOrigins.current, refusals, report })
   return { win, webPreferences, refusals }
 }

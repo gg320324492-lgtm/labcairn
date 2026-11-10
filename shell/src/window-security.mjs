@@ -57,16 +57,25 @@ export function isAllowedUrl(urlString, allowedOrigins) {
  * workbench opens no popups), and every renderer-initiated navigation to a
  * foreign origin is prevented. Each refusal is recorded in `refusals` so the
  * witness asserts the refusal happened — not merely that nothing bad appeared.
+ *
+ * `report` (optional) is how a refusal becomes observable from outside the
+ * process: the main process passes a function that prints it, and a rehearsal
+ * that drives a foreign URL can then assert the refusal line rather than
+ * inferring it from the absence of a bad page.
  */
-export function attachNavigationGuards(contents, { allowedOrigins, refusals }) {
+export function attachNavigationGuards(contents, { allowedOrigins, refusals, report = null }) {
+  const record = (entry) => {
+    refusals.push(entry)
+    if (report !== null) report(entry)
+  }
   contents.setWindowOpenHandler(({ url }) => {
-    refusals.push({ kind: 'window-open', url })
+    record({ kind: 'window-open', url })
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
     if (!isAllowedUrl(url, allowedOrigins())) {
       event.preventDefault()
-      refusals.push({ kind: 'will-navigate', url })
+      record({ kind: 'will-navigate', url })
     }
   })
   return refusals
