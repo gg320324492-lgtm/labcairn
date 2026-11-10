@@ -29,7 +29,7 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   `loop_already_published`) are witnessed, and all four counter-mutation
   families were caught. 17 new witnesses registered in three places; the
   acceptance record is
-  [`LC-P3-03-substitute-run-2026-11-10.md`](docs/acceptance/LC-P3-03-substitute-run-2026-11-10.md).
+  [`LC-P3-03-revision-loop-2026-11-10.md`](docs/acceptance/LC-P3-03-revision-loop-2026-11-10.md).
 - **`LC-P3-06` substitute-first half lands** (merge `7d5be74`).
   `src/labcairn/providers/deidentify.py` (8-word n-gram pipeline, outbound
   CJK ceiling, named-secret scrub; three sample classes) and
