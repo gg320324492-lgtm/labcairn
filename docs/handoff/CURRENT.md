@@ -1,11 +1,21 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-10 · **Phase 3 implementation is accumulated locally; no
-Phase 3 gate is closed.** The G1, G2, G3 and shell follow-up batches are merged
-into local `main`; `LC-P3-07` and `LC-P3-08` have issued work orders but stay
-blocked on `LC-P3-05`'s installed build. The owner's eight G4 decisions, the
-Electron shell choice, and three later decisions on the in-flight batch are
-recorded in [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
+**Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
+Phase 3 gate is closed.** Local `main` carries 79 commits ahead of
+`origin/main`, accumulated for a later delivery by the owner's choice; the
+live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
+CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
+G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
+`LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
+build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
+CRITICAL emSign intermediate-CA advisory — the only immediate one of the 25
+advisories found. The G4 checklist revision 2 carries 31 classifiable rows
+whose signatures stay `PENDING` until the gate's implementation (the
+installed build and the trial) is complete. The NOTICE npm draft (13
+packages: 10 MIT, 2 ISC, 1 Apache-2.0) is ready and awaits the owner's
+licence decision. The owner's eight G4 decisions, the Electron shell choice,
+and three later decisions on the in-flight batch are recorded in
+[`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
 §§12–13 and [`../../CHANGELOG.md`](../../CHANGELOG.md). Shard costs were
 re-measured from runner run `42733499009` at
 `46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
@@ -16,8 +26,9 @@ narrows its personal verification to WPS, while Word 2010 rows stay
 `PENDING-HUMAN` until that host is installed and observed with the same
 screenshot mode. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
-dual-host reopen half remains `NOT RUN`, no gate row has moved, and no
-push, pull request or CI run is authorised.
+dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
+`PENDING-HUMAN` and its observation SOP ready for the owner, no gate row has
+moved, and no push, pull request or CI run is authorised.
 
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's
