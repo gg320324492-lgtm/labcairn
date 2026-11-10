@@ -11,9 +11,10 @@ re-measured from runner run `42733499009` at
 `46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
 carried by the balance witness's slack rule until the next runner re-measure.
 The shell batch's 17 independent-critique findings stay named gaps for G4, the
-44-row dual-host checklist is 4/44 completed, and the owner's later dialog
-narrows its personal verification to WPS while Word 2010 rows stay
-`PENDING-HUMAN`. The owner-picked sample's 42-arm machine loop landed on
+44-row dual-host checklist is 4/44 completed; the owner's later dialog
+narrows its personal verification to WPS, while Word 2010 rows stay
+`PENDING-HUMAN` until that host is installed and observed with the same
+screenshot mode. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
 dual-host reopen half remains `NOT RUN`, no gate row has moved, and no
 push, pull request or CI run is authorised.
@@ -25,15 +26,16 @@ in separate merge commits, each with its evidence in the same commit. `LC-P3-02`
 record is [`../acceptance/LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md)
 with [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and
 [`../adr/ADR-0021-manuscript-editing-rewrite.md`](../adr/ADR-0021-manuscript-editing-rewrite.md);
-both G1 rows read `IN PROGRESS`. What is **not** closed: the §4.9 human dual-host
-reopen checklist (`NOT RUN` in both acceptance records), the real advisor sample
-(§5.9, held open as a named gap), the ADR's final adoption (it stays `proposed`,
-adoption provisional), and the runner-measured shard costs — locally
-`test_the_shards_are_balanced` and
-`test_the_recorded_costs_cover_every_test_file` are expected red until the batch's
-one runner run. The fifth independent review's PASS and the merge are this batch's
-gate; nothing here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a
-CI run, and none is authorised by this document.
+both G1 rows read `IN PROGRESS`. What is **not** closed in that dated entry:
+the §4.9 human dual-host reopen checklist (`NOT RUN` in both acceptance
+records), the real advisor sample (§5.9, held open as a named gap at that
+time), and the ADR's final adoption (it stays `proposed`, adoption
+provisional). Shard costs were subsequently re-measured from runner run
+`42733499009`, so the balance witnesses are no longer expected red. The
+fifth independent review's PASS and the merge are this batch's gate; nothing
+here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a CI run, and
+none is authorised by this document. See the 2026-11-10 entry above for the
+current state.
 
 **Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is
 built.** [`LC-P3-01` (real-browser baseline) and `LC-P3-02` (dual-host DOCX

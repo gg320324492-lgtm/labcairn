@@ -8,8 +8,8 @@ it, and never because something looks finished.
 | Ticket | Stage | Status | What the row rests on |
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
-| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
-| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remain open | The dated substitute and real-sample records and their witnesses; no host result and no PASS is claimed. The shard-balance witness is expected red until the batch runner run. |
+| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; shard costs were re-measured from runner run `42733499009`; no PASS is claimed. |
+| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remain open | The dated substitute and real-sample records and their witnesses; no host result and no PASS is claimed. Shard costs were re-measured from runner run `42733499009`. |
 | `LC-P3-03` | Phase 3 G2 | **`IN PROGRESS`** — implementation merged 2026-11-10 (merge `4855ea6`); evidence in [`LC-P3-03-revision-loop-2026-11-10.md`](../acceptance/LC-P3-03-revision-loop-2026-11-10.md); 17 witnesses, four refusal classes, all four counter-mutation families caught; the gate itself stays open | The dated run record and its witnesses, measured locally; no PASS is claimed. |
 | `LC-P3-04` | Phase 3 G2 | **`IN PROGRESS`** — the binding loop (opinion → locate → suggest → apply → dossier) merged 2026-11-10 (merge `2dce121`); evidence in [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md); 17 Python witnesses + 5 web witnesses, 6 counter-mutations caught, ledger `ADDED -- 17`; the gate itself stays open | Execution plan §3; §9. |
 | `LC-P3-05` | Phase 3 G3 | **`IN PROGRESS`** — the selection-and-measurement stage landed 2026-11-10 (merge `1e35758`); evidence in [`LC-P3-05-selection-measurement-2026-11-10.md`](../acceptance/LC-P3-05-selection-measurement-2026-11-10.md) and [`ADR-0023`](../adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md); the shell choice itself waits on the O6 fix, which landed 2026-11-10 (merge `9cdb19a`, record [`o6-event-stream-stall-2026-11-10.md`](../acceptance/o6-event-stream-stall-2026-11-10.md)) | The dated selection record; §10. |
@@ -419,8 +419,9 @@ witness watches the row: a test that fails if the row disappears, if the empty
 cell is read as a result, or if the label changes from "not run" to a verdict.
 An empty row with no witness is not a pending measurement; it is a claim the
 tree cannot tell from a pass. The reopen checklist's human cells are empty and
-`tests/test_docx_edit_records.py` watches them; the real-sample row carries the
-exact label §5.9 names, and the same witness reads that label.
+`tests/test_docx_edit_records.py` watches them; the same witness now reads the
+substitute-run record's measured 42/42 state, the dated real-sample record's
+path and digest, and the retained `NOT RUN` human-reopen sentence.
 
 ---
 
@@ -1292,6 +1293,6 @@ do not edit these; both sequence against them.
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
 | Version switching in the workbench | A version-selection surface and a browser witness; named gap, not claimed | §4.8 |
-| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8); the operation page and CSV inputs exist outside the repository | §5.8, §14 item 8 |
+| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8); 4/44 rows are complete, WPS-only screenshot observation continues for the remaining WPS rows, and Word 2010 rows stay `PENDING-HUMAN` until the owner installs that host and observes them with the same mode; the operation page and CSV inputs exist outside the repository | §5.8, §14 item 8 |
 
 ---

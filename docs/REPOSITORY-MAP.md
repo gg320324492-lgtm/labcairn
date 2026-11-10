@@ -7,15 +7,18 @@ implementation.
 
 **Read 2026-11-10 (re-measurement):** the 733-file figure in §1 is the scan at
 `7029bc28500f2d676a01b9586f04c17419dc0493`, a historical measurement that is
-left as written. Re-measured at the follow-up branch's measured code head
+left as written. At the follow-up branch's measured code head
 `6c0007e547711c0637edfaf518eaca70b33205c5`, and again at its documentation-only
-delivery head `6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5`,
-`git ls-files | wc -l` prints **821 tracked files**: 481 `.py`, 191 `.md`,
-28 `.json`, 27 `.mjs`, 26 `.tsx`, 23 `.ts`, 13 `.csv`, 7 `.yml`, 3 `.pdf`,
-and the remaining configuration, fixture and binary files. The 27 `.mjs`
-files are the `shell/` witnesses and rehearsals recorded in §2 below. No
-witness in `tests/` watches this document's file count; it is a dated
-measurement, not a claim the CI gate holds.
+delivery head `6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5`, the count was **821
+tracked files**. After the real-sample machine half landed, re-measured at
+`e3aed01a18a56036d64a8e1bc93d4fa0041b16d8`, `git ls-files | wc -l` prints
+**823 tracked files**: 481 `.py`, 192 `.md`, 29 `.json`, 27 `.mjs`, 26
+`.tsx`, 23 `.ts`, 13 `.csv`, 7 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The two added files are the dated
+real-sample Markdown record and its JSON summary. The 27 `.mjs` files are the
+`shell/` witnesses and rehearsals recorded in §2 below. No witness in
+`tests/` watches this document's file count; it is a dated measurement, not a
+claim the CI gate holds.
 
 ## 1. Classification measured on 2026-11-07
 

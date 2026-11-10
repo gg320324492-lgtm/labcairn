@@ -16,6 +16,41 @@ The links are the records.
 
 ## [Unreleased]
 
+### Pre-delivery audits and the pointer refresh (2026-11-10)
+
+Four independent read-only windows reported on the accumulated local batch:
+a full-range static audit, a G4 owner classification checklist, a WPS
+screenshot checklist validator, and a second reader for the 42-arm machine
+half. Their reports stay outside the repository. The conductor re-measured the
+witness ledger (`LOST -- none`, 3579 → 3579), 174 registered Python test files
+across five shards per platform, 20 harness-injected
+`Claude Sonnet 5.5` attribution lines and 50 `Claude Code` lines, and the
+42/42 machine half's counts, three ledger digests and report digest. The
+full-range audit separately measured 966 relative links and anchors with
+none broken; its targeted link and anchor witnesses were re-run here. No raw
+material, material filename, reply or credential entered the range diff.
+
+The audits named record-layer lags rather than product failures. This
+refresh moves the 42-arm machine loop out of `ROADMAP.md`'s open list, updates
+the English and Chinese README banners and `docs/README.md`'s current-phase
+row, replaces stale "expected red" shard-cost sentences with the runner
+re-measurement, re-anchors the support matrix, §5.10 and 08's evidence map
+to the re-targeted witness and landed record, re-measures the repository
+map's file count, and records that the owner will install Word 2010 later
+for the same screenshot observation mode. The G4 checklist's 27
+classifiable items and the 44-row checklist's 40 pending rows remain owner
+work; no owner signature, gate verdict, host result, whole-suite pytest
+run, runner run, push, pull request or CI run is claimed here.
+
+The pointer refresh's targeted witnesses measured **703 passed** with two
+README command witnesses deselected. Those two call `uv run labcairn --help`;
+on this machine `uv` could not replace `.venv/Scripts/labcairn.exe` because
+older local shell-rehearsal services still hold the console script
+(`os error 32`). The stale process command lines were printed, no process was
+killed without the owner's decision, and the two failures are not claimed as
+green. They remain an environment cleanup condition for a later whole-suite
+run, not a defect in the edited records.
+
 ### The real-sample machine half lands, with the human half held open (2026-11-10)
 
 - `LC-P3-02`'s owner-picked advisor sample ran its 42-arm machine loop:
@@ -53,11 +88,12 @@ request or CI run.
 A later dialog narrowed the 44-row checklist's personal verification to the
 WPS host only. That ruling applies to the 44-row checklist and not to the
 real-sample half-loop's separate 16 human-reopen rows. Word 2010 rows stay
-`PENDING-HUMAN`; a WPS observation is never copied into them or treated as a
-Word result. If the owner supplies a WPS screenshot, the conductor reads only
-the visible structure's presence and waits for a separate confirmation before
-filling any form value. Screenshots and material words do not enter the
-repository.
+`PENDING-HUMAN`; the owner will install that host later and observe its
+remaining rows with the same screenshot mode, so they are deferred, not cut.
+A WPS observation is never copied into them or treated as a Word result. If
+the owner supplies a WPS screenshot, the conductor reads only the visible
+structure's presence and waits for a separate confirmation before filling any
+form value. Screenshots and material words do not enter the repository.
 
 - The four Electron shell follow-up commits already made at the time of the
   decision keep the
@@ -624,11 +660,12 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
 - The independent audit of the G1 work orders found three structural gaps and
   two environment-fact errors. The work orders now name the commander as the
   owner of `.github/ci-shards.json` and `tests/evaluation/manifest.py` at merge
-  (windows report their entries instead of editing those files), state that
-  the shard-balance witness is expected red on `windows-latest` until the
-  batch's own runner run supplies the costs, require a browser witness to skip
-  with a named reason when Playwright or a system browser is absent, and name
-  the project owner as the human-checklist performer.
+  (windows report their entries instead of editing those files), state at that
+  date that the shard-balance witness is expected red until a runner supplies
+  the costs (subsequently re-measured from runner run `42733499009`), require a
+  browser witness to skip with a named reason when Playwright or a system
+  browser is absent, and name the project owner as the human-checklist
+  performer.
 - The Chinese README status line now matches the English one: the two G1 work
   orders are issued and both read `NOT STARTED`.
 - The operator-side environment preparation report records the corrected facts:

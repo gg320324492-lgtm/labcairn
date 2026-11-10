@@ -107,12 +107,14 @@ cross-reference without a section anchor is a path, not an address; a
 cross-reference with a SHA that was not printed by the command that named it
 is not a citation at all.
 
-Because §5.9's real-sample record does not exist in this tree, the 08 → 02
-half of this anchor is **designed, not filled**: the trial record will fill
-`02 record path` and its section anchor only when the record lands with
-`LC-P3-02`'s merge. Until then the honest value is
-`record lands with LC-P3-02's merge`, and no 08 row may be marked satisfied
-by that placeholder.
+**Read 2026-11-10:** §5.9's dated real-sample record has landed as
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md),
+and 08's trial record may cite its path plus the `## Final status sentence` or
+`## Ledger binding` anchor. That record measures the 42-arm machine half only;
+it does not supply the human dual-host reopen half and is not a verdict for an
+08 row. The `record lands with LC-P3-02's merge` placeholder below is the
+design's historical value, retained as a dated statement of what was designed,
+not as a current pointer.
 
 ## 4. Anti-impersonation checklist
 
@@ -127,16 +129,17 @@ prose answer is a failure.
 | 3 | No verdict transfer | No 02 status label (`PASS`, `NOT RUN`, `named gap`, `PASS WITH NOTES`, `real-sample loop: NOT RUN`) is used as 08's row verdict. |
 | 4 | No substitute advisor | 02's measured loop, a synthetic rehearsal, a dev-build dry run and an agent reading are never entered in a real-advisor, student, real-reopen, named-review or exit-decision row. |
 | 5 | Real-model row | The "One real model" §4 row remains a named gap (§12 decision 5, §14 item 7). 06's substitute-first and real-half records are cited as their own ticket's bounded validation, never as 08's passing row; Phase 2's `real_model_smoke = NOT RUN` keeps its wording. |
-| 6 | Mutual anchor completeness | Both records name each other by path + section anchor; the 08 trial record's 02 citation carries a printed full SHA; a missing record is written `record lands with LC-P3-02's merge` rather than given an invented filename. |
+| 6 | Mutual anchor completeness | Both records name each other by path + section anchor; the 08 trial record's 02 citation carries a printed full SHA. 02's dated real-sample record now exists, so its `## Final status sentence` or `## Ledger binding` anchor is cited by path; 08's own trial record is still unfilled and keeps `record lands with LC-P3-02's merge` as its design-time placeholder rather than inventing a trial filename. |
 | 7 | Identity, not equality of results | The shared sample fingerprint lets 08 assert "same supply". It does not let 08 assert "same result". A count/digest disagreement is recorded as a finding with both addresses. |
 | 8 | Seam and boundary | The `root_kinds` seam is cited as a known limit from [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md) §6, not as a defect found by 02 or 08; raw evidence stays outside the repository. |
-| 9 | Honest status | Where 02's real-sample record has not landed, 08's own row says so. A citation to a non-existent file, a `LC-P2-02-*` record mistaken for 02's real-sample record, or an unprinted SHA is a blocker of the record's honesty in [`LC-P3-08-reviewer-form-design.md`](LC-P3-08-reviewer-form-design.md) §4.2. |
+| 9 | Honest status | Where 08's own trial record has not landed, its row says so; 02's dated real-sample record is cited by its landed path. A citation to a non-existent file, a `LC-P2-02-*` record mistaken for 02's real-sample record, or an unprinted SHA is a blocker of the record's honesty in [`LC-P3-08-reviewer-form-design.md`](LC-P3-08-reviewer-form-design.md) §4.2. |
 | 10 | Owner's decision untouched | The cross-reference does not sign the exit decision. The owner decides from 08's evidence; the reviewer classifies findings at a named commit; the arbiter is a third reader on disagreement. |
 
 ## 5. What the eventual trial record writes
 
-At trial time, and only after `LC-P3-02`'s real-sample record lands, the 08
-trial record carries a short mutual-citation section with exactly these rows:
+**Read 2026-11-10:** `LC-P3-02`'s real-sample record has landed. At trial
+time, the 08 trial record carries a short mutual-citation section with
+exactly these rows:
 
 | Row | Content |
 |---|---|
@@ -144,7 +147,7 @@ trial record carries a short mutual-citation section with exactly these rows:
 | M-02 | Fields cited: one row per cited digest/count/refusal class, each with 02's path + anchor and 08's own observation address. |
 | M-03 | 08's own loop: the T1–T7 record addresses, so a reader can see the trial's rows do not rest on M-01/M-02. |
 | M-04 | The named gap: "One real model" with §12 decision 5 / §14 item 7 and 06's two records cited as their own ticket's validation. |
-| M-05 | Reverse link: 02's real-sample record's path + anchor where it names 08 as the consumer; if that link has not landed, the honest value is `record lands with LC-P3-02's merge`. |
+| M-05 | Reverse link: 02's landed real-sample record path + `## Final status sentence` anchor; 08's trial record must still show how it consumes that evidence without treating the machine half as a human result. |
 | M-06 | Boundary statement: no material text or raw DOCX in this repository record; raw samples and replies remain in the authorised environment. |
 
 M-01…M-06 are the shape of the mutual citation, not evidence that any of

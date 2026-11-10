@@ -2,7 +2,7 @@
 
 **Research that leaves a trail. · 让每一步研究，都有迹可循。**
 
-> **Status: Phase 1 is closed at G5; Phase 2's exit gate is CLOSED, PASS WITH NOTES and its administrative closeout is CLOSED.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are measured and recorded, with no measured capability gain. The Phase 3 board is open ([LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md), decisions of 2026-11-07) and its two G1 work orders — [LC-P3-01 and LC-P3-02](docs/plans/PHASE_3-work-orders.md), issued 2026-11-08 — both read `IN PROGRESS`: their implementation has landed locally, no gate is closed and no delivery is authorised — current position: [docs/ROADMAP.md](docs/ROADMAP.md#current-position). The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
+> **Status: Phase 1 is closed at G5; Phase 2's exit gate is CLOSED, PASS WITH NOTES and its administrative closeout is CLOSED.** The evidence chain, the DOCX reader, the version graph, the guidance memory and the frozen P1 baseline are in the tree and mutation-checked; the blind evaluation and the competitor comparison are measured and recorded, with no measured capability gain. The Phase 3 board is open ([LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md), decisions of 2026-11-07), and the [LC-P3-01 … LC-P3-08 work orders](docs/plans/PHASE_3-work-orders.md) are issued; implementation is accumulated locally, no gate is closed and no delivery is authorised — current position: [docs/ROADMAP.md](docs/ROADMAP.md#current-position). The features listed below are **planned, not yet shipped**. Do not use the current code for unsupported scientific or safety-critical decisions.
 
 **Read this page in:** English · [中文](#中文版--chinese-version) · the standalone Chinese document is [README.zh-CN.md](README.zh-CN.md).
 
@@ -175,7 +175,7 @@ LabCairn is independently developed and is not affiliated with OpenHands, Pydant
 
 本节是本文件的中文版本；独立排版的中文文档见 [README.zh-CN.md](README.zh-CN.md)。
 
-> **状态：第一阶段已在 G5 关闭；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。第三阶段看板已开启（[LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md)，2026-11-07 决定），其两个 G1 工单已签发（[LC-P3-01 与 LC-P3-02](docs/plans/PHASE_3-work-orders.md)，2026-11-08），状态均为 `IN PROGRESS`：实施已在本地合并，关口未闭，未授权交付；当前位置见 [docs/ROADMAP.md](docs/ROADMAP.md#current-position)。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
+> **状态：第一阶段已在 G5 关闭；第二阶段出口门已关闭，PASS WITH NOTES，行政收尾已关闭。** 证据链、DOCX 读取器、版本图、指导记忆与冻结的 P1 基线已进入代码库并经过变异验证；盲评与竞争者对比已实测并记录，结论为无可测能力增益。第三阶段看板已开启（[LC-P3-00](docs/acceptance/LC-P3-00-board-opening-decisions.md)，2026-11-07 决定），[LC-P3-01 至 LC-P3-08 工单](docs/plans/PHASE_3-work-orders.md)已签发；实施在本地攒批，关口未闭，未授权交付；当前位置见 [docs/ROADMAP.md](docs/ROADMAP.md#current-position)。下面列出的能力均为**规划目标，尚未交付**。请勿将当前代码用于缺乏科学依据或安全攸关的决策。
 
 **LabCairn（研迹）**是一个面向科研人员的本地优先 AI 研究工作台，**其原创代码按 MIT 许可证发布**。它计划把文献、实验数据、分析方法、科研论断和可编辑成果连接起来，让研究过程可定位来源、保留修改历史并在必要时重新核验。
 
