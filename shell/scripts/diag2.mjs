@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { ServiceSupervisor, freeLoopbackPort } from '../src/service-supervisor.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const FIXTURE = path.join(HERE, 'test', 'fixtures', 'writer_child.py')
+const FIXTURE = path.join(HERE, '..', 'test', 'fixtures', 'writer_child.py')
 const PYTHON = 'E:\\LabCairn\\.venv\\Scripts\\python.exe'
 const sweepDir = 'E:\\labcairn-local\\shell-test-tmp\\sweep2'
 fs.mkdirSync(sweepDir, { recursive: true })

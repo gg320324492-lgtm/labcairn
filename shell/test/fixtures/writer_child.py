@@ -26,7 +26,7 @@ DOSE = int(sys.argv[2])
 
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 - the stdlib's own name
+    def do_GET(self) -> None:
         if self.path == "/ping":
             # The dose. A blocking flush against a pipe nobody reads parks
             # this handler, and with it the server.

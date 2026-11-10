@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { ServiceSupervisor, freeLoopbackPort } from '../src/service-supervisor.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const FIXTURE = path.join(HERE, 'test', 'fixtures', 'writer_child.py')
+const FIXTURE = path.join(HERE, '..', 'test', 'fixtures', 'writer_child.py')
 const PYTHON = 'E:\\LabCairn\\.venv\\Scripts\\python.exe'
 
 // First: the fixture standalone, with the shell's own Python.
