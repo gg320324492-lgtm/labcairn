@@ -98,8 +98,11 @@ try {
   assert.equal(loaded[1], `${origin}/`, 'the loaded page is not the service origin root')
 
   // The grant half of the request-and-grant shape: the page the shell loaded
-  // is a sender this process is willing to believe.
-  const granted = await waitForLine(/guard-request origin (\S+)/)
+  // is a sender this process is willing to believe. The two decisions are
+  // printed differently — `guard-request granted origin` and `refused
+  // guard-request origin` — and the pattern below is the granted one, so a
+  // shell that refused the loaded page would not match it.
+  const granted = await waitForLine(/guard-request granted origin (\S+)/)
   assert.equal(granted[1], origin, `the page's guard request was decided for origin ${granted[1]}, not the loaded origin`)
   assert.ok(!/refused guard-request/.test(stdout), 'the loaded page was refused its own guard probe')
 
