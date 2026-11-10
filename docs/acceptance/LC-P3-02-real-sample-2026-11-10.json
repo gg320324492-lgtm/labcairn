@@ -1,0 +1,125 @@
+{
+  "arm_count": 42,
+  "artifact_count": 0,
+  "base_head": "47a6d8d98f44c215599a9672734326d504fd3ce7",
+  "batch_budget_seconds": 1800.0,
+  "batch_count": 2,
+  "batches": [
+    {
+      "arm_count": 42,
+      "arms_in_batch": 28,
+      "batch_id": "smoke-001",
+      "completed_after": 28,
+      "elapsed_seconds": 23.92,
+      "errors_in_batch": 0,
+      "produced_in_batch": 0,
+      "refused_in_batch": 28,
+      "status": "partial"
+    },
+    {
+      "arm_count": 42,
+      "arms_in_batch": 2,
+      "batch_id": "batch-002",
+      "completed_after": 30,
+      "elapsed_seconds": 1614.81,
+      "errors_in_batch": 0,
+      "produced_in_batch": 2,
+      "refused_in_batch": 0,
+      "status": "partial"
+    }
+  ],
+  "branch": "claude/lc-p302-real-half-resume-20261110",
+  "complete": false,
+  "completed_arms": 30,
+  "errors": 0,
+  "expectation_mismatches": 0,
+  "human_half": "NOT RUN - the dual-host reopen rows are the owner's open half",
+  "import_receipt": {
+    "accepted_text_chars": 18928,
+    "accepted_text_sha256": "c7d085e6036e36b70e827eee941d8cc33340234827a3ec0da02b76df7acfafae",
+    "baseline_paragraphs": 202,
+    "comment_anchor_statuses": {
+      "position": 1,
+      "resolved": 3
+    },
+    "comments": 4,
+    "comments_with_anchor": 4,
+    "paragraphs": 202,
+    "problems": {
+      "docx_comment_position_anchor": 1,
+      "docx_nested_revision": 1
+    },
+    "rejected_text_chars": 18477,
+    "rejected_text_sha256": "20d55f7bfdac403b75a942f8abf111e8de5e9e476f9cb067b3e3e330e0865137",
+    "revision_kinds": {
+      "del": 119,
+      "ins": 270,
+      "moveFrom": 3,
+      "moveTo": 8
+    },
+    "revisions": 400,
+    "revisions_with_author": 400,
+    "revisions_with_date": 400,
+    "revisions_with_paragraph": 400
+  },
+  "locate_receipt": {
+    "body_candidates": 2127,
+    "comment_paragraphs": 4,
+    "comment_targets": 20,
+    "equation_paragraph": 91,
+    "image_paragraph": 81,
+    "paragraphs": 202,
+    "plain_runs_inside_equations": 0,
+    "plain_runs_inside_images": 0,
+    "revision_paragraphs": 46,
+    "revision_targets": 600,
+    "same_paragraph_duplicates": 503,
+    "table_paragraphs": 54,
+    "table_targets": 74,
+    "unique_plain_runs": 2201
+  },
+  "material_boundary": "sample, outputs, artifacts and full report stay outside the repository; the tree carries digests, counts, structure classes and refusal reasons only",
+  "measured_arm_cost": {
+    "produced_seconds": 861.0,
+    "refused_seconds": 0.6
+  },
+  "plan_digest": "19ff69ef5051cc8dbd06df50f120840d33992655c4a9b52ebeaf233c0eeb71e2",
+  "produced": 2,
+  "produced_arm_budget_seconds": 900.0,
+  "record_date": "2026-11-10",
+  "refusal_reasons_seen": {
+    "date_not_iso_8601": 4,
+    "edit_changes_nothing": 4,
+    "paragraph_absent": 4,
+    "paragraph_holds_no_plain_run": 4,
+    "part_outside_support_matrix": 4,
+    "text_ambiguous": 4,
+    "text_not_located": 4
+  },
+  "refused": 28,
+  "refused_arm_budget_seconds": 30.0,
+  "reopen_rows": 0,
+  "report_sha256": "",
+  "sample_bytes": 4443105,
+  "sample_role": "real-advisor-sample",
+  "sample_sha256": "9154e56c5fe47da151fdb636b3cc4f8170965a8ccdbca94f292390254607652d",
+  "structure_class_results": {
+    "body-text:produced": 2,
+    "body-text:refused": 16,
+    "comment-part:refused": 4,
+    "equations:refused": 4,
+    "images:refused": 4
+  },
+  "structure_classes_blocked": [],
+  "structure_classes_carried": [
+    "body-text",
+    "comment-part",
+    "comments",
+    "equations",
+    "images",
+    "media",
+    "tables",
+    "tracked-revisions"
+  ],
+  "ticket": "LC-P3-02"
+}
