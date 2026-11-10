@@ -82,7 +82,8 @@ itself. Their historical-looking names are not permission to prune them.
 | Directory | Holds |
 |---|---|
 | `README.md`, `README.zh-CN.md` | Public current-state entry points and the status banner. |
-| `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. |
+| `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. The changelog's dated record lives in the phase archives below. |
+| `docs/changelog/` | The phase archives of the changelog: `phase-1.md` (gates G0 to G5), `phase-2.md`, `phase-3.md`. A dated entry joins the archive of its phase. Split 2026-11-11; see the changelog's own entry. |
 | `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` | Current phase, delivery pointer and handoff state. Dated sections below the current pointer are historical snapshots. |
 | `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md`, `docs/plans/PHASE_3-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
 | `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal and its execution plan, the Q1–Q96 design traceability, the multisource research-learning supplement of 2026-11-07, the Phase 3 G1 work orders issued 2026-11-08 and other design-only records. |
