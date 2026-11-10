@@ -353,7 +353,7 @@ assert.equal(rendererSurface.hasProcess, false, 'the renderer could see `process
 assert.equal(rendererSurface.hasRequire, false, 'the renderer could see `require`')
 assert.equal(rendererSurface.hasIpcRenderer, false, 'the renderer could see `ipcRenderer`')
 assert.equal(rendererSurface.hasModule, false, 'the renderer could see `module`')
-assert.deepEqual(rendererSurface.bridgeKeys, ['status'], `the exposed surface is not the one the preload declares: ${JSON.stringify(rendererSurface.bridgeKeys)}`)
+assert.deepEqual(rendererSurface.bridgeKeys, ['guard', 'status'], `the exposed surface is not the one the preload declares: ${JSON.stringify(rendererSurface.bridgeKeys)}`)
 assert.equal(rendererSurface.bridgeStatusType, 'function')
 assert.deepEqual(rendererSurface.bridgeStringValues, [], 'the native surface carries a string value the page could read as data')
 

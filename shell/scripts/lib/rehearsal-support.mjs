@@ -114,14 +114,19 @@ export async function pageState(cdp) {
     if (node === null) return null;
     const label = node.querySelector('[data-shell-label]');
     const detail = node.querySelector('[data-shell-detail]');
+    const guard = node.querySelector('[data-shell-guard]');
     return {
       status: node.getAttribute('data-shell-status'),
       label: label === null ? null : label.textContent,
-      detail: detail === null ? null : detail.textContent
+      detail: detail === null ? null : detail.textContent,
+      guard: guard === null ? null : guard.getAttribute('data-shell-guard')
     };
   })()`)
   const bridgeStatus = await cdp.evaluate(
     `(typeof window.labcairnShell === 'object' && window.labcairnShell !== null) ? window.labcairnShell.status() : null`,
+  )
+  const guardStatus = await cdp.evaluate(
+    `(typeof window.labcairnShell === 'object' && typeof window.labcairnShell.guard === 'function') ? window.labcairnShell.guard() : null`,
   )
   const location = await cdp.evaluate('location.origin')
   return {
@@ -130,6 +135,8 @@ export async function pageState(cdp) {
     stripLabel: strip === null ? null : strip.label,
     stripDetail: strip === null ? null : strip.detail,
     bridgeStatus,
+    stripGuard: strip === null ? null : strip.guard,
+    guardStatus,
   }
 }
 
