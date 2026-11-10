@@ -468,6 +468,19 @@ test('the real service answers the production path with the readers attached', a
       const answer = await fetchAnswer(starting.port, route)
       assert.ok(answer.answered && answer.status === 200, `the real service did not answer ${route}: ${JSON.stringify(answer)}`)
     }
+
+    // AC-1's allow-list half, read back from the service rather than asserted
+    // about the shell: the supervisor passes no `--origin`, so what the service
+    // says it answers to is its own list — its origin plus the two development
+    // spellings — and a shell-added entry would show up here as a third one.
+    // `/health` is asked too because it is the service's own report of the same
+    // list: the two agreeing is the assertion, not either one alone.
+    const expectedOrigins = [starting.origin, 'http://127.0.0.1:5173', 'http://localhost:5173'].sort()
+    assert.deepEqual([...starting.origins].sort(), expectedOrigins, `ServiceStarting.origins is not the service's own list: ${JSON.stringify(starting.origins)}`)
+    const healthAnswer = await fetch(`http://127.0.0.1:${starting.port}/health`).then((response) => response.json())
+    assert.deepEqual([...healthAnswer.origins].sort(), expectedOrigins, `GET /health reports a different allow-list: ${JSON.stringify(healthAnswer.origins)}`)
+    assert.equal(healthAnswer.port, starting.port, 'GET /health answers on a port other than the one ServiceStarting reported')
+
     // The drained output is in the log: the production path drained what the
     // service wrote about itself.
     assert.ok(supervisor.sink.writtenBytes > 0, 'the production path drained nothing into the log')
