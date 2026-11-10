@@ -94,6 +94,23 @@ The links are the records.
   four-request layout produced no locatable suggestion, that no timeout
   was actually drilled, and that its audits are operator self-review.
   No key, response prose or advisor material entered the tree.
+- **The owner closed the follow-up question the same day:** on the five
+  decisions surfaced by the bounded follow-up design (kept outside the
+  repository), the owner chose no real-call follow-up now (D1). The
+  remaining 15 requests / 44,864 tokens stay unspent; G4's structural
+  question is routed to `LC-P3-08`'s suggestion path and G5 stays witnessed
+  by the landed substitute rehearsal. D2 (G5 first) is recorded as the
+  conditional answer only; D3–D5 (arm caps, G4's allowed change, consent and
+  review) were not triggered, and no credential was read.
+- The Electron shell skeleton (plan steps 1–3) landed with 13 Node
+  witnesses, the drain rule wired before the child can write, and a record
+  that names the whole Python suite as not run: see
+  [`LC-P3-05-shell-skeleton-2026-11-10.md`](docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md).
+  The synthetic dry run of `LC-P3-08`'s reviewer form (report outside the
+  repository) found 12 observations; the two that made the form
+  mechanically unusable were repaired in the tree — a classification
+  precedence carve-out for owner-authorised named gaps, and F-11's dead
+  `F-20` reference — while the other ten stay for the gate's form review.
 - The batch delivery's first CI run failed five shard jobs on the
   shard-cost freshness witness, as designed: six test files had joined
   the suite since the previous measurement. The costs were re-measured
