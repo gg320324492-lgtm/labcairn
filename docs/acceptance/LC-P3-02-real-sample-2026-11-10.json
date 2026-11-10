@@ -3,7 +3,7 @@
   "artifact_count": 0,
   "base_head": "47a6d8d98f44c215599a9672734326d504fd3ce7",
   "batch_budget_seconds": 1800.0,
-  "batch_count": 6,
+  "batch_count": 7,
   "batches": [
     {
       "arm_count": 42,
@@ -70,11 +70,22 @@
       "produced_in_batch": 2,
       "refused_in_batch": 0,
       "status": "partial"
+    },
+    {
+      "arm_count": 42,
+      "arms_in_batch": 1,
+      "batch_id": "batch-007",
+      "completed_after": 38,
+      "elapsed_seconds": 1275.67,
+      "errors_in_batch": 0,
+      "produced_in_batch": 1,
+      "refused_in_batch": 0,
+      "status": "partial"
     }
   ],
   "branch": "claude/lc-p302-real-half-resume-20261110",
   "complete": false,
-  "completed_arms": 37,
+  "completed_arms": 38,
   "errors": 0,
   "expectation_mismatches": 0,
   "human_half": "NOT RUN - the dual-host reopen rows are the owner's open half",
@@ -128,7 +139,7 @@
     "refused_seconds": 0.6
   },
   "plan_digest": "19ff69ef5051cc8dbd06df50f120840d33992655c4a9b52ebeaf233c0eeb71e2",
-  "produced": 9,
+  "produced": 10,
   "produced_arm_budget_seconds": 900.0,
   "record_date": "2026-11-10",
   "refusal_reasons_seen": {
@@ -153,7 +164,7 @@
     "comment-part:refused": 4,
     "equations:refused": 4,
     "images:refused": 4,
-    "tracked-revisions:produced": 1
+    "tracked-revisions:produced": 2
   },
   "structure_classes_blocked": [],
   "structure_classes_carried": [

@@ -6,7 +6,7 @@
 
 ## Final state sentence
 
-**real-sample loop: IN PROGRESS - 37/42 arms measured; human dual-host reopen: NOT RUN - held open pending the owner.**
+**real-sample loop: IN PROGRESS - 38/42 arms measured; human dual-host reopen: NOT RUN - held open pending the owner.**
 
 This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim.
 
@@ -73,11 +73,12 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 | `batch-004` | 1 | 34/42 | 1 | 0 | 0 | 1124.89 | partial |
 | `batch-005` | 1 | 35/42 | 1 | 0 | 0 | 966.34 | partial |
 | `batch-006` | 2 | 37/42 | 2 | 0 | 0 | 1891.47 | partial |
+| `batch-007` | 1 | 38/42 | 1 | 0 | 0 | 1275.67 | partial |
 
 ## 42-arm results
 
-- arms measured: 37/42
-- produced: 9
+- arms measured: 38/42
+- produced: 10
 - refused: 28
 - errors: 0
 - expectation mismatches: 0
@@ -106,7 +107,7 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 | `comment-part:refused` | 4 |
 | `equations:refused` | 4 |
 | `images:refused` | 4 |
-| `tracked-revisions:produced` | 1 |
+| `tracked-revisions:produced` | 2 |
 
 | arm | structure | expect | observed | refusal reason | elapsed s | regions | non-identical regions |
 |---|---|---|---|---|---:|---:|---:|
@@ -147,6 +148,7 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 | `R01|surgical|clean` | `body-text` | produced | produced | `-` | 966.02 | 162 | 0 |
 | `R01|surgical|marked` | `body-text` | produced | produced | `-` | 893.59 | 162 | 0 |
 | `R02|surgical|clean` | `tracked-revisions` | produced | produced | `-` | 997.11 | 162 | 0 |
+| `R02|surgical|marked` | `tracked-revisions` | produced | produced | `-` | 1275.42 | 162 | 0 |
 
 ## Refusal is a result
 
