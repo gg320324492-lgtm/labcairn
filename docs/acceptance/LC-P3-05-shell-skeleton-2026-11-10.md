@@ -46,6 +46,11 @@ rehearsal, and this record keeps them apart rather than borrowing the term.
 | `f387a55` | this record, and the CHANGELOG entry |
 | `0a2841f001d750ccc9932c2f8c31e43047b762fa` | the tree kept English: the socket error named by its code (§9) |
 
+The table lists the commits the **work** consists of. The commits that amend this
+record after it exists are not in it, and cannot be: a list of this record's own
+commits would have to include the commit that adds the list. §9's two-run
+comparison arrived that way.
+
 **Files, and the ownership line.** Everything lands in a new top-level `shell/`
 beside `web/`. **No file under `src/labcairn/` was touched** — `git diff
 a1174ae..HEAD --stat` lists `shell/` and this record only. The plan proposed
@@ -422,3 +427,13 @@ run at a time, and the status read from the command rather than a pipe:
 
 `ruff check .` and `ruff format --check .` exit 0 at this head (§7). No board row
 moved, nothing was pushed, no pull request opened, no CI run started.
+
+**What these five files are not.** The whole suite is of the order of five
+thousand tests (`5176 tests collected in 22.44s` is what the outsider walk
+printed, in the injected run's report), and this window ran a five-file subset
+chosen for the witnesses a new top-level directory could plausibly disturb —
+README command accuracy, reference/path leakage, shard coverage, the scaffolding
+import, the outsider walk. **The whole suite was not run for this batch**, and
+that is the honest shape of what §9 claims: five witnesses that could reasonably
+have been broken were run, twice, and their results are reported with their
+cause. A whole-suite pass is not claimed and was not measured here.
