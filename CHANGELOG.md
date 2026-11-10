@@ -16,6 +16,32 @@ The links are the records.
 
 ## [Unreleased]
 
+### The certifi CRITICAL fix lands, and the readiness audits report (2026-11-11)
+
+- **`certifi` upgraded `2026.7.22` → `2026.10.23`**, clearing the CRITICAL
+  emSign intermediate-CA advisory. The worktree branch also removed the
+  duplicate `python-docx` and `reportlab` declarations from
+  `pyproject.toml` (24 lines of edit-accident debris). Targeted witnesses
+  measured **546 passed**; `ruff check` and `ruff format --check` exit 0;
+  the ledger reports `LOST -- none`. The exploitability assessment
+  confirms certifi was the **only immediate** advisory of the 25 found;
+  one is deferred (`pytest`), and 23 are not applicable to this project's
+  usage patterns. The branch was deleted after merge.
+- Four further read-only windows reported: a live-pointer freshness scan,
+  an advisory exploitability assessment, a NOTICE npm coverage draft, and
+  a residual cleanup inventory. The freshness scan found all three live
+  pointers (`ROADMAP`, `CURRENT`, `docs/README`) stopped at the
+  2026-11-10 refresh; the five CHANGELOG-only commits since are absent
+  from all three. The NOTICE draft documents 13 npm packages (10 MIT,
+  2 ISC, 1 Apache-2.0) from registry metadata and each package's own
+  licence file. The cleanup inventory measured ~129.71 GiB logical length
+  in the old worktree directories and ~12.69 GiB in the new temp tree.
+  No process was killed and no file was deleted.
+- The live pointers will be refreshed in the next record commit. The
+  NOTICE patch is a draft awaiting owner authorisation to land in the
+  tree. No runner or CI run was started, and no push, pull request or
+  commit was authorised by the reports themselves.
+
 ### Dependency surface audit and the gate-readiness scans (2026-11-11)
 
 Four further read-only windows reported: a dependency surface audit, an
