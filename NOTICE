@@ -1,7 +1,9 @@
 LabCairn — third-party notices
 ===============================================================================
 
-Applies to: the `labcairn` 0.1.0 source distribution and wheel.
+Applies to: the `labcairn` 0.1.0 source distribution and wheel, and to
+the npm dependency tree of the desktop shell (`shell/package.json`,
+pinned by `shell/pnpm-lock.yaml`).
 
 Measured: 2026-10-25, by building the artefacts (`uv build`), reading their
 member lists and their bytes, and reading the licence of every installed
@@ -155,6 +157,48 @@ These four are listed because the lesson of this repository is that a
 distribution's root licence line is not a statement about everything inside
 it: paper-qa's AGPL subpackage was invisible to a root-level check, and the
 same is true of a dependency's bundled third-party module.
+
+2.4  The dependencies the desktop shell brings in
+-------------------------------------------------
+
+The shell is an Electron main process. Its runtime dependency tree is
+declared in shell/package.json and pinned in shell/pnpm-lock.yaml: 13
+packages, resolved at lockfile version 9.0, all carried under
+permissive licences (MIT, ISC, Apache-2.0; no copyleft licence in the
+closure). Each licence below was read out of the package's own
+published registry metadata and its own published tarball, not from
+memory. The holder lines are quoted from each package's own licence
+file.
+
+  package                         version   licence     the holder line reads
+  ------------------------------  --------  ----------  ------------------------------------------------------
+  @electron-internal/extract-zip  1.0.8     MIT         Copyright (c) Contributors to the Electron project
+  @electron/get                   5.1.0     MIT         Copyright (c) Contributors to the Electron project
+  @types/node                     24.19.2   MIT         Copyright (c) Microsoft Corporation.
+  debug                           4.4.3     MIT         Copyright (c) 2014-2017 TJ Holowaychuk;
+                                                        Copyright (c) 2018-2021 Josh Junon
+  electron                        45.2.3    MIT         Copyright (c) Electron contributors;
+                                                          Copyright (c) 2013-2020 GitHub Inc.
+  env-paths                       3.0.0     MIT         Copyright (c) Sindre Sorhus
+  graceful-fs                     4.2.11    ISC         Copyright (c) 2011-2022 Isaac Z. Schlueter,
+                                                            Ben Noordhuis, and Contributors
+  ms                              2.1.3     MIT         Copyright (c) 2020 Vercel, Inc.
+  progress                        2.0.3     MIT         Copyright (c) 2017 TJ Holowaychuk
+  semver                          7.8.6     ISC         Copyright (c) Isaac Z. Schlueter and Contributors
+  sumchecker                      3.0.1     Apache-2.0  Copyright 2016, 2017, 2019 Mark Lee and contributors
+  undici                          7.30.2    MIT         Copyright (c) Matteo Collina and Undici contributors
+  undici-types                    7.24.6    MIT         Copyright (c) Matteo Collina and Undici contributors
+
+  By licence: MIT 10, ISC 2, Apache-2.0 1.
+
+The electron package is an installer as well as a library: installing
+it downloads the Electron runtime binary, and that binary carries its
+own licence documents — a LICENSE naming Electron's contributors and a
+LICENSES.chromium.html covering the Chromium, Node.js and other
+third-party components it embeds. A distribution of the shell must
+travel with those documents. The NOTICE does not attempt to restate
+them here; the documents themselves are the inventory of what the
+binary embeds.
 
 
 -------------------------------------------------------------------------------
@@ -334,3 +378,18 @@ The release workflow (.github/workflows/release.yml) runs the same audit on
 every run, on both the platforms it runs on, and fails if a dependency's
 licence is not one the NOTICE records, if the closure resolves to a different
 set than the lockfile names, or if either artefact stops carrying this file.
+
+5.3  Reproducing the shell figures
+----------------------------------
+
+The shell figures were measured by reading the 13 resolved packages out of
+shell/pnpm-lock.yaml and fetching each one's registry metadata and
+published tarball:
+
+  pnpm --dir shell list --depth Infinity   # the resolved set
+  curl -fsS https://registry.npmjs.org/<name>/<version>     # licence identifier
+  curl -fsS -o <pkg>.tgz <tarball url> ; tar -xzf <pkg>.tgz  # licence file + holder line
+
+The full per-package evidence, including every holder line quoted above and
+the tarball URL of every package, is in the drafting record dated
+2026-11-11 that accompanies this change.
