@@ -62,3 +62,29 @@ export function assertPaths(paths) {
   }
   fs.mkdirSync(paths.scratchRoot, { recursive: true })
 }
+
+/**
+ * One Electron `--user-data-dir` per shell run, under the scratch root.
+ *
+ * **Why this is a witness requirement and not a tidiness preference.**
+ * `main.mjs` takes the single-instance lock (§4.3's second-instance row), and
+ * Electron's lock lives in the app's userData directory — which defaults to the
+ * app *name* (`%APPDATA%\@labcairn\shell` here), so every rehearsal run on the
+ * machine shares one lock. A shell ended with `taskkill /F` — which every
+ * rehearsal does, because the whole point is that the child must not survive —
+ * runs no shutdown handlers and leaves a stale `SingletonLock` behind. The next
+ * Electron then fails `requestSingleInstanceLock()` and exits quietly, and the
+ * witness reports `the shell never printed loaded` for a defect that has nothing
+ * to do with the property under test. Three of the 2026-11-10 counter-mutations
+ * went red exactly that way.
+ *
+ * A separate userData per run makes the second-instance arm a *measurement*
+ * rather than an accident: the second shell shares its userData with the first,
+ * so the lock it fails to take is the first one's, and its exit 0 is the lock's
+ * doing.
+ */
+export function shellUserDataDir(scratchRoot, label) {
+  const dir = path.join(scratchRoot, 'user-data', `${label}-${Date.now()}-${process.pid}`)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}

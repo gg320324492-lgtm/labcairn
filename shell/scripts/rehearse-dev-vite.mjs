@@ -35,6 +35,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { pageState, Cdp, listTargets, pollUntil, freeLoopbackPort } from './lib/rehearsal-support.mjs'
+import { shellUserDataDir } from './lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.join(HERE, '..')
@@ -256,7 +257,11 @@ log(`Vite answers on ${VITE_ORIGIN}`)
 
 const workspace = makeWorkspace('dev-vite')
 log('=== starting the shell in dev mode ===')
-const shell = startProcess(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
+// A userData of its own per shell: Electron's single-instance lock lives in
+// userData, and a shell this rehearsal ends with `taskkill /F` leaves a stale
+// `SingletonLock` that would make the *next* shell exit quietly. See
+// `shellUserDataDir`'s note.
+const shell = startProcess(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${shellUserDataDir(scratchRoot, 'dev-vite')}`], {
   cwd: SHELL_ROOT,
   label: 'shell',
   env: {
@@ -332,7 +337,7 @@ log('dev closure result: Vite page + proxied API -> connected -> service killed 
 // --------------------------------------------------------------------------- #
 log('=== act 2: the same environment with the dev switch off ===')
 const packagedWorkspace = makeWorkspace('dev-vite-packaged')
-const packagedShell = startProcess(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
+const packagedShell = startProcess(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${shellUserDataDir(scratchRoot, 'dev-vite-packaged')}`], {
   cwd: SHELL_ROOT,
   label: 'packaged-shaped',
   env: {

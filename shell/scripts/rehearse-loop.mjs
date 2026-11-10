@@ -33,6 +33,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { Cdp, listTargets, pageState, pollUntil, freeLoopbackPort } from './lib/rehearsal-support.mjs'
+import { shellUserDataDir } from './lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.join(HERE, '..')
@@ -118,7 +119,12 @@ function makeWorkspace(name) {
 function startShell({ workspace, label }) {
   const stdout = []
   const stderr = []
-  const child = spawn(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
+  // A userData of its own per act. Electron's single-instance lock lives in
+  // userData, and `endEveryStartedShell` ends a shell with `taskkill /F`, which
+  // runs no shutdown handlers and leaves a stale `SingletonLock` — a later act
+  // would then exit quietly for a reason unrelated to what it measures.
+  const userData = shellUserDataDir(scratchRoot, `closure-${label}`)
+  const child = spawn(electronExe, ['.', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${userData}`], {
     cwd: SHELL_ROOT,
     windowsHide: true,
     env: {

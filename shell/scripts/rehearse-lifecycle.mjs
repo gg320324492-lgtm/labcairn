@@ -54,7 +54,7 @@ import {
   waitForLine,
 } from './lib/live-shell-support.mjs'
 import { Cdp, listTargets, pageState, pollUntil, freeLoopbackPort } from './lib/rehearsal-support.mjs'
-import { assertPaths, shellPaths } from './lib/shell-paths.mjs'
+import { assertPaths, shellPaths, shellUserDataDir } from './lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ARM = { refusal: true, crash: true, 'second-instance': true }
@@ -167,7 +167,15 @@ async function armCrash() {
 async function armSecondInstance() {
   log('=== second-instance arm: a second launch starts no second service ===')
   const workspace = workspaceFor('second-instance')
-  const first = await startLiveShell({ here: HERE, label: 'first', workspace, debugPort: await freeLoopbackPort() })
+  // The one arm where the two shells are given the *same* userData directory,
+  // on purpose: Electron's single-instance lock lives in userData, so a shared
+  // directory is what makes `requestSingleInstanceLock()` mean anything here.
+  // Every other arm gets its own (see `shellUserDataDir`), because a shell
+  // force-killed by `taskkill /F` leaves a stale `SingletonLock` behind, and a
+  // later shell then exits quietly for a reason that has nothing to do with the
+  // property under test.
+  const sharedUserData = shellUserDataDir(shellPaths({ here: HERE }).scratchRoot, 'second-instance-shared')
+  const first = await startLiveShell({ here: HERE, label: 'first', workspace, debugPort: await freeLoopbackPort(), userDataDir: sharedUserData })
   let second = null
   try {
     const originMatch = await waitForLine(first, /service origin=(\S+)/)
@@ -176,7 +184,7 @@ async function armSecondInstance() {
     log(`first shell service: ${originMatch[1]} pid=${firstServicePid}`)
     await sleep(1000)
 
-    second = await startLiveShell({ here: HERE, label: 'second', workspace, debugPort: await freeLoopbackPort() })
+    second = await startLiveShell({ here: HERE, label: 'second', workspace, debugPort: await freeLoopbackPort(), userDataDir: sharedUserData })
     for (let i = 0; i < 120 && second.child.exitCode === null; i += 1) await sleep(250)
     assert.notEqual(second.child.exitCode, null, 'the second instance never exited — the lock is not doing its job')
     assert.equal(second.child.exitCode, 0, `the second instance exited ${second.child.exitCode}, not 0`)

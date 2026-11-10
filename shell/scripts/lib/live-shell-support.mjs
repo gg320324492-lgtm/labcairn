@@ -14,7 +14,7 @@ import net from 'node:net'
 import path from 'node:path'
 
 import { Cdp, listTargets, pageState, pollUntil, freeLoopbackPort } from './rehearsal-support.mjs'
-import { shellPaths } from './shell-paths.mjs'
+import { shellPaths, shellUserDataDir } from './shell-paths.mjs'
 
 const WINDOWS = process.platform === 'win32'
 
@@ -38,10 +38,15 @@ export function makeWorkspace({ cli, productSrc, scratchRoot, label }) {
  * uncaught exception into the *real* main process rather than changing its
  * code to throw on a timer.
  */
-export async function startLiveShell({ here, label, workspace, inspectPort = null, debugPort = null }) {
+export async function startLiveShell({ here, label, workspace, inspectPort = null, debugPort = null, userDataDir = null }) {
   const paths = shellPaths({ here })
   const chosenDebugPort = Number(debugPort ?? process.env.LABCAIRN_SHELL_DEBUG_PORT ?? (await freeLoopbackPort()))
-  const args = ['.', `--remote-debugging-port=${chosenDebugPort}`]
+  // One userData per run unless the caller *wants* two shells to share one —
+  // which is exactly what the second-instance arm needs, because Electron's
+  // single-instance lock lives in userData and a shared lock is the property
+  // being witnessed. See `shellUserDataDir`'s note.
+  const userData = userDataDir ?? shellUserDataDir(paths.scratchRoot, label)
+  const args = ['.', `--remote-debugging-port=${chosenDebugPort}`, `--user-data-dir=${userData}`]
   if (inspectPort !== null) args.push(`--inspect=${inspectPort}`)
   const child = spawn(paths.electronExe, args, {
     cwd: paths.shellRoot,
@@ -75,6 +80,7 @@ export async function startLiveShell({ here, label, workspace, inspectPort = nul
   return {
     child,
     debugPort: chosenDebugPort,
+    userData,
     paths,
     get stdout() { return stdout },
     get stderr() { return stderr },

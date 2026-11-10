@@ -27,7 +27,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { Cdp, listTargets, pageState, pollUntil, freeLoopbackPort } from './lib/rehearsal-support.mjs'
-import { assertPaths, shellPaths } from './lib/shell-paths.mjs'
+import { assertPaths, shellPaths, shellUserDataDir } from './lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const paths = shellPaths({ here: HERE })
@@ -47,7 +47,11 @@ for (const [args, label] of [
 }
 
 let stdout = ''
-const shell = spawn(paths.electronExe, ['.', `--remote-debugging-port=${debugPort}`], {
+// A userData of its own: Electron's single-instance lock lives in userData, and
+// a shell force-killed by a previous rehearsal leaves a stale `SingletonLock`
+// that would make *this* shell exit quietly. See `shellUserDataDir`'s note.
+const shellUserData = shellUserDataDir(paths.scratchRoot, 'live-guard')
+const shell = spawn(paths.electronExe, ['.', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${shellUserData}`], {
   cwd: paths.shellRoot,
   windowsHide: true,
   env: {
