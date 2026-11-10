@@ -16,6 +16,25 @@ The links are the records.
 
 ## [Unreleased]
 
+### The live pointers refresh, NOTICE lands, and the G4 path is drafted (2026-11-11)
+
+- **The three live pointers refresh to the 2026-11-11 state** (merge
+  `354f387`): `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` and
+  `docs/README.md` now carry the 79-commit accumulated batch, certifi
+  `2026.10.23`, the G4 checklist's 31 `PENDING` rows, and the NOTICE npm
+  draft. Targeted witnesses measured **575 passed**; the ledger reports
+  `LOST -- none`.
+- **The desktop shell's npm dependency surface lands in `NOTICE`**
+  (merge `9101597`): 13 packages documented from registry metadata and
+  each package's own licence file — 10 MIT, 2 ISC, 1 Apache-2.0.
+- Two further read-only windows reported outside the repository: a G4
+  implementation path draft (all six installer tools absent from PATH,
+  five unsigned-executable drill steps for T09, the version-switching
+  gap is distinct from AC-6) and a CHANGELOG structural review (1359
+  lines, 35 `h3` sections, ~835 lines added in six days; recommends
+  splitting by phase into `docs/` archive files with zero witness-test
+  changes). Neither is a deliverable; both are decision inputs.
+
 ### The certifi CRITICAL fix lands, and the readiness audits report (2026-11-11)
 
 - **`certifi` upgraded `2026.7.22` → `2026.10.23`**, clearing the CRITICAL
