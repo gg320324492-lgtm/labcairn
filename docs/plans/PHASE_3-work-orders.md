@@ -14,7 +14,7 @@ it, and never because something looks finished.
 | `LC-P3-04` | Phase 3 G2 | **`IN PROGRESS`** — the binding loop (opinion → locate → suggest → apply → dossier) merged 2026-11-10 (merge `2dce121`); evidence in [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md); 17 Python witnesses + 5 web witnesses, 6 counter-mutations caught, ledger `ADDED -- 17`; the gate itself stays open | Execution plan §3; §9. |
 | `LC-P3-05` | Phase 3 G3 | **`IN PROGRESS`** — the selection-and-measurement stage landed 2026-11-10 (merge `1e35758`); evidence in [`LC-P3-05-selection-measurement-2026-11-10.md`](../acceptance/LC-P3-05-selection-measurement-2026-11-10.md) and [`ADR-0023`](../adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md); the shell choice itself waits on the O6 fix, which landed 2026-11-10 (merge `9cdb19a`, record [`o6-event-stream-stall-2026-11-10.md`](../acceptance/o6-event-stream-stall-2026-11-10.md)) | The dated selection record; §10. |
 | `LC-P3-06` | Phase 3 G3 | **`IN PROGRESS`** — the substitute-first half landed 2026-11-10 (merge `7d5be74`); evidence in [`LC-P3-06-substitute-first-2026-11-10.md`](../acceptance/LC-P3-06-substitute-first-2026-11-10.md); 33 witnesses, 12/12 counter-mutations; the real half still waits on `LC-P3-04` and the sample | `LC-P3-00` §4; the authorisation record at §11's §4.9; the real-model row stays gated by §4.8's right column. |
-| `LC-P3-07`, `LC-P3-08` | Phase 3 G4 | `NOT STARTED` — no work order written | Execution plan §3. |
+| `LC-P3-07`, `LC-P3-08` | Phase 3 G4 | **`NOT STARTED`** — work orders §12 and §13 were issued 2026-11-09 (owner decision: the ground-truth revision published on 2026-11-10); both tickets stay blocked on `LC-P3-05`'s installed build | Execution plan §3; §12, §13, and the 2026-11-10 owner decisions at the end of each section. |
 
 Source questions **Q77** and **Q82** stay open at their own triggers
 (`LC-P3-00` §8, execution plan §8), unchanged by anything here.
@@ -941,6 +941,35 @@ and review". The rows are judged at Phase 3 G4.
 | The diagnostics de-identification, proven on synthetic content | — |
 | The manual and known limits, written against the installed build's actual behaviour | — |
 
+**Owner decisions answered 2026-11-10 (ground-truth revision).** This
+section and §13 were issued on 2026-11-09; the board's row was stale, not
+the orders themselves. The owner's answers below revise §12 and §13 against
+what G2/G3 actually landed, and the draft that surfaced them stays outside
+the repository until this publication. **Decision 1** (accepted option A):
+publish this as a revision of the issued §§12–13, keep the 2026-11-09 owner
+answers untouched, and move the board row in the same commit to name the
+issued orders and their date while the tickets themselves stay
+`NOT STARTED`. **Decision 8** (accepted option A): publish locally and join
+the next owner-authorised batch — no push, no pull request and no CI run
+belong to this publication.
+
+- **Decision 2 — the sequencing against `LC-P3-05`.** Accepted option A:
+  07 and 08 stay `BLOCKED` on 05's shell decision and installed build. The
+  shell is now chosen (Electron, 2026-11-10; ADR-0023 accepted and its
+  implementation plan written), but the installed build does not exist yet.
+  Only substitute-first design work — the drill matrix, the manual
+  skeleton, the trial protocol, the per-row mapping, the seam statement
+  and its witness — may start now, and each such piece is
+  **labelled design, not a deliverable until run**. A dev-build rehearsal
+  is not authorised, and a rehearsal may never be entered in an execution
+  plan §4 row. The wheel-only vehicle was not chosen.
+- **Decision 5 — the `LC-P3-06` real-model row at G4.** No new decision:
+  §14 item 7 stands verbatim. The real-model row remains a named gap at the
+  exit decision and does not pass on a substitute; 06's real half has since
+  been run under its own authorisation
+  ([`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)),
+  which changes what the gap names, not the owner's ruling.
+
 ---
 
 ## 13. `LC-P3-08` — internal-trial review and exit decision (Phase 3 G4)
@@ -1032,6 +1061,39 @@ exercised once, bounded, under separate owner authorisation.
 |---|---|
 | The protocol record and the per-row evidence mapping | The advisor-to-student-to-advisor loop, in every part |
 | A dry-run of the §4 mapping against the substitute build (a rehearsal is not a trial result and is labelled as one) | The advisor's real sample, the real reopen, the named reviewer's read, the exit decision |
+
+**Owner decisions answered 2026-11-10 (ground-truth revision).** These
+answers revise the issued §13 against the 2026-11-10 landings (`LC-P3-03`,
+`LC-P3-04`, `LC-P3-05`'s selection and the O6 fix, `LC-P3-06`'s two
+halves); the dependency on 05's installed build is named in §12's answer
+block above.
+
+- **Decision 3 — one supply, one run.** Accepted option A: `LC-P3-02`'s
+  recorded real-sample loop is an **input** to 08's trial record; 08 still
+  runs its own advisor-to-student-to-advisor loop and cites 02's result.
+  The two records cross-reference each other, and 08 never claims a row
+  from 02's evidence alone. A second real sample was not commissioned, and
+  02's measurement does not stand in for 08's real-advisor row.
+- **Decision 4 — the `root_kinds` seam.** Accepted option A: keep
+  `root_kinds={"source"}`. The trial protocol names `binding.py`'s
+  approval-record minting as the product's actual behaviour; the seam
+  statement in the trial protocol carries its own witness, and the
+  trajectory listing not showing output versions is a known limit, not a
+  defect. Widening the
+  capability's root kinds before the trial was not authorised (it remains
+  an owner decision for its own ticket).
+- **Decision 6 — who classifies a trial finding.** Accepted option A: the
+  named reviewer classifies each finding (blocker / measured gap / routed
+  defect) at a named commit; a disagreement goes to a third reader as
+  arbiter (`LC-P3-00` §3); the owner signs the classification with the exit
+  decision. A blocker keeps the decision blocked with its evidence
+  address. No finding passes on a note alone.
+- **Decision 7 — the named reviewer's form.** Accepted option A: one named
+  human reviewer designated by the owner, plus one independent agent
+  session with no project memory as a second reader, carrying the literal
+  disclosure sentence where an agent stands in for a human reader. The
+  arbiter of a disagreement is a third reader. The trial's real-advisor
+  rows are not read by agents alone.
 
 ---
 

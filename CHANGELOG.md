@@ -16,6 +16,44 @@ The links are the records.
 
 ## [Unreleased]
 
+### Phase 3 G4 owner decisions and the Electron shell choice (2026-11-10)
+
+- The G4 drafting round found that the board's `LC-P3-07`/`LC-P3-08` row
+  was stale: §§12–13 were already issued work orders (2026-11-09), not
+  missing ones. The owner answered eight decisions the same day through
+  the session's dialogs, and the answers are published in place at the end
+  of §12 and §13, with the board row corrected in the same commit: this
+  is a ground-truth revision of the issued orders against the 2026-11-10
+  G2/G3 landings, not a first issuance and not a re-decision of §14's
+  answered items. 07/08 stay `NOT STARTED`, blocked on `LC-P3-05`'s
+  installed build; design work is labelled design, not deliverable until
+  run; one real sample supplies both 02 and 08; the `root_kinds` seam is
+  named, not widened; the named reviewer is a human plus an independent
+  agent second reader with a third-reader arbiter; publication joins the
+  next owner-authorised batch, with no push, PR or CI run of its own.
+- [ADR-0023](docs/adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md)
+  is **Accepted** on the owner's Electron choice (the only candidate
+  buildable on this machine in the selection measurement), and
+  [`LC-P3-05-shell-implementation-plan.md`](docs/plans/LC-P3-05-shell-implementation-plan.md)
+  carries nine implementation steps. O6's measured lesson — a traceback
+  written into a pipe nobody drains stops the event loop — is a hard rule
+  of the main process with a witness design attached. The O6
+  precondition in the selection record is discharged.
+- The real-model half of `LC-P3-06` ran bounded on synthetic samples:
+  5 requests, 0 refused, 0 failed, 5,136 of 50,000 authorised tokens,
+  stop-loss never fired, dry reconciliation MATCHED before the spend;
+  record [`LC-P3-06-real-half-2026-11-10.md`](docs/acceptance/LC-P3-06-real-half-2026-11-10.md).
+  The record names seven measured gaps, including that the ladder's
+  four-request layout produced no locatable suggestion, that no timeout
+  was actually drilled, and that its audits are operator self-review.
+  No key, response prose or advisor material entered the tree.
+- The batch delivery's first CI run failed five shard jobs on the
+  shard-cost freshness witness, as designed: six test files had joined
+  the suite since the previous measurement. The costs were re-measured
+  from that run's own `--durations=0` log (run `42733499009`, Windows
+  balance 1.000 / Ubuntu 1.274). That run's clean-room evidence also
+  caught a dead `LC-P3-03` record link, fixed in the board and here.
+
 ### Phase 3 G2/G3 batch: three windows land locally (2026-11-10)
 
 Three windows reviewed and merged into `main` by the conductor session, each
