@@ -7,7 +7,9 @@ implementation.
 
 **Read 2026-11-10 (re-measurement):** the 733-file figure in §1 is the scan at
 `7029bc28500f2d676a01b9586f04c17419dc0493`, a historical measurement that is
-left as written. Re-measured at `6c0007e547711c0637edfaf518eaca70b33205c5`,
+left as written. Re-measured at the follow-up branch's measured code head
+`6c0007e547711c0637edfaf518eaca70b33205c5`, and again at its documentation-only
+delivery head `6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5`,
 `git ls-files | wc -l` prints **821 tracked files**: 481 `.py`, 191 `.md`,
 28 `.json`, 27 `.mjs`, 26 `.tsx`, 23 `.ts`, 13 `.csv`, 7 `.yml`, 3 `.pdf`,
 and the remaining configuration, fixture and binary files. The 27 `.mjs`

@@ -23,12 +23,15 @@ while the two implementation windows and their background measurements were
 still in flight. None changes a measured result or authorises a push, pull
 request or CI run.
 
-- The four already committed Electron shell records keep the
+- The four Electron shell follow-up commits already made at the time of the
+  decision keep the
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` line injected
-  by the harness at the time; their history is not rewritten. New commits
-  use the current
-  `Co-Authored-By: Claude Code <noreply@anthropic.com>` line. The
-  difference is disclosed in the batch record rather than silently amended.
+  by the harness. Eleven earlier Electron shell commits and four
+  `LC-P3-07` design commits in the accumulated batch also carry that
+  harness-injected line: **fifteen commits in total**, all left unamended.
+  New commits use the current
+  `Co-Authored-By: Claude Code <noreply@anthropic.com>` line. The full
+  count is disclosed rather than silently amended.
 - `LC-P3-02`'s real-sample half-loop continues to all 42 arms. A 33/42
   append-only ledger is a partial measurement, not a completed loop; the
   substitute-run record and its witness are re-targeted together only after

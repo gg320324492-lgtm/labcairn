@@ -24,13 +24,27 @@ which are untouched).
 
 **Current pointer (2026-11-10, later batch).** §1–§8 above are the skeleton
 batch's own dated evidence and are left as written. A later batch on branch
-`claude/sweet-varahamihira-7d5899`, head
-`6c0007e547711c0637edfaf518eaca70b33205c5`, closed the T05 live-401 half, T06's
-three unwitnessed lifecycle arms, AC-7 and AC-8 (static halves only), and added
-a dated measurement in §10. **The gaps that remain are named in §10.4**: T08, T09,
-AC-6, AC-2's Windows graceful-ask arm (owner's decision: leave as a measured
-gap), the second-instance focus half, Arm C in full, and the `file://`
-counter-mutation at the pure layer. The board row is still not moved.
+`claude/sweet-varahamihira-7d5899` measured its code at
+`6c0007e547711c0637edfaf518eaca70b33205c5` and was delivered at
+`6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5`. The delivery commit is
+documentation-only; the measured tree is unchanged. The batch closed the
+T05 live-401 half, T06's three unwitnessed lifecycle arms, AC-7 and AC-8
+(static halves only), and added a dated measurement in §10. **The gaps that
+remain are named in §10.4**: T08, T09, AC-6, AC-2's Windows graceful-ask arm
+(owner's decision: leave as a measured gap), the second-instance focus half,
+Arm C in full, and the `file://` counter-mutation at the pure layer. The
+board row is still not moved.
+
+**Independent review, 2026-11-10.** A read-only independent critique of the
+eight-commit branch found claims that the tree does not carry, including
+shell witnesses that no gate or ledger watches, two comments naming a
+witness file that does not exist, an unwitnessed post-readiness pipe-error
+arm, and no-orphan rehearsals that ignore `tasklist`'s exit status. The
+critique records the drain-log location/ceiling, redirect handling, shape
+margins and counter-mutation harness reproducibility as open limits. They
+are named gaps here, not passing rows; the full findings and their evidence
+addresses stay in the external report
+`E:/labcairn-local/phase3-g1-evidence/shell-skeleton-independent-critique-2026-11-10.md`.
 
 **Where the rehearsal stands, stated plainly.** The two runs in §4 and §5 are
 `LC-P3-05`'s own dev-build verification of a shell this window wrote. They are
@@ -464,7 +478,8 @@ pushes a branch.
 
 | what | value, printed live for this section |
 |---|---|
-| head | `6c0007e547711c0637edfaf518eaca70b33205c5` |
+| measured code head | `6c0007e547711c0637edfaf518eaca70b33205c5` |
+| delivered branch head | `6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5` (documentation-only eighth commit) |
 | branch | `claude/sweet-varahamihira-7d5899` (worktree of the same name) |
 | Node running the witnesses | `v24.16.0` |
 | Electron | `45.2.3` (owner-approved 2026-11-10, unchanged) |
@@ -483,8 +498,11 @@ pushes a branch.
 | `09c5e9a` | the live probe's mutation had no witness on the code that makes it |
 | `6b21d03` | one Electron userData per shell run, so a stale lock cannot forge a failure |
 | `6c0007e` | the guard IPC decisions moved where a witness can run them |
+| `6a53644` | record the follow-up batch, and the gaps it still leaves open |
 
-Three of the seven are corrections the measurements forced; §10.3 records them
+The first seven are the commits whose code and measurements this section
+describes; the eighth is this record's own documentation-only commit. Three
+of the seven are corrections the measurements forced; §10.3 records them
 because a record that hides them hides why the code looks the way it does.
 
 ### 10.2 Measured, and held
