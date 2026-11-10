@@ -16,6 +16,28 @@ The links are the records.
 
 ## [Unreleased]
 
+### Owner decisions on the in-flight G3/G4 batch (2026-11-10)
+
+Three decisions were answered by the owner through the session's dialogs
+while the two implementation windows and their background measurements were
+still in flight. None changes a measured result or authorises a push, pull
+request or CI run.
+
+- The four already committed Electron shell records keep the
+  `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` line injected
+  by the harness at the time; their history is not rewritten. New commits
+  use the current
+  `Co-Authored-By: Claude Code <noreply@anthropic.com>` line. The
+  difference is disclosed in the batch record rather than silently amended.
+- `LC-P3-02`'s real-sample half-loop continues to all 42 arms. A 33/42
+  append-only ledger is a partial measurement, not a completed loop; the
+  substitute-run record and its witness are re-targeted together only after
+  the final acceptance record lands.
+- The Electron shell batch may be reviewed and merged locally with its
+  measured `T08`, `T09` and Windows graceful-shutdown gaps named as gaps.
+  Those gaps are not converted into passing rows; their classification is
+  signed by the owner at the gate's exit decision.
+
 ### The Electron shell skeleton runs, and the drain rule is witnessed (2026-11-10)
 
 - A new top-level `shell/` (beside `web/`, nothing under `src/labcairn/`
