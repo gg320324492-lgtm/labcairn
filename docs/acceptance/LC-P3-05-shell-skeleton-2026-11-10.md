@@ -7,7 +7,7 @@ produced by the command named under it; none is carried from another record):
 |---|---|
 | branch | `claude/awesome-nash-b42e44` (worktree `awesome-nash-b42e44`) |
 | base commit (local `main` at dispatch) | `a1174ae2ff91263ea593f2596743e5b650ff0976` |
-| branch head this record is written at | `5651744` — see §1 for the six commits |
+| commits this record describes | listed commit by commit in §1 |
 | Electron (installed, `shell/node_modules/electron/package.json`) | 45.2.3 |
 | Node running the rehearsals | v24.16.0 |
 | Python / fastapi / uvicorn / starlette / anyio / pydantic (`.venv`) | 3.12.13 / 0.151.0 / 0.54.0 / 1.8.0 / 4.15.1 / 2.14.1 |
@@ -32,7 +32,7 @@ rehearsal, and this record keeps them apart rather than borrowing the term.
 
 ---
 
-## 1. What was built, in six commits
+## 1. What was built, commit by commit
 
 | commit | subject |
 |---|---|
@@ -43,6 +43,8 @@ rehearsal, and this record keeps them apart rather than borrowing the term.
 | `fe7bb122dfb965cc329bd3e4fbfc9e5a05975dea` | unused capacity fixtures deleted; diagnostic fixture paths fixed |
 | `6203aafb9b2745f21bf7bc058a10f6d59be9f565` | the dev-mode rehearsal against the real Vite arrangement; shared window reader |
 | `5651744` | the allow-list read back from the service in arm C |
+| `f387a55` | this record, and the CHANGELOG entry |
+| `0a2841f001d750ccc9932c2f8c31e43047b762fa` | the tree kept English: the socket error named by its code (§9) |
 
 **Files, and the ownership line.** Everything lands in a new top-level `shell/`
 beside `web/`. **No file under `src/labcairn/` was touched** — `git diff
@@ -372,12 +374,51 @@ and `E:\labcairn-local\shell-test-tmp`; drained logs at `E:\labcairn-local\shell
 
 ## 9. Repository-side checks run against this tree
 
+Five repository witnesses that a new top-level directory could plausibly disturb
+were run as a subset, twice, with `--basetemp` and
+`TEMP`/`TMP`/`TMPDIR`/`MPLCONFIGDIR` outside the repository, `COLUMNS=200`, one
+run at a time, and the status read from the command rather than a pipe:
 `tests/test_readme_accuracy.py`, `tests/test_no_reference_leakage.py`,
-`tests/test_ci_shard_coverage.py`, `tests/test_scaffolding.py` and
-`tests/test_outsider_path.py` were started as a subset with `--basetemp` and
-`TEMP`/`TMP`/`TMPDIR`/`MPLCONFIGDIR` outside the repository, `COLUMNS=200` and
-`PYTHONPATH` at this worktree's `src`. **Their result is not claimed here** — the
-run was still in progress when this section was written, and a record that
-quotes a number it has not read is the failure mode this project has been
-burned by. The numbers land as an addendum to this record once the run reports
-(`STATUS=` read from the command, not a pipe).
+`tests/test_ci_shard_coverage.py`, `tests/test_scaffolding.py`,
+`tests/test_outsider_path.py`. The two runs differed in **one** thing — whether
+`PYTHONPATH` pointed at this worktree's `src`.
+
+| run | `PYTHONPATH` | result | failing set |
+|---|---|---|---|
+| injected | `<worktree>/src` | `PYTEST_STATUS=1` — 6 failed, 176 passed (247.03 s) | `test_no_reference_leakage::test_wheel_installs_clean_and_imports`; all four `test_outsider_path` tests; `test_no_reference_leakage::test_the_tree_carries_no_more_chinese_than_was_measured` |
+| control | not set | `PYTEST_STATUS=1` — **1 failed, 181 passed** (159.44 s) | `test_scaffolding::test_core_resolves_inside_the_source_tree` |
+
+**The two failure sets do not intersect, and that is the finding.** Per
+`CLAUDE.md` (*compare the sets, not the counts*):
+
+- **Five of the six are this window's run configuration, not the tree.** An
+  injected `PYTHONPATH` leaks into the tests that build their own clean clone or
+  clean-room virtualenv precisely so that they cannot be shadowed by the
+  developer's checkout, and they refuse when it arrives anyway. Their own words:
+  *"labcairn resolved to …worktrees\awesome-nash-b42e44\src\labcairn\__init__.py,
+  outside the clean venv … The editable install of the working tree shadowed the
+  wheel, so this assertion proved nothing"*, and *"[FAIL] the walk runs the
+  clone's own code, not the developer's"*. All five are green in the control run.
+- **The one control-run failure is the known worktree condition**, and it is the
+  reason the injection exists in the first place: `labcairn.core resolved to
+  E:\LabCairn\src\labcairn\core\__init__.py, outside
+  E:\LabCairn\.claude\worktrees\awesome-nash-b42e44` — the in-process import
+  reaches the main checkout without `PYTHONPATH`. So the two configurations each
+  break the other's tests: **no single `PYTHONPATH` setting runs this subset
+  green in a worktree.** What a later run needs is per-test scoping — the
+  in-process importers want the worktree's `src`, the clone-and-clean-room
+  witnesses must not inherit it — which is a repository-side arrangement this
+  window does not own and does not change.
+- **The Chinese-count witness caught a real defect of mine, and the fix is
+  witnessed.** It named `shell/scripts/rehearse-loop.mjs`, where a comment quoted
+  Windows' localised bind-refusal message in Chinese — against `CLAUDE.md`'s rule
+  that everything landing in the tree is English. Commit `0a2841f` names the
+  socket code (10048) in English instead, and that test **passes in the control
+  run** (the control run was made after the fix, so the witness was watching the
+  fixed tree).
+- `test_readme_accuracy.py` and `test_ci_shard_coverage.py` passed in both runs:
+  no README command was disturbed, and no test file entered a shard it should
+  not — consistent with §7's point that this batch added no pytest file.
+
+`ruff check .` and `ruff format --check .` exit 0 at this head (§7). No board row
+moved, nothing was pushed, no pull request opened, no CI run started.
