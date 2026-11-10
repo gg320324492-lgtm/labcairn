@@ -16,6 +16,27 @@ The links are the records.
 
 ## [Unreleased]
 
+### Delivery preparation reports, still local only (2026-11-10)
+
+Four further read-only windows prepared delivery material outside the
+repository: a 13-group commit inventory and 11-row risk card, ten
+`LC-P3-08` observation drafts (`FO-03` through `FO-12`, every owner
+signature `PENDING`), a hardened half-loop boundary checker, and a
+stale-process cleanup plan. The conductor re-measured the inventory's
+71-commit / 13-group arithmetic, the checker's **16 PASS / 0 FAIL** clean
+run, three red counter-mutations plus one green control, and the plan's
+27 stale service processes across nine listening ports. No process was
+killed, no runner or CI run was started, and no tree or ledger input was
+changed by those windows.
+
+The risk card is an inventory of what a future runner and the owner must
+decide, not a pass claim. Its R-10 finding corrected the attribution count
+above: a number measured at a 70-commit range cannot be carried as a
+current total after another commit lands. The 08 drafts do not classify
+findings on the owner's behalf, the hardened checker does not re-run the
+42 arms, and the cleanup plan is a decision item rather than permission to
+terminate services. All four reports stay outside the repository.
+
 ### Pre-delivery audits and the pointer refresh (2026-11-10)
 
 Four independent read-only windows reported on the accumulated local batch:
@@ -23,12 +44,15 @@ a full-range static audit, a G4 owner classification checklist, a WPS
 screenshot checklist validator, and a second reader for the 42-arm machine
 half. Their reports stay outside the repository. The conductor re-measured the
 witness ledger (`LOST -- none`, 3579 → 3579), 174 registered Python test files
-across five shards per platform, 20 harness-injected
-`Claude Sonnet 5.5` attribution lines and 50 `Claude Code` lines, and the
-42/42 machine half's counts, three ledger digests and report digest. The
-full-range audit separately measured 966 relative links and anchors with
-none broken; its targeted link and anchor witnesses were re-run here. No raw
-material, material filename, reply or credential entered the range diff.
+across five shards per platform, and the 42/42 machine half's counts, three
+ledger digests and report digest. At the named 70-commit range
+`origin/main..e3aed01`, `git log --format` measured 20 harness-injected
+`Claude Sonnet 5.5` attribution lines and 50 `Claude Code` lines; the current
+71-commit range adds one `Claude Code` line and is re-measured at delivery
+time rather than carried forward. The full-range audit separately measured
+966 relative links and anchors with none broken; its targeted link and anchor
+witnesses were re-run here. No raw material, material filename, reply or
+credential entered the range diff.
 
 The audits named record-layer lags rather than product failures. This
 refresh moves the 42-arm machine loop out of `ROADMAP.md`'s open list, updates
