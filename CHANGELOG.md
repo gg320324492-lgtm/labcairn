@@ -16,6 +16,26 @@ The links are the records.
 
 ## [Unreleased]
 
+### The real-sample machine half lands, with the human half held open (2026-11-10)
+
+- `LC-P3-02`'s owner-picked advisor sample ran its 42-arm machine loop:
+  42/42 arms, 14 produced, 28 refused, 0 errors, 0 expectation mismatches,
+  8 artifacts, and report digest
+  `a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`.
+  The dated record is
+  [`LC-P3-02-real-sample-2026-11-10.md`](docs/acceptance/LC-P3-02-real-sample-2026-11-10.md),
+  with a JSON summary and three append-only ledger digests. A read-only
+  independent critique found that partial records printed a false zero
+  artifact count, used final/completion wording too early, lacked a ledger
+  digest and attributed batch exits without a measured status. The generator
+  was repaired and the final record re-rendered; the append-only ledger was
+  not rewritten.
+- The substitute-run record, its `test_docx_edit_records.py` witness, the
+  board's `LC-P3-02` row and §17, and `LC-P3-08`'s evidence map were
+  re-targeted in one batch to the measured machine-half state. That state
+  closes no human half: the dual-host reopen remains `NOT RUN` and no
+  ticket verdict is transferred from the machine loop to the gate.
+
 ### Owner decisions on the in-flight G3/G4 batch (2026-11-10)
 
 Two rounds of decisions were answered by the owner through the session's

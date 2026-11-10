@@ -10,10 +10,13 @@ recorded in [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
 re-measured from runner run `42733499009` at
 `46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
 carried by the balance witness's slack rule until the next runner re-measure.
-The shell batch's 17 independent-critique findings stay named gaps for G4, and
-the 44-row dual-host checklist is 4/44 completed. The real-sample half-loop has
-reported 42/42; that report awaits the conductor's review and no gate row has
-moved. No push, pull request or CI run is authorised.
+The shell batch's 17 independent-critique findings stay named gaps for G4, the
+44-row dual-host checklist is 4/44 completed, and the owner's later dialog
+narrows its personal verification to WPS while Word 2010 rows stay
+`PENDING-HUMAN`. The owner-picked sample's 42-arm machine loop landed on
+2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
+dual-host reopen half remains `NOT RUN`, no gate row has moved, and no
+push, pull request or CI run is authorised.
 
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's

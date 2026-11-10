@@ -28,6 +28,7 @@ declares a protocol marker as a contradiction.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -372,13 +373,38 @@ def test_the_run_record_states_the_open_half_as_open() -> None:
 
     **What each missing sentence would mean.** Without the host sentence the
     record would be claiming a dual-host result no person produced; without
-    the advisor sentence it would be reporting synthetic coverage as advisor
-    use, which `LC-P3-00` §3 forbids.
+    the machine-half sentence it would be reporting synthetic coverage as
+    advisor use, which `LC-P3-00` §3 forbids. The real-sample loop's 42-arm
+    measurement now has its own dated record; the substitute record must cite
+    that measured state while keeping the human half open.
     """
     text = RUN_RECORD.read_text(encoding="utf-8")
     assert "NOT RUN" in text, "the record states no open half"
-    assert "real-sample loop: NOT RUN — held open pending the owner's sample" in text, (
-        "the real-sample half does not carry the exact label §5.9 names"
+    assert "real-sample loop: NOT RUN — held open pending the owner's sample" not in text, (
+        "the substitute record has not followed the completed 42-arm record"
+    )
+    assert "LC-P3-02-real-sample-2026-11-10.md" in text, (
+        "the substitute record does not cite the dated real-sample record"
+    )
+    assert "42/42 arms measured; complete = true" in text, (
+        "the substitute record does not carry the measured machine-half state"
+    )
+    assert "a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638" in text, (
+        "the substitute record does not bind its statement to the report digest"
+    )
+    assert "human\ndual-host reopen: NOT RUN - held open pending the owner" in text, (
+        "the machine half has been allowed to close the human half"
+    )
+    real = (RECORDS / "LC-P3-02-real-sample-2026-11-10.json").read_text(encoding="utf-8")
+    summary = json.loads(real)
+    assert summary["complete"] is True
+    assert summary["completed_arms"] == 42
+    assert summary["produced"] == 14
+    assert summary["refused"] == 28
+    assert summary["artifact_count"] == 8
+    assert (
+        summary["report_sha256"]
+        == "a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638"
     )
     for phrase in ("PASS WITH NOTES", "the gate passed", "accepted on review"):
         assert phrase not in text, f"the record claims {phrase!r} without an independent review"

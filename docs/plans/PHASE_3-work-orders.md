@@ -9,7 +9,7 @@ it, and never because something looks finished.
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
 | `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
-| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md); the §4.9 human dual-host reopen checklist, the real advisor sample (§5.9) and the runner-measured shard costs (§3 rule 3) remain open | The dated run record and its witnesses, measured locally on the synthetic substitute set; no host result, no real-sample loop and no PASS is claimed, and the shard-balance witness is expected red until the batch runner run. |
+| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remain open | The dated substitute and real-sample records and their witnesses; no host result and no PASS is claimed. The shard-balance witness is expected red until the batch runner run. |
 | `LC-P3-03` | Phase 3 G2 | **`IN PROGRESS`** — implementation merged 2026-11-10 (merge `4855ea6`); evidence in [`LC-P3-03-revision-loop-2026-11-10.md`](../acceptance/LC-P3-03-revision-loop-2026-11-10.md); 17 witnesses, four refusal classes, all four counter-mutation families caught; the gate itself stays open | The dated run record and its witnesses, measured locally; no PASS is claimed. |
 | `LC-P3-04` | Phase 3 G2 | **`IN PROGRESS`** — the binding loop (opinion → locate → suggest → apply → dossier) merged 2026-11-10 (merge `2dce121`); evidence in [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md); 17 Python witnesses + 5 web witnesses, 6 counter-mutations caught, ledger `ADDED -- 17`; the gate itself stays open | Execution plan §3; §9. |
 | `LC-P3-05` | Phase 3 G3 | **`IN PROGRESS`** — the selection-and-measurement stage landed 2026-11-10 (merge `1e35758`); evidence in [`LC-P3-05-selection-measurement-2026-11-10.md`](../acceptance/LC-P3-05-selection-measurement-2026-11-10.md) and [`ADR-0023`](../adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md); the shell choice itself waits on the O6 fix, which landed 2026-11-10 (merge `9cdb19a`, record [`o6-event-stream-stall-2026-11-10.md`](../acceptance/o6-event-stream-stall-2026-11-10.md)) | The dated selection record; §10. |
@@ -380,6 +380,14 @@ order.
 Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
+**Read 2026-11-10:** the owner-picked sample's 42-arm machine half has since
+been measured in
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md)
+(42/42, 14 produced, 28 refused, 8 artifacts, report digest
+`a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`). That later
+dated record closes only the machine half; the human dual-host reopen half
+remains `NOT RUN`, and no ticket verdict is transferred from one half to the
+other.
 
 **The corpus is identified; the sample is picked.** On 2026-11-09 the
 owner confirmed the uploaded micro-nano-bubble reference batches as this
@@ -399,9 +407,11 @@ carries `BODY_TEXT`, `TRACKED_REVISIONS`, `COMMENTS`, `TABLES`,
 `EQUATIONS`, `IMAGES`, `COMMENT_PART` and `MEDIA`, and blocks nothing — a
 wider structural coverage than most synthetic samples. The file itself
 stays outside the repository; the tree records its digest and counts,
-never its name or its content. The named-gap label above stands unchanged:
-the real-sample half is `NOT RUN` until the full loop runs on this file
-and is recorded.
+never its name or its content. **Read 2026-11-10:** the 42-arm machine
+loop has now run on this file and is recorded in the dated
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).
+That record closes the machine half only; the human dual-host reopen half
+remains `NOT RUN` and is still a named gap.
 
 **5.10 The empty row, and who watches it.** A record may leave a cell empty
 because the evidence for it has not been taken. That is honest only while a
@@ -1275,7 +1285,7 @@ do not edit these; both sequence against them.
 
 | Gap | Waiting on | Where it is stated |
 |---|---|---|
-| The real advisor sample and its full loop | The loop itself, run on the picked sample and recorded (the sample was picked 2026-11-09: batch A, digest at §5.9; the file stays outside the repository) | §5.9, §14 item 4 |
+| The real advisor sample's human dual-host reopen half | The 42-arm machine loop ran on the picked sample on 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts) and is recorded in [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md). What remains open is the owner's human dual-host reopen half, not the machine loop; the file stays outside the repository | §5.9, §14 item 4, the dated real-sample record |
 | `LC-P3-06`'s "One real model" gate row | Nothing left to run: the bounded real-model call ran 2026-11-10 under the seven-field authorisation (5 requests, 5,136 tokens, synthetic samples; record [`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)). The row stays a named gap for the exit decision by §14 item 7's own ruling — it does not pass on a substitute, and the trial's real-advisor sample was not spent here | §1, §11, §12's decision-5 block, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
 | A Windows browser pass a runner has run | A runner run, which the owner starts | §3 rule 6, execution plan §6 last row |
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |

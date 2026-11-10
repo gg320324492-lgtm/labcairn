@@ -47,10 +47,10 @@ Verified against the tree this design is written in:
 | Record / file | Exists now | Role in the mapping |
 |---|---|---|
 | [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) | Yes | The synthetic support matrix (31 samples, structure-class verdicts) and its own "real advisor sample held open" statement. It is a matrix, not the real-sample loop. |
-| [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) | Yes | The substitute-set run record. Its §"The open half" says the real-sample loop is `NOT RUN — held open pending the owner's sample`; it also holds the human dual-host reopen checklist open. |
+| [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) | Yes | The substitute-set run record. Its §"The open half" now cites the later measured 42-arm machine half and keeps the human dual-host reopen checklist open. The old `NOT RUN` label for the real-sample loop belongs to its dated 2026-11-08 state, not to the later tree. |
 | [`LC-P2-02-acceptance.md`](../acceptance/LC-P2-02-acceptance.md) and [`LC-P2-02-review.md`](../acceptance/LC-P2-02-review.md) | Yes | Phase 2 restart-durable consent records. They are **not** `LC-P3-02`'s real-sample record; a `LC-P2-02-*` name must not be cited as if it were. |
 | [`ADR-0021-manuscript-editing-rewrite.md`](../adr/ADR-0021-manuscript-editing-rewrite.md) | Yes | Status `proposed`; final adoption must cite the real-sample run. It is a third consumer of the supply, not a substitute for either loop. |
-| §5.9's real-sample loop record for `LC-P3-02` | **No** | **Record lands with LC-P3-02's merge.** No filename, digest, count or result is invented for it here. The only fact this design imports from the work order is the sample's identity by fingerprint, not any result of a run. |
+| [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md) | Yes | §5.9's dated machine-half record, landed with `LC-P3-02`'s merge: 42/42 arms, 14 produced, 28 refused, 8 artifacts and report digest `a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`. It closes the machine half only; the human dual-host reopen half stays `NOT RUN`. |
 | 08's trial record, its review and its exit decision | **No** | These are the gated half of §6.8; they wait on the installed build and the trial itself. |
 
 The `LC-P3-*` acceptance records that do exist —
