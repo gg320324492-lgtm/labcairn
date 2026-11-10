@@ -22,6 +22,16 @@ not a ticket status: the board row for `LC-P3-05` is **not moved here**, and no
 acceptance criterion is claimed as fully held (§8 names which are partial and
 which are untouched).
 
+**Current pointer (2026-11-10, later batch).** §1–§8 above are the skeleton
+batch's own dated evidence and are left as written. A later batch on branch
+`claude/sweet-varahamihira-7d5899`, head
+`6c0007e547711c0637edfaf518eaca70b33205c5`, closed the T05 live-401 half, T06's
+three unwitnessed lifecycle arms, AC-7 and AC-8 (static halves only), and added
+a dated measurement in §10. **The gaps that remain are named in §10.4**: T08, T09,
+AC-6, AC-2's Windows graceful-ask arm (owner's decision: leave as a measured
+gap), the second-instance focus half, Arm C in full, and the `file://`
+counter-mutation at the pure layer. The board row is still not moved.
+
 **Where the rehearsal stands, stated plainly.** The two runs in §4 and §5 are
 `LC-P3-05`'s own dev-build verification of a shell this window wrote. They are
 not a §12/§13 mapping dry-run, and they are **not entered in any execution plan
@@ -440,3 +450,218 @@ import, the outsider walk. **The whole suite was not run for this batch**, and
 that is the honest shape of what §9 claims: five witnesses that could reasonably
 have been broken were run, twice, and their results are reported with their
 cause. A whole-suite pass is not claimed and was not measured here.
+
+---
+
+## 10. The 2026-11-10 follow-up batch: the named gaps that were closed, and those that remain
+
+**This section is a later, dated addition**, written on branch
+`claude/sweet-varahamihira-7d5899`. §1–§9 are the skeleton batch's evidence and
+are left as written, including §8's `not implemented` wording: it was true of
+that tree and is a historical fact about it. This section names what changed
+after it. Nothing below moves the board row, opens a pull request, starts CI or
+pushes a branch.
+
+| what | value, printed live for this section |
+|---|---|
+| head | `6c0007e547711c0637edfaf518eaca70b33205c5` |
+| branch | `claude/sweet-varahamihira-7d5899` (worktree of the same name) |
+| Node running the witnesses | `v24.16.0` |
+| Electron | `45.2.3` (owner-approved 2026-11-10, unchanged) |
+| platform | Windows 11 Pro, one machine; live rehearsals run one at a time |
+| run type | **locally measured, dev build**. No CI run, no pull request, no push (`CLAUDE.md`; `PHASE_3-work-orders.md` §3 rule 7) |
+| scratch | `E:\labcairn-local\tmp\lc-p305-shell` — outside the repository; no token value or corpus text in it |
+
+### 10.1 What landed, commit by commit
+
+| commit | subject |
+|---|---|
+| `58e71ea` | T05: the live 401 half-loop, in a real window and witnessed |
+| `423c6a5` | T06: the three unwitnessed lifecycle arms get witnesses |
+| `74a20f1` | fix the live-guard rehearsal's own grant pattern |
+| `38062a7` | AC-7 and AC-8: the dependency set and native surface, witnessed |
+| `09c5e9a` | the live probe's mutation had no witness on the code that makes it |
+| `6b21d03` | one Electron userData per shell run, so a stale lock cannot forge a failure |
+| `6c0007e` | the guard IPC decisions moved where a witness can run them |
+
+Three of the seven are corrections the measurements forced; §10.3 records them
+because a record that hides them hides why the code looks the way it does.
+
+### 10.2 Measured, and held
+
+**T05 / AC-4's live half.** A real Electron window loads the service's own
+origin; the sandboxed preload asks the main process for permission, is granted
+by sender **origin**, and makes one fixed tokenless `POST /task/select` of its
+own. The real service's `SessionGuard` answers **401 `session_required`**; the
+main process validates the report's sender origin before printing and echoing
+the verdict; the status strip and the enumerable bridge both show
+`401 session_required`. Witnessed three ways: `test/live-guard.test.mjs` (5
+tests over the request the page actually builds and both IPC decisions),
+`scripts/rehearse-live-guard.mjs` (the real window, read over CDP: strip,
+bridge and the main process's own line), and the counter-mutations below.
+No main-process `net.fetch` is involved (ADR-0023's out-of-shape list), the
+token never crosses the boundary, and no shell-added origin appears in
+`ServiceStarting.origins`. The `about:blank` startup-refusal page is a
+*refused* sender (`refused guard-request origin null`), not a page that can
+talk to the service.
+
+**T06 / AC-2's three unwitnessed arms.** `scripts/rehearse-lifecycle.mjs`
+runs each against the real shell with a real service child on an OS-chosen
+port:
+
+- **startup refusal** — an uninitialised workspace produces the CLI's own
+  `workspace_not_initialised`; the window ends on `about:blank` with strip and
+  bridge both `failed` and the reason in the detail, exactly one page target,
+  and the page is a refused sender.
+- **main-process crash** — an uncaught exception is injected into the *real*
+  main process over its own `--inspect`, not by editing the shell to throw on a
+  timer; exit 1, the handler's diagnosis printed, the child gone from the
+  process table, the port released.
+- **second instance** — a second launch exits 0, starts no service of its own,
+  and leaves the first shell and its child running. Both shells are given the
+  same `--user-data-dir` on purpose: Electron's single-instance lock lives in
+  userData, and a shared lock is the property this arm witnesses.
+
+The other three rows of §4.3 keep their existing witnesses: normal close and
+crash-after-readiness are `rehearse-loop.mjs` acts 1–2, and the
+foreign-listener occupancy arm is `test/drain-witness.test.mjs`.
+
+**AC-7 (static half).** `test/dependency-surface.test.mjs` (3 tests) reads the
+runtime surface: every absolute URL in `shell/src/` names a loopback host; the
+lockfile's packages are exactly the thirteen the owner's approval was measured
+over; `package.json` declares only `electron@45.2.3`. An introduced remote
+host reddens the same scan (positive control). The file also records rather
+than hides that `@electron/get` names `github.com` — Electron's
+*install-time* binary download, measured in the selection record and plan
+§4.4. The runtime scan is scoped to `src/` for that reason; it does **not**
+claim that no installer-time channel exists.
+
+**AC-8 (static half).** `test/native-surface.test.mjs` (6 tests) scans the
+surface a renderer or main-process caller can actually use: the two
+`contextBridge` getters, the `webPreferences` object the window is built with,
+the supervisor's two spawn call sites (service child and the recorded
+`taskkill /T /F` group kill), and routes for `shell.openExternal`, COM
+activation, DOCX-host ProgIDs, ActiveX, WScript, UI automation, native FFI and
+host executables. A real `shell.openExternal(...)` plus a `'Word.Application'`
+ProgID reddens it; a sentence naming the same routes does not. **This is the
+static witness the plan names; §0 rule 2's review in a dated acceptance record
+is still T09's work.**
+
+`node --test "shell/test/*.test.mjs"` → **27 tests, 27 pass, 0 fail** at this
+head. No pytest file was added, so §3 rule 3's three registrations are not
+owed; `tests/`, `.github/ci-shards.json` and
+`tests/evaluation/manifest.py` were not touched. No file under
+`src/labcairn/` was touched: this batch's diff names `shell/` and
+documentation only.
+
+### 10.3 Counter-mutations: 13/13 effective, after three harness defects were repaired
+
+A counter-mutation is evidence only when the witness goes red **for the
+property**. The final single run, at the head named above, held the lock from
+start to release, required a clean tree, ran each witness on the clean tree
+first (a red baseline is `ENV-BROKEN`, not `CAUGHT`), checked each patched
+source file parses **before** writing it into the tree, compared every file
+against `git HEAD` before the patch and after the restore, and kept each
+witness's full output at
+`E:\labcairn-local\tmp\lc-p305-shell\witness-output\`. Its summary:
+
+```
+CAUGHT   M1  the sender-origin grant check is removed
+CAUGHT   M2  the sender-origin report check is removed
+CAUGHT   M3  any non-server error counts as guarded
+CAUGHT   M4  the live probe stops being a mutation (POST -> GET)
+CAUGHT   M5  the crash path no longer stops the service child
+CAUGHT   M6  the single-instance lock is assumed rather than taken
+CAUGHT   M7  the startup-refusal diagnostic is suppressed
+CAUGHT   M8  a remote host appears in the shell's runtime code
+CAUGHT   M9  a dependency outside the approved set enters the lockfile
+CAUGHT   M10 a DOCX-host route appears in the shell's surface
+CAUGHT   M11 the preload gains a token-carrying getter
+CAUGHT   M12 the window loses its sandbox
+CONTROL-GREEN M13 a comment-only change leaves the witness green
+13/13 effective
+```
+
+M2's first run reported **SURVIVED**. That was a real gap, not a flaky
+environment: the only thing watching the report-side origin check was an
+assertion that counted occurrences of `senderIsAllowed(` in `main.mjs`, which
+cannot be imported by a test. `6c0007e` moved both decisions into
+`createGuardIpc` and replaced the count with four driven cases, and M2 now
+reddens with *"a frame that skipped the grant had its report believed"*.
+M1 reddens with a real `guard-request granted origin null` on the diagnostic
+page; M5 with *"the service child pid … outlived the crashed main process"*;
+M6 with *"the second instance never exited — the lock is not doing its job"*;
+M7 with the absence of `status failed` from a shell that otherwise starts;
+M8/M9/M10/M11/M12 with the named assertion. M4's honest boundary: with GET
+(and no body, since `fetch` refuses a GET with a body outright), the service
+answers **405** because `/task/select` is a POST-only route — so the mutation
+proves the half-loop no longer shows the measured 401 refusal, **not** that the
+guard would admit a read. A claim about reads needs a route that exists for
+reads; it is not made here.
+
+Three defects of the measurement harness itself were found and repaired; each
+changed a number, and each is recorded so that a later run does not repeat it:
+
+1. **Two harness processes ran concurrently** at 16:59:24 and 17:00:51 — the
+   first `TaskStop` ended the wrapper shell but not the Node child. They wrote
+   one output file and mutated one working tree. That result is **not
+   attributable** and is archived as
+   `E:\labcairn-local\tmp\lc-p305-probe\counter-mutations.NOT-ATTRIBUTABLE-2026-11-10-concurrent.out`.
+   The harness now takes a lock (outside the repository, because `.git` in a
+   worktree is a *file*), checks the holder's pid against the process table so
+   a killed holder's stale lock is taken over rather than blocking forever,
+   and refuses to start on a dirty tree.
+2. **`spliceOne` was off by one.** `parts.slice(0, k)` returns nothing at
+   `k === 0`, so every mutation deleted all text before its anchor. The
+   patched module began inside a function, Electron reported
+   `App threw an error during load / SyntaxError: Illegal return statement`,
+   and four witnesses went red with `the shell never printed …` — recorded as
+   CAUGHT, which was false. This, not the concurrency, is what truncated
+   `shell/src/main.mjs` to four lines. A validity check that reads the patched
+   text from `git HEAD` without touching the tree now reports **13/13
+   PATCH-PARSE-OK**; the harness consults the same `spliceOne` before writing
+   anything.
+3. **Electron's single-instance lock was shared across all runs.** It lives in
+   the app's userData directory, which defaults to the app *name*, and each
+   rehearsal force-kills its shell with `taskkill /T /F`, leaving a stale
+   `SingletonLock`. A later shell then exited quietly and its witness reported
+   `the shell never printed loaded`. `6b21d03` gives every run its own
+   `--user-data-dir` under scratch, except the second-instance arm where a
+   shared directory is the property under test.
+
+### 10.4 Named gaps that remain (owner decisions and external conditions)
+
+- **T08 and T09 are untouched, and AC-6 is not held.** Measured on this
+  machine: `shell/pnpm-lock.yaml` contains **0** installer packages
+  (electron-builder / packager / nsis all absent), WiX (`candle`, `light`),
+  NSIS (`makensis`), Inno (`iscc`) and `signtool` are not on `PATH`, and
+  `shell/` carries no packaging configuration. Signing stays behind `W28`
+  (`PHASE_3-work-orders.md` §664, §715, §889, §1198). The clean-Windows drill
+  (install → launch → upgrade → uninstall → rollback preserving user data,
+  support limits, §0 rule 2 review) therefore cannot be performed here. The
+  owner decided on 2026-11-10 that this batch **may land with these gaps**, and
+  that they are to be recorded as named gaps rather than written as passing or
+  presented as deliverables. The O3 runtime-arrangement measurement
+  (frozen service / bundled interpreter / sidecar) and O5's import finding are
+  likewise T08's and were not measured.
+- **AC-2's Windows graceful-ask arm stays the measured gap of §6.2, by the
+  owner's decision.** Twelve measured combinations of `child.kill` reached
+  none of a Windows child's handlers; the assertions cover what is measured
+  (child ends, port releases, no pid survives) and the wording in §6.2 is
+  unchanged. This batch did not attack it and does not soften it.
+- **The focus half of §4.3's second-instance row is unmeasured.**
+  `Browser.getWindowForTarget` answers *"wasn't found"* through this Electron's
+  remote-debugging endpoint, so the witness asserts the lock's observable
+  consequences (second process exits, starts no service, first shell and child
+  stay alive) and names the focus half rather than inferring it.
+- **Arm C remains in miniature** (§8), and **no `file://` counter-mutation was
+  run against the pure-layer guard tests**. Neither was changed by this batch.
+- **AC-7's install-time channel is a recorded fact, not a green claim.** The
+  remote-host witness covers `shell/src/` and the declared dependency set;
+  the build job's reachability of Electron's binary channel is an owner/CI
+  fact (plan §4.4), not something a Node test on this machine holds.
+- **No whole-suite pytest run was made for this batch**, and no repository-side
+  witness was added for `docs/REPOSITORY-MAP.md`'s file count: §9 remains the
+  skeleton batch's five-file subset. The count in that map was re-measured for
+  the new row (`git ls-files | wc -l` → **821** at the head above), not carried
+  forward from 2026-11-07; the repository has no witness watching that number.

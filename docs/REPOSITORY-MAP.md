@@ -1,8 +1,19 @@
 # Repository Map
 
-**Status:** current index, 2026-11-07. This document classifies the tracked
-tree. It does not retire historical records, rewrite frozen acceptance
-evidence, or authorise Phase 3 implementation.
+**Status:** current index, 2026-11-10 (classification measured 2026-11-07).
+This document classifies the tracked tree. It does not retire historical
+records, rewrite frozen acceptance evidence, or authorise Phase 3
+implementation.
+
+**Read 2026-11-10 (re-measurement):** the 733-file figure in §1 is the scan at
+`7029bc28500f2d676a01b9586f04c17419dc0493`, a historical measurement that is
+left as written. Re-measured at `6c0007e547711c0637edfaf518eaca70b33205c5`,
+`git ls-files | wc -l` prints **821 tracked files**: 481 `.py`, 191 `.md`,
+28 `.json`, 27 `.mjs`, 26 `.tsx`, 23 `.ts`, 13 `.csv`, 7 `.yml`, 3 `.pdf`,
+and the remaining configuration, fixture and binary files. The 27 `.mjs`
+files are the `shell/` witnesses and rehearsals recorded in §2 below. No
+witness in `tests/` watches this document's file count; it is a dated
+measurement, not a claim the CI gate holds.
 
 ## 1. Classification measured on 2026-11-07
 
@@ -34,9 +45,12 @@ references are removed in the same change.
 | `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures, reports and the manuscript editing seam. |
 | `migrations/versions/` | Ordered schema migrations. A deployed store keeps every prior migration. |
 | `web/src/` | The local workbench: app shell, views, generated API contract and browser tests. |
+| `shell/src/` | The Electron desktop shell's main process, service supervisor, window factory, sandboxed preload and live session-guard IPC decisions. |
+| `shell/test/`, `shell/scripts/` | The shell's Node witnesses (drain, run modes, security baseline, live guard, dependency surface, native surface) and its real-window rehearsals. These are `mjs` files, not pytest files, and carry no shard entry. |
 
-`pyproject.toml`, `uv.lock`, `.python-version`, `web/package.json` and
-`web/pnpm-lock.yaml` are build and dependency pins, not generated debris.
+`pyproject.toml`, `uv.lock`, `.python-version`, `web/package.json`,
+`web/pnpm-lock.yaml`, `shell/package.json` and `shell/pnpm-lock.yaml` are build
+and dependency pins, not generated debris.
 `LICENSE` is the single MIT grant; `NOTICE` records third-party terms.
 
 ## 3. Tests and measurement machinery
@@ -93,9 +107,9 @@ configuration, not scratch files.
 ## 6. Generated and ignored files
 
 `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `dist/`, `build/`,
-`web/dist/`, `.local/`, `.venv/`, `web/node_modules/` and
-`.claude/worktrees/` are ignored local artefacts. They are reproducible or
-machine-local and must never be staged. `.local/` may hold owner-side records;
+`web/dist/`, `.local/`, `.venv/`, `web/node_modules/`,
+`shell/node_modules/` and `.claude/worktrees/` are ignored local artefacts.
+They are reproducible or machine-local and must never be staged. `.local/` may hold owner-side records;
 it is not a second source tree. Runtime test temporary directories belong
 outside the checkout.
 
