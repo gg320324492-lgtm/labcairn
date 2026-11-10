@@ -1,35 +1,31 @@
 /**
- * The shell's live session-guard probe, and the decision that admits it.
+ * The main process's half of the live session-guard probe (plan T05, AC-4).
  *
- * **Why this is not a fetch proxy.** The page makes one fixed mutation of its
- * own: a relative `POST /task/select` with a fixed, well-formed task id and
- * no `Authorization` header. There is no caller-supplied URL, method, body or
- * header, no token on the native surface and no general-purpose relay. In
- * dev mode the same probe goes through Vite's own `/api` proxy, whose settings
- * the existing rehearsal reads back; in packaged mode it is same-origin.
+ * **What lives here, and what deliberately does not.** These three functions
+ * are what `main.mjs` imports and calls, and `scripts/rehearse-live-guard.mjs`
+ * witnesses them end to end in a real window against a real service.
  *
- * **What the half-loop proves (AC-4, plan T05).** A real window on the real
- * served origin asks the real service to change something. The service's
- * `SessionGuard` refuses with 401 `session_required`, and the preload renders
- * that refusal in its status strip. A copy of the service that admitted
- * unauthenticated mutations, or a shell that supplied the token itself, turns
- * the witness red. Sender-origin validation is the IPC half of §5.4: only a
- * frame whose origin the shell actually loaded may ask for the probe.
+ * The mutation itself is *not* here. The one fixed request the shell makes is
+ * made by the page — in `preload.cjs` — and that file is its only source. A
+ * sandboxed preload is CommonJS with `require('electron')` and nothing else, so
+ * it cannot import this module, and an earlier version of this file answered
+ * that by exporting a `LIVE_GUARD_PROBE` constant the tests asserted while
+ * `preload.cjs` carried its own literals. That is plan §5.1's failure mode in
+ * its purest form — *a constant nobody passes is dead code*: the witness watched
+ * a copy, a counter-mutation on the copy changed nothing the service ever saw,
+ * and the harness printed CAUGHT for a mutation the product never contained. It
+ * was caught on 2026-11-10 by a mutation (POST → GET) that reddened only the
+ * test of the copy. The copy is gone; `test/live-guard.test.mjs` now reads the
+ * request back out of `preload.cjs` itself, the way
+ * `test/native-surface.test.mjs` reads the exposed surface back.
+ *
+ * **What the half-loop proves.** A real window on the real served origin asks
+ * the real service to change something. The service's `SessionGuard` refuses
+ * with 401 `session_required`, and the refusal reaches the status strip through
+ * this process, which first decides by the sender's origin. A service copy that
+ * admitted unauthenticated mutations, or a shell that supplied the token
+ * itself, turns the witness red.
  */
-
-/** The one mutation the probe makes. No caller parameter reaches this object. */
-export const LIVE_GUARD_PROBE = Object.freeze({
-  path: '/task/select',
-  method: 'POST',
-  headers: Object.freeze({ 'Content-Type': 'application/json' }),
-  // A syntactically valid UUIDv7. The session guard runs before routing, so
-  // the body is never read on a refused request; a malformed id would test a
-  // different layer. The fixed value keeps the mutation witness reproducible.
-  body: '{"task_id":"00000000-0000-7000-8000-000000000000"}',
-})
-
-/** The prefix Vite's proxy owns in dev mode (`web/src/api/mount.ts`). */
-export const DEV_API_BASE = '/api'
 
 /**
  * Whether an IPC sender's *origin* may ask for the live guard probe.
@@ -40,11 +36,6 @@ export const DEV_API_BASE = '/api'
  */
 export function senderIsAllowed(senderOrigin, allowedOrigins) {
   return typeof senderOrigin === 'string' && allowedOrigins.has(senderOrigin)
-}
-
-/** The URL of the one fixed probe, relative to the page that asks for it. */
-export function liveGuardUrl(dev) {
-  return `${dev ? DEV_API_BASE : ''}${LIVE_GUARD_PROBE.path}`
 }
 
 /**
