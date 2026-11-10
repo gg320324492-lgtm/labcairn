@@ -16,6 +16,53 @@ The links are the records.
 
 ## [Unreleased]
 
+### The Electron shell skeleton runs, and the drain rule is witnessed (2026-11-10)
+
+- A new top-level `shell/` (beside `web/`, nothing under `src/labcairn/`
+  touched) carries the main process the plan describes: a service supervisor
+  that attaches `data` readers to both child pipes at spawn and drains them
+  into a bounded log file outside the repository, readiness as the
+  `ServiceStarting` line **and** a `GET /health` 200, a window built with
+  `nodeIntegration: false` / `contextIsolation: true` / `sandbox: true`, a
+  CommonJS preload exposing one status getter and no token, and a config module
+  that refuses a dev page URL in a packaged configuration.
+- The drain witness (`shell/test/drain-witness.test.mjs`) is O6's control pair
+  — the same injected writer child and the same dose run drained and undrained,
+  the undrained arm reproducing the stall — plus a real-`labcairn serve` arm and
+  a foreign-listener refusal arm. **The dose is measured, and the measurement
+  corrected an assumption:** the witness's first run carried the record's
+  4,096-byte anonymous-pipe number and the undrained arm answered the dose,
+  because `spawn`'s own pipe measures 114,688 fits / 131,072 stalls here; the
+  file now runs its own ladder (`8192…131072:stalls`) and asserts
+  `dose > threshold` before either arm executes. Two counter-mutations were run
+  and both reddened what they should: removing the production reader, and
+  swapping a `file://` page load into the packaged path.
+- Two rehearsals close the loop on a real window: the packaged-shaped run
+  (service carries `web/dist`, page asserts its own origin over CDP, service
+  force-killed from outside, the same window shows `disconnected`, no respawn;
+  closing the window exits 0 with no orphan and a free port) and the dev-mode
+  run against the repository's **own** Vite arrangement — Vite started with a
+  config that imports `web/vite.config.ts` and overrides only the proxy target,
+  because port 8000 belongs to Docker Desktop on this machine and the rehearsal
+  neither displaces a foreign listener nor edits another window's file. The
+  dev page reaches the API through the inherited proxy; a packaged-shaped run
+  loads no dev origin, asserted from inside the page.
+- A measured finding that changes what a later step must build: on Windows,
+  Node's `child.kill('SIGBREAK' | 'SIGTERM' | 'SIGINT')` reaches none of a
+  Python child's handlers in any of four spawn arrangements (twelve runs, all
+  `handler=no handler ran`), so the G1 helper's graceful-ask assertion
+  (`outcome.forced is False`) has no Node equivalent by that route. The witness
+  asserts what is measured — the child ends, the port releases, no pid survives
+  — and prints the outcome rather than claiming the ask worked. Record:
+  [`LC-P3-05-shell-skeleton-2026-11-10.md`](docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md).
+- `electron` **45.2.3** (MIT) is added to `shell/package.json` with a committed
+  lockfile, matching the selection record's measured version. **The approval is
+  the owner's, and it is outstanding**: §0 rule 4's report is made, and
+  `pyproject.toml`, `uv.lock` and the `web/` manifests are untouched. No board
+  row moves: this is a skeleton, T05's live-401 half, T06's crash/refusal/
+  second-instance arms, T08, T09 and AC-6/AC-7/AC-8 stay open and are named as
+  such in the record.
+
 ### Phase 3 G4 owner decisions and the Electron shell choice (2026-11-10)
 
 - The G4 drafting round found that the board's `LC-P3-07`/`LC-P3-08` row
