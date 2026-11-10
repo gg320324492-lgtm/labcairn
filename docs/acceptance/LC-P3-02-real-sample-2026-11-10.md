@@ -2,11 +2,11 @@
 
 **Date:** 2026-11-10. **Branch:** `claude/lc-p302-real-half-resume-20261110`. **Base head:** `47a6d8d98f44c215599a9672734326d504fd3ce7`.
 **Type:** dated machine-side evidence record for section 5.9 and the section 14 item 4 real-material half.
-**Status:** IN PROGRESS.
+**Status:** COMPLETE.
 
 ## Final state sentence
 
-**real-sample loop: IN PROGRESS - 42/42 arms measured; human dual-host reopen: NOT RUN - held open pending the owner.**
+**real-sample loop: 42/42 arms measured; complete = true; report_sha256 = a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638; human dual-host reopen: NOT RUN - held open pending the owner.**
 
 This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim.
 
@@ -86,9 +86,9 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 - refused: 28
 - errors: 0
 - expectation mismatches: 0
-- artifacts: 0
-- dual-host reopen rows: 0 (`PENDING-HUMAN`)
-- external report SHA-256: `not finalized`
+- artifacts: 8
+- dual-host reopen rows: 16 (`PENDING-HUMAN`)
+- external report SHA-256: `a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`
 
 ### Refusal reason distribution
 

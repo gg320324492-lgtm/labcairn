@@ -1,6 +1,6 @@
 {
   "arm_count": 42,
-  "artifact_count": 0,
+  "artifact_count": 8,
   "base_head": "47a6d8d98f44c215599a9672734326d504fd3ce7",
   "batch_budget_seconds": 1800.0,
   "batch_count": 11,
@@ -128,7 +128,7 @@
     }
   ],
   "branch": "claude/lc-p302-real-half-resume-20261110",
-  "complete": false,
+  "complete": true,
   "completed_arms": 42,
   "errors": 0,
   "expectation_mismatches": 0,
@@ -197,8 +197,8 @@
   },
   "refused": 28,
   "refused_arm_budget_seconds": 30.0,
-  "reopen_rows": 0,
-  "report_sha256": "",
+  "reopen_rows": 16,
+  "report_sha256": "a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638",
   "sample_bytes": 4443105,
   "sample_role": "real-advisor-sample",
   "sample_sha256": "9154e56c5fe47da151fdb636b3cc4f8170965a8ccdbca94f292390254607652d",
