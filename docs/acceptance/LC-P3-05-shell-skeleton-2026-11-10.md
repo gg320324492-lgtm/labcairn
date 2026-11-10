@@ -341,9 +341,12 @@ run and are reported in §9.
 
 **Not implemented (the plan's own later steps).**
 
-- **T01's approval is outstanding.** Electron 45.2.3 / MIT / `shell/pnpm-lock.yaml`
-  is reported in §1; the owner's approval is what turns it from reported into
-  adopted. `pyproject.toml`, `uv.lock` and the `web/` manifests are untouched.
+- **T01's approval landed 2026-11-10.** The owner approved Electron 45.2.3 /
+  MIT / `shell/pnpm-lock.yaml` (dialog of that date); the dependency is
+  adopted, and the approval is recorded at the plan's §4.4. This paragraph
+  was `outstanding` when the skeleton batch was written and was corrected
+  by the conductor on the owner's word. `pyproject.toml`, `uv.lock` and the
+  `web/` manifests remain untouched.
 - **T05's preload/IPC half.** The preload shows a status strip and exposes one
   getter. The plan's AC-4 half — a *live* mutation request refused `401
   session_required` from inside the shell — is **not** implemented or witnessed;

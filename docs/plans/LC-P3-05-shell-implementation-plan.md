@@ -231,7 +231,9 @@ that is ready (O6 measured a live TCP listener that answered nothing).
 
 - The Electron dependency, its version, licence and lockfile change are
   **reported to the owner for approval under §0 rule 4 before any manifest is
-  edited** (T01). The selection record measured `electron@45.2.3` with a 1.2
+  edited** (T01). **Approved 2026-11-10 by the owner** (dialog: Electron
+  45.2.3 / MIT / `shell/pnpm-lock.yaml` adopted; the plan's T01 gate is
+  discharged). The selection record measured `electron@45.2.3` with a 1.2
   MB npm stub whose binary arrives at first `require` (~100 MB class, 31 s on
   this machine) — a build job must be able to reach that channel, and that is
   an owner/CI fact, not a surprise discovered by a runner.
