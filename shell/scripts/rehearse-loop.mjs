@@ -32,6 +32,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { Cdp, listTargets, pageState, pollUntil, freeLoopbackPort } from './lib/rehearsal-support.mjs'
+
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.join(HERE, '..')
 const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
@@ -46,18 +48,7 @@ const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
  * with what it was measuring. The rehearsal now takes a free port and, on any
  * failure, ends the shell children it started.
  */
-async function freeDebugPort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer()
-    probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', () => {
-      const port = probe.address().port
-      probe.close(() => resolve(port))
-    })
-  })
-}
-
-const DEBUG_PORT = Number(process.env.LABCAIRN_SHELL_DEBUG_PORT ?? (await freeDebugPort()))
+const DEBUG_PORT = Number(process.env.LABCAIRN_SHELL_DEBUG_PORT ?? (await freeLoopbackPort()))
 const scratchRoot = process.env.LABCAIRN_SHELL_SCRATCH ?? 'E:\\labcairn-local\\shell-scratch'
 // The worktree sits at `<repo>/.claude/worktrees/<name>`, so the repository
 // root — the home of the `.venv` whose console script this rehearsal starts —
@@ -118,102 +109,10 @@ function makeWorkspace(name) {
   return workspace
 }
 
-// --------------------------------------------------------------------------- #
-// a small CDP client: the rehearsal reads the window the way a driver would,
-// through Electron's own remote-debugging endpoint.
-// --------------------------------------------------------------------------- #
-async function listTargets() {
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)
-      const targets = await response.json()
-      const pages = targets.filter((target) => target.type === 'page' && target.webSocketDebuggerUrl)
-      if (pages.length > 0) return pages
-    } catch {
-      // the endpoint is not up yet
-    }
-    if (Date.now() >= deadline) throw new Error('the shell window never exposed a CDP target')
-    await new Promise((resolve) => setTimeout(resolve, 250))
-  }
-}
-
-class Cdp {
-  constructor(webSocketUrl) {
-    this.socket = new WebSocket(webSocketUrl)
-    this.nextId = 1
-    this.pending = new Map()
-    this.ready = new Promise((resolve, reject) => {
-      this.socket.addEventListener('open', () => resolve())
-      this.socket.addEventListener('error', (event) => reject(new Error(event.message ?? 'CDP socket error')))
-    })
-    this.socket.addEventListener('message', (event) => {
-      const message = JSON.parse(String(event.data))
-      const waiting = this.pending.get(message.id)
-      if (waiting !== undefined) {
-        this.pending.delete(message.id)
-        waiting(message)
-      }
-    })
-  }
-
-  send(method, params = {}) {
-    return this.ready.then(
-      () =>
-        new Promise((resolve, reject) => {
-          const id = this.nextId
-          this.nextId += 1
-          this.pending.set(id, (message) => {
-            if (message.error !== undefined) reject(new Error(`${method}: ${message.error.message}`))
-            else resolve(message.result)
-          })
-          this.socket.send(JSON.stringify({ id, method, params }))
-        }),
-    )
-  }
-
-  async evaluate(expression) {
-    const result = await this.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
-    if (result.exceptionDetails !== undefined) {
-      throw new Error(`page evaluation failed: ${JSON.stringify(result.exceptionDetails)}`)
-    }
-    return result.result.value
-  }
-
-  close() {
-    try {
-      this.socket.close()
-    } catch {
-      // already closed
-    }
-  }
-}
-
-async function pageState(cdp) {
-  // One expression per fact, rather than one multi-line object literal: a
-  // multi-line expression that fails reports "Unexpected end of input" and
-  // says nothing about which part of it the page disagreed with.
-  const strip = await cdp.evaluate(`(() => {
-    const node = document.getElementById('labcairn-shell-status');
-    if (node === null) return null;
-    const label = node.querySelector('[data-shell-label]');
-    const detail = node.querySelector('[data-shell-detail]');
-    return {
-      status: node.getAttribute('data-shell-status'),
-      label: label === null ? null : label.textContent,
-      detail: detail === null ? null : detail.textContent
-    };
-  })()`);
-  const bridgeStatus = await cdp.evaluate(`(typeof window.labcairnShell === 'object' && window.labcairnShell !== null) ? window.labcairnShell.status() : null`)
-  const location = await cdp.evaluate('location.origin')
-  return {
-    location,
-    stripStatus: strip === null ? null : strip.status,
-    stripLabel: strip === null ? null : strip.label,
-    stripDetail: strip === null ? null : strip.detail,
-    bridgeStatus,
-  }
-}
+// The window-reading support (`Cdp`, `listTargets`, `pageState`, `pollUntil`)
+// lives in `lib/rehearsal-support.mjs`, shared with the dev-mode rehearsal:
+// two copies of a reader is two things to keep in step, and a rehearsal whose
+// reader drifted would report the shell's behaviour instead of measuring it.
 
 function startShell({ workspace, label }) {
   const stdout = []
@@ -286,19 +185,6 @@ process.on('unhandledRejection', async (reason) => {
   process.exit(1)
 })
 
-async function pollUntil(read, predicate, timeoutMs, description) {
-  const deadline = Date.now() + timeoutMs
-  let last = null
-  for (;;) {
-    last = await read()
-    if (predicate(last)) return last
-    if (Date.now() >= deadline) {
-      assert.fail(`${description} never happened; last observed state: ${JSON.stringify(last)}`)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400))
-  }
-}
-
 function portIsListening(port) {
   return new Promise((resolve) => {
     const socket = net.connect({ host: '127.0.0.1', port }, () => {
@@ -348,7 +234,7 @@ const loadedUrl = loadedMatch[1]
 const servicePid = Number.parseInt(pidMatch[1], 10)
 log(`loaded ${loadedUrl}; service origin ${serviceOrigin}; service pid ${servicePid}`)
 
-const pages = await listTargets()
+const pages = await listTargets(DEBUG_PORT)
 const cdpOne = new Cdp(pages[0].webSocketDebuggerUrl)
 await cdpOne.send('Runtime.enable')
 
@@ -407,7 +293,7 @@ const serviceOriginTwo = (await shellTwo.waitLine(/service origin=(\S+)/))[1]
 const servicePidTwo = Number.parseInt((await shellTwo.waitLine(/child pid=(\d+)/))[1], 10)
 const servicePortTwo = new URL(serviceOriginTwo).port
 
-const pagesTwo = await listTargets()
+const pagesTwo = await listTargets(DEBUG_PORT)
 const cdpTwo = new Cdp(pagesTwo[0].webSocketDebuggerUrl)
 const stateTwo = await pollUntil(
   () => pageState(cdpTwo),
@@ -445,7 +331,7 @@ const serviceOriginThree = (await shellThree.waitLine(/service origin=(\S+)/))[1
 const servicePidThree = Number.parseInt((await shellThree.waitLine(/child pid=(\d+)/))[1], 10)
 const servicePortThree = new URL(serviceOriginThree).port
 
-const pagesThree = await listTargets()
+const pagesThree = await listTargets(DEBUG_PORT)
 const cdpThree = new Cdp(pagesThree[0].webSocketDebuggerUrl)
 await pollUntil(() => pageState(cdpThree), (state) => state.stripStatus === 'connected', 15_000, 'act 3 reaching the connected state')
 
