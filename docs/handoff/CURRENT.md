@@ -1,5 +1,20 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-10 · **Phase 3 implementation is accumulated locally; no
+Phase 3 gate is closed.** The G1, G2, G3 and shell follow-up batches are merged
+into local `main`; `LC-P3-07` and `LC-P3-08` have issued work orders but stay
+blocked on `LC-P3-05`'s installed build. The owner's eight G4 decisions, the
+Electron shell choice, and three later decisions on the in-flight batch are
+recorded in [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
+§§12–13 and [`../../CHANGELOG.md`](../../CHANGELOG.md). Shard costs were
+re-measured from runner run `42733499009` at
+`46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
+carried by the balance witness's slack rule until the next runner re-measure.
+The shell batch's 17 independent-critique findings stay named gaps for G4, and
+the 44-row dual-host checklist is 4/44 completed. The real-sample half-loop has
+reported 42/42; that report awaits the conductor's review and no gate row has
+moved. No push, pull request or CI run is authorised.
+
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's
 path-length repair, and `LC-P3-02`'s DOCX editing seam are merged into local `main`

@@ -341,6 +341,7 @@ norecursedirs = [
     "node_modules",
     "venv",
     "web",           # frontend agent's tree; never collected by pytest
+    "shell",         # Electron tree; its Node witnesses are not pytest files
     "benchmarks",
     "examples",
 ]

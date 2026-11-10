@@ -18,10 +18,26 @@ The links are the records.
 
 ### Owner decisions on the in-flight G3/G4 batch (2026-11-10)
 
-Three decisions were answered by the owner through the session's dialogs
-while the two implementation windows and their background measurements were
-still in flight. None changes a measured result or authorises a push, pull
+Two rounds of decisions were answered by the owner through the session's
+dialogs while the implementation windows and their background measurements
+were in flight. The first round covered the shell attribution lines, the
+42-arm loop and named gaps. The second round ruled that the shell's 17
+independent-critique findings are listed as gaps at the gate rather than
+repaired in this batch; that stale records and `pyproject.toml`'s
+`norecursedirs` are corrected now; that the accumulated local commits stay
+unpushed until a later owner-authorised delivery; and that the remaining
+40 dual-host checklist rows are collected through dialogs from the owner's
+own observations. None changes a measured result or authorises a push, pull
 request or CI run.
+
+A later dialog narrowed the 44-row checklist's personal verification to the
+WPS host only. That ruling applies to the 44-row checklist and not to the
+real-sample half-loop's separate 16 human-reopen rows. Word 2010 rows stay
+`PENDING-HUMAN`; a WPS observation is never copied into them or treated as a
+Word result. If the owner supplies a WPS screenshot, the conductor reads only
+the visible structure's presence and waits for a separate confirmation before
+filling any form value. Screenshots and material words do not enter the
+repository.
 
 - The four Electron shell follow-up commits already made at the time of the
   decision keep the
