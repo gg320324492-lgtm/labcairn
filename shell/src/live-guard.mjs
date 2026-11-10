@@ -66,3 +66,92 @@ export function guardDetail(result) {
     ? `mutation refused: 401 session_required`
     : `live guard probe failed: ${result.status} ${String(result.reason)}`
 }
+
+/**
+ * The two IPC handlers, as a factory of decisions rather than as Electron
+ * wiring.
+ *
+ * **Why a factory.** `main.mjs` cannot be imported by a test (it loads
+ * `electron` and starts an app), so a decision made inline there has no pure
+ * witness — and a decision with no pure witness is a decision a counter-mutation
+ * can remove while every witness stays green. That is exactly what happened on
+ * 2026-11-10: removing the *report*-side origin check left the whole tree green
+ * and the harness reported SURVIVED. `window-security.mjs` solved the same
+ * problem for the navigation guards by holding `attachNavigationGuards` and
+ * letting `test/window-security.test.mjs` drive it with a fake `webContents`;
+ * this is that shape for the guard IPC.
+ *
+ * `main.mjs` supplies the Electron-side adapter (`senderOf` maps an IPC event
+ * to `{ origin, send, isDestroyed }`) and the channels; the tests supply a fake.
+ * The decisions — grant or refuse, by the sender's **origin**, on both the
+ * request and the report — live here and are witnessed here.
+ *
+ * `allowedOrigins` and `isDev` are getters, not values: `main.mjs` installs the
+ * handlers before `boot()` learns the origins the service reported, so a value
+ * captured at install time would be the empty set and every page would be
+ * refused.
+ *
+ * @param config.allowedOrigins  `() => Set<string>`, the origins the shell loaded.
+ * @param config.isDev           `() => boolean`, the dev flag a grant carries.
+ * @param config.log             `(line) => void`, what the main process prints.
+ * @param config.senderOf        `(ipcEvent) => { origin, send, isDestroyed } | null`.
+ * @param config.onVerdict       `(guard) => void`, called once a report is
+ *   interpreted, so the caller can hold the verdict for a page loaded later.
+ * @returns {{ handleGuardRequest: Function, handleGuardReport: Function }}
+ */
+export function createGuardIpc({ allowedOrigins, isDev, log, senderOf, onVerdict = () => {} }) {
+  /**
+   * The page asks; this decides. Both decisions are printed, because a grant
+   * that leaves no trace and a refusal that leaves one are not the same witness:
+   * with only the refusal visible, removing the check looks like nothing
+   * happened.
+   */
+  function handleGuardRequest(event) {
+    const sender = senderOf(event)
+    const origin = sender === null ? null : sender.origin
+    if (!senderIsAllowed(origin, allowedOrigins())) {
+      log(`refused guard-request origin ${String(origin)}`)
+      if (sender !== null && !sender.isDestroyed()) {
+        sender.send('shell:guard-denied', { reason: `sender origin ${String(origin)}` })
+      }
+      return { granted: false, origin }
+    }
+    log(`guard-request granted origin ${origin}`)
+    if (sender !== null && !sender.isDestroyed()) {
+      sender.send('shell:guard-grant', { dev: isDev() })
+    }
+    return { granted: true, origin }
+  }
+
+  /**
+   * A report is believed only from a sender the shell loaded. Without this, a
+   * frame that skipped the grant — one that asked and was refused, or one that
+   * never asked at all — could put a verdict on the status strip.
+   */
+  function handleGuardReport(event, report) {
+    const sender = senderOf(event)
+    const origin = sender === null ? null : sender.origin
+    if (!senderIsAllowed(origin, allowedOrigins())) {
+      log(`refused guard-report origin ${String(origin)}`)
+      return { accepted: false, origin }
+    }
+    const result = readGuardResponse({
+      status: report?.status ?? 0,
+      json: async () => ({ reason: report?.reason ?? null }),
+    })
+    // `readGuardResponse` is async so the rehearsal and the shipped shell share
+    // one interpretation; the report carries only status + reason, already
+    // parsed by the renderer. The Promise settles on the next microtask.
+    void result.then((parsed) => {
+      const guard = parsed.ok ? '401 session_required' : `failed ${parsed.status} ${String(parsed.reason)}`
+      log(`${guardDetail(parsed)} (sender origin ${origin})`)
+      onVerdict(guard)
+      if (sender !== null && !sender.isDestroyed()) {
+        sender.send('shell:guard-verdict', { guard })
+      }
+    })
+    return { accepted: true, origin }
+  }
+
+  return { handleGuardRequest, handleGuardReport }
+}

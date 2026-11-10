@@ -36,7 +36,7 @@ import path from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 
 import { resolveRunConfig } from './config.mjs'
-import { guardDetail, readGuardResponse, senderIsAllowed } from './live-guard.mjs'
+import { createGuardIpc } from './live-guard.mjs'
 import { ServiceSupervisor, defaultLogPath } from './service-supervisor.mjs'
 import { createShellWindow } from './window.mjs'
 
@@ -63,59 +63,34 @@ function sendStatus(status, detail = '') {
 }
 
 /**
- * The main process's half of T05: decide by sender origin, then let the page
- * make its own request and record what the service answered.
+ * The main process's half of T05: the Electron adapter.
  *
- * §5.4 entry 4 says the IPC handler validates the sender's **origin**, not its
- * URL, and this is that decision made in one place. `senderFrame` can be null
- * after a navigation or when the frame is gone; a frame the shell cannot name
- * is refused rather than guessed at. `about:blank` — the page the startup
- * refusal shows — serialises its origin to `"null"`, so the diagnostic page is
- * a refused sender: it cannot ask the service for anything, which is the
- * property the refusal arm's witness reads.
+ * The decisions themselves live in `createGuardIpc` (`live-guard.mjs`) so that
+ * a test can drive them with a fake sender — `main.mjs` cannot be imported by a
+ * test, and a decision that only exists here is a decision whose removal no
+ * witness can see, which is how the report-side origin check survived its
+ * counter-mutation on 2026-11-10.
+ *
+ * `senderFrame` can be null after a navigation or when the frame is gone; a
+ * frame the shell cannot name is refused rather than guessed at. `about:blank` —
+ * the page the startup refusal shows — serialises its origin to `"null"`, so the
+ * diagnostic page is a refused sender: it cannot ask the service for anything,
+ * which is the property the refusal arm's witness reads.
  */
 function installGuardIpc() {
-  ipcMain.on('shell:guard-request', (event) => {
-    // Both decisions are printed. A grant that leaves no trace and a refusal
-    // that leaves one are not the same witness: with only the refusal visible,
-    // removing the check looks like nothing happened.
-    const origin = event.senderFrame?.origin ?? null
-    if (!senderIsAllowed(origin, state.allowedOrigins)) {
-      process.stdout.write(`refused guard-request origin ${String(origin)}\n`)
-      if (!event.sender.isDestroyed()) {
-        event.sender.send('shell:guard-denied', { reason: `sender origin ${String(origin)}` })
-      }
-      return
-    }
-    process.stdout.write(`guard-request granted origin ${origin}\n`)
-    event.sender.send('shell:guard-grant', { dev: state.dev })
+  const { handleGuardRequest, handleGuardReport } = createGuardIpc({
+    allowedOrigins: () => state.allowedOrigins,
+    isDev: () => state.dev,
+    log: (line) => process.stdout.write(`${line}\n`),
+    senderOf: (event) => ({
+      origin: event.senderFrame?.origin ?? null,
+      send: (channel, payload) => event.sender.send(channel, payload),
+      isDestroyed: () => event.sender.isDestroyed(),
+    }),
+    onVerdict: (guard) => { state.guard = guard },
   })
-
-  ipcMain.on('shell:guard-report', (event, report) => {
-    // A report is only believed from a sender the shell loaded: a page that
-    // skipped the grant cannot put a verdict on the strip either.
-    const origin = event.senderFrame?.origin ?? null
-    if (!senderIsAllowed(origin, state.allowedOrigins)) {
-      process.stdout.write(`refused guard-report origin ${String(origin)}\n`)
-      return
-    }
-    const result = readGuardResponse({
-      status: report?.status ?? 0,
-      json: async () => ({ reason: report?.reason ?? null }),
-    })
-    // `readGuardResponse` is async so the rehearsal and the main process share
-    // one interpretation; the report carries only status + reason, already
-    // parsed by the renderer. The Promise settles on the next microtask.
-    void result.then((parsed) => {
-      const guard = parsed.ok ? '401 session_required' : `failed ${parsed.status} ${String(parsed.reason)}`
-      state.guard = guard
-      const detail = guardDetail(parsed)
-      process.stdout.write(`${detail} (sender origin ${origin})\n`)
-      if (state.window !== null && !state.window.isDestroyed()) {
-        state.window.webContents.send('shell:guard-verdict', { guard })
-      }
-    })
-  })
+  ipcMain.on('shell:guard-request', handleGuardRequest)
+  ipcMain.on('shell:guard-report', handleGuardReport)
 }
 
 async function boot() {

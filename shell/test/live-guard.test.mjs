@@ -26,7 +26,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { guardDetail, readGuardResponse, senderIsAllowed } from '../src/live-guard.mjs'
+import { createGuardIpc, guardDetail, readGuardResponse, senderIsAllowed } from '../src/live-guard.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.resolve(HERE, '..', 'src')
@@ -103,15 +103,68 @@ test('only the measured 401 session_required refusal is a held guard', async () 
   }
 })
 
-test('the main process believes a report only from a sender it loaded', () => {
-  // §5.4 entry 4 as a shape, not only as a call: `main.mjs` decides on the
-  // *request* and again on the *report*, so a page that skipped the grant
-  // cannot put a verdict on the strip either.
-  const main = fs.readFileSync(path.join(SRC, 'main.mjs'), 'utf8')
-  const decisions = [...main.matchAll(/senderIsAllowed\(origin, state\.allowedOrigins\)/g)]
-  assert.equal(decisions.length, 2, `main.mjs checks the sender ${decisions.length} time(s); both the grant and the report must be checked`)
-  assert.match(main, /refused guard-request origin/, 'a refusal of the request leaves no trace a witness can read')
-  assert.match(main, /guard-request granted origin/, 'a grant leaves no trace, so removing the check looks like nothing happened')
+test('the guard IPC decides by sender origin on the request and on the report', async () => {
+  // §5.4 entry 4, driven rather than counted. `createGuardIpc` holds both
+  // decisions precisely so this can run them with a fake sender: removing either
+  // origin check reddens one of the four assertions below. (The report check
+  // survived its counter-mutation earlier today because the only thing watching
+  // it was a regex count over `main.mjs`, which cannot be imported and whose
+  // text a check could move out of without any witness noticing.)
+  const log = []
+  const sent = []
+  const verdicts = []
+  const makeSender = (origin, destroyed = false) => ({
+    origin,
+    send: (channel, payload) => sent.push({ channel, payload }),
+    isDestroyed: () => destroyed,
+  })
+  const ipc = createGuardIpc({
+    allowedOrigins: () => ALLOWED,
+    isDev: () => false,
+    log: (line) => log.push(line),
+    senderOf: (event) => event.sender,
+    onVerdict: (guard) => verdicts.push(guard),
+  })
+
+  // 1. A frame the shell loaded is granted, and the grant leaves a trace.
+  const granted = ipc.handleGuardRequest({ sender: makeSender(SERVICE_ORIGIN) })
+  assert.equal(granted.granted, true, 'a sender on the loaded origin was refused its own probe')
+  assert.deepEqual(sent.at(-1), { channel: 'shell:guard-grant', payload: { dev: false } })
+  assert.ok(
+    log.includes(`guard-request granted origin ${SERVICE_ORIGIN}`),
+    'a grant prints nothing, so removing the check looks like nothing happened',
+  )
+
+  // 2. `about:blank` — the startup-refusal page — carries no origin, so it is a
+  // refused sender and is told so. This is what the refusal arm reads.
+  sent.length = 0
+  log.length = 0
+  const diagnostic = ipc.handleGuardRequest({ sender: makeSender('null') })
+  assert.equal(diagnostic.granted, false, 'the diagnostic page was granted a live probe')
+  assert.deepEqual(sent.at(-1), { channel: 'shell:guard-denied', payload: { reason: 'sender origin null' } })
+  assert.ok(log.includes('refused guard-request origin null'), 'a refusal of the request leaves no trace')
+
+  // 3. A report from a sender that was refused is not believed: no verdict
+  // reaches the strip, and the refusal is printed.
+  sent.length = 0
+  log.length = 0
+  verdicts.length = 0
+  const refusedReport = ipc.handleGuardReport({ sender: makeSender('null') }, { status: 401, reason: 'session_required' })
+  assert.equal(refusedReport.accepted, false, 'a frame that skipped the grant had its report believed')
+  assert.deepEqual(sent, [], 'a refused sender put a verdict on the strip anyway')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(verdicts, [], 'a refused sender produced a verdict')
+  assert.ok(log.includes('refused guard-report origin null'), 'a refused report leaves no trace')
+
+  // 4. A report from a loaded sender is believed, echoed to the page, and held.
+  sent.length = 0
+  log.length = 0
+  const okReport = ipc.handleGuardReport({ sender: makeSender(SERVICE_ORIGIN) }, { status: 401, reason: 'session_required' })
+  assert.equal(okReport.accepted, true, 'a sender the shell loaded had its report refused')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(verdicts, ['401 session_required'], 'the measured refusal did not reach the strip')
+  assert.deepEqual(sent.at(-1), { channel: 'shell:guard-verdict', payload: { guard: '401 session_required' } })
+  assert.ok(log.some((line) => line.startsWith('mutation refused: 401 session_required (sender origin')), 'the refusal was not printed')
 })
 
 test('both spellings of the probe URL are relative to the page origin', () => {
