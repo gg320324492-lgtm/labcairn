@@ -327,10 +327,10 @@ form value. Screenshots and material words do not enter the repository.
   balance 1.000 / Ubuntu 1.274). That run's clean-room evidence also
   caught a dead `LC-P3-03` record link, fixed in the board and here.
 
-### Phase 3 G2/G3 batch: three windows land locally (2026-11-10)
+### Phase 3 G2/G3 batch: four windows land locally (2026-11-10)
 
-Three windows reviewed and merged into `main` by the conductor session, each
-on its own branch, one ledger run per merge (`LOST -- none` in all three):
+Four windows reviewed and merged into `main` by the conductor session, each
+on its own branch, one ledger run per merge (`LOST -- none` in all four):
 
 - **`LC-P3-03` — the project revision loop lands** (merge `4855ea6`).
   `src/labcairn/application/revision_loop.py` carries the loop from import
@@ -420,8 +420,6 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   label stands until the full loop runs on it. The selection stage's ADR
   number was corrected the same day: ADR-0022 is taken, so `LC-P3-05`'s
   selection ADR names ADR-0023 as of this writing and re-checks at issuing.
-
-### Since the gates closed
 
 ### Phase 2 final closeout (2026-11-06)
 
@@ -773,12 +771,14 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   [`docs/acceptance/LC-P3-02-support-matrix.md`](docs/acceptance/LC-P3-02-support-matrix.md)
   and [`docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md`](docs/acceptance/LC-P3-02-substitute-run-2026-11-08.md).
   Both G1 rows read `IN PROGRESS`, and the live pointers moved in the same commit.
-- What remains open: the §4.9 human dual-host reopen checklist (`NOT RUN` in both
-  records), the real advisor sample (§5.9), the ADR's final adoption, and the
-  runner-measured shard costs — locally `test_the_shards_are_balanced` and
-  `test_the_recorded_costs_cover_every_test_file` are red by expectation, not by
-  defect.
+- What remained open at that date: the §4.9 human dual-host reopen checklist (`NOT RUN`
+  in both records), the real advisor sample (§5.9), the ADR's final adoption, and the
+  runner-measured shard costs — at that date locally `test_the_shards_are_balanced` and
+  `test_the_recorded_costs_cover_every_test_file` were red by expectation (subsequently
+  re-measured from runner run `42733499009`).
 - No `PASS`, no gate closed, no ADR adopted, no push, pull request or CI run.
+
+### Phase 2 work, recorded by category
 
 **Added**
 
@@ -1124,6 +1124,17 @@ on its own branch, one ledger run per merge (`LOST -- none` in all three):
   (`::test_a_model_declaring_run_makes_that_same_competitor_comparable`). The gate
   on any comparison is a **model-driven answer path in the product** — Phase-2
   work, not a harness edit. [LC-P1-13 baseline §5.1](docs/acceptance/LC-P1-13-baseline.md).
+- **The competitor live run measured both sides and reports comparable on all
+  six conditions.** On 2026-11-04, under the owner's USD 50.00 approval, both
+  sides ran `MiniMax-M3.1-Flash` over the same packaged corpus: the product's
+  refusal rate and token cost versus the competitor's, with the aligner
+  refusing a missing case, a misfiled artifact, a key pin mismatch, or a
+  method outside the closed table. The rendered section names no winner and
+  carries no ranking word; a reader can re-run one side and get the same
+  figure. Token counts land in the closed table; USD spend is the owner's
+  bill.
+  [Live run](docs/acceptance/LC-P2-18-live-run.md) ·
+  [machinery](docs/acceptance/LC-P2-18-machinery.md)
 - **A reader can decode an `operation_reconciled` row without loading the
   recovery layer.** `ReconciliationPayload` and its registration moved to
   `labcairn.runtime.event` — the module the read boundary already imports — so
