@@ -59,6 +59,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { ServiceSupervisor, freeLoopbackPort } from '../src/service-supervisor.mjs'
+import { shellPaths } from '../scripts/lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURE = path.join(HERE, 'fixtures', 'writer_child.py')
@@ -86,13 +87,11 @@ const scratchRoot =
     : path.join(os.tmpdir(), 'labcairn-shell-test-tmp'))
 
 function pythonCandidates() {
+  const resolved = shellPaths({ here: HERE })
   return [
-    process.env.LABCAIRN_SHELL_PYTHON,
-    // The checkout this shell sits in's own virtualenv: the worktree is at
-    // `<repo>/.claude/worktrees/<name>`, so the repository root is three up.
-    process.platform === 'win32'
-      ? path.join(REPO_ROOT, '..', '..', '..', '.venv', 'Scripts', 'python.exe')
-      : path.join(REPO_ROOT, '..', '..', '..', '.venv', 'bin', 'python'),
+    resolved.pythonExe,
+    // A normal checkout and a `.claude/worktrees/<name>` checkout both resolve
+    // through `shellPaths`; the generic names are only a last-resort fallback.
     'python3',
     'python',
   ].filter((candidate) => typeof candidate === 'string' && candidate.length > 0)

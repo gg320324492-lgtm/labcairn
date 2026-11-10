@@ -683,3 +683,25 @@ changed a number, and each is recorded so that a later run does not repeat it:
   skeleton batch's five-file subset. The count in that map was re-measured for
   the new row (`git ls-files | wc -l` → **821** at the head above), not carried
   forward from 2026-11-07; the repository has no witness watching that number.
+
+### 10.5 Post-merge measurement: the same witnesses in a normal checkout
+
+The branch's 27 Node witnesses were measured in its
+`.claude/worktrees/<name>` checkout. After the batch was merged into local
+`main`, a repeat in the **normal checkout** failed two real-service arms:
+`shell/test/drain-witness.test.mjs` resolved its Python by climbing three
+directory levels from `REPO_ROOT`, which only finds `.venv` from a worktree.
+In a normal checkout the console-script path was `null`, so `spawnSync` raised
+`ERR_INVALID_ARG_TYPE`; the suite reported 25 pass / 2 fail. Setting
+`LABCAIRN_SHELL_CLI` and `LABCAIRN_SHELL_PYTHON` explicitly made all 27 pass,
+which showed that the product was sound but the path rule was not.
+
+The test now resolves those paths through
+`shell/scripts/lib/shell-paths.mjs`, the module that handles both checkout
+shapes, instead of carrying its own worktree-only rule. Without either
+environment override, `node --test shell/test/*.test.mjs` measured **27 pass
+/ 0 fail** in the normal checkout and **27 pass / 0 fail** in the branch
+worktree. Three targeted Python test files measured **528 passed** after the
+merge. No whole-suite pytest run, runner run, push, pull request or CI run was
+started. This is a measured repair of the witness's own checkout assumption,
+not a change to the product's drain rule.
