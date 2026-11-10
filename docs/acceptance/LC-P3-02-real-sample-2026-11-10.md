@@ -6,7 +6,7 @@
 
 ## Final state sentence
 
-**real-sample loop: IN PROGRESS - 35/42 arms measured; human dual-host reopen: NOT RUN - held open pending the owner.**
+**real-sample loop: IN PROGRESS - 37/42 arms measured; human dual-host reopen: NOT RUN - held open pending the owner.**
 
 This is the exact status sentence the completion report quotes. It names the 42-arm machine loop and keeps the human dual-host reopen half open; the two halves are not the same claim.
 
@@ -72,11 +72,12 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 | `batch-003` | 3 | 33/42 | 3 | 0 | 0 | 1604.67 | partial |
 | `batch-004` | 1 | 34/42 | 1 | 0 | 0 | 1124.89 | partial |
 | `batch-005` | 1 | 35/42 | 1 | 0 | 0 | 966.34 | partial |
+| `batch-006` | 2 | 37/42 | 2 | 0 | 0 | 1891.47 | partial |
 
 ## 42-arm results
 
-- arms measured: 35/42
-- produced: 7
+- arms measured: 37/42
+- produced: 9
 - refused: 28
 - errors: 0
 - expectation mismatches: 0
@@ -100,11 +101,12 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 
 | value | count |
 |---|---:|
-| `body-text:produced` | 7 |
+| `body-text:produced` | 8 |
 | `body-text:refused` | 16 |
 | `comment-part:refused` | 4 |
 | `equations:refused` | 4 |
 | `images:refused` | 4 |
+| `tracked-revisions:produced` | 1 |
 
 | arm | structure | expect | observed | refusal reason | elapsed s | regions | non-identical regions |
 |---|---|---|---|---|---:|---:|---:|
@@ -143,6 +145,8 @@ The produced figure is 36.34 s of region comparison plus 409.50 s and 413.97 s o
 | `R01|reserialize|clean` | `body-text` | produced | produced | `-` | 849.17 | 162 | 162 |
 | `R01|reserialize|marked` | `body-text` | produced | produced | `-` | 1124.8 | 162 | 162 |
 | `R01|surgical|clean` | `body-text` | produced | produced | `-` | 966.02 | 162 | 0 |
+| `R01|surgical|marked` | `body-text` | produced | produced | `-` | 893.59 | 162 | 0 |
+| `R02|surgical|clean` | `tracked-revisions` | produced | produced | `-` | 997.11 | 162 | 0 |
 
 ## Refusal is a result
 
