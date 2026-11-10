@@ -16,6 +16,50 @@ The links are the records.
 
 ## [Unreleased]
 
+### Gate-readiness reports and the owner's disposition (2026-11-10/11)
+
+Four further read-only windows reported on gate readiness: a runner
+red-item dry run, an independent critique of the G4 classification
+checklists, a WPS screenshot observation SOP, and a human-checklist
+boundary review. Their reports and tools stay outside the repository.
+The conductor re-measured the stable facts: shard-cost freshness needs no
+new runner measurement at this tree (the recorded slack covers the two
+changed test files), 174 Python test files are registered in all three
+places, `ruff check`, `ruff format --check` and `mypy` exit 0 locally,
+the 44-row checklist is 4 PASS / 40 `PENDING-HUMAN`, and the separate
+16-row real-sample reopen ledger is 16/16 `PENDING-HUMAN` with 208 empty
+human-observation cells. The screenshot SOP's existing validator returns
+PASS and direct exit status 0 without opening a DOCX or writing a CSV.
+
+The runner report's `uv` network errors did not reproduce in the
+conductor's later targeted run (548 passed); they are recorded as a
+transient machine condition, not a stable red item. Two historical
+workflow declarations remain owner decision items: `release.yml` prints
+the literal `matrix.os` in a job name instead of interpolating it, and
+three comments still cite `49e81f2` although `ci-shards.json` carries
+`measured_at = 46e2c21918286a723f9d07d5409d0e52e7551a85`. The owner chose
+to record these risks without changing `.github/workflows/` in this
+batch. Stale shell rehearsal services still hold the compiled console
+script and nine loopback ports; the owner chose not to terminate them, so
+the two README `uv` command witnesses remain a machine-local condition
+rather than a claimed green.
+
+The independent critique found four critical defects and four measured
+gaps in the two unsigned G4 preparatory checklists. The owner chose to
+send those findings back to the original windows, and both revisions
+passed the conductor's re-review. The G4 checklist revision 2 carries 31
+classifiable rows (15 blocker / 10 measured gap with the sole
+owner-authorised carve-out / 6 routed defect), deletes the unauthorised
+pre-gate `G` override, separates the trial and signature rows, names the
+exact 44-row composition, keeps the 44-row and 16-row ledgers distinct,
+and gives H-01/H-03/H-06 their own evidence-addressed findings. The ten
+08 drafts revision 2 keeps one owner-signature surface at the G4 table,
+carries only draft labels, and re-anchors every repository pointer to the
+current head. All 31 signatures stay `PENDING`; these remain external
+drafts, not an owner classification or gate verdict. No process was
+killed, no workflow was changed, no runner or CI run was started, and no
+push, pull request or commit was authorised by the reports themselves.
+
 ### Delivery preparation reports, still local only (2026-11-10)
 
 Four further read-only windows prepared delivery material outside the
