@@ -36,7 +36,28 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.join(HERE, '..')
 const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
 
-const DEBUG_PORT = Number(process.env.LABCAIRN_SHELL_DEBUG_PORT ?? 9223)
+/**
+ * The CDP port, asked from the operating system rather than assumed.
+ *
+ * A fixed port is how this rehearsal's own leftover bit it: an earlier run
+ * died in the shell's boot path, its Electron outlived the rehearsal, and the
+ * next run's Chromium refused to bind — `bind() returned an error: 每个套接字
+ * 地址只允许使用一次` — and the run failed for a cause that had nothing to do
+ * with what it was measuring. The rehearsal now takes a free port and, on any
+ * failure, ends the shell children it started.
+ */
+async function freeDebugPort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer()
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', () => {
+      const port = probe.address().port
+      probe.close(() => resolve(port))
+    })
+  })
+}
+
+const DEBUG_PORT = Number(process.env.LABCAIRN_SHELL_DEBUG_PORT ?? (await freeDebugPort()))
 const scratchRoot = process.env.LABCAIRN_SHELL_SCRATCH ?? 'E:\\labcairn-local\\shell-scratch'
 // The worktree sits at `<repo>/.claude/worktrees/<name>`, so the repository
 // root — the home of the `.venv` whose console script this rehearsal starts —
@@ -57,6 +78,8 @@ for (const [name, where] of [['python', pythonExe], ['labcairn', cliExe], ['elec
 function log(...parts) {
   process.stdout.write(`${parts.join(' ')}\n`)
 }
+
+const startedShells = []
 
 async function waitForExit(child, ms) {
   if (child.exitCode !== null || child.signalCode !== null) return true
@@ -221,8 +244,35 @@ function startShell({ workspace, label }) {
       }
       tick()
     })
+  startedShells.push({ child, label })
   return { child, stdout, stderr, waitLine }
 }
+
+/**
+ * The rehearsal's own cleanup. A rehearsal that fails must not leave an
+ * Electron and a service child behind: the leftover was what made the next
+ * run fail on a port, and a failure that hides the next run's failure is worse
+ * than the failure itself.
+ */
+async function endEveryStartedShell() {
+  for (const { child, label } of startedShells) {
+    if (child.exitCode !== null || child.signalCode !== null) continue
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    } else {
+      child.kill('SIGKILL')
+    }
+    const gone = await waitForExit(child, 8000)
+    if (!gone) log(`cleanup: shell ${label} (pid ${child.pid}) did not report an exit`)
+  }
+  startedShells.length = 0
+}
+
+process.on('unhandledRejection', async (reason) => {
+  log(`rehearsal failed: ${reason instanceof Error ? reason.stack : reason}`)
+  await endEveryStartedShell()
+  process.exit(1)
+})
 
 async function pollUntil(read, predicate, timeoutMs, description) {
   const deadline = Date.now() + timeoutMs
