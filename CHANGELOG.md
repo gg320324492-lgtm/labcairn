@@ -62,12 +62,14 @@ repository.
 - The four Electron shell follow-up commits already made at the time of the
   decision keep the
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` line injected
-  by the harness. Eleven earlier Electron shell commits and four
-  `LC-P3-07` design commits in the accumulated batch also carry that
-  harness-injected line: **fifteen commits in total**, all left unamended.
-  New commits use the current
-  `Co-Authored-By: Claude Code <noreply@anthropic.com>` line. The full
-  count is disclosed rather than silently amended.
+  by the harness. The static audit of `main` at `1670e73` measured fifteen
+  such commits there: eleven earlier Electron shell commits and four
+  `LC-P3-07` design commits. Since that audit, the four shell follow-up
+  commits and one `LC-P3-02` real-sample re-render commit entered the
+  accumulated range with the same harness-injected line: **twenty commits in
+  the current range**, none amended. New commits use the current
+  `Co-Authored-By: Claude Code <noreply@anthropic.com>` line. The count was
+  re-measured after the later merges rather than carried forward.
 - `LC-P3-02`'s real-sample half-loop continues to all 42 arms. A 33/42
   append-only ledger is a partial measurement, not a completed loop; the
   substitute-run record and its witness are re-targeted together only after
