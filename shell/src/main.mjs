@@ -33,9 +33,10 @@
  */
 
 import path from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 
 import { resolveRunConfig } from './config.mjs'
+import { createGuardIpc } from './live-guard.mjs'
 import { ServiceSupervisor, defaultLogPath } from './service-supervisor.mjs'
 import { createShellWindow } from './window.mjs'
 
@@ -48,6 +49,8 @@ const state = {
   status: 'starting',
   detail: '',
   refusals: [],
+  dev: false,
+  guard: 'not-run',
 }
 
 function sendStatus(status, detail = '') {
@@ -59,8 +62,41 @@ function sendStatus(status, detail = '') {
   }
 }
 
+/**
+ * The main process's half of T05: the Electron adapter.
+ *
+ * The decisions themselves live in `createGuardIpc` (`live-guard.mjs`) so that
+ * a test can drive them with a fake sender — `main.mjs` cannot be imported by a
+ * test, and a decision that only exists here is a decision whose removal no
+ * witness can see, which is how the report-side origin check survived its
+ * counter-mutation on 2026-11-10.
+ *
+ * `senderFrame` can be null after a navigation or when the frame is gone; a
+ * frame the shell cannot name is refused rather than guessed at. `about:blank` —
+ * the page the startup refusal shows — serialises its origin to `"null"`, so the
+ * diagnostic page is a refused sender: it cannot ask the service for anything,
+ * which is the property the refusal arm's witness reads.
+ */
+function installGuardIpc() {
+  const { handleGuardRequest, handleGuardReport } = createGuardIpc({
+    allowedOrigins: () => state.allowedOrigins,
+    isDev: () => state.dev,
+    log: (line) => process.stdout.write(`${line}\n`),
+    senderOf: (event) => ({
+      origin: event.senderFrame?.origin ?? null,
+      send: (channel, payload) => event.sender.send(channel, payload),
+      isDestroyed: () => event.sender.isDestroyed(),
+    }),
+    onVerdict: (guard) => { state.guard = guard },
+  })
+  ipcMain.on('shell:guard-request', handleGuardRequest)
+  ipcMain.on('shell:guard-report', handleGuardReport)
+}
+
 async function boot() {
   const config = resolveRunConfig(process.env, { packaged: app.isPackaged })
+  state.dev = config.dev
+  installGuardIpc()
 
   const supervisor = new ServiceSupervisor({
     command: config.cliPath,
@@ -83,7 +119,18 @@ async function boot() {
   // current state is re-sent — this is how the diagnostic strip on
   // about:blank and the strip in a freshly loaded workbench both show the
   // truth rather than the 'starting' they began with.
-  win.webContents.on('did-finish-load', () => sendStatus(state.status, state.detail))
+  win.webContents.on('did-finish-load', () => {
+    sendStatus(state.status, state.detail)
+    // T05's half-loop nudges the page on every load, connected or refused.
+    // The nudge is not a permission: the page asks, and this process decides
+    // by the sender's origin — which is how the diagnostic page on about:blank
+    // ends up as a *refused* sender rather than a page that can talk to the
+    // service. The token is never read here.
+    win.webContents.send('shell:run-guard')
+    if (state.window !== null && !state.window.isDestroyed() && state.guard !== 'not-run') {
+      state.window.webContents.send('shell:guard-verdict', { guard: state.guard })
+    }
+  })
 
   const showDiagnostic = (detail) => {
     // The diagnostic page is the one page the shell loads that is not an

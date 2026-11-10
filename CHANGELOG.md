@@ -78,12 +78,54 @@ request or CI run.
   — and prints the outcome rather than claiming the ask worked. Record:
   [`LC-P3-05-shell-skeleton-2026-11-10.md`](docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md).
 - `electron` **45.2.3** (MIT) is added to `shell/package.json` with a committed
-  lockfile, matching the selection record's measured version. **The approval is
-  the owner's, and it is outstanding**: §0 rule 4's report is made, and
-  `pyproject.toml`, `uv.lock` and the `web/` manifests are untouched. No board
-  row moves: this is a skeleton, T05's live-401 half, T06's crash/refusal/
-  second-instance arms, T08, T09 and AC-6/AC-7/AC-8 stay open and are named as
-  such in the record.
+  lockfile, matching the selection record's measured version. **Correction,
+  2026-11-10**: the owner approved Electron 45.2.3 / MIT /
+  `shell/pnpm-lock.yaml` by dialog that day — the approval is no longer
+  outstanding. `pyproject.toml`, `uv.lock` and the `web/` manifests remain
+  untouched. The skeleton-batch wording below this line is left as written;
+  the follow-up batch's dated section (§10 of the acceptance record) names
+  which of the gaps it closed. No board row moves.
+
+### The shell skeleton's named gaps, closed where they could be (2026-11-10)
+
+- **T05's live 401 half**: a real Electron window sends one fixed tokenless
+  `POST /task/select` from its sandboxed preload; the real service's
+  `SessionGuard` refuses **401 `session_required`**; the main process validates
+  the IPC sender's **origin** before printing or echoing the verdict, and the
+  status strip shows it. The diagnostic page (`about:blank`, origin `null`) is a
+  refused sender. `shell/test/live-guard.test.mjs` (5 tests) reads the request
+  back out of the file that builds it and drives both IPC decisions;
+  `shell/scripts/rehearse-live-guard.mjs` reads strip, bridge and the main
+  process's line back over CDP.
+- **T06's three unwitnessed arms**: `shell/scripts/rehearse-lifecycle.mjs`
+  witnesses startup refusal (visible diagnostic on `about:blank`, no foreign
+  page), a main-process crash injected over the real `--inspect` (no service
+  orphan, port released), and the single-instance lock (second launch exits 0,
+  starts no service, first shell and child stay alive). Each run gets its own
+  `--user-data-dir`, except the second-instance arm where a shared directory
+  is the property under test.
+- **AC-7 / AC-8 static halves**: `shell/test/dependency-surface.test.mjs`
+  (3 tests) watches the runtime surface and the approved dependency set, with
+  an introduced remote host as positive control;
+  `shell/test/native-surface.test.mjs` (6 tests) watches the enumerable
+  preload surface, `webPreferences`, the two spawn call sites and
+  COM/ProgID/UI-automation routes, with a real `shell.openExternal` plus a
+  `'Word.Application'` ProgID as positive control. Both record what they do
+  **not** cover: Electron's install-time binary channel and §0 rule 2's
+  human review.
+- `node --test "shell/test/*.test.mjs"` → **27 pass / 0 fail**. Thirteen
+  counter-mutations, run singly with a clean-tree baseline and a parse gate,
+  were all effective (12 red, one comment-only control green). Three defects
+  in the measurement harness itself — two concurrent runs, an off-by-one
+  splice, and a shared Electron `SingletonLock` — were found, repaired and
+  recorded in §10.3 of the acceptance record.
+- **Still named gaps, by the owner's 2026-11-10 decision**: T08 (packaging /
+  O3 runtime arrangement), T09 and AC-6 (clean-Windows drill, signing behind
+  `W28`, support limits, §0 rule 2 review), and AC-2's Windows graceful-ask
+  arm (§6.2's measured gap, not attacked). No installer tooling, WiX/NSIS/
+  Inno or `signtool` exists on this machine; no green is claimed for them.
+  Evidence: [`LC-P3-05-shell-skeleton-2026-11-10.md`](docs/acceptance/LC-P3-05-shell-skeleton-2026-11-10.md)
+  §10. Nothing pushed, no PR opened, no CI run started.
 
 ### Phase 3 G4 owner decisions and the Electron shell choice (2026-11-10)
 
