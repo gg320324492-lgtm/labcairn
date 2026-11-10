@@ -16,6 +16,33 @@ The links are the records.
 
 ## [Unreleased]
 
+### Dependency surface audit and the gate-readiness scans (2026-11-11)
+
+Four further read-only windows reported: a dependency surface audit, an
+execution-plan §4 row coverage scan, a half-loop 16-row reopen SOP, and a
+residual cleanup inventory (stopped before finishing). Their reports stay
+outside the repository.
+
+The dependency audit found **one CRITICAL advisory** on
+`certifi==2026.7.22` (compromised emSign intermediate CA keys bundled in
+the root store; fixed in `2026.10.18`) and 24 further advisories on six
+Python packages (`pyasn1` 4 HIGH, `filelock` 17, `fastmcp`/`fastmcp-slim`
+1 MODERATE, `joserfc` 1 MODERATE, `pytest` 1 MODERATE). The shell side is
+clean: `pnpm audit` 0 findings, electron 45.2.3 as approved, the approved
+set equals the lockfile set exactly, and all 34 direct dependencies are
+MIT-compatible. The audit also found `pyproject.toml` declaring
+`python-docx` and `reportlab` twice each, and `NOTICE` not covering the
+shell's npm dependency surface. The certifi upgrade is an owner decision;
+no package was installed, upgraded or removed.
+
+The §4 coverage scan maps all 31 G4 findings to the eight
+execution-plan §4 rows; every finding lands on `Distribution and review`
+(121), confirming that the other seven rows are unshown pending the
+installed build. The 16-row reopen SOP is ready for owner observation
+with the two-stage confirmation flow. No process was killed, no file was
+deleted, no package was upgraded, no runner or CI run was started, and no
+push, pull request or commit was authorised by the reports themselves.
+
 ### Gate-readiness reports and the owner's disposition (2026-11-10/11)
 
 Four further read-only windows reported on gate readiness: a runner
@@ -114,7 +141,7 @@ row, replaces stale "expected red" shard-cost sentences with the runner
 re-measurement, re-anchors the support matrix, §5.10 and 08's evidence map
 to the re-targeted witness and landed record, re-measures the repository
 map's file count, and records that the owner will install Word 2010 later
-for the same screenshot observation mode. The G4 checklist's 27
+for the same screenshot observation mode. The G4 checklist's 31
 classifiable items and the 44-row checklist's 40 pending rows remain owner
 work; no owner signature, gate verdict, host result, whole-suite pytest
 run, runner run, push, pull request or CI run is claimed here.
