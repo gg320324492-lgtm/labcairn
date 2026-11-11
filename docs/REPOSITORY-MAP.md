@@ -1,8 +1,44 @@
 # Repository Map
 
-**Status:** current index, 2026-11-07. This document classifies the tracked
-tree. It does not retire historical records, rewrite frozen acceptance
-evidence, or authorise Phase 3 implementation.
+**Status:** current index, 2026-11-10 (classification measured 2026-11-07).
+This document classifies the tracked tree. It does not retire historical
+records, rewrite frozen acceptance evidence, or authorise Phase 3
+implementation.
+
+**Read 2026-11-10 (re-measurement):** the 733-file figure in §1 is the scan at
+`7029bc28500f2d676a01b9586f04c17419dc0493`, a historical measurement that is
+left as written. At the follow-up branch's measured code head
+`6c0007e547711c0637edfaf518eaca70b33205c5`, and again at its documentation-only
+delivery head `6a53644eff8ed1b2edd6c0bb251a6c00689b1ef5`, the count was **821
+tracked files**. After the real-sample machine half landed, re-measured at
+`e3aed01a18a56036d64a8e1bc93d4fa0041b16d8`, `git ls-files | wc -l` prints
+**823 tracked files**: 481 `.py`, 192 `.md`, 29 `.json`, 27 `.mjs`, 26
+`.tsx`, 23 `.ts`, 13 `.csv`, 7 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The two added files are the dated
+real-sample Markdown record and its JSON summary. The 27 `.mjs` files are the
+`shell/` witnesses and rehearsals recorded in §2 below. No witness in
+`tests/` watches this document's file count; it is a dated measurement, not a
+claim the CI gate holds.
+
+**Read 2026-11-11 (re-measurement after the CHANGELOG split):** at
+`9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92` the three phase archives had
+raised the dated count to **826 tracked files** and **195 Markdown files**.
+After the shell CI workflow and the T08 packaging configuration merged,
+`6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` printed **831 tracked files**.
+After the full NOTICE dependency surface landed, the live measurement at
+`bf2f6f450c93104b34fac38d4f853880dca53872` prints **833 tracked files**:
+483 `.py`, 195 `.md`, 29 `.json`, 30 `.mjs`, 26 `.tsx`, 23 `.ts`, 13
+`.csv`, 9 `.yml`, 3 `.pdf`, and the remaining configuration, fixture and
+binary files. The 823 / 192, 826 / 195 and 831 / 195 figures are named
+earlier measurements, not current totals.
+
+**Read 2026-11-11 (after the packaging guard landed):** at
+`806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1` the live measurement prints
+**834 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 31 `.mjs`, 26
+`.tsx`, 23 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The 833 figure is the one named
+in the paragraph above; it, and the 823 / 192, 826 / 195 and 831 / 195
+figures before it, are earlier measurements, not current totals.
 
 ## 1. Classification measured on 2026-11-07
 
@@ -34,9 +70,12 @@ references are removed in the same change.
 | `src/labcairn/` | The product package: API, CLI, security, storage, material readers, paper chain, version graph, roles, skills, analysis, figures, reports and the manuscript editing seam. |
 | `migrations/versions/` | Ordered schema migrations. A deployed store keeps every prior migration. |
 | `web/src/` | The local workbench: app shell, views, generated API contract and browser tests. |
+| `shell/src/` | The Electron desktop shell's main process, service supervisor, window factory, sandboxed preload and live session-guard IPC decisions. |
+| `shell/test/`, `shell/scripts/` | The shell's Node witnesses (drain, run modes, security baseline, live guard, dependency surface, native surface) and its real-window rehearsals. These are `mjs` files, not pytest files, and carry no shard entry. |
 
-`pyproject.toml`, `uv.lock`, `.python-version`, `web/package.json` and
-`web/pnpm-lock.yaml` are build and dependency pins, not generated debris.
+`pyproject.toml`, `uv.lock`, `.python-version`, `web/package.json`,
+`web/pnpm-lock.yaml`, `shell/package.json` and `shell/pnpm-lock.yaml` are build
+and dependency pins, not generated debris.
 `LICENSE` is the single MIT grant; `NOTICE` records third-party terms.
 
 ## 3. Tests and measurement machinery
@@ -63,7 +102,8 @@ itself. Their historical-looking names are not permission to prune them.
 | Directory | Holds |
 |---|---|
 | `README.md`, `README.zh-CN.md` | Public current-state entry points and the status banner. |
-| `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. |
+| `CHANGELOG.md`, `CONTRIBUTING.md`, `docs/README.md` | Public release record, contribution rules and documentation index. The changelog's dated record lives in the phase archives below. |
+| `docs/changelog/` | The phase archives of the changelog: `phase-1.md` (gates G0 to G5), `phase-2.md`, `phase-3.md`. A dated entry joins the archive of its phase. Split 2026-11-11; see the changelog's own entry. |
 | `docs/ROADMAP.md`, `docs/handoff/CURRENT.md` | Current phase, delivery pointer and handoff state. Dated sections below the current pointer are historical snapshots. |
 | `docs/PHASE_1_WORKORDERS.md`, `docs/plans/PHASE_2-work-orders.md`, `docs/plans/PHASE_3-work-orders.md` | Work-order and gate records. Their old rows are evidence of how a phase was judged. |
 | `docs/plans/` | Task breakdowns, ADR impact matrices, the dated Phase 3 scoping pack, the English Phase 3 planning proposal and its execution plan, the Q1–Q96 design traceability, the multisource research-learning supplement of 2026-11-07, the Phase 3 G1 work orders issued 2026-11-08 and other design-only records. |
@@ -93,9 +133,9 @@ configuration, not scratch files.
 ## 6. Generated and ignored files
 
 `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `dist/`, `build/`,
-`web/dist/`, `.local/`, `.venv/`, `web/node_modules/` and
-`.claude/worktrees/` are ignored local artefacts. They are reproducible or
-machine-local and must never be staged. `.local/` may hold owner-side records;
+`web/dist/`, `.local/`, `.venv/`, `web/node_modules/`,
+`shell/node_modules/` and `.claude/worktrees/` are ignored local artefacts.
+They are reproducible or machine-local and must never be staged. `.local/` may hold owner-side records;
 it is not a second source tree. Runtime test temporary directories belong
 outside the checkout.
 

@@ -8,8 +8,10 @@
 `tests/test_docx_edit_records.py`.
 
 The corpus is **synthetic**: 31 samples, 11 the seam writes and 20 it refuses.
-The real advisor sample is held open for the owner; no host result is claimed
-here.
+This dated matrix held the real advisor sample open on 2026-11-08; the later
+dated [`LC-P3-02-real-sample-2026-11-10.md`](LC-P3-02-real-sample-2026-11-10.md)
+measured the sample's 42-arm machine half. No host result is claimed here, and
+the machine loop is not a human dual-host reopen observation.
 
 ## The matrix
 
@@ -53,7 +55,13 @@ it.
 
 ## The human half
 
-The WPS Office and Microsoft Office 2010 open/reopen checklist is **NOT RUN**.
-No operator launched either host, and no host result is claimed. The form and
-the evidence directory are in `G1-ENV-EVIDENCE-PREP-2026-11-08.md`; the rows
-are held open pending the owner's execution.
+The WPS Office and Microsoft Office 2010 open/reopen checklist is **NOT RUN**
+in this 2026-11-08 record. No operator launched either host at that time, and
+no host result is claimed here. The form and the evidence directory are in
+`G1-ENV-EVIDENCE-PREP-2026-11-08.md`; the rows were held open pending the
+owner's execution. **Read 2026-11-10:** the later 44-row checklist has 4/44
+completed rows, remaining WPS rows are observed by screenshot, and Word 2010
+rows stay `PENDING-HUMAN` until that host is installed and observed with the
+same mode. The 42-arm machine half is recorded in
+[`LC-P3-02-real-sample-2026-11-10.md`](LC-P3-02-real-sample-2026-11-10.md);
+it does not close the human half.

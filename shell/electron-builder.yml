@@ -1,0 +1,34 @@
+# Minimal unsigned Windows installer for the local-first desktop shell.
+# A per-user NSIS target is the smallest artifact that can support T09's
+# install/launch/upgrade/uninstall drill. Signing is deliberately absent (W28).
+appId: org.labcairn.shell
+productName: LabCairn
+# The caller sets LABCAIRN_SHELL_DIST_DIR to a directory outside the
+# checkout; packaging products and logs never live in the tracked tree.
+directories:
+  output: ${env.LABCAIRN_SHELL_DIST_DIR}
+# electron-builder requires electron in devDependencies. The shell declares it
+# as a dependency for the approved npm surface, so the packaged app's metadata
+# clears that declaration instead of changing the manifest the witness reads.
+extraMetadata:
+  dependencies: null
+files:
+  - src/**/*
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web-dist
+    filter:
+      - '**/*'
+# The packaged window loads the web bundle from `resources/web-dist`. When that
+# source directory is absent electron-builder prints one line and keeps going,
+# so an installer without the frontend would ship; measured on 2026-11-11, such
+# a build exited 0. This hook turns the missing bundle into a build failure.
+beforeBuild: scripts/require-web-dist.mjs
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false

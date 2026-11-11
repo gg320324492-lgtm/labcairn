@@ -1,5 +1,41 @@
 # LabCairn — Current handoff
 
+**Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
+Phase 3 gate is closed.** At
+`3a62b9d4cfd440ab0f2b0c3c32c34fe2431511d9`, local `main` was measured 99
+commits ahead of `origin/main`, accumulated for a later delivery by the
+owner's choice; a live ahead count is re-measured at delivery; the
+live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
+CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
+G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
+`LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
+build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
+CRITICAL emSign intermediate-CA advisory — the only immediate one of the 25
+advisories found. The G4 checklist revision 2 carries 31 classifiable rows
+whose signatures stay `PENDING` until the gate's implementation (the
+installed build and the trial) is complete. NOTICE now records the full
+268-package shell dependency closure (13 runtime and 255 build-only
+packages, all permissive licences), witnessed by
+`shell/test/notice-licences.test.mjs`. The owner's eight G4 decisions, the Electron shell choice,
+and three later decisions on the in-flight batch are recorded in
+[`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
+§§12–13. The changelog split on 2026-11-11 moved every dated section into
+[`../changelog/phase-3.md`](../changelog/phase-3.md) and its two phase
+archives; [`../../CHANGELOG.md`](../../CHANGELOG.md) keeps the container,
+the archives index and the dated entry that records the split. Shard costs were
+re-measured from runner run `42733499009` at
+`46e2c21918286a723f9d07d5409d0e52e7551a85`; the later O6 dose repair is
+carried by the balance witness's slack rule until the next runner re-measure.
+The shell batch's 17 independent-critique findings stay named gaps for G4, the
+44-row dual-host checklist is 4/44 completed; the owner's later dialog
+narrows its personal verification to WPS, while Word 2010 rows stay
+`PENDING-HUMAN` until that host is installed and observed with the same
+screenshot mode. The owner-picked sample's 42-arm machine loop landed on
+2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
+dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
+`PENDING-HUMAN` and its observation SOP ready for the owner, no gate row has
+moved, and no push, pull request or CI run is authorised.
+
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's
 path-length repair, and `LC-P3-02`'s DOCX editing seam are merged into local `main`
@@ -7,15 +43,16 @@ in separate merge commits, each with its evidence in the same commit. `LC-P3-02`
 record is [`../acceptance/LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md)
 with [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and
 [`../adr/ADR-0021-manuscript-editing-rewrite.md`](../adr/ADR-0021-manuscript-editing-rewrite.md);
-both G1 rows read `IN PROGRESS`. What is **not** closed: the §4.9 human dual-host
-reopen checklist (`NOT RUN` in both acceptance records), the real advisor sample
-(§5.9, held open as a named gap), the ADR's final adoption (it stays `proposed`,
-adoption provisional), and the runner-measured shard costs — locally
-`test_the_shards_are_balanced` and
-`test_the_recorded_costs_cover_every_test_file` are expected red until the batch's
-one runner run. The fifth independent review's PASS and the merge are this batch's
-gate; nothing here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a
-CI run, and none is authorised by this document.
+both G1 rows read `IN PROGRESS`. What is **not** closed in that dated entry:
+the §4.9 human dual-host reopen checklist (`NOT RUN` in both acceptance
+records), the real advisor sample (§5.9, held open as a named gap at that
+time), and the ADR's final adoption (it stays `proposed`, adoption
+provisional). Shard costs were subsequently re-measured from runner run
+`42733499009`, so the balance witnesses are no longer expected red. The
+fifth independent review's PASS and the merge are this batch's gate; nothing
+here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a CI run, and
+none is authorised by this document. See the 2026-11-10 entry above for the
+current state.
 
 **Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is
 built.** [`LC-P3-01` (real-browser baseline) and `LC-P3-02` (dual-host DOCX

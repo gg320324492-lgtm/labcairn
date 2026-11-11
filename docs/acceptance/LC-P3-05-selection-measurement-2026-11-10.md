@@ -550,3 +550,15 @@ beyond the two-process mechanics; no PyInstaller Windows signing.
 4. §10's named-open list, unchanged, as the implementation stage's opening
    inventory.
 5. The board row stays where it is. It moves with the owner's dispatch.
+
+**Post-selection status note (2026-11-10), added without rewriting the rows
+above.** The owner has chosen Electron as the shell to build; ADR-0023 is
+accepted at that date, and the implementation shape is planned in
+`docs/plans/LC-P3-05-shell-implementation-plan.md`. O6 is **no longer open**: a
+separate window identified the mechanism, fixed it and witnessed it
+(`docs/acceptance/o6-event-stream-stall-2026-11-10.md`); the cross-reference in
+§10's O6 row is the live pointer, and the "raise before implementation" step in
+items 3–4 is discharged. The measurements in §9 and §11 stand exactly as
+written — they describe the pre-fix service. The shell-side obligation they
+leave behind is a hard rule of the plan: a child's stdout and stderr must be
+drained, because an unread pipe can park its writer no matter why it wrote.

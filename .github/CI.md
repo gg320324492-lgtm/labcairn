@@ -1,24 +1,94 @@
 # The CI, and what each job is for
 
-This record belongs to `.github/workflows/python.yml` and
-`.github/ci-shards.json`. It says what runs, why the jobs are arranged this
-way, and — where a number is a runner measurement — which run it came from.
+This record belongs to `.github/workflows/python.yml`,
+`.github/workflows/shell.yml` and `.github/ci-shards.json`. It says what runs,
+why the jobs are arranged this way, and — where a number is a runner
+measurement — which run it came from.
 
 ## The shape of a run
 
-Three kinds of job:
+Four kinds of job:
 
-| job | runner | what it runs |
-| --- | --- | --- |
-| `lint` | `ubuntu-latest`, one runner, no matrix | `ruff check .`, `ruff format --check .`, `mypy --strict` |
-| `python-quality (${{ matrix.os }}, shard N)` | 2 platforms × 5 shards = 10 jobs | `pytest` on that shard's files only |
-| `evaluation` | `ubuntu-latest`, one runner, no matrix, **schedule event only** | `python -m tests.evaluation --classes unit,integration,negative,e2e,repository` |
+| job | workflow | runner | what it runs |
+| --- | --- | --- | --- |
+| `lint` | `python.yml` | `ubuntu-latest`, one runner, no matrix | `ruff check .`, `ruff format --check .`, `mypy --strict` |
+| `python-quality (${{ matrix.os }}, shard N)` | `python.yml` | 2 platforms × 5 shards = 10 jobs | `pytest` on that shard's files only |
+| `evaluation` | `python.yml` | `ubuntu-latest`, one runner, no matrix, **schedule event only** | `python -m tests.evaluation --classes unit,integration,negative,e2e,repository` |
+| `shell-test (${{ matrix.os }})` | `shell.yml` | 2 platforms = 2 jobs | `node --test 'test/*.test.mjs'` in `shell/` |
 
 The shard partition and its measured per-file costs live in
 `.github/ci-shards.json`; `tests/test_ci_shard_coverage.py` watches that
-every test file is in exactly one shard on every platform, that the shard
-count matches the workflow's matrix, and that the names branch protection
-identifies are distinct.
+every test file is in exactly one shard on every platform and that the shard
+count matches the workflow's matrix. **That file also watches the names branch
+protection identifies — across every workflow file, and on the names GitHub
+actually renders**, one per matrix leg, not on the name templates as written.
+The distinction is what `release-dependency-licences (matrix.os)` needed (see
+2026-11-11 below): as a template it looked distinct from everything.
+
+## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
+
+**What changed.** Three things, one change-set.
+
+1. **`shell.yml` runs the shell's tests.** One job, `shell-test (${{ matrix.os }})`,
+   on `windows-latest` and `ubuntu-latest`, `fail-fast: false`, on `push` to `main`
+   and unfiltered `pull_request`. It installs **no** pnpm package and downloads **no**
+   Electron binary: the eight files under `shell/test/` import only `node:*` built-ins
+   plus paths into `shell/` or `.github/`, and the two lockfile-facing witnesses read
+   `pnpm-lock.yaml` and `NOTICE` as text rather than resolving an installed package.
+   What the job does install is the
+   Python CLI (`uv sync --frozen`), because `drain-witness.test.mjs` — the one
+   integration file — spawns the `labcairn` console script, and
+   `shell/scripts/lib/shell-paths.mjs` derives it from the checkout's own `.venv`.
+   `LABCAIRN_SHELL_TEST_TMP: ${{ runner.temp }}/shell-test-tmp` is load-bearing: the
+   file's scratch default is `E:\labcairn-local\shell-test-tmp`, and a GitHub runner has
+   no E: volume.
+2. **`release-dependency-licences` is renamed to `release-dependency-licences (${{ matrix.os }})`.**
+   The name held the literal text `matrix.os` inside parentheses, not an expression, so
+   the job's two platform legs reported **one** check name — the shape the job's own
+   comment at `release.yml:398-400` forbids. A required check of that name was satisfied
+   by whichever platform reported first.
+3. **The job-name witness now reads every workflow, and renders names.** It read
+   `python.yml` alone and compared name *templates*, which is why (2) survived every
+   earlier check. It enumerates `.github/workflows/*.y*ml` and compares the names GitHub
+   renders, one per matrix leg. The rendering lives in `tests/workflow_job_names.py`,
+   shared with `tests/test_shell_ci.py`.
+
+**Why the job is needed at all.** `pyproject.toml`'s `norecursedirs` names `shell` —
+"Electron tree; its Node witnesses are not pytest files" — so no shard, no gate class and
+no witness-ledger entry sees the Node cases. Before this change, deleting
+`shell/test/window-security.test.mjs` left every pytest test green.
+
+**The witness.** `tests/test_shell_ci.py` (14 test functions): every
+`shell/test/*.test.mjs` is a file the CI command actually runs; the step carries
+`working-directory: shell`, the runner temp env and `uv sync --frozen` — and must
+**not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
+`fail-fast: false`; the name is unique across every workflow; each recorded file
+still declares at least its Node cases, anchored at the revision the floors name
+(5/3/5/5/6/7/9/4 = 44 across eight files); and no shell test file exists without a
+recorded floor. Several witnesses feed the file's own readers synthetic trees — a
+command naming three of eight files, a glob that does not cross a directory, a matrix
+axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
+exists" is not offered as "the check can fail".
+
+**Mutation checks run, all four reddened and then restored:** reverting the release name
+reddened the shard witness; deleting `window-security.test.mjs` from a copy reddened the
+floors; a matrix expression naming an undeclared axis is refused rather than compared; and
+the coverage reader reports a three-of-eight command as running three. Deleting a shell file
+leaves the coverage check green **by design** — the glob still covers what remains — which
+is why the floors and the recorded-floor check exist.
+
+**Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
+`lint`'s once was; the first runner run is the measurement. A development-machine run of
+the same command shape measured 44/44 on Node v24.16.0. Neither is a recorded cost; the
+`0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
+witness's slack rule until the first runner run re-measures them. No CI run is owed for
+this batch.
+
+**The owner's step.** Whether `shell-test (windows-latest)` and
+`shell-test (ubuntu-latest)` join branch protection is the owner's decision, and so are the
+two names (2) newly renders. A workflow file cannot make a check required.
+`tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at_all` is what
+keeps `shell.yml`'s `pull_request` trigger unfiltered if it becomes required.
 
 ## 2026-11-03 — the evaluation harness on a schedule
 
@@ -29,10 +99,11 @@ over the five classes it can run offline and uploads the report.
 
 **Why not on pull requests.** The harness runs the same test files the ten
 shard jobs already run, and its measured cost on an Ubuntu runner is
-1450.0 s (about 24 minutes) over the five offline classes — the per-file
-costs in `.github/ci-shards.json`, anchored at `49e81f2`. On a pull request
-it would add about ten minutes to the wall clock and become the new
-bottleneck. A schedule produces the report without touching that clock.
+1622.3 s (about 27 minutes) over the five offline classes — the per-file
+costs in `.github/ci-shards.json`, anchored at
+`46e2c21918286a723f9d07d5409d0e52e7551a85`. On a pull request it would add
+about twelve minutes to the wall clock and become the new bottleneck. A
+schedule produces the report without touching that clock.
 
 **Why exactly five classes.** A Phase 1 blocker is held only when every one
 of its witnesses was collected and passed, and the witnesses span all five

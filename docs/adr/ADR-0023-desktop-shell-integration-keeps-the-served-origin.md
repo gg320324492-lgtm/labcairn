@@ -1,11 +1,11 @@
 # ADR-0023 — A desktop shell wraps the origin the service already serves
 
-**Status:** Proposed (draft issued by the `LC-P3-05` selection-and-measurement
-window; **the shell choice itself is the owner's**, and this ADR is what that
-choice is being made *against*)
+**Status:** Accepted (2026-11-10, owner's Electron selection) — the integration
+shape, the candidate ranking and the contracts below are the decision;
+implementation is a separate window and is not claimed here
 **Work order:** `LC-P3-05` §10 (`docs/plans/PHASE_3-work-orders.md`), Phase 3 G3
-— the selection and measurement stage only
-**Date:** 2026-11-10
+— the selection and measurement stage, and the plan for the implementation stage
+**Date:** 2026-11-10 · accepted 2026-11-10
 **Drafted against:** local `main` at
 `26f816b2ecaf03a3d62b914d685edd4f54e0356b` ("the real sample is picked from the
 corpus registry"); local `main` is ahead of `origin/main`
@@ -17,12 +17,31 @@ time is `ADR-0022-platform-conditional-code-keeps-one-reachable-body.md`;
 `ls docs/adr/ADR-0023*` returned nothing. §3.4 of the work orders required the
 re-check and this ADR performed it.
 
+**Acceptance note (2026-11-10).** The owner has chosen **Electron** as the shell
+to build. This ADR's measurements are what the choice was made against, not the
+choice itself: the selection record deliberately stopped at a ranking (§11:
+"the record adopts none of them as a dependency", and the shell choice belongs
+to the owner), and its §3/§11 name Electron as the only candidate buildable on
+this machine as it stands. The choice changes this ADR's status, not its
+measurements: the integration shape the ADR decided is the shape Electron is to
+be built in — the window loads the served origin, with no `file://` page, no
+custom scheme and no `--origin` widening. **O6 is closed.** The selection record's "raise this before
+implementation" precondition is discharged by the separate O6 window, which
+identified the mechanism (the service wrote 6,205 bytes of traceback per
+unwired stream into an unread 4,096-byte pipe), fixed it and witnessed it —
+`docs/acceptance/o6-event-stream-stall-2026-11-10.md`; the cross-reference in
+the selection record's §10 O6 row is the live pointer. The service-side risk
+section below is kept as the measurement it was, with a note at each point the
+precondition is now discharged. Implementation is planned, not performed, in
+`docs/plans/LC-P3-05-shell-implementation-plan.md`.
+
 **What this ADR decides, and what it does not.** It decides the **integration
 shape** — how a desktop shell relates to the local API session boundary — and
-records what each candidate costs. It does **not** decide which shell to build,
-does not adopt a dependency, and does not move the board's `LC-P3-05` row. Those
-belong to the owner and, for the dependency, to §3 rule 4. Every measurement
-cited here is documented in
+records what each candidate costs. At drafting time it did **not** decide which
+shell to build; the owner's Electron selection recorded above settled that. It
+does not adopt a dependency (a new desktop dependency remains an owner
+decision under §0 rule 4 / §3 rule 4), does not write product code, and does not
+move the board's `LC-P3-05` row. Every measurement cited here is documented in
 `docs/acceptance/LC-P3-05-selection-measurement-2026-11-10.md`, which cites its
 raw commands to a record kept outside the repository; a reader who wants to know
 whether a claim still holds should read that file rather than believe this one.
@@ -223,16 +242,22 @@ Why this fits, measured rather than argued:
    `LC-P3-01` baselined it. `--origin` remains the documented escape hatch — and
    the measurement says which candidate's spelling it admits (Tauri's yes,
    Electron's natural ones no).
-4. **It keeps "no shell" live.** The shape is a constraint on a shell, not a
-   commitment to one. §3.2 already states that the selection stage is a complete
-   result even if the owner defers the shell.
+4. **It kept "no shell" live at selection time.** The shape is a constraint on a
+   shell, not a commitment to one, and §3.2 states that the selection stage is a
+   complete result even if the owner defers the shell. The owner's Electron
+   selection (acceptance note above) exercises the shape rather than retiring
+   this property: a later decision not to build a shell would still leave the
+   product exactly as the browser baseline measured it.
 
 **What the selection stage's evidence says about the candidates, ranked on this
 machine's evidence and nothing else:** Electron is the only candidate buildable
 here today (and therefore the only one a selection window could prototype
 against); Tauri requires a machine-wide toolchain decision; PyInstaller's
 app-freeze path currently produces an executable that does not start. The record
-adopts none of them as a dependency.
+adopts none of them as a dependency — a new desktop dependency is an owner
+decision under §0 rule 4, and this ADR's acceptance is not that approval. The
+implementation plan records the package, version, licence and lockfile change
+for the owner's approval before any manifest is edited.
 
 ## Risks, tradeoffs and reversibility
 
@@ -273,12 +298,29 @@ adopts none of them as a dependency.
   exception, but response already started.` **No causal claim is made, the
   mechanism is not identified, and no product code was changed.**
 
-  **Whichever shell is chosen, a desktop shell that opens the workbench's event
-  stream stops the service answering anything.** A shell built on top of this
+  **At drafting time, a desktop shell that opens the workbench's event stream
+  stopped the service answering anything.** A shell built on top of this
   without closing that gap would look like the shell's defect and be the
-  service's. The trigger and scope are measured; the mechanism and fix are
-  named-open and belong to `src/labcairn/api/`, not to this ADR — and should be
-  raised before implementation, since the failure is independent of the shell.
+  service's. The trigger and scope were measured; the mechanism and fix were
+  named-open and belonged to `src/labcairn/api/`, not to this ADR — and were to
+  be raised before implementation, since the failure was independent of the
+  shell.
+
+  **Discharged (2026-11-10).** O6 is closed. The mechanism is measured: the
+  refusal was raised after the response headers had gone out, so the service
+  wrote 6,205 bytes of traceback per short unwired stream into a captured pipe
+  of measured 4,096-byte capacity that nobody read; the writer parked in the
+  full pipe, and the event loop served nothing. The fix refuses the stream
+  before its headers (403 `not_implemented` on both `GET /events` and
+  `GET /events/stream`) and is held by
+  `tests/test_api_concurrency.py::test_one_unwired_event_stream_leaves_the_service_able_to_answer`,
+  which drains one arm and leaves the other's pipe unread on purpose. See
+  `docs/acceptance/o6-event-stream-stall-2026-11-10.md`. This ADR's
+  service-side paragraphs above are the selection stage's snapshot and are
+  left as measured. **The shell-side obligation survives the fix**: a client
+  that captures a child's stdout/stderr in a pipe must drain both, because a
+  service can write output for reasons other than one fixed defect — this is
+  the hard rule of `docs/plans/LC-P3-05-shell-implementation-plan.md` §3.
 - **Token reachability in a Node-reachable process.** Measured on Electron's main
   process: `GET /session` returns the token to a client carrying no origin. That
   is the service behaving as designed (the CLI needs to point a person at the
@@ -336,10 +378,14 @@ needs a witness that fails when the property is broken:
 4. **The service keeps answering requests after the workbench opens its event
    stream.** The §"Risks" failure, turned into a witness owned by
    `src/labcairn/api/`: one short stream, then a token-bearing mutation **and** a
-   read (including a guard-free endpoint), all answered. Until it exists, the
-   failure stays named-open (O6) and no claim about desktop responsiveness is
-   made. This witness is a prerequisite to shell implementation, not a shell
-   witness: §11g/§11h show the failure without any shell at all.
+   read (including a guard-free endpoint), all answered. **Satisfied
+   2026-11-10**, by the separate O6 window rather than by the shell stage:
+   `docs/acceptance/o6-event-stream-stall-2026-11-10.md` §4 names the witness,
+   its drained/undrained arms and its two counter-mutations. This was a
+   prerequisite to shell implementation, not a shell witness — §11g/§11h had
+   shown the failure without any shell at all. The shell stage still owes its
+   own witness for the pipe-draining rule (plan §3, AC-3), because a fixed
+   service does not make an unread pipe safe.
 5. **Install, launch, upgrade drill, uninstall and rollback preserving user
    data** on a clean Windows environment, with the evidence naming commit,
    package hash, OS and host versions (§3.6 row 3, execution plan §4's
@@ -373,9 +419,12 @@ needs a witness that fails when the property is broken:
   per-candidate signing facts recorded here are re-read, and PyInstaller's
   documented absence of Windows signing becomes a live constraint rather than a
   note.
-- **The stall's cause is settled.** If O6 comes back with a cause other than the
-  event stream, the risk section's first bullet is wrong and this ADR is amended
-  rather than left holding an attributed cause.
+- **The stall's cause was settled on 2026-11-10.** O6 came back with a cause
+  that is the event stream, in the specific form of traceback bytes written
+  after headers into an unread pipe (`docs/acceptance/o6-event-stream-stall-2026-11-10.md`
+  §2). The risk section's first bullet describes the pre-fix service and is
+  annotated, not rewritten. If a later measurement overturns that mechanism,
+  this ADR is amended rather than left holding an attributed cause.
 - **A new candidate arrives, or the owner names one.** This ADR ranks four
   arrangements measured on one machine on 2026-11-10. A fifth is a reason to
   re-measure, not a reason to extend this ranking by inference.

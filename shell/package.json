@@ -1,0 +1,31 @@
+{
+  "name": "@labcairn/shell",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LabCairn desktop shell: an Electron main process that starts the local service and loads the origin it serves.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=24.16.0 <25",
+    "pnpm": ">=9.15.9 <10"
+  },
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.mjs",
+    "rehearsal": "node scripts/rehearse-loop.mjs",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron": "45.2.3"
+  },
+  "devDependencies": {
+    "electron-builder": "26.18.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch@>=7 <11": "11.0.7"
+    }
+  }
+}

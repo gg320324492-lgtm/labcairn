@@ -8,13 +8,13 @@ it, and never because something looks finished.
 | Ticket | Stage | Status | What the row rests on |
 |---|---|---|---|
 | `LC-P3-00` | Phase 3 G0 | decision record, landed 2026-11-07 | [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) — a dated owner decision record, not a gate verdict. |
-| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; the shard-balance witness is expected red until the batch runner run; no PASS is claimed. |
-| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md) and [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md); the §4.9 human dual-host reopen checklist, the real advisor sample (§5.9) and the runner-measured shard costs (§3 rule 3) remain open | The dated run record and its witnesses, measured locally on the synthetic substitute set; no host result, no real-sample loop and no PASS is claimed, and the shard-balance witness is expected red until the batch runner run. |
+| `LC-P3-01` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-08; evidence in [`LC-P3-01-browser-baseline.md`](../acceptance/LC-P3-01-browser-baseline.md); §4.9 human checklist and the LC-P3-02 substitute round-trip remain open | The dated window record and its witnesses; shard costs were re-measured from runner run `42733499009`; no PASS is claimed. |
+| `LC-P3-02` | Phase 3 G1 | **`IN PROGRESS`** — implementation merged 2026-11-09; evidence in [`ADR-0021`](../adr/ADR-0021-manuscript-editing-rewrite.md), [`LC-P3-02-support-matrix.md`](../acceptance/LC-P3-02-support-matrix.md), [`LC-P3-02-substitute-run-2026-11-08.md`](../acceptance/LC-P3-02-substitute-run-2026-11-08.md) and the dated [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md); the owner-picked sample's 42-arm machine loop is measured (42/42, 14 produced, 28 refused, 8 artifacts), while the §4.9 human dual-host reopen half and the gate remain open | The dated substitute and real-sample records and their witnesses; no host result and no PASS is claimed. Shard costs were re-measured from runner run `42733499009`. |
 | `LC-P3-03` | Phase 3 G2 | **`IN PROGRESS`** — implementation merged 2026-11-10 (merge `4855ea6`); evidence in [`LC-P3-03-revision-loop-2026-11-10.md`](../acceptance/LC-P3-03-revision-loop-2026-11-10.md); 17 witnesses, four refusal classes, all four counter-mutation families caught; the gate itself stays open | The dated run record and its witnesses, measured locally; no PASS is claimed. |
 | `LC-P3-04` | Phase 3 G2 | **`IN PROGRESS`** — the binding loop (opinion → locate → suggest → apply → dossier) merged 2026-11-10 (merge `2dce121`); evidence in [`LC-P3-04-binding-loop-2026-11-10.md`](../acceptance/LC-P3-04-binding-loop-2026-11-10.md); 17 Python witnesses + 5 web witnesses, 6 counter-mutations caught, ledger `ADDED -- 17`; the gate itself stays open | Execution plan §3; §9. |
 | `LC-P3-05` | Phase 3 G3 | **`IN PROGRESS`** — the selection-and-measurement stage landed 2026-11-10 (merge `1e35758`); evidence in [`LC-P3-05-selection-measurement-2026-11-10.md`](../acceptance/LC-P3-05-selection-measurement-2026-11-10.md) and [`ADR-0023`](../adr/ADR-0023-desktop-shell-integration-keeps-the-served-origin.md); the shell choice itself waits on the O6 fix, which landed 2026-11-10 (merge `9cdb19a`, record [`o6-event-stream-stall-2026-11-10.md`](../acceptance/o6-event-stream-stall-2026-11-10.md)) | The dated selection record; §10. |
-| `LC-P3-06` | Phase 3 G3 | **`IN PROGRESS`** — the substitute-first half landed 2026-11-10 (merge `7d5be74`); evidence in [`LC-P3-06-substitute-first-2026-11-10.md`](../acceptance/LC-P3-06-substitute-first-2026-11-10.md); 33 witnesses, 12/12 counter-mutations; the real half still waits on `LC-P3-04` and the sample | `LC-P3-00` §4; the authorisation record at §11's §4.9; the real-model row stays gated by §4.8's right column. |
-| `LC-P3-07`, `LC-P3-08` | Phase 3 G4 | `NOT STARTED` — no work order written | Execution plan §3. |
+| `LC-P3-06` | Phase 3 G3 | **`IN PROGRESS`** — the substitute-first half landed 2026-11-10 (merge `7d5be74`; 33 witnesses, 12/12 counter-mutations) and the bounded real-model half ran and was recorded the same day (merge `8259a5f`): 5 requests, 0 refused, 0 failed, 5,136 / 50,000 authorised tokens, synthetic samples, seven measured gaps; evidence in [`LC-P3-06-substitute-first-2026-11-10.md`](../acceptance/LC-P3-06-substitute-first-2026-11-10.md) and [`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md) | `LC-P3-00` §4; the authorisation record at §11's §4.9; §14 item 7 keeps the "One real model" gate row a named gap for the exit decision, and the trial's real-advisor sample was not used here. |
+| `LC-P3-07`, `LC-P3-08` | Phase 3 G4 | **`NOT STARTED`** — work orders §12 and §13 were issued 2026-11-09 (owner decision: the ground-truth revision published on 2026-11-10); both tickets stay blocked on `LC-P3-05`'s installed build | Execution plan §3; §12, §13, and the 2026-11-10 owner decisions at the end of each section. |
 
 Source questions **Q77** and **Q82** stay open at their own triggers
 (`LC-P3-00` §8, execution plan §8), unchanged by anything here.
@@ -380,6 +380,14 @@ order.
 Until the sample arrives the ticket's own record carries **real-sample loop: NOT
 RUN — held open pending the owner's sample**. `LC-P3-00` §3 governs this: rows
 defined by real advisor use cannot be simulated and reported as advisor use.
+**Read 2026-11-10:** the owner-picked sample's 42-arm machine half has since
+been measured in
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md)
+(42/42, 14 produced, 28 refused, 8 artifacts, report digest
+`a003a12ca9603a112e5ad962278238a978eea377a6cc1b05bed1667c947fb638`). That later
+dated record closes only the machine half; the human dual-host reopen half
+remains `NOT RUN`, and no ticket verdict is transferred from one half to the
+other.
 
 **The corpus is identified; the sample is picked.** On 2026-11-09 the
 owner confirmed the uploaded micro-nano-bubble reference batches as this
@@ -399,9 +407,11 @@ carries `BODY_TEXT`, `TRACKED_REVISIONS`, `COMMENTS`, `TABLES`,
 `EQUATIONS`, `IMAGES`, `COMMENT_PART` and `MEDIA`, and blocks nothing — a
 wider structural coverage than most synthetic samples. The file itself
 stays outside the repository; the tree records its digest and counts,
-never its name or its content. The named-gap label above stands unchanged:
-the real-sample half is `NOT RUN` until the full loop runs on this file
-and is recorded.
+never its name or its content. **Read 2026-11-10:** the 42-arm machine
+loop has now run on this file and is recorded in the dated
+[`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md).
+That record closes the machine half only; the human dual-host reopen half
+remains `NOT RUN` and is still a named gap.
 
 **5.10 The empty row, and who watches it.** A record may leave a cell empty
 because the evidence for it has not been taken. That is honest only while a
@@ -409,8 +419,9 @@ witness watches the row: a test that fails if the row disappears, if the empty
 cell is read as a result, or if the label changes from "not run" to a verdict.
 An empty row with no witness is not a pending measurement; it is a claim the
 tree cannot tell from a pass. The reopen checklist's human cells are empty and
-`tests/test_docx_edit_records.py` watches them; the real-sample row carries the
-exact label §5.9 names, and the same witness reads that label.
+`tests/test_docx_edit_records.py` watches them; the same witness now reads the
+substitute-run record's measured 42/42 state, the dated real-sample record's
+path and digest, and the retained `NOT RUN` human-reopen sentence.
 
 ---
 
@@ -741,7 +752,7 @@ measurement stage is where that is decided.
 
 ---
 
-## 11. `LC-P3-06` — one-model bounded validation (Phase 3 G3) — `BLOCKED` (seven fields answered 2026-11-09; the real half now waits on `LC-P3-04`, and the substitute-first half may start)
+## 11. `LC-P3-06` — one-model bounded validation (Phase 3 G3) — both halves run (seven fields answered 2026-11-09; the substitute-first half landed 2026-11-10, and the bounded real-model half ran the same day); the gate row stays open by §14 item 7
 
 **4.1 Purpose.** Execution plan §3: *"One real model exercises the proposal
 path within an owner-authorised scope. Records model, sample fingerprint,
@@ -941,6 +952,35 @@ and review". The rows are judged at Phase 3 G4.
 | The diagnostics de-identification, proven on synthetic content | — |
 | The manual and known limits, written against the installed build's actual behaviour | — |
 
+**Owner decisions answered 2026-11-10 (ground-truth revision).** This
+section and §13 were issued on 2026-11-09; the board's row was stale, not
+the orders themselves. The owner's answers below revise §12 and §13 against
+what G2/G3 actually landed, and the draft that surfaced them stays outside
+the repository until this publication. **Decision 1** (accepted option A):
+publish this as a revision of the issued §§12–13, keep the 2026-11-09 owner
+answers untouched, and move the board row in the same commit to name the
+issued orders and their date while the tickets themselves stay
+`NOT STARTED`. **Decision 8** (accepted option A): publish locally and join
+the next owner-authorised batch — no push, no pull request and no CI run
+belong to this publication.
+
+- **Decision 2 — the sequencing against `LC-P3-05`.** Accepted option A:
+  07 and 08 stay `BLOCKED` on 05's shell decision and installed build. The
+  shell is now chosen (Electron, 2026-11-10; ADR-0023 accepted and its
+  implementation plan written), but the installed build does not exist yet.
+  Only substitute-first design work — the drill matrix, the manual
+  skeleton, the trial protocol, the per-row mapping, the seam statement
+  and its witness — may start now, and each such piece is
+  **labelled design, not a deliverable until run**. A dev-build rehearsal
+  is not authorised, and a rehearsal may never be entered in an execution
+  plan §4 row. The wheel-only vehicle was not chosen.
+- **Decision 5 — the `LC-P3-06` real-model row at G4.** No new decision:
+  §14 item 7 stands verbatim. The real-model row remains a named gap at the
+  exit decision and does not pass on a substitute; 06's real half has since
+  been run under its own authorisation
+  ([`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)),
+  which changes what the gap names, not the owner's ruling.
+
 ---
 
 ## 13. `LC-P3-08` — internal-trial review and exit decision (Phase 3 G4)
@@ -1032,6 +1072,39 @@ exercised once, bounded, under separate owner authorisation.
 |---|---|
 | The protocol record and the per-row evidence mapping | The advisor-to-student-to-advisor loop, in every part |
 | A dry-run of the §4 mapping against the substitute build (a rehearsal is not a trial result and is labelled as one) | The advisor's real sample, the real reopen, the named reviewer's read, the exit decision |
+
+**Owner decisions answered 2026-11-10 (ground-truth revision).** These
+answers revise the issued §13 against the 2026-11-10 landings (`LC-P3-03`,
+`LC-P3-04`, `LC-P3-05`'s selection and the O6 fix, `LC-P3-06`'s two
+halves); the dependency on 05's installed build is named in §12's answer
+block above.
+
+- **Decision 3 — one supply, one run.** Accepted option A: `LC-P3-02`'s
+  recorded real-sample loop is an **input** to 08's trial record; 08 still
+  runs its own advisor-to-student-to-advisor loop and cites 02's result.
+  The two records cross-reference each other, and 08 never claims a row
+  from 02's evidence alone. A second real sample was not commissioned, and
+  02's measurement does not stand in for 08's real-advisor row.
+- **Decision 4 — the `root_kinds` seam.** Accepted option A: keep
+  `root_kinds={"source"}`. The trial protocol names `binding.py`'s
+  approval-record minting as the product's actual behaviour; the seam
+  statement in the trial protocol carries its own witness, and the
+  trajectory listing not showing output versions is a known limit, not a
+  defect. Widening the
+  capability's root kinds before the trial was not authorised (it remains
+  an owner decision for its own ticket).
+- **Decision 6 — who classifies a trial finding.** Accepted option A: the
+  named reviewer classifies each finding (blocker / measured gap / routed
+  defect) at a named commit; a disagreement goes to a third reader as
+  arbiter (`LC-P3-00` §3); the owner signs the classification with the exit
+  decision. A blocker keeps the decision blocked with its evidence
+  address. No finding passes on a note alone.
+- **Decision 7 — the named reviewer's form.** Accepted option A: one named
+  human reviewer designated by the owner, plus one independent agent
+  session with no project memory as a second reader, carrying the literal
+  disclosure sentence where an agent stands in for a human reader. The
+  arbiter of a disagreement is a third reader. The trial's real-advisor
+  rows are not read by agents alone.
 
 ---
 
@@ -1213,13 +1286,15 @@ do not edit these; both sequence against them.
 
 | Gap | Waiting on | Where it is stated |
 |---|---|---|
-| The real advisor sample and its full loop | The loop itself, run on the picked sample and recorded (the sample was picked 2026-11-09: batch A, digest at §5.9; the file stays outside the repository) | §5.9, §14 item 4 |
-| `LC-P3-06`'s real-model row | `LC-P3-04`'s proposal path (the thing the real model exercises) and the de-identified domain sample; the seven authorisation fields themselves are answered (§14 item 3, tabled at §11's §4.9) | §1, §11, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
+| The real advisor sample's human dual-host reopen half | The 42-arm machine loop ran on the picked sample on 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts) and is recorded in [`LC-P3-02-real-sample-2026-11-10.md`](../acceptance/LC-P3-02-real-sample-2026-11-10.md). What remains open is the owner's human dual-host reopen half, not the machine loop; the file stays outside the repository | §5.9, §14 item 4, the dated real-sample record |
+| `LC-P3-06`'s "One real model" gate row | Nothing left to run: the bounded real-model call ran 2026-11-10 under the seven-field authorisation (5 requests, 5,136 tokens, synthetic samples; record [`LC-P3-06-real-half-2026-11-10.md`](../acceptance/LC-P3-06-real-half-2026-11-10.md)). The row stays a named gap for the exit decision by §14 item 7's own ruling — it does not pass on a substitute, and the trial's real-advisor sample was not spent here | §1, §11, §12's decision-5 block, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §4 |
 | A Windows browser pass a runner has run | A runner run, which the owner starts | §3 rule 6, execution plan §6 last row |
 | Which side carries the driver, and whether the witness is new or extended | The implementation window's first recorded decision | §4.12 |
 | Which system-browser channel the trial machine has | A measurement at dispatch | §4.12 |
 | Q77's per-layer rules and Q82's original | Their own triggers: a memory-interface design task, and a later requirements baseline only the owner can state | §1, [`LC-P3-00`](../acceptance/LC-P3-00-board-opening-decisions.md) §8 |
 | Version switching in the workbench | A version-selection surface and a browser witness; named gap, not claimed | §4.8 |
-| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8); the operation page and CSV inputs exist outside the repository | §5.8, §14 item 8 |
+| The §4.9 human dual-host reopen checklist | The owner personally performing the 44-row checklist (§14 item 8); 4/44 rows are complete, WPS-only screenshot observation continues for the remaining WPS rows, and Word 2010 rows stay `PENDING-HUMAN` until the owner installs that host and observes them with the same mode; the operation page and CSV inputs exist outside the repository | §5.8, §14 item 8 |
+| The packaged shell's own backend | The backend's own arrangement — O3's unmeasured decision: a frozen service, a bundled interpreter or a sidecar. Measured on 2026-11-11, the installer carries no Python at all, so `LABCAIRN_SHELL_CLI` names an entry point the package does not contain | §10.4 of [`LC-P3-05`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md), the O3 runtime-arrangement gap |
+| Who supplies a packaged run's three environment variables | A decision about how an installed application is told where its backend and its workspace are; nothing in the package supplies `LABCAIRN_SHELL_CLI`, `LABCAIRN_SHELL_WORKSPACE` or `LABCAIRN_SHELL_STATIC_DIR`. The bundle's own path was closed on 2026-11-11 — a packaged run now derives `resources/web-dist` — so only the backend and the workspace remain to be supplied | §10.4 of [`LC-P3-05`](../acceptance/LC-P3-05-shell-skeleton-2026-11-10.md), T09's drill |
 
 ---

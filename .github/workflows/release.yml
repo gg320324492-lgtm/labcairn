@@ -400,7 +400,7 @@ jobs:
   # in the name.
   # =========================================================================
   release-dependency-licences:
-    name: release-dependency-licences (matrix.os)
+    name: release-dependency-licences (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
