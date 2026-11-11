@@ -68,8 +68,12 @@ SHELL_TEST_DIR: Final[str] = "shell/test"
 NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 
 #: The per-file Node case counts, and the commit they were measured at.
-#: Measured with `node --test --test-reporter=spec` on Node v24.16.0 at
+#: The six original files were measured with
+#: `node --test --test-reporter=spec` on Node v24.16.0 at
 #: `9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92` — 27 cases, 27 pass, 0 fail.
+#: `packaging-config.test.mjs` arrived with T08 and was re-measured at
+#: `6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` — 4 cases, 4 pass, 0 fail —
+#: making the current floor 31.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -78,9 +82,10 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "drain-witness.test.mjs": 5,
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
+    "packaging-config.test.mjs": 4,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92"
+CASE_FLOORS_MEASURED_AT: Final[str] = "6cdbfb56ce29dd19e4f56dae549b4d476d998d1e"
 
 
 # --------------------------------------------------------------------------
