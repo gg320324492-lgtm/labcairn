@@ -32,6 +32,14 @@ After the full NOTICE dependency surface landed, the live measurement at
 binary files. The 823 / 192, 826 / 195 and 831 / 195 figures are named
 earlier measurements, not current totals.
 
+**Read 2026-11-11 (after the packaging guard landed):** at
+`806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1` the live measurement prints
+**834 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 31 `.mjs`, 26
+`.tsx`, 23 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The 833 figure is the one named
+in the paragraph above; it, and the 823 / 192, 826 / 195 and 831 / 195
+figures before it, are earlier measurements, not current totals.
+
 ## 1. Classification measured on 2026-11-07
 
 The read-only scan measured **733 tracked files** at

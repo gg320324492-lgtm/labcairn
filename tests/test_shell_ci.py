@@ -79,9 +79,10 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
 #: identical to the merged tree. The eight files together declare 41 cases;
 #: `node --test` measured 41 pass, 0 fail on Node v24.16.0 after the packaging
-#: guard landed. The three cases the guard adds are its own: the configuration
-#: names it, it refuses a build with no web bundle, and it accepts one that
-#: carries the entry document.
+#: guard landed, at
+#: `806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1`. The three cases the guard adds
+#: are its own: the configuration names it, it refuses a build with no web
+#: bundle, and it accepts one that carries the entry document.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -94,7 +95,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "packaging-config.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "bf2f6f450c93104b34fac38d4f853880dca53872"
+CASE_FLOORS_MEASURED_AT: Final[str] = "806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1"
 
 
 # --------------------------------------------------------------------------
