@@ -77,8 +77,8 @@ gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
 
 - **`reviews: null`** — GitHub requires no review of a pull request into `main`.
   The review this project treats as the gate is the one the repository arranges,
-  not one the setting enforces; whether a required review should be added is the
-  owner's decision and nothing here changes it.
+  not one the setting enforces. **The owner decided on 2026-11-11 that no
+  required review is added**, so this stays `null`; nothing here changes it.
 - **`strict: true`** — the required checks must be re-passed on the branch's tip
   before a merge, so a merge cannot carry a green set measured on an older commit.
 - **`admins: {"enabled": true}`** (`enforce_admins`) — the fifteen checks bind
@@ -94,10 +94,15 @@ in `.github/workflows/` reports**, because a required check naming a name no job
 reports is a check GitHub waits for forever. It does not watch the seven, and it
 must not: which of them become required is the owner's decision, recorded below.
 
-**The owner's open decision, restated with the measurement.** `shell-test
-(windows-latest)` and `shell-test (ubuntu-latest)` run on every pull request and
-are not required. Making them required is the owner's call, and this repository
-only offers the two names.
+**The owner's decision, taken 2026-11-11.** `shell-test
+(windows-latest)` and `shell-test (ubuntu-latest)` run on every pull request
+and **are not required**, and the owner decided on 2026-11-11 that they stay
+that way. Making them required is the owner's call and this repository only
+offers the two names; the decision was to keep the measured set as it stands.
+The same day the owner decided that **no required review is added**: the
+review this project treats as the gate stays the one the repository arranges
+(two layers, an implementer and a reader that did not write the code), not one
+GitHub enforces.
 
 ## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
 
@@ -162,10 +167,11 @@ the same command shape measured 44/44 on Node v24.16.0. Neither is a recorded co
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.
 
-**The owner's step.** Whether `shell-test (windows-latest)` and
-`shell-test (ubuntu-latest)` join branch protection is the owner's decision, and so are the
-two names (2) newly renders. A workflow file cannot make a check required.
-`tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at_all` is what
+**The owner's step, taken 2026-11-11.** `shell-test (windows-latest)` and
+`shell-test (ubuntu-latest)` do **not** join branch protection — the owner
+decided on 2026-11-11 to keep the measured set as it stands, and the same day
+decided that no required review is added. A workflow file cannot make a check
+required. `tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at_all` is what
 keeps `shell.yml`'s `pull_request` trigger unfiltered if it becomes required.
 
 ## 2026-11-03 — the evaluation harness on a schedule
