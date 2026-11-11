@@ -5,10 +5,14 @@
 # then waits for it forever. See python.yml and
 # tests/test_no_reference_leakage.py for the gate that watches this rule.
 #
-# The shell's six Node tests import only node:* built-ins and files under
-# shell/. None imports electron, and the dependency-surface test reads
-# pnpm-lock.yaml as text rather than resolving an installed package. There is
+# The shell's Node tests import only node:* built-ins and files under
+# shell/ or .github/. None imports electron, and the two tests that concern
+# shell/pnpm-lock.yaml read it as text rather than resolving an installed
+# package — `dependency-surface.test.mjs` for which packages are locked, and
+# `notice-licences.test.mjs` for whether NOTICE records them. There is
 # therefore no pnpm install, no node_modules cache and no Electron binary here.
+# `tests/test_shell_ci.py::test_no_shell_witness_imports_a_package_the_job_does_not_install`
+# is what keeps that claim about the files rather than about the comment.
 #
 # Two steps are load-bearing for the one integration file instead:
 #   * uv sync --frozen creates the `labcairn` console script next to the

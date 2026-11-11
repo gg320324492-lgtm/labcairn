@@ -8,7 +8,8 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the 27 Node cases. Before this file,
+class and no witness ledger can see the shell's Node cases (38 across eight
+files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
 pytest test green too. The dependency-surface audit found the first gap; the CI
@@ -24,9 +25,9 @@ by `tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at
 over every workflow file, and a second weaker copy of a gate is the thing this
 project's rules say not to write.
 
-**The counts are a floor with an anchor, not a hard equality.** A hard `== 27`
-would make every legitimate new Node case an edit to this file. The recorded
-per-file floors are what a `node --test` run printed at the commit named below,
+**The counts are a floor with an anchor, not a hard equality.** A hard
+`== <total>` would make every legitimate new Node case an edit to this file. The
+recorded per-file floors are what a `node --test` run printed at the commit named below,
 and `shell/test/dependency-surface.test.mjs:114` is the in-repo precedent for
 what to do when a floor is crossed: *re-measure and update the record, do not
 edit the list from memory*.
@@ -73,7 +74,11 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92` — 27 cases, 27 pass, 0 fail.
 #: `packaging-config.test.mjs` arrived with T08 and was re-measured at
 #: `6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` — 4 cases, 4 pass, 0 fail —
-#: making the current floor 31.
+#: making the floor 31. `notice-licences.test.mjs` arrived with the re-measured
+#: NOTICE §2.4 and was measured at `1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2`
+#: (this worktree's reader landing, `git rev-parse HEAD`, printed) — 7 cases,
+#: 7 pass, 0 fail, the eight files together 38 cases, 38 pass, 0 fail on
+#: Node v24.16.0.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -82,10 +87,11 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "drain-witness.test.mjs": 5,
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
+    "notice-licences.test.mjs": 7,
     "packaging-config.test.mjs": 4,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "6cdbfb56ce29dd19e4f56dae549b4d476d998d1e"
+CASE_FLOORS_MEASURED_AT: Final[str] = "1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2"
 
 
 # --------------------------------------------------------------------------
@@ -223,6 +229,39 @@ def _node_case_count(text: str) -> int:
     return len(NODE_CASE.findall(text))
 
 
+#: The import specifiers a shell witness may name: Node's own built-ins, files
+#: under `shell/`, and the repository's own CI tooling under `.github/` (which is
+#: where `NOTICE` §5.3's lead command lives, and `notice-licences.test.mjs`
+#: imports it rather than copying it). Anything else is a bare specifier, and a
+#: bare specifier is a package — the thing the job deliberately does not install.
+SHELL_WITNESS_IMPORT_ROOTS: Final[tuple[str, ...]] = ("../", "./", "../../.github/", "../.github/")
+
+#: One `import … from '…'` / `export … from '…'` specifier, static form only.
+#: Dynamic `import('x')` is deliberately not matched here; the witness below
+#: counts it separately rather than pretending the static read covers it.
+NODE_IMPORT: Final[re.Pattern[str]] = re.compile(r"""from\s+'([^']+)'""")
+DYNAMIC_IMPORT: Final[re.Pattern[str]] = re.compile(r"""\bimport\(\s*['"]([^'"]+)['"]""")
+
+
+def _bare_imports(text: str) -> list[str]:
+    """Import specifiers that resolve to neither a Node built-in nor a repo file.
+
+    `node:*` is Node's own prefix for a built-in. A relative specifier resolves
+    inside the tree. Everything left over — `electron`, `pnpm`, `js-yaml` — is a
+    package Node would look for in `node_modules`, and `shell.yml` installs no
+    `node_modules`: the job's own comment and the assertion in
+    `test_the_test_step_runs_inside_the_shell_and_names_the_runner_temp` both say
+    so, and before this reader said it, that comment was the only thing holding it
+    up.
+    """
+    bare: list[str] = []
+    for specifier in NODE_IMPORT.findall(text) + DYNAMIC_IMPORT.findall(text):
+        if specifier.startswith("node:") or specifier.startswith(SHELL_WITNESS_IMPORT_ROOTS):
+            continue
+        bare.append(specifier)
+    return sorted(set(bare))
+
+
 def _matrix_axes(job: dict[str, Any]) -> dict[str, list[Any]]:
     strategy = job.get("strategy")
     matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
@@ -276,13 +315,13 @@ def test_every_shell_node_witness_is_run_by_the_job(repo_root: Path) -> None:
     command runs**.
 
     **What this reddens, and what it does not.** Narrowing the CI command —
-    naming three of the six files, dropping the `node --test` step, or moving a
+    naming three of the files, dropping the `node --test` step, or moving a
     witness into a subdirectory the `test/*.test.mjs` glob does not cross — makes
     it red. A new file directly under `shell/test/` does **not**: the glob covers
     it, and a docstring claiming otherwise would be a claim this file's own
     witness does not hold. What a new top-level file does trigger is
     `test_every_shell_test_file_is_recorded` below — its name carries no floor
-    yet, and the floors are where the 27 cases are watched.
+    yet, and the floors are where the Node case counts are watched.
     """
     job = _shell_job(_workflow_document(repo_root))
     commands = _test_commands(job)
@@ -325,10 +364,12 @@ def test_the_test_step_runs_inside_the_shell_and_names_the_runner_temp(repo_root
         "fail for want of an interpreter rather than for want of a fix"
     )
     assert "pnpm install" not in install_commands, (
-        "shell.yml installs the shell's packages. The six test files import only "
-        "node:* built-ins and files under shell/, and the dependency-surface test "
-        "reads pnpm-lock.yaml as text; installing electron would add a 100 MB "
-        "download to a job that never imports it."
+        "shell.yml installs the shell's packages. The test files import only "
+        "node:* built-ins and files under shell/ or .github/, and the two tests "
+        "that concern pnpm-lock.yaml read it as text; installing electron would "
+        "add a 100 MB download to a job that never imports it. "
+        "test_no_shell_witness_imports_a_package_the_job_does_not_install holds "
+        "that claim against the files, not against this sentence."
     )
     for step in job.get("steps", []):
         if not isinstance(step, dict) or "node --test" not in str(step.get("run", "")):
@@ -347,6 +388,36 @@ def test_the_test_step_runs_inside_the_shell_and_names_the_runner_temp(repo_root
             "the test step sets no LABCAIRN_SHELL_TEST_TMP, so the drain witness "
             "targets a scratch default the runner does not have"
         )
+
+
+def test_no_shell_witness_imports_a_package_the_job_does_not_install(repo_root: Path) -> None:
+    """`shell.yml` installs no `node_modules`, and that is a claim about the files.
+
+    The job's comment says the shell's test files "import only node:* built-ins
+    and files under shell/", and the assertion above refuses a `pnpm install` step.
+    Until this reader existed, nothing checked the other half of that arrangement:
+    one `import { load } from 'js-yaml'` in one witness would make the job fail on
+    every runner for want of a package, and the only local signal would be a
+    green `node --test` run on a machine that happens to have the package in some
+    parent `node_modules`.
+
+    So the property is read statically, from the files themselves: a specifier
+    that is neither a `node:*` built-in nor a path inside the tree is a package,
+    and a package is what the job does not install.
+    """
+    offenders: dict[str, list[str]] = {}
+    for name in sorted(SHELL_CASE_FLOORS):
+        text = (repo_root / "shell" / "test" / name).read_text(encoding="utf-8")
+        bare = _bare_imports(text)
+        if bare:
+            offenders[name] = bare
+    assert not offenders, (
+        f"these shell witnesses import a package the shell job does not install: "
+        f"{offenders}. Either the job gains a pnpm install step — a ~100 MB "
+        "electron download for a job that never imports electron — or the witness "
+        "reads what it needs as text, which is what `dependency-surface.test.mjs` "
+        "and `notice-licences.test.mjs` do."
+    )
 
 
 def test_the_shell_job_name_carries_the_platform_leg(repo_root: Path) -> None:
@@ -421,7 +492,7 @@ def test_the_shell_case_counts_are_at_least_the_recorded_floors(repo_root: Path)
     """A Node witness file whose cases were deleted is a witness lost.
 
     `scripts/witness_ledger.py` counts pytest test functions under `tests/`, so
-    the 27 Node cases are invisible to it — correctly, since folding them in
+    the shell's Node cases are invisible to it — correctly, since folding them in
     would change the meaning of every number it has printed. The gap it leaves is
     closed here: each recorded file is asserted to still exist and to still
     declare at least the cases it declared at `CASE_FLOORS_MEASURED_AT`.
@@ -490,7 +561,7 @@ def test_every_shell_test_file_is_recorded(repo_root: Path) -> None:
 
 
 def test_the_coverage_check_reports_a_file_the_command_does_not_run() -> None:
-    """A command that names three of six files runs three, and says so.
+    """A command that names three of the eight files runs three, and says so.
 
     Without this, the coverage check above could be narrowed — to a substring
     test, or to a command that names one file — and stay green while a shell
@@ -502,7 +573,8 @@ def test_the_coverage_check_reports_a_file_the_command_does_not_run() -> None:
     partial = "node --test " + " ".join(f"'test/{name}'" for name in sorted(named))
     missing = _missing_from_commands([partial], files)
     assert missing == sorted(f"test/{name}" for name in SHELL_CASE_FLOORS if name not in named), (
-        f"a three-of-six command must report the other three as not run, not {missing}"
+        f"a three-of-{len(files)} command must report the other "
+        f"{len(files) - 3} as not run, not {missing}"
     )
 
     assert _missing_from_commands(["node --test 'test/*.test.mjs'"], files) == [], (
@@ -544,6 +616,39 @@ def test_the_case_counter_counts_the_declaration_form_the_floors_measured() -> N
     assert _node_case_count("test('one', () => {})\ntest('two', () => {})\n") == 2
     assert _node_case_count("describe('group', () => {\n  test('indented', () => {})\n})\n") == 0
     assert _node_case_count("const tested = 1\n") == 0
+
+
+def test_the_import_reader_notices_a_package_and_ignores_what_the_job_provides() -> None:
+    """The reader behind the no-package claim, checked against text it should and
+    should not flag.
+
+    A reader that reported nothing would keep the job's "installs no pnpm package"
+    assertion green forever while a witness quietly began importing a package. A
+    reader that flagged `node:fs` or `../src/live-guard.mjs` would be a check that
+    cries wolf, and a check that cries wolf gets a `# noqa`-style exception within
+    a week. Both halves are held here.
+    """
+    clean = (
+        "import assert from 'node:assert/strict'\n"
+        "import { guard } from '../src/live-guard.mjs'\n"
+        "import { lockfileKeys } from '../../.github/shell-lockfile-keys.mjs'\n"
+    )
+    assert _bare_imports(clean) == [], f"the reader flagged imports the job can satisfy: {_bare_imports(clean)}"
+
+    dirty = (
+        "import { load } from 'js-yaml'\n"
+        "import { app } from 'electron'\n"
+        "const { parse } = await import('yaml')\n"
+    )
+    flagged = _bare_imports(dirty)
+    assert flagged == ["electron", "js-yaml", "yaml"], (
+        f"the reader returned {flagged} for three package imports — a static or a "
+        "dynamic import missed is the half the claim then does not cover"
+    )
+
+    # A specifier that only *looks* relative to the shell (a bare `test/…`) is a
+    # package lookup to Node, and must be flagged rather than waved through.
+    assert _bare_imports("import x from 'test/config.test.mjs'\n") == ["test/config.test.mjs"]
 
 
 def test_the_name_check_refuses_a_name_it_cannot_render() -> None:

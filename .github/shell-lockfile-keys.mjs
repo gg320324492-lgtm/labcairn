@@ -209,6 +209,7 @@ export function lockfileKeys(text) {
     build_only: [...buildSet].filter((k) => !runtimeSet.has(k)).length,
     entries_in_neither_closure: [...bare].filter((k) => !runtimeSet.has(k) && !buildSet.has(k)).length,
     unresolved_edges: [...runtime.unresolved, ...build.unresolved],
+    all_entries: [...bare].sort(),
     runtime_entries: [...runtimeSet].sort(),
     build_only_entries: [...buildSet].filter((k) => !runtimeSet.has(k)).sort(),
   }
