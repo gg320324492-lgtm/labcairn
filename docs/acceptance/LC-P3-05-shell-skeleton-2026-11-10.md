@@ -649,19 +649,23 @@ changed a number, and each is recorded so that a later run does not repeat it:
 
 ### 10.4 Named gaps that remain (owner decisions and external conditions)
 
-- **T08 and T09 are untouched, and AC-6 is not held.** Measured on this
-  machine: `shell/pnpm-lock.yaml` contains **0** installer packages
-  (electron-builder / packager / nsis all absent), WiX (`candle`, `light`),
-  NSIS (`makensis`), Inno (`iscc`) and `signtool` are not on `PATH`, and
-  `shell/` carries no packaging configuration. Signing stays behind `W28`
-  (`PHASE_3-work-orders.md` §664, §715, §889, §1198). The clean-Windows drill
-  (install → launch → upgrade → uninstall → rollback preserving user data,
-  support limits, §0 rule 2 review) therefore cannot be performed here. The
-  owner decided on 2026-11-10 that this batch **may land with these gaps**, and
-  that they are to be recorded as named gaps rather than written as passing or
-  presented as deliverables. The O3 runtime-arrangement measurement
-  (frozen service / bundled interpreter / sidecar) and O5's import finding are
-  likewise T08's and were not measured.
+- **T08's minimal packaging config has landed; T09 and AC-6 remain open.**
+  `shell/electron-builder.yml` now declares an unsigned, per-user NSIS
+  configuration; its files ship the main process, preload and manifest, and
+  its extraResources ship the built `web/dist`. Its output directory is
+  `${env.LABCAIRN_SHELL_DIST_DIR}`, so a build whose caller names no directory
+  fails loudly rather than writing products into the tracked tree.
+  `shell/package.json` carries the `dist` script, and
+  `shell/test/packaging-config.test.mjs` witnesses the appId, target, files,
+  outside-tree output, absence of signing settings and the approved
+  dependency. A local Windows
+  build produced one installer outside the repository; a signed installer
+  (`W28`) and the clean-Windows drill (install → launch → upgrade → uninstall
+  → rollback preserving user data, support limits, §0 rule 2 review) have not
+  been performed. The owner decided on 2026-11-10 that the batch may land
+  with these gaps, and that they are recorded as named gaps rather than
+  written as passing. The O3 runtime-arrangement measurement (frozen service /
+  bundled interpreter / sidecar) and O5's import finding remain unmeasured.
 - **AC-2's Windows graceful-ask arm stays the measured gap of §6.2, by the
   owner's decision.** Twelve measured combinations of `child.kill` reached
   none of a Windows child's handlers; the assertions cover what is measured
