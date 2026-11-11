@@ -116,6 +116,30 @@ test('the packaging config runs the bundle guard before it packages', () => {
   assert.ok(fs.existsSync(GUARD_PATH), 'the configuration names a guard script that is absent')
 })
 
+test('the guard is shaped the way electron-builder calls it', async () => {
+  const guard = await import('../scripts/require-web-dist.mjs')
+  assert.equal(typeof guard.default, 'function', 'electron-builder resolves the hook as the default export')
+  assert.equal(typeof guard.bundleProblem, 'function')
+  assert.equal(typeof guard.makeGuard, 'function')
+  assert.ok(fs.existsSync(GUARD_PATH), 'the guard script is absent')
+})
+
+test('the hook electron-builder calls throws on a missing bundle and returns true on a good one', async () => {
+  const guard = await import('../scripts/require-web-dist.mjs')
+  const absent = temporaryDirectory('labcairn-hook-absent-')
+  fs.rmSync(absent, { recursive: true, force: true })
+  await assert.rejects(() => guard.makeGuard(absent)(), /absent/)
+
+  const complete = temporaryDirectory('labcairn-hook-complete-')
+  try {
+    fs.writeFileSync(path.join(complete, 'index.html'), '<!doctype html><title>LabCairn</title>')
+    const result = await guard.makeGuard(complete)()
+    assert.equal(result, true, 'the hook must return true so electron-builder still rebuilds the dependencies')
+  } finally {
+    fs.rmSync(complete, { recursive: true, force: true })
+  }
+})
+
 test('the bundle guard refuses a build with no web bundle', () => {
   const absent = temporaryDirectory('labcairn-web-dist-absent-')
   fs.rmSync(absent, { recursive: true, force: true })

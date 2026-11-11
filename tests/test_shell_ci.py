@@ -8,7 +8,7 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the shell's Node cases (41 across eight
+class and no witness ledger can see the shell's Node cases (43 across eight
 files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
@@ -77,12 +77,13 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `notice-licences.test.mjs` arrived with the full NOTICE surface; its seven
 #: cases were measured from the final branch tree at
 #: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
-#: identical to the merged tree. The eight files together declare 41 cases;
-#: `node --test` measured 41 pass, 0 fail on Node v24.16.0 after the packaging
-#: guard landed, at
-#: `806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1`. The three cases the guard adds
-#: are its own: the configuration names it, it refuses a build with no web
-#: bundle, and it accepts one that carries the entry document.
+#: identical to the merged tree. The eight files together declare 43 cases;
+#: `node --test` measured 43 pass, 0 fail on Node v24.16.0 after the packaging
+#: guard was reshaped. The five cases the guard adds are its own: the
+#: configuration names it; it is shaped the way electron-builder resolves a
+#: hook; the hook it calls throws on a missing bundle and returns true on a
+#: good one; and the script form refuses a missing bundle and accepts a
+#: complete one.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -92,7 +93,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
-    "packaging-config.test.mjs": 7,
+    "packaging-config.test.mjs": 9,
     "window-security.test.mjs": 4,
 }
 CASE_FLOORS_MEASURED_AT: Final[str] = "806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1"

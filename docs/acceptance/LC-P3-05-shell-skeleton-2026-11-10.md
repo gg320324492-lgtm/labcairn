@@ -659,15 +659,17 @@ changed a number, and each is recorded so that a later run does not repeat it:
   `${env.LABCAIRN_SHELL_DIST_DIR}`, so a build whose caller names no directory
   fails loudly rather than writing products into the tracked tree.
   `shell/package.json` carries the `dist` script.
-  `shell/test/packaging-config.test.mjs` has seven tests: product/output/
+  `shell/test/packaging-config.test.mjs` has nine tests: product/output/
   `extraMetadata.dependencies: null`/unsigned NSIS target and flags; the
   packaged `files`, `extraResources` web-dist and declared files' existence;
   the `dist` script, `electron-builder@26.18.0`, the lockfile entry,
   `electron@45.2.3` and the `minimatch@>=7 <11 → 11.0.7` override; a
   mutation test feeding signing, portable-only target and in-tree-output
-  variants back through the same readers; and three cases for the packaging
-  guard — the configuration names it, it refuses a build with no web
-  bundle, and it accepts one that carries the entry document. The approved
+  variants back through the same readers; and five cases for the packaging
+  guard — the configuration names it, it is shaped the way electron-builder
+  resolves a hook, the hook it calls throws on a missing bundle and returns
+  true on a good one, and the script form refuses a missing bundle and
+  accepts a complete one. The approved
   273-key lockfile set is witnessed separately in
   `shell/test/dependency-surface.test.mjs`.
   **The packaging was run, not only configured.** Measured on 2026-11-11 in
@@ -680,15 +682,29 @@ changed a number, and each is recorded so that a later run does not repeat it:
   `resources/web-dist` carried the three bundle files byte for byte. The
   build printed `default Electron icon is used`, so the artifact wears
   Electron's icon. The products and the raw logs live outside the tree, in
-  `E:\labcairn-local\phase3-g1-evidence\installer-build-2026-11-11`.
-  **That run also found a defect, now closed.** A build with no `web/dist`
-  exited 0 and produced an installer whose `resources/` carried no
-  `web-dist` at all — electron-builder prints one line for a missing
-  source and keeps going. `shell/scripts/require-web-dist.mjs` now runs as
-  the configuration's `beforeBuild` hook and fails the build when the
-  bundle is absent or carries no `index.html`; the three cases above watch
-  it, and their mutation check reddens when the hook is removed from the
-  configuration or when the guard stops failing. An untracked, ignored
+  `E:\labcairn-local\phase3-g1-evidence\installer-build-2026-11-11`. The
+  packaging is not byte-reproducible: a second build of the same
+  configuration produced 124,536,585 bytes, so the SHA-256 names a product
+  rather than the configuration.
+  **That run also found a defect, and closing it took two attempts.** A build
+  with no `web/dist` exited 0 and produced an installer whose `resources/`
+  carried no `web-dist` at all — electron-builder prints one line for a
+  missing source and keeps going. The first attempt at the guard was wrong,
+  and it was a build that caught it rather than a test: it ran its check at
+  module load and exported no default, so electron-builder's
+  `resolveFunction` fell back to the module object and the packaging died
+  with `beforeBuild is not a function` — with the bundle present. The guard
+  now exports the hook as a default, has no top-level side effect, and
+  returns `true`, because a falsy return would make electron-builder treat
+  the dependencies as handled elsewhere and skip its own rebuild. Both sides
+  were then measured on the real command: with the bundle present the build
+  exited 0, produced the installer, carried `@electron/rebuild` in its log
+  and put the three bundle files in `resources/web-dist`; with the bundle
+  moved away the build exited 1, said `the packaging guard refuses this
+  build`, and left its output directory empty. The five cases above watch
+  the hook in the shape electron-builder calls it, and their mutation check
+  reddens when the default export is removed, when the hook lets a missing
+  bundle through, or when it returns a falsy value. An untracked, ignored
   `app.asar` packaging leftover remains in an old worktree directory, so no
   claim is made that every build leftover is outside the checkout. A signed
   installer (`W28`) and the clean-Windows drill (install → launch → upgrade

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * The packaging guard: no installer is built without the web bundle.
  *
@@ -15,18 +14,27 @@
  * and must carry the entry document. An empty directory is as broken as a
  * missing one, and a bundle without `index.html` cannot be loaded.
  *
- * **How it fails.** A non-zero exit with the reason on stderr, so the
- * `beforeBuild` hook stops the packaging run before anything is written.
+ * **The shape electron-builder calls it in.** `beforeBuild` is resolved with
+ * `resolveFunction`, which imports the module and takes `m[name]` or, failing
+ * that, `m.default || m`; a module with neither is called as if it were a
+ * function and the build dies with `beforeBuild is not a function`. The hook
+ * is therefore a **default export**, and the module has **no top-level
+ * side effect**: importing it must not check anything, and must not exit.
+ * The hook is called with a context object and its return value decides
+ * whether electron-builder still rebuilds native dependencies --
+ * `this._nodeModulesHandledExternally = !performDependenciesInstallOrRebuild`
+ * -- so a hook that passes the check returns **true**, and only a falsy
+ * return would make electron-builder skip that work.
  *
- * **How it is called.** `electron-builder` runs it as the `beforeBuild`
- * hook; a caller can also pass the bundle directory to check a different
- * one, which is what the witness does.
+ * **How it fails.** The hook throws, so electron-builder stops the packaging
+ * run before anything is written. Run as a script it prints the reason and
+ * exits non-zero, which is what the witness exercises directly.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 
@@ -42,7 +50,7 @@ const ENTRY_DOCUMENT = 'index.html'
  * @param {string} directory the bundle directory to inspect
  * @returns {string | null} the reason the bundle is unusable, or null
  */
-function bundleProblem(directory) {
+export function bundleProblem(directory) {
   if (!fs.existsSync(directory)) {
     return `the web bundle directory is absent: ${directory}`
   }
@@ -55,6 +63,30 @@ function bundleProblem(directory) {
   return null
 }
 
+/**
+ * Build the hook electron-builder calls, for a named bundle directory.
+ *
+ * @param {string} directory the bundle directory to check
+ * @returns {() => Promise<boolean>} the hook
+ */
+export function makeGuard(directory) {
+  return async function beforeBuild() {
+    const problem = bundleProblem(directory)
+    if (problem) {
+      throw new Error(`the packaging guard refuses this build: ${problem}`)
+    }
+    return true
+  }
+}
+
+/**
+ * The hook electron-builder resolves. It must return true: a falsy return
+ * makes electron-builder treat the dependencies as handled elsewhere and skip
+ * its own rebuild.
+ */
+export default makeGuard(WEB_DIST)
+
+/** Run as a script: check a bundle directory and report. */
 function main(argv) {
   const directory = argv[0] ? path.resolve(argv[0]) : WEB_DIST
   const problem = bundleProblem(directory)
@@ -66,4 +98,7 @@ function main(argv) {
   process.stdout.write(`the web bundle is present: ${directory}\n`)
 }
 
-main(process.argv.slice(2))
+// Only when this file is the program being run, never when it is imported.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.argv.slice(2))
+}

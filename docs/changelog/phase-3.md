@@ -6,7 +6,7 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
-### The installer is built, and a silent gap is closed (2026-11-11)
+### The installer is built, a silent gap is found, and the first fix is wrong (2026-11-11)
 
 - **T08's packaging was run, not only configured.** In an isolated worktree,
   electron-builder 26.18.0 produced the per-user NSIS installer
@@ -24,14 +24,31 @@ container and [the archives index](../../CHANGELOG.md#archives).
   produced an installer whose `resources/` carried no `web-dist` at all —
   electron-builder prints one line for a missing source and keeps going.
   Nothing in the build said the packaged window would not render.
-- **The gap is closed by a mechanism, not by a habit.**
-  `shell/scripts/require-web-dist.mjs` runs as the configuration's
-  `beforeBuild` hook and fails the build when the bundle is absent or
-  carries no `index.html`. Three cases in
-  `shell/test/packaging-config.test.mjs` watch it, and their mutation check
-  reddens when the hook is removed from the configuration (one case) or
-  when the guard stops failing (two cases); restoring both bytes turns them
-  green again. The shell's Node floors move from 38 to 41 cases.
+- **The first attempt at closing it was wrong, and another window's build
+  caught it.** The guard was committed as `806e3dd` with its check running
+  at module load and no default export. electron-builder resolves
+  `beforeBuild` with `resolveFunction`, which takes `m[name]` or
+  `m.default || m`; with neither, the module object is called as if it were
+  a function and the packaging dies with `beforeBuild is not a function` —
+  with the bundle present. The seven cases stayed green throughout, because
+  they exercised the script's own command line rather than the shape the
+  packaging command uses. That is this project's own rule caught in the act:
+  a witness that asks a different question stays green while the property
+  is broken.
+- **The guard was reshaped, and both sides were measured on the real
+  command.** The hook is now a default export with no top-level side
+  effect, and it returns `true`, because a falsy return would make
+  electron-builder treat the dependencies as handled elsewhere and skip its
+  own rebuild. With the bundle present the build exited 0, produced the
+  installer, carried `@electron/rebuild` in its log and put the three bundle
+  files in `resources/web-dist`; with the bundle moved away it exited 1,
+  said `the packaging guard refuses this build`, and left its output
+  directory empty — no installer, so no half-built shell can ship. Five
+  cases in `shell/test/packaging-config.test.mjs` watch the hook in the
+  shape electron-builder calls it, and their mutation check reddens when
+  the default export is removed, when the hook lets a missing bundle
+  through, or when it returns a falsy value. The shell's Node floors move
+  from 38 to 43 cases.
 - **What is still open.** The signed installer (`W28`), T09's clean-Windows
   drill and AC-6 remain unperformed, and the artifact wears Electron's
   default icon. The acceptance record's §10.4 carries all of it.
