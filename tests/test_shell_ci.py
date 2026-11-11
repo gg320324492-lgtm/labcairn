@@ -719,3 +719,112 @@ def test_the_literal_matrix_name_shape_the_release_job_had_is_a_collision() -> N
         "release-dependency-licences (ubuntu-latest)",
         "release-dependency-licences (windows-latest)",
     ], f"the expression renders per leg as {names}"
+
+
+def test_a_job_with_no_matrix_expands_its_matrix_expressions_away() -> None:
+    """A name with no matrix is not a name kept as written.
+
+    **The hole this closes.** Before 2026-11-11 the shared reader routed a name
+    through the substitution only when the job *had* a matrix, and appended the
+    template verbatim otherwise. So two jobs with no matrix, each naming
+    `${{ matrix.os }}` in its name, rendered as two distinct strings here — and
+    GitHub, which expands an undefined `matrix.<axis>` to the **empty string**,
+    would report them as `one ()` and `two ()`. The witness would call them
+    unique while branch protection saw one check, which is the exact failure
+    the `release-dependency-licences (matrix.os)` collision survived.
+
+    **What the assertion holds.** A matrix expression in a name with no matrix
+    expands to nothing, the parentheses stay, and the collision that expansion
+    produces is *caught*. A reader that only expanded when a matrix existed
+    would report the two names as distinct and pass.
+    """
+    collision = {
+        "jobs": {
+            "one": {"name": "quality (${{ matrix.os }})"},
+            "two": {"name": "quality (${{ matrix.os }})"},
+        }
+    }
+    rendered = rendered_job_names(collision, "synthetic.yml")
+    assert rendered == ["quality ()", "quality ()"], (
+        f"a name with no matrix rendered as {rendered}; GitHub expands an "
+        "undefined matrix expression to the empty string, and the witness has "
+        "to compare what GitHub reports"
+    )
+    assert len(set(rendered)) == 1, (
+        f"two jobs of that shape reported {rendered} — distinct here, one check "
+        "on GitHub, and a uniqueness witness that cannot see the collision is a "
+        "witness that has been turned off"
+    )
+
+    plain = {"jobs": {"lint": {"name": "lint"}}}
+    assert rendered_job_names(plain, "synthetic.yml") == ["lint"], (
+        "a name with no matrix expression must survive the expansion untouched"
+    )
+
+
+def test_no_workflow_in_the_tree_declares_include_or_exclude(repo_root: Path) -> None:
+    """The reader's scope and the tree's shape are recorded together.
+
+    **The property.** `workflow_job_names` models a matrix as the cartesian
+    product of its axes and refuses `include` / `exclude`. That refusal is only
+    honest while the tree actually has no such leg — otherwise a workflow CI
+    runs would be reported as an error rather than read. So the two facts are
+    asserted in one place: **the tree declares neither key today** (measured at
+    the revision named in this file's own floor anchor, and here, on every
+    parsed workflow), and the reader refuses one that does, witnessed below.
+    """
+    documents = load_workflows(repo_root / ".github" / "workflows")
+    assert documents, ".github/workflows declares no workflows"
+    declared = [
+        f"{path.name}: {job_key}.strategy.matrix.{key}"
+        for path, document in documents
+        for job_key, job in (document.get("jobs") or {}).items()
+        if isinstance(job, dict)
+        for key in _matrix_keys(job) & {"include", "exclude"}
+    ]
+    assert not declared, (
+        "these matrix legs exist in the tree, and `workflow_job_names` does not "
+        "model them: " + ", ".join(declared) + ". Extend the reader to GitHub's "
+        "rules for them, then move this witness — do not relax the reader."
+    )
+
+
+def _matrix_keys(job: dict[str, Any]) -> set[str]:
+    """The keys a job's `strategy.matrix` declares, whatever their shape."""
+    strategy = job.get("strategy")
+    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+    return set(matrix) if isinstance(matrix, dict) else set()
+
+
+def test_the_reader_refuses_a_matrix_it_does_not_model() -> None:
+    """`include` is refused rather than half-expanded.
+
+    **Why refusal and not expansion.** GitHub merges an `include` entry into
+    the combinations the axes produce, and adds a leg when the entry names a
+    value no axis holds. An implementation that got that wrong would report a
+    *set of job names* CI never runs — and a collision carried by a missing leg
+    would read as unique. A refusal cannot be mistaken for a measurement.
+
+    **What the assertion holds.** Both keys refuse, and the reason names the
+    key it refused. A reader that skipped them as it used to would report the
+    `include` leg's name at all, so this fails against the old behaviour.
+    """
+    for key in ("include", "exclude"):
+        document = {
+            "jobs": {
+                "shell-test": {
+                    "name": "shell-test (${{ matrix.os }})",
+                    "strategy": {
+                        "matrix": {
+                            "os": ["ubuntu-latest"],
+                            key: [{"os": "macos-latest"}],
+                        }
+                    },
+                }
+            }
+        }
+        with pytest.raises(UnrenderableJobNameError) as caught:
+            rendered_job_names(document, "synthetic.yml")
+        assert f"matrix.{key}" in str(caught.value), (
+            f"the refusal for {key} must name the key it refused, not {caught.value!r}"
+        )

@@ -435,9 +435,12 @@ The three static checks (`ruff check .`, `ruff format --check .`,
 Ubuntu; `python-quality` jobs now run pytest only. The witness in
 `tests/test_ci_shard_coverage.py` checks the new job's name, its absence of
 a matrix, that all three commands live there, that no shard job repeats
-them, and that no two jobs share a check name. **`lint` is not a required
-check until the owner adds it in GitHub branch protection**; until then it
-reports without blocking. **The wall-clock expectation is unchanged** — the
+them, and that no two jobs share a check name. What this entry said on
+2026-11-02 — that the new name reports without blocking until the owner lists
+it — has been overtaken: the reading taken on 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd` finds it among the required
+contexts, and the list with its command is in `.github/CI.md`. **The
+wall-clock expectation is unchanged** — the
 wait is the slowest shard, and lint finishes before it; the split removes
 ten duplicate runs, not minutes. None of it is measured on a runner yet.
 `tests/test_cli.py` is Ubuntu shard 0's only file (325.8s against four
