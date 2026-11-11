@@ -72,13 +72,14 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: The six original files were measured with
 #: `node --test --test-reporter=spec` on Node v24.16.0 at
 #: `9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92` — 27 cases, 27 pass, 0 fail.
-#: `packaging-config.test.mjs` arrived with T08 and was re-measured at
-#: `6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` — 4 cases, 4 pass, 0 fail —
-#: making the floor 31. `notice-licences.test.mjs` arrived with the re-measured
-#: NOTICE §2.4 and was measured at `1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2`
-#: (this worktree's reader landing, `git rev-parse HEAD`, printed) — 7 cases,
-#: 7 pass, 0 fail, the eight files together 38 cases, 38 pass, 0 fail on
-#: Node v24.16.0.
+#: `packaging-config.test.mjs` arrived with T08; its four cases were measured
+#: from the combined tree at `6cdbfb56ce29dd19e4f56dae549b4d476d998d1e`.
+#: `notice-licences.test.mjs` arrived with the full NOTICE surface; its seven
+#: cases were measured from the final branch tree at
+#: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
+#: identical to the merged tree. The eight files together declare 38 cases;
+#: `node --test` measured 38 pass, 0 fail on Node v24.16.0 after the merge at
+#: `bf2f6f450c93104b34fac38d4f853880dca53872`.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -91,7 +92,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "packaging-config.test.mjs": 4,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2"
+CASE_FLOORS_MEASURED_AT: Final[str] = "bf2f6f450c93104b34fac38d4f853880dca53872"
 
 
 # --------------------------------------------------------------------------

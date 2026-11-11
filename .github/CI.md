@@ -32,9 +32,10 @@ The distinction is what `release-dependency-licences (matrix.os)` needed (see
 1. **`shell.yml` runs the shell's tests.** One job, `shell-test (${{ matrix.os }})`,
    on `windows-latest` and `ubuntu-latest`, `fail-fast: false`, on `push` to `main`
    and unfiltered `pull_request`. It installs **no** pnpm package and downloads **no**
-   Electron binary: the six files under `shell/test/` import only `node:*` built-ins
-   plus paths into `shell/`, and `dependency-surface.test.mjs` reads `pnpm-lock.yaml`
-   as text rather than resolving an installed package. What the job does install is the
+   Electron binary: the eight files under `shell/test/` import only `node:*` built-ins
+   plus paths into `shell/` or `.github/`, and the two lockfile-facing witnesses read
+   `pnpm-lock.yaml` and `NOTICE` as text rather than resolving an installed package.
+   What the job does install is the
    Python CLI (`uv sync --frozen`), because `drain-witness.test.mjs` — the one
    integration file — spawns the `labcairn` console script, and
    `shell/scripts/lib/shell-paths.mjs` derives it from the checkout's own `.venv`.
@@ -54,32 +55,34 @@ The distinction is what `release-dependency-licences (matrix.os)` needed (see
 
 **Why the job is needed at all.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate class and
-no witness-ledger entry could see the 27 Node cases. Before this change, deleting
+no witness-ledger entry sees the Node cases. Before this change, deleting
 `shell/test/window-security.test.mjs` left every pytest test green.
 
-**The witness.** `tests/test_shell_ci.py` (12 checks): every `shell/test/*.test.mjs` is a
-file the CI command actually runs; the step carries `working-directory: shell`, the runner
-temp env and `uv sync --frozen` — and must **not** run `pnpm install`; the name carries
-`matrix.os`; both legs exist with `fail-fast: false`; the name is unique across every
-workflow; each recorded file still declares at least its Node cases, anchored at
-`9dee4ed` (4/3/5/5/6/4 = 27); and no shell test file exists without a recorded floor.
-Four of the twelve feed the file's own readers synthetic trees — a command naming three
-of six files, a glob that does not cross a directory, a matrix axis the matrix does not
-declare, and the literal `(matrix.os)` shape — so "the check exists" is not offered as
-"the check can fail".
+**The witness.** `tests/test_shell_ci.py` (14 test functions): every
+`shell/test/*.test.mjs` is a file the CI command actually runs; the step carries
+`working-directory: shell`, the runner temp env and `uv sync --frozen` — and must
+**not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
+`fail-fast: false`; the name is unique across every workflow; each recorded file
+still declares at least its Node cases, anchored at `bf2f6f4`
+(4/3/5/5/6/7/4/4 = 38 across eight files); and no shell test file exists without a
+recorded floor. Several witnesses feed the file's own readers synthetic trees — a
+command naming three of eight files, a glob that does not cross a directory, a matrix
+axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
+exists" is not offered as "the check can fail".
 
 **Mutation checks run, all four reddened and then restored:** reverting the release name
 reddened the shard witness; deleting `window-security.test.mjs` from a copy reddened the
 floors; a matrix expression naming an undeclared axis is refused rather than compared; and
-the coverage reader reports a three-of-six command as running three. Deleting a shell file
+the coverage reader reports a three-of-eight command as running three. Deleting a shell file
 leaves the coverage check green **by design** — the glob still covers what remains — which
 is why the floors and the recorded-floor check exist.
 
-**Not measured on a runner.** The job's duration is unrecorded, as `lint`'s once was; the
-first runner run is the measurement. A development-machine run of the same command shape
-reported 27/27 in 31.5 s, and the design's sizing estimate was ≈25–60 s Ubuntu / ≈45–120 s
-Windows. Neither is a recorded cost, and `test_shell_ci.py`'s shard costs are `0.0`
-placeholders for the runner to re-measure.
+**Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
+`lint`'s once was; the first runner run is the measurement. A development-machine run of
+the same command shape measured 38/38 on Node v24.16.0. Neither is a recorded cost; the
+`0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
+witness's slack rule until the first runner run re-measures them. No CI run is owed for
+this batch.
 
 **The owner's step.** Whether `shell-test (windows-latest)` and
 `shell-test (ubuntu-latest)` join branch protection is the owner's decision, and so are the

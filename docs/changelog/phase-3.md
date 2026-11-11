@@ -6,6 +6,38 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The NOTICE full surface lands, and four audits report (2026-11-11)
+
+- **The full shell dependency surface lands in `NOTICE`** (merge
+  `bf2f6f450c93104b34fac38d4f853880dca53872`): 268 packages from the T08
+  lockfile are recorded as 13 runtime and 255 build-only packages, with
+  licence identifiers and holder lines read from registry metadata and each
+  package's own licence file. `shell/test/notice-licences.test.mjs` watches
+  the coverage; `tests/test_shell_ci.py` records eight Node files with a
+  38-case floor. The merged tree measures 38/38 Node tests and 595 targeted
+  Python tests (two command witnesses excluded because stale local services
+  hold the console script).
+- **Four independent read-only reports followed the merge.** A post-merge
+  consistency review found 12 findings (three high-priority stale
+  projections and acceptance pointers, six medium record drifts, and three
+  owner-side or residual boundaries); the conductor corrected the
+  current-tense records and left dated historical measurements intact. A
+  second runner red-item dry run measured eight workflows and 22 unique
+  rendered job names and found no shard-cost re-measurement owed under the
+  slack rule. A work-order-draft critique found all four nominally issuable
+  drafts unsafe at the current tree. An archive byte-conservation
+  reproduction measured 84,954 bytes, 19/19 checks and a matching SHA-256;
+  the earlier 84,630 figure was a UTF-8 character count mislabelled as
+  bytes.
+- Three owner decisions were answered by dialog on 2026-11-11: three
+  post-merge commits on the old NOTICE branch
+  (`c884f254ca7fff2f3dd60e188a1a3dd1b9280f8c`,
+  `90d08c26423cba70471b2e57389810ca0785cd18`,
+  `da0bbc3e11f55c38a86f62505cadc4eaffad5cd2`)
+  stay unmerged until a read-only comparison; a batch of record-layer patch
+  files is committed together with this section; and the accumulated local
+  batch stays unpushed for a later owner-authorised delivery.
+
 ### Shell CI and T08 land, with the re-measured pointers (2026-11-11)
 
 - **The shell's Node witnesses now have a runner job.** A new
@@ -27,10 +59,11 @@ container and [the archives index](../../CHANGELOG.md#archives).
   Node tests and 611 targeted Python tests (two command witnesses excluded
   because stale local services hold the console script). The witness
   ledger reports `LOST -- none` and `ADDED -- 12`.
-- The live pointers were re-measured after both merges: local `main` is
-  93 commits ahead, and the repository map now records 831 tracked files
-  with 195 Markdown files. The archived 79 / 87 / 823 / 826 figures are
-  dated measurements, not current totals.
+- The live pointers were re-measured at
+  `04a896e7d0b2e3e52530a50bb6cdf48507c48a43`: that tree was 93 commits ahead
+  and carried 831 tracked files with 195 Markdown files. The archived
+  79 / 87 / 823 / 826 figures are earlier dated measurements; such counts are
+  re-measured at each merge rather than carried as current totals.
 
 ### Three readiness designs report, and the phase archives land (2026-11-11)
 

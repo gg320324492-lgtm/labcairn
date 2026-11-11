@@ -23,13 +23,14 @@ claim the CI gate holds.
 **Read 2026-11-11 (re-measurement after the CHANGELOG split):** at
 `9dee4ed6a9e4e00a92f28d792a7b72f3e1a16d92` the three phase archives had
 raised the dated count to **826 tracked files** and **195 Markdown files**.
-After the shell CI workflow and the T08 packaging configuration merged, a
-further live measurement at
-`6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` prints **831 tracked files**:
-483 `.py`, 195 `.md`, 29 `.json`, 28 `.mjs`, 26 `.tsx`, 23 `.ts`, 13
+After the shell CI workflow and the T08 packaging configuration merged,
+`6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` printed **831 tracked files**.
+After the full NOTICE dependency surface landed, the live measurement at
+`bf2f6f450c93104b34fac38d4f853880dca53872` prints **833 tracked files**:
+483 `.py`, 195 `.md`, 29 `.json`, 30 `.mjs`, 26 `.tsx`, 23 `.ts`, 13
 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining configuration, fixture and
-binary files. The 823 / 192 and 826 / 195 figures are named earlier
-measurements, not current totals.
+binary files. The 823 / 192, 826 / 195 and 831 / 195 figures are named
+earlier measurements, not current totals.
 
 ## 1. Classification measured on 2026-11-07
 

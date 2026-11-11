@@ -1,7 +1,7 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
-Phase 3 gate is closed.** Local `main` carries 92 commits ahead of
+Phase 3 gate is closed.** Local `main` carries 99 commits ahead of
 `origin/main`, accumulated for a later delivery by the owner's choice; the
 live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
 CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
@@ -11,9 +11,10 @@ build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
 CRITICAL emSign intermediate-CA advisory — the only immediate one of the 25
 advisories found. The G4 checklist revision 2 carries 31 classifiable rows
 whose signatures stay `PENDING` until the gate's implementation (the
-installed build and the trial) is complete. The NOTICE npm draft (13
-packages: 10 MIT, 2 ISC, 1 Apache-2.0) is ready and awaits the owner's
-licence decision. The owner's eight G4 decisions, the Electron shell choice,
+installed build and the trial) is complete. NOTICE now records the full
+268-package shell dependency closure (13 runtime and 255 build-only
+packages, all permissive licences), witnessed by
+`shell/test/notice-licences.test.mjs`. The owner's eight G4 decisions, the Electron shell choice,
 and three later decisions on the in-flight batch are recorded in
 [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
 §§12–13. The changelog split on 2026-11-11 moved every dated section into

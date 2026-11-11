@@ -30,10 +30,13 @@ batch's own dated evidence and are left as written. A later batch on branch
 documentation-only; the measured tree is unchanged. The batch closed the
 T05 live-401 half, T06's three unwitnessed lifecycle arms, AC-7 and AC-8
 (static halves only), and added a dated measurement in §10. **The gaps that
-remain are named in §10.4**: T08, T09, AC-6, AC-2's Windows graceful-ask arm
-(owner's decision: leave as a measured gap), the second-instance focus half,
-Arm C in full, and the `file://` counter-mutation at the pure layer. The
-board row is still not moved.
+remain are named in §10.4**: the signed installer and T09 clean-Windows drill,
+AC-6, AC-2's Windows graceful-ask arm (owner's decision: leave as a measured
+gap), the second-instance focus half, Arm C in full, and the `file://`
+counter-mutation at the pure layer. §8 below is the skeleton batch's dated
+`not implemented` list, not a current pointer; §10.4 is the current state,
+where T08's minimal unsigned packaging configuration has landed. The board
+row is still not moved.
 
 **Independent review, 2026-11-10.** A read-only independent critique of the
 eight-commit branch found claims that the tree does not carry, including
@@ -655,14 +658,21 @@ changed a number, and each is recorded so that a later run does not repeat it:
   its extraResources ship the built `web/dist`. Its output directory is
   `${env.LABCAIRN_SHELL_DIST_DIR}`, so a build whose caller names no directory
   fails loudly rather than writing products into the tracked tree.
-  `shell/package.json` carries the `dist` script, and
-  `shell/test/packaging-config.test.mjs` witnesses the appId, target, files,
-  outside-tree output, absence of signing settings and the approved
-  dependency. A local Windows
-  build produced one installer outside the repository; a signed installer
-  (`W28`) and the clean-Windows drill (install → launch → upgrade → uninstall
-  → rollback preserving user data, support limits, §0 rule 2 review) have not
-  been performed. The owner decided on 2026-11-10 that the batch may land
+  `shell/package.json` carries the `dist` script.
+  `shell/test/packaging-config.test.mjs` has four tests: product/output/
+  `extraMetadata.dependencies: null`/unsigned NSIS target and flags; the
+  packaged `files`, `extraResources` web-dist and declared files' existence;
+  the `dist` script, `electron-builder@26.18.0`, the lockfile entry,
+  `electron@45.2.3` and the `minimatch@>=7 <11 → 11.0.7` override; and a
+  mutation test feeding signing, portable-only target and in-tree-output
+  variants back through the same readers. The approved 273-key lockfile set
+  is witnessed separately in `shell/test/dependency-surface.test.mjs`. A
+  local Windows build produced one installer outside the **tracked tree**;
+  an untracked, ignored `app.asar` packaging leftover remains in an old
+  worktree directory, so no claim is made that every build leftover is
+  outside the checkout. A signed installer (`W28`) and the clean-Windows
+  drill (install → launch → upgrade → uninstall → rollback preserving user
+  data, support limits, §0 rule 2 review) have not been performed. The owner decided on 2026-11-10 that the batch may land
   with these gaps, and that they are recorded as named gaps rather than
   written as passing. The O3 runtime-arrangement measurement (frozen service /
   bundled interpreter / sidecar) and O5's import finding remain unmeasured.
