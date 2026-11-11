@@ -64,7 +64,7 @@ no witness-ledger entry sees the Node cases. Before this change, deleting
 **not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
 `fail-fast: false`; the name is unique across every workflow; each recorded file
 still declares at least its Node cases, anchored at the revision the floors name
-(4/3/5/5/6/7/9/4 = 43 across eight files); and no shell test file exists without a
+(5/3/5/5/6/7/9/4 = 44 across eight files); and no shell test file exists without a
 recorded floor. Several witnesses feed the file's own readers synthetic trees — a
 command naming three of eight files, a glob that does not cross a directory, a matrix
 axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
@@ -79,7 +79,7 @@ is why the floors and the recorded-floor check exist.
 
 **Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
 `lint`'s once was; the first runner run is the measurement. A development-machine run of
-the same command shape measured 43/43 on Node v24.16.0. Neither is a recorded cost; the
+the same command shape measured 44/44 on Node v24.16.0. Neither is a recorded cost; the
 `0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.

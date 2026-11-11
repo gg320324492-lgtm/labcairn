@@ -1,7 +1,7 @@
 /**
  * Run-mode resolution: the one place that decides what the shell loads and
- * what it starts. A pure function over (env, packaged) so a witness asserts
- * the packaged/dev difference without a display.
+ * what it starts. A pure function over (env, packaged, resourcesDir) so a
+ * witness asserts the packaged/dev difference without a display.
  *
  * **The dev switch (§4.2) is a one-line difference in the URL the window
  * loads**, and it is opt-in on all three counts: not packaged, `LABCAIRN_SHELL_DEV=1`,
@@ -9,6 +9,8 @@
  * URL is a refusal, not an override — AC-1's "the dev-build URL is rejected
  * in a packaged configuration".
  */
+
+import path from 'node:path'
 
 /** The Vite origin the dev page is loaded from (§4.2). */
 export const DEV_PAGE_ORIGIN = 'http://127.0.0.1:5173'
@@ -25,16 +27,38 @@ function requireAbsolute(name, value) {
 }
 
 /**
+ * Where a packaged build keeps its own web bundle.
+ *
+ * The installer ships the bundle at `resources/web-dist`, beside the asar.
+ * Measured on 2026-11-11: the package carried the bundle and the code named
+ * no reader for it, so a packaged run had to be told where its own bundle
+ * was — by an environment variable nothing in the package supplies. The
+ * bundle's place in the package is not a guess about the working directory,
+ * so it is derived rather than asked for.
+ *
+ * @param {string | null} resourcesDir Electron's resources directory
+ * @param {boolean} packaged whether this is a packaged build
+ * @returns {string | null} the bundle directory, or null when there is none
+ */
+function packagedBundleDir(resourcesDir, packaged) {
+  if (!packaged || typeof resourcesDir !== 'string' || resourcesDir.length === 0) {
+    return null
+  }
+  return path.join(resourcesDir, 'web-dist')
+}
+
+/**
  * Resolve the run configuration.
  *
  * @param env  the environment (pass `process.env` in main; a test passes its own)
  * @param packaged  whether this is a packaged build (Electron's `app.isPackaged`)
+ * @param resourcesDir Electron's resources directory in a packaged build
  * @returns {{ dev: boolean, pageUrl: string | null, cliPath: string, workspace: string,
  *            staticDir: string | null, port: number | null }}
  *   `pageUrl` is null in packaged mode — the page is the service's own origin,
  *   which is only known once `ServiceStarting` has been read.
  */
-export function resolveRunConfig(env, { packaged }) {
+export function resolveRunConfig(env, { packaged, resourcesDir = null }) {
   if (packaged && env.LABCAIRN_SHELL_DEV_URL) {
     throw new Error(
       'a packaged build refuses LABCAIRN_SHELL_DEV_URL: the packaged window loads ' +
@@ -65,7 +89,9 @@ export function resolveRunConfig(env, { packaged }) {
   if (workspace === null) {
     throw new Error('LABCAIRN_SHELL_WORKSPACE must name the workspace by absolute path.')
   }
-  const staticDir = requireAbsolute('LABCAIRN_SHELL_STATIC_DIR', env.LABCAIRN_SHELL_STATIC_DIR)
+  const staticDir =
+    requireAbsolute('LABCAIRN_SHELL_STATIC_DIR', env.LABCAIRN_SHELL_STATIC_DIR) ??
+    packagedBundleDir(resourcesDir, packaged)
 
   const portRaw = env.LABCAIRN_SHELL_PORT
   let port = null

@@ -49,6 +49,24 @@ container and [the archives index](../../CHANGELOG.md#archives).
   the default export is removed, when the hook lets a missing bundle
   through, or when it returns a falsy value. The shell's Node floors move
   from 38 to 43 cases.
+- **The packaged bundle had no reader, and now has one.** A packaged build
+  carries the web bundle at `resources/web-dist`, and nothing read it: the
+  run configuration asked for `LABCAIRN_SHELL_STATIC_DIR`, and nothing in
+  the package supplies it. The bundle's place in the package is not a guess
+  about the working directory, so the shell now derives it from Electron's
+  resources directory, and one more case in `shell/test/config.test.mjs`
+  watches that a packaged run finds it, that an explicit setting still wins
+  and that a dev run still has none. Its mutation check reddens when the
+  derivation is dropped or names another directory. The shell's Node floors
+  move from 43 to 44 cases.
+- **Two gaps stay named.** The package carries no Python backend, so
+  `LABCAIRN_SHELL_CLI` names an entry point the installer does not contain,
+  and the three environment variables the run needs are supplied by nothing
+  in the package. T08 therefore delivers a package that can be built and
+  inspected and not one that is known to run; the backend's own arrangement
+  is O3's unmeasured decision, and the drill that would prove the whole
+  thing runs is T09's. The owner decided on 2026-11-11 to close the reader
+  and leave these two named.
 - **What is still open.** The signed installer (`W28`), T09's clean-Windows
   drill and AC-6 remain unperformed, and the artifact wears Electron's
   default icon. The acceptance record's §10.4 carries all of it.

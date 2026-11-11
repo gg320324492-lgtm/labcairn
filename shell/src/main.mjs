@@ -94,7 +94,13 @@ function installGuardIpc() {
 }
 
 async function boot() {
-  const config = resolveRunConfig(process.env, { packaged: app.isPackaged })
+  const config = resolveRunConfig(process.env, {
+    packaged: app.isPackaged,
+    // A packaged build carries its own web bundle beside the asar; the
+    // service serves that bundle, so the shell has to name it. Measured on
+    // 2026-11-11: the package shipped the bundle and named no reader for it.
+    resourcesDir: app.isPackaged ? process.resourcesPath : null,
+  })
   state.dev = config.dev
   installGuardIpc()
 

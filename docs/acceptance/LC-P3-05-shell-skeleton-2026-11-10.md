@@ -704,7 +704,25 @@ changed a number, and each is recorded so that a later run does not repeat it:
   build`, and left its output directory empty. The five cases above watch
   the hook in the shape electron-builder calls it, and their mutation check
   reddens when the default export is removed, when the hook lets a missing
-  bundle through, or when it returns a falsy value. An untracked, ignored
+  bundle through, or when it returns a falsy value.
+- **The packaged bundle now has a reader, and two gaps stay named.** A
+  packaged build carries the web bundle at `resources/web-dist`, and nothing
+  read it: the run configuration asked for `LABCAIRN_SHELL_STATIC_DIR`, and
+  nothing in the package supplies it. The bundle's place in the package is
+  not a guess about the working directory, so the shell now derives it —
+  `resources/web-dist` beside the asar — and one more case in
+  `shell/test/config.test.mjs` watches that a packaged run finds it, that an
+  explicit setting still wins, and that a dev run still has none; its
+  mutation check reddens when the derivation is dropped or names another
+  directory. **Two gaps remain, and they are named rather than closed.** The
+  package carries no Python backend, so `LABCAIRN_SHELL_CLI` names an entry
+  point the installer does not contain, and the three environment variables
+  the run needs are supplied by nothing in the package. T08 therefore
+  delivers a package that can be built and inspected, and **not** one that
+  is known to run: the backend's own arrangement (frozen service, bundled
+  interpreter or sidecar) is O3's unmeasured decision, and the drill that
+  would prove the whole thing runs is T09's. The owner decided on
+  2026-11-11 to close the reader and leave these two named. An untracked, ignored
   `app.asar` packaging leftover remains in an old worktree directory, so no
   claim is made that every build leftover is outside the checkout. A signed
   installer (`W28`) and the clean-Windows drill (install → launch → upgrade

@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict'
+import path from 'node:path'
 import test from 'node:test'
 
 import { resolveRunConfig, DEV_PAGE_ORIGIN } from '../src/config.mjs'
@@ -37,6 +38,20 @@ test('the packaged build names no page URL: the page is the service origin', () 
   assert.equal(config.dev, false)
   assert.equal(config.pageUrl, null)
   assert.equal(config.staticDir, BASE.LABCAIRN_SHELL_STATIC_DIR)
+})
+
+test('a packaged build finds its own bundle beside the asar', () => {
+  const resourcesDir = 'C:\\Program Files\\LabCairn\\resources'
+  const withoutBundle = { ...BASE, LABCAIRN_SHELL_STATIC_DIR: undefined }
+
+  const config = resolveRunConfig(withoutBundle, { packaged: true, resourcesDir })
+  assert.equal(config.staticDir, path.join(resourcesDir, 'web-dist'))
+
+  const explicit = resolveRunConfig(BASE, { packaged: true, resourcesDir })
+  assert.equal(explicit.staticDir, BASE.LABCAIRN_SHELL_STATIC_DIR)
+
+  const dev = resolveRunConfig(withoutBundle, { packaged: false, resourcesDir })
+  assert.equal(dev.staticDir, null)
 })
 
 test('dev mode is explicit, and its page origin is the Vite origin', () => {

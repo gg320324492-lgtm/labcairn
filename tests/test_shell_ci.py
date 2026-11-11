@@ -8,7 +8,7 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the shell's Node cases (43 across eight
+class and no witness ledger can see the shell's Node cases (44 across eight
 files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
@@ -77,9 +77,9 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `notice-licences.test.mjs` arrived with the full NOTICE surface; its seven
 #: cases were measured from the final branch tree at
 #: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
-#: identical to the merged tree. The eight files together declare 43 cases;
-#: `node --test` measured 43 pass, 0 fail on Node v24.16.0 after the packaging
-#: guard was reshaped, at
+#: identical to the merged tree. The eight files together declare 44 cases;
+#: `node --test` measured 44 pass, 0 fail on Node v24.16.0 after the packaged
+#: bundle's own directory was derived, at
 #: `f0c3f30fe760123e22d86b716ccee7111d80beb0`. The five cases the guard adds are its own: the
 #: configuration names it; it is shaped the way electron-builder resolves a
 #: hook; the hook it calls throws on a missing bundle and returns true on a
@@ -88,7 +88,7 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
-    "config.test.mjs": 4,
+    "config.test.mjs": 5,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
     "live-guard.test.mjs": 5,
