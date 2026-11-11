@@ -40,15 +40,23 @@ second grant and does not modify the MIT terms.
 1.  What a LabCairn distribution contains
 -------------------------------------------------------------------------------
 
-Measured from the built artefacts:
+Measured from the built artefacts, re-measured 2026-11-11 at
+`1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2` (`git rev-parse HEAD`, printed) by
+`uv build` from a `git archive` of that revision — a tree carrying only tracked
+files, so nothing untracked in a working directory can enter the counts:
 
   source distribution (labcairn-0.1.0.tar.gz)
-      the repository's committed file list, plus the one file the build
-      backend adds, PKG-INFO
+      834 members: the 833 files the revision tracks, plus the one file the
+      build backend adds, PKG-INFO
   wheel (labcairn-0.1.0-py3-none-any.whl)
-      the 147 files under src/labcairn, plus six .dist-info metadata members
-      (METADATA, RECORD, WHEEL, entry_points.txt, licenses/LICENSE
-      and this NOTICE)
+      219 members: the 213 files under src/labcairn, plus six .dist-info
+      metadata members (METADATA, RECORD, WHEEL, entry_points.txt,
+      licenses/LICENSE and this NOTICE)
+
+The earlier version of this section said 444 and 153. Both were true of the tree
+they were measured on — `docs/acceptance/LC-P1-14-release-contents.md` records
+them at that revision and is left as written — and both are older than
+`src/labcairn` grew to 213 files. The counts above are what this revision builds.
 
 The exact member counts for the release as built are in
 docs/acceptance/LC-P1-14-release-contents.md. The release workflow re-measures
@@ -113,7 +121,10 @@ text lives inside the installed distribution.
 2.2  The whole closure
 -----------------------
 
-`uv export --frozen --no-dev` over the lockfile at dd08573 resolves 171
+`uv export --frozen --no-dev` over the current `uv.lock` (re-measured
+2026-11-11 at `2d8c6a2`, printed by `git rev-parse HEAD`; the figures were
+first measured over the lockfile at `dd08573` and reproduce unchanged, even
+though that lock has since changed) resolves 171
 requirement lines across platforms: 167 on Linux, 165 on macOS, 168 on Windows.
 The difference between the three counts is the platform-conditional packages
 (pywin32, pywin32-ctypes and colorama on Windows; jeepney and secretstorage on
@@ -800,9 +811,9 @@ LabCairn modifies none of these files, and adds no condition to them.
 5.1  The reports carry no font
 -------------------------------
 
-LabCairn's own artefacts carry no font file: the wheel's 153 members include
-none whose name is a font file, and the source distribution's only members
-holding font binaries are the three papers of §4.
+LabCairn's own artefacts carry no font file: the wheel's 219 members (re-measured
+at `1dd0d54`, §1) include none whose name is a font file, and the source
+distribution's only members holding font binaries are the three papers of §4.
 
 The report forms carry none either. The PDF exporter references the Type 1
 core faces and embeds nothing — /FontFile, /FontFile2 and /FontFile3 are
