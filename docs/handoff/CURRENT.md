@@ -1,12 +1,13 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
-Phase 3 gate is closed.** At
-`3a62b9d4cfd440ab0f2b0c3c32c34fe2431511d9`, local `main` was measured 99
-commits ahead of `origin/main`, accumulated for a later delivery by the
-owner's choice; a live ahead count is re-measured at delivery; the
-live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
-CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
+**Date:** 2026-11-11 · **Phase 3 implementation is delivered; no
+Phase 3 gate is closed.** The accumulated batch was delivered in
+[PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156) and merged
+as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
+`evaluation` skipping by design; a live ahead count is re-measured at
+delivery; the live pointers had stopped at the 2026-11-10 refresh
+(`7681c35`), and the record commits since are reflected by this entry. The
+G1, G2,
 G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
 `LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
 build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
@@ -33,8 +34,8 @@ narrows its personal verification to WPS, while Word 2010 rows stay
 screenshot mode. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
 dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
-`PENDING-HUMAN` and its observation SOP ready for the owner, no gate row has
-moved, and no push, pull request or CI run is authorised.
+`PENDING-HUMAN` and its observation SOP ready for the owner, and no gate row
+has moved.
 
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's

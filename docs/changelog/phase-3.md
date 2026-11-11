@@ -6,6 +6,26 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The batch is delivered: PR #156 merges (2026-11-11)
+
+- **The accumulated batch was delivered and merged.** 108 commits went up as
+  `delivery/phase-3-batch-2026-11-11` and merged as
+  `777bb63192af4cb5aef51cd561d5031353d1f230` through
+  [PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156): 18
+  checks passed, and the schedule-only `evaluation` job skipped by design.
+  The delivery branch is deleted on both sides. The merge changed no
+  witness: the ledger across `486d6c0..777bb63` reports `LOST -- none` and
+  `ADDED -- 15`.
+- **The whole suite was measured locally as well.** 5,192 passed, 24
+  skipped, 0 failed in 41m06s on this Windows machine; all 24 skips are
+  environmental by construction — POSIX permission bits, 8.3 short names on
+  a volume that has none, `playwright` not installed, and the real-provider
+  smoke that needs the owner's authorisation to spend money.
+- **The live pointers now say what is true.** The three of them carried "99
+  commits ahead" and "no push, pull request or CI run is authorised"; both
+  statements were true when written and false after the merge, so they name
+  the merge commit instead.
+
 ### The installer is built, a silent gap is found, and the first fix is wrong (2026-11-11)
 
 - **T08's packaging was run, not only configured.** In an isolated worktree,
