@@ -6,6 +6,37 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The drain witness's dose stops resting on a measurement (2026-11-11)
+
+- **The CI failure.** `shell-test (ubuntu-latest)` failed on the first run of
+  the declarations batch with *"the dose request answered on the undrained
+  arm, so the dose did not fill the pipe and the drained arm measured
+  nothing"*. **The same job passed on the previous run of the same tree**, and
+  `shell/` had not changed between them — the property was in the
+  measurement, not in the code the batch touched.
+- **What the two runs measured.** The threshold is a measurement taken with a
+  deadline: a probe that has not reported within `PROBE_TIMEOUT_MS` is read
+  as parked. A loaded runner makes a **slow** write look like a **parked**
+  one, so the threshold came out smaller than the pipe really was — 131,072
+  against 262,144 on the passing run — and the dose, sized from that
+  measurement alone (`threshold + 8 KiB`), no longer filled the pipe. The
+  undrained arm, the one that is supposed to prove a stall, could not prove
+  one.
+- **The fix.** The dose is now the larger of `threshold + margin` **and twice
+  the ladder's largest step**: the ladder's top bounds what this machine's
+  pipes can hold, so a dose above it fills the pipe whatever the threshold
+  said. `PROBE_TIMEOUT_MS` went from 4 s to 10 s, so a slow probe is less
+  likely to be read as parked. The measurement stays — it is the number the
+  record cites — and a new assertion holds the dose above the ladder's
+  largest step. The dose is 2,097,152 bytes, under the drain log's 4 MiB
+  ceiling, so the drained arm's `sink.writtenBytes >= dose` still holds.
+- **Its mutation check.** The failure was reproduced deliberately: with the
+  dose restored to `threshold + margin` and the threshold under-measured to
+  8,192, the witness went red on `undrained arm: the same child and the
+  same dose reproduce the stall` — the assertion the runner failed on. With
+  the same under-measured threshold and the fix in place, it stayed green.
+  `node --test shell/test/*.test.mjs` measured **44 pass / 0 fail**.
+
 ### The batch is delivered: PR #156 merges (2026-11-11)
 
 - **The accumulated batch was delivered and merged.** 108 commits went up as
