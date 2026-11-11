@@ -590,11 +590,33 @@ def test_the_cost_narration_above_the_shard_matrix_prints_the_costs_the_table_me
         "anchor is a figure that cannot be noticed going stale"
     )
 
-    dated = [p for p in paragraphs if "test_cli" in p or DATED_MEASUREMENT.search(p)]
-    assert any("2026-10-25" in p for p in dated), (
-        "the shard-count decision is no longer recorded with the measurement it was "
-        "taken on, so the figures it quotes have no tree to belong to"
+    # **The dated half of the block dates itself, or its figures are orphaned.**
+    # The decision figures are what identify the paragraph, not a date somewhere
+    # in the block: a witness that asked only for "a dated paragraph" is satisfied
+    # by a date added anywhere, including to the paragraph that states today's
+    # costs — and then the 216/135/169 figures have no tree they belong to while
+    # the witness stays green.
+    decision = [paragraph for paragraph in paragraphs if _QUOTES_DECISION_FIGURES.search(paragraph)]
+    assert decision, (
+        "the five-versus-six figures (216 against 135, 1.603, 216 against 169) are no "
+        "longer in the shard matrix's comment, so the reason the matrix has five legs "
+        "is not recorded where the matrix is written"
     )
+    assert len(decision) == 1, (
+        f"{len(decision)} paragraphs quote the five-versus-six figures, so which one is "
+        "the record of the decision is a guess"
+    )
+    assert DATED_MEASUREMENT.search(decision[0]), (
+        "the paragraph that quotes the five-versus-six figures names no date, so a "
+        "reader cannot tell whether they are the current costs or the measurement they "
+        f"came from; the table records {measured_at} as the current one"
+    )
+
+
+#: The figures the 2026-10-25 five-versus-six decision was made on. They identify
+#: the paragraph that records it — see the witness above for why the figures, and
+#: not a date, are the identifying feature.
+_QUOTES_DECISION_FIGURES: Final[re.Pattern[str]] = re.compile(r"1\.603|216 against 169")
 
 
 def _files_that_need_a_remeasurement(
@@ -1682,21 +1704,60 @@ def test_the_workflow_directory_count_the_map_prints_is_the_count_it_holds(
         "the sentence with the revision it was measured at."
     )
 
-    # The enumeration runs from the colon to the first `. that ends a sentence
-    # — which is why the file names are matched explicitly rather than split on
-    # `.`, because `lockfiles.yml` and `provider-smoke.yml` both contain one.
-    tail = text[stated.end() :]
-    listed = set(re.findall(r"`([a-z0-9-]+\.ya?ml)`", tail[:1200]))
-    assert listed == {path.name for path in paths}, (
-        f"the map enumerates {sorted(listed)} and the directory holds "
+    # **The enumeration is parsed as an enumeration, not searched for.** Scanning
+    # a window for `` `name.yml` `` tokens reads the prose after the sentence too,
+    # and that is how this witness first passed a mutated map that had dropped
+    # `shell.yml` from the list: the paragraph goes on to say "The earlier figure
+    # of seven is the count before `shell.yml` joined", and the backticked name in
+    # that sentence filled the gap. Here the names are read as a comma list from
+    # the colon, and the read stops at the first token that is not a name.
+    enumerated = _enumerated_names(text, stated.end())
+    assert enumerated, "the map's workflow sentence enumerates nothing"
+    assert len(enumerated) == _WORD_NUMBERS[stated.group(1)], (
+        f"the map says {stated.group(1)} workflows and enumerates {len(enumerated)}: "
+        f"{enumerated}. A count and a list that disagree is a sentence that was "
+        "half updated."
+    )
+    assert set(enumerated) == {path.name for path in paths}, (
+        f"the map enumerates {sorted(enumerated)} and the directory holds "
         f"{sorted(path.name for path in paths)}: a directory listing with a file "
         "missing is a listing that was not read"
     )
-    anchor_match = FULL_SHA.search(tail[:1200])
+
+    paragraph = _paragraph_containing(text, stated.start())
+    anchor_match = FULL_SHA.search(paragraph)
     assert anchor_match is not None, (
-        "the map's workflow sentence names no revision, so the count is a memory "
-        "rather than a reading"
+        "the map's workflow sentence names no revision in its own paragraph, so the "
+        "count is a memory rather than a reading"
     )
+
+
+def _enumerated_names(text: str, start: int) -> list[str]:
+    """The comma list of workflow file names that begins at ``start``.
+
+    Reading stops at the first token that is not a backticked YAML name, so the
+    sentences after the list cannot lend their backticked names to it.
+    """
+    names: list[str] = []
+    position = start
+    while True:
+        match = re.match(r"\s*(?:and\s+|,\s*)?`([a-z0-9-]+\.ya?ml)`", text[position:])
+        if match is None:
+            return names
+        names.append(match.group(1))
+        position += match.end()
+
+
+def _paragraph_containing(text: str, offset: int) -> str:
+    """The paragraph a match sits in — bounded by blank lines.
+
+    The bound is what makes "the sentence names its revision" mean something: a
+    search over the whole file lets an anchor from another paragraph vouch for a
+    claim in this one.
+    """
+    begin = text.rfind("\n\n", 0, offset) + 1
+    end = text.find("\n\n", offset)
+    return text[begin : len(text) if end == -1 else end]
 
 
 #: A spelled-out count, as a map writes it, read back as a number.
