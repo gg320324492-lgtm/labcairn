@@ -14,10 +14,10 @@ Re-measured 2026-11-11 on this tree, because the two anchors above are older
 than the tree: `uv.lock` changed after `dd08573` (certifi `2026.7.22` →
 `2026.10.23`, and `httpx` became a declared dependency), and `src/labcairn`
 grew. The §1 member counts, §2.1's declared-dependency table, §2.2's closure
-counts and licence census, and all of §2.4 are re-measured and anchored to
-`1dd0d54` / the current `uv.lock`; §§3 and 4 name the third-party files they
-describe and were not re-opened. Every re-measured figure says which revision
-it was taken at.
+counts and licence census, and all of §2.4 are re-measured, each against the
+revision named in its own section; §§3 and 4 name the third-party files they
+describe and were not re-opened. Every re-measured figure says which revision it
+was taken at, and each of those revisions was printed by `git rev-parse HEAD`.
 
 Every number in this file was measured rather than remembered. §5 gives the
 commands that reproduce them.
@@ -41,9 +41,10 @@ second grant and does not modify the MIT terms.
 -------------------------------------------------------------------------------
 
 Measured from the built artefacts, re-measured 2026-11-11 at
-`1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2` (`git rev-parse HEAD`, printed) by
-`uv build` from a `git archive` of that revision — a tree carrying only tracked
-files, so nothing untracked in a working directory can enter the counts:
+`c884f254ca7fff2f3dd60e188a1a3dd1b9280f8c` (`git rev-parse HEAD`, printed) by
+`uv build` from a `git archive` of that revision, with the build log written
+outside the export directory — a tree carrying only tracked files, so nothing a
+working directory happens to hold can enter the counts:
 
   source distribution (labcairn-0.1.0.tar.gz)
       834 members: the 833 files the revision tracks, plus the one file the
@@ -57,6 +58,9 @@ The earlier version of this section said 444 and 153. Both were true of the tree
 they were measured on — `docs/acceptance/LC-P1-14-release-contents.md` records
 them at that revision and is left as written — and both are older than
 `src/labcairn` grew to 213 files. The counts above are what this revision builds.
+An attempt at this measurement earlier in the same day counted 835 sdist members,
+and the one extra member was its own untracked `build.log`, written inside the
+directory being exported; the export was redone with the log outside it.
 
 The exact member counts for the release as built are in
 docs/acceptance/LC-P1-14-release-contents.md. The release workflow re-measures
@@ -121,10 +125,11 @@ text lives inside the installed distribution.
 2.2  The whole closure
 -----------------------
 
-`uv export --frozen --no-dev` over the current `uv.lock` (re-measured
-2026-11-11 at `2d8c6a2`, printed by `git rev-parse HEAD`; the figures were
-first measured over the lockfile at `dd08573` and reproduce unchanged, even
-though that lock has since changed) resolves 171
+`uv export --frozen --no-dev` over the current `uv.lock` (measured
+2026-11-11 at `1dd0d54` and re-run at `c884f25`, both printed by
+`git rev-parse HEAD`, both producing the same 171 lines and the same census; the
+figures were first measured over the lockfile at `dd08573` and reproduce
+unchanged, even though that lock has since changed) resolves 171
 requirement lines across platforms: 167 on Linux, 165 on macOS, 168 on Windows.
 The difference between the three counts is the platform-conditional packages
 (pywin32, pywin32-ctypes and colorama on Windows; jeepney and secretstorage on
@@ -190,7 +195,10 @@ same is true of a dependency's bundled third-party module.
 2.4  The dependencies the desktop shell brings in
 -------------------------------------------------
 
-Re-measured 2026-11-11 at `1dd0d54` (printed by `git rev-parse HEAD`). The
+Re-measured 2026-11-11 at `1dd0d54ce7a14e4300c3e3848d5c7be760c4c4d2` and
+re-run at `c884f254ca7fff2f3dd60e188a1a3dd1b9280f8c` (both printed by
+`git rev-parse HEAD`; `node .github/shell-lockfile-keys.mjs shell/pnpm-lock.yaml`
+prints the same figures at both), the lockfile being unchanged between them. The
 figures below come from `shell/pnpm-lock.yaml` at that revision, read from
 `git show` rather than from a checkout, from each package's own record at
 `https://registry.npmjs.org`, and from each package's own published tarball.
@@ -812,7 +820,7 @@ LabCairn modifies none of these files, and adds no condition to them.
 -------------------------------
 
 LabCairn's own artefacts carry no font file: the wheel's 219 members (re-measured
-at `1dd0d54`, §1) include none whose name is a font file, and the source
+at `c884f25`, §1) include none whose name is a font file, and the source
 distribution's only members holding font binaries are the three papers of §4.
 
 The report forms carry none either. The PDF exporter references the Type 1

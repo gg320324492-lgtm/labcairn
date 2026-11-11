@@ -1,8 +1,10 @@
 # LabCairn — Current handoff
 
 **Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
-Phase 3 gate is closed.** Local `main` carries 99 commits ahead of
-`origin/main`, accumulated for a later delivery by the owner's choice; the
+Phase 3 gate is closed.** At
+`3a62b9d4cfd440ab0f2b0c3c32c34fe2431511d9`, local `main` was measured 99
+commits ahead of `origin/main`, accumulated for a later delivery by the
+owner's choice; a live ahead count is re-measured at delivery; the
 live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
 CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
 G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and

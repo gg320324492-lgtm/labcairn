@@ -29,14 +29,29 @@ container and [the archives index](../../CHANGELOG.md#archives).
   reproduction measured 84,954 bytes, 19/19 checks and a matching SHA-256;
   the earlier 84,630 figure was a UTF-8 character count mislabelled as
   bytes.
-- Three owner decisions were answered by dialog on 2026-11-11: three
-  post-merge commits on the old NOTICE branch
+- **Three owner decisions were answered by dialog on 2026-11-11.** A
+  stray-commit review compared the three post-merge commits on the old
+  NOTICE branch
   (`c884f254ca7fff2f3dd60e188a1a3dd1b9280f8c`,
   `90d08c26423cba70471b2e57389810ca0785cd18`,
-  `da0bbc3e11f55c38a86f62505cadc4eaffad5cd2`)
-  stay unmerged until a read-only comparison; a batch of record-layer patch
-  files is committed together with this section; and the accumulated local
-  batch stays unpushed for a later owner-authorised delivery.
+  `da0bbc3e11f55c38a86f62505cadc4eaffad5cd2`) and recommended absorbing
+  only the NOTICE anchor fixes; the owner chose that, so the six NOTICE
+  hunks from `90d08c2` were extracted, checked with `git apply --check`
+  and applied, while `c884f25` and `da0bbc3` stay unmerged on that
+  branch. One consequence of that choice is recorded here rather than
+  repaired: `NOTICE` §1 is anchored at `c884f25`, which is not an
+  ancestor of `main`, so a reader on `main` cannot `git show` it, while
+  the tracked-file count it names (833) is the count `main` HEAD also
+  measures (833). The anchor is printed and the figure is right; the
+  revision it names is reachable only from the old branch. The owner also chose to replace the live ahead count in the
+  three live pointers with a dated measurement anchored to a printed SHA
+  (`3a62b9d4cfd440ab0f2b0c3c32c34fe2431511d9`, measured 99 commits ahead
+  of `origin/main`), because a count that changes carries forward stale
+  claims; a live count is re-measured at delivery instead. The third
+  decision put these four reports' conclusions and the three decisions
+  into this archive. The accumulated local batch stays unpushed for a
+  later owner-authorised delivery: no push, no pull request and no CI run
+  is authorised.
 
 ### Shell CI and T08 land, with the re-measured pointers (2026-11-11)
 
