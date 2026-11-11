@@ -437,9 +437,19 @@ Ubuntu; `python-quality` jobs now run pytest only. The witness in
 a matrix, that all three commands live there, that no shard job repeats
 them, and that no two jobs share a check name. What this entry said on
 2026-11-02 — that the new name reports without blocking until the owner lists
-it — has been overtaken: the reading taken on 2026-11-11 at
-`6b3211ae631c7c9548ca160615f88daa6da7d5dd` finds it among the required
-contexts, and the list with its command is in `.github/CI.md`. **The
+it — has been overtaken: the owner has listed it. The reading taken on
+2026-11-11 with `gh api
+repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+'.required_status_checks.contexts | length'` printed **15**, and the same
+call's context list names `lint` among them. **When the owner added it is not
+recorded anywhere in this repository** — only that the 2026-11-02 sentence was
+true when written and is not true now — and the gap between those two dates is
+the defect: a setting outside the repository changed, a current pointer kept
+asserting the old state, and nothing read GitHub. `.github/CI.md` now carries
+the list with its command and the revision it was read at
+(`6b3211ae631c7c9548ca160615f88daa6da7d5dd`), and
+`tests/test_ci_shard_coverage.py` requires every required-check claim in this
+file to name the revision in its own paragraph. **The
 wall-clock expectation is unchanged** — the
 wait is the slowest shard, and lint finishes before it; the split removes
 ten duplicate runs, not minutes. None of it is measured on a runner yet.
