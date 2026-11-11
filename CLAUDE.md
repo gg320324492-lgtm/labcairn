@@ -51,20 +51,22 @@ most expensive thing this project does — it is the gate, and it should be
 spent on the whole of a body of work rather than on each piece of it.
 
 **What it does not change.** `main` is a protected branch, so a pull
-request is how anything reaches it, and the required checks have to pass on
-it. The count is a **reading, not a constant**: read from GitHub on
-2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd` with
+request is how anything reaches it, and the **fifteen required checks**
+(reading taken from GitHub on 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`) have to pass on it. The count
+is a **reading, not a constant**:
 
 ```
 gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
   --jq '.required_status_checks.contexts | length'    # 15
 ```
 
-and listed one context per line in `.github/CI.md`. Branch protection lives
-on GitHub, so no file here sets it; `tests/test_ci_shard_coverage.py` is
-what notices when this document's reading names a check no job reports.
-**The reduction is in the number of pull requests and runs, not in whether
-they happen.**
+and the fifteen contexts are listed one per line in `.github/CI.md`, at the
+same revision. Branch protection lives on GitHub, so no file here sets it;
+`tests/test_ci_shard_coverage.py` is what notices when this document's
+reading names a check no job reports, or states a count without the revision
+it was read at. **The reduction is in the number of pull requests and runs,
+not in whether they happen.**
 
 ## Running the suite
 

@@ -126,7 +126,7 @@ differently.
 re-derives with the shared reader `tests/workflow_job_names.py`. The earlier
 figure of seven is the count before `shell.yml` joined on 2026-11-11. **Which
 names branch protection requires is read from GitHub, not from this
-directory**: fifteen contexts at the same revision, listed in
+directory**: fifteen required contexts at the same revision, listed in
 `.github/CI.md`, `lint` among them, and `shell-test (…)`'s two legs not yet.
 `.github/remeasure_shards.py` and `.github/make_ci_shards.py` maintain the
 measured shard partition from a runner log.

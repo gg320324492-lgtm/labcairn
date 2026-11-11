@@ -1633,40 +1633,119 @@ def test_the_current_pointers_agree_with_the_measured_required_check_set(
     **fifteen** contexts, **including `lint`**, and **eight** workflow files. A
     current pointer that is wrong is worse than no pointer: a reader follows it.
 
-    **How it is checked, rather than restated.** Each pointer must carry the
-    record's own anchor — the full revision the reading was taken at — so a
-    number in a pointer is attached to the measurement it came from, and the
-    sentences that the measurement contradicts must not be present. The count is
-    not written a fourth time here: it is read from the record.
+    **How it is checked, rather than restated.** The anchor requirement is
+    **paragraph-scoped**, which is the whole point of the shape. A file-wide
+    `anchor in text` is satisfied by an anchor sitting anywhere in the document,
+    and a mutation that deleted the revision from the sentence stating the count
+    left another mention in place and stayed green — the first mutation run caught
+    exactly that. So every paragraph that makes a required-set claim must carry
+    the revision the record was measured at, in that paragraph's own text.
+
+    **What counts as a claim, and why the wording of the records matters.** The
+    detector reads a *count next to the phrase* (`fifteen required checks`), the
+    phrase `required contexts`, and `is a required check`. Those three are chosen
+    so that a paragraph about shard cost — "every other required check together
+    came to under two minutes" — is not a required-set claim and is not asked for
+    an anchor. The records were written to use those forms rather than a loose
+    paraphrase, because a detector that reads a document's claims only works if the
+    claims have a shape it can see; that is also why the count in `CLAUDE.md` moved
+    into the same paragraph as its revision.
 
     **What it cannot watch.** Whether the owner changes the required set tomorrow.
     That is a GitHub setting; what is watched is that the tree's own sentences
-    are not left behind.
+    are not left behind. And a **dated** plan record — `LC-P1-11-12-task-breakdown.md`
+    and `P2-AMD-01-impact-matrix.md` still say "the sixteen required checks" — is a
+    historical record of what protection was when it was written, deliberately not
+    rewritten here.
     """
     _contexts, anchor = _required_contexts(repo_root)
 
-    for relative in (Path("CLAUDE.md"), Path("docs") / "handoff" / "CURRENT.md"):
+    for relative in CURRENT_POINTER_FILES:
         text = (repo_root / relative).read_text(encoding="utf-8")
-        assert anchor in text, (
-            f"{relative} states something about required checks without naming the "
-            f"revision `{anchor}` that `.github/CI.md` measured them at, so the "
-            "reader cannot tell a reading from a memory"
-        )
-        stale = [
-            phrase
-            for phrase in (
-                "sixteen required checks",
-                "`lint` is not a required check",
-                "not a required check until the owner adds",
-            )
-            if phrase in text
+        claiming = [
+            paragraph for paragraph in text.split("\n\n") if _makes_required_claim(paragraph)
         ]
+        assert claiming, (
+            f"{relative} no longer states anything about required checks, so this "
+            "witness reads nothing. If the claim moved out of the pointers, delete "
+            "the file from CURRENT_POINTER_FILES rather than leaving a green witness "
+            "over an empty one."
+        )
+        unanchored = [paragraph for paragraph in claiming if anchor not in paragraph]
+        assert not unanchored, (
+            f"{relative} makes {len(unanchored)} required-set claim(s) without naming "
+            f"the revision `{anchor}` in the same paragraph: "
+            f"{[p[:70] for p in unanchored]}. A count or a required/optional claim "
+            "without its own anchor is a memory — another paragraph's anchor cannot "
+            "vouch for it."
+        )
+        stale = [phrase for phrase in STALE_REQUIRED_CHECK_PHRASES if phrase in text]
         assert not stale, (
             f"{relative} still says {stale}, which the measured set contradicts: "
             f"`lint` is among the required contexts recorded at {anchor}. "
             "Correct the sentence against the measurement rather than leaving "
             "both in the tree."
         )
+
+
+#: The current pointers that state the required-check set. Dated plan records are
+#: deliberately absent: a stale sentence in a dated snapshot is a historical fact.
+CURRENT_POINTER_FILES: Final[tuple[Path, ...]] = (
+    Path("CLAUDE.md"),
+    Path("docs") / "handoff" / "CURRENT.md",
+    Path("docs") / "REPOSITORY-MAP.md",
+)
+
+#: Sentences the 2026-11-11 measurement contradicts, so they cannot stay in a
+#: current pointer beside the reading that contradicts them.
+STALE_REQUIRED_CHECK_PHRASES: Final[tuple[str, ...]] = (
+    "sixteen required checks",
+    "`lint` is not a required check",
+    "not a required check until the owner adds",
+)
+
+_NUMBER_WORDS: Final[str] = "|".join(
+    [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        r"\d{1,2}",
+    ]
+)
+
+#: The three shapes a required-set claim takes in these documents. A count is
+#: only a claim when it sits directly beside the phrase — the alternative, a
+#: window of any length, sweeps in prose about shard cost that mentions a
+#: required check and some number for entirely unrelated reasons.
+#: The whitespace in these patterns is `\s+` rather than a space: a paragraph's
+#: lines wrap, and a claim split across a line break is the same claim. A
+#: detector that reads only single-line phrasings silently skips one — the
+#: handoff's "among the required\ncontexts" is what showed it.
+REQUIRED_SET_CLAIMS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(rf"\b(?:{_NUMBER_WORDS})\s+required\s+(?:status\s+)?checks?\b", re.I),
+    re.compile(r"\brequired\s+contexts\b", re.I),
+    re.compile(r"\bis\s+a\s+required\s+check\b", re.I),
+)
+
+
+def _makes_required_claim(paragraph: str) -> bool:
+    return any(pattern.search(paragraph) for pattern in REQUIRED_SET_CLAIMS)
 
 
 def test_the_workflow_directory_count_the_map_prints_is_the_count_it_holds(
