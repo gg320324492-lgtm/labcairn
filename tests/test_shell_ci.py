@@ -256,7 +256,10 @@ def _bare_imports(text: str) -> list[str]:
     """
     bare: list[str] = []
     for specifier in NODE_IMPORT.findall(text) + DYNAMIC_IMPORT.findall(text):
-        if specifier.startswith("node:") or specifier.startswith(SHELL_WITNESS_IMPORT_ROOTS):
+        # One `startswith` with a flat tuple of prefixes. `SHELL_WITNESS_IMPORT_ROOTS`
+        # is itself a tuple, so it is unpacked: nesting it would make the call test a
+        # tuple element against a tuple and reject every relative import.
+        if specifier.startswith(("node:", *SHELL_WITNESS_IMPORT_ROOTS)):
             continue
         bare.append(specifier)
     return sorted(set(bare))
@@ -633,7 +636,8 @@ def test_the_import_reader_notices_a_package_and_ignores_what_the_job_provides()
         "import { guard } from '../src/live-guard.mjs'\n"
         "import { lockfileKeys } from '../../.github/shell-lockfile-keys.mjs'\n"
     )
-    assert _bare_imports(clean) == [], f"the reader flagged imports the job can satisfy: {_bare_imports(clean)}"
+    flagged_clean = _bare_imports(clean)
+    assert flagged_clean == [], f"the reader flagged imports the job can satisfy: {flagged_clean}"
 
     dirty = (
         "import { load } from 'js-yaml'\n"
