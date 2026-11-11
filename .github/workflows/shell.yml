@@ -1,0 +1,79 @@
+# LC-P3-05 — The desktop shell's Node witnesses.
+#
+# C-1 (binding): the pull_request trigger carries no path filter. A filtered
+# required check is reported as *expected*, not *passed*, and branch protection
+# then waits for it forever. See python.yml and
+# tests/test_no_reference_leakage.py for the gate that watches this rule.
+#
+# The shell's six Node tests import only node:* built-ins and files under
+# shell/. None imports electron, and the dependency-surface test reads
+# pnpm-lock.yaml as text rather than resolving an installed package. There is
+# therefore no pnpm install, no node_modules cache and no Electron binary here.
+#
+# Two steps are load-bearing for the one integration file instead:
+#   * uv sync --frozen creates the `labcairn` console script next to the
+#     interpreter shell/scripts/lib/shell-paths.mjs resolves; without it the
+#     service-supervisor arms of drain-witness.test.mjs have nothing to spawn.
+#   * LABCAIRN_SHELL_TEST_TMP replaces the Windows default, which names an E:
+#     volume a GitHub runner does not have.
+name: shell
+
+on:
+  # A push to a feature branch is already covered by its pull_request event;
+  # main's own push is still checked. C-1 forbids filtering pull_request, and
+  # permits filtering a push-triggered one.
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shell-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shell-test:
+    # GitHub identifies a check by name. Two matrix legs sharing one name are
+    # one check, and a required check would be satisfied by whichever reported
+    # first, so the platform is part of the name.
+    name: shell-test (${{ matrix.os }})
+    # A scheduled run spends python.yml's `evaluation` job only.
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      # `node-version-file` reads engines.node from shell/package.json, so the
+      # Node floor does not live in two places. No pnpm step: the witnesses
+      # need no installed package.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: shell/package.json
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: install the CLI the drain witness spawns
+        run: uv sync --frozen
+
+      # Node >= 22 expands the glob itself; the shell need not. The pattern is
+      # quoted so no platform's default shell decides which files run.
+      - name: run every shell Node witness
+        shell: bash
+        working-directory: shell
+        env:
+          LABCAIRN_SHELL_TEST_TMP: ${{ runner.temp }}/shell-test-tmp
+        run: node --test 'test/*.test.mjs'

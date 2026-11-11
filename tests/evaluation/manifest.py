@@ -489,6 +489,9 @@ FILE_ASSIGNMENTS: Final[dict[str, tuple[str, str]]] = {
     "test_refusal_witnesses.py": ("negative", "insufficient-evidence"),
     "test_smoke_path.py": ("e2e", "fresh-install"),
     "test_ci_shard_coverage.py": (REPOSITORY_CLASS, "repository-gate"),
+    # Whether CI runs the shell's Node witnesses, which `norecursedirs` puts
+    # outside pytest's sight and the witness ledger outside its count.
+    "test_shell_ci.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_baseline_document.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_docx_fixture_corpus.py": (REPOSITORY_CLASS, "repository-gate"),
     "test_no_reference_leakage.py": (REPOSITORY_CLASS, "repository-gate"),

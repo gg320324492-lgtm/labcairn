@@ -46,12 +46,19 @@ from typing import Any, Final
 import pytest
 import yaml
 from evaluation import manifest
+from workflow_job_names import load_workflows, rendered_job_names
 
 #: The shard file, next to the workflow that uses it.
 SHARD_FILE: Final[Path] = Path(".github") / "ci-shards.json"
 
 #: The workflow that uses it.
 WORKFLOW_FILE: Final[Path] = Path(".github") / "workflows" / "python.yml"
+
+#: Every workflow whose job names branch protection may identify. The witness
+#: below reads the whole directory: a name collision between two workflow files
+#: is the same deadlock as one inside a single file, and a new workflow that no
+#: witness reads is a workflow that can repeat any name it likes.
+WORKFLOWS_DIR: Final[Path] = Path(".github") / "workflows"
 
 #: The platforms the workflow runs on. The partition is per platform.
 PLATFORMS: Final[tuple[str, ...]] = ("ubuntu-latest", "windows-latest")
@@ -62,6 +69,19 @@ PLATFORMS: Final[tuple[str, ...]] = ("ubuntu-latest", "windows-latest")
 #: re-measured: a file that costs less than the slack cannot unbalance the
 #: partition however much its own cost moves.
 BALANCE_LIMIT: Final[float] = 1.6
+
+
+def _workflow_job_names(repo_root: Path) -> list[tuple[Path, dict[str, Any]]]:
+    """Every workflow in the directory, parsed — the shared reader's output.
+
+    The rendering is `workflow_job_names.rendered_job_names`, shared with
+    `tests/test_shell_ci.py`. Two witnesses that each spelled out the matrix
+    substitution drifted apart exactly once already, and that is how
+    `release-dependency-licences (matrix.os)` stayed a collision no check read.
+    """
+    documents = load_workflows(repo_root / WORKFLOWS_DIR)
+    assert documents, f"{WORKFLOWS_DIR} declares no workflows to check"
+    return documents
 
 
 def _shard_document(repo_root: Path) -> dict[str, Any]:
@@ -185,12 +205,25 @@ def test_the_lint_job_is_one_job_and_the_shards_do_not_repeat_it(
     watch only that the workflow *offers* a job of that name and that no
     other job shares it. **Whether GitHub requires it is a branch-protection
     setting the owner controls**, and no workflow file can assert it.
+
+    **The uniqueness read spans the whole workflows directory**, not just this
+    file, and it compares *rendered* names. A collision between two workflow
+    files is the same deadlock as one inside a file: `release.yml`'s
+    `release-dependency-licences (matrix.os)` was a name its two platform legs
+    both reported, and a witness that read one file and compared templates
+    could not see it.
     """
     workflow = yaml.safe_load((repo_root / WORKFLOW_FILE).read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict) and jobs, "the workflow declares no jobs"
 
-    job_names = [str(job.get("name", key)) for key, job in jobs.items()]
+    documents = _workflow_job_names(repo_root)
+    assert any(path.name == WORKFLOW_FILE.name for path, _document in documents), (
+        f"{WORKFLOW_FILE} is not among the workflows the name witness reads"
+    )
+    job_names = [
+        name for path, document in documents for name in rendered_job_names(document, path.name)
+    ]
     duplicates = sorted({name for name in job_names if job_names.count(name) > 1})
     assert not duplicates, (
         f"these job names are shared by more than one job: {duplicates}. "
