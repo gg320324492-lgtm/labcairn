@@ -20,6 +20,11 @@ extraResources:
     to: web-dist
     filter:
       - '**/*'
+# The packaged window loads the web bundle from `resources/web-dist`. When that
+# source directory is absent electron-builder prints one line and keeps going,
+# so an installer without the frontend would ship; measured on 2026-11-11, such
+# a build exited 0. This hook turns the missing bundle into a build failure.
+beforeBuild: scripts/require-web-dist.mjs
 win:
   target:
     - nsis

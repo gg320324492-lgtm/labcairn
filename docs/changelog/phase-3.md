@@ -6,6 +6,36 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The installer is built, and a silent gap is closed (2026-11-11)
+
+- **T08's packaging was run, not only configured.** In an isolated worktree,
+  electron-builder 26.18.0 produced the per-user NSIS installer
+  `LabCairn Setup 0.0.0.exe` (124,536,512 bytes, SHA-256
+  `da483fd949efba5e603bd8b47d0f57dfedd26f61b6469c69a59dac3e6e1241ea`); the
+  signature was measured `NotSigned` on both the installer and the unpacked
+  executable; the app.asar carried eight entries outside `node_modules`
+  (`package.json` and the seven files under `src/`), and
+  `resources/web-dist` carried the three bundle files byte for byte. The
+  build printed `default Electron icon is used`, so the artifact wears
+  Electron's icon. The products and the raw logs stay outside the tree, in
+  `E:\labcairn-local\phase3-g1-evidence\installer-build-2026-11-11`.
+- **The run found a defect that no earlier audit had named: an installer
+  shipped without its frontend.** A build with no `web/dist` exited 0 and
+  produced an installer whose `resources/` carried no `web-dist` at all —
+  electron-builder prints one line for a missing source and keeps going.
+  Nothing in the build said the packaged window would not render.
+- **The gap is closed by a mechanism, not by a habit.**
+  `shell/scripts/require-web-dist.mjs` runs as the configuration's
+  `beforeBuild` hook and fails the build when the bundle is absent or
+  carries no `index.html`. Three cases in
+  `shell/test/packaging-config.test.mjs` watch it, and their mutation check
+  reddens when the hook is removed from the configuration (one case) or
+  when the guard stops failing (two cases); restoring both bytes turns them
+  green again. The shell's Node floors move from 38 to 41 cases.
+- **What is still open.** The signed installer (`W28`), T09's clean-Windows
+  drill and AC-6 remain unperformed, and the artifact wears Electron's
+  default icon. The acceptance record's §10.4 carries all of it.
+
 ### The three answers are carried out, and a cost anchor drifts (2026-11-11)
 
 - **The three dialog answers of the section below are now on the tree**, in

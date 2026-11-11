@@ -8,7 +8,9 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +20,7 @@ const SHELL_ROOT = path.resolve(HERE, '..')
 const CONFIG_PATH = path.join(SHELL_ROOT, 'electron-builder.yml')
 const MANIFEST_PATH = path.join(SHELL_ROOT, 'package.json')
 const LOCK_PATH = path.join(SHELL_ROOT, 'pnpm-lock.yaml')
+const GUARD_PATH = path.join(SHELL_ROOT, 'scripts', 'require-web-dist.mjs')
 
 const config = fs.readFileSync(CONFIG_PATH, 'utf8')
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
@@ -96,4 +99,47 @@ test('mutations of signing, target and output are visible to the same reads', ()
   const movedOutput = config.replace('${env.LABCAIRN_SHELL_DIST_DIR}', 'dist')
   assert.notEqual(movedOutput, config, 'the output mutation did not change the configuration')
   assert.equal(outputOutsideTrackedTree(movedOutput), false)
+})
+
+/** Run the packaging guard against a bundle directory and return its result. */
+function guardAgainst(directory) {
+  return spawnSync(process.execPath, [GUARD_PATH, directory], { encoding: 'utf8' })
+}
+
+/** A temporary directory outside the tree, removed when the work is done. */
+function temporaryDirectory(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+}
+
+test('the packaging config runs the bundle guard before it packages', () => {
+  assert.match(config, /^beforeBuild: scripts\/require-web-dist\.mjs$/m)
+  assert.ok(fs.existsSync(GUARD_PATH), 'the configuration names a guard script that is absent')
+})
+
+test('the bundle guard refuses a build with no web bundle', () => {
+  const absent = temporaryDirectory('labcairn-web-dist-absent-')
+  fs.rmSync(absent, { recursive: true, force: true })
+  const result = guardAgainst(absent)
+  assert.notEqual(result.status, 0, 'the guard accepted a bundle that does not exist')
+  assert.match(result.stderr, /absent/)
+})
+
+test('the bundle guard refuses an empty bundle and accepts one with the entry document', () => {
+  const empty = temporaryDirectory('labcairn-web-dist-empty-')
+  try {
+    const result = guardAgainst(empty)
+    assert.notEqual(result.status, 0, 'the guard accepted a bundle with no index.html')
+    assert.match(result.stderr, /index\.html/)
+  } finally {
+    fs.rmSync(empty, { recursive: true, force: true })
+  }
+
+  const complete = temporaryDirectory('labcairn-web-dist-complete-')
+  try {
+    fs.writeFileSync(path.join(complete, 'index.html'), '<!doctype html><title>LabCairn</title>')
+    const result = guardAgainst(complete)
+    assert.equal(result.status, 0, `the guard refused a complete bundle: ${result.stderr}`)
+  } finally {
+    fs.rmSync(complete, { recursive: true, force: true })
+  }
 })

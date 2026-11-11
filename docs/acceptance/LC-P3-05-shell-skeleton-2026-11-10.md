@@ -659,20 +659,42 @@ changed a number, and each is recorded so that a later run does not repeat it:
   `${env.LABCAIRN_SHELL_DIST_DIR}`, so a build whose caller names no directory
   fails loudly rather than writing products into the tracked tree.
   `shell/package.json` carries the `dist` script.
-  `shell/test/packaging-config.test.mjs` has four tests: product/output/
+  `shell/test/packaging-config.test.mjs` has seven tests: product/output/
   `extraMetadata.dependencies: null`/unsigned NSIS target and flags; the
   packaged `files`, `extraResources` web-dist and declared files' existence;
   the `dist` script, `electron-builder@26.18.0`, the lockfile entry,
-  `electron@45.2.3` and the `minimatch@>=7 <11 → 11.0.7` override; and a
+  `electron@45.2.3` and the `minimatch@>=7 <11 → 11.0.7` override; a
   mutation test feeding signing, portable-only target and in-tree-output
-  variants back through the same readers. The approved 273-key lockfile set
-  is witnessed separately in `shell/test/dependency-surface.test.mjs`. A
-  local Windows build produced one installer outside the **tracked tree**;
-  an untracked, ignored `app.asar` packaging leftover remains in an old
-  worktree directory, so no claim is made that every build leftover is
-  outside the checkout. A signed installer (`W28`) and the clean-Windows
-  drill (install → launch → upgrade → uninstall → rollback preserving user
-  data, support limits, §0 rule 2 review) have not been performed. The owner decided on 2026-11-10 that the batch may land
+  variants back through the same readers; and three cases for the packaging
+  guard — the configuration names it, it refuses a build with no web
+  bundle, and it accepts one that carries the entry document. The approved
+  273-key lockfile set is witnessed separately in
+  `shell/test/dependency-surface.test.mjs`.
+  **The packaging was run, not only configured.** Measured on 2026-11-11 in
+  an isolated worktree, electron-builder 26.18.0 produced the per-user NSIS
+  installer `LabCairn Setup 0.0.0.exe` (124,536,512 bytes, SHA-256
+  `da483fd949efba5e603bd8b47d0f57dfedd26f61b6469c69a59dac3e6e1241ea`); the
+  signature was measured `NotSigned` on both the installer and the
+  unpacked executable; the app.asar carried eight entries outside
+  `node_modules` (`package.json` and the seven files under `src/`), and
+  `resources/web-dist` carried the three bundle files byte for byte. The
+  build printed `default Electron icon is used`, so the artifact wears
+  Electron's icon. The products and the raw logs live outside the tree, in
+  `E:\labcairn-local\phase3-g1-evidence\installer-build-2026-11-11`.
+  **That run also found a defect, now closed.** A build with no `web/dist`
+  exited 0 and produced an installer whose `resources/` carried no
+  `web-dist` at all — electron-builder prints one line for a missing
+  source and keeps going. `shell/scripts/require-web-dist.mjs` now runs as
+  the configuration's `beforeBuild` hook and fails the build when the
+  bundle is absent or carries no `index.html`; the three cases above watch
+  it, and their mutation check reddens when the hook is removed from the
+  configuration or when the guard stops failing. An untracked, ignored
+  `app.asar` packaging leftover remains in an old worktree directory, so no
+  claim is made that every build leftover is outside the checkout. A signed
+  installer (`W28`) and the clean-Windows drill (install → launch → upgrade
+  → uninstall → rollback preserving user data, support limits, §0 rule 2
+  review) have not been performed. The owner decided on 2026-11-10 that the
+  batch may land
   with these gaps, and that they are recorded as named gaps rather than
   written as passing. The O3 runtime-arrangement measurement (frozen service /
   bundled interpreter / sidecar) and O5's import finding remain unmeasured.
