@@ -6,6 +6,45 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The declaration batch is delivered, and the licence surface turns out wider than NOTICE said (2026-11-12)
+
+- **PR #157 merged as `720275afbc6eb51ed8fff53271f5217dc930de73`** — nine
+  commits: the CI declaration layer's six defects, the owner's two
+  branch-protection decisions, and the drain witness's repair below. Twenty
+  checks passed and the schedule-only `evaluation` job skipped by design;
+  the ledger across the merge reports `LOST -- none` and `ADDED -- 15`.
+- **An independent re-review of NOTICE's own classification.** The 268
+  packages' identifiers were taken independently, from the registry and from
+  each published tarball: **228 confirmed permissive, 40 need the owner's
+  judgement, 0 undeterminable**. The forty are not copyleft, but the basis
+  behind them is thinner than a count: **16 carry their licence only as a
+  manifest field**, with no licence document in the published tarball; some
+  embed third-party terms (`node-gyp`'s vendored `packaging`, `undici`'s
+  second `LICENSE`); four are deprecated upstream; `argparse@2.0.1` is the
+  PSF licence with its venue clause; and four offer a choice of licences.
+  **The entry above says the identifiers were read from "registry metadata and
+  each package's own licence file"** — the review measured that for sixteen of
+  them the second half does not hold, so their identifier rests on the
+  registry field alone. The measurement wins over the record, and the record
+  is corrected here; the older entry is left as it was written.
+- **A distribution carries three surfaces, and NOTICE named one.** (a) The
+  shell's 268 packages, no copyleft among them, measured. (b) The binaries
+  the installer redistributes — seven `$PLUGINSDIR` NSIS plug-in DLLs plus
+  `elevate.exe` — of which **`StdUtils.dll` is LGPL-2.1-or-later** and
+  **`nsis7z.dll` carries 7-Zip's LGPL-2.1**; neither binary holds a licence
+  string, and the NSIS archive holds no licence file. (c) The `web/` tree:
+  **266 lock keys**, of which **twelve are `lightningcss` platform variants
+  under MPL-2.0** and **`caniuse-lite` is CC-BY-4.0** — and the lock records
+  no licence field at all, so that surface has no record anywhere in the tree.
+- **Four decisions, taken 2026-11-12.** (1) **Keep the LGPL-2.1 plug-ins and
+  discharge the obligations** — the licence text, the notice and the source
+  access go into the record and the deliverable. (2) **Widen NOTICE's scope**
+  to the toolchain binaries and the web tree. (3) **Restore React's MIT
+  attribution** through a `THIRD-PARTY-NOTICES` file shipped beside
+  `web-dist`; the production bundle carries no `MIT`, `Copyright` or
+  `license` string at all. (4) **Defer** both the per-binary licence-table
+  witness and the Chromium payload survey.
+
 ### The drain witness's dose stops resting on a measurement (2026-11-11)
 
 - **The CI failure.** `shell-test (ubuntu-latest)` failed on the first run of
