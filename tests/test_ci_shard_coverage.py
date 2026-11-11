@@ -415,6 +415,74 @@ def test_the_costs_belong_to_the_tree_they_were_measured_on(repo_root: Path) -> 
         )
 
 
+def test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures(
+    repo_root: Path,
+) -> None:
+    """The five-class cost the documents print is what the shard table sums to.
+
+    **Why this exists.** The evaluation job's cost was printed in three
+    places -- `.github/CI.md`, `.github/workflows/python.yml` and
+    `docs/plans/LC-P1-13-evaluation-ci.md` -- and every one of them had
+    drifted: each carried an earlier measurement's anchor and the total
+    that anchor gave, while `.github/ci-shards.json` had moved on. A value
+    that can change is re-measured, not carried forward, and a figure that
+    nobody recomputes is a figure that rots. The owner ruled on 2026-11-11
+    that the three comments are corrected and watched rather than left as a
+    recorded risk.
+
+    **What is recomputed, and how.** The offline classes come from
+    `evaluation.manifest`, not from a second literal written here: the
+    per-file costs in `.github/ci-shards.json` are summed over the files
+    the manifest assigns to a class that runs offline. The anchor is the
+    shard file's own `measured_at`, so a re-measurement that is not
+    carried into the documents is red here.
+
+    **What it cannot watch.** The documents may print the figure in their
+    own words. What is checked is that the number and the anchor they
+    print are the ones the table gives.
+    """
+    document = _shard_document(repo_root)
+    measured_at = document.get("measured_at")
+    assert measured_at, "the shard file names no revision its costs were measured at"
+    costs = document.get("costs", {})
+
+    offline = {key for key, (runnable, _) in manifest.OFFLINE_CLASSES.items() if runnable}
+    totals: dict[str, str] = {}
+    for platform in PLATFORMS:
+        table = costs.get(platform, {})
+        total = sum(
+            table.get(name, 0.0)
+            for name, (gate_class, _clause) in manifest.FILE_ASSIGNMENTS.items()
+            if gate_class in offline
+        )
+        totals[platform] = f"{total:.1f} s"
+
+    ubuntu = totals["ubuntu-latest"]
+    windows = totals["windows-latest"]
+
+    for relative in (
+        Path(".github") / "CI.md",
+        Path(".github") / "workflows" / "python.yml",
+        Path("docs") / "plans" / "LC-P1-13-evaluation-ci.md",
+    ):
+        text = (repo_root / relative).read_text(encoding="utf-8")
+        assert measured_at in text, (
+            f"{relative} prints a cost anchor the shard file does not carry; "
+            f"the costs were measured at {measured_at}."
+        )
+        assert ubuntu in text, (
+            f"{relative} does not print the Ubuntu five-class total the shard "
+            f"table sums to ({ubuntu}); re-measure the costs and carry the "
+            "figure into the document."
+        )
+
+    plan = (repo_root / "docs" / "plans" / "LC-P1-13-evaluation-ci.md").read_text(encoding="utf-8")
+    assert windows in plan, (
+        "the evaluation plan does not print the Windows five-class total the "
+        f"shard table sums to ({windows})."
+    )
+
+
 def _files_that_need_a_remeasurement(
     changed: list[str],
     shards: list[list[str]],
@@ -679,12 +747,13 @@ def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
     NOT_EVALUATED; that was measured on 2026-11-03.
 
     **Why the trigger and the guards are watched.** The five classes cost
-    1450.0 s on an Ubuntu runner at ``49e81f2`` (the costs in
-    ``.github/ci-shards.json``), so a pull-request job would add about ten
-    minutes to the wall clock on top of the ten shard jobs that already run
-    the same files. A schedule that also ran ``lint`` and the ten shards
-    would multiply the cost instead of moving it. The guards on those jobs
-    are part of the property, not incidental.
+    1622.3 s on an Ubuntu runner at
+    ``46e2c21918286a723f9d07d5409d0e52e7551a85`` (the costs in
+    ``.github/ci-shards.json``), so a pull-request job would add about
+    twelve minutes to the wall clock on top of the ten shard jobs that
+    already run the same files. A schedule that also ran ``lint`` and the
+    ten shards would multiply the cost instead of moving it. The guards on
+    those jobs are part of the property, not incidental.
 
     **What this cannot watch.** GitHub fires a schedule only from the
     default branch, and branch protection is configured outside the
@@ -715,7 +784,7 @@ def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
     )
     assert job.get("runs-on") == "ubuntu-latest", (
         "the evaluation job must run on one Ubuntu runner; the five classes "
-        "cost about 72 minutes on Windows against about 24 on Ubuntu"
+        "cost about 75 minutes on Windows against about 27 on Ubuntu"
     )
     assert "strategy" not in job, "the evaluation job must not have a matrix"
 

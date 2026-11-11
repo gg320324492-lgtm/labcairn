@@ -6,6 +6,46 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The three answers are carried out, and a cost anchor drifts (2026-11-11)
+
+- **The three dialog answers of the section below are now on the tree**, in
+  commit `27d7306f4ad220a9e7ef5620010659734ee371f8`: the six NOTICE hunks
+  from `90d08c2` are applied, the three live pointers carry a dated
+  measurement anchored to a printed SHA instead of a live ahead count, and
+  the four reports' conclusions are in this archive. Measured on that tree:
+  38/38 Node shell tests, 615 passed and 2 deselected targeted Python
+  tests, `ruff check` and `ruff format --check` clean, `mypy --strict`
+  clean over 430 source files, and the witness ledger reporting
+  `LOST -- none` across both `bf2f6f4^..bf2f6f4` and `bf2f6f4..HEAD`.
+- **A fresh measurement found the evaluation job's cost anchor stale in
+  four places.** `.github/ci-shards.json` carries
+  `measured_at = 46e2c21918286a723f9d07d5409d0e52e7551a85`, and summing
+  its per-file costs over the files `evaluation/manifest.py` assigns to the
+  five offline classes gives **1622.3 s (about 27.0 min)** on
+  `ubuntu-latest` and **4478.4 s (about 74.6 min)** on `windows-latest`.
+  `.github/CI.md`, `.github/workflows/python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md` still printed the earlier anchor
+  `49e81f2` and the total that anchor gave — 1450.0 s, about 24 minutes —
+  and the previous batch's record named this as one of the risks the owner
+  chose to record rather than change.
+- **The owner ruled that the three comments are corrected and watched.** The
+  figures and the anchor are now the measured ones, in all three documents
+  and in the workflow's own comments; the job names, the triggers and the
+  commands are untouched. The `325.8 s` figures in `.github/CI.md`'s
+  slow-file section and in `docs/handoff/CURRENT.md` are left as they are:
+  that section is dated 2026-11-02 and says so, and the handoff paragraph
+  anchors its figures at `cf081e4`.
+- **A witness now holds them.**
+  `tests/test_ci_shard_coverage.py` gains
+  `test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`,
+  which recomputes the five-class total from the shard table and the
+  manifest and asserts that each document prints that total and that
+  anchor. Its mutation check: moving one file's cost in the table turns it
+  red (the table's 1730.5 s against the documents' 1622.3 s), moving the
+  figure in `.github/CI.md` turns it red too, and restoring both bytes
+  turns it green. The file is one the cost witness excludes by name, so
+  adding the witness costs no runner measurement.
+
 ### The NOTICE full surface lands, and four audits report (2026-11-11)
 
 - **The full shell dependency surface lands in `NOTICE`** (merge

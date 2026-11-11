@@ -99,10 +99,11 @@ over the five classes it can run offline and uploads the report.
 
 **Why not on pull requests.** The harness runs the same test files the ten
 shard jobs already run, and its measured cost on an Ubuntu runner is
-1450.0 s (about 24 minutes) over the five offline classes — the per-file
-costs in `.github/ci-shards.json`, anchored at `49e81f2`. On a pull request
-it would add about ten minutes to the wall clock and become the new
-bottleneck. A schedule produces the report without touching that clock.
+1622.3 s (about 27 minutes) over the five offline classes — the per-file
+costs in `.github/ci-shards.json`, anchored at
+`46e2c21918286a723f9d07d5409d0e52e7551a85`. On a pull request it would add
+about twelve minutes to the wall clock and become the new bottleneck. A
+schedule produces the report without touching that clock.
 
 **Why exactly five classes.** A Phase 1 blocker is held only when every one
 of its witnesses was collected and passed, and the witnesses span all five
