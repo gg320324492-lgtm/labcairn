@@ -80,7 +80,7 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: identical to the merged tree. The eight files together declare 44 cases;
 #: `node --test` measured 44 pass, 0 fail on Node v24.16.0 after the packaged
 #: bundle's own directory was derived, at
-#: `f0c3f30fe760123e22d86b716ccee7111d80beb0`. The five cases the guard adds are its own: the
+#: `8b26002f5cfb9625d36b868de08bd00b0341bb11`. The five cases the guard adds are its own: the
 #: configuration names it; it is shaped the way electron-builder resolves a
 #: hook; the hook it calls throws on a missing bundle and returns true on a
 #: good one; and the script form refuses a missing bundle and accepts a
@@ -97,7 +97,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "packaging-config.test.mjs": 9,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "f0c3f30fe760123e22d86b716ccee7111d80beb0"
+CASE_FLOORS_MEASURED_AT: Final[str] = "8b26002f5cfb9625d36b868de08bd00b0341bb11"
 
 
 # --------------------------------------------------------------------------
