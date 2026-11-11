@@ -6,6 +6,32 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### Shell CI and T08 land, with the re-measured pointers (2026-11-11)
+
+- **The shell's Node witnesses now have a runner job.** A new
+  `.github/workflows/shell.yml` runs a single `shell-test` job on both
+  platforms; `release.yml` no longer prints the literal `matrix.os` in a
+  job name; the job-name uniqueness witness now reads every workflow;
+  `tests/test_shell_ci.py` watches the shell WITNESS command, per-file case
+  floors, and cross-workflow name collisions. Twelve Python WITNESS
+  functions were added, and the three registrations were updated.
+- **T08's minimal unsigned Windows packaging configuration landed.**
+  `electron-builder` 26.18.0, a minimal NSIS configuration, a `dist`
+  script, and `shell/test/packaging-config.test.mjs` now exist. The local
+  build produced a 124,536,513-byte installer outside the repository; the
+  signed installer, clean-Windows drill and AC-6 remain named gaps.
+- **A merge-only defect was caught and repaired.** The shell CI floor
+  table did not know T08's new test file after the two branches merged;
+  the conductor re-measured `packaging-config.test.mjs` at 4 cases and
+  raised the total floor from 27 to 31. The combined tree measures 31/31
+  Node tests and 611 targeted Python tests (two command witnesses excluded
+  because stale local services hold the console script). The witness
+  ledger reports `LOST -- none` and `ADDED -- 12`.
+- The live pointers were re-measured after both merges: local `main` is
+  93 commits ahead, and the repository map now records 831 tracked files
+  with 195 Markdown files. The archived 79 / 87 / 823 / 826 figures are
+  dated measurements, not current totals.
+
 ### Three readiness designs report, and the phase archives land (2026-11-11)
 
 - **The shell's 27 Node tests have no CI coverage; a design recommends a
