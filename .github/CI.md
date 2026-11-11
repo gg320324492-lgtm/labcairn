@@ -60,8 +60,29 @@ The 15 contexts, printed one per line by the same call with
 **`lint` is in that list.** The 2026-11-02 record that introduced the job said it
 "reports without blocking" until the owner added it; the owner has since added it,
 and the sentences in `CLAUDE.md` and `docs/handoff/CURRENT.md` that said otherwise
-are corrected to this measurement. **What the workflows cannot do is make it so**:
-no file here can add or remove a required check.
+are corrected to this measurement. **When it was added is not recorded anywhere in
+this repository** — only that the 2026-11-02 sentence was true when written and is
+not true now. **What the workflows cannot do is make it so**: no file here can add
+or remove a required check.
+
+**The rest of the setting — same call, same date, exit 0:**
+
+```
+gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
+  --jq '{reviews: .required_pull_request_reviews,
+         strict: .required_status_checks.strict,
+         admins: .enforce_admins}'
+# -> {"admins":{"enabled":true,…},"reviews":null,"strict":true}
+```
+
+- **`reviews: null`** — GitHub requires no review of a pull request into `main`.
+  The review this project treats as the gate is the one the repository arranges,
+  not one the setting enforces; whether a required review should be added is the
+  owner's decision and nothing here changes it.
+- **`strict: true`** — the required checks must be re-passed on the branch's tip
+  before a merge, so a merge cannot carry a green set measured on an older commit.
+- **`admins: {"enabled": true}`** (`enforce_admins`) — the fifteen checks bind
+  administrators as well.
 
 **Seven names the tree offers are not in the list:** `evaluation` and
 `real-model smoke` (schedule-only, so branch protection cannot see them at all),
