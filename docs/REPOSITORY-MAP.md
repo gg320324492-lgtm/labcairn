@@ -118,13 +118,18 @@ differently.
 
 ## 5. CI, release and operational files
 
-`.github/workflows/` holds seven workflows: `python.yml`, `web.yml`,
-`reference-exclusion.yml`, `lockfiles.yml`, `release.yml`, `security.yml` and
-`provider-smoke.yml`. The first six are required checks or their supporting
-gates; `provider-smoke.yml` is schedule / manual dispatch only because it
-spends the owner's money. `.github/remeasure_shards.py` and
-`.github/make_ci_shards.py` maintain the measured shard partition from a
-runner log.
+`.github/workflows/` holds eight workflows: `lockfiles.yml`,
+`provider-smoke.yml`, `python.yml`, `reference-exclusion.yml`, `release.yml`,
+`security.yml`, `shell.yml` and `web.yml` — counted from the directory at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd` on 2026-11-11, the reading
+`tests/test_ci_shard_coverage.py::test_the_workflow_directory_count_the_map_prints_is_the_count_it_holds`
+re-derives with the shared reader `tests/workflow_job_names.py`. The earlier
+figure of seven is the count before `shell.yml` joined on 2026-11-11. **Which
+names branch protection requires is read from GitHub, not from this
+directory**: fifteen required contexts at the same revision, listed in
+`.github/CI.md`, `lint` among them, and `shell-test (…)`'s two legs not yet.
+`.github/remeasure_shards.py` and `.github/make_ci_shards.py` maintain the
+measured shard partition from a runner log.
 
 `.gitleaks.toml`, `.gitattributes`, `.gitignore`, `.env.example`,
 `.python-version`, `web/.npmrc` and the editor configuration files are

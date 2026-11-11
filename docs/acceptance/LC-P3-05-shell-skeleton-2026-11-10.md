@@ -133,16 +133,21 @@ either. Three measurements, all on this machine on 2026-11-10, say how large:
 | an anonymous `os.pipe()` (the O6 record's §4 measurement) | **4,096** bytes |
 | the child's own fd 1, non-blocking `os.write`, in the `spawn` arrangement (`shell/scripts/diag6.mjs`) | **88,064** bytes |
 | the same `spawn` pipe, written in the fixture's blocking buffered style (`shell/scripts/diag2.mjs`) | **114,688 fits / 131,072 stalls** |
-| the ladder the witness now runs (`PROBE_TIMEOUT_MS` 4 s, 100 ms poll) | `8192:fits 16384:fits 32768:fits 65536:fits 131072:stalls` |
+| the ladder the witness now runs (`PROBE_TIMEOUT_MS` 10 s, 100 ms poll) | `8192:fits 16384:fits 32768:fits 65536:fits 131072:stalls` |
 
 The witness therefore sizes its dose from a ladder it runs itself
 (`measureStallThreshold()`), and asserts `dose > threshold` before either arm
 executes — the plan's "a dose too small to overflow fails the test rather than
-passing quietly". At the head commit the measured run reports:
+passing quietly". **The dose is also the larger of that measurement plus a
+margin and twice the ladder's largest step**, and the witness asserts that
+too: the ladder's top step bounds what this machine's pipes can hold, so a
+dose above it fills the pipe whatever the threshold measurement said. That
+second assertion exists because of a measured failure — see the CI failure
+below. At the head commit the measured run reports:
 
 ```
 measured stall ladder: 8192:fits 16384:fits 32768:fits 65536:fits 131072:stalls
-✔ the dose (139264) exceeds the spawn-pipe stall threshold measured here (131072)
+✔ the dose (2097152) exceeds the spawn-pipe stall threshold measured here (131072)
 ```
 
 **Why the writer child is Python.** The stall needs a *synchronous blocking*
@@ -775,3 +780,52 @@ worktree. Three targeted Python test files measured **528 passed** after the
 merge. No whole-suite pytest run, runner run, push, pull request or CI run was
 started. This is a measured repair of the witness's own checkout assumption,
 not a change to the product's drain rule.
+
+### 10.6 The CI failure of 2026-11-11: a dose that rested on a measurement
+
+The `shell-test (ubuntu-latest)` job failed on the first run of the
+declarations batch, at `15e3577c8224a127662d18530f8a15a21b703880`, with:
+
+```
+AssertionError: the dose request answered on the undrained arm, so the dose
+did not fill the pipe and the drained arm measured nothing
+(threshold measured here: 131072; dose: 139264)
+```
+
+**The same job passed on the previous run of the same tree**, at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`, and `shell/` had not changed
+between them — so this was a property of the measurement, not of the code the
+batch touched. The two runs measured the ladder differently:
+
+| run | ladder | threshold | dose | undrained arm |
+|---|---|---|---|---|
+| `6b3211a` | `131072:fits 262144:stalls` | 262,144 | 270,336 | parked ✅ |
+| `15e3577` | `65536:fits 131072:stalls` | 131,072 | 139,264 | answered ❌ |
+
+The threshold is a measurement taken with a deadline: a probe that has not
+reported within `PROBE_TIMEOUT_MS` is read as parked. On a loaded runner a
+**slow** write is therefore read as a **parked** one, and the threshold comes
+out smaller than the pipe really is. The dose was sized from that
+measurement alone (`threshold + 8 KiB`), so an under-measured threshold
+produced a dose that did not fill the pipe, and the arm that is supposed to
+prove a stall could not prove one.
+
+**What changed.** The dose no longer rests on the measurement alone: it is the
+larger of `threshold + margin` **and twice the ladder's largest step**. The
+ladder's top step bounds what this machine's pipes can hold, so a dose above
+it fills the pipe whatever the threshold said. `PROBE_TIMEOUT_MS` also went
+from 4 s to 10 s, so a slow probe is less likely to be read as parked. The
+measurement stays — it is the number the record cites — and a new assertion
+holds the dose above the ladder's largest step.
+
+**Its mutation check, run on this tree.** The failure was reproduced
+deliberately: with the dose restored to `threshold + margin` and the
+threshold under-measured to 8,192, the witness went red on
+`undrained arm: the same child and the same dose reproduce the stall` — the
+same assertion the runner failed on. With the same under-measured threshold
+and the fix in place, the witness stayed green. On this machine the ladder
+is unchanged by the longer deadline
+(`8192:fits 16384:fits 32768:fits 65536:fits 131072:stalls`) and the dose is
+now **2,097,152** bytes, which is under the drain log's 4 MiB ceiling, so the
+drained arm's `sink.writtenBytes >= dose` still holds. `node --test
+shell/test/*.test.mjs` measured **44 pass / 0 fail**.

@@ -25,6 +25,85 @@ actually renders**, one per matrix leg, not on the name templates as written.
 The distinction is what `release-dependency-licences (matrix.os)` needed (see
 2026-11-11 below): as a template it looked distinct from everything.
 
+## 2026-11-11 — the required-check set, measured
+
+Branch protection lives outside the repository, so the repository can only keep a
+**dated reading** of it — and a dated reading is what lets a later one be compared
+with it. Measured 2026-11-11 at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`:
+
+```
+gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
+  --jq '.required_status_checks.contexts | length'   # -> 15
+```
+
+The 15 contexts, printed one per line by the same call with
+`--jq '.required_status_checks.contexts[]'`:
+
+<!-- required-status-checks:begin — measured 2026-11-11 at 6b3211ae631c7c9548ca160615f88daa6da7d5dd -->
+- `web-quality`
+- `reference-exclusion`
+- `secret-scan`
+- `lockfile-consistency`
+- `python-quality (ubuntu-latest, shard 0)`
+- `python-quality (ubuntu-latest, shard 1)`
+- `python-quality (ubuntu-latest, shard 2)`
+- `python-quality (ubuntu-latest, shard 3)`
+- `python-quality (ubuntu-latest, shard 4)`
+- `python-quality (windows-latest, shard 0)`
+- `python-quality (windows-latest, shard 1)`
+- `python-quality (windows-latest, shard 2)`
+- `python-quality (windows-latest, shard 3)`
+- `python-quality (windows-latest, shard 4)`
+- `lint`
+<!-- required-status-checks:end -->
+
+**`lint` is in that list.** The 2026-11-02 record that introduced the job said it
+"reports without blocking" until the owner added it; the owner has since added it,
+and the sentences in `CLAUDE.md` and `docs/handoff/CURRENT.md` that said otherwise
+are corrected to this measurement. **When it was added is not recorded anywhere in
+this repository** — only that the 2026-11-02 sentence was true when written and is
+not true now. **What the workflows cannot do is make it so**: no file here can add
+or remove a required check.
+
+**The rest of the setting — same call, same date, exit 0:**
+
+```
+gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
+  --jq '{reviews: .required_pull_request_reviews,
+         strict: .required_status_checks.strict,
+         admins: .enforce_admins}'
+# -> {"admins":{"enabled":true,…},"reviews":null,"strict":true}
+```
+
+- **`reviews: null`** — GitHub requires no review of a pull request into `main`.
+  The review this project treats as the gate is the one the repository arranges,
+  not one the setting enforces. **The owner decided on 2026-11-11 that no
+  required review is added**, so this stays `null`; nothing here changes it.
+- **`strict: true`** — the required checks must be re-passed on the branch's tip
+  before a merge, so a merge cannot carry a green set measured on an older commit.
+- **`admins: {"enabled": true}`** (`enforce_admins`) — the fifteen checks bind
+  administrators as well.
+
+**Seven names the tree offers are not in the list:** `evaluation` and
+`real-model smoke` (schedule-only, so branch protection cannot see them at all),
+`release-contents` and both `release-dependency-licences (…)` legs (tag-triggered;
+they run on pull requests but are not required), and both
+`shell-test (…)` legs. `tests/test_ci_shard_coverage.py` watches the direction
+that can actually break a merge — **every name in the list must be a name some job
+in `.github/workflows/` reports**, because a required check naming a name no job
+reports is a check GitHub waits for forever. It does not watch the seven, and it
+must not: which of them become required is the owner's decision, recorded below.
+
+**The owner's decision, taken 2026-11-11.** `shell-test
+(windows-latest)` and `shell-test (ubuntu-latest)` run on every pull request
+and **are not required**, and the owner decided on 2026-11-11 that they stay
+that way. Making them required is the owner's call and this repository only
+offers the two names; the decision was to keep the measured set as it stands.
+The same day the owner decided that **no required review is added**: the
+review this project treats as the gate stays the one the repository arranges
+(two layers, an implementer and a reader that did not write the code), not one
+GitHub enforces.
+
 ## 2026-11-11 — the shell's Node witnesses get a job, and two name defects close
 
 **What changed.** Three things, one change-set.
@@ -58,7 +137,11 @@ The distinction is what `release-dependency-licences (matrix.os)` needed (see
 no witness-ledger entry sees the Node cases. Before this change, deleting
 `shell/test/window-security.test.mjs` left every pytest test green.
 
-**The witness.** `tests/test_shell_ci.py` (14 test functions): every
+**The witness.** `tests/test_shell_ci.py`: **17 test functions**, counted
+2026-11-11 with `grep -c "^def test_" tests/test_shell_ci.py`. The 14 this entry
+carried was the count at `6b3211ae631c7c9548ca160615f88daa6da7d5dd`; the CI
+declaration fixes below add three — a name with no matrix, the
+`include`/`exclude` refusal, and the tree-side half of that scope. Its cases: every
 `shell/test/*.test.mjs` is a file the CI command actually runs; the step carries
 `working-directory: shell`, the runner temp env and `uv sync --frozen` — and must
 **not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
@@ -84,10 +167,11 @@ the same command shape measured 44/44 on Node v24.16.0. Neither is a recorded co
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.
 
-**The owner's step.** Whether `shell-test (windows-latest)` and
-`shell-test (ubuntu-latest)` join branch protection is the owner's decision, and so are the
-two names (2) newly renders. A workflow file cannot make a check required.
-`tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at_all` is what
+**The owner's step, taken 2026-11-11.** `shell-test (windows-latest)` and
+`shell-test (ubuntu-latest)` do **not** join branch protection — the owner
+decided on 2026-11-11 to keep the measured set as it stands, and the same day
+decided that no required review is added. A workflow file cannot make a check
+required. `tests/test_no_reference_leakage.py::test_no_workflow_filters_pull_request_at_all` is what
 keeps `shell.yml`'s `pull_request` trigger unfiltered if it becomes required.
 
 ## 2026-11-03 — the evaluation harness on a schedule

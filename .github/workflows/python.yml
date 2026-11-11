@@ -177,16 +177,25 @@ jobs:
         # check would stay green while it went.
         #
         # **Five, and not six, and the reason is the floor.** One file is
-        # the floor: `tests/test_cli.py` takes 325 seconds on the Windows
-        # runner and 216 on Ubuntu, and no arrangement of the other files
-        # makes the shard it is in any shorter. So the wall clock is that
-        # file plus the setup, and a sixth shard does not shorten it -- it
-        # only adds a job. Measured on 2026-10-25: with six shards the
-        # Ubuntu partition was 216 seconds against 135, a ratio of 1.60, and
-        # the best arrangement those costs allow is 1.603 -- **so six shards
-        # cannot satisfy the balance limit at all, and the partition that
-        # could not be improved was the one that was rejected.** With five,
-        # the same costs give 216 against 169 and the ratio is 1.28.
+        # the floor: `tests/test_cli.py` costs 752.96 seconds on the Windows
+        # runner and 391.79 on Ubuntu (`.github/ci-shards.json`, measured at
+        # 46e2c21918286a723f9d07d5409d0e52e7551a85, the commit this workflow's
+        # cost anchors name), and no arrangement of the other files makes the
+        # shard it is in any shorter. So the wall clock is that file plus the
+        # setup, and a sixth shard does not shorten it -- it only adds a job.
+        # `tests/test_ci_shard_coverage.py::test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures`
+        # re-reads both figures from that table, so a re-measurement that is
+        # not carried here is red there.
+        #
+        # **Why five rather than six was decided, and when.** Measured on
+        # 2026-10-25, on the costs of that tree: with six shards the Ubuntu
+        # partition was 216 seconds against 135, a ratio of 1.60, and the best
+        # arrangement those costs allow is 1.603 -- **so six shards cannot
+        # satisfy the balance limit at all, and the partition that could not be
+        # improved was the one that was rejected.** With five, the same costs
+        # give 216 against 169 and the ratio is 1.28. Those four figures belong
+        # to the 2026-10-25 measurement and are kept as the record of the
+        # decision; they are not the current costs, and the sentence above is.
         shard: [0, 1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7

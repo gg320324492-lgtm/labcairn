@@ -6,6 +6,57 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The drain witness's dose stops resting on a measurement (2026-11-11)
+
+- **The CI failure.** `shell-test (ubuntu-latest)` failed on the first run of
+  the declarations batch with *"the dose request answered on the undrained
+  arm, so the dose did not fill the pipe and the drained arm measured
+  nothing"*. **The same job passed on the previous run of the same tree**, and
+  `shell/` had not changed between them — the property was in the
+  measurement, not in the code the batch touched.
+- **What the two runs measured.** The threshold is a measurement taken with a
+  deadline: a probe that has not reported within `PROBE_TIMEOUT_MS` is read
+  as parked. A loaded runner makes a **slow** write look like a **parked**
+  one, so the threshold came out smaller than the pipe really was — 131,072
+  against 262,144 on the passing run — and the dose, sized from that
+  measurement alone (`threshold + 8 KiB`), no longer filled the pipe. The
+  undrained arm, the one that is supposed to prove a stall, could not prove
+  one.
+- **The fix.** The dose is now the larger of `threshold + margin` **and twice
+  the ladder's largest step**: the ladder's top bounds what this machine's
+  pipes can hold, so a dose above it fills the pipe whatever the threshold
+  said. `PROBE_TIMEOUT_MS` went from 4 s to 10 s, so a slow probe is less
+  likely to be read as parked. The measurement stays — it is the number the
+  record cites — and a new assertion holds the dose above the ladder's
+  largest step. The dose is 2,097,152 bytes, under the drain log's 4 MiB
+  ceiling, so the drained arm's `sink.writtenBytes >= dose` still holds.
+- **Its mutation check.** The failure was reproduced deliberately: with the
+  dose restored to `threshold + margin` and the threshold under-measured to
+  8,192, the witness went red on `undrained arm: the same child and the
+  same dose reproduce the stall` — the assertion the runner failed on. With
+  the same under-measured threshold and the fix in place, it stayed green.
+  `node --test shell/test/*.test.mjs` measured **44 pass / 0 fail**.
+
+### The batch is delivered: PR #156 merges (2026-11-11)
+
+- **The accumulated batch was delivered and merged.** 108 commits went up as
+  `delivery/phase-3-batch-2026-11-11` and merged as
+  `777bb63192af4cb5aef51cd561d5031353d1f230` through
+  [PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156): 18
+  checks passed, and the schedule-only `evaluation` job skipped by design.
+  The delivery branch is deleted on both sides. The merge changed no
+  witness: the ledger across `486d6c0..777bb63` reports `LOST -- none` and
+  `ADDED -- 15`.
+- **The whole suite was measured locally as well.** 5,192 passed, 24
+  skipped, 0 failed in 41m06s on this Windows machine; all 24 skips are
+  environmental by construction — POSIX permission bits, 8.3 short names on
+  a volume that has none, `playwright` not installed, and the real-provider
+  smoke that needs the owner's authorisation to spend money.
+- **The live pointers now say what is true.** The three of them carried "99
+  commits ahead" and "no push, pull request or CI run is authorised"; both
+  statements were true when written and false after the merge, so they name
+  the merge commit instead.
+
 ### The installer is built, a silent gap is found, and the first fix is wrong (2026-11-11)
 
 - **T08's packaging was run, not only configured.** In an isolated worktree,

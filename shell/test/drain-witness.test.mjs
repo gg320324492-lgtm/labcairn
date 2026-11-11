@@ -23,6 +23,21 @@
  * is a witness that measured nothing. That is this file's own first failure,
  * measured and corrected the same day; the ladder is the correction.
  *
+ * **The dose does not rest on the measured threshold alone.** The threshold
+ * is a measurement taken with a deadline, and on 2026-11-11 the CI runner
+ * measured the ladder two different ways on two runs of the same tree:
+ * `131072:fits 262144:stalls` on one (threshold 262,144) and
+ * `65536:fits 131072:stalls` on the other (threshold 131,072). The second
+ * run's undrained arm then *answered* — the dose, sized as `threshold + 8
+ * KiB`, was smaller than the pipe it had to fill, because the threshold
+ * was under-measured while the pipe had not changed. A loaded runner can
+ * make a slow write look like a parked one. So the dose is now the larger
+ * of that measurement plus a margin **and twice the ladder's largest step**:
+ * the ladder's top step bounds what this machine's pipes can hold, so a
+ * dose above it fills the pipe whatever the threshold said. The measurement
+ * stays, because it is the number the record cites; the dose no longer
+ * depends on it alone.
+ *
  * **The writer child is Python** (`fixtures/writer_child.py`) for the reason
  * named in that file: Node buffers pipe writes asynchronously and its loop
  * keeps serving, so a Node writer would shrug off a full pipe. Python's
@@ -71,8 +86,16 @@ const DOSE_MARGIN = 8 * 1024
 /** The ladder the capacity sweep walks, in bytes. */
 const CAPACITY_LADDER = [8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
 
-/** A probe that has not reported by now is parked. */
-const PROBE_TIMEOUT_MS = 4000
+/**
+ * A probe that has not reported by now is parked.
+ *
+ * The deadline is generous on purpose. A probe that is merely slow on a
+ * loaded runner must not be read as a parked one: that would make the
+ * measured threshold smaller than the pipe really is. The dose no longer
+ * rests on that measurement alone (see the dose below), so a generous
+ * deadline costs a slower ladder and buys a truer threshold.
+ */
+const PROBE_TIMEOUT_MS = 10000
 
 /** A request that does not answer within this long counts as a stall. */
 const REQUEST_TIMEOUT_MS = 6000
@@ -347,12 +370,22 @@ async function startWriterChild({ port, dose, drain, label }) {
 }
 
 const measurement = await measureStallThreshold()
-const dose = measurement.threshold + DOSE_MARGIN
+// The dose fills the pipe whatever the threshold measurement said. The
+// ladder's largest step bounds what this machine's pipes can hold, so a
+// dose above twice that bound is above every capacity the ladder could
+// have found — and above the capacity it did find, if the measurement was
+// thrown off by a slow machine.
+const dose = Math.max(measurement.threshold + DOSE_MARGIN, 2 * CAPACITY_LADDER.at(-1))
 
 test(`the dose (${dose}) exceeds the spawn-pipe stall threshold measured here (${measurement.threshold})`, () => {
   // The gate the plan's §3 Arm A states as a requirement: "a dose too small
   // to overflow fails the test rather than passing quietly".
   assert.ok(dose > measurement.threshold)
+  // And it exceeds the ladder's largest step, which is what makes the dose
+  // independent of the measurement: the ladder's top bounds the capacity,
+  // so a dose above it fills the pipe even when the threshold was
+  // under-measured on a loaded machine.
+  assert.ok(dose > CAPACITY_LADDER.at(-1))
   // The ladder is kept in the report: it is the number the record cites.
   process.stdout.write(`measured stall ladder: ${measurement.ladder.join(' ')}\n`)
 })

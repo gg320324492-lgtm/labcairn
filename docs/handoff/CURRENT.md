@@ -1,12 +1,13 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-11 · **Phase 3 implementation is accumulated locally; no
-Phase 3 gate is closed.** At
-`3a62b9d4cfd440ab0f2b0c3c32c34fe2431511d9`, local `main` was measured 99
-commits ahead of `origin/main`, accumulated for a later delivery by the
-owner's choice; a live ahead count is re-measured at delivery; the
-live pointers had stopped at the 2026-11-10 refresh (`7681c35`), and the
-CHANGELOG-only record commits since are reflected by this entry. The G1, G2,
+**Date:** 2026-11-11 · **Phase 3 implementation is delivered; no
+Phase 3 gate is closed.** The accumulated batch was delivered in
+[PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156) and merged
+as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
+`evaluation` skipping by design; a live ahead count is re-measured at
+delivery; the live pointers had stopped at the 2026-11-10 refresh
+(`7681c35`), and the record commits since are reflected by this entry. The
+G1, G2,
 G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
 `LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
 build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
@@ -33,8 +34,8 @@ narrows its personal verification to WPS, while Word 2010 rows stay
 screenshot mode. The owner-picked sample's 42-arm machine loop landed on
 2026-11-10 (42/42, 14 produced, 28 refused, 8 artifacts); its human
 dual-host reopen half stays `NOT RUN`, with the 16-row reopen ledger 16/16
-`PENDING-HUMAN` and its observation SOP ready for the owner, no gate row has
-moved, and no push, pull request or CI run is authorised.
+`PENDING-HUMAN` and its observation SOP ready for the owner, and no gate row
+has moved.
 
 **Date:** 2026-11-09 · **Phase 3's G1 batch has landed
 locally; no gate is closed.** `LC-P3-01`'s real-browser baseline, the write seam's
@@ -434,9 +435,22 @@ The three static checks (`ruff check .`, `ruff format --check .`,
 Ubuntu; `python-quality` jobs now run pytest only. The witness in
 `tests/test_ci_shard_coverage.py` checks the new job's name, its absence of
 a matrix, that all three commands live there, that no shard job repeats
-them, and that no two jobs share a check name. **`lint` is not a required
-check until the owner adds it in GitHub branch protection**; until then it
-reports without blocking. **The wall-clock expectation is unchanged** — the
+them, and that no two jobs share a check name. What this entry said on
+2026-11-02 — that the new name reports without blocking until the owner lists
+it — has been overtaken: **`lint` is a required check**, one of the **fifteen
+required contexts** read from GitHub on 2026-11-11 with `gh api
+repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+'.required_status_checks.contexts | length'`, which printed **15**, and the
+same call's list names `lint` among them. **When the owner added it is not
+recorded anywhere in this repository** — only that the 2026-11-02 sentence was
+true when written and is not true now — and that gap is the finding: a setting
+outside the repository changed, a current pointer kept asserting the old state,
+and nothing read GitHub. `.github/CI.md` now carries the list with its command
+and the revision it was read at
+(`6b3211ae631c7c9548ca160615f88daa6da7d5dd`), and
+`tests/test_ci_shard_coverage.py` requires every required-check claim in this
+file to name that revision in its own paragraph. **The wall-clock expectation
+is unchanged** — the
 wait is the slowest shard, and lint finishes before it; the split removes
 ten duplicate runs, not minutes. None of it is measured on a runner yet.
 `tests/test_cli.py` is Ubuntu shard 0's only file (325.8s against four

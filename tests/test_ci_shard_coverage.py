@@ -37,9 +37,12 @@ platform is lopsided on the other, so each platform gets its own.
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any, Final
 
@@ -483,6 +486,139 @@ def test_the_cost_figures_the_documents_print_are_the_costs_the_table_measures(
     )
 
 
+#: The workflow whose shard matrix carries the "five, and not six" narration.
+COST_NARRATION_WORKFLOW: Final[Path] = Path(".github") / "workflows" / "python.yml"
+
+#: A date in the form this project dates a measurement with.
+DATED_MEASUREMENT: Final[re.Pattern[str]] = re.compile(r"20\d\d-\d\d-\d\d")
+
+
+def _shard_matrix_paragraphs(text: str) -> list[str]:
+    """The comment block above a workflow's `shard:` matrix, split into paragraphs.
+
+    The split matters because the block holds **two kinds of figure**: the costs
+    the table measures now, and the figures the 2026-10-25 decision was made
+    on. Both belong there — one states the current cost, the other records why
+    six was rejected — and what makes them readable is that the second names its
+    date. Paragraph-level reading is what distinguishes them; a search over the
+    whole block would call the paragraph about 2026-10-25 a claim about today.
+    """
+    match = re.search(r"((?:^[ \t]*#.*\n)+)[ \t]*shard: \[", text, re.M)
+    assert match is not None, (
+        f"{COST_NARRATION_WORKFLOW} has no comment block above its `shard:` matrix, "
+        "so there is no cost narration to compare with the table"
+    )
+
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for raw in match.group(1).splitlines():
+        line = re.sub(r"^[ \t]*#[ \t]?", "", raw).rstrip()
+        if not line.strip():
+            if current:
+                paragraphs.append("\n".join(current))
+                current = []
+            continue
+        current.append(line)
+    if current:
+        paragraphs.append("\n".join(current))
+    assert paragraphs, "the comment block above the matrix holds no prose"
+    return paragraphs
+
+
+def test_the_cost_narration_above_the_shard_matrix_prints_the_costs_the_table_measures(
+    repo_root: Path,
+) -> None:
+    """The floor's cost, as the workflow states it, is the cost the table records.
+
+    **Why this is watched separately from the totals.** The existing witness
+    above checks the five-class totals three documents print. This one checks the
+    sentence a maintainer reads when deciding how many shards to run: `python.yml`
+    calls `tests/test_cli.py` *"the floor"* and quotes its cost, and the quote sat
+    next to a comment anchored at `46e2c219…` while the figures themselves came
+    from the 2026-10-25 measurement — 325 Windows / 216 Ubuntu, and 216 against
+    169 for five shards. That is a record that had drifted rather than a wrong
+    decision: the numbers were correct for the tree they named and wrong for the
+    anchor they sat beside.
+
+    **How the two kinds of figure are told apart.** A paragraph that names the
+    floor's cost **without a date** is a claim about the current costs, and must
+    match the table to the precision the table records. A paragraph that names a
+    date is a dated record and is left as written — the project's own rule, that
+    a stale sentence in a dated snapshot is a historical fact and a stale sentence
+    in a current pointer is a defect.
+
+    **What it cannot watch.** Whether the table's costs are today's costs on a
+    runner. That is what `test_the_costs_belong_to_the_tree_they_were_measured_on`
+    presses for, and it is settled by a runner run the owner starts.
+    """
+    document = _shard_document(repo_root)
+    measured_at = document.get("measured_at")
+    assert measured_at, "the shard file names no revision its costs were measured at"
+    costs = document.get("costs", {})
+
+    paragraphs = _shard_matrix_paragraphs(
+        (repo_root / COST_NARRATION_WORKFLOW).read_text(encoding="utf-8")
+    )
+    current = [
+        paragraph
+        for paragraph in paragraphs
+        if "test_cli.py" in paragraph and not DATED_MEASUREMENT.search(paragraph)
+    ]
+    assert current, (
+        "the shard matrix's comment names the floor file only in dated paragraphs, "
+        "so it makes no current claim about its cost — which is the shape a "
+        "narration takes after its figures stop being current"
+    )
+    assert len(current) == 1, (
+        f"{len(current)} undated paragraphs state the floor's cost, so which one "
+        "the workflow means is a guess"
+    )
+    paragraph = current[0]
+
+    for platform in PLATFORMS:
+        value = costs.get(platform, {}).get(Path("tests/test_cli.py").name)
+        assert value is not None, f"the table records no {platform} cost for tests/test_cli.py"
+        printed = f"{value:.2f}"
+        assert printed in paragraph, (
+            f"the shard matrix's comment states the floor's {platform} cost without "
+            f"the figure the table records at {measured_at} ({printed}); the "
+            "narration and the anchor beside it describe different trees"
+        )
+    assert measured_at in paragraph, (
+        f"the paragraph that states the floor's current cost names no revision; the "
+        f"costs it quotes were measured at {measured_at}, and a figure without its "
+        "anchor is a figure that cannot be noticed going stale"
+    )
+
+    # **The dated half of the block dates itself, or its figures are orphaned.**
+    # The decision figures are what identify the paragraph, not a date somewhere
+    # in the block: a witness that asked only for "a dated paragraph" is satisfied
+    # by a date added anywhere, including to the paragraph that states today's
+    # costs — and then the 216/135/169 figures have no tree they belong to while
+    # the witness stays green.
+    decision = [paragraph for paragraph in paragraphs if _QUOTES_DECISION_FIGURES.search(paragraph)]
+    assert decision, (
+        "the five-versus-six figures (216 against 135, 1.603, 216 against 169) are no "
+        "longer in the shard matrix's comment, so the reason the matrix has five legs "
+        "is not recorded where the matrix is written"
+    )
+    assert len(decision) == 1, (
+        f"{len(decision)} paragraphs quote the five-versus-six figures, so which one is "
+        "the record of the decision is a guess"
+    )
+    assert DATED_MEASUREMENT.search(decision[0]), (
+        "the paragraph that quotes the five-versus-six figures names no date, so a "
+        "reader cannot tell whether they are the current costs or the measurement they "
+        f"came from; the table records {measured_at} as the current one"
+    )
+
+
+#: The figures the 2026-10-25 five-versus-six decision was made on. They identify
+#: the paragraph that records it — see the witness above for why the figures, and
+#: not a date, are the identifying feature.
+_QUOTES_DECISION_FIGURES: Final[re.Pattern[str]] = re.compile(r"1\.603|216 against 169")
+
+
 def _files_that_need_a_remeasurement(
     changed: list[str],
     shards: list[list[str]],
@@ -848,8 +984,948 @@ def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
 
 
 # ---------------------------------------------------------------------------
-# The re-measurement tool, watched
+# Triggers, guards and version pins across every workflow
 # ---------------------------------------------------------------------------
+
+#: An event named by a job-level `if:` guard: `github.event_name == 'schedule'`
+#: or `github.event_name != 'schedule'`.
+EVENT_NAME_GUARD: Final[re.Pattern[str]] = re.compile(
+    r"github\.event_name\s*(?:==|!=)\s*'([a-z_]+)'"
+)
+
+
+def _declared_triggers(document: dict[Any, Any]) -> set[str]:
+    """The events a workflow's `on:` declares.
+
+    PyYAML reads YAML 1.1's bare `on` as the boolean `True`, the same handling
+    `tests/test_shell_ci.py::_triggers` and the rescan script use, and the key
+    type has to say so: a `dict[str, Any]` annotation makes `document.get(True)`
+    a call mypy rightly refuses. `on:` may also be the scalar form (`on: push`),
+    which declares exactly one event.
+    """
+    triggers = document.get("on", document.get(True))
+    if isinstance(triggers, dict):
+        return {str(key) for key in triggers}
+    if isinstance(triggers, (str, list)):
+        values = [triggers] if isinstance(triggers, str) else triggers
+        return {str(value) for value in values}
+    return set()
+
+
+def _guards_naming_an_undeclared_event(document: dict[str, Any]) -> list[str]:
+    """Every job `if:` in a workflow that names an event the file never triggers.
+
+    **Why a guard like this is a defect.** `github.event_name` inside a workflow
+    can only be one of the events that workflow's `on:` declares. A guard naming
+    any other event is therefore true on every run of that job — it cannot be
+    false, so it cannot be load-bearing, and the comment written for it
+    describes a run the file cannot have. That is the shape CLAUDE.md calls
+    *"a defence without a witness is dead code"*, with the witness replaced by
+    an event that never arrives. `shell.yml` carried exactly this until
+    2026-11-11: `if: github.event_name != 'schedule'` in a file that declares
+    only `push` and `pull_request`.
+
+    **What this cannot watch.** A guard whose event *is* declared. Whether the
+    guard is worth having — whether a scheduled run should spend one job or
+    thirteen — is a design decision the workflow's own comment records, and
+    `test_the_evaluation_job_runs_the_offline_classes_on_a_schedule` watches
+    `python.yml`'s three guards individually.
+    """
+    declared = _declared_triggers(document)
+    offenders: list[str] = []
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return offenders
+    for job_key, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        for event in EVENT_NAME_GUARD.findall(str(job.get("if", ""))):
+            if event not in declared:
+                offenders.append(
+                    f"job {job_key}: `if:` names {event!r}, which this workflow's "
+                    f"`on:` ({sorted(declared)}) never delivers, so the condition "
+                    "is true on every run"
+                )
+    return offenders
+
+
+def test_no_workflow_guards_against_an_event_its_triggers_never_deliver(
+    repo_root: Path,
+) -> None:
+    """A job `if:` may only name an event the workflow's `on:` declares.
+
+    The read spans `.github/workflows/`: a guard copied from one workflow into
+    another is exactly how `shell.yml` got a `schedule` guard without a
+    `schedule` trigger (`git show 19fee54` introduced the guard and its
+    misleading comment together on 2026-11-11, lifted from `python.yml`, where
+    the trigger exists and the guard does work). No witness in the tree put a
+    job's `if` beside the file's trigger set before this one.
+    """
+    offenders: list[str] = []
+    for path, document in _workflow_job_names(repo_root):
+        offenders.extend(
+            f"{path.name}: {offence}" for offence in _guards_naming_an_undeclared_event(document)
+        )
+    assert not offenders, (
+        "these job guards name an event their workflow never triggers, so they "
+        "are dead code and their comments describe a run that cannot happen:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_the_guard_witness_fails_on_a_dead_schedule_guard() -> None:
+    """The witness must fail for the property, against the shape it exists for.
+
+    **The demonstration.** `shell.yml`'s deleted guard, rebuilt: `push` to
+    `main` plus an unfiltered `pull_request`, and a job that says
+    `github.event_name != 'schedule'`. The condition is true on every run of
+    that job, so it is not a guard. A witness that only checked the triggers
+    (`test_the_shell_workflow_exists_and_runs_on_a_pull_request` reads
+    `shell.yml`'s triggers and never its `if`) would call that tree clean, and
+    the dead guard would come back with its misleading comment.
+
+    **The control beside it.** The same guard in a workflow that *does* declare
+    `schedule` — `python.yml`'s real shape — must not be reported. Without the
+    control, the witness would flag every guard, and a witness that flags
+    everything is indistinguishable from one that flags nothing.
+    """
+    dead_guard = {
+        "on": {"push": {"branches": ["main"]}, "pull_request": None},
+        "jobs": {
+            "shell-test": {"name": "shell-test", "if": "${{ github.event_name != 'schedule' }}"}
+        },
+    }
+    offenders = _guards_naming_an_undeclared_event(dead_guard)
+    assert len(offenders) == 1, (
+        f"a guard against an undeclared event reported {offenders}; the witness "
+        "must catch exactly this shape, since it is the shape `shell.yml` had"
+    )
+    assert "schedule" in offenders[0], offenders[0]
+
+    live_guard = {
+        "on": {
+            "push": {"branches": ["main"]},
+            "pull_request": None,
+            "schedule": [{"cron": "17 3 * * 1"}],
+        },
+        "jobs": {
+            "lint": {"name": "lint", "if": "${{ github.event_name != 'schedule' }}"},
+            "evaluation": {"name": "evaluation", "if": "${{ github.event_name == 'schedule' }}"},
+        },
+    }
+    assert _guards_naming_an_undeclared_event(live_guard) == [], (
+        "a guard naming a declared event was reported: "
+        f"{_guards_naming_an_undeclared_event(live_guard)}. The control is what "
+        "says the witness reads the trigger set rather than rejecting every guard"
+    )
+
+
+#: `(action, step key)` → the pin name a witness compares across files. The
+#: pair is what makes the key meaningful: `version` means the uv release under
+#: setup-uv and the pnpm release under pnpm/action-setup, and a witness that
+#: compared `version` alone would call those two a disagreement.
+_PINNED_STEP_KEYS: Final[dict[tuple[str, str], str]] = {
+    ("astral-sh/setup-uv", "version"): "uv (setup-uv `version`)",
+    ("pnpm/action-setup", "version"): "pnpm (action-setup `version`)",
+    ("actions/setup-node", "node-version"): "Node (`node-version`)",
+}
+
+#: `env:` keys that name a tool version or its checksum, whatever step carries
+#: them. `GITLEAKS_VERSION: 8.30.1` and `GITLEAKS_SHA256_LINUX_X64` sit under a
+#: `run:` step with no `uses:`, so they cannot be keyed by action.
+_PINNED_ENV_KEYS: Final[frozenset[str]] = frozenset(
+    {"GITLEAKS_VERSION", "GITLEAKS_SHA256_LINUX_X64"}
+)
+
+
+def _step_pins_and_action_tags(
+    documents: list[tuple[Path, dict[str, Any]]],
+) -> dict[str, list[tuple[str, str]]]:
+    """Every tool pin the workflows declare, as pin name → where it is written.
+
+    Two shapes are collected. `uses: owner/repo@vX` — the action's own version,
+    repeated per file. On 2026-11-11 the directory held `actions/checkout@v7`
+    eleven times, `astral-sh/setup-uv@v10.3.0` nine, `actions/setup-python@v7`
+    nine, `actions/upload-artifact@v7` seven, `actions/setup-node@v7` four and
+    `pnpm/action-setup@v6` three. And a step's `with:` / `env:` value naming a
+    pinned tool version or checksum — `version: "0.11.21"` under setup-uv,
+    `version: 9.15.9` under pnpm/action-setup, `node-version: 24.16.0`, and the
+    gitleaks pair in `security.yml` and `release.yml`.
+
+    **Occurrences, not a set of values.** Each entry is `(file, value)`, because
+    a witness about duplication has to be able to say how many times a pin was
+    written. Comparing a set of values would report one value for a pin written
+    six times and one value for a pin written once, and the two are different
+    situations: the first is a pin that can drift, the second cannot.
+
+    **A name is only collected where it appears.** `pnpm version` does not
+    exist in `python.yml`, and that is not a missing pin — the job installs no
+    pnpm. The property is that a pin which *is* written is written the same way
+    everywhere, not that every file declares every tool.
+    """
+    found: dict[str, list[tuple[str, str]]] = {}
+
+    def record(name: str, file_name: str, value: Any) -> None:
+        found.setdefault(name, []).append((file_name, str(value)))
+
+    for path, document in documents:
+        jobs = document.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        for job in jobs.values():
+            if not isinstance(job, dict):
+                continue
+            for step in job.get("steps") or []:
+                if not isinstance(step, dict):
+                    continue
+                uses = str(step.get("uses", ""))
+                action, _, tag = uses.partition("@")
+                if uses and tag:
+                    record(f"action {action}", path.name, tag)
+                for section in ("with", "env"):
+                    values = step.get(section)
+                    if not isinstance(values, dict):
+                        continue
+                    for key, value in values.items():
+                        if value is None:
+                            continue
+                        named = _PINNED_STEP_KEYS.get((action, key))
+                        if named is None and key in _PINNED_ENV_KEYS:
+                            named = f"gitleaks ({key})"
+                        if named is not None:
+                            record(named, path.name, value)
+    return found
+
+
+def _pin_values(pins: dict[str, list[tuple[str, str]]], name: str) -> list[str]:
+    """The distinct values one pin name is written with."""
+    return sorted({value for _file, value in pins.get(name, [])})
+
+
+def _pin_writes(pins: dict[str, list[tuple[str, str]]], name: str) -> int:
+    """How many times one pin name is written across the directory."""
+    return len(pins.get(name, []))
+
+
+def test_a_tool_pinned_in_two_workflows_is_pinned_to_the_same_thing(
+    repo_root: Path,
+) -> None:
+    """A repeated pin is one pin, or the second copy is a second version.
+
+    **Why this needs watching.** `GITLEAKS_VERSION: 8.30.1` and its
+    `GITLEAKS_SHA256_LINUX_X64` are written twice (`security.yml:71-73` and
+    `release.yml:313-316`), `astral-sh/setup-uv`'s `version: "0.11.21"` in six
+    files, `pnpm version: 9.15.9` and `node-version: 24.16.0` in three each, and
+    every action tag once per use. **Nothing read them**: on 2026-11-11 a grep
+    for `GITLEAKS_VERSION` and `GITLEAKS_SHA256` across `tests/` and
+    `.github/*.py` returned nothing, so bumping one file's gitleaks release left
+    the other pinned to the older one and green. `tests/test_no_reference_leakage.py:1296`
+    and `:1440` go further and claim a behaviour of gitleaks **8.30.1** —
+    *"measured against the pinned binary"* — while no witness connects that
+    claim to the version either workflow actually installs. The same reasoning
+    is why the checksum is compared: a version and its digest that were bumped
+    apart would download one release and verify another.
+
+    **What is compared, and what is not.** Only a pin that appears more than
+    once has a value to agree on, and this test requires the duplicated pins it
+    names to actually be duplicated — a witness that watches nothing because
+    the names vanished reads as green. It does not restructure the workflows:
+    the duplication stays, and the duplication is what stops drifting.
+    """
+    pins = _step_pins_and_action_tags(_workflow_job_names(repo_root))
+
+    disagreements = {
+        name: sorted({value for _file, value in writes})
+        for name, writes in pins.items()
+        if len({value for _file, value in writes}) > 1
+    }
+    assert not disagreements, (
+        "these pins are written differently in different workflows: "
+        + "; ".join(f"{name} as {values}" for name, values in sorted(disagreements.items()))
+        + ". Two workflows then install two versions of one tool, and a claim "
+        "measured against one of them describes neither."
+    )
+
+    for name in sorted(DUPLICATED_PINS):
+        assert name in pins, (
+            f"{name} is no longer a pin any workflow writes, so this witness is "
+            "watching nothing. Either the pin moved to one place — then delete "
+            "it from here — or it was dropped, and the tool is unpinned."
+        )
+        assert _pin_writes(pins, name) > 1, (
+            f"{name} is written {_pin_writes(pins, name)} time; a pin written once "
+            "has nothing to agree with, and this witness exists to keep the "
+            "duplicated ones from drifting"
+        )
+
+
+def test_the_duplicated_gitleaks_pin_is_one_version_and_one_checksum(
+    repo_root: Path,
+) -> None:
+    """`security.yml` and `release.yml` install the same gitleaks.
+
+    The scan `release.yml` runs is described in its own comment as *"the same
+    scan `security.yml` runs"*, and the two install blocks are near-duplicates:
+    the same version, the same checksum, a different following step. The
+    general witness above catches a bump in one file; this one names the pair,
+    because the claim that pairs them is the one a reader is meant to trust.
+
+    **The claim it also ties.** `tests/test_no_reference_leakage.py` measures a
+    gitleaks behaviour against *"the pinned binary"* and names the version. That
+    version is now read from the workflows rather than restated, so a bump in
+    the workflows makes the mismatch visible here instead of leaving the claim
+    pointing at a release nothing installs.
+    """
+    pins = _step_pins_and_action_tags(_workflow_job_names(repo_root))
+    version_writes = pins.get("gitleaks (GITLEAKS_VERSION)", [])
+    checksum_writes = pins.get("gitleaks (GITLEAKS_SHA256_LINUX_X64)", [])
+    assert len(version_writes) >= 2 and len(checksum_writes) >= 2, (
+        f"gitleaks is pinned {len(version_writes)} time(s) and its checksum "
+        f"{len(checksum_writes)} time(s); the two workflows that run the scan "
+        "are expected to both write both"
+    )
+    version_values = sorted({value for _file, value in version_writes})
+    checksum_values = sorted({value for _file, value in checksum_writes})
+    assert len(version_values) == 1 and len(checksum_values) == 1, (
+        f"the workflows that run the secret scan install gitleaks {version_values} "
+        f"and verify against {checksum_values}"
+    )
+    pinned_version = version_values[0]
+    pinned_checksum = checksum_values[0]
+
+    # The claim is read out of the file that makes it, rather than restated
+    # here. A copy of "8.30.1" in this witness would compare the witness with
+    # itself and miss the drift between the claim and the pinned binary.
+    claims = {
+        match.group(1)
+        for line in (repo_root / "tests" / "test_no_reference_leakage.py")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if (match := re.search(r"[Gg]itleaks (\d+\.\d+\.\d+)", line))
+    }
+    assert claims, "no witness names a gitleaks version any more"
+    assert claims == {pinned_version}, (
+        f"tests/test_no_reference_leakage.py measures gitleaks {sorted(claims)} while "
+        f"the workflows install {pinned_version}. A claim 'measured against the "
+        "pinned binary' must name the pinned binary."
+    )
+    assert re.fullmatch(r"[0-9a-f]{64}", pinned_checksum), (
+        f"the pinned checksum is {pinned_checksum!r}, not a 64-hex SHA-256"
+    )
+
+
+#: The pins the tree writes more than once, measured on 2026-11-11 against the
+#: eight files in `.github/workflows/`: uv's `version` in six files, pnpm's and
+#: Node's in three each, gitleaks' version and checksum in two each, and six
+#: action tags repeated per use. They are named so that the witness cannot go
+#: vacuous: if a pin stops being written, the witness says so instead of passing
+#: on an empty comparison.
+DUPLICATED_PINS: Final[frozenset[str]] = frozenset(
+    {
+        "uv (setup-uv `version`)",
+        "pnpm (action-setup `version`)",
+        "Node (`node-version`)",
+        "gitleaks (GITLEAKS_VERSION)",
+        "gitleaks (GITLEAKS_SHA256_LINUX_X64)",
+        "action actions/checkout",
+        "action actions/setup-node",
+        "action actions/setup-python",
+        "action actions/upload-artifact",
+        "action astral-sh/setup-uv",
+        "action pnpm/action-setup",
+    }
+)
+
+
+def test_the_workflow_tool_pins_satisfy_the_pins_the_project_declares(
+    repo_root: Path,
+) -> None:
+    """CI's literal pins sit inside the ranges the project declares.
+
+    **The third copy of a pin.** uv's floor lives in three places:
+    `pyproject.toml`'s `[tool.uv] required-version = ">=0.11.21,<0.12"`, each
+    setup-uv step's `version: "0.11.21"`, and `lockfiles.yml`'s comment. Node
+    and pnpm live in `web/package.json` (`engines`, `packageManager`) and —
+    deliberately, and said so at `web.yml:17-19` and `lockfiles.yml:27-28` —
+    also as literals in the workflows. A literal that drifts below the declared
+    range makes CI install a tool the project itself refuses: `uv` would refuse
+    to run at all, and the shard jobs would fail for a reason no test names.
+
+    **The comparison is the repository's own.** `scripts/outsider_path.py`'s
+    `satisfies` is the implementation the web-environment check already uses,
+    and `test_outsider_path.py::test_the_version_comparison_reads_the_ranges_the_repository_writes`
+    watches it. Reading the ranges through it is the alternative to writing a
+    second range parser here that could disagree with the first. The one
+    adaptation is the separator: `satisfies` splits comparators on spaces and
+    PEP 440 writes them with commas, so the comparators are split on both —
+    `test_the_range_split_reads_the_specifier_form_the_project_writes` below
+    watches that adaptation rather than assuming it.
+
+    **What it cannot watch.** Whether `uv` on the runner is the version the
+    step asks for. That is a runner fact; this is the declaration-side check
+    that the two ranges the repository writes do not contradict each other.
+    """
+    pins = _step_pins_and_action_tags(_workflow_job_names(repo_root))
+    satisfies = _load_version_comparison()
+
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    web = json.loads((repo_root / "web" / "package.json").read_text(encoding="utf-8"))
+
+    checked = (
+        ("uv (setup-uv `version`)", pyproject["tool"]["uv"]["required-version"]),
+        ("pnpm (action-setup `version`)", web["engines"]["pnpm"]),
+        ("pnpm (action-setup `version`)", f"={web['packageManager'].split('@')[1]}"),
+        ("Node (`node-version`)", web["engines"]["node"]),
+    )
+    for name, requirement in checked:
+        values = _pin_values(pins, name)
+        assert values, f"{name} is written by no workflow, so this check reads nothing"
+        for value in values:
+            for comparator in _comparators(requirement):
+                verdict = satisfies(value, comparator)
+                assert verdict is True, (
+                    f"{name} is pinned to {value}, which does not satisfy "
+                    f"{comparator!r} from the declared range {requirement!r} "
+                    f"(the comparison said {verdict!r}; `None` means it could not "
+                    "read the comparator)"
+                )
+
+
+def _comparators(requirement: str) -> list[str]:
+    """One declared range, as the comparators `satisfies` reads.
+
+    `satisfies` splits a range on spaces; `pyproject.toml` writes uv's range
+    with commas (`">=0.11.21,<0.12"`). Splitting on both separators is what
+    makes one implementation read both forms. A range that splits into nothing
+    is reported rather than silently treated as satisfied.
+    """
+    comparators = [part for part in re.split(r"[,\s]+", requirement.strip()) if part]
+    assert comparators, f"the declared range {requirement!r} names no comparator"
+    return comparators
+
+
+def test_the_range_split_reads_the_specifier_form_the_project_writes() -> None:
+    """The comma/space adaptation is watched, with its control.
+
+    **Why this is a witness and not a helper detail.** The adaptation is the
+    only place this file interprets a range. If `_comparators` were wrong — say
+    it split on commas only — uv's range would read as two comparators and the
+    Node range `">=24.16.0 <25"` as one string the helper reports `None` for,
+    and the check would fail for a reason that has nothing to do with the pin.
+    **The control:** a range the helper cannot read at all must stay unreadable
+    rather than becoming satisfied, the way `test_outsider_path.py` requires of
+    `satisfies` itself.
+    """
+    assert _comparators(">=0.11.21,<0.12") == [">=0.11.21", "<0.12"]
+    assert _comparators(">=24.16.0 <25") == [">=24.16.0", "<25"]
+    satisfies = _load_version_comparison()
+    assert satisfies("0.11.21", ">=0.11.21") is True
+    assert satisfies("0.11.20", ">=0.11.21") is False
+    assert satisfies("0.12.0", "<0.12") is False
+    # The control: an unparseable range is `None`, not a pass.
+    assert satisfies("24.16.0", "^24.16.0") is None
+    with pytest.raises(AssertionError):
+        # An empty declared range is refused, not read as "no comparators to
+        # fail", which would satisfy anything.
+        _comparators("")
+
+
+def _load_version_comparison() -> Any:
+    """`scripts/outsider_path.py`'s `satisfies`, loaded the way the tool runs it."""
+    script = Path(__file__).resolve().parent.parent / "scripts" / "outsider_path.py"
+    spec = importlib.util.spec_from_file_location("outsider_path_for_pin_witness", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    satisfies: Any = module.satisfies
+    return satisfies
+
+
+def test_a_pin_witness_that_reads_nothing_is_not_a_green_witness() -> None:
+    """The pin reader is driven with a tree whose pins disagree.
+
+    **The failure this closes.** A reader that collected nothing would satisfy
+    `test_a_tool_pinned_in_two_workflows_is_pinned_to_the_same_thing` by
+    vacuity — no disagreement, no values, green — which is the shape this
+    project calls a witness that has been turned off. So the same reader is
+    driven with a synthetic tree, and the answer it gives there must differ from
+    the one it gives for the real tree.
+
+    **What the synthetic tree says.** Two workflows pinning uv differently, and
+    two writing gitleaks' version under an `env:` block (where no `uses:` keys
+    anything). Both must be reported, by name, with both values; the action tag
+    must be collected too, since a tag that drifted per file is the same defect
+    in a different shape.
+    """
+    synthetic: list[tuple[Path, dict[str, Any]]] = [
+        (
+            Path("security.yml"),
+            {
+                "on": {"pull_request": None},
+                "jobs": {
+                    "secret-scan": {
+                        "steps": [
+                            {"uses": "astral-sh/setup-uv@v10.3.0", "with": {"version": "0.11.21"}},
+                            {
+                                "name": "install gitleaks",
+                                "env": {
+                                    "GITLEAKS_VERSION": "8.30.1",
+                                    "GITLEAKS_SHA256_LINUX_X64": "a" * 64,
+                                },
+                                "run": "curl …",
+                            },
+                        ]
+                    }
+                },
+            },
+        ),
+        (
+            Path("release.yml"),
+            {
+                "on": {"pull_request": None},
+                "jobs": {
+                    "release-contents": {
+                        "steps": [
+                            {"uses": "astral-sh/setup-uv@v10.4.0", "with": {"version": "0.12.0"}},
+                            {
+                                "name": "install gitleaks",
+                                "env": {
+                                    "GITLEAKS_VERSION": "8.30.1",
+                                    "GITLEAKS_SHA256_LINUX_X64": "b" * 64,
+                                },
+                                "run": "curl …",
+                            },
+                        ]
+                    }
+                },
+            },
+        ),
+    ]
+    pins = _step_pins_and_action_tags(synthetic)
+
+    assert _pin_values(pins, "uv (setup-uv `version`)") == ["0.11.21", "0.12.0"], (
+        "two workflows pinning uv differently were read as "
+        f"{_pin_values(pins, 'uv (setup-uv `version`)')}; the disagreement is the "
+        "defect the witness exists to report"
+    )
+    assert _pin_values(pins, "action astral-sh/setup-uv") == ["v10.3.0", "v10.4.0"], (
+        f"the action tags were read as {_pin_values(pins, 'action astral-sh/setup-uv')}"
+    )
+    assert len(_pin_values(pins, "gitleaks (GITLEAKS_SHA256_LINUX_X64)")) == 2, (
+        "two checksums for one version must be two values — a version and a "
+        "digest bumped apart would download one release and verify another"
+    )
+    assert _pin_values(pins, "gitleaks (GITLEAKS_VERSION)") == ["8.30.1"], (
+        "the version both files agree on was not read as one value"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The records about branch protection, watched against the tree
+# ---------------------------------------------------------------------------
+
+#: The record that keeps the dated reading of branch protection.
+REQUIRED_CHECK_RECORD: Final[Path] = Path(".github") / "CI.md"
+
+#: The markers around the list of required contexts. A record a witness reads
+#: has to have an edge: "the bullet lines of a section" would sweep in the
+#: prose around it, and a witness that reads prose as data is a witness that
+#: reads whatever was written last.
+REQUIRED_LIST_BEGIN: Final[str] = "<!-- required-status-checks:begin"
+REQUIRED_LIST_END: Final[str] = "<!-- required-status-checks:end -->"
+
+#: A full git revision, as every anchor in this repository must be written.
+FULL_SHA: Final[re.Pattern[str]] = re.compile(r"\b[0-9a-f]{40}\b")
+
+
+def _required_contexts(repo_root: Path) -> tuple[list[str], str]:
+    """The required contexts `.github/CI.md` lists, and the revision it names.
+
+    Read from the marked block rather than from prose, for the reason given on
+    the markers. The anchor is taken from the begin marker itself, so a list
+    and the revision it was read at cannot be edited apart.
+    """
+    text = (repo_root / REQUIRED_CHECK_RECORD).read_text(encoding="utf-8")
+    begin = text.find(REQUIRED_LIST_BEGIN)
+    end = text.find(REQUIRED_LIST_END)
+    assert begin != -1 and end > begin, (
+        f"{REQUIRED_CHECK_RECORD} carries no {REQUIRED_LIST_BEGIN} … "
+        f"{REQUIRED_LIST_END} block, so the required-check set it describes is "
+        "prose rather than a reading"
+    )
+    anchor_match = FULL_SHA.search(text[begin : begin + 300])
+    assert anchor_match is not None, (
+        f"the required-check block's begin marker must name the full revision it "
+        f"was measured at; found {text[begin : begin + 120]!r}"
+    )
+    contexts = [
+        match.group(1)
+        for line in text[begin:end].splitlines()
+        if (match := re.match(r"\s*-\s*`([^`]+)`\s*$", line))
+    ]
+    assert contexts, "the required-check block lists no contexts"
+    return contexts, anchor_match.group(0)
+
+
+def test_every_required_check_the_record_lists_is_a_name_a_job_reports(
+    repo_root: Path,
+) -> None:
+    """Branch protection's list and the workflows' names are the same set of names.
+
+    **The failure this closes.** A required check is identified by its name, and
+    GitHub waits for a name whether or not any job reports it. A record that
+    carries an old name — a renamed job, a dropped matrix axis, a renamed
+    workflow — is a merge that can never happen, and the tree would be green
+    while it waited. The record is also the only place the repository keeps the
+    required set at all, so before this witness nothing compared it to anything.
+
+    **The direction it can check, and the one it cannot.** What can be checked
+    from inside the repository is that **every name the record lists is a name a
+    job in `.github/workflows/` reports**, rendered per matrix leg. The other
+    direction — a job whose name is *not* required — is the owner's decision and
+    is deliberately not asserted: `evaluation`, `real-model smoke`, the three
+    `release-…` jobs and both `shell-test (…)` legs are reported without being
+    required, and `.github/CI.md` records that as the owner's call.
+
+    **The anchor is checked too.** A dated reading that names a revision no
+    longer in the checkout is not dated, so the revision the block carries must
+    resolve to a commit here.
+    """
+    contexts, anchor = _required_contexts(repo_root)
+    reported = {
+        name
+        for _path, document in _workflow_job_names(repo_root)
+        for name in rendered_job_names(document, _path.name)
+    }
+    missing = sorted(set(contexts) - reported)
+    assert not missing, (
+        f"branch protection requires {missing}, and no job in {WORKFLOWS_DIR} "
+        "reports those names. A required check that no job reports is a check "
+        "GitHub waits for forever. Either the record is stale — re-read it with "
+        "`gh api repos/gg320324492-lgtm/labcairn/branches/main/protection` — or "
+        "the rename was the mistake."
+    )
+
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "-t", anchor],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0 and proc.stdout.strip() == "commit", (
+        f"the required-check record is anchored at {anchor}, which is not a "
+        "commit in this checkout — a dated reading has to be a reading of a tree "
+        "this repository can still show"
+    )
+
+
+def test_the_current_pointers_agree_with_the_measured_required_check_set(
+    repo_root: Path,
+) -> None:
+    """`CLAUDE.md` and the handoff do not contradict the dated reading.
+
+    **Why this is watched.** Three current-pointer files stated the required-check
+    set, and all three had drifted from it. `CLAUDE.md` said "the sixteen required
+    checks" and that `lint` "is not a required check until the owner adds it"; the
+    handoff repeated the second sentence; `docs/REPOSITORY-MAP.md` said the
+    workflow directory holds seven workflows. The measurement on 2026-11-11 gave
+    **fifteen** contexts, **including `lint`**, and **eight** workflow files. A
+    current pointer that is wrong is worse than no pointer: a reader follows it.
+
+    **How it is checked, rather than restated.** The anchor requirement is
+    **paragraph-scoped**, which is the whole point of the shape. A file-wide
+    `anchor in text` is satisfied by an anchor sitting anywhere in the document,
+    and a mutation that deleted the revision from the sentence stating the count
+    left another mention in place and stayed green — the first mutation run caught
+    exactly that. So every paragraph that makes a required-set claim must carry
+    the revision the record was measured at, in that paragraph's own text.
+
+    **What counts as a claim, and why the wording of the records matters.** The
+    detector reads a *count next to the phrase* (`fifteen required checks`), the
+    phrase `required contexts`, and `is a required check`. Those three are chosen
+    so that a paragraph about shard cost — "every other required check together
+    came to under two minutes" — is not a required-set claim and is not asked for
+    an anchor. The records were written to use those forms rather than a loose
+    paraphrase, because a detector that reads a document's claims only works if the
+    claims have a shape it can see; that is also why the count in `CLAUDE.md` moved
+    into the same paragraph as its revision.
+
+    **What it cannot watch.** Whether the owner changes the required set tomorrow.
+    That is a GitHub setting; what is watched is that the tree's own sentences
+    are not left behind. And a **dated** plan record — `LC-P1-11-12-task-breakdown.md`
+    and `P2-AMD-01-impact-matrix.md` still say "the sixteen required checks" — is a
+    historical record of what protection was when it was written, deliberately not
+    rewritten here.
+    """
+    _contexts, anchor = _required_contexts(repo_root)
+
+    for relative in CURRENT_POINTER_FILES:
+        text = (repo_root / relative).read_text(encoding="utf-8")
+        claiming = [
+            paragraph for paragraph in text.split("\n\n") if _makes_required_claim(paragraph)
+        ]
+        assert claiming, (
+            f"{relative} no longer states anything about required checks, so this "
+            "witness reads nothing. If the claim moved out of the pointers, delete "
+            "the file from CURRENT_POINTER_FILES rather than leaving a green witness "
+            "over an empty one."
+        )
+        unanchored = [paragraph for paragraph in claiming if anchor not in paragraph]
+        assert not unanchored, (
+            f"{relative} makes {len(unanchored)} required-set claim(s) without naming "
+            f"the revision `{anchor}` in the same paragraph: "
+            f"{[p[:70] for p in unanchored]}. A count or a required/optional claim "
+            "without its own anchor is a memory — another paragraph's anchor cannot "
+            "vouch for it."
+        )
+        stale = [phrase for phrase in STALE_REQUIRED_CHECK_PHRASES if phrase in text]
+        assert not stale, (
+            f"{relative} still says {stale}, which the measured set contradicts: "
+            f"`lint` is among the required contexts recorded at {anchor}. "
+            "Correct the sentence against the measurement rather than leaving "
+            "both in the tree."
+        )
+
+
+#: The current pointers that state the required-check set. Dated plan records are
+#: deliberately absent: a stale sentence in a dated snapshot is a historical fact.
+CURRENT_POINTER_FILES: Final[tuple[Path, ...]] = (
+    Path("CLAUDE.md"),
+    Path("docs") / "handoff" / "CURRENT.md",
+    Path("docs") / "REPOSITORY-MAP.md",
+)
+
+#: Sentences the 2026-11-11 measurement contradicts, so they cannot stay in a
+#: current pointer beside the reading that contradicts them.
+STALE_REQUIRED_CHECK_PHRASES: Final[tuple[str, ...]] = (
+    "sixteen required checks",
+    "`lint` is not a required check",
+    "not a required check until the owner adds",
+)
+
+_NUMBER_WORDS: Final[str] = "|".join(
+    [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        r"\d{1,2}",
+    ]
+)
+
+#: The three shapes a required-set claim takes in these documents. A count is
+#: only a claim when it sits directly beside the phrase — the alternative, a
+#: window of any length, sweeps in prose about shard cost that mentions a
+#: required check and some number for entirely unrelated reasons.
+#: The whitespace in these patterns is `\s+` rather than a space: a paragraph's
+#: lines wrap, and a claim split across a line break is the same claim. A
+#: detector that reads only single-line phrasings silently skips one — the
+#: handoff's "among the required\ncontexts" is what showed it.
+REQUIRED_SET_CLAIMS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(rf"\b(?:{_NUMBER_WORDS})\s+required\s+(?:status\s+)?checks?\b", re.I),
+    re.compile(r"\brequired\s+contexts\b", re.I),
+    re.compile(r"\bis\s+a\s+required\s+check\b", re.I),
+)
+
+
+def _makes_required_claim(paragraph: str) -> bool:
+    return any(pattern.search(paragraph) for pattern in REQUIRED_SET_CLAIMS)
+
+
+def test_the_workflow_directory_count_the_map_prints_is_the_count_it_holds(
+    repo_root: Path,
+) -> None:
+    """`docs/REPOSITORY-MAP.md` counts the workflows by reading them.
+
+    **The defect this is for.** The map said `.github/workflows/` holds seven
+    workflows and enumerated six of them, because `shell.yml` joined the directory
+    on 2026-11-11 and the sentence did not follow. A directory listing in a map is
+    the sentence a newcomer trusts, and the project's rule is that a value that
+    can change is re-measured.
+
+    **How it is recomputed.** The count comes from `load_workflows`, the shared
+    reader the job-name witnesses use, so the map and the witness enumerate the
+    same files. The map must also name the revision it was read at, for the same
+    reason the required-check record does.
+    """
+    paths = sorted([*(repo_root / WORKFLOWS_DIR).glob("*.yml")])
+    documents = load_workflows(repo_root / WORKFLOWS_DIR)
+    assert len(paths) == len(documents), (
+        "the workflow directory and the shared reader disagree about how many "
+        f"workflows there are: {len(paths)} files, {len(documents)} read"
+    )
+
+    text = (repo_root / "docs" / "REPOSITORY-MAP.md").read_text(encoding="utf-8")
+    stated = re.search(r"holds (\w+) workflows:", text)
+    assert stated is not None, (
+        "the map no longer states how many workflows the directory holds, so this "
+        "witness reads nothing"
+    )
+    assert _WORD_NUMBERS[stated.group(1)] == len(documents), (
+        f"the map says the directory holds {stated.group(1)} workflows and it holds "
+        f"{len(documents)}: {[path.name for path in paths]}. Re-measure and update "
+        "the sentence with the revision it was measured at."
+    )
+
+    # **The enumeration is parsed as an enumeration, not searched for.** Scanning
+    # a window for `` `name.yml` `` tokens reads the prose after the sentence too,
+    # and that is how this witness first passed a mutated map that had dropped
+    # `shell.yml` from the list: the paragraph goes on to say "The earlier figure
+    # of seven is the count before `shell.yml` joined", and the backticked name in
+    # that sentence filled the gap. Here the names are read as a comma list from
+    # the colon, and the read stops at the first token that is not a name.
+    enumerated = _enumerated_names(text, stated.end())
+    assert enumerated, "the map's workflow sentence enumerates nothing"
+    assert len(enumerated) == _WORD_NUMBERS[stated.group(1)], (
+        f"the map says {stated.group(1)} workflows and enumerates {len(enumerated)}: "
+        f"{enumerated}. A count and a list that disagree is a sentence that was "
+        "half updated."
+    )
+    assert set(enumerated) == {path.name for path in paths}, (
+        f"the map enumerates {sorted(enumerated)} and the directory holds "
+        f"{sorted(path.name for path in paths)}: a directory listing with a file "
+        "missing is a listing that was not read"
+    )
+
+    paragraph = _paragraph_containing(text, stated.start())
+    anchor_match = FULL_SHA.search(paragraph)
+    assert anchor_match is not None, (
+        "the map's workflow sentence names no revision in its own paragraph, so the "
+        "count is a memory rather than a reading"
+    )
+
+
+def _enumerated_names(text: str, start: int) -> list[str]:
+    """The comma list of workflow file names that begins at ``start``.
+
+    Reading stops at the first token that is not a backticked YAML name, so the
+    sentences after the list cannot lend their backticked names to it.
+    """
+    names: list[str] = []
+    position = start
+    while True:
+        match = re.match(r"\s*(?:and\s+|,\s*)?`([a-z0-9-]+\.ya?ml)`", text[position:])
+        if match is None:
+            return names
+        names.append(match.group(1))
+        position += match.end()
+
+
+def _paragraph_containing(text: str, offset: int) -> str:
+    """The paragraph a match sits in — bounded by blank lines.
+
+    The bound is what makes "the sentence names its revision" mean something: a
+    search over the whole file lets an anchor from another paragraph vouch for a
+    claim in this one.
+    """
+    begin = text.rfind("\n\n", 0, offset) + 1
+    end = text.find("\n\n", offset)
+    return text[begin : len(text) if end == -1 else end]
+
+
+#: A spelled-out count, as a map writes it, read back as a number.
+_WORD_NUMBERS: Final[dict[str, int]] = {
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
+
+def _contexts_missing_from_tree(contexts: list[str], reported: set[str]) -> list[str]:
+    """Required names that no job reports — the set that would hang a merge."""
+    return sorted(set(contexts) - reported)
+
+
+def test_the_required_check_comparison_fails_when_a_record_names_a_dead_name(
+    tmp_path: Path,
+) -> None:
+    """The comparison that watches the record is seen to fail for the property.
+
+    **The demonstration.** A copy of `.github/CI.md` in a scratch tree with one
+    context renamed to a name no job reports — `secret-scan` becomes
+    `secret-scan (ubuntu-latest)`, which is the residue a rename leaves. The
+    scratch record is read by the *same* `_required_contexts` the main witness
+    uses, and the diff against the real workflows is required to be exactly that
+    one name. "The main witness is green" is not evidence that it can fail; this
+    is.
+
+    **The controls beside it.** Three, each one a way the demonstration could be
+    hollow: the unedited copy must give an empty diff, so the failure is the edit
+    and not the reader; the name being introduced must genuinely not be reported
+    by any job, so the edit says something; and a record whose block end marker
+    is removed must be **refused**, not read — a reader that sweeps prose into
+    the list would report whatever the prose happened to say.
+    """
+    repo_root = _this_repo_root()
+    reported = {
+        name
+        for _path, document in _workflow_job_names(repo_root)
+        for name in rendered_job_names(document, _path.name)
+    }
+    dead_name = "secret-scan (ubuntu-latest)"
+    assert "secret-scan" in reported, (
+        "the real tree no longer reports `secret-scan`, so the demonstration "
+        "below would be comparing a record that is already wrong"
+    )
+    assert dead_name not in reported, (
+        f"the tree already reports {dead_name}, so renaming to it demonstrates nothing"
+    )
+
+    text = (repo_root / REQUIRED_CHECK_RECORD).read_text(encoding="utf-8")
+    scratch = tmp_path / ".github"
+    scratch.mkdir(parents=True)
+    target = scratch / "CI.md"
+
+    target.write_text(text, encoding="utf-8")
+    unchanged, _anchor = _required_contexts(tmp_path)
+    assert _contexts_missing_from_tree(unchanged, reported) == [], (
+        "the unedited record already disagrees with the tree, so a failure below "
+        "could not be attributed to the edit"
+    )
+
+    target.write_text(text.replace("\n- `secret-scan`", f"\n- `{dead_name}`", 1), encoding="utf-8")
+    renamed, _anchor = _required_contexts(tmp_path)
+    missing = _contexts_missing_from_tree(renamed, reported)
+    assert missing == [dead_name], (
+        f"the record with a renamed context reported {missing}; the comparison "
+        f"must report exactly {dead_name!r}"
+    )
+
+    target.write_text(text.replace(REQUIRED_LIST_END, "", 1), encoding="utf-8")
+    with pytest.raises(AssertionError) as caught:
+        _required_contexts(tmp_path)
+    assert REQUIRED_LIST_END in str(caught.value), (
+        f"a record with its end marker removed produced {caught.value!r}; the reader "
+        "must refuse a list with no edge rather than read prose as data"
+    )
+
+
+def _this_repo_root() -> Path:
+    """This repository, from this file's own path."""
+    return Path(__file__).resolve().parent.parent
+
+
 #
 # ``.github/remeasure_shards.py`` turns a CI run's durations section into the
 # per-file costs the checks above balance against. Until this witness existed,

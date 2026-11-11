@@ -43,8 +43,14 @@ jobs:
     # one check, and a required check would be satisfied by whichever reported
     # first, so the platform is part of the name.
     name: shell-test (${{ matrix.os }})
-    # A scheduled run spends python.yml's `evaluation` job only.
-    if: ${{ github.event_name != 'schedule' }}
+    # No `if:` here. The guard this line used to carry
+    # (`github.event_name != 'schedule'`) was copied from `python.yml`, where a
+    # `schedule` trigger exists and the guard does work. This file declares
+    # neither a `schedule` nor any other event a job-level guard would need to
+    # name, so the condition was true on every run of every job — a defence
+    # with nothing behind it. `tests/test_ci_shard_coverage.py` now refuses a
+    # job `if:` that names an event the workflow's `on:` does not declare, so
+    # re-adding a guard here without adding the trigger is red.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

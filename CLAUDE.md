@@ -51,9 +51,22 @@ most expensive thing this project does — it is the gate, and it should be
 spent on the whole of a body of work rather than on each piece of it.
 
 **What it does not change.** `main` is a protected branch, so a pull
-request is how anything reaches it, and the sixteen required checks have to
-pass on it. **The reduction is in the number of pull requests and runs, not
-in whether they happen.**
+request is how anything reaches it, and the **fifteen required checks**
+(reading taken from GitHub on 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd`) have to pass on it. The count
+is a **reading, not a constant**:
+
+```
+gh api repos/gg320324492-lgtm/labcairn/branches/main/protection \
+  --jq '.required_status_checks.contexts | length'    # 15
+```
+
+and the fifteen contexts are listed one per line in `.github/CI.md`, at the
+same revision. Branch protection lives on GitHub, so no file here sets it;
+`tests/test_ci_shard_coverage.py` is what notices when this document's
+reading names a check no job reports, or states a count without the revision
+it was read at. **The reduction is in the number of pull requests and runs,
+not in whether they happen.**
 
 ## Running the suite
 
@@ -166,12 +179,18 @@ whose cost is spread unevenly.
 only.** The `lint` job runs `ruff check .`, `ruff format --check .` and
 `mypy --strict` on Ubuntu with no matrix. The same three commands used to run
 inside all ten shard jobs: one lint error turned ten checks red, and the work
-was paid for ten times. **`lint` is not a required check until the owner adds
-it to branch protection on GitHub** — no workflow file can make a check
-required, and until it is added a failing `lint` is reported but blocks no
-merge. The wall clock does not change: lint finishes before the shards, and
-the wait is still the slowest shard (Windows). What the split removes is ten
-duplicate runs, not minutes.
+was paid for ten times. **`lint` is a required check**: it is one of the
+fifteen required contexts read from GitHub on 2026-11-11 at
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd` and recorded in
+`.github/CI.md`. Before that reading this document said it "is not a required
+check until the owner adds it", and the owner had. **No workflow file can
+make a check required** — that is the owner's setting on GitHub, and a
+re-measurement of the protection is what renews the sentence. Whether
+`shell-test (windows-latest)` and `shell-test (ubuntu-latest)` join the list
+is the owner's decision, and this repository only offers the two names. The
+wall clock does not change: lint finishes before the shards, and the wait is
+still the slowest shard (Windows). What the split removes is ten duplicate
+runs, not minutes.
 
 **And the count is measured as well.** Six shards were tried on 2026-10-25,
 and the best arrangement their costs allow was a balance factor of 1.603;
