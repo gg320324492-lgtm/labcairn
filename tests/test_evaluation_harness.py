@@ -2384,8 +2384,10 @@ def test_a_required_test_that_collected_nothing_is_named_as_that(repo_root: Path
     fixtures, and CI paid to collect them — in **one shard each per platform,
     never every shard**, which is what the records that filed this finding
     printed and ``.github/ci-shards.json`` never recorded (re-measured
-    2026-11-12: of the 56 revisions naming them, 54 place each in exactly one
-    shard per platform, and none places one in more than one). They were renamed out
+    2026-11-12 over the file's 84 revisions: 56 name them somewhere, 55 place
+    them in a shard group, 54 place each in exactly one shard group on each of
+    the two platforms, and none places one in more than one — the readings
+    answer different questions, so each figure has to name its own). They were renamed out
     of the glob on 2026-11-02, so no real file exercises this branch any more.
     The mechanism still has to hold if one comes back: the row has to say
     *"collected nothing"*, because the two things a reader might otherwise
