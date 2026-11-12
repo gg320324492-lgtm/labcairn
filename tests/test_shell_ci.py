@@ -82,20 +82,28 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: cases watch §0.1's surface table against the two lockfiles and against the
 #: sections that record copyleft, and they were measured from the branch tree
 #: that added it.
+#: `installer-binaries.test.mjs`, `shell-tree-terms.test.mjs` and
+#: `web-tree-terms.test.mjs` arrived with the four-surface licence coverage;
+#: their eight, seven and seven cases watch the installer's redistributed
+#: binaries, the shell tree's terms and the web tree's terms against the
+#: artefacts those claims are about.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "config.test.mjs": 5,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
+    "installer-binaries.test.mjs": 8,
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
     "notice-scope.test.mjs": 8,
     "packaging-config.test.mjs": 9,
+    "shell-tree-terms.test.mjs": 7,
+    "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "6cd844670f4136df5b7e49613ce201c22d20590a"
+CASE_FLOORS_MEASURED_AT: Final[str] = "7548c6621c2936fe8ec5f21a57b3fc91251e0a44"
 
 
 # --------------------------------------------------------------------------
