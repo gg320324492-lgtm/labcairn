@@ -456,8 +456,9 @@ on the whole of a body of work rather than on each piece of it. So the
 pieces are reviewed and merged into `main` **locally**, and the pull request
 and the run come afterwards, for all of it.
 
-**Do not push to start a run.** The suite is five shards per platform, so a
-push starts ten python jobs; that is the owner's call, not the session's.
+**Do not push to start a run.** The suite is five shards per platform and
+`lint` is one job of its own, so a push starts **eleven** python jobs — the
+ten shard legs and `lint`; that is the owner's call, not the session's.
 **Do not open a pull request** for a finished piece of work, a document, or a
 commit that is "ready to be reviewed". The work lands in the tree, the record
 says what it is, and the pull request waits for the owner.

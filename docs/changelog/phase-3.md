@@ -6,6 +6,27 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### The push's job count, counted again (2026-11-12)
+
+- **The defect.** `CLAUDE.md` and `CONTRIBUTING.md` both said "the suite is
+  five shards per platform, so a push starts ten python jobs". That was the
+  count before `lint` was a job of its own: `python.yml` had no `lint` job on
+  2026-10-31 (`4f8bb29`), and it has had one since 2026-11-02 (`e5472f8`), so
+  a push starts **eleven** python jobs — the ten shard legs and `lint`. The
+  project's own count already said so: `.github/CI.md` records "**Eleven,
+  counted from the workflow:** ... and `lint` as the eleventh", and the comment
+  on `python.yml`'s `lint` job counts the same eleven.
+- **Why it stood.** Nothing read those two sentences. The job-count witness
+  watches three records — `.github/CI.md`, `python.yml` and
+  `docs/plans/LC-P1-13-evaluation-ci.md` — and the two rule files are not
+  among them; the instrument also cannot see a count written as "a push starts
+  ten python jobs", because that is not one of the shapes it reads. A wrong
+  number in a live pointer, unwatched, is the same defect family this phase
+  has been closing.
+- **The correction.** Both files now count eleven and say why. The handoff's
+  2026-10-31 entry keeps its ten, because it was true when it was written, and
+  carries a **dated snapshot** marker naming the later reading.
+
 ### NOTICE's scope is widened to the three surfaces a distribution carries (2026-11-12)
 
 - **The defect.** `NOTICE` §2.4.2 said **"Nothing in either tree is copyleft."**

@@ -133,9 +133,9 @@ it failed. Run the command, then read its status separately.
 **The owner decided this on 2026-10-24**, and it is recorded in
 `docs/plans/LC-P1-11-12-task-breakdown.md` §1.5.
 
-- **Do not push to start a run.** The suite is five shards per platform, so a
-  push starts ten python jobs; that is the owner's call, not the
-  session's.
+- **Do not push to start a run.** The suite is five shards per platform and
+  `lint` is one job of its own, so a push starts **eleven** python jobs — the
+  ten shard legs and `lint`; that is the owner's call, not the session's.
 - **Do not open a pull request.** Not for a finished piece of work, not for
   a document, not for a commit that is "ready to be reviewed". The work
   lands in the tree, the record says what it is, and the pull request waits

@@ -1336,6 +1336,15 @@ readers and a third, none of them the same person); (c) the **grant's
 scope and ceiling** for the first real request, which the probe has now
 made possible and which is still a human's to set.
 
+> **Dated snapshot — true when written, superseded since.** The ten jobs this
+> entry counts were the whole of a push on 2026-10-31: `python.yml` had no
+> `lint` job of its own then, so a push started the ten shard legs and nothing
+> else. Since 2026-11-02 (`e5472f8fdb5739d37e1c997546784aa38255329c`, the
+> commit that split `lint` out of the shard jobs) a push starts **eleven**
+> python jobs — the ten shard legs and `lint` — and `.github/CI.md` is where
+> that count is written down. The ten is left as written because it is what the
+> tree was then.
+
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
 the model-call path, is landed: T00–T07.** `src/labcairn/application/
 model_request.py` is one operation, `request_model`, that turns "a model
