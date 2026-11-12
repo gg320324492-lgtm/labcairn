@@ -5,6 +5,20 @@
 **Tree it describes:** `dd08573` — the merge of the first four G5 components into the delivery branch. Every claim below is about the tree at that commit.
 **Measured:** 2026-10-25.
 
+> **Dated snapshot — true when written, superseded since.** The sentence above was
+> written on 2026-10-25 and was true then: every test, ADR and path this dossier named
+> existed at `dd08573`, and all 36 of its catalogue citations resolved in the catalogue
+> there, which was 195 lines long and had none of them on a blank line. Two things have
+> moved since. The catalogue has grown to 327 lines, so the citations below name where
+> the wording is **now**: 9 of the 37 wordings the dossier leans on sat ten lines higher
+> at `dd08573`, and the wording the commit-SHA column is cited for was rewritten in place
+> on 2026-11-02 (`bff64e1`), whose claim is about that tree and not about `dd08573`. The
+> dossier has also since named two things that are not in the tree at `dd08573`: its own
+> witness `tests/test_review_dossier.py` (added the same day, `76d5e1c`), and
+> `tests/test_source_contracts.py::test_locator_kinds_are_closed_at_six_members` (added
+> 2026-10-29, `56595a1`). The sentence is left as written because it records what the
+> dossier was measured against; the two items named above are the exceptions.
+
 **What this document is for.** One external reviewer, with no access to any upstream
 repository, has to be able to answer one question: **of the things LabCairn does,
 which are LabCairn's own work, and which are somebody else's?** This document is
