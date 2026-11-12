@@ -1340,10 +1340,10 @@ made possible and which is still a human's to set.
 > entry counts were the whole of a push on 2026-10-31: `python.yml` had no
 > `lint` job of its own then, so a push started the ten shard legs and nothing
 > else. Since 2026-11-02 (`e5472f8fdb5739d37e1c997546784aa38255329c`, the
-> commit that split `lint` out of the shard jobs) a push starts **eleven**
-> python jobs — the ten shard legs and `lint` — and `.github/CI.md` is where
-> that count is written down. The ten is left as written because it is what the
-> tree was then.
+> commit that split `lint` out of the shard jobs) the python jobs are the
+> eleven that a push event starts — the ten shard legs and `lint` — and
+> `.github/CI.md` is where that count is written down. The ten is left as
+> written because it is what the tree was then.
 
 **Date:** 2026-10-31 · **Branch:** `claude/p2-lc-p2-10-plans` — **LC-P2-01,
 the model-call path, is landed: T00–T07.** `src/labcairn/application/
