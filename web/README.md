@@ -135,9 +135,9 @@ report is shown with the limit the report itself states.
 CI must pin these exactly. `package.json` carries both pins: `packageManager`
 (enforced by Corepack) and `engines`.
 
-| Tool | Version                           | Enforced by                                                                     |
-| ---- | --------------------------------- | ------------------------------------------------------------------------------- |
-| Node | `24.16.0` (range `>=24.16.0 <25`) | `web.yml`, `lockfiles.yml` and `release.yml` → `actions/setup-node` `node-version` |
+| Tool | Version                           | Enforced by                                                                                                 |
+| ---- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Node | `24.16.0` (range `>=24.16.0 <25`) | `web.yml`, `lockfiles.yml` and `release.yml` → `actions/setup-node` `node-version`                          |
 | pnpm | `9.15.9` (range `>=9.15.9 <10`)   | the `packageManager` field — CI installs it with `pnpm/action-setup`, locally Corepack reads the same field |
 
 `.npmrc` sets `engine-strict=true`, so a mismatched Node or pnpm fails at install
@@ -146,7 +146,7 @@ deliberate escalation (LC-P1-01 §10, risk R-4), not a routine dependency bump.
 
 **One workflow is not in the Node row, and it is the shell's.**
 `shell.yml` pins Node with `node-version-file: shell/package.json`, which
-resolves `engines.node` as the *range* `>=24.16.0 <25` rather than as a
+resolves `engines.node` as the _range_ `>=24.16.0 <25` rather than as a
 version — the runner took **v24.22.2** on 2026-11-12 (run `43233714805`), not
 24.16.0. The shell tree has its own `package.json` and its own floor, so that
 the floor is written once. Corepack is the **local** path to the pnpm pin — the
