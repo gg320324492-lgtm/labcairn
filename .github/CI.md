@@ -302,6 +302,30 @@ Ubuntu 422.8s against 248.6s, `max / min` **1.7010**, a negative slack — becau
 that tree had not been re-partitioned yet. Re-measure both from the table named
 in the row you are reading, not from the anchor's own tree.
 
+**And `measured_at` names a tree, not a table — so a second anchor is needed.**
+`measured_at` says which tree the per-file costs were timed on, and this
+repository measured the *same* tree twice. Five revisions of
+`.github/ci-shards.json` declare `measured_at = cf081e404be9…`: `6a5e17d`,
+`2ee2dc8`, `f724eab`, `b534bee` and `5c8abf1`. The first four record Ubuntu
+`[325.81, 264.73, 264.72, 264.72, 264.73]`; `5c8abf1` records
+`[325.81, 264.70, 264.69, 264.69, 264.70]`. The tables differ by hundredths of a
+second per file, so the ratio differs in the fourth decimal: **1.2308** from the
+first group, **1.2309** from `5c8abf1`. Both are correct arithmetic on a real
+table, and "re-measure it from the costs measured at `cf081e4`" reproduces
+**either one** — so the instruction cannot be checked, because nothing says which
+table it expects.
+
+**So this row carries both anchors, and the rule is stated rather than implied.**
+The figure above is `max / min` on the table **as carried by `e5472f8`** — which
+is the table `6a5e17d` wrote (their `ci-shards.json` blobs are byte-identical);
+`e5472f8` itself is not a revision of that file, it only carries it. Its
+`measured_at` is `cf081e4`. A `measured_at` anchor identifies the tree the timings
+came from; the revision you **open the file at** identifies the table. A record
+quoting a derived figure needs the second anchor too, or a later reader reproduces
+a number and cannot tell whether it matches. Where a record quotes `measured_at`
+without naming the file's own revision, treat the last decimal as unanchored.
+
+
 **What this paragraph printed before 2026-11-12, and why that was wrong.** It
 printed **1.176**. That figure is not what this project's balance check
 computes. `tests/test_ci_shard_coverage.py` measures the partition against the
