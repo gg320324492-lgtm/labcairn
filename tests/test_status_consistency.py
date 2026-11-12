@@ -1572,3 +1572,387 @@ def test_the_dossier_tree_check_fails_when_the_marker_stops_naming_an_exception(
     assert path.read_bytes() == original_bytes, (
         "docs/REVIEW-DOSSIER.md changed while it was being read"
     )
+
+
+# --------------------------------------------------------------------------
+# the pointers a reader follows carry the words they cite
+# --------------------------------------------------------------------------
+
+#: **The format, as the owner settled it on 2026-11-12.** A converted pointer is
+#:
+#: ``path/to/file.ext:LINE`` — ``the words on that line``
+#:
+#: — the pointer and a span of **the words actually printed on that line** — and a document
+#: that has converted its pointers prints how many of them there are, under its title:
+#:
+#: ``**Anchors:** N — every converted pointer below carries the words it cites.``
+#:
+#: This is the rule ``tests/test_review_dossier.py`` already holds ``docs/REVIEW-DOSSIER.md``
+#: to, applied to the documents a reader follows today. A stored line number is a claim about
+#: one revision of a file another batch edits: after the file grows, the pointer still *looks*
+#: like a citation and points at a different line, and nothing noticed. Carrying the wording
+#: turns the pointer into a lookup that can be checked, and turns the failure into a useful
+#: one -- the wording is **found**, and the report names the line it moved to.
+#:
+#: **A pointer without words is not read.** The conversion is happening in several windows,
+#: and 553 single-line pointers exist across 62 documents today; a check that reddened on the
+#: documents that have not converted yet is a check people route around. The declaration is
+#: what opts a document in -- which is also the gap: a document that never declares is
+#: unchecked, and that is stated here rather than hidden.
+
+#: The count a converted document declares. **Only the number is read**, because a document
+#: that reworded the sentence beside it would otherwise switch the watch off silently -- the
+#: failure this file exists for. The contract's sentence is quoted in the failures, so a
+#: document that mis-declares is legible rather than merely unwatched.
+_ANCHOR_DECLARATION = re.compile(r"^\*\*Anchors:\*\*[ \t]+(?P<count>\d+)\b", re.MULTILINE)
+
+#: A pointer: a path and one line number, in backticks. A **span** citation (``:120-135``) is
+#: not this form and is not read here. 266 spans exist across 28 documents today; that is a
+#: gap in the format, recorded rather than papered over with a rule nobody agreed to.
+_POINTER = re.compile(r"`(?P<path>[^`\s:]+):(?P<line>\d{1,6})`")
+
+#: The words a converted pointer carries: an em dash -- ``--`` accepted too, because a document
+#: typed without an em dash has reworded rather than broken -- and a backtick span. The leading
+#: ``\s*`` crosses a line break, so a pointer left at the end of a line by a wrapping editor is
+#: still read; the span itself is read on one line.
+_ANCHOR_TAIL = re.compile(r"(?P<gap>\s*)(?:—|--)[ \t]*`(?P<words>[^\n`]+)`")
+
+#: A pointer that is a link **label**: ``[`path:LINE`](target)``. Nine such pointers exist
+#: today, and the format as written cannot be applied to one -- the words would have to sit
+#: either inside the label, making the link's own text carry the citation, or after the
+#: closing parenthesis, where a reader-only pattern would not find them. This reads the second
+#: shape, and resolves the file from the link's **target**, which is where the document
+#: actually says the file is. ``docs/ROADMAP.md:88`` is this shape, and it is one of the two
+#: example documents, so the extension is not theoretical.
+_LINK_CLOSE = re.compile(r"\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'][^\"']*[\"'])?\s*\)")
+
+#: Below this a quoted span does not identify a line. A short span is **reported**, never
+#: treated as an unconverted pointer: a rule that silently skips its own violations is the rule
+#: that stops working.
+_MIN_ANCHOR_WORDS = 12
+
+
+def _fenced_lines(text: str) -> set[int]:
+    """The 1-based lines **inside** a fenced block, fence lines included.
+
+    A document that quotes this format inside a fence is *illustrating* it. Reading the
+    example as a pointer would hold the document that explains the rule to it, which is how a
+    check starts firing on correct prose.
+    """
+    out: set[int] = set()
+    fence: str | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
+        marker = _FENCE.match(line)
+        if marker:
+            token = marker.group(1)
+            fence = None if fence == token else (fence or token)
+            out.add(number)
+            continue
+        if fence is not None:
+            out.add(number)
+    return out
+
+
+def _tracked_markdown() -> list[Path]:
+    """Every tracked Markdown file. Tracked, not merely present: a scratch file in the
+    checkout is not a record, and it is not what a reader opens."""
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    return [REPO / name for name in result.stdout.decode("utf-8").split("\0") if name]
+
+
+def _flat(value: str) -> str:
+    """Whitespace-normalised text -- the comparison the format states."""
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _word_lines(lines: list[str], needle: str, limit: int = 8) -> list[int]:
+    """Every 1-based line of the cited file that carries ``needle``.
+
+    **This is the report.** A stored number that no longer carries the wording is not
+    information; the lines that *do* carry it are. `tests/test_review_dossier.py` found that
+    its earlier failures accused records of losing text that had only moved, and named no
+    destination.
+    """
+    return [n for n, text in enumerate(lines, 1) if needle in _flat(text)][:limit]
+
+
+def _cited_file(doc: Path, cited: str, href: str | None = None) -> Path | None:
+    """The file a cited path names: repo-root-relative, or relative to the document.
+
+    Both are used in this tree -- measured at `3fcfbf6`: 238 pointers resolve from the root
+    and 5 from their own directory. A pointer that resolves neither is a pointer to nothing,
+    and the 117 that resolve only under a written-out prefix (`application/context.py` for
+    `src/labcairn/application/context.py`) are named in the report rather than forgiven here.
+
+    For a link-labelled pointer the link's **target** is tried last: the document said where
+    the file is, and the label is the shorter spelling of the same thing. It is tried last so
+    a label that names the wrong file is still reported when the target does not rescue it.
+    """
+    candidates = [REPO / cited, doc.parent / cited]
+    if href:
+        candidates += [REPO / href, doc.parent / href]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _declarations(text: str) -> list[re.Match[str]]:
+    """The anchor-count declarations outside fenced examples."""
+    fenced = _fenced_lines(text)
+    return [
+        match
+        for match in _ANCHOR_DECLARATION.finditer(text)
+        if text[: match.start()].count("\n") + 1 not in fenced
+    ]
+
+
+def _anchored_pointers(text: str, fenced: set[int]) -> list[tuple[int, str, int, str, str | None]]:
+    """Each ``(line here, cited path, cited line, words, link target)`` in the anchored form.
+
+    A pointer whose words sit **after** the pointer is the plain form. A pointer that is a
+    link label -- ``[`path:LINE`](target)`` -- has its words after the closing parenthesis, and
+    its target is carried so the file can be resolved from what the document says the path is.
+    A pointer followed by a *different* backtick span that is not an anchor (no dash) is left
+    alone: an ordinary citation beside an ordinary citation is not a broken anchor.
+    """
+    out: list[tuple[int, str, int, str, str | None]] = []
+    for match in _POINTER.finditer(text):
+        here = text[: match.start()].count("\n") + 1
+        if here in fenced:
+            continue
+        start = match.end()
+        href: str | None = None
+        link = _LINK_CLOSE.match(text, start)
+        if link is not None:
+            href = link.group(1)
+            start = link.end()
+        tail = _ANCHOR_TAIL.match(text, start)
+        if tail is None or tail.group("gap").count("\n") > 1:
+            continue
+        out.append((here, match.group("path"), int(match.group("line")), tail.group("words"), href))
+    return out
+
+
+def _anchor_problems(doc: Path, text: str, lines_of: dict[Path, list[str]]) -> list[str]:
+    """Every anchored pointer in ``doc`` that would mislead a reader following it today."""
+    name = doc.relative_to(REPO)
+    fenced = _fenced_lines(text)
+    pointers = _anchored_pointers(text, fenced)
+    found = _declarations(text)
+    if not found:
+        return []
+
+    problems: list[str] = []
+    if len(found) > 1:
+        problems.append(
+            f"{name} declares an anchor count {len(found)} times; a document makes one "
+            "count claim, and two counts cannot both be the document's own"
+        )
+    declared = int(found[0].group("count"))
+    if declared != len(pointers):
+        problems.append(
+            f"{name} declares **Anchors:** {declared} and carries {len(pointers)} anchored "
+            f"pointer(s): {[(p[1], p[2]) for p in pointers[:6]]}"
+        )
+
+    for here, path, line, words, href in pointers:
+        target = _cited_file(doc, path, href)
+        if target is None:
+            problems.append(
+                f"{name}:{here} anchors `{path}:{line}` and no file resolves that path -- "
+                "neither from the repository root nor from the document's own directory"
+                + (f" nor the link target {href!r}" if href else "")
+            )
+            continue
+        if target not in lines_of:
+            lines_of[target] = target.read_text(encoding="utf-8").splitlines()
+        cited_lines = lines_of[target]
+        needle = _flat(words)
+
+        if len(words) < _MIN_ANCHOR_WORDS:
+            problems.append(
+                f"{name} anchors `{path}:{line}` with the {len(words)}-character span "
+                f"{words!r}; the format asks for at least {_MIN_ANCHOR_WORDS} characters, "
+                "and a span that short does not identify a line"
+            )
+        if line > len(cited_lines):
+            where = _word_lines(cited_lines, needle)
+            problems.append(
+                f"{name} cites `{path}:{line}` — `{words}` — and {path} has "
+                f"{len(cited_lines)} lines. "
+                + (
+                    f"The words are on line{'s' if len(where) != 1 else ''} "
+                    f"{', '.join(str(n) for n in where)}."
+                    if where
+                    else f"The words are not in {path} at all."
+                )
+            )
+            continue
+        if needle in _flat(cited_lines[line - 1]):
+            continue
+        where = _word_lines(cited_lines, needle)
+        problems.append(
+            f"{name} cites `{path}:{line}` — `{words}` — and {path}:{line} does not carry "
+            "them. "
+            + (
+                f"They are on line{'s' if len(where) != 1 else ''} "
+                f"{', '.join(str(n) for n in where)} of {path}."
+                if where
+                else f"They are not in {path} at all."
+            )
+        )
+    return problems
+
+
+def test_every_declared_anchor_carries_the_line_and_the_words_it_cites() -> None:
+    """A document that declares how many pointers carry their words is held to both.
+
+    Each tracked Markdown file that prints ``**Anchors:** N`` is read: it must carry exactly
+    N anchored pointers, each cited file must exist, each cited line must be inside it, and
+    each carried span must be on the line it is cited for -- whitespace-normalised, at least
+    twelve characters. Where the span is not there, the failure names the line it **is** on,
+    because the wording is the anchor and the number is the thing being checked.
+    """
+    lines_of: dict[Path, list[str]] = {}
+    declared: list[Path] = []
+    problems: list[str] = []
+    for doc in _tracked_markdown():
+        text = doc.read_text(encoding="utf-8")
+        if not _declarations(text):
+            continue
+        declared.append(doc)
+        problems.extend(_anchor_problems(doc, text, lines_of))
+
+    assert declared, (
+        "no tracked document declares an anchor count, so this check reports success over a "
+        "tree whose pointers it has not read"
+    )
+    assert not problems, (
+        f"{len(declared)} document(s) declare an anchor count "
+        f"({', '.join(str(d.relative_to(REPO)) for d in declared)}) and {len(problems)} "
+        "pointer(s) fail it:\n  " + "\n  ".join(problems)
+    )
+
+
+def test_the_anchor_check_fails_when_a_pointer_or_its_words_are_wrong() -> None:
+    """The check above is seen to fail for the property, on copies in memory.
+
+    **Five mutations, each a distinct way the rule is real.** (1) A line number moves by
+    three while the cited file is untouched: the pointer keeps its shape and points at the
+    wrong line, and the failure must say where the wording actually is. (2) The carried words
+    are replaced by a phrase the cited file does not carry: the pointer keeps a plausible
+    shape and its content is fiction. (3) An anchor's words are deleted, leaving a bare
+    pointer: the document's own count claim breaks. (4) The cited path is renamed to a
+    plausible sibling that has never existed: the line number and the words are both fine and
+    there is nothing to read. (5) The carried words are shortened below the format's floor.
+
+    **And one control that is a finding, not a pass.** With the declaration removed, the same
+    broken pointer reports nothing. That is the format's gap as stated -- a document that
+    never declares is not watched -- and this control is here so the gap is *measured* rather
+    than assumed away by a reader who believes the check covers the tree.
+
+    **Controls.** The unmutated documents report nothing, so every report below is the
+    mutation; each mutation is asserted to change bytes before any report is credited to it;
+    and the real documents' bytes are compared before and after.
+    """
+    docs = [d for d in _tracked_markdown() if _declarations(d.read_text(encoding="utf-8"))]
+    assert docs, "no document declares an anchor count, so this control tests nothing"
+    texts = {d: d.read_text(encoding="utf-8") for d in docs}
+    bytes_before = {d: d.read_bytes() for d in docs}
+
+    def problems_for(mutated: dict[Path, str]) -> list[str]:
+        shared: dict[Path, list[str]] = {}
+        out: list[str] = []
+        for doc in docs:
+            out.extend(_anchor_problems(doc, mutated[doc], shared))
+        return out
+
+    assert problems_for(texts) == [], (
+        f"the records as they stand already report: {problems_for(texts)}"
+    )
+
+    # The document with the most anchors carries the most ways to break it.
+    doc = max(
+        docs, key=lambda d: (len(_anchored_pointers(texts[d], _fenced_lines(texts[d]))), str(d))
+    )
+    pointers = _anchored_pointers(texts[doc], _fenced_lines(texts[doc]))
+    assert pointers, f"{doc.relative_to(REPO)} declares a count and carries no pointer"
+    _, path, line, words, _href = pointers[0]
+
+    # Mutation 1: the line number moves; the cited file does not.
+    moved = texts[doc].replace(f"`{path}:{line}`", f"`{path}:{line + 3}`", 1)
+    assert moved != texts[doc], "mutation 1 changed no bytes"
+    found1 = problems_for({**texts, doc: moved})
+    assert any(f"{path}:{line + 3}" in problem for problem in found1), (
+        f"moving the pointer from {path}:{line} to {path}:{line + 3} was not reported: {found1}"
+    )
+    assert any(str(line) in problem for problem in found1), (
+        f"the failure for {path}:{line + 3} did not name line {line}, where the words really "
+        f"are: {found1}"
+    )
+
+    # Mutation 2: the words are replaced by something the cited file does not carry.
+    invented = "a phrase this cited file does not carry"
+    assert len(invented) >= _MIN_ANCHOR_WORDS
+    falsified = texts[doc].replace(f"`{words}`", f"`{invented}`", 1)
+    assert falsified != texts[doc], "mutation 2 changed no bytes"
+    found2 = problems_for({**texts, doc: falsified})
+    assert any(invented in problem for problem in found2), (
+        f"carrying words the cited file does not print was not reported: {found2}"
+    )
+    assert any("not in" in problem for problem in found2), (
+        f"the failure did not say the words are absent from the cited file: {found2}"
+    )
+
+    # Mutation 3: the words go, the pointer stays -- and the document's count claim breaks.
+    match = re.search(rf"`{re.escape(path)}:{line}`", texts[doc])
+    assert match is not None
+    tail = _ANCHOR_TAIL.match(texts[doc], match.end())
+    assert tail is not None, "the anchor's words were not readable after the pointer"
+    unanchored = texts[doc][: tail.start()] + texts[doc][tail.end() :]
+    assert unanchored != texts[doc], "mutation 3 changed no bytes"
+    found3 = problems_for({**texts, doc: unanchored})
+    assert any("**Anchors:**" in problem for problem in found3), (
+        f"deleting an anchor's words left the declared count unchallenged: {found3}"
+    )
+
+    # Mutation 4: the path becomes a plausible sibling that has never existed.
+    directory, _, name = path.rpartition("/")
+    bogus = f"{directory}/never-existed-{name}"
+    assert _cited_file(doc, bogus) is None, f"{bogus} exists, so this mutation tests nothing"
+    renamed = texts[doc].replace(f"`{path}:{line}`", f"`{bogus}:{line}`", 1)
+    assert renamed != texts[doc], "mutation 4 changed no bytes"
+    found4 = problems_for({**texts, doc: renamed})
+    assert any(bogus in problem for problem in found4), (
+        f"renaming {path} to {bogus} -- a path that has never existed -- was not reported: {found4}"
+    )
+
+    # Mutation 5: the carried words fall below the format's floor.
+    short = "the route"
+    assert len(short) < _MIN_ANCHOR_WORDS
+    shortened = texts[doc].replace(f"`{words}`", f"`{short}`", 1)
+    assert shortened != texts[doc], "mutation 5 changed no bytes"
+    found5 = problems_for({**texts, doc: shortened})
+    assert any("characters" in problem for problem in found5), (
+        f"a {len(short)}-character span was not reported as too short: {found5}"
+    )
+
+    # Control: without the declaration, the same broken pointer is invisible. The gap is the
+    # format's, stated in the format -- and measured here so nobody has to discover it by
+    # trusting a green run.
+    silent = {**texts, doc: _ANCHOR_DECLARATION.sub("", moved, count=1)}
+    assert silent[doc] != moved, "the control's declaration removal changed no bytes"
+    assert problems_for(silent) == [], (
+        "a document with its declaration removed and a wrong pointer still reported something"
+    )
+
+    for target, original in bytes_before.items():
+        assert target.read_bytes() == original, (
+            f"{target.relative_to(REPO)} changed while it was read"
+        )
