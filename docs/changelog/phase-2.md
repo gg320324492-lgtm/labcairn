@@ -154,8 +154,25 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **The mentor's own material, in the product — and the chain's four
   rings.** The second corpus is a second paper with a second advisor, and
   the two of them are in the product as two pilot projects: **twenty
-  versions, eighty comments, 1528 recorded changes** and the owner's own
-  judgements on ten of the correspondences the operator put forward. **The
+  versions, eighty comments (forty-six on the first paper, thirty-four on
+  the second), 1528 recorded changes** and the owner's own
+  judgements on ten of the correspondences the operator put forward.
+  **The denominator of this row is not named here, and it should not be
+  taken as a count of the two projects together:** 1528 is what
+  [`../acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md)
+  §9.1 measured on the pilot's own workspace on 2026-11-01, and
+  [`../handoff/CURRENT.md`](../handoff/CURRENT.md) names it as the first
+  paper's. The figure that stands in that same sentence in
+  [`../plans/PHASE_2-work-orders.md`](../plans/PHASE_2-work-orders.md) and
+  [`../ROADMAP.md`](../ROADMAP.md) today is **1819**, from a
+  re-measurement on 2026-11-02 — a later date than this entry, and **a figure
+  this archive row has never carried itself**: `grep -c 1819` on this file at
+  `0655bb8b22506dd851e1eff6f29a455465535a1a` exits 1 with a count of 0 (it is
+  3 here only because the note you are reading names the figure), and the
+  1819 sentence itself lives only in the two plan and roadmap records.
+  **Which corpus each covers is stated
+  nowhere in the tree**; see the "Read the denominators together" paragraph of
+  the work-order plan. **The
   chain's second ring holds one row per change a manuscript's file
   records** — `edit_actions`, 1439 of them, because the other 89 are the
   marks an operation at a point leaves behind and **the chain records

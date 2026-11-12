@@ -103,9 +103,15 @@ jobs:
     # by name, and a name that carries an expression would be a different
     # check on every run. The owner adds this name to the required list.
     name: lint
-    # The schedule spends one job — `evaluation` — not the thirteen that a
-    # pull-request event spends. Without this guard, every scheduled run
-    # would also repeat the static checks and all ten shards.
+    # The schedule spends one job — `evaluation` — not the eleven that a
+    # pull-request event spends (this `lint` job plus the ten shard legs:
+    # 2 platforms × 5 shards). Without this guard, every scheduled run
+    # would also repeat the static checks and all ten shards. The figure
+    # this comment printed until 2026-11-12 was "thirteen", which is what a
+    # six-shard matrix would give; six was rejected on 2026-10-25 at
+    # `5a4d8e9`, and the matrix has been `[0, 1, 2, 3, 4]` since.
+    # `.github/CI.md`, "2026-11-03 — the evaluation harness on a schedule",
+    # carries the measurement.
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     steps:

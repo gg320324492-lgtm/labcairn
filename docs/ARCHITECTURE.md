@@ -20,7 +20,7 @@ External Agent and scientific-Agent source repositories are research materials, 
 - FastAPI exposes a localhost-bound API; Typer CLI uses the same application services; React + TypeScript + Vite consumes typed API contracts.
 - Typer renders through Rich for terminal output. Formatting is a presentation concern and must never be load-bearing for a machine-readable command.
 - Scientific parsing/analysis tools as statically registered, explicitly scoped capabilities.
-- Bibliography handling through pybtex and CSL-compatible tooling, so a citation can carry a stable identifier and a resolvable style rather than free text.
+- Scholarly identifiers carried as data and resolved as a state: `labcairn.evidence.identifiers` records a DOI or an arXiv id on a record, and resolution is a recorded state rather than a check. **No bibliography formatting library is used or depended on** — `pybtex` was named here when this file was written and was never a dependency (`grep -rn pybtex src/ web/ shell/` exits 1; `pyproject.toml` and `uv.lock` carry no `pybtex` entry, and no revision that touched those files ever added one). A citation carries a stable identifier; a resolvable citation *style* is not implemented, and adding a formatting library would be a decision recorded as an ADR.
 - Observability is structured logging with an OpenTelemetry-compatible interface, recording task, tool, duration and error facts. **Interface, not vendor lock-in**: a provider SDK must not be imported directly into core logic, and no telemetry may carry source excerpts, credentials or user content.
 - Dependency management via `uv` for Python and `pnpm` for the web app, both lockfile-pinned so a clean checkout resolves identically.
 - Testing via pytest (core), Vitest (web unit) and Playwright (end-to-end).
@@ -35,6 +35,17 @@ If evaluation later shows a workflow engine is needed, introducing one is a Phas
 The same reasoning governs subagents: context isolation is a mechanism worth borrowing (see [ADR-0003](adr/ADR-0003-event-and-permission-model.md)), but multi-agent orchestration is opt-in per need, never enabled by default.
 
 ## Proposed package layout
+
+**This block is the design as proposed on 2026-10-15, kept as written.** It is a
+proposal, not a description of the tree: `git ls-files` at `0655bb8b22506dd851e1eff6f29a455465535a1a`
+reports **no tracked file** under `tests/unit/`, `tests/integration/`, `tests/e2e/`,
+`benchmarks/`, `web/e2e/` or `web/fixtures/` (the suite is flat in `tests/`, and the
+fixtures live in `tests/fixtures/` — 38 tracked files), `src/labcairn/retrieval/` is
+not a package (retrieval lives in `src/labcairn/evidence/retrieval.py`), and the tree
+carries eight subpackages this block does not list — `application`, `editing`,
+`guidance`, `material`, `papers`, `providers`, `recovery`, `roles`. The block is left
+as the proposal it is rather than rewritten to match the tree, because its value is
+what was decided on 2026-10-15; the tree's own shape is `docs/REPOSITORY-MAP.md`.
 
 ```text
 labcairn/

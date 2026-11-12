@@ -1215,9 +1215,35 @@ substitutes; no push, no pull request, no CI run until the owner's word
 
 It dispatches no window and opens no worktree. It authorises no push, pull request
 or CI run. It writes no product source, no test, no migration and no workflow
-file. It closes no gate and marks no ticket done. It quotes no commit other than
-the two printed in the header. Its status rows are the truth at this commit,
-and the board changes in the same commit as any evidence that moves one. **The
+file. It closes no gate and marks no ticket done. Its status rows are the truth
+at this commit, and the board changes in the same commit as any evidence that
+moves one.
+
+**What this section said when the file was issued, and what changed.** At issue
+on 2026-11-08 (`f24aad6`) the file carried an **"Anchors, printed live at
+writing"** header naming two commits — `git rev-parse HEAD` and
+`git rev-parse origin/main`, both `d38010e9b8cf270beb19c38d6979ea14284c318d` —
+and the sentence here read *"It quotes no commit other than the two printed in
+the header."* That was true then. **That header was removed on 2026-11-09 at
+`629c527`**, when the file became the whole-board record it is now, and the
+sentence stayed. **It is no longer true, and this file has no commit-bearing
+header today**: its first line is "## 1. The board at this writing". Measured
+**on this file before this note was written**, at
+`0655bb8b22506dd851e1eff6f29a455465535a1a` — the counts below are that file's,
+not this paragraph's, because adding a citation adds citations: thirteen hex
+tokens on eleven lines (11, 12, 13, 14, 15, 16, 432, 463, 766, 1173, 1299),
+of which **nine distinct commits** — `4855ea6`, `2dce121`, `1e35758`, `9cdb19a`,
+`7d5be74`, `8259a5f`, `571e4346`, `2c782ed` and
+`6b3211ae631c7c9548ca160615f88daa6da7d5dd` — each printed where the row or
+decision it belongs to is stated, and **two that are not commits**:
+`42733499009` (a runner run id, on two lines) and the truncated sha256
+`9154e56c…7652d` at §5.9. `git cat-file -t` settles each: exit 0 for the nine,
+exit 128 for the two. **The rule the removed sentence was protecting still
+holds, in the form the board rows actually use:** every commit quoted here is
+printed by the row that rests on it, and no value on this board is carried
+forward from another paragraph's anchor.
+
+**The
 landing moves are commander-owned at merge:** the board rows, the registration
 files §3 rule 3 names, and every live status pointer that moves with a row — the
 two README banners, `README.zh-CN.md`, `docs/README.md`, `docs/ROADMAP.md`,

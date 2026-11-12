@@ -230,7 +230,10 @@ blocker table from existing only on one developer's machine.
 - a `schedule` trigger — `17 3 * * 1` (Mondays, 03:17 UTC; the off-minute
   and the weekly cadence are deliberate);
 - `lint` and `python-quality` carry `if: ${{ github.event_name != 'schedule' }}`,
-  so the schedule run spends one job, not thirteen;
+  so the schedule run spends one job, not the eleven a pull-request event
+  spends (`lint` plus `python-quality`'s 2 platforms × 5 shards); the plan's
+  first draft of this line said *thirteen*, which is what a six-shard matrix
+  would give — six was rejected on 2026-10-25, so the count was never thirteen;
 - a new job `evaluation`, `name: evaluation`, `runs-on: ubuntu-latest`, no
   matrix, gated on `github.event_name == 'schedule'`. It checks out, sets up
   the pinned interpreter and uv, runs `uv sync --frozen`, then:
