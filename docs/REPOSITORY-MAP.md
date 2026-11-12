@@ -1,6 +1,6 @@
 # Repository Map
 
-**Status:** current index, 2026-11-10 (classification measured 2026-11-07).
+**Status:** current index, 2026-11-12 (classification measured 2026-11-07).
 This document classifies the tracked tree. It does not retire historical
 records, rewrite frozen acceptance evidence, or authorise Phase 3
 implementation.
@@ -58,6 +58,19 @@ configuration, fixture and binary files. The two new files are the web
 attribution's: `web/scripts/third-party-notices.ts` and
 `web/src/thirdPartyNotices.test.ts`. The 836 figure is the one named above
 and is an earlier measurement, not the current total.
+
+**Read 2026-11-12 (after the four-surface licence coverage landed):** at
+`214cf3a6a802a6d2c5c26a5b8e453514dd9305a7` the measurement prints
+**852 tracked files**: 484 `.py`, 195 `.md`, 39 `.mjs`, 29 `.json`, 26 `.tsx`,
+25 `.ts`, 13 `.csv`, 9 `.yml`, 6 `.txt`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The fourteen new files are the
+licence coverage's: three readers under `.github/` (`installer-binaries.mjs`,
+`notice-readers.mjs`, `npm-terms.mjs`), `scripts/notice_licence_watch.py`, six
+licence files under `shell/licenses/` with `shell/nsis/licenses.nsh`, and the
+three shell witnesses `shell/test/installer-binaries.test.mjs`,
+`shell/test/shell-tree-terms.test.mjs` and `shell/test/web-tree-terms.test.mjs`.
+The 838 figure is the one named above and is an earlier measurement, not the
+current total.
 
 ## 1. Classification measured on 2026-11-07
 

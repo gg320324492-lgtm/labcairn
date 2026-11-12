@@ -27,7 +27,15 @@ container and [the archives index](../../CHANGELOG.md#archives).
   2026-10-31 entry keeps its ten, because it was true when it was written, and
   carries a **dated snapshot** marker naming the later reading.
 
-### NOTICE's scope is widened to the three surfaces a distribution carries (2026-11-12)
+
+### NOTICE's scope is widened to the four surfaces a distribution carries (2026-11-12)
+
+> **The title first read "three surfaces".** `NOTICE` §0.1 says four, and said
+> four in the same commit that widened the scope (`df18d46`); the count in the
+> title came from that commit's subject line rather than from `NOTICE`. The
+> title is corrected here because a table of contents that names the wrong
+> count misleads a reader who never opens the entry, and the bullet it heads
+> carries a dated note of its own.
 
 - **The defect.** `NOTICE` §2.4.2 said **"Nothing in either tree is copyleft."**
   For the shell's 268 npm packages the claim holds — an independent re-review
@@ -118,6 +126,23 @@ container and [the archives index](../../CHANGELOG.md#archives).
   them the second half does not hold, so their identifier rests on the
   registry field alone. The measurement wins over the record, and the record
   is corrected here; the older entry is left as it was written.
+
+> **The count of packages that offer a choice, re-measured 2026-11-12.** Three
+> of the 268 declare an SPDX `OR` expression — `sanitize-filename@1.6.5`
+> (`WTFPL OR ISC`), `type-fest@0.13.1` (`MIT OR CC0-1.0`) and
+> `utf8-byte-length@1.0.5` (`WTFPL OR MIT`). The fourth package `NOTICE` §2.5
+> names in the same sentence, `truncate-utf8-bytes@1.0.2`, declares a plain
+> `WTFPL`, so the bullet's "four offer a choice of licences" counts a package
+> that declares no choice. Measured from the npm registry's own `license`
+> field for all 268 packages — the source the re-review read — three values
+> contain ` OR `, and `truncate-utf8-bytes@1.0.2`'s is `WTFPL`. The bullet's
+> other counts still hold: four packages are deprecated upstream (`boolean`,
+> `glob`, `inflight`, `rimraf`), and the shell lockfile carries four
+> `deprecated:` fields. `NOTICE` §2.5's prose still reads "Four packages offer
+> a choice", beside a class table that lists three `(… OR …)` rows and one
+> `WTFPL` row; `NOTICE` carries the licence record and is not this entry's to
+> change.
+
 - **A distribution carries three surfaces, and NOTICE named one.** (a) The
   shell's 268 packages, no copyleft among them, measured. (b) The binaries
   the installer redistributes — seven `$PLUGINSDIR` NSIS plug-in DLLs plus
@@ -127,6 +152,27 @@ container and [the archives index](../../CHANGELOG.md#archives).
   **266 lock keys**, of which **twelve are `lightningcss` platform variants
   under MPL-2.0** and **`caniuse-lite` is CC-BY-4.0** — and the lock records
   no licence field at all, so that surface has no record anywhere in the tree.
+
+> **Two numbers in this bullet, re-measured 2026-11-12.** (1) *The surface
+> count.* A LabCairn distribution carries **four** surfaces, not three:
+> `NOTICE` §0.1 names the python dependency closure (171 items), the shell npm
+> tree (268), the installer-distributed binaries (8) and the web npm tree
+> (266). The bullet's three are the three outside the python closure, and
+> "NOTICE named one" counts within those three — the shell tree. `NOTICE` §0.1
+> read "Four surfaces carry third-party material" in the same commit that
+> widened the scope (`df18d46`), so the three here came from that commit's
+> subject line rather than from `NOTICE`. (2) *The MPL-2.0 keys.* The twelve
+> MPL-2.0 keys are the `lightningcss@1.33.0` family: the base package
+> `lightningcss@1.33.0` itself **plus eleven** platform variants, so "twelve
+> are `lightningcss` platform variants" is off by one in the base package's
+> favour. `NOTICE` §2.6 enumerates the same twelve as "MPL-2.0 — 12 of the
+> 266 keys", and `caniuse-lite` is the one CC-BY-4.0 key. The bullet's other
+> half — "the lock records no licence field at all" — still holds: the web
+> lockfile carries no `licence:` field. What no longer holds is "that surface
+> has no record anywhere in the tree": `NOTICE` §2.6 records the web tree, and
+> `web/src/thirdPartyNotices.test.ts` and `shell/test/notice-scope.test.mjs`
+> witness it. The bullet is left as written; this note names what changed.
+
 - **Four decisions, taken 2026-11-12.** (1) **Keep the LGPL-2.1 plug-ins and
   discharge the obligations** — the licence text, the notice and the source
   access go into the record and the deliverable. (2) **Widen NOTICE's scope**

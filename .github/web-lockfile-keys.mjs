@@ -26,9 +26,11 @@
  * like a licence that changed.
  *
  * **This is the reader the witness uses.** `shell/test/notice-scope.test.mjs`
- * imports `webLockKeys` and `installedPackages` rather than carrying its own
- * copy, so its mutation controls feed altered text through *this* code — a
- * reader that cannot be tested is a reader that can be turned off.
+ * imports `webLockKeys` rather than carrying its own copy, so its mutation
+ * controls feed altered text through *this* code — a reader that cannot be
+ * tested is a reader that can be turned off. The installed-copy denominator is
+ * read through `installedPackages`, which `shell/test/shell-tree-terms.test.mjs`
+ * and `web/test/web-tree-terms.test.mjs` import from here.
  *
  * Usage:
  *   node .github/web-lockfile-keys.mjs web/pnpm-lock.yaml

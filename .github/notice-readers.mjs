@@ -1,13 +1,14 @@
 /**
- * NOTICE read as data, shared by the four distribution-surface witnesses.
+ * NOTICE read as data, shared by the distribution-surface witnesses.
  *
  * **Why this file exists.** NOTICE's §0.1 table names four surfaces a LabCairn
  * distribution carries, and each has its own section recording what travels
  * under what terms: §2.2/§2.3 the python closure, §2.4 the shell's npm tree,
  * §2.5 the installer's binaries, §2.6 the web tree. Each of those sections is a
- * table with a shape, and four witnesses have to read those shapes. A pattern
- * written out four times is four chances to read the table wrongly, and a read
- * that silently matches nothing reports "no problems found".
+ * table with a shape, and every witness that reads one of them has to read
+ * that shape. A pattern written out per witness is one chance per witness to
+ * read the table wrongly, and a read that silently matches nothing reports "no
+ * problems found".
  *
  * **This is not a second copy of the existing readers.** `notice-licences.test.mjs`
  * and `notice-scope.test.mjs` keep their own readers: they are the pieces those
