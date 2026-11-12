@@ -3083,3 +3083,456 @@ def test_thirteen_jobs_is_a_figure_no_revision_of_the_workflow_ever_produced(
         "the corrected records deny; if a revision had it, the denial describes a tree that no "
         "longer exists."
     )
+
+
+# --------------------------------------------------------------------------
+# A superseded dated record has to say it was superseded
+# --------------------------------------------------------------------------
+#
+# The project's rule, restated in the owner's 2026-11-12 decision: a stale sentence in
+# a **dated snapshot** is a historical fact and keeps its wording; a stale sentence in a
+# **current pointer** is a defect and gets corrected. The correction half is watched —
+# `test_the_current_pointers_agree_with_the_measured_required_check_set` refuses the
+# phrases the 2026-11-11 reading contradicts in `CLAUDE.md`, `docs/handoff/CURRENT.md`
+# and `docs/REPOSITORY-MAP.md`. **The other half was watched by nothing**: no check asked
+# whether a dated sentence the tree had since overtaken was *marked* as superseded rather
+# than quietly rewritten, or quietly left standing.
+#
+# The gap is not hypothetical. `.github/CI.md` §"2026-11-02 — lint split out of the shard
+# jobs" states that `lint` "is **not a required status check**", while the marked
+# required-check block in the same file lists `lint` among the fifteen contexts read from
+# GitHub on 2026-11-11. Both sentences are in one file, both readable locally, and nothing
+# compared them. The correction that landed on 2026-11-12 kept the older sentence and added
+# a marker; this is what notices if the next one does not.
+#
+# **What "marked" has to mean, or the check is decoration.** A block that says "superseded
+# since" without saying *since what* is a sentence with a label on it. The marker has to
+# locate the later reading — a revision in this repository, a record file here, or a command
+# a reader can run — and name a date **after** its own section's date. A marker naming only
+# the section's own date restates the snapshot and supersedes nothing.
+
+#: The records whose **dated sections** this witness reads. The scope is declared rather
+#: than swept: `docs/` holds 195 Markdown files, and most dated prose in them is history
+#: about another project, another machine or a decision, which no local measurement
+#: contradicts. What is read here is where a dated claim meets a quantity this repository
+#: can re-measure — the required-check set, whose names the workflows either report or do
+#: not.
+DATED_SNAPSHOT_RECORDS: Final[tuple[Path, ...]] = (
+    REQUIRED_CHECK_RECORD,
+    Path("CLAUDE.md"),
+    Path("docs") / "README.md",
+    Path("docs") / "ROADMAP.md",
+    Path("docs") / "REPOSITORY-MAP.md",
+    Path("docs") / "handoff" / "CURRENT.md",
+    Path("docs") / "RELEASE-NOTES.md",
+    Path("docs") / "plans" / "LC-P1-13-evaluation-ci.md",
+)
+
+_SECTION_DATE: Final[re.Pattern[str]] = re.compile(r"20\d\d-\d\d-\d\d")
+
+#: The marker phrase the 2026-11-12 convention settled on.
+SUPERSESSION_MARKER: Final[re.Pattern[str]] = re.compile(r"dated snapshot", re.I)
+
+#: A statement that a check is not required. The subject is resolved from the same
+#: paragraph, because the records put the name in one clause and the negation in the next:
+#: "`lint` is a check the workflow reports; it is **not a required status check**".
+NOT_A_REQUIRED_CHECK: Final[re.Pattern[str]] = re.compile(
+    r"\bis not a required(?: status)? check|\bnot a required status check"
+    r"|\bdoes not (?:block|gate) a merge\b|\bit cannot be one\b",
+    re.I,
+)
+#: A name a record cites as code — the shape every job and check name in these records has.
+CITED_NAME: Final[re.Pattern[str]] = re.compile(r"`([A-Za-z][A-Za-z0-9 ()_./,{}-]{1,60})`")
+
+#: What a marker may point a reader at. A date alone is not on this list: it renumbers the
+#: snapshot rather than locating a later reading.
+MARKER_COMMAND: Final[re.Pattern[str]] = re.compile(
+    r"\b(gh api|git merge-base|git cat-file|git ls-files|git log|python \.github/\S+)\b"
+)
+MARKER_LINK: Final[re.Pattern[str]] = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def _markdown_sections(text: str) -> list[dict[str, Any]]:
+    """Each `##`-level section of a record, with its heading and its lines."""
+    out: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for number, line in enumerate(text.split("\n"), start=1):
+        heading = re.match(r"^#{2,6}\s+(.*?)\s*#*\s*$", line)
+        if heading:
+            if current:
+                out.append(current)
+            current = {"heading": heading.group(1), "start": number, "lines": []}
+            continue
+        if current is not None:
+            current["lines"].append((number, line))
+    if current:
+        out.append(current)
+    return out
+
+
+def _marker_blocks(lines: list[tuple[int, str]]) -> list[dict[str, Any]]:
+    """Every supersession marker in a section, with what each one actually names.
+
+    A marker is read as the **run of `>` lines it sits in**, not as the one line that
+    matched. The block is where the later reading is written: CI.md's marker spans ten
+    lines, and its revisions, its dates and its `gh api` command sit on lines a one-line
+    reader never sees. That is also what makes a marker removable without the word
+    "snapshot" surviving in the file — which is what the demonstration below does.
+    """
+    out: list[dict[str, Any]] = []
+    index = 0
+    while index < len(lines):
+        _number, line = lines[index]
+        if not SUPERSESSION_MARKER.search(line):
+            index += 1
+            continue
+        first = index
+        while first > 0 and lines[first - 1][1].startswith(">"):
+            first -= 1
+        last = index
+        while last + 1 < len(lines) and lines[last + 1][1].startswith(">"):
+            last += 1
+        block = " ".join(text_line for _number, text_line in lines[first : last + 1])
+        out.append(
+            {
+                "first_line": lines[first][0],
+                "last_line": lines[last][0],
+                "dates": _SECTION_DATE.findall(block),
+                "revisions": FULL_SHA.findall(block),
+                "links": [m.group(1) for m in MARKER_LINK.finditer(block)],
+                "commands": sorted({m.group(1) for m in MARKER_COMMAND.finditer(block)}),
+            }
+        )
+        index = last + 1
+    return out
+
+
+def _section_paragraphs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """The section's prose paragraphs, with a marker block excluded from them.
+
+    The marker is not a claim; it is the record's note *about* a claim. Reading it as
+    another paragraph would let a marker answer the question it exists to answer.
+    """
+    out: list[tuple[int, str]] = []
+    buffer: list[str] = []
+    start = 0
+    for number, line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(">"):
+            if buffer:
+                out.append((start, " ".join(buffer)))
+                buffer = []
+            continue
+        if not buffer:
+            start = number
+        buffer.append(stripped)
+    if buffer:
+        out.append((start, " ".join(buffer)))
+    return out
+
+
+def _commit_exists(repo_root: Path, revision: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "-C", str(repo_root), "cat-file", "-e", f"{revision}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _superseded_dated_claims(
+    repo_root: Path, text: str, contexts: list[str]
+) -> list[dict[str, Any]]:
+    """Dated-section claims that this record's own required-check reading contradicts.
+
+    **Only claims whose subject is in the measured set.** `docs/handoff/CURRENT.md` and
+    `docs/plans/LC-P1-13-evaluation-ci.md` both say the `evaluation` job is not a required
+    check, and both are **true** — `evaluation` is not among the fifteen contexts and cannot
+    be, because GitHub fires a schedule only from the default branch. A witness that reddened
+    on those sentences would be banning a phrase rather than measuring a referent. The check
+    is "does the record's own list require this name", not "does the file contain the words".
+    """
+    claimed: list[dict[str, Any]] = []
+    for section in _markdown_sections(text):
+        section_date = _SECTION_DATE.search(section["heading"])
+        if section_date is None:
+            # An undated section makes a current claim, and current claims belong to
+            # `test_the_current_pointers_agree_with_the_measured_required_check_set`.
+            continue
+        for paragraph_start, paragraph in _section_paragraphs(section["lines"]):
+            # Emphasis is stripped and code spans are kept, so the name positions in the
+            # string are the positions the name-citation and the negation are compared at.
+            plain = re.sub(r"[*_]+", " ", paragraph)
+            negation = NOT_A_REQUIRED_CHECK.search(plain)
+            if negation is None:
+                continue
+            # The subject is a name cited **before** the negation. CI.md writes "`lint` is a
+            # check the workflow reports; it is **not a required status check**", so the name
+            # sits in the earlier clause and the negation in the later one. Requiring the name
+            # to precede stops a name mentioned after the claim from being read as its subject.
+            subjects = [m.group(1) for m in CITED_NAME.finditer(plain[: negation.start()])]
+            required = next(
+                (
+                    context
+                    for name in reversed(subjects)
+                    for context in contexts
+                    if name == context or context.startswith(f"{name} (")
+                ),
+                None,
+            )
+            if required is None:
+                continue
+            claimed.append(
+                {
+                    "line": paragraph_start,
+                    "subject": required,
+                    "section": section["heading"],
+                    "section_date": section_date.group(0),
+                    "section_start": section["start"],
+                    "matched": negation.group(0),
+                }
+            )
+    return claimed
+
+
+def _marker_problems(
+    repo_root: Path, claim: dict[str, Any], record: Path, markers: list[dict[str, Any]]
+) -> list[str]:
+    """Why none of a section's markers carries the supersession the claim needs."""
+    if not markers:
+        return [
+            f"{record}:{claim['line']} says {claim['subject']!r} {claim['matched']!r} inside the "
+            f"dated section {claim['section']!r}, and the section carries no supersession marker. "
+            f"The same record's required-check block lists {claim['subject']!r}, so the sentence "
+            "is contradicted by a reading this repository can re-run. Either correct it to the "
+            "current state, or keep it as written and mark it."
+        ]
+    problems: list[str] = []
+    for marker in markers:
+        refusals: list[str] = []
+        real = [r for r in marker["revisions"] if _commit_exists(repo_root, r)]
+        fake = [r for r in marker["revisions"] if not _commit_exists(repo_root, r)]
+        resolved_links = [
+            link
+            for link in marker["links"]
+            if (repo_root / link).exists() or (repo_root / "docs" / link).exists()
+        ]
+        locators = real + resolved_links + list(marker["commands"])
+        if not locators:
+            refusals.append(
+                f"the marker at {record}:{marker['first_line']} names no revision that exists "
+                f"here, no record file here and no runnable command"
+                + (
+                    f" — the full revisions it cites ({', '.join(h[:12] + '…' for h in fake)}) "
+                    "are not commits in this repository"
+                    if fake
+                    else ""
+                )
+                + ", so a reader cannot find the reading that supersedes the sentence"
+            )
+        elif fake:
+            refusals.append(
+                f"the marker at {record}:{marker['first_line']} cites "
+                f"{', '.join(h[:12] + '…' for h in fake)}, which is not a commit in this repository"
+            )
+        later = sorted(d for d in marker["dates"] if d > claim["section_date"])
+        if not later:
+            refusals.append(
+                f"the marker at {record}:{marker['first_line']} names no date after its section's "
+                f"own {claim['section_date']} (it names {marker['dates'] or 'none'}), so it "
+                "restates the snapshot instead of superseding it"
+            )
+        if not refusals:
+            return []
+        problems.extend(refusals)
+    return problems
+
+
+def test_a_superseded_dated_record_carries_a_marker_naming_the_later_reading(
+    repo_root: Path,
+) -> None:
+    """A dated sentence the tree has overtaken is kept **and marked**, or corrected.
+
+    **The property.** `.github/CI.md` carries the required-check set as data: a marked block
+    listing fifteen contexts, whose names the witness above checks against every workflow.
+    When a *dated section* of a record states that one of those names is not a required
+    check, the record contradicts itself and only one of the two sentences can be about
+    today. The project's rule lets the dated one stay exactly as written **provided it is
+    marked as superseded**. Nothing watched that "provided".
+
+    **What a marker has to do.** Name where the later reading is — a revision that exists in
+    this repository, a record file that exists here, or a command a reader can run — and name
+    a date after the section's own date. `superseded since` with nothing after it is a label
+    on a sentence, not a pointer. CI.md's marker passes both ways: it cites `6b3211ae…`
+    (2026-11-11) and `0655bb8b…` (2026-11-12) and prints the `gh api` call that renews the
+    reading.
+
+    **What this does not watch, said out loud.** Undated sections — the current pointers — are
+    policed by `test_the_current_pointers_agree_with_the_measured_required_check_set`, which
+    refuses the contradicting phrases there instead of asking for a marker. A dated claim whose
+    subject is **not** in the required set is left alone on purpose: `evaluation` genuinely is
+    not a required check, and a witness that reddens on true sentences is a witness that gets
+    switched off. And a marker's prose is not judged — only whether it points somewhere a
+    reader can follow.
+    """
+    contexts, _anchor = _required_contexts(repo_root)
+    assert contexts, f"{REQUIRED_CHECK_RECORD} lists no required contexts to contradict"
+
+    problems: list[str] = []
+    contradicted = 0
+    for relative in DATED_SNAPSHOT_RECORDS:
+        path = repo_root / relative
+        assert path.is_file(), f"{relative} is a record this witness reads, and it is not there"
+        text = path.read_text(encoding="utf-8")
+        sections = _markdown_sections(text)
+        for claim in _superseded_dated_claims(repo_root, text, contexts):
+            contradicted += 1
+            section = next(s for s in sections if s["start"] == claim["section_start"])
+            problems.extend(
+                _marker_problems(repo_root, claim, relative, _marker_blocks(section["lines"]))
+            )
+
+    assert not problems, (
+        "a dated record states something its own measured reading contradicts, and the "
+        "supersession is not carried properly:\n  "
+        + "\n  ".join(problems)
+        + "\n\nThe project's rule: a stale sentence in a dated snapshot is a historical fact and "
+        "keeps its wording — **if it is marked**, and the marker names the later reading. A "
+        "stale sentence left unmarked is either an unmarked supersession or a wrong sentence, "
+        "and the record has to say which."
+    )
+    assert contradicted, (
+        "no dated record contradicts the required-check reading any more. This witness exists to "
+        "check what happens to a dated sentence the tree overtakes; if nothing in the records is "
+        "such a sentence, the dated history was flattened into present tense and the witness is "
+        "looking at nothing."
+    )
+
+
+def test_the_supersession_marker_check_fails_when_a_marker_is_deleted_or_hollow(
+    repo_root: Path,
+) -> None:
+    """The marker check is seen to fail for the property, on copies held in memory.
+
+    **The baseline that makes the demonstration meaningful.** `.github/CI.md` today carries
+    exactly one dated claim its own required-check block contradicts — `lint` "is not a
+    required status check" in §"2026-11-02 — lint split out of the shard jobs" — covered by
+    the marker at line 265. The unmutated copy therefore reports nothing.
+
+    **Three mutations, each one a distinct way the convention fails.** (1) **The marker block
+    is deleted**: the stale sentence stands alone, which is the exact hole this witness exists
+    for. (2) **The marker's revisions are replaced by a well-formed revision that is not a
+    commit here, and its `gh api` command removed**: the marker still says "superseded since",
+    still carries dates, and points nowhere a reader can follow. (3) **The marker keeps its
+    real revisions but its later dates are moved onto the section's own date**: it then names
+    no later reading, so it restates the snapshot rather than superseding it. Each mutation is
+    asserted to change bytes before any report is credited to it.
+
+    **Control.** The real `CI.md` bytes are compared before and after, so the demonstration is
+    provably unable to write the record it guards.
+    """
+    record = repo_root / REQUIRED_CHECK_RECORD
+    original_bytes = record.read_bytes()
+    text = original_bytes.decode("utf-8")
+
+    contexts, _anchor = _required_contexts(repo_root)
+    baseline = _superseded_dated_claims(repo_root, text, contexts)
+    assert len(baseline) == 1, (
+        f"{REQUIRED_CHECK_RECORD} now carries {len(baseline)} dated claims its own required-check "
+        "block contradicts. The demonstrations below mutate a specific one, so they have to be "
+        "re-read against the record before these numbers change."
+    )
+    claim = baseline[0]
+    sections = _markdown_sections(text)
+    baseline_section = next(s for s in sections if s["start"] == claim["section_start"])
+    baseline_markers = _marker_blocks(baseline_section["lines"])
+    assert baseline_markers, (
+        f"the dated claim at {REQUIRED_CHECK_RECORD}:{claim['line']} has no marker in this tree, "
+        "so the main witness is already red and this demonstration would be testing a broken "
+        "record rather than a reader"
+    )
+    marker_first = baseline_markers[0]["first_line"]
+    marker_last = baseline_markers[0]["last_line"]
+    lines = text.split("\n")
+    assert lines[marker_first - 1].startswith(">"), (
+        f"the marker block is expected to begin at line {marker_first} with a `>` line; the "
+        f"reader found {lines[marker_first - 1][:60]!r}"
+    )
+
+    def reports(mutated: str) -> list[str]:
+        found: list[str] = []
+        mutated_sections = _markdown_sections(mutated)
+        for mutated_claim in _superseded_dated_claims(repo_root, mutated, contexts):
+            start = mutated_claim["section_start"]
+            section = next(s for s in mutated_sections if s["start"] == start)
+            markers = _marker_blocks(section["lines"])
+            found.extend(_marker_problems(repo_root, mutated_claim, REQUIRED_CHECK_RECORD, markers))
+        return found
+
+    assert reports(text) == [], f"the unmutated record reports: {reports(text)}"
+
+    # Mutation 1: the marker block is removed and the stale sentence stands alone.
+    kept = [
+        line
+        for index, line in enumerate(lines, start=1)
+        if not marker_first <= index <= marker_last
+    ]
+    without_marker = "\n".join(kept)
+    assert without_marker != text, "removing the marker block changed no bytes"
+    removed_reports = reports(without_marker)
+    assert any("no supersession marker" in report for report in removed_reports), (
+        f"deleting the marker block left the stale dated sentence covered: {removed_reports}. "
+        "Then the witness is not reading the marker at all."
+    )
+
+    # The marker block as written, shared by the two mutations below so each one edits the
+    # same span of the record rather than a pattern that could match elsewhere in the file.
+    marker_text = "\n".join(lines[marker_first - 1 : marker_last])
+
+    # Mutation 2: a marker that points nowhere.
+    real_revisions = baseline_markers[0]["revisions"]
+    assert real_revisions, "the marker names no revision, so this control has nothing to replace"
+    impostor = "f" * 40
+    assert not _commit_exists(repo_root, impostor), (
+        f"{impostor[:12]}… resolves to a commit here, so replacing the marker's revisions with "
+        "it would not make the marker hollow"
+    )
+    # Both edits are applied **inside the marker block**, and the block is then swapped back
+    # into the record once. A revision the marker cites also appears in the required-check
+    # block's begin marker 220 lines earlier, so replacing over the whole record — even with
+    # `count=1` — would edit the anchor of the reading instead of the marker that cites it,
+    # and the demonstration would break the thing it is meant to leave intact.
+    hollow_marker = marker_text
+    for revision in real_revisions:
+        hollow_marker = hollow_marker.replace(revision, impostor)
+    hollow_marker = MARKER_COMMAND.sub("the owner has since added it", hollow_marker)
+    assert hollow_marker != marker_text, "the marker edit changed nothing inside the marker block"
+    hollow = text.replace(marker_text, hollow_marker, 1)
+    assert hollow != text, "the marker-hollowing mutation changed no bytes"
+    hollow_reports = reports(hollow)
+    assert any("names no revision that exists here" in report for report in hollow_reports), (
+        "a marker citing a non-existent commit and naming no command was accepted: "
+        f"{hollow_reports}"
+    )
+
+    # Mutation 3: a marker that points at a real reading but not at a *later* one.
+    same_date = marker_text
+    for date in sorted(set(_SECTION_DATE.findall(marker_text))):
+        if date != claim["section_date"]:
+            same_date = same_date.replace(date, claim["section_date"])
+    assert same_date != marker_text, (
+        "the marker names no date other than its section's own, so this control has nothing to move"
+    )
+    no_later_date = text.replace(marker_text, same_date, 1)
+    assert no_later_date != text, "the date mutation changed no bytes"
+    date_reports = reports(no_later_date)
+    assert any("no date after its section" in report for report in date_reports), (
+        f"a marker naming no later date was accepted: {date_reports}. `superseded since` "
+        "with nothing after it is a label, not a pointer."
+    )
+
+    assert record.read_bytes() == original_bytes, (
+        f"{REQUIRED_CHECK_RECORD} changed while it was being read"
+    )
