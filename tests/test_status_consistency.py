@@ -56,6 +56,7 @@ import ast
 import re
 import subprocess
 from pathlib import Path
+from typing import Final
 from urllib.parse import unquote
 
 import pytest
@@ -2181,3 +2182,367 @@ def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> Non
         f"the probe's report did not name the line the words are really on: {problems}"
     )
     assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"
+
+
+# --------------------------------------------------------------------------
+# every live document declares a count: the completeness half
+# --------------------------------------------------------------------------
+
+#: **The half the check above cannot reach.** It reads only documents that declare a count, so
+#: the defect the format exists for -- a live document whose pointers nobody reads -- is exactly
+#: what it leaves alone. A document opts in by declaring, and nothing asked anything to opt in.
+#: So the documents the owner's rule reaches are **listed by hand here**, the way
+#: `tests/test_ci_shard_coverage.py` lists `JOB_COUNT_RECORDS`, and each one is required to
+#: declare a count that matches what the reader counts.
+
+#: A span citation: a path, a first line and a last line.
+#:
+#: **How a span is converted, stated as a rule, and what the witness reads.**
+#:
+#: - **The witness reads only single-line pointers**, and only a single-line pointer counts
+#:   toward `N`. It never reads a span and does not try to verify one: "the words are somewhere
+#:   in lines 120-135" is not a checkable claim in the way "the words are on line 120" is, and a
+#:   check that passes because the wording appears on *some* line of a range is the decoration
+#:   this file exists to avoid.
+#: - **A span is not forbidden.** It is a citation shape the format has no rule for yet. It
+#:   counts toward whether a document is *live* (`_resolvable_citations`), so a document cannot
+#:   escape the completeness rule by citing only ranges -- but converting a span means replacing
+#:   it, not annotating it.
+#: - **Conversion takes the line that carries the claim, and the range dissolves.** Not the
+#:   first line of the range, and not the whole range. Measured at `a29e0eb`, on the span this
+#:   window was asked to convert -- `src/labcairn/providers/pydantic_models.py:137-150`, cited
+#:   at `docs/plans/P2-AMD-01-provider-and-data-options.md:55` for the sentence *"Two protocols,
+#:   both through pydantic-ai"*: **line 137 is empty**, 138-144 are a paragraph about the usage
+#:   sniffer, and the protocol branch the sentence is about begins at **149**
+#:   (`if settings.protocol is Protocol.ANTHROPIC:`) and continues at **162**
+#:   (`from pydantic_ai.models.openai import OpenAIChatModel`). "The first line" is refuted by
+#:   the one example in the tree: it would anchor an empty line, which cannot carry a span of
+#:   twelve characters, and the range as written never contained the claim it was cited for.
+#:   That is the defect the format exists for -- a pointer whose number drifted from the thing it
+#:   names -- caught by trying to anchor it.
+#: - **One claim, one line.** Where a sentence cites one range for two facts, it converts to two
+#:   pointers, each anchored on the line carrying its own fact. That is what `P2-AMD-01` now
+#:   does: `:149` for `anthropic`, `:162` for `openai`, and its declaration reads **2**.
+#:
+#: Measured at `a29e0eb`: **264** spans across **28** documents, and **0** of them carry words.
+_SPAN_CITATION = re.compile(r"`(?P<path>[^`\s:]+):(?P<first>\d{1,6})-(?P<last>\d{1,6})`")
+
+
+def _resolvable_citations(doc: Path, text: str) -> tuple[int, int]:
+    """How many citations this document makes into files the repository actually carries.
+
+    ``(single-line, span)``. **This is the ruler for membership in the list below, not the ruler
+    for `N`** -- and the difference is the point. A document that cites the tree only through
+    spans is still a document whose pointers a reader follows, so it cannot dodge the rule by
+    citing only ranges; but every document below that converted counts anchored single-line
+    pointers, because that is the shape the format defines and the reader reads. The document
+    that forced this distinction, `docs/plans/P2-AMD-01-provider-and-data-options.md`, carries
+    **0 single-line and 1 span** -- live under the first ruler, invisible under the second.
+    """
+    fenced = _fenced_lines(text)
+    single = span = 0
+    for match in _POINTER.finditer(text):
+        if text[: match.start()].count("\n") + 1 in fenced:
+            continue
+        if not _FILE_SHAPED_PATH.match(match.group("path")):
+            continue
+        link = _LINK_CLOSE.match(text, match.end())
+        if _cited_file(doc, match.group("path"), link.group(1) if link else None) is not None:
+            single += 1
+    for match in _SPAN_CITATION.finditer(text):
+        if text[: match.start()].count("\n") + 1 in fenced:
+            continue
+        if not _FILE_SHAPED_PATH.match(match.group("path")):
+            continue
+        link = _LINK_CLOSE.match(text, match.end())
+        if _cited_file(doc, match.group("path"), link.group(1) if link else None) is not None:
+            span += 1
+    return single, span
+
+
+def _derive_live_candidates() -> dict[Path, tuple[int, int]]:
+    """Every tracked Markdown document carrying at least one citation into a carried file."""
+    out: dict[Path, tuple[int, int]] = {}
+    for doc in _tracked_markdown():
+        counts = _resolvable_citations(doc, doc.read_text(encoding="utf-8"))
+        if counts[0] or counts[1]:
+            out[doc] = counts
+    return out
+
+
+#: **What is excluded, and on what stated rule.** An exclusion nobody wrote down is
+#: indistinguishable from a forgotten document. The owner's ruling of 2026-11-12 is that the
+#: dated records **keep their line numbers** and gain a sentence saying those numbers are a
+#: reading of their own date -- separate work, not started -- so the completeness rule stops at
+#: this line rather than half-converting a dated record. Measured at `a29e0eb`: the tree holds
+#: **40** documents carrying citations into carried files; these rules remove **24** of them,
+#: leaving the **16** listed below.
+#:
+#: - ``docs/adr/`` -- **5** documents, **14** citations.
+#: - ``docs/acceptance/`` -- **18** documents, **128** citations. This is also where **12 of the
+#:   13 pointers that already sit in anchored form by accident** live; a window that declares
+#:   one of them without reading those rows goes red, which is the intended outcome, not a trap.
+#: - ``docs/handoff/CURRENT.md`` -- a dated log. Its pointers sit inside dated entries: line
+#:   1771 (`src/labcairn/api/routes.py:273`) is inside *"Three limits were known and recorded --
+#:   all three are closed as of 2026-11-02"*, and the span at line 1989
+#:   (`src/labcairn/security/approval.py:215-222`) is inside *"## Carried limitations, none
+#:   blocking"*. The owner's answer for these three (1679, 1771, 1989) is **leave them**, and
+#:   this entry is here so they do not read as an oversight. (The third of them,
+#:   `G1-evidence.md:9` at line 1679, resolves to no file at all -- a dead pointer, and not
+#:   something this rule was asked to repair.)
+_ANCHORED_EXCLUSIONS: Final[tuple[tuple[str, str], ...]] = (
+    ("docs/adr/", "dated record: keeps its line numbers and gains a dated reading instead"),
+    ("docs/acceptance/", "dated record: keeps its line numbers and gains a dated reading instead"),
+    ("docs/handoff/CURRENT.md", "dated log: every one of its pointers sits inside a dated entry"),
+)
+
+
+def _posix_relative(path: Path) -> str:
+    """This repository's path for ``path``, with forward slashes on every platform.
+
+    Not cosmetic. `str(Path.relative_to(...))` yields ``docs\\acceptance\\x.md`` on Windows, and
+    every exclusion rule in this file is written with ``/``. A comparison between the two is
+    never equal, so **all the exclusions silently stop applying** and the check reports the
+    excluded documents as omissions -- a wrong red, which is the failure this file warns about
+    elsewhere. Measured: with the raw ``str()`` the 18 ``docs/acceptance/`` documents were
+    reported as missing from the list; with this helper they are excluded by the stated rule.
+    """
+    return path.relative_to(REPO).as_posix()
+
+
+def _exclusion_reason(name: str) -> str | None:
+    """Why this document is outside the completeness rule, or ``None`` if nothing excludes it.
+
+    ``name`` is a repository-relative path in the same forward-slash form the rules are written
+    in -- `_posix_relative` is what guarantees that, and it is what makes an exclusion either
+    apply or fail loudly rather than quietly match nothing.
+    """
+    for pattern, reason in _ANCHORED_EXCLUSIONS:
+        if pattern.endswith("/") and name.startswith(pattern):
+            return reason
+        if name == pattern:
+            return reason
+    return None
+
+
+#: **The live documents.** Every one of these is a document a reader opens today, and every one
+#: of them must carry `**Anchors:** N`. Read at `a29e0eb`: the tree's 40 candidates, minus the
+#: 24 the rules above remove, is exactly these 16 -- and `test_the_live_document_list_covers_
+#: what_the_tree_contains` is what notices when that stops being true in either direction.
+#:
+#: One entry deserves its reason stated rather than assumed: `docs/REVIEW-DOSSIER.md` declares
+#: **9** while carrying **53** single-line citations, and all **44** of the unanchored ones
+#: cite `docs/UPSTREAM_REFERENCES.md` -- its own catalogue -- at line numbers already held by
+#: `tests/test_review_dossier.py`, which finds each line **by its wording** and then checks the
+#: number against it. Those citations are watched. They are watched elsewhere, which is the
+#: honest reading of "not every bare pointer is an unwatched pointer", and it is why this rule
+#: requires a **declaration**, not a conversion of every citation in the tree.
+ANCHORED_LIVE_DOCUMENTS: Final[tuple[Path, ...]] = (
+    Path("docs/PHASE_1_WORKORDERS.md"),
+    Path("docs/RELEASE-NOTES.md"),
+    Path("docs/REVIEW-DOSSIER.md"),
+    Path("docs/ROADMAP.md"),
+    Path("docs/THREAT-MODEL.md"),
+    Path("docs/changelog/phase-2.md"),
+    Path("docs/plans/LC-P1-01-task-breakdown.md"),
+    Path("docs/plans/LC-P1-10-task-breakdown.md"),
+    Path("docs/plans/LC-P1-13-14-task-breakdown.md"),
+    Path("docs/plans/LC-P2-02-task-breakdown.md"),
+    Path("docs/plans/LC-P3-05-shell-implementation-plan.md"),
+    Path("docs/plans/P2-AMD-01-provider-and-data-options.md"),
+    Path("docs/plans/PHASE_2-capability-reuse-matrix.md"),
+    Path("docs/plans/PHASE_2-work-orders-draft.md"),
+    Path("docs/plans/PHASE_3-work-orders.md"),
+    Path("web/README.md"),
+)
+
+
+def _declaration_problems(listed: tuple[Path, ...], texts: dict[Path, str]) -> list[str]:
+    """For each live document: does it declare, and does its declared number match the reader?"""
+    problems: list[str] = []
+    for relative in listed:
+        doc = REPO / relative
+        text = texts[doc]
+        name = relative.as_posix()
+        found = _declarations(text)
+        counted = len(_anchored_pointers(text, _fenced_lines(text)))
+        if not found:
+            problems.append(
+                f"{name} is a live document -- it cites files this repository carries -- and "
+                f"declares no anchor count, so the reader checks nothing in it "
+                f"({counted} anchored pointer(s) present, unwatched)."
+            )
+            continue
+        if len(found) > 1:
+            problems.append(f"{name} declares an anchor count {len(found)} times")
+            continue
+        declared = int(found[0].group("count"))
+        if declared != counted:
+            problems.append(
+                f"{name} declares **Anchors:** {declared} while the reader finds {counted} "
+                f"anchored pointer(s) in it"
+            )
+    return problems
+
+
+def test_every_live_document_declares_its_anchor_count() -> None:
+    """The documents the owner's rule reaches are named in this file, and each declares.
+
+    **What this adds.** The witness above checks a document only when that document volunteers
+    by declaring a count. That is the right scope for correctness -- a half-converted document
+    must not be held to a format it is mid-way through adopting -- but on its own it lets the
+    actual defect survive: the live document nobody converted stays unwatched while every check
+    is green. So the scope is written down, and the written scope is what is enforced.
+    """
+    texts = {
+        REPO / relative: (REPO / relative).read_text(encoding="utf-8")
+        for relative in ANCHORED_LIVE_DOCUMENTS
+    }
+    missing = [relative for relative in ANCHORED_LIVE_DOCUMENTS if not (REPO / relative).is_file()]
+    assert not missing, "the live-document list names files that are not in the tree: " + ", ".join(
+        x.as_posix() for x in missing
+    )
+
+    problems = _declaration_problems(ANCHORED_LIVE_DOCUMENTS, texts)
+    assert not problems, (
+        f"{len(ANCHORED_LIVE_DOCUMENTS)} documents are listed as live and {len(problems)} fail "
+        "the declaration half of the format:\n  " + "\n  ".join(problems)
+    )
+
+
+def test_the_live_document_list_covers_what_the_tree_contains() -> None:
+    """The hand-written scope is checked against the tree it claims to describe, both ways.
+
+    **A list that is only enforced one direction is a list that drifts.** Too strict a rule is
+    the visible failure; the quiet one is a document that gains citations into carried files and
+    is never added. So this derives the candidate set with the same ruler the list was built
+    with -- fence-skipped, shape-guarded, citation resolving to a file the repository carries --
+    and compares it with the list **and** with the exclusions.
+
+    The second direction matters as much: an entry in the list that the tree no longer supports
+    is a claim of coverage over a document that watches nothing, which is how a watch list
+    quietly becomes a decoration.
+    """
+    derived = _derive_live_candidates()
+    listed = {REPO / relative for relative in ANCHORED_LIVE_DOCUMENTS}
+
+    omitted: list[str] = []
+    for doc, (single, span) in sorted((k, v) for k, v in derived.items() if k not in listed):
+        name = _posix_relative(doc)
+        reason = _exclusion_reason(name)
+        if reason is None:
+            omitted.append(
+                f"{name} (single {single}, span {span}) cites carried files and is "
+                "neither listed nor excluded by a stated rule"
+            )
+
+    unsupported: list[str] = []
+    for relative in ANCHORED_LIVE_DOCUMENTS:
+        doc = REPO / relative
+        single, span = _resolvable_citations(doc, doc.read_text(encoding="utf-8"))
+        if not (single or span):
+            unsupported.append(
+                f"{relative.as_posix()} is listed as live but carries no citation into a "
+                "carried file "
+                f"(single {single}, span {span})"
+            )
+
+    contradicted = [
+        relative.as_posix()
+        for relative in ANCHORED_LIVE_DOCUMENTS
+        if _exclusion_reason(relative.as_posix()) is not None
+    ]
+
+    assert not omitted, (
+        f"the live-document list is missing {len(omitted)} document(s) the tree puts in scope:\n"
+        "  " + "\n  ".join(omitted) + "\n\nAdd it to ANCHORED_LIVE_DOCUMENTS, or add a stated "
+        "exclusion with its reason -- an undocumented exclusion is indistinguishable from a "
+        "document nobody looked at."
+    )
+    assert not unsupported, (
+        f"{len(unsupported)} listed document(s) no longer carry any citation the reader can "
+        "follow:\n  " + "\n  ".join(unsupported)
+    )
+    assert not contradicted, (
+        f"{len(contradicted)} document(s) are listed as live while also matching an exclusion "
+        f"rule: {contradicted}"
+    )
+
+
+def test_the_completeness_rule_fails_when_a_document_stops_declaring_or_the_list_lies() -> None:
+    """The two halves above are seen to fail for the properties they claim, on copies in memory.
+
+    **Four mutations.** (1) A live document loses its declaration: the document is unchanged in
+    every other way, and the completeness check is the only thing that notices it stopped being
+    watched. (2) A document is dropped from the list while the tree still puts it in scope: the
+    list check reddens and names it -- this is the drift direction that is invisible from inside
+    the list. (3) A document is added to the list that carries no citation at all: coverage is
+    claimed over nothing. (4) A declared count is changed to a number the reader does not find.
+
+    **Controls.** The unmutated tree passes every check first, so each report below is the
+    mutation; each mutation is asserted to change bytes; and no real file is touched.
+    """
+    listed: tuple[Path, ...] = ANCHORED_LIVE_DOCUMENTS
+    texts = {REPO / relative: (REPO / relative).read_text(encoding="utf-8") for relative in listed}
+
+    assert _declaration_problems(listed, texts) == [], (
+        f"the tree as it stands already fails the completeness checks: "
+        f"{_declaration_problems(listed, texts)}"
+    )
+
+    # Mutation 1: the declaration goes.
+    target = Path("docs/plans/P2-AMD-01-provider-and-data-options.md")
+    stripped = _ANCHOR_DECLARATION.sub("", texts[REPO / target], count=1)
+    assert stripped != texts[REPO / target], "mutation 1 changed no bytes"
+    found1 = _declaration_problems(listed, {**texts, REPO / target: stripped})
+    assert any(target.as_posix() in problem for problem in found1), (
+        f"removing {target.as_posix()}'s declaration was not reported: {found1}"
+    )
+    assert any("declares no anchor count" in problem for problem in found1), (
+        f"the report did not name the missing declaration as the failure: {found1}"
+    )
+
+    # Mutation 2: the list drops a document the tree still puts in scope.
+    shortened = tuple(x for x in listed if x != target)
+    assert len(shortened) == len(listed) - 1, "mutation 2 removed nothing"
+    dropped = [p for p in _declaration_problems(shortened, texts) if target.as_posix() in p]
+    assert not dropped, "the declaration check is not where this failure belongs"
+    found2 = _derive_live_candidates()
+    assert REPO / target in found2, (
+        f"{target} no longer cites a carried file, so this control tests nothing: re-point it "
+        "at a live document or drop the case"
+    )
+    omitted = [
+        k
+        for k in found2
+        if k not in {REPO / x for x in shortened} and _exclusion_reason(_posix_relative(k)) is None
+    ]
+    assert any(target.as_posix() in _posix_relative(doc) for doc in omitted), (
+        f"dropping {target} from the list while the tree still covers it went unnoticed: "
+        f"{[_posix_relative(d) for d in omitted]}"
+    )
+
+    # Mutation 3: the list claims a document that carries nothing.
+    invented = Path("docs/plans/LC-P1-13-14-task-breakdown.md")
+    emptied = _SPAN_CITATION.sub("", _POINTER.sub("", texts[REPO / invented]), 99)
+    assert emptied != texts[REPO / invented], "mutation 3 changed no bytes"
+    derived3 = {
+        REPO / relative: _resolvable_citations(REPO / relative, texts[REPO / relative])
+        for relative in listed
+    }
+    derived3[REPO / invented] = _resolvable_citations(REPO / invented, emptied)
+    unsupported = [
+        x.as_posix() for x in listed if not (derived3[REPO / x][0] or derived3[REPO / x][1])
+    ]
+    assert invented.as_posix() in unsupported, (
+        f"a listed document stripped of every citation was still treated as live: {unsupported}"
+    )
+
+    # Mutation 4: the declared number stops matching the reader.
+    roadmap = Path("docs/ROADMAP.md")
+    lied = texts[REPO / roadmap].replace("**Anchors:** 1", "**Anchors:** 7", 1)
+    assert lied != texts[REPO / roadmap], "mutation 4 changed no bytes"
+    found4 = _declaration_problems(listed, {**texts, REPO / roadmap: lied})
+    assert any("**Anchors:** 7" in problem for problem in found4), (
+        f"a count changed to 7 over 1 anchored pointer was not reported: {found4}"
+    )
