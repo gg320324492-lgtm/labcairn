@@ -537,12 +537,16 @@ check this ruling, and both are witnessed.**
   gate class, they are listed in the shard list on both platforms — **one shard
   each, not "every shard", which is what this record printed and what
   `ci-shards.json` has never recorded**: measured 2026-11-12 over the 84
-  revisions of that file, 56 name the three at all — **54 place each in exactly
-  one** shard on each platform, one is the 2026-10-24 single-platform table
-  (`5dbf09b`: four groups, each file in exactly one group), and one is `a1f9e54`
+  revisions of that file, **56 name the three somewhere in the file** (in a shard
+  group or a cost table), **55 place them in a shard group**, and **54 place each in
+  exactly one shard group on each of the two platforms** — the revision that drops out
+  of the last figure is the 2026-10-24 single-platform table (`5dbf09b`: four groups,
+  each file in exactly one group), and the named-but-never-placed one is `a1f9e54`
   (2026-11-02), the removal, which dropped them from the shards while their cost
-  entries lagged a commit behind. **No revision ever placed one of them in more
-  than one shard on a platform.** Which
+  entries lagged one commit behind on the first-parent line. **No revision ever placed
+  one of them in more than one shard on a platform.** The three
+  figures answer three questions; a figure printed without its question is what made
+  56 and 55 look like a disagreement. Which
   shard varies with the re-partition — at `e9b56ba`, 2026-10-29, they sat in
   Ubuntu shards 1 / 2 / 4 and Windows shards 0 / 2 / 1, of five shards per platform
   — CI pays to collect them, and no case comes

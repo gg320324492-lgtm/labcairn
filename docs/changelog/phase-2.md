@@ -72,10 +72,12 @@ container and [the archives index](../../CHANGELOG.md#archives).
   `tests/test_store_support.py`, `tests/test_recovery_support.py` and
   `tests/test_skill_support.py` were shared fixture modules — 47 test files
   import them — that pytest collected and found no case in, and that the shard
-  list carried on both platforms (**one shard each, never every shard: of the 56
-  revisions of `ci-shards.json` that name them at all, 54 place each in exactly one
-  shard on each platform, one is the 2026-10-24 single-platform table and one is the
-  2026-11-02 removal — no revision ever placed one in more than one shard. The
+  list carried on both platforms (**one shard each, never every shard: of the
+  revisions of `ci-shards.json` that name them at all — 56 of the file's 84 — **55
+  place them in a shard group and 54 place each in exactly one shard group on each of
+  the two platforms**; the one that drops out of the second figure is the 2026-10-24
+  single-platform table, and the named-but-never-placed one is the 2026-11-02 removal —
+  no revision ever placed one in more than one shard. The
   "every shard" wording this entry and the Phase 1 board row printed was wrong from
   the day the finding was filed**). They are now `tests/store_support.py`,
   `tests/recovery_support.py` and `tests/skill_support.py`; their shard and
