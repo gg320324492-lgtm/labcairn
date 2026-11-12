@@ -2381,7 +2381,11 @@ def test_a_required_test_that_collected_nothing_is_named_as_that(repo_root: Path
 
     **The tree used to carry three support modules named ``test_*.py``** that
     defined no ``test_*`` function — other test files imported them for their
-    fixtures, and CI paid to collect them on every shard. They were renamed out
+    fixtures, and CI paid to collect them — in **one shard each per platform,
+    never every shard**, which is what the records that filed this finding
+    printed and ``.github/ci-shards.json`` never recorded (re-measured
+    2026-11-12: of the 56 revisions naming them, 54 place each in exactly one
+    shard per platform, and none places one in more than one). They were renamed out
     of the glob on 2026-11-02, so no real file exercises this branch any more.
     The mechanism still has to hold if one comes back: the row has to say
     *"collected nothing"*, because the two things a reader might otherwise
