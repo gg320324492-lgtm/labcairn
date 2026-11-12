@@ -1,5 +1,7 @@
 # LC-P1-13 / LC-P1-14 — The public alpha: evaluation, fault injection, and the handoff
 
+**Anchors:** 1 — every converted pointer below carries the words it cites.
+
 **Gate:** G5 — the public alpha · **Work orders:** 13 (evaluation, fault injection
 and a competitor baseline) and 14 (public alpha handoff and review dossier)
 · **Status of this document:** the work orders were **NOT STARTED** when it was
@@ -68,7 +70,7 @@ the board and the handoff name them, and G5 has to cover them:
   conclusion held: the gates' own records say the reviewer *"did not implement
   any of this"* and call the method *"internal cross-validation by two agents,
   not an external independent audit"*
-  ([`G2-acceptance.md:98`](../acceptance/G2-acceptance.md)). What makes the rule
+  ([`G2-acceptance.md:98`](../acceptance/G2-acceptance.md) — `internal cross-validation by two agents`). What makes the rule
   unmet is that the reviewer was inside the project rather than an independent
   party at a named commit — and, since the owner's ruling of 2026-10-28, that
   the retro-review agents are **procedural independence, not human**. See
