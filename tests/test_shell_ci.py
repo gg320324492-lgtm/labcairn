@@ -8,7 +8,7 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the shell's Node cases (51 across nine
+class and no witness ledger can see the shell's Node cases (52 across nine
 files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
@@ -78,7 +78,7 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: cases were measured from the final branch tree at
 #: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
 #: identical to the merged tree.
-#: `notice-scope.test.mjs` arrived with the widened NOTICE scope; its seven
+#: `notice-scope.test.mjs` arrived with the widened NOTICE scope; its eight
 #: cases watch §0.1's surface table against the two lockfiles and against the
 #: sections that record copyleft, and they were measured from the branch tree
 #: that added it.
@@ -91,7 +91,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
-    "notice-scope.test.mjs": 7,
+    "notice-scope.test.mjs": 8,
     "packaging-config.test.mjs": 9,
     "window-security.test.mjs": 4,
 }

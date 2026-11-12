@@ -45,13 +45,14 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { lockfileKeys } from '../../.github/shell-lockfile-keys.mjs'
+import { lockfileKeys, snapshotEdges, bareKey } from '../../.github/shell-lockfile-keys.mjs'
 import { webLockKeys } from '../../.github/web-lockfile-keys.mjs'
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const NOTICE_TEXT = fs.readFileSync(path.join(REPO, 'NOTICE'), 'utf8')
 const SHELL_LOCK = fs.readFileSync(path.join(REPO, 'shell', 'pnpm-lock.yaml'), 'utf8')
 const WEB_LOCK = fs.readFileSync(path.join(REPO, 'web', 'pnpm-lock.yaml'), 'utf8')
+const WEB_MANIFEST = fs.readFileSync(path.join(REPO, 'web', 'package.json'), 'utf8')
 
 /**
  * The surfaces §0.1 must name, and the terms each one's row must carry.
@@ -335,6 +336,75 @@ export function webClassProblems(noticeText, webKeys) {
   return problems
 }
 
+/**
+ * The names `web/package.json` declares.
+ *
+ * Read from the manifest text rather than from an installed tree, because the
+ * claim being watched is about what the project *declares*.
+ */
+export function declaredWebDependencies(packageJsonText) {
+  const manifest = JSON.parse(packageJsonText)
+  const declared = new Set()
+  for (const field of ['dependencies', 'devDependencies']) {
+    for (const name of Object.keys(manifest[field] ?? {})) declared.add(name)
+  }
+  return declared
+}
+
+/**
+ * Whether `child` appears as a dependency of `parentKey` in the lock's maps.
+ *
+ * The lock's resolved maps are the record of who depends on whom, and
+ * `snapshotEdges` is the reader §5.3/§5.4 name for it.
+ */
+export function lockReportsEdge(lockText, parentKey, childName, childVersion) {
+  const edges = snapshotEdges(lockText)
+  const bucket = edges.get(parentKey) ?? edges.get(bareKey(parentKey)) ?? []
+  return bucket.some(
+    (dep) => typeof dep === 'string'
+      ? bareKey(dep) === `${childName}@${childVersion}`
+      : dep?.name === childName && dep?.version === childVersion,
+  )
+}
+
+/**
+ * The dependency claims §2.6 makes about its two flagged packages.
+ *
+ * The claims are stated here and checked against the lockfile and
+ * `web/package.json`, because §2.6 asserts them in prose: that `lightningcss`
+ * is reached through `vite`, that `caniuse-lite` is reached through
+ * `browserslist`, and that neither is declared by the project. A package
+ * adopted as a direct dependency, or a bundler swap that changes who pulls
+ * what, makes those sentences false — and those are the sentences a reader
+ * uses to decide whether the MPL-2.0 keys touch the shipped artefact.
+ */
+export const WEB_REACH_CLAIMS = [
+  { name: 'lightningcss', version: '1.33.0', via: 'vite@8.3.4(@types/node@26.6.5)' },
+  { name: 'caniuse-lite', version: '1.0.30001816', via: 'browserslist@4.29.3' },
+]
+
+export function webReachProblems(noticeText, lockText, packageJsonText) {
+  const problems = []
+  const declared = declaredWebDependencies(packageJsonText)
+  for (const claim of WEB_REACH_CLAIMS) {
+    const named = `§2.6's ${claim.name}@${claim.version}`
+    if (declared.has(claim.name)) {
+      problems.push(
+        `${named} is declared in web/package.json; §2.6 says neither flagged package is declared`,
+      )
+    }
+    if (!lockReportsEdge(lockText, claim.via, claim.name, claim.version)) {
+      problems.push(
+        `${named} is not an edge of ${claim.via} in the lock; §2.6 says it is reached through it`,
+      )
+    }
+    if (!noticeText.includes(claim.name)) {
+      problems.push(`NOTICE does not name ${claim.name}`)
+    }
+  }
+  return problems
+}
+
 /** What §2.5 records about each binary it names. */
 export function binaryLicenceProblems(noticeText) {
   const problems = []
@@ -402,6 +472,11 @@ test('every binary §2.5 names carries a licence and a hash', () => {
   assert.deepEqual(problems, [], problems.join('; '))
 })
 
+test('§2.6 reaches its two flagged packages the way it says it does', () => {
+  const problems = webReachProblems(NOTICE_TEXT, WEB_LOCK, WEB_MANIFEST)
+  assert.deepEqual(problems, [], problems.join('; '))
+})
+
 test('the controls fail for the properties they guard', () => {
   const shellKeys = lockfileKeys(SHELL_LOCK)
   const webKeys = webLockKeys(WEB_LOCK)
@@ -453,5 +528,37 @@ test('the controls fail for the properties they guard', () => {
   assert.ok(
     binaryLicenceProblems(stripped).length > 0,
     'a binary without a licence line did not redden the binary licence check',
+  )
+
+  // A flagged package that becomes a declared dependency. The lock is the
+  // other side of the check, so the control mutates the manifest text the
+  // reader parses rather than the prose.
+  const declared = WEB_MANIFEST.replace(
+    '"dependencies": {\n    "react": "19.3.1",',
+    '"dependencies": {\n    "caniuse-lite": "1.0.30001816",\n    "react": "19.3.1",',
+  )
+  assert.notEqual(declared, WEB_MANIFEST, 'the control did not change the manifest')
+  assert.ok(
+    webReachProblems(NOTICE_TEXT, WEB_LOCK, declared).length > 0,
+    'a flagged package adopted as a direct dependency did not redden the reach check',
+  )
+
+  // The edge §2.6 names stops being an edge of the parent it names. The lock
+  // is the other side of the equality, so the control mutates the lock text:
+  // the line that makes `vite` pull `lightningcss` is moved under a parent
+  // §2.6 does not name.
+  assert.ok(
+    lockReportsEdge(WEB_LOCK, 'vite@8.3.4(@types/node@26.6.5)', 'lightningcss', '1.33.0'),
+    'the reader does not see the edge the file describes, so the control below proves nothing',
+  )
+  const movedEdge = WEB_LOCK.replace('      lightningcss: 1.33.0\n', '')
+  assert.notEqual(movedEdge, WEB_LOCK, 'the control did not change the lock')
+  assert.ok(
+    !lockReportsEdge(movedEdge, 'vite@8.3.4(@types/node@26.6.5)', 'lightningcss', '1.33.0'),
+    'the control did not remove the edge it was meant to remove',
+  )
+  assert.ok(
+    webReachProblems(NOTICE_TEXT, movedEdge, WEB_MANIFEST).length > 0,
+    'a flagged package no longer reached through the parent §2.6 names did not redden the reach check',
   )
 })

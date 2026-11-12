@@ -52,13 +52,14 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **The new machinery.** `.github/web-lockfile-keys.mjs` is the reader §5.4
   names for the web tree; it imports the lockfile grammar from
   `.github/shell-lockfile-keys.mjs` rather than carrying a second copy.
-  `shell/test/notice-scope.test.mjs` (7 cases) watches the scope: a table
+  `shell/test/notice-scope.test.mjs` (8 cases) watches the scope: a table
   narrower than what the sections record, a drifted surface count, a class table
-  that no longer adds up to the lock, a binary with no licence line, and a
-  sentence asserting the absence of copyleft without naming a surface all redden
-  it. Six mutations were applied to the file itself; each reddened the witness
-  and the restore was byte-identical. `tests/test_shell_ci.py` records the new
-  file's floor, and the shell's Node cases stand at 51 across nine files.
+  that no longer adds up to the lock, a binary with no licence line, a flagged
+  package adopted as a direct dependency, and a sentence asserting the absence of
+  copyleft without naming a surface all redden it. Six mutations were applied to
+  the file itself; each reddened the witness and the restore was byte-identical.
+  `tests/test_shell_ci.py` records the new file's floor, and the shell's Node
+  cases stand at 52 across nine files.
 
 ### The drain witness's dose stops resting on a measurement (2026-11-11)
 
