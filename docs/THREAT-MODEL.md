@@ -1,5 +1,5 @@
 # LabCairn — Threat Model
-
+**Anchors:** 53 — every converted pointer below carries the words it cites.
 **Gate:** G5 (Public alpha) · **Work order:** LC-P1-14 · **Task:** T05
 **Subject:** `main` @ `26f161e` · **Date:** 2026-10-25
 **Status:** the boundary this document draws, with the evidence for each line.
@@ -108,7 +108,7 @@ answer.
 writes a file** — its module docstring says so at line 1, and the mechanism
 backs it:
 
-1. **Re-canonicalise the target first** (`src/labcairn/workspace/outputs.py:150`), *before any
+1. **Re-canonicalise the target first** (`src/labcairn/workspace/outputs.py:150` — `target = self._workspace.path_in(key, self._workspace.output_root.root_id)`), *before any
    temporary file exists*. A refusal here leaves not even a stray temp file.
 2. **Name the output root rather than infer it.** `path_in(key, "output")`
    (`src/labcairn/workspace/roots.py:133-141`) resolves the key against the
@@ -121,7 +121,7 @@ backs it:
    refusal on the root *kind*.
 4. **Write to a temp file in the target's own directory**, creating that
    directory first — inside the output area, because the target was
-   re-canonicalised (`src/labcairn/workspace/outputs.py:158`) — then flush,
+   re-canonicalised (`src/labcairn/workspace/outputs.py:158` — `destination.parent.mkdir(parents=True, exist_ok=True)`) — then flush,
    `fsync`, and `os.replace` (`src/labcairn/workspace/outputs.py:164-174`).
    Same-directory matters: `os.replace` is atomic only within a volume.
 5. **Clean up the temp file on any failure** (`src/labcairn/workspace/outputs.py:175-180`), so a
@@ -140,10 +140,10 @@ Writes outside that path, in the whole of `src/`:
 | What | Where | Why it is not the same thing |
 |---|---|---|
 | **Session token file** | `src/labcairn/api/session.py:88-107` | The service's own secret, under `<workspace>/.labcairn/`. Not a task artefact — an artefact is something a report may cite, and a session secret must never be counted as a finding (`src/labcairn/api/session.py:28-37`). |
-| **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
+| **matplotlib config + font cache** | `src/labcairn/analysis/chart/render.py:590-607` (the pinned directory), `src/labcairn/analysis/chart/render.py:1070-1097` (the font cache), `src/labcairn/analysis/chart/render.py:1100-1157` (the settings file) | **Outside the workspace, in the system temp directory** — `MPL_CONFIG_DIR` is `Path(tempfile.gettempdir()) / "labcairn-matplotlib"` (`src/labcairn/analysis/chart/render.py:267` — `MPL_CONFIG_DIR: Final[Path] = Path(tempfile.gettempdir()) / "labcairn-matplotlib"`). Pinned rather than ambient: an ambient `matplotlibrc` or font cache is an unrecorded input, and an unrecorded input is an input the reproducibility claim cannot cover. |
 | **Workspace config + policy** | `src/labcairn/cli/workspace.py:284-304` | The user's own configuration, written by `labcairn init`. |
-| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:79`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. **The API's evidence routes write through it** — `POST /claims`, `POST /claims/extract` and `POST /records/{evidence_id}/accept` — so a record's write is the store's transaction, not a file a route names. |
-| **The workspace directories** | `src/labcairn/cli/commands.py:380-384`, `src/labcairn/workspace/roots.py:104` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
+| **The task store** — `labcairn.db` | `src/labcairn/cli/workspace.py:85` — `DATABASE_NAME = "labcairn.db"`, `src/labcairn/cli/workspace.py:190-191` (where the file is named), `src/labcairn/db/session.py:112` — `engine = create_engine(` (the engine call; the read-only engine built from it refuses writes at SQLite), `src/labcairn/db/migrations.py:87` — `engine = create_engine(_as_url(db_path))` (where it is opened) | The SQLite file at the workspace root, written by the store. It is the **task authority** — the canonical state, not an artefact — and it is the one file in the workspace root that LabCairn writes on every run. **The API's evidence routes write through it** — `POST /claims`, `POST /claims/extract` and `POST /records/{evidence_id}/accept` — so a record's write is the store's transaction, not a file a route names. |
+| **The workspace directories** | `src/labcairn/cli/commands.py:380-384`, `src/labcairn/workspace/roots.py:104` — `output_dir.mkdir(parents=True, exist_ok=True)` | `labcairn init` creates the workspace, its materials directory and its output directory; binding a task creates that task's own output directory, inside the output root it has just bound. Directories, not files — but they are created before any policy is in force, which is why `init` is the one command that may make a directory that did not exist. |
 | **TypeScript contract** | `src/labcairn/api/typescript.py:380-381` | A build-time generator, not a runtime path. |
 
 **This section is an enumeration, and it is checked.** Every write in
@@ -166,16 +166,16 @@ load-bearing:
 
 | Step | Lines | What it catches |
 |---|---|---|
-| 1. Reject the spelling | `src/labcairn/security/paths.py:527` | NUL byte, invisible Unicode (Cc/Cf — a right-to-left override), a segment ending in a dot or space (Win32 strips both), `:` (NTFS alternate data stream), fullwidth separator smuggling, `\\?\`, `\\.\`, UNC roots, percent-escapes decoding to a structural character. |
-| 2. Make it absolute | `src/labcairn/security/paths.py:530-540` | A relative path with no base root is **refused** (`RELATIVE_WITHOUT_ROOT`), not resolved against the process working directory — the documented bypass deepagents has (`src/labcairn/security/paths.py:508`). |
-| 3. Resolve, following symlinks and junctions | `src/labcairn/security/paths.py:547` | A symlink or junction inside an allowed root pointing outside it. |
+| 1. Reject the spelling | `src/labcairn/security/paths.py:653` — `normalised = _reject_hostile_spelling(raw)` | NUL byte, invisible Unicode (Cc/Cf — a right-to-left override), a segment ending in a dot or space (Win32 strips both), `:` (NTFS alternate data stream), fullwidth separator smuggling, `\\?\`, `\\.\`, UNC roots, percent-escapes decoding to a structural character. |
+| 2. Make it absolute | `src/labcairn/security/paths.py:530-540` | A relative path with no base root is **refused** (`RELATIVE_WITHOUT_ROOT`), not resolved against the process working directory — the documented bypass deepagents has (`src/labcairn/security/paths.py:661` — `PathRejection.RELATIVE_WITHOUT_ROOT,`). |
+| 3. Resolve, following symlinks and junctions | `src/labcairn/security/paths.py:673` — `resolved = _resolve_or_refuse(candidate)` | A symlink or junction inside an allowed root pointing outside it. |
 | 4. **Re-check containment on the resolved path** | `src/labcairn/security/paths.py:552-558` | The case a single pre-resolution test would miss. |
 | 5. Refuse cross-root movement | `src/labcairn/security/paths.py:560-567` | A path declared under one root that resolves into another — even when both are permitted, because the destination root's rules were never the ones the caller evaluated against. |
 
 **A junction is not a symlink.** `Path.is_symlink()` returns `False` for a
 directory junction, so an `is_symlink`-based guard walks straight past one.
 `Path.resolve()` *does* follow it. Only resolve-then-check works
-(`src/labcairn/security/paths.py:15-17`) — and `tests/test_security_paths.py:433` measures it
+(`src/labcairn/security/paths.py:15-17`) — and `tests/test_security_paths.py:586` — `def test_junction_escaping_the_root_is_refused(` measures it
 rather than assuming it.
 
 **Failing closed.** `canonicalize` either returns a `CanonicalPath` or
@@ -183,7 +183,7 @@ rather than assuming it.
 "inconclusive" result, because a caller that forgets to check a returned
 sentinel is a silent bypass. Every `PathRejection` is a deny; there is no
 "refused but askable" outcome (`src/labcairn/security/paths.py:99-105`, and
-`tests/test_security_paths.py:690`).
+`tests/test_security_paths.py:1022` — `def test_every_rejection_is_a_denial_and_never_an_ask(`).
 
 ### 1.3a The refusal set is platform-dependent; the containment is not
 
@@ -191,7 +191,7 @@ sentinel is a silent bypass. Every `PathRejection` is a deny; there is no
 states a containment property rather than a refusal property.**
 
 A backslash is a separator on Windows and an ordinary filename character on
-POSIX. The spelling check splits a path on both (`src/labcairn/security/paths.py:358`), so
+POSIX. The spelling check splits a path on both (`src/labcairn/security/paths.py:271` — `for raw_segment in re.split(f"[{re.escape(separators)}]", value):`), so
 `..\sources\paper.txt` is *three* segments to the check on either platform —
 but the **filesystem** only treats it as a traversal on Windows. Measured:
 
@@ -216,7 +216,7 @@ claim a number for it. The same asymmetry is why
 `src/labcairn/security/policy.py:288-295` refuses a backslash in a *rule
 pattern* — a rule containing one means two different things depending on
 where it runs — and it is the same family as the recorded G1 limitation that
-the path-guard tests ran on Windows only (`docs/PHASE_1_WORKORDERS.md:44`).
+the path-guard tests ran on Windows only (`docs/PHASE_1_WORKORDERS.md:44` — `path-guard tests ran on Windows only, leaving POSIX ADS and case semantics unverified.`).
 
 ### 1.4 The permission layer, and its floor
 
@@ -261,9 +261,9 @@ whole tokens so `retrieval` is not caught by `eval` inside it
 
 ### 2.1 Material is data, never instructions
 
-`docs/ARCHITECTURE.md:91` states the invariant: *"imported documents and
+`docs/ARCHITECTURE.md:102` — `imported documents and retrieval results are data, never instructions that can grant capabilities.` states the invariant: *"imported documents and
 retrieval results are data, never instructions that can grant capabilities."*
-`docs/EVALUATION.md:15` lists **untrusted document instructions** among the
+`docs/EVALUATION.md:15` — `untrusted document instructions.` lists **untrusted document instructions** among the
 five required negative gate classes.
 
 **This is enforced structurally, not by prompt.** `src/labcairn/security/untrusted.py`
@@ -346,13 +346,13 @@ host's resolver — a hosts file, an LDAP lookup, a container runtime — and th
 guard's whole claim is *"this socket is reachable from nowhere else"*. A claim
 about a name is not that claim. An address is.
 
-The address is checked with `ipaddress` (`src/labcairn/api/bind.py:59`), so the check is the
+The address is checked with `ipaddress` (`src/labcairn/api/bind.py:59` — `address = ipaddress.ip_address(host)`), so the check is the
 platform's idea of loopback rather than this file's opinion of it. `127.0.0.1`
 and `::1` are loopback; `0.0.0.0` is not.
 
 **The check is made twice**, and the second one is at the point where the
-socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:270`) and
-`serve` calls it again (`src/labcairn/api/app.py:325`), so a service assembled by hand and
+socket is about to be opened: `create_app` calls it (`src/labcairn/api/app.py:281` — `ensure_loopback(host)`) and
+`serve` calls it again (`src/labcairn/api/app.py:338` — `ensure_loopback(host)`), so a service assembled by hand and
 handed to `serve` cannot skip the check the factory made.
 
 ### 3.2 The three request guards
@@ -361,7 +361,7 @@ In the order of the failure they prevent (`src/labcairn/api/app.py:3-16`):
 
 | # | Guard | What it stops | Where |
 |---|---|---|---|
-| 1 | **Bind address** | The service existing on a routable address at all. | `src/labcairn/api/bind.py:50` |
+| 1 | **Bind address** | The service existing on a routable address at all. | `src/labcairn/api/bind.py:50` — `def ensure_loopback(host: str) -> str:` |
 | 2 | **Origin** | A page on another site driving the local service. | `src/labcairn/api/guards.py:134-160` |
 | 3 | **Session token** | Anything that is not the service's own origin, including non-browser clients. | `src/labcairn/api/guards.py:211-237` |
 
@@ -413,8 +413,8 @@ OpenAPI document at `/openapi.json` — is generated locally and is served.
 
 | Path | Destination | Evidence |
 |---|---|---|
-| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:107` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:154`, is an example inside a docstring, not code.) |
-| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2294` — `_check_port_free` binds a probe socket to learn whether the address is free. |
+| Model request | The configured provider's `base_url` | `src/labcairn/providers/pydantic_models.py:120` — `return httpx.AsyncClient(transport=transport, timeout=settings.timeout_s, limits=limits)` — the only place an `httpx.AsyncClient` is **constructed** in the tree. (The other mention, `src/labcairn/providers/usage_capture.py:190` — `client = httpx.AsyncClient(transport=HttpxUsageSniffer(inner))`, is an example inside a docstring, not code.) |
+| Local socket probe | `127.0.0.1` only, and it never listens | `src/labcairn/cli/commands.py:2334` — `def _check_port_free(host: str, port: int, *, as_json: bool) -> None:` — `_check_port_free` binds a probe socket to learn whether the address is free. |
 
 **There is no telemetry, no update check, no CDN fetch, no analytics, no
 font download.** `src/labcairn/sources/`, `src/labcairn/material/`,
@@ -436,13 +436,13 @@ Being the only one is the point.
 
 ### 3.4 The outbound disclosure policy
 
-`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:159`) is an
+`PHASE_1_OUTBOUND_POLICY` (`src/labcairn/providers/adapter.py:175` — `PHASE_1_OUTBOUND_POLICY: OutboundDisclosure = OutboundDisclosure()`) is an
 `OutboundDisclosure` declaring, per exchange, **what the layer says it put on
 the wire**: the prompt, the tool names, whether excerpts were included.
 
 **`sends_document_excerpts` is `False` in Phase 1**
-(`src/labcairn/providers/adapter.py:135`), and that is asserted rather than
-assumed — `tests/test_provider_adapter.py:408`. Sending an excerpt is
+(`src/labcairn/providers/adapter.py:151` — `sends_document_excerpts: bool = False`), and that is asserted rather than
+assumed — `tests/test_provider_adapter.py:420` — `assert PHASE_1_OUTBOUND_POLICY.sends_document_excerpts is False`. Sending an excerpt is
 consented by an approval bound to a digest of the canonical arguments
 (`src/labcairn/security/capabilities.py:253-266`), and an outbound request is
 **ASK** under the default policy, so *transmitting data to a provider always
@@ -486,7 +486,7 @@ mechanisms because each fails differently:
 - **`__repr__` / `__str__` hide the value** (`src/labcairn/providers/credentials.py:130-133`). This is
   the load-bearing one: an accidental `f"{cred}"`, a traceback, a pydantic
   validation error dump or a debugger transcript cannot print it.
-- **`__hash__` / `__eq__` use a salted fingerprint** (`src/labcairn/providers/credentials.py:107`,
+- **`__hash__` / `__eq__` use a salted fingerprint** (`src/labcairn/providers/credentials.py:135` — `return hash((Credential, self.fingerprint))`,
   `135-148`), so a `Credential` in a set or a dict key does not hash the
   secret into anything persisted.
 - **`reveal()` is the only accessor** (`src/labcairn/providers/credentials.py:110-118`), and it exists
@@ -557,7 +557,7 @@ precisely the `UNCERTAIN` state, and the product's answer is to **not guess**:
   not happen (`tests/test_recovery_crash_matrix.py:186-195`).
 - **A replay of an `UNCERTAIN` operation is refused**, and the refusal is
   checked with a **write counter** that proves the effect was not called at
-  all — `assert counter.calls == 0` (`tests/test_recovery_crash_matrix.py:205`).
+  all — `assert counter.calls == 0` (`tests/test_recovery_crash_matrix.py:210` — `assert counter.calls == 0`).
   The counter is an injected hook rather than a global, so "the write counter
   is still 1" cannot depend on test ordering (`src/labcairn/workspace/outputs.py:72-79`).
 - **The stage is `BLOCKED`, and says why** — `blocked_reason` contains
@@ -565,7 +565,7 @@ precisely the `UNCERTAIN` state, and the product's answer is to **not guess**:
 
 **A crash cannot silently repeat a side effect.** The Phase 1 blocker is
 *"A crash silently repeats unknown file side effects"*
-(`docs/EVALUATION.md:36`), and the mechanism against it is the combination of
+(`docs/EVALUATION.md:36` — `A crash silently repeats unknown file side effects.`), and the mechanism against it is the combination of
 the write-ahead intent, the `UNCERTAIN` state, and the counter that proves the
 effect was not re-invoked.
 
@@ -634,7 +634,7 @@ carry no browser at all.
 
 **Every web test still stops at the `fetch` boundary.** `web/src/test/fakeApi.ts`
 is a fake that answers `fetch`, and the workbench's own tests stub the global
-(`web/src/app/workbench.test.tsx:31`, `web/src/api/client.test.ts:18`). The
+(`web/src/app/workbench.test.tsx:25` — `vi.stubGlobal('fetch', fake.fetch)`, `web/src/api/client.test.ts:18` — `vi.stubGlobal('fetch', fake.fetch)`). The
 fake's own docstring says the point is that *the component, the client, the
 paths and the session scheme are all exercised exactly as they are in the
 browser* — which is true of the code between the screen and the wire, and
@@ -794,36 +794,36 @@ existed; it is now watched.)
 **Both gates were verified by internal cross-validation.** `G1`'s evidence
 records that *"Three agents wrote these without reading each other's work;
 independent cross-review found two of the resulting seams"*
-(`docs/acceptance/G1-evidence.md:20`). `G2`'s records that *"A reviewer who
+(`docs/acceptance/G1-evidence.md:20` — `independent cross-review found two of the resulting seams.`). `G2`'s records that *"A reviewer who
 did not implement any of this ran this document against the code. This is
 internal cross-validation by two agents, not an external independent audit,
-and is not evidence of one"* (`docs/acceptance/G2-acceptance.md:98`).
+and is not evidence of one"* (`docs/acceptance/G2-acceptance.md:98` — `internal cross-validation by two agents, not an external independent audit`).
 
 **G3 and G4 had more**: a review at a named commit, by reviewers who wrote
 none of the gate's fixes, who broke each fix in turn
-(`docs/acceptance/G3-acceptance.md:94`, `docs/acceptance/G4-acceptance.md:514`).
+(`docs/acceptance/G3-acceptance.md:357` — `by a reviewer that wrote none of the fixes,`, `docs/acceptance/G4-acceptance.md:20` — `neither of them wrote a fix into this repository`).
 
-**And none of this is an external audit.** `docs/README.md:34` is explicit:
+**And none of this is an external audit.** `docs/README.md:34` — `Two-layer review is internal cross-verification, not external independent audit.` is explicit:
 *"Two-layer review is internal cross-verification, not external independent
 audit... an internal reviewer is not an external auditor."* Branch protection
 was read by an admin-capable session belonging to the **implementing agent**,
 so the required checks are implementer-confirmed, not independently proven
-(`docs/PHASE_1_WORKORDERS.md:48`).
+(`docs/PHASE_1_WORKORDERS.md:50` — `Branch protection was read by an admin-capable session belonging to the`).
 
 ### 6.7 The real-provider smoke runs only where the owner names a credential
 
 **`src/labcairn/providers/pydantic_models.py` still says so in its own
 docstring, and it is now accurate in a different way.** The witness is
-`tests/test_real_provider_smoke.py:116`; it skips unless
-`live_settings()` (`tests/test_real_provider_smoke.py:76`) finds both
+`tests/test_real_provider_smoke.py:121` — `def test_real_provider_smoke_records_capabilities_and_usage() -> None:`; it skips unless
+`live_settings()` (`tests/test_real_provider_smoke.py:79` — `def live_settings(environ: Mapping[str, str]) -> ProviderSettings | None:`) finds both
 `LABCAIRN_PROVIDER_SMOKE_KEY` and `LABCAIRN_PROVIDER_SMOKE_MODEL`, and a
 credential that merely happens to sit in a developer's environment —
 `ANTHROPIC_API_KEY`, say — does not satisfy it. The predicate is itself
-witnessed in the unit class (`tests/test_provider_credentials.py:309` and
-`tests/test_provider_credentials.py:355`), because a rule that gates a class
+witnessed in the unit class (`tests/test_provider_credentials.py:319` — `def test_the_live_smoke_is_configured_only_by_the_named_variables() -> None:` and
+`tests/test_provider_credentials.py:355` — `assert live_settings({SMOKE_KEY_ENV: FAKE_KEY}) is None, (`), because a rule that gates a class
 cannot be checked only inside that class. The marker is registered as *"needs a
 real paid provider credential; skipped wherever the owner has not named one"*
-(`pyproject.toml:318`).
+(`pyproject.toml:311` — `requires_provider: needs a real paid provider credential; skipped wherever the owner has not named one`).
 
 **It has run.** Three times on 2026-10-28 against `MiniMax-M3.1-Flash` over an
 Anthropic-protocol endpoint — twice locally and once on GitHub, dispatch
@@ -835,7 +835,7 @@ The records differed only in `observed_at`.
 **So the procedure is written, it has been exercised, and the gate's shape has
 changed.** The Phase 1 protocol requires a real-model smoke with *"results and
 costs documented"* and says *"Mock-only success is insufficient"*
-(`docs/EVALUATION.md:17`). The credential now lives in the repository as an
+(`docs/EVALUATION.md:17` — `Mock-only success is insufficient.`). The credential now lives in the repository as an
 Actions secret, and `.github/workflows/provider-smoke.yml` is the job that spends
 it — on a schedule and on demand, and **never as a required status check**: a
 check that can only run where a secret exists is a check branch protection would
@@ -858,7 +858,7 @@ version is not this project's to pin, and it is not.
 ### 6.9 Structured-output capability is unmeasured
 
 Both probes decline in pydantic-ai's client layer before a request is sent, so
-they say nothing about the endpoint (`docs/PHASE_1_WORKORDERS.md:44`).
+they say nothing about the endpoint (`docs/PHASE_1_WORKORDERS.md:44` — `so they say nothing about the endpoint)`).
 **Re-observed on 2026-10-28** against `MiniMax-M3.1-Flash`: the probe recorded
 `unsupported` with the exception's **class name** — `UserError` for the native
 form, `KeyError` for the prompted one — rather than attributing a local refusal
@@ -870,17 +870,17 @@ capability is still unmeasured, not absent.
 **Phase 1 is local single-user.** The service binds loopback, which keeps a
 network peer out — it does not keep a **local process** out. The workspace
 files, the session token file, and the SQLite database are readable by
-whatever runs as the same user. `docs/PHASE_1_WORKORDERS.md:113` records that
+whatever runs as the same user. `docs/PHASE_1_WORKORDERS.md:177` — `User-level identity and future multiuser scope explicit, though Phase 1 is local single user.` records that
 user-level identity and future multiuser scope are explicit, and Phase 1 is
 local single user.
 
 ### 6.11 The path-guard tests ran on Windows only
 
-`docs/PHASE_1_WORKORDERS.md:44` records this as a G1 limitation: the
+`docs/PHASE_1_WORKORDERS.md:44` — `path-guard tests ran on Windows only, leaving POSIX ADS and case semantics unverified.` records this as a G1 limitation: the
 path-guard tests ran on Windows only, leaving **POSIX ADS and case semantics
 unverified**. Some of this has since been addressed
-(`tests/test_security_paths.py:157` refuses a Windows drive path on POSIX,
-and `tests/test_security_paths.py:676` covers the case variant), but the
+(`tests/test_security_paths.py:184` — `def test_windows_drive_path_is_refused_on_posix(` refuses a Windows drive path on POSIX,
+and `tests/test_security_paths.py:697` — `def test_case_variant_of_a_path_inside_the_root_is_admitted(` covers the case variant), but the
 *original* G1 measurement stands in the record.
 
 **Measuring the threat model on both platforms turned up one more of these,
@@ -900,7 +900,7 @@ Stated here because they were real and because the code flagged them itself:
 
 - ~~**`ArtifactLedger` is in memory** — so the ledger does not survive a
   process restart the way the SQLite store does
-  (`docs/PHASE_1_WORKORDERS.md:42`).~~ — **closed 2026-11-02.**
+  (`docs/PHASE_1_WORKORDERS.md:42` — `is in memory — **that last item was closed on 2026-11-02**`).~~ — **closed 2026-11-02.**
   `SqliteArtifactLedgerStore` writes every entry to
   `artifact_ledger_entries` (migration 0022), and a new ledger instance on the
   same database re-reads the stored payload and re-checks its digest; see
@@ -917,7 +917,7 @@ Stated here because they were real and because the code flagged them itself:
 ### 6.13 A reviewer's change is observed; **why it was changed is not established**
 
 **The tree now holds a table of the reviewer's own prose.** ADR-0014's
-`revision_events` (`src/labcairn/db/models.py:1682`, written by the migration
+`revision_events` (`src/labcairn/db/models.py:1842` — `__tablename__ = "revision_events"`, written by the migration
 `migrations/versions/0017_revision_events.py`) stores one row per tracked
 change a Word document records: the text that changed, the address it
 changed at, the author and the date. **On the corpus that motivated it,
@@ -930,7 +930,7 @@ no link to the table where a person's words live** — the pairing of a
 comment with a change is somebody's judgement, it carries its own decider
 and its own evidence, and the revision events assert none of it. A
 manuscript holding hundreds of changes and no comment is a shape the chain
-reports (`src/labcairn/application/chain.py:315`) and does not explain away.
+reports (`src/labcairn/application/chain.py:313` — `and it is a shape the chain can report without explaining it away.`) and does not explain away.
 
 **Why this is a limit and not a feature.** ADR-0016 D9 calls the agreement
 between a system and an advisor's wording a *risk metric* rather than a
@@ -981,9 +981,9 @@ its evidence on the row.
 **That is a property of the schema and not a promise this document
 makes.** A response that is not `pending` cannot be reached without a
 decider and a non-empty evidence list
-(`src/labcairn/db/models.py:2357`), and the vocabulary of what an
+(`src/labcairn/db/models.py:2497` — `name="response_links_a_judgement_needs_a_decider_and_its_evidence",`), and the vocabulary of what an
 assessment may rest on **has no member meaning "the change was accepted"**
-(`src/labcairn/db/models.py:2453`) — because acceptance is a fact about the
+(`src/labcairn/db/models.py:2593` — `name="followup_assessments_basis_vocabulary",`) — because acceptance is a fact about the
 process and not about the science, and a product that recorded the
 advisor's correctness as a consequence of the student's change being kept
 would be claiming something it cannot know.
