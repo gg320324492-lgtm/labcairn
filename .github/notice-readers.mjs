@@ -211,24 +211,118 @@ export function buildGroups(noticeText) {
 }
 
 /**
- * §2.6's three denominators, as the section states them.
+ * §2.6's denominators, as the section states them.
  *
  * `266 lock keys`, `241 distinct name@version installed`, `624 package.json
  * records`: three different numbers that are all true, and a witness that
- * compared only one of them would let the other two drift. The read returns
- * each one keyed by the phrase the section prints, so a renamed denominator
- * reddens it rather than dropping out of the comparison.
+ * compared only one of them would let the other two drift. Each is keyed by the
+ * phrase the row prints, with the markup stripped and the sentence's tail cut at
+ * the clause boundary — the row reads
+ *
+ *     624  `package.json` records in that install — a peer variant installs the
+ *
+ * so a key that kept the backticks would match only while the file keeps its
+ * formatting, which is not the number being watched. The key is still the
+ * row's own words, so renaming a denominator reddens it instead of dropping it
+ * out of the comparison.
  */
 export function webDenominators(noticeText) {
   const found = new Map()
   for (const line of noticeSubsection(noticeText, '2.6')) {
     const row = DENOMINATOR_ROW.exec(line)
     if (!row) continue
-    const phrase = row[2].trim()
+    const phrase = row[2].replace(/`/g, '').split(/[—-] /)[0].trim()
+    if (!phrase) continue
     if (!found.has(phrase)) found.set(phrase, Number(row[1]))
   }
   if (found.size === 0) throw new Error('§2.6 prints no denominator row — the read found nothing')
   return found
+}
+
+/**
+ * §2.6's non-permissive entries: the family, the count it states, and the keys.
+ *
+ * The section lists them as bullets —
+ *
+ *     * **MPL-2.0 — 12 of the 266 keys.** The `lightningcss@1.33.0` family:
+ *       `lightningcss@1.33.0` itself, `lightningcss-win32-x64-msvc@1.33.0`, and
+ *       ten further platform variants — `-android-arm64`, … `-win32-arm64-msvc`.
+ *     * **CC-BY-4.0 — 1 of the 266 keys.** `caniuse-lite@1.0.30001816`, …
+ *
+ * — and the platform variants are named as *suffixes* on the base package rather
+ * than as lock keys. Both forms are returned separately, because the witness has
+ * to expand the suffixes against the lock's own keys to know what the entry
+ * claims: the count is a claim about keys, and a read that collected only the
+ * two explicit keys would report the entry as naming 2 of 266 and then "prove"
+ * the entry is wrong.
+ */
+export function nonPermissiveEntries(noticeText, heading) {
+  const section = noticeSubsection(noticeText, heading)
+  const BULLET = /^ {2}\* \*\*([A-Za-z0-9.+-]+) [\xc2\xa7—-] (\d+) of\b/
+  const ENTRIES = []
+  let current = null
+  for (const line of section) {
+    const bullet = BULLET.exec(line)
+    if (bullet) {
+      current = { family: bullet[1], count: Number(bullet[2]), explicit: [], suffixes: [] }
+      ENTRIES.push(current)
+    }
+    // Not `continue`: the CC-BY entry's only key sits on the bullet line itself
+    // (`* **CC-BY-4.0 — 1 of the 266 keys.** \`caniuse-lite@1.0.30001816\`, which`),
+    // and skipping the bullet line collected no key for it.
+    if (!current) continue
+    // A blank line ends the entry's paragraph. Without that boundary the last
+    // bullet's body runs on into the prose below it, and §2.6's next paragraph
+    // names `@license`, `@preserve` and `@copyright` — strings that look like
+    // package references to a backtick collector and are not.
+    if (line.trim() === '') {
+      current = null
+      continue
+    }
+    for (const token of line.matchAll(/`([^`]+)`/g)) {
+      const value = token[1]
+      if (/^-[A-Za-z0-9-]+$/.test(value)) {
+        current.suffixes.push(value)
+        continue
+      }
+      // A `name@version`: something before the last `@`, and a version after it.
+      // `@license` fails this, and so does a bare package name with no version.
+      const at = value.lastIndexOf('@')
+      if (at > 0 && /^\d/.test(value.slice(at + 1))) current.explicit.push(value)
+    }
+  }
+  if (ENTRIES.length === 0) {
+    throw new Error(`${heading} names no non-permissive entry — the read found nothing`)
+  }
+  return ENTRIES
+}
+
+/**
+ * The keys a §2.6 entry claims, with its suffix variants expanded against the lock.
+ *
+ * A suffix entry expands onto the base package's name and version: `-linux-x64-gnu`
+ * on the base `lightningcss@1.33.0` is the key `lightningcss-linux-x64-gnu@1.33.0`.
+ * A suffix that matches no lock key is returned in `unmatched` rather than
+ * dropped — an entry naming a variant the lock stopped pinning is a record that
+ * went stale, and dropping it would hide that.
+ */
+export function entryClaimedKeys(entry, lockKeys) {
+  const base = entry.explicit.find((key) => !entry.suffixes.some((suffix) => key.includes(suffix)))
+  const problems = []
+  if (!base) problems.push('the entry names no base package to expand its suffixes onto')
+  const [baseName, baseVersion] = base ? [base.slice(0, base.lastIndexOf('@')), base.slice(base.lastIndexOf('@') + 1)] : ['', '']
+  const claimed = new Set(entry.explicit)
+  const unmatched = []
+  for (const suffix of entry.suffixes) {
+    const expanded = `${baseName}${suffix}@${baseVersion}`
+    if (!lockKeys.includes(expanded)) {
+      unmatched.push(expanded)
+      continue
+    }
+    claimed.add(expanded)
+  }
+  const notInLock = [...claimed].filter((key) => !lockKeys.includes(key))
+  return { claimed: [...claimed].sort(), unmatched, notInLock, problems }
 }
 
 /** The §2.6 sentence claiming the lock carries no licence field, with the count it states. */
