@@ -2085,3 +2085,81 @@ def test_the_pointer_pattern_reads_a_file_and_not_a_host() -> None:
         "none of the rejected tokens is a host and port, so the guard is being tested against "
         "a tree that does not contain the thing it was written for"
     )
+
+
+# --------------------------------------------------------------------------
+# the shape of an anchored pointer, watched as a shape
+# --------------------------------------------------------------------------
+
+#: A probe document that declares one anchor. Each probe below supplies the one pointer.
+_PROBE_HEADER = (
+    "# Probe\n\n**Anchors:** 1 — every converted pointer below carries the words it cites.\n\n"
+)
+
+#: A pointer, and words that really are on the line the pointer cites -- so a probe that reads
+#: **one** anchor is reading the format and not an accident.
+_PROBE_POINTER = "`src/labcairn/api/routes.py:273`"
+_PROBE_WORDS = '@router.post("/task/select"'
+
+
+def _probe(body: str) -> int:
+    """How many anchors the reader finds in a one-pointer document."""
+    text = _PROBE_HEADER + body
+    return len(_anchored_pointers(text, _fenced_lines(text)))
+
+
+def test_the_anchored_pointer_shape_reads_what_the_format_says_it_reads() -> None:
+    """The rules written above the pattern are the rules the pattern enforces.
+
+    **Why this witness exists.** The comments state four things a converted pointer may and
+    may not do, and none of them was watched: that ``--`` stands in for the em dash, that the
+    words may sit on the **next** line because a wrapping editor leaves a pointer at the end of
+    a line, that they may not sit two lines down, that a bare citation beside a bare citation
+    is not an anchor, and that an example inside a fence is not a pointer. A stated property
+    nothing measures is a property that stops holding inside a comment that still asserts it.
+
+    Each probe is one document carrying one pointer at a line the cited file really does print.
+    A probe reading ``1`` is the format working; a probe reading ``0`` is the rule.
+    """
+    accepted = {
+        "em dash, same line": f"{_PROBE_POINTER} — `{_PROBE_WORDS}` is the route.\n",
+        "two hyphens, same line": f"{_PROBE_POINTER} -- `{_PROBE_WORDS}` is the route.\n",
+        "em dash on the next line": f"{_PROBE_POINTER}\n— `{_PROBE_WORDS}` is the route.\n",
+    }
+    rejected = {
+        "no dash at all": f"{_PROBE_POINTER} `{_PROBE_WORDS}` is the route.\n",
+        "words two lines down": f"{_PROBE_POINTER}\n\n— `{_PROBE_WORDS}` is the route.\n",
+        "dash then prose, no backticks": f"{_PROBE_POINTER} — the route itself.\n",
+        "the whole thing inside a fence": f"```md\n{_PROBE_POINTER} — `{_PROBE_WORDS}`\n```\n",
+        "a host and a port carrying words": "`127.0.0.1:8000` — `bound to the loopback address`\n",
+    }
+
+    wrong: list[str] = []
+    for label, body in accepted.items():
+        found = _probe(body)
+        if found != 1:
+            wrong.append(f"{label}: the format says this is an anchor, the reader found {found}")
+    for label, body in rejected.items():
+        found = _probe(body)
+        if found != 0:
+            wrong.append(
+                f"{label}: the format says this is not an anchor, the reader found {found}"
+            )
+
+    assert not wrong, (
+        f"the reader disagrees with the format written above it ({len(wrong)} case(s)):\n  "
+        + "\n  ".join(wrong)
+    )
+
+    # **The machinery is live, not just the shape.** The same probe, with its pointer moved to
+    # a line the cited file does not print, has to produce a report. A probe that reads its
+    # shape correctly while its checking half was switched off would pass every case above.
+    # Line 999 of routes.py exists and does not carry the words; line 273 does. The report has
+    # to say 273, because naming the destination is the whole point of carrying the words.
+    drifted = _PROBE_HEADER + "`src/labcairn/api/routes.py:999`" + f" — `{_PROBE_WORDS}`\n"
+    problems = _anchor_problems(REPO / "docs" / "README.md", drifted, {})
+    assert problems, "a probe carrying a pointer at a line the file does not print reported nothing"
+    assert any("273" in problem for problem in problems), (
+        f"the probe's report did not name the line the words are really on: {problems}"
+    )
+    assert _declarations(_PROBE_HEADER), "the probe's own declaration is not being read"
