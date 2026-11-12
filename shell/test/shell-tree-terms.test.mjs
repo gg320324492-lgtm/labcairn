@@ -31,7 +31,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import test from 'node:test'
+import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { licenceClassTable, readNotice, runtimeRows, buildGroups } from '../../.github/notice-readers.mjs'
@@ -83,6 +83,13 @@ const SHELL_INSTALLED = installedTerms(LOCK_TEXT, shellStoreDir() ?? '', {
 })
 
 const RUN_LOG = []
+
+// The log is the point of the sentinel: a reader of the transcript must be
+// able to see which arms measured and which could not look, rather than
+// seeing only that every case passed.
+after(() => {
+  for (const entry of RUN_LOG) process.stdout.write(`${entry}\n`)
+})
 function ran(what) { RUN_LOG.push(`RAN ${what}`) }
 function notRun(what, reason) { RUN_LOG.push(`NOT RUN ${what}: ${reason}`) }
 

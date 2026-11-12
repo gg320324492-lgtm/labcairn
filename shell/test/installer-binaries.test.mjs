@@ -44,7 +44,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import test from 'node:test'
+import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
@@ -142,6 +142,15 @@ function recordsByBundle() {
 }
 
 const RUN_LOG = []
+
+// The log is the point of the sentinel. A witness that reports NOT RUN into a
+// list nobody reads has produced the one thing this project must not produce:
+// a transcript that shows passing tests and no hint that some of them
+// measured nothing. So the log is written out when the run ends, and every
+// entry says which arm it belongs to.
+after(() => {
+  for (const entry of RUN_LOG) process.stdout.write(`${entry}\n`)
+})
 function ran(what) {
   RUN_LOG.push(`RAN ${what}`)
 }
