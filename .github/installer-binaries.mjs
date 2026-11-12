@@ -295,6 +295,16 @@ const LICENCE_TEXT_OPENINGS = [
  */
 export function licenceDocumentKind(file) {
   if (LICENCE_NAME.test(path.basename(file))) return 'name'
+  // A file that travels *in a licences directory* is a licence text, whatever its
+  // name. Measured here: the installer's six texts are `LGPL-2.1.txt`,
+  // `STDOUTILS-NOTICE.txt`, `STDOUTILS-LGPL-CLARIFICATION.txt`,
+  // `NSIS7Z-LICENSE.txt`, `7ZIP-LICENSE.txt` and `README.txt`, and a name
+  // pattern recognised **one** of the six -- the others carry the licence word
+  // after a hyphen, which the pattern's separator class did not include. So the
+  // extract arm counted one licence document where the archive carries six, and
+  // §2.5.1's own wording is "the licence texts under `$PLUGINSDIR\licenses\`":
+  // the directory is the rule.
+  if (LICENCE_DIRECTORY.test(path.dirname(file))) return 'directory'
   let head
   try {
     const handle = fs.openSync(file, 'r')
@@ -310,6 +320,151 @@ export function licenceDocumentKind(file) {
   }
   if (/\x00/.test(head)) return null
   return LICENCE_TEXT_OPENINGS.some((pattern) => pattern.test(head)) ? 'text' : null
+}
+
+/** A directory whose name says the files in it are licence texts. */
+const LICENCE_DIRECTORY = /(^|[\\/])(licen[cs]es?)$/i
+
+/**
+ * The licence texts the repository ships, and the hashes its README records.
+ *
+ * §2.5.1 states that "hashing the six members gives the sha256s of the
+ * repository's six files -- five of the six are recorded in
+ * `shell/licenses/`'s `README.txt`, the sixth being that README itself, which
+ * cannot record its own hash". That is a claim about bytes, and it is checkable
+ * twice over: the README's recorded hashes must match the files in the tree, and
+ * the texts the installer carries must be those files.
+ *
+ * The README is parsed per entry -- a heading naming the file, then its byte
+ * count, then its hash -- rather than by collecting every hash in the document.
+ * The LGPL entry quotes a *different* file's hash (upstream's own `LGPL.txt`,
+ * `1e7e6bae…`), and a reader that took every hash in the file would attribute
+ * that one to `LGPL-2.1.txt` and report a mismatch against a correct tree.
+ */
+export function licenceTextClaims(readmeText) {
+  const claims = new Map()
+  const entry = /^`([^`]+)`\s*$/gm
+  const starts = [...readmeText.matchAll(entry)]
+  for (let index = 0; index < starts.length; index += 1) {
+    const name = starts[index][1]
+    const from = starts[index].index + starts[index][0].length
+    const to = index + 1 < starts.length ? starts[index + 1].index : readmeText.length
+    const body = readmeText.slice(from, to)
+    // The size and the word "sha256" may sit on different lines: the
+    // STDOUTILS-NOTICE.txt entry reads "4,052 bytes,\nsha256\n    `hash`". A
+    // pattern that required them on one line read four of the five claims the
+    // section says the README records, and the file it then could not account
+    // for looked like one the README had never mentioned.
+    const claim = /([\d,]+) bytes,?\s*\n?\s*sha256\s*\n\s*`([0-9a-f]{64})`/.exec(body)
+    if (!claim) continue
+    claims.set(name, { bytes: Number(claim[1].replace(/,/g, '')), sha256: claim[2] })
+  }
+  return claims
+}
+
+/**
+ * The repository's licence texts against the hashes its README records.
+ *
+ * `dir` is the repository's own `shell/licenses/`. The README cannot record its
+ * own hash, so it is exempt; every other file must match both the byte count and
+ * the sha256 its entry states. A file edited without its README entry updated is
+ * the drift this catches -- and it is the drift that would put a different text
+ * in the installer than the one the record describes.
+ */
+export function licenceTextFileProblems(claims, dir) {
+  const problems = []
+  for (const [name, claim] of claims) {
+    const file = path.join(dir, name)
+    if (!fs.existsSync(file)) {
+      problems.push(`shell/licenses/README.txt records ${name} (${claim.bytes} bytes, sha256 ${claim.sha256.slice(0, 12)}…), and the tree holds no such file`)
+      continue
+    }
+    const print = fingerprint(file)
+    if (print.bytes !== claim.bytes) {
+      problems.push(`shell/licenses/README.txt records ${name} as ${claim.bytes} bytes; the file is ${print.bytes}`)
+    }
+    if (print.sha256 !== claim.sha256) {
+      problems.push(`shell/licenses/README.txt records ${name} as sha256 ${claim.sha256.slice(0, 16)}…; the file is ${print.sha256.slice(0, 16)}…`)
+    }
+  }
+  return problems
+}
+
+/**
+ * The licence texts the artefact carries against the repository's own files.
+ *
+ * §2.5.1 claims the six carried members *are* the repository's six files. That is
+ * the claim that discharges §1: the text travelling with `StdUtils.dll` has to be
+ * the text this tree holds, byte for byte. Naming them is not enough -- the bytes
+ * are what travel.
+ *
+ * `carried` are the extract's licence-text members (name and hash), `dir` the
+ * repository's `shell/licenses/`. Both directions: a text the installer carries
+ * that the tree does not hold, and a file the tree holds that the installer does
+ * not carry.
+ */
+export function carriedLicenceTextProblems(carried, dir) {
+  const problems = []
+  const repository = new Map()
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue
+    repository.set(entry.name.toLowerCase(), fingerprint(path.join(dir, entry.name)))
+  }
+  const carriedNames = new Set()
+  for (const member of carried) {
+    const name = path.posix.basename(member.member)
+    const key = name.toLowerCase()
+    carriedNames.add(key)
+    const own = repository.get(key)
+    if (!own) {
+      problems.push(`the installer carries ${member.member}, which shell/licenses/ does not hold`)
+      continue
+    }
+    if (member.sha256 && own.sha256 !== member.sha256) {
+      problems.push(
+        `the installer's ${name} is sha256 ${String(member.sha256).slice(0, 16)}… and shell/licenses/${name} is ${own.sha256.slice(0, 16)}… — the text travelling with the installer is not the text this tree holds`,
+      )
+    }
+  }
+  for (const [name] of repository) {
+    if (!carriedNames.has(name)) {
+      problems.push(`shell/licenses/${name} is not carried by the installer`)
+    }
+  }
+  return problems
+}
+
+/**
+ * What an extract actually covers.
+ *
+ * An extract is not the installer: it is whatever was unpacked. Measured here, the
+ * 2026-11-12 build's `extract3` holds only `$PLUGINSDIR\licenses\` -- the six
+ * licence texts, and none of the seven plug-in DLLs. An arm that needed the
+ * plug-ins and compared the whole extract against §2.5's eight binaries would
+ * report that the installer carries none of them, which is a red about the
+ * record caused by an extract that never held them.
+ *
+ * So each arm says what its source covers: the plug-in arms need the plug-ins,
+ * the payload arm needs the payload, and the licence-text arm needs the texts.
+ * A source that covers a layer is evidence for that layer only.
+ */
+export function extractCoverage(members) {
+  const plugins = members.filter((member) => /^\$PLUGINSDIR\/[^/]+\.(?:dll|exe)$/i.test(member.member))
+  const payload = members.filter((member) => /^resources\/[^/]+\.(?:dll|exe)$/i.test(member.member))
+  const texts = members.filter((member) => /^\$PLUGINSDIR\/licen[cs]es\//i.test(member.member))
+  return {
+    plugins,
+    payload,
+    texts,
+    coversPlugins: plugins.length > 0,
+    coversPayload: payload.length > 0,
+    coversTexts: texts.length > 0,
+    summary: [
+      `${plugins.length} plug-in binary(ies)`,
+      `${payload.length} payload binary(ies)`,
+      `${texts.length} licence text(s)`,
+    ].join(', '),
+  }
 }
 
 /**
