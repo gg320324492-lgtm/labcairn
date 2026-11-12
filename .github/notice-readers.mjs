@@ -35,8 +35,18 @@ const HEADING = /^\d+(\.\d+)*\.?  \S/
 const BINARY_HEADING = /^ {2}([A-Za-z0-9_.-]+\.(?:dll|exe)) — ([\d,]+) bytes$/
 /** `    sha256   b72e9013…` — one field of a §2.5 binary block. */
 const BINARY_FIELD = /^ {4}(path|sha256|bundle|licence|holder|where)\s{2,}(\S.*)$/
-/** A wrapped §2.5 field value's continuation line. */
-const BINARY_CONTINUATION = /^ {11}\S/
+/**
+ * A wrapped §2.5 field value's continuation line.
+ *
+ * The continuation is aligned under the field's *value*, which starts at column
+ * 13 (`    where    the bundle…` / `             but the plug-in's…`). A pattern
+ * that required exactly 11 spaces kept only the first line of every wrapped
+ * `where` field, so the upstream source URLs and the sha256 values §2.5 records
+ * were invisible to a witness that was supposed to check them. Any indent deeper
+ * than the field name is a continuation; the field-name pattern above decides
+ * where a new field starts.
+ */
+const BINARY_CONTINUATION = /^ {5,}\S/
 /** `  MIT               207` — one licence-class row in §2.4.2 or §2.6. */
 const CLASS_ROW = /^ {2}(\S.*?\S) {2,}(\d+)$/
 /** `  electron  45.2.3  MIT  Copyright …` — one §2.4.1 runtime row. */

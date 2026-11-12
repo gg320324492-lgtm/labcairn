@@ -86,6 +86,9 @@ import {
   listedLicenceDocuments,
   listedSizeProblems,
   memberRecordProblems,
+  termsSourceProblems,
+  termsSources,
+  upstreamHashProblems,
   parseInstallerListing,
   recordLayer,
   storeDirectoryFor,
@@ -99,7 +102,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.resolve(HERE, '..')
 const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
 
-const NOTICE_TEXT = readNotice()
+// The override exists for the mutation checks: a witness that can only be shown
+// to fail by editing a tracked file is a witness whose mutation checks leave the
+// tree dirty. Every §2.5 reader in this file reads NOTICE_TEXT, so one override
+// moves the whole record while the artefacts stay untouched.
+const NOTICE_TEXT = readNotice(process.env.LABCAIRN_LICENCE_NOTICE ?? undefined)
 const RECORDS = binaryRecords(NOTICE_TEXT)
 const COPYING = copyingClaim(NOTICE_TEXT)
 
@@ -242,6 +249,22 @@ function listedMembers() {
 }
 
 const CACHE = findCacheBundles(CACHE_DIR)
+
+/**
+ * Where the *upstream* provenance lives, as distinct from the bundle the build
+ * downloads. `nsis-resources-3.4.1` carries no licence document; the terms for
+ * UAC.dll and WinShell.dll come from NSIS 3.13's `LICENSES` tree and from the
+ * upstream release archives themselves. §2.5 quotes short sha256 values for
+ * both, and this is the source that can confirm those bytes.
+ *
+ * `LABCAIRN_LICENCE_UPSTREAM_DIR` names one or more directories, separated by
+ * `path.delimiter`. It is an override like the other artefact variables: the
+ * upstream release is not part of the checkout, and a runner that has none of it
+ * reports the hash arm as NOT RUN rather than pretending to have measured it.
+ */
+const UPSTREAM_DIRS = (process.env.LABCAIRN_LICENCE_UPSTREAM_DIR ?? '')
+  .split(path.delimiter)
+  .filter((entry) => entry.length > 0 && fs.existsSync(entry))
 
 const NO_LISTING_REASON =
   'no installer listing or extract (LABCAIRN_LICENCE_INSTALLER_LISTING names saved `7z l` '
@@ -470,7 +493,16 @@ test('the zlib/libpng terms §2.5 records for four binaries are stated by the CO
   )
 })
 
-test('the two §2.5 records it calls unresolved are unresolved because their bundle states no terms at all', () => {
+test('every named licence in the licence-less bundle names where its terms come from', () => {
+  // **The invariant, not the count.** §2.5's four records from
+  // `nsis-resources-3.4.1` all name a licence now: StdUtils through its own source
+  // header, nsis7z through 7-Zip's terms, and UAC/WinShell through upstream NSIS
+  // 3.13's `LICENSES` tree. A previous version of this case asserted "exactly
+  // two", which went red the moment the record became more accurate. The number
+  // is a measurement that may grow as upstream provenance is found; what must
+  // hold is that a record naming a licence also names *where that licence comes
+  // from*, and that the source is an upstream artefact rather than the bundle
+  // itself -- which carries no licence file at all.
   if (!CACHE.available) {
     notRun('nsis-resources-3.4.1\'s absence of a licence document', CACHE_REASON)
     return
@@ -488,18 +520,47 @@ test('the two §2.5 records it calls unresolved are unresolved because their bun
     )
     return
   }
-  // No document: the records that state a *specific* licence for a binary from
-  // this bundle are the ones that need a source, and §2.5 gives one for the two
-  // LGPL entries (the plug-in's own source header, the 7-Zip terms) while
-  // naming the other two as unresolved.
-  const specific = RECORDS.filter(
-    (record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1' && !/unresolved/i.test(record.fields.licence ?? ''),
-  )
-  assert.equal(
-    specific.length,
-    2,
-    `§2.5 records ${specific.length} binaries from nsis-resources-3.4.1 with a named licence; with no licence document in that bundle, only the two whose grant comes from elsewhere (StdUtils' own source header, 7-Zip's terms) can be recorded, and ${specific.map((s) => s.name).join(', ')} would need a source`,
-  )
+
+  const fromBundle = RECORDS.filter((record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1')
+  assert.ok(fromBundle.length > 0, '§2.5 names no binary from nsis-resources-3.4.1, so the source requirement has nothing to watch')
+
+  // Every named licence records a source. `unresolved`, if any remain, is allowed
+  // to have none -- that is what the word means.
+  ran('§2.5\'s named licences against their stated sources')
+  const sourceCheck = termsSourceProblems(fromBundle)
+  assert.deepEqual(sourceCheck.problems, [], sourceCheck.problems.join('; '))
+  assert.equal(sourceCheck.named, fromBundle.length - recordedUnresolved.length,
+    `§2.5 names ${sourceCheck.named} licences and ${recordedUnresolved.length} unresolved entries; the two must account for every record from this bundle`)
+
+  // The sources are two different artefacts and must not be conflated: the bundle
+  // electron-builder downloads carries no licence document, while the NSIS 3.13
+  // release tree does. A `where` field that pointed at the downloaded bundle for
+  // UAC/WinShell would be citing a document this arm has just shown is absent.
+  const nsis313 = fromBundle.filter((record) => /LICENSES|upstream NSIS/i.test(termsSources(record).text))
+  assert.ok(nsis313.length > 0, 'no §2.5 record names upstream NSIS 3.13\'s LICENSES tree as a source; the UAC/WinShell grants have nowhere to be checked')
+  for (const record of nsis313) {
+    assert.doesNotMatch(
+      termsSources(record).text,
+      /nsis-resources-3\.4\.1[^\n]*\b(COPYING|LICENSE|licence document)\b/i,
+      `${record.name}: §2.5 cites the downloaded bundle for its terms, but the bundle carries no licence document -- the two sources are different artefacts`,
+    )
+  }
+
+  // The quoted short hashes, checked against the real upstream files where the
+  // provenance tree is available. Where it is not, the arm says exactly what it
+  // did not measure: the source-path requirement above still ran.
+  const upstream = upstreamHashProblems(fromBundle, UPSTREAM_DIRS)
+  if (!upstream.available) {
+    notRun('§2.5\'s quoted upstream sha256 values against the real files',
+      `no upstream NSIS 3.13 LICENSES tree or release archives (LABCAIRN_LICENCE_UPSTREAM_DIR names one, path.delimiter-separated); ${upstream.unmeasured.length} quoted hash(es) were not measured here: ${upstream.unmeasured.join(', ') || 'none'}`)
+    return
+  }
+  ran('§2.5\'s quoted upstream sha256 values against the real files')
+  assert.deepEqual(upstream.problems, [], upstream.problems.join('; '))
+  assert.ok(upstream.matched.length > 0, 'the upstream tree was found but none of §2.5\'s quoted hashes were checked, so the hash arm measured nothing')
+  const quoted = fromBundle.flatMap((record) => termsSources(record).hashes)
+  assert.equal(upstream.matched.length, quoted.length,
+    `§2.5 quotes ${quoted.length} short hash(es) and ${upstream.matched.length} were bound to real files upstream`)
 })
 
 // ---------------------------------------------------------------------------
@@ -618,6 +679,8 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   assert.ok(census, '§2.5.1 states no member count for the NSIS archive, so its census has nothing to compare with')
   const MEMBER_COUNT_WORDS = {
     eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+    fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+    nineteen: 19, twenty: 20,
   }
   const recordedCensus = MEMBER_COUNT_WORDS[census[1].toLowerCase()]
   assert.ok(
@@ -1107,4 +1170,90 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     false,
     `an unmeasured size was printed as zero: ${unmeasured.join('; ')}`,
   )
+
+  // (j) The source-of-terms invariant, on the same functions the case above
+  //     runs. The record became *more* accurate (four named licences instead of
+  //     two); what must redden is a named licence with no source, not the count.
+  const fromBundle = structuredClone(RECORDS).filter(
+    (record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1',
+  )
+  assert.equal(fromBundle.length, 4, `§2.5 names ${fromBundle.length} binaries from this bundle; the fixture that follows is stale`)
+  const cleanSources = termsSourceProblems(fromBundle)
+  assert.deepEqual(cleanSources.problems, [], 'the unmutated records already fail the source requirement, so these controls prove nothing')
+
+  // A fifth plug-in whose terms are resolved upstream: the invariant still holds.
+  // This is the shape that made the old "exactly 2" assertion go red.
+  const grown = [...fromBundle, {
+    name: 'Fifth.dll',
+    bytes: 1,
+    fields: {
+      licence: 'MIT',
+      where: 'upstream NSIS\'s `LICENSES` tree names the source as `Fifth.zip` (sha256 abcdef12…)',
+      bundle: 'nsis-resources-3.4.1',
+    },
+  }]
+  assert.deepEqual(termsSourceProblems(grown).problems, [], 'adding a properly sourced record reddened the invariant, which is watching the count rather than the property')
+
+  // A named licence with no source: the finding the invariant exists for.
+  const unsourced = structuredClone(fromBundle)
+  unsourced.find((record) => record.name === 'UAC.dll').fields.where = 'a compiled DLL with no licence text'
+  const unsourcedProblems = termsSourceProblems(unsourced).problems
+  assert.equal(unsourcedProblems.length, 1, `a named licence with no source produced: ${unsourcedProblems.join('; ')}`)
+  assert.match(unsourcedProblems[0], /UAC\.dll/, unsourcedProblems[0])
+
+  // A hash with no source path is incomplete in the other direction.
+  const hashOnly = structuredClone(fromBundle)
+  hashOnly.find((record) => record.name === 'UAC.dll').fields.where = 'sha256 20e3192a…'
+  const hashProblems = termsSourceProblems(hashOnly).problems
+  assert.ok(
+    hashProblems.some((problem) => /quotes 1 sha256/.test(problem)),
+    `a short hash with no path produced: ${hashProblems.join('; ')}`,
+  )
+
+  // `unresolved` is allowed to have no source. Demanding one there would turn the
+  // record's own vocabulary into a failure.
+  const unresolved = structuredClone(fromBundle)
+  unresolved.find((record) => record.name === 'UAC.dll').fields.licence = '**unresolved**'
+  unresolved.find((record) => record.name === 'UAC.dll').fields.where = 'no terms found'
+  assert.deepEqual(termsSourceProblems(unresolved).problems, [], 'an unresolved record was required to name a source it does not have')
+
+  // The two artefacts are distinct: a `where` field that cites the downloaded
+  // bundle as carrying the licence document is contradicted by the cache.
+  const conflated = structuredClone(fromBundle)
+  conflated.find((record) => record.name === 'UAC.dll').fields.where =
+    'nsis-resources-3.4.1 carries a licence document with the zlib/libpng grant'
+  const upstreamEntry = conflated.filter((record) => /LICENSES|upstream NSIS/i.test(termsSources(record).text))
+  assert.ok(upstreamEntry.length < fromBundle.length, 'the conflation control did not change which records cite upstream NSIS')
+
+  // Upstream hash comparison: a quoted hash with no matching file reddens, and
+  // an absent provenance tree reports every quoted hash as unmeasured (never a
+  // pass, never a zero).
+  const upstreamAbsent = upstreamHashProblems(fromBundle, [])
+  assert.equal(upstreamAbsent.available, false, 'an absent provenance tree was reported as available')
+  assert.deepEqual(upstreamAbsent.problems, [], 'an absent provenance tree invented hash findings')
+  assert.equal(upstreamAbsent.unmeasured.length, 5, `§2.5 quotes five hashes; ${upstreamAbsent.unmeasured.length} were reported unmeasured`)
+  const upstreamBogus = structuredClone(fromBundle)
+  upstreamBogus.find((record) => record.name === 'UAC.dll').fields.where =
+    'upstream NSIS\'s `LICENSES` tree names `UAC.zip` (sha256 deadbeef…)'
+  if (UPSTREAM_DIRS.length > 0) {
+    const bogus = upstreamHashProblems(upstreamBogus, UPSTREAM_DIRS)
+    assert.ok(
+      bogus.problems.some((problem) => /deadbeef/.test(problem)),
+      `a quoted hash no upstream file holds produced: ${bogus.problems.join('; ')}`,
+    )
+  } else {
+    // The same comparison over a fixture directory: one real file, one quoted
+    // hash that is not its hash. A reader that matched by name rather than bytes
+    // would pass this.
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'labcairn-upstream-control-'))
+    try {
+      fs.writeFileSync(path.join(scratch, 'UAC.zip'), 'not the bytes §2.5 quotes')
+      const bogus = upstreamHashProblems(upstreamBogus, [scratch])
+      assert.equal(bogus.available, true, 'the fixture provenance tree was reported as unavailable')
+      assert.ok(bogus.problems.some((problem) => /deadbeef/.test(problem)),
+        `a quoted hash no file in the tree holds produced: ${bogus.problems.join('; ')}`)
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true })
+    }
+  }
 })
