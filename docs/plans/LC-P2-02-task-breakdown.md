@@ -1,5 +1,7 @@
 # LC-P2-02 — Restart-durable consent: the approval that survives a restart — task breakdown
 
+**Anchors:** 2 — every converted pointer below carries the words it cites.
+
 **Work order:** LC-P2-02 (restart-durable consent) · **Status:** implemented
 2026-10-30 (T00–T05); the acceptance record is
 [`LC-P2-02-acceptance`](../acceptance/LC-P2-02-acceptance.md). **Priority:** the adjustment of
@@ -34,7 +36,7 @@ row** rather than out of an argument:
 
 **And the surfaces spend from the DB-backed store.** Today they build an
 in-memory `ApprovalLedger` (one construction site,
-`src/labcairn/cli/workspace.py:636`, inside the `application_context`
+`src/labcairn/cli/workspace.py:694` — `ledger=StoredApprovalLedger(session),`, inside the `application_context`
 builder at `:609`), so after a restart the ledger is empty and the spend
 fails closed with `APPROVAL_MISSING` — **safe, but not what a consent is
 for**: a person who was told "approved" should not have to ask again
@@ -155,7 +157,7 @@ reads the stream. **No operation emits twice.**
 `src/labcairn/application/tasks.py` (the `_unused_ledger()` at `:130`).
 
 **Replace the in-memory ledger with the DB-backed store**, on the
-service's **forked session** per the rule `api/routes.py:120` states.
+service's **forked session** per the rule `src/labcairn/api/routes.py:160` — `forked = base.store.fork()` states.
 
 **And the ledger is either gone or a cache that cannot outlive its row.**
 A cache that can be read when the row says otherwise is a second source of

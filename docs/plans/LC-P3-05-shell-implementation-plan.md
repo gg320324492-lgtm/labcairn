@@ -1,5 +1,7 @@
 # LC-P3-05 — Electron shell implementation plan
 
+**Anchors:** 3 — every converted pointer below carries the words it cites.
+
 **Date:** 2026-11-10. **Status:** a plan, not an implementation record. This
 document writes no product code, adds no dependency and claims no ticket
 status. It is the implementation stage's opening inventory for `LC-P3-05`
@@ -31,7 +33,7 @@ window's files.
 | O6: an unread pipe parks its writer; 4,096-byte capacity, 6,205 bytes per unwired stream; the service-side fix and witness | `docs/acceptance/o6-event-stream-stall-2026-11-10.md` §2, §4, §6.5 | The hard rule of §3 and its witness design. The fix removed the traceback fuel; it did **not** make an undrained pipe safe. |
 | `labcairn serve`'s shape: `--host` (loopback only), `--port`, `--origin`, `--static-dir`, `--json` (`ServiceStarting` carries `host`, `port`, `origin`, `origins`, `task_id`, `token_path`, `static_dir`) | `src/labcairn/cli/commands.py:2116-2211`, `src/labcairn/cli/models.py:293-315` | The exact child command and the readiness signal. |
 | The dev arrangement: Vite on `127.0.0.1:5173` with a proxy that changes no origin header; `DEVELOPMENT_ORIGINS` already answers to it | `web/vite.config.ts`, `src/labcairn/cli/commands.py:2091-2113` | Dev mode §4.2 reuses the arrangement that exists. |
-| The built bundle names no remote host and the service serves it from its own origin | `web/src/api/bundle.test.ts`, `app.py:448` (`--static-dir` mount) | AC-1 and AC-7; a shell dependency is read the same way. |
+| The built bundle names no remote host and the service serves it from its own origin | `web/src/api/bundle.test.ts`, `src/labcairn/api/app.py:448` — `app.mount("/", StaticFiles(directory=static_dir, html=True), name="workbench")` (`--static-dir` mount) | AC-1 and AC-7; a shell dependency is read the same way. |
 | New dependency is an owner decision (§0 rule 4); every boundary claim witness-backed (§0 rule 5); a new test file needs three registrations (§3 rule 3) | `docs/plans/PHASE_3-work-orders.md` §0, §3 | T01's approval gate; §6's acceptance criteria; T02–T07's registration obligations. |
 
 Numbers cited here are those records' numbers at their measured commits. A
@@ -277,8 +279,8 @@ Everything here is a property to witness, not a checkbox to tick (§0 rule 5).
    (ADR-0023 "Contracts" entry 7, AC-7).
 7. **The service stays loopback-bound.** The shell passes `--host 127.0.0.1`
    and does not expose the port; `labcairn serve` itself refuses any other
-   bind address (`src/labcairn/cli/commands.py:2297`, `_check_host`, called at
-   `commands.py:2189`). The session guard's three layers stay exactly where
+   bind address (`src/labcairn/cli/commands.py:2297` — `def _check_host(host: str, *, as_json: bool) -> None:`, `_check_host`, called at
+   `src/labcairn/cli/commands.py:2189` — `_check_host(host, as_json=as_json)`). The session guard's three layers stay exactly where
    `docs/THREAT-MODEL.md` §3.2 puts them.
 8. **No secrets or corpus text in the tree.** No token value, no pilot corpus
    text, no credential file is written into the repository by any step; the
