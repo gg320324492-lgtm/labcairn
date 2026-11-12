@@ -664,17 +664,23 @@ changed a number, and each is recorded so that a later run does not repeat it:
   `${env.LABCAIRN_SHELL_DIST_DIR}`, so a build whose caller names no directory
   fails loudly rather than writing products into the tracked tree.
   `shell/package.json` carries the `dist` script.
-  `shell/test/packaging-config.test.mjs` has nine tests: product/output/
+  `shell/test/packaging-config.test.mjs` has fourteen tests: product/output/
   `extraMetadata.dependencies: null`/unsigned NSIS target and flags; the
   packaged `files`, `extraResources` web-dist and declared files' existence;
   the `dist` script, `electron-builder@26.18.0`, the lockfile entry,
   `electron@45.2.3` and the `minimatch@>=7 <11 → 11.0.7` override; a
   mutation test feeding signing, portable-only target and in-tree-output
-  variants back through the same readers; and five cases for the packaging
+  variants back through the same readers; five cases for the packaging
   guard — the configuration names it, it is shaped the way electron-builder
   resolves a hook, the hook it calls throws on a missing bundle and returns
   true on a good one, and the script form refuses a missing bundle and
-  accepts a complete one. The approved
+  accepts a complete one; and five cases for the licence texts the NSIS
+  include carries — the configuration names the include, the include writes
+  each text into the installer's plug-in directory, every licence text in the
+  repository is carried, the texts it carries are the ones the repository
+  holds, and a text it does not name is a gap the mutation shows. Those five
+  landed with the licence coverage on 2026-11-12, after this record was
+  written. The approved
   273-key lockfile set is witnessed separately in
   `shell/test/dependency-surface.test.mjs`.
   **The packaging was run, not only configured.** Measured on 2026-11-11 in

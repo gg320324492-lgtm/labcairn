@@ -1,6 +1,6 @@
 # LabCairn — Current handoff
 
-**Date:** 2026-11-11 · **Phase 3 implementation is delivered; no
+**Date:** 2026-11-12 · **Phase 3 implementation is delivered; no
 Phase 3 gate is closed.** The accumulated batch was delivered in
 [PR #156](https://github.com/gg320324492-lgtm/labcairn/pull/156) and merged
 as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
@@ -60,7 +60,7 @@ provisional). Shard costs were subsequently re-measured from runner run
 `42733499009`, so the balance witnesses are no longer expected red. The
 fifth independent review's PASS and the merge are this batch's gate; nothing
 here is a `PASS`, a `PASS WITH NOTES`, a push, a pull request or a CI run, and
-none is authorised by this document. See the 2026-11-10 entry above for the
+none is authorised by this document. See the 2026-11-12 entry above for the
 current state.
 
 **Date:** 2026-11-08 · **Phase 3's G1 work orders are issued, and nothing is

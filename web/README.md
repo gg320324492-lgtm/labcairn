@@ -135,14 +135,26 @@ report is shown with the limit the report itself states.
 CI must pin these exactly. `package.json` carries both pins: `packageManager`
 (enforced by Corepack) and `engines`.
 
-| Tool | Version                           | Enforced by                                                     |
-| ---- | --------------------------------- | --------------------------------------------------------------- |
-| Node | `24.16.0` (range `>=24.16.0 <25`) | `.github/workflows/*.yml` → `actions/setup-node` `node-version` |
-| pnpm | `9.15.9` (range `>=9.15.9 <10`)   | `packageManager` field + Corepack                               |
+| Tool | Version                           | Enforced by                                                                     |
+| ---- | --------------------------------- | ------------------------------------------------------------------------------- |
+| Node | `24.16.0` (range `>=24.16.0 <25`) | `web.yml`, `lockfiles.yml` and `release.yml` → `actions/setup-node` `node-version` |
+| pnpm | `9.15.9` (range `>=9.15.9 <10`)   | the `packageManager` field — CI installs it with `pnpm/action-setup`, locally Corepack reads the same field |
 
 `.npmrc` sets `engine-strict=true`, so a mismatched Node or pnpm fails at install
 time instead of silently resolving something else. Changing either pin is a
 deliberate escalation (LC-P1-01 §10, risk R-4), not a routine dependency bump.
+
+**One workflow is not in the Node row, and it is the shell's.**
+`shell.yml` pins Node with `node-version-file: shell/package.json`, which
+resolves `engines.node` as the *range* `>=24.16.0 <25` rather than as a
+version — the runner took **v24.22.2** on 2026-11-12 (run `43233714805`), not
+24.16.0. The shell tree has its own `package.json` and its own floor, so that
+the floor is written once. Corepack is the **local** path to the pnpm pin — the
+install rehearsal in
+[`LC-P1-14`](../docs/acceptance/LC-P1-14-outsider-path.md) uses `corepack
+pnpm` — while CI installs pnpm with `pnpm/action-setup`, whose `version` is
+`9.15.9` and whose `package_json_file` is this tree's manifest, so the two
+agree.
 
 ## Scripts
 
@@ -204,7 +216,7 @@ web/
       paths.ts                   # the paths the workbench asks for
       session.ts                 # the token, in memory and nowhere else
     app/
-      Workbench.tsx              # the shell, and the one change it makes
+      Workbench.tsx              # the shell, and three of the seven writes
       useWorkbench.ts            # the read, scheduled by the render
     views/                       # one file per view, and the read they share
     report/firstPassNotice.ts    # the report's own limit, quoted from the renderer

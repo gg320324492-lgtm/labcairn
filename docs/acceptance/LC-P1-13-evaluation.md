@@ -2,8 +2,10 @@
 
 **Work order:** LC-P1-13 (evaluation, fault injection and competitor
 baseline) · **Subtask:** T01 — the evaluation harness.
-**Status of the work order:** **NOT STARTED**, and this document does not
-change that. It records the harness, what it measured, and what the
+**Status of the work order:** the work order was **NOT STARTED** when this
+document was written; the board now records it as **`PASS WITH NOTES`** and
+merged ([`docs/PHASE_1_WORKORDERS.md`](../PHASE_1_WORKORDERS.md)). The
+document records the harness, what it measured, and what the
 protocol still asks for.
 **Measured:** 2026-10-25 on the tree at `37ae3663d28555b6b760416f10630a81b3ec1ecb`, on Windows 11 (AMD64), Python 3.12.13, by
 `python -m tests.evaluation --out E:\labcairn-local\evaluation-t01`.

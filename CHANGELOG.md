@@ -20,7 +20,8 @@ rule for where a new entry joins.
 
 **The container is empty on purpose, and the split is what emptied it.**
 Every dated section that had accumulated here moved to the phase archives
-below; the split's own dated record is the newest entry of
+below; the split's own dated record is the section **The changelog splits into
+phase archives** in
 [`docs/changelog/phase-3.md`](docs/changelog/phase-3.md). A new dated section
 joins the archive of the phase it belongs to; an entry no phase claims yet
 joins this container.
@@ -31,8 +32,7 @@ joins this container.
 
 - [Phase 1 — gates G0 to G5, closed, never released](docs/changelog/phase-1.md)
 - [Phase 2 — closed, never released](docs/changelog/phase-2.md)
-- [Phase 3 — from the 2026-11-06 planning proposal to the 2026-11-11 record,
-  in flight](docs/changelog/phase-3.md)
+- [Phase 3 — from the 2026-11-06 planning proposal, in flight](docs/changelog/phase-3.md)
 
 ---
 

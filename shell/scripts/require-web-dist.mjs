@@ -3,8 +3,9 @@
  *
  * **Why this exists.** `electron-builder.yml` copies the web bundle into the
  * packaged app with `extraResources`. When that source directory is absent,
- * electron-builder prints one line -- `file source doesn't exist` -- and
- * **keeps going**. Measured on 2026-11-11: a build with no `web/dist`
+ * electron-builder prints `file source doesn't exist` -- once per missing
+ * path, so the build measured below printed it twice -- and **keeps going**.
+ * Measured on 2026-11-11: a build with no `web/dist`
  * exited 0 and produced an installer whose `resources/` carried no
  * `web-dist` at all, while the same build with the bundle present exited 0
  * with the three bundle files inside it. An installer without the frontend
