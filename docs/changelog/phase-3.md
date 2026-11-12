@@ -36,8 +36,10 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **What is not yet discharged.** §2.5.1 states the LGPL-2.1 obligations and
   where each stands for the 2026-11-11 build: the licence text and notice (§1,
   §6) are **not done** — the artefact contains zero licence text for either
-  LGPL binary, and the NSIS archive's nine members are seven plug-ins, one
-  bitmap and the payload archive; the corresponding source (§4, §6(c)) is
+  LGPL binary, and the NSIS archive lists ten members of which none is a
+  licence document (the seven plug-in DLLs, `modern-wizard.bmp` and
+  `app-64.7z` under `$PLUGINSDIR`, plus the uninstaller at `$R0`); the
+  corresponding source (§4, §6(c)) is
   **identified but not pointed at** — upstream's release archive contains
   `StdUtils.2018-10-27.Sources.tar`, 23 files in 11 folders, and no offer
   travels with the installer; §6(b) replaceability has a **recorded route and no

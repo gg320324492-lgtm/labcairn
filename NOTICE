@@ -891,11 +891,15 @@ stands:
 
   * **The licence text and the notice (§1, §6) — NOT DONE.** The installer
     carries **zero** licence text for either LGPL binary. Measured: no licence
-    string occurs inside `StdUtils.dll` or `nsis7z.dll`, and the NSIS archive
-    carries no LICENSE or COPYING file of any kind — the archive's nine members
-    are the seven plug-ins, one bitmap and the payload archive. This file
-    records the obligation and where the text may be obtained (§5.4), but the
-    artefact does not carry it.
+    string occurs inside `StdUtils.dll` or `nsis7z.dll` (a grep for
+    `lgpl|lesser general public|gnu general public|LegalCopyright|LoRd_MuldeR|Copyright`
+    returns 0 hits and exit 1 on each), and the NSIS archive lists **ten**
+    members and none of them is a licence document — the seven plug-in DLLs,
+    `modern-wizard.bmp` and `app-64.7z` under `$PLUGINSDIR`, plus the
+    uninstaller executable at `$R0`. The Electron licence documents the payload
+    carries (§2.4.1) cover the Electron and Chromium material, not these
+    binaries. This file records the obligation and where the text may be
+    obtained (§5.4), but the artefact does not carry it.
 
   * **The corresponding source (§4, §6(c)) — PARTLY DONE, NOT YET POINTED
     AT.** The source for the shipped `StdUtils.dll` exists and is identified:
