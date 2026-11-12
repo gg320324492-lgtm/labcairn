@@ -84,7 +84,7 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: that added it.
 #: `installer-binaries.test.mjs`, `shell-tree-terms.test.mjs` and
 #: `web-tree-terms.test.mjs` arrived with the four-surface licence coverage;
-#: their eight, seven and seven cases watch the installer's redistributed
+#: their nine, seven and seven cases watch the installer's redistributed
 #: binaries, the shell tree's terms and the web tree's terms against the
 #: artefacts those claims are about.
 #: `packaging-config.test.mjs` rose from nine cases to fourteen when the
@@ -97,7 +97,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "config.test.mjs": 5,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
-    "installer-binaries.test.mjs": 8,
+    "installer-binaries.test.mjs": 9,
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
