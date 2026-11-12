@@ -132,17 +132,18 @@ deliberate escalation (LC-P1-01 §10, risk R-4), not a routine dependency bump.
 
 Run all of them from `web/`.
 
-| Script                  | Command                | What it does                                                 |
-| ----------------------- | ---------------------- | ------------------------------------------------------------ |
-| `pnpm run dev`          | `vite`                 | Dev server on `http://127.0.0.1:5173`                        |
-| `pnpm run build`        | `tsc -b && vite build` | Type-check, then emit `dist/`                                |
-| `pnpm run preview`      | `vite preview`         | Serve `dist/` on `http://127.0.0.1:4173`                     |
-| `pnpm run test`         | `vitest run`           | Unit tests once (jsdom + Testing Library)                    |
-| `pnpm run test:watch`   | `vitest`               | Unit tests in watch mode                                     |
-| `pnpm run typecheck`    | `tsc -b --force`       | Strict type-check of app + tooling, no emit                  |
-| `pnpm run lint`         | `eslint .`             | ESLint 10 flat config, type-aware (`recommendedTypeChecked`) |
-| `pnpm run format`       | `prettier --write .`   | Apply Prettier                                               |
-| `pnpm run format:check` | `prettier --check .`   | Formatting gate                                              |
+| Script                   | Command                                                                    | What it does                                                 |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `pnpm run dev`           | `vite`                                                                     | Dev server on `http://127.0.0.1:5173`                        |
+| `pnpm run build`         | `tsc -b && vite build && node scripts/third-party-notices.ts --check dist` | Type-check, emit `dist/`, then check the attribution file    |
+| `pnpm run preview`       | `vite preview`                                                             | Serve `dist/` on `http://127.0.0.1:4173`                     |
+| `pnpm run test`          | `vitest run`                                                               | Unit tests once (jsdom + Testing Library)                    |
+| `pnpm run test:watch`    | `vitest`                                                                   | Unit tests in watch mode                                     |
+| `pnpm run typecheck`     | `tsc -b --force`                                                           | Strict type-check of app + tooling, no emit                  |
+| `pnpm run lint`          | `eslint .`                                                                 | ESLint 10 flat config, type-aware (`recommendedTypeChecked`) |
+| `pnpm run format`        | `prettier --write .`                                                       | Apply Prettier                                               |
+| `pnpm run format:check`  | `prettier --check .`                                                       | Formatting gate                                              |
+| `pnpm run notices:check` | `node scripts/third-party-notices.ts --check dist`                         | Re-check the attribution file against the installed packages |
 
 `build` already runs `tsc -b`, so a CI job may run `build` alone or keep `typecheck`
 as a separate, faster-failing step. Running both is harmless.
@@ -176,6 +177,8 @@ web/
   tsconfig.json                  # solution file (project references)
   tsconfig.app.json              # src/ — strict, jsx: react-jsx
   tsconfig.node.json             # vite/vitest config — strict, types: node
+  scripts/
+    third-party-notices.ts       # writes dist/THIRD-PARTY-NOTICES beside the bundle
   src/
     api/
       generated.ts               # T07's generated contract — do not edit by hand
@@ -211,3 +214,18 @@ script with the user's material in it.
 LabCairn original code is licensed under MIT. The grant is the root
 [`LICENSE`](../LICENSE) file; `NOTICE` records third-party terms. Do not add a
 second licence notice here.
+
+**The built bundle carries its own third-party attribution.** The bundler drops
+the comments the licence notices lived in, so the MIT attribution of React and
+its two siblings is not in the bundle that gets installed — measured on
+2026-11-11, the production bundle names `MIT` zero times. The build therefore
+writes `dist/THIRD-PARTY-NOTICES` beside the bundle, naming every package
+whose published source files went into that bundle, with the licence, the
+copyright holder and the licence text read out of the installed package
+itself. `scripts/third-party-notices.ts` writes it and checks it; the list is
+read out of the bundle's own module graph rather than written down, so it
+cannot go stale when a dependency moves.
+
+That file is third-party attribution, not a second grant: it says nothing about
+LabCairn's own licence, and the installer's `resources/web-dist/` copy of it
+travels with the third-party code it describes.
