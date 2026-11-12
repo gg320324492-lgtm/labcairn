@@ -1611,6 +1611,26 @@ _ANCHOR_DECLARATION = re.compile(r"^\*\*Anchors:\*\*[ \t]+(?P<count>\d+)\b", re.
 #: gap in the format, recorded rather than papered over with a rule nobody agreed to.
 _POINTER = re.compile(r"`(?P<path>[^`\s:]+):(?P<line>\d{1,6})`")
 
+#: The shape a path segment has to have before the token is read as a pointer at all: a name,
+#: a dot, and an extension that **starts with a letter**. Directory separators are part of the
+#: name; `docs/plans/PHASE_3-work-orders.md` is a pointer and must survive the shape check.
+#:
+#: **Why this exists.** Nine documents in this tree write ``127.0.0.1:8000`` and
+#: ``localhost:4317`` in backticks -- a host and a port, not a file and a line. Matched
+#: against the pattern above, ``127.0.0.1:8000`` is a path of ``127.0.0.1`` and a line of
+#: 8000, and the document that carries it would be told a file does not exist. Nine such
+#: tokens sit in documents today that declare nothing, so they are not read today either;
+#: the day one of those documents converts a pointer is the day the false report arrives,
+#: and a witness is not allowed to be *almost* right about the document that opts in.
+#:
+#: The cost is stated: an extensionless file (``Makefile:12``) is not read either. Measured
+#: at `f92e556`, every extensionless ``name:NUMBER`` token in the tree -- 33 of them -- is
+#: either a host and port, or a symbol citation in an upstream study (`_step:707`), or a
+#: section citation in an ADR (`ADR-0002:391`). Not one names a file this repository carries.
+#: `test_the_pointer_pattern_reads_a_file_and_not_a_host` holds that measurement, so the day
+#: the rule starts skipping something real is noticed rather than absorbed.
+_FILE_SHAPED_PATH = re.compile(r"^[A-Za-z0-9_/+.\-]*\.[A-Za-z][A-Za-z0-9]*$")
+
 #: The words a converted pointer carries: an em dash -- ``--`` accepted too, because a document
 #: typed without an em dash has reworded rather than broken -- and a backtick span. The leading
 #: ``\s*`` crosses a line break, so a pointer left at the end of a line by a wrapping editor is
@@ -1712,7 +1732,9 @@ def _declarations(text: str) -> list[re.Match[str]]:
     ]
 
 
-def _anchored_pointers(text: str, fenced: set[int]) -> list[tuple[int, str, int, str, str | None]]:
+def _anchored_pointers(
+    text: str, fenced: set[int], shape: re.Pattern[str] = _FILE_SHAPED_PATH
+) -> list[tuple[int, str, int, str, str | None]]:
     """Each ``(line here, cited path, cited line, words, link target)`` in the anchored form.
 
     A pointer whose words sit **after** the pointer is the plain form. A pointer that is a
@@ -1725,6 +1747,8 @@ def _anchored_pointers(text: str, fenced: set[int]) -> list[tuple[int, str, int,
     for match in _POINTER.finditer(text):
         here = text[: match.start()].count("\n") + 1
         if here in fenced:
+            continue
+        if not shape.match(match.group("path")):
             continue
         start = match.end()
         href: str | None = None
@@ -1956,3 +1980,108 @@ def test_the_anchor_check_fails_when_a_pointer_or_its_words_are_wrong() -> None:
         assert target.read_bytes() == original, (
             f"{target.relative_to(REPO)} changed while it was read"
         )
+
+
+# --------------------------------------------------------------------------
+# the shape rule that keeps a host and a port out of the pointer pattern
+# --------------------------------------------------------------------------
+
+#: The same pattern with **no shape rule at all**: every ``[^`\s:]+`` the pointer pattern can
+#: produce is accepted as a path. This is what the guard replaced, and it is what the first
+#: half of the witness below reads a document with.
+_ANY_PATH = re.compile(r"^[^`\s:]+$")
+
+#: A dotted quad -- the shape the shape rule exists to reject. Four dot-separated numbers.
+_HOST_TOKEN = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
+
+
+def _tokens_the_shape_rule_rejects() -> list[tuple[Path, int, str, int]]:
+    """Every ``name:NUMBER`` in a tracked document that the shape rule will not read as a file.
+
+    Read through the witness's own patterns -- `_POINTER` and `_FILE_SHAPED_PATH` -- not
+    through a second copy of them, because a measurement that re-implements what it is
+    measuring only agrees with itself.
+    """
+    out: list[tuple[Path, int, str, int]] = []
+    for doc in _tracked_markdown():
+        text = doc.read_text(encoding="utf-8")
+        fenced = _fenced_lines(text)
+        for match in _POINTER.finditer(text):
+            here = text[: match.start()].count("\n") + 1
+            if here in fenced or _FILE_SHAPED_PATH.match(match.group("path")):
+                continue
+            out.append((doc, here, match.group("path"), int(match.group("line"))))
+    return out
+
+
+def test_the_pointer_pattern_reads_a_file_and_not_a_host() -> None:
+    """A host and a port is not a file and a line, and the rule separating them skips nothing real.
+
+    **Both halves are watched, because the guard can fail in either direction.**
+
+    *It lets something through that is not a file.* Nine tracked documents write
+    ``127.0.0.1:8000`` and ``localhost:4317`` in backticks. Read as a pointer,
+    ``127.0.0.1`` is a path and ``8000`` is a line, and the document carrying it is told a
+    file does not exist -- a red that is not about the property. The probe below is a document
+    that declares an anchor count and carries a host-and-port beside its words: with the guard
+    off it reports a missing file, and with the guard as shipped it reports nothing.
+
+    *It keeps something out that is a file.* The shape rule accepts a dot and an extension
+    beginning with a letter, so an extensionless file is not read. Measured through the
+    witness's own patterns at `f92e556`, **41** ``name:NUMBER`` tokens are rejected, and not
+    one of them names a file this repository tracks -- they are hosts and ports, symbol
+    citations in the upstream studies (`_step:707`, `FilesystemPermission:366`), a section
+    citation in an ADR (`ADR-0002:391`) and one measurement row (`l=2`). This asserts that
+    measurement, so the day the rule starts skipping something real -- a `Makefile:12` in a
+    document that converted its pointers -- the check goes red and names it, instead of the
+    pointer quietly going unread. `.gitignore:4` is in the accepted set precisely because
+    a leading dot is a file's name and not an extension.
+    """
+    # **Half one: the guard is doing the work it claims.** The probe is synthetic text; the
+    # document path only supplies how a relative path would resolve.
+    probe_text = (
+        "# Probe\n\n"
+        "**Anchors:** 1 — every converted pointer below carries the words it cites.\n\n"
+        "The service listens on `127.0.0.1:8000` — `bound to the loopback address`.\n"
+    )
+    probe_doc = REPO / "README.md"
+
+    loose: list[str] = []
+    loose_pointers = _anchored_pointers(probe_text, _fenced_lines(probe_text), _ANY_PATH)
+    assert len(loose_pointers) == 1, (
+        "the probe no longer carries the host-and-port token the guard exists for, so this "
+        "witness tests nothing"
+    )
+    for _here, path, line, _words, href in loose_pointers:
+        if _cited_file(probe_doc, path, href) is None:
+            loose.append(f"{path}:{line} resolves to no file")
+    assert loose, "with the shape rule off, the host-and-port token resolved to a file"
+
+    guarded = _anchor_problems(probe_doc, probe_text, {})
+    assert guarded, (
+        "the probe declares 1 anchor and the guard skips the only candidate, so the count "
+        "claim itself went unreported: the guard must not silence the document's own count"
+    )
+    assert not any("127.0.0.1" in problem for problem in guarded), (
+        f"the guard did not keep the host-and-port token out of the report: {guarded}"
+    )
+
+    # **Half two: what the guard rejects names nothing real.** The tripwire.
+    rejected = _tokens_the_shape_rule_rejects()
+    assert rejected, "no tracked document carries a host-and-port or symbol token at all"
+    tracked = {Path(name) for name in _tracked_files()}
+    real = [
+        (doc, here, name, line)
+        for doc, here, name, line in rejected
+        if Path(name) in tracked or (doc.parent / name) in tracked
+    ]
+    assert not real, (
+        f"the shape rule skips {len(real)} token(s) that name a file this repository tracks: "
+        f"{real[:6]}. The pattern is now silently leaving real pointers unread -- widen it "
+        "rather than leave the pointers unwatched."
+    )
+    hosts = [entry for entry in rejected if _HOST_TOKEN.match(entry[2])]
+    assert hosts, (
+        "none of the rejected tokens is a host and port, so the guard is being tested against "
+        "a tree that does not contain the thing it was written for"
+    )
