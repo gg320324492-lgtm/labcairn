@@ -1,5 +1,7 @@
 # `web/` — LabCairn local research workbench
 
+**Anchors:** 3 — every converted pointer below carries the words it cites.
+
 > **Status: the local workbench.** This directory holds the React + TypeScript
 > application a person opens to see where a task has got to. It reads the
 > local API and draws what the API says; it holds no state of its own, so a
@@ -74,8 +76,9 @@ uv run python -m labcairn.api.typescript web/src/api/generated.ts
 
 `tests/test_api.py` compares the checked-in file with the models, so a model
 that changes without the file being regenerated is a failing test rather than
-a stale type. This package imports that file and does not write a second
-spelling of the API's shape.
+a stale type (`tests/test_api.py:1415` — `def test_the_checked_in_typescript_is_what_the_python_models_produce(`).
+This package imports that file and does not write a second spelling of the
+API's shape.
 
 In development the API is reached through Vite's proxy at `/api`, because the
 development server is on another port. The proxy strips that prefix and does
@@ -91,7 +94,7 @@ create_app(context, extra_origins=["http://127.0.0.1:5173"])
 **No remote host.** The client refuses any path that names one, the shipped
 source names none, and the built bundle names only React's own error-message
 address and the XML namespace identifiers. `src/api/bundle.test.ts` builds the
-artefact that ships and reads it.
+artefact that ships and reads it (`src/api/bundle.test.ts:91` — `describe('the built bundle', () => {`).
 
 **The token in memory only.** The session token is held in a module variable —
 not in React state, which is readable from the outside — and presented as
@@ -118,7 +121,7 @@ report is shown with the limit the report itself states.
   the task's state from the API rather than reconstructing it from events, so a
   dropped stream never changes what a panel draws.
 - **The bound task can be switched, through a route that exists.**
-  `POST /task/select` in `src/labcairn/api/routes.py` is called by
+  `POST /task/select` in `src/labcairn/api/routes.py:273` — `@router.post("/task/select", response_model=Health, tags=["task"])` — is called by
   `Workbench.tsx` (`API_PATHS.taskSelect`). The service stays bound to one task
   at a time; the binding is changed by that call, and the `Events` view is keyed
   by the new bound task.
