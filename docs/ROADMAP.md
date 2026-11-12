@@ -182,6 +182,21 @@ was answered — and **the chain's judgement is a fact**: a second judgement
 on the same correspondence does not undo the first, and a wrong judgement is
 corrected **on the rule**. The second paper's **eighteen version edges**
 were built from the timestamps inside the material itself, on 2026-11-02.
+
+> **Dated snapshot — true when written, superseded since.** The sentence
+> above is the state as of 2026-11-02, and it is left as written. **A later
+> read of the pilot store changed what those edges are**, and the change is
+> recorded: [`acceptance/LC-P2-28-phase2-open-items.md`](acceptance/LC-P2-28-phase2-open-items.md)
+> §1 read the store on 2026-11-06 and found **7 batch-10 edges and 28
+> batch-11 edges, all `source='model'`, all with `accepted_by IS NULL`**; the
+> owner's decision that day was to **leave all 35 unaccepted**, because the
+> material does not establish the editorial rounds' order. The same record's
+> §2 states the other half: **the second paper's three versions have no
+> connecting edge**. So "eighteen version edges were built" and "the second
+> paper contributes none of them" are both true, of different things — edges
+> that were *built* against edges that were *accepted*. A reader who wants the
+> current state should read `LC-P2-28`; a reader who wants the 2026-11-02
+> state should read the sentence above.
 **What was left at that date** is in the merged ticket: the blind
 evaluation's real run (its machinery is built and mutation-verified
 twice), retrieval quality beyond three papers (its machinery — the
