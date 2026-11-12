@@ -974,7 +974,8 @@ def test_the_evaluation_job_runs_the_offline_classes_on_a_schedule(
         guard = str(jobs[guarded].get("if", ""))
         assert "github.event_name != 'schedule'" in guard, (
             f"{guarded} would also run on the schedule event, so a scheduled "
-            "run would spend thirteen jobs instead of one"
+            "run would spend twelve jobs instead of one — `lint` plus the ten "
+            "shard legs, on top of `evaluation`"
         )
 
     names = [str(entry.get("name", "")) for entry in jobs.values()]
@@ -1027,7 +1028,7 @@ def _guards_naming_an_undeclared_event(document: dict[str, Any]) -> list[str]:
 
     **What this cannot watch.** A guard whose event *is* declared. Whether the
     guard is worth having — whether a scheduled run should spend one job or
-    thirteen — is a design decision the workflow's own comment records, and
+    twelve — is a design decision the workflow's own comment records, and
     `test_the_evaluation_job_runs_the_offline_classes_on_a_schedule` watches
     `python.yml`'s three guards individually.
     """
