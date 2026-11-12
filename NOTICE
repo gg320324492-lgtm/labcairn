@@ -1,9 +1,17 @@
 LabCairn — third-party notices
 ===============================================================================
 
-Applies to: the `labcairn` 0.1.0 source distribution and wheel, and to
-the npm dependency tree of the desktop shell (`shell/package.json`,
-pinned by `shell/pnpm-lock.yaml`).
+Applies to: the `labcairn` 0.1.0 source distribution and wheel; the npm
+dependency tree of the desktop shell (`shell/package.json`, pinned by
+`shell/pnpm-lock.yaml`); the binaries the NSIS installer distributes
+(`$PLUGINSDIR` plug-ins and `elevate.exe`, §2.5); and the npm dependency
+tree of the web front end (`web/package.json`, pinned by
+`web/pnpm-lock.yaml`, §2.6).
+
+§0.1 names every surface a LabCairn distribution carries and what each one
+carries with it. The installer binaries and the web tree were outside this
+file until 2026-11-12, and their absence is what made the scope of this
+notice narrower than the product it describes.
 
 Measured: 2026-10-25, by building the artefacts (`uv build`), reading their
 member lists and their bytes, and reading the licence of every installed
@@ -34,6 +42,36 @@ It grants no rights itself. LabCairn original code is granted under MIT by
 the root LICENSE file, `Copyright (c) 2026 Tonghe Du`. This NOTICE records
 the third-party terms that travel with a LabCairn distribution; it is not a
 second grant and does not modify the MIT terms.
+
+
+0.1  The surfaces a LabCairn distribution carries
+----------------------------------------------------
+
+A LabCairn distribution is not one dependency tree, and a statement about one
+tree is not a statement about the distribution. Four surfaces carry
+third-party material. Each was measured on its own, and the section that
+measures it is named in the last column.
+
+  surface                          items  copyleft in it              measured in
+  -------------------------------  -----  --------------------------  -----------
+  python dependency closure          171  MPL-2.0, LGPL, GPL-3.0       §2.2, §2.3
+  shell npm tree                     268  none                       §2.4
+  installer-distributed binaries        8  LGPL-2.1                   §2.5
+  web npm tree                       266  MPL-2.0, CC-BY-4.0         §2.6
+
+The Python closure's copyleft terms are the ones §2.3 lists in full: MPL-2.0
+(certifi, tqdm), an LGPL notice inside pywin32's bundled adodbapi module, and
+the GPL-3.0-or-later WITH GCC-exception-3.1 that numpy's own licence file
+carries for its statically linked OpenBLAS build.
+
+The "copyleft in it" column was narrowed before 2026-11-12: this file then
+covered two surfaces and said of them, "Nothing in either tree is copyleft",
+which was true of the shell's two npm trees and true of nothing else. The
+installer binaries and the web tree are the two that were missing, and they
+carry the copyleft this distribution actually ships. Nothing here is a
+statement that the installer binaries or the web tree are copyleft-free —
+that is what §2.5 and §2.6 measure, and what §2.5 records as *not yet
+discharged*.
 
 
 -------------------------------------------------------------------------------
@@ -347,9 +385,13 @@ Three identifiers are worth the reader's attention rather than a count:
     `utf8-byte-length@1.0.5` (WTFPL OR MIT), `sanitize-filename@1.6.5`
     (WTFPL OR ISC) and `truncate-utf8-bytes@1.0.2` (WTFPL).
 
-Nothing in either tree is copyleft. That was measured two ways, and both are
-reported because the second is the one that catches a bundled component a
-registry field would hide:
+**No package among the shell tree's 268 is copyleft.** That claim is about the
+shell tree alone. A LabCairn distribution carries more than these two trees:
+§2.5 records the eight binaries the NSIS installer distributes, two of which
+are LGPL-2.1, and §2.6 records the web tree, which carries MPL-2.0 and
+CC-BY-4.0. §0.1 lists every surface. What follows was measured two ways, and
+both are reported because the second is the one that catches a bundled
+component a registry field would hide:
 
   * no copyleft identifier appears in any of the 268 packages' own registry
     metadata;
@@ -677,6 +719,300 @@ Read with §2.4.2's rule that none of these travels inside an installer.
 
 
 -------------------------------------------------------------------------------
+2.5  The binaries the installer distributes
+-------------------------------------------
+
+A LabCairn install brings in more than the npm packages §2.4 lists. The NSIS
+installer embeds eight binaries of its own: seven NSIS plug-ins carried in the
+installer's `$PLUGINSDIR`, and `elevate.exe`, which sits in the payload's
+`resources/` directory.
+
+Measured 2026-11-11 on the unsigned build of that date — `LabCairn Setup
+0.0.0.exe`, 124,536,512 bytes, sha256
+`da483fd949efba5e603bd8b47d0f57dfedd26f61b6469c69a59dac3e6e1241ea` — by
+listing the archive with 7-Zip, extracting its members and hashing each one.
+Every binary was then matched by sha256 against the two electron-builder
+download caches the build fetches, and those two bundles are what say what
+each binary's terms are.
+
+`System.dll`, `nsDialogs.dll`, `nsExec.dll` and `elevate.exe` are
+byte-identical to the NSIS 3.0.4.1 distribution the build downloads, whose own
+`COPYING` (15,488 bytes, sha256
+`3c8de989f6504d52f5f8dfafedb6668cd47201f5d01f1319570727c091425dd6`) licenses
+its plug-ins under the zlib/libpng licence. The other four come from
+`nsis-resources-3.4.1`, electron-builder's own bundle, which carries **no
+licence file at all**.
+
+  StdUtils.dll — 102,400 bytes
+    path     $PLUGINSDIR\StdUtils.dll
+    sha256   b72e9013a6204e9f01076dc38dabbf30870d44dfc66962adbf73619d4331601e
+    bundle   nsis-resources-3.4.1 — byte-identical to the upstream StdUtils
+             1.14 Unicode release build of 2018-10-27
+    licence  LGPL-2.1-or-later
+    holder   Copyright (C) 2004-2018 LoRd_MuldeR <MuldeR2@GMX.de>
+    where    the plug-in's own source header states the grant; the compiled
+             binary carries no licence text, and the header does not survive
+             into the installer
+
+  nsis7z.dll — 434,176 bytes
+    path     $PLUGINSDIR\nsis7z.dll
+    sha256   b393f05e8ff919ef071181050e1873c9a776e1a0ae8329aefff7007d0cadf592
+    bundle   nsis-resources-3.4.1
+    licence  LGPL-2.1 — 7-Zip's terms, which cover the plug-in's sources as
+             "the GNU LGPL" apart from the Rar* files, which carry the unRAR
+             restriction
+    holder   Igor Pavlov and the 7-Zip contributors
+    where    the DLL carries 7-Zip's own C++ symbol names; whether the Rar*
+             handler is compiled into this build was **not** established, and a
+             format-table string is not proof of linkage
+
+  UAC.dll — 14,848 bytes
+    path     $PLUGINSDIR\UAC.dll
+    sha256   2f7f8fc05dc4fd0d5cda501b47e4433357e887bbfed7292c028d99c73b52dc08
+    bundle   nsis-resources-3.4.1
+    licence  **unresolved**
+    holder   —
+    where    the bundle that carries this plug-in states no terms for it, and
+             carries no licence document to state them in
+
+  WinShell.dll — 3,072 bytes
+    path     $PLUGINSDIR\WinShell.dll
+    sha256   9be85b986ea66a6997dde658abe82b3147ed2a1a3dcb784bb5176f41d22815a6
+    bundle   nsis-resources-3.4.1
+    licence  **unresolved**
+    holder   —
+    where    as UAC.dll above
+
+  System.dll — 12,288 bytes
+    path     $PLUGINSDIR\System.dll
+    sha256   3eb38ae99653a7dbc724132ee240f6e5c4af4bfe7c01d31d23faf373f9f2eaca
+    bundle   nsis-3.0.4.1/Plugins/x86-unicode
+    licence  zlib/libpng
+    holder   the NSIS project
+    where    byte-identical to the NSIS 3.0.4.1 distribution the build
+             downloads; that distribution's COPYING licenses the plug-ins
+             under the zlib/libpng licence
+
+  nsDialogs.dll — 9,728 bytes
+    path     $PLUGINSDIR\nsDialogs.dll
+    sha256   1e40211af65923c2f4fd02ce021458a7745d28e2f383835e3015e96575632172
+    bundle   nsis-3.0.4.1/Plugins/x86-unicode
+    licence  zlib/libpng
+    holder   the NSIS project
+    where    as System.dll above
+
+  nsExec.dll — 6,656 bytes
+    path     $PLUGINSDIR\nsExec.dll
+    sha256   5d9ceb1ce5f35aea5f9e5a0c0edeeec04dfefe0c77890c80c70e98209b58b962
+    bundle   nsis-3.0.4.1/Plugins/x86-unicode
+    licence  zlib/libpng
+    holder   the NSIS project
+    where    as System.dll above
+
+  elevate.exe — 107,520 bytes
+    path     resources\elevate.exe
+    sha256   9b1fbf0c11c520ae714af8aa9af12cfd48503eedecd7398d8992ee94d1b4dc37
+    bundle   nsis-3.0.4.1/elevate.exe
+    licence  zlib/libpng
+    holder   the NSIS project
+    where    as System.dll above
+
+Two of the eight are therefore LGPL, two have no findable terms, and four are
+zlib/libpng. The eight do not include the Electron runtime payload the
+installer also carries: §2.4.1 records the licence documents that travel with
+it.
+
+2.5.1  What the LGPL-2.1 obligations are, and what has been done
+-------------------------------------------------------------------
+
+Two of the eight binaries are LGPL. LGPL-2.1's clauses are quoted here from a
+verified copy of the text; the section numbers were measured against that copy
+rather than recalled.
+
+**§1 — the licence text and the notices.** For a verbatim copy:
+
+> You may copy and distribute verbatim copies of the Library's complete source
+> code as you receive it, in any medium, provided that you conspicuously and
+> appropriately publish on each copy an appropriate copyright notice and
+> disclaimer of warranty; keep intact all the notices that refer to this
+> License and to the absence of any warranty; and **distribute a copy of this
+> License along with the Library**.
+
+**§4 — object code and the corresponding source.** The object-code clause
+requires the distributor to "accompany it with the complete corresponding
+machine-readable source code, which must be distributed under the terms of
+Sections 1 and 2 above on a medium customarily used for software interchange",
+and its final paragraph adds that where distribution is by offering access to
+copy from a designated place, "offering equivalent access to copy the source
+code from the same place satisfies the requirement to distribute the source
+code".
+
+**§6 — the combined-work path.** Its preamble requires the distributor's own
+terms to permit modification for the customer's own use and reverse engineering
+for debugging such modifications, and its body requires: "**You must give
+prominent notice with each copy of the work that the Library is used in it and
+that the Library and its use are covered by this License. You must supply a
+copy of this License.**" It then offers a choice of (a) the relink package,
+(b) "a suitable shared library mechanism" — a DLL loaded at runtime,
+"operating properly with an interface-compatible modified version" — (c) a
+written offer valid for at least three years, (d) equivalent access from the
+same designated place, and (e) verification that the user already has the
+materials.
+
+**The author's own clarification.** The upstream StdUtils release archive
+carries `LGPL_CLARIFICATION.txt`, which says that an installer that
+"incorporate[s] and use[s] the StdUtils plug-in Library, strictly through the
+NSIS plug-in interface", and that contains "verbatim copies of the StdUtils
+plug-in Library" is considered "a work that uses the Library" and "do[es] NOT
+represent a derivative of the Library", and that such an installer may be
+"distribute[d] … under the license of your choice". The same file's
+Limitations paragraph says the plug-in DLL itself "will still be distributed
+under the terms of the General Public License version 2.1" and adds that "all
+restrictions … must still be adhered to". Two things are stated as facts and
+not adjudicated here: that paragraph says *General* Public License where the
+rest of the file and the plug-in's header say *Lesser* General Public
+License, which is an inconsistency inside the author's own document; and the
+clarification is the author's interpretation of LGPL-2.1, not the FSF's. Both
+of the clarification's preconditions hold for this build — the shipped DLL is a
+verbatim upstream copy, and the installer calls it only through the plug-in
+interface.
+
+**What the 2026-11-11 build does about it.** Each obligation, and where it
+stands:
+
+  * **The licence text and the notice (§1, §6) — NOT DONE.** The installer
+    carries **zero** licence text for either LGPL binary. Measured: no licence
+    string occurs inside `StdUtils.dll` or `nsis7z.dll`, and the NSIS archive
+    carries no LICENSE or COPYING file of any kind — the archive's nine members
+    are the seven plug-ins, one bitmap and the payload archive. This file
+    records the obligation and where the text may be obtained (§5.4), but the
+    artefact does not carry it.
+
+  * **The corresponding source (§4, §6(c)) — PARTLY DONE, NOT YET POINTED
+    AT.** The source for the shipped `StdUtils.dll` exists and is identified:
+    the upstream StdUtils 1.14 release archive `StdUtils.2018-10-27.zip` (the
+    release build of 2018-10-27, whose `Plugins/Unicode/StdUtils.dll` is the
+    shipped file byte for byte) contains
+    `Contrib/StdUtils/StdUtils.2018-10-27.Sources.tar`, the complete sources
+    as 23 files in 11 folders. Obtaining it means fetching the upstream
+    project's release archive of that name and taking that member out of it.
+    The installer does not yet point at it, and no written offer under §6(c)
+    exists, so the obligation is not discharged. For `nsis7z.dll` the
+    corresponding source was **not** located: the upstream build the shipped
+    plug-in was made from was not identified.
+
+  * **Replaceability (§6(b), and §4's final paragraph for the §4 path) — NOT
+    MEASURED.** The route LGPL-2.1 contemplates is a DLL loaded at runtime that
+    "operat[es] properly with an interface-compatible modified version". What
+    was measured: `StdUtils.dll` is extracted to `$PLUGINSDIR` at install time
+    and is not installed as a file of its own, so the replacement route runs
+    through the installer archive — a build of StdUtils that keeps the
+    `StdUtils::TestParameter` export and its calling convention can be put in
+    `$PLUGINSDIR`'s place before the installer is run. What was **not**
+    measured: whether an installer carrying such a build still completes the
+    installation. No installer with a modified `StdUtils.dll` was built or
+    run, so this file records the route and not a tested result. The load is
+    narrow — `StdUtils::TestParameter` is the only function of the plug-in the
+    generated installer calls, seven times, through the flag macros
+    `electron-builder` emits unconditionally — but "narrow" is not "verified".
+
+2.5.2  What is deliberately not settled here
+----------------------------------------------
+
+Two investigations were deferred by the owner on 2026-11-12 and are **not**
+attempted in this section:
+
+  * a per-binary licence census of the installer binaries, witnessed by a
+    test — the eight entries above were traced by sha256 to their source
+    bundles, and a watcher that would catch a ninth binary entering the
+    archive does not exist;
+  * a per-component obligation review of the Chromium payload — the
+    Electron runtime the installer also carries ships `LICENSES.chromium.html`,
+    a 5,705,935-byte inventory of 500 components; §2.4.1 records that it
+    travels, and nothing here says what each of its components obliges.
+
+The owner's decision of 2026-11-12 was to keep the LGPL plug-in and discharge
+the obligations rather than remove or replace it, and to widen this file's
+scope to the toolchain binaries and the web tree. The four unresolved and
+LGPL entries above are the record of what that decision leaves open.
+
+
+-------------------------------------------------------------------------------
+2.6  The web tree
+-----------------
+
+`web/package.json` declares two runtime dependencies (`react` 19.3.1,
+`react-dom` 19.3.1) and twenty devDependencies. `web/pnpm-lock.yaml` pins the
+resolved tree.
+
+**The lock carries no licence at all.** Measured: the case-insensitive
+substring `licen` occurs **0** times in `web/pnpm-lock.yaml`. The lock pins
+identity and never terms, so the terms have to be read from the registry or
+from an installed tree — which is why the denominators below are stated
+separately.
+
+**Three denominators, and they are not interchangeable.**
+
+  266  lock keys in the lockfile's `packages:` section — the coverage
+       denominator, because it is what a fresh checkout can prove without a
+       network, and it is the denominator §2.4 uses for the shell's 268
+  266  keys in the lockfile's `snapshots:` section
+  299  the union of the two sections; the surplus 33 are keys whose name
+       carries a peer-resolution suffix
+  241  distinct `name@version` installed on the machine that measured this
+  624  `package.json` records in that install — a peer variant installs the
+       same package twice, so these two are different numbers
+
+**The licence classes over the 266 lock keys.** 241 of the 266 were answered
+from the installed tree's own `package.json`; the other 25 are the
+platform variants a single-platform install cannot answer, and were answered
+from the npm registry's own record of the same field.
+
+  class           keys
+  --------------  -----
+  MIT               207
+  Apache-2.0         19
+  MPL-2.0            12
+  ISC                11
+  BSD-2-Clause        8
+  BSD-3-Clause        3
+  MIT-0               2
+  BlueOak-1.0.0       2
+  CC-BY-4.0           1
+  CC0-1.0             1
+  --------------  -----
+  Total             266
+
+**The copyleft and the attribution member.**
+
+  * **MPL-2.0 — 12 of the 266 keys.** The `lightningcss@1.33.0` family:
+    `lightningcss@1.33.0` itself, `lightningcss-win32-x64-msvc@1.33.0`, and
+    ten further platform variants — `-android-arm64`, `-darwin-arm64`,
+    `-darwin-x64`, `-freebsd-x64`, `-linux-arm-gnueabihf`, `-linux-arm64-gnu`,
+    `-linux-arm64-musl`, `-linux-x64-gnu`, `-linux-x64-musl` and
+    `-win32-arm64-msvc`. MPL 2.0 is file-level copyleft.
+  * **CC-BY-4.0 — 1 of the 266 keys.** `caniuse-lite@1.0.30001816`, which
+    carries an attribution requirement.
+
+No GPL-family identifier, no source-available identifier, no `UNLICENSED` and
+no `SEE LICENSE IN` appears anywhere in the installed web tree.
+
+**What actually ships.** The web tree's dependencies reach the installer
+compiled into the JavaScript bundle, not as a dependency tree: the
+`resources/web-dist` directory the installer carries holds the bundle's build
+output and no package tree. The runtime-reachable set is `react@19.3.1`,
+`react-dom@19.3.1` and `scheduler@0.28.0`, all MIT. Both entries above are
+build-time only — `lightningcss` and `caniuse-lite` are devDependencies — so
+neither reaches the artefact.
+
+**React's attribution.** The MIT text and the copyright line React requires
+travel with the bundle in `resources/web-dist/THIRD-PARTY-NOTICES`: the web
+build writes that file into `web/dist/`, and `shell/electron-builder.yml`
+copies `web/dist/` into `resources/web-dist/` with the rest of the build
+output.
+
+
+-------------------------------------------------------------------------------
 3.  Fonts that ride inside two of the dependency wheels
 -------------------------------------------------------------------------------
 
@@ -906,3 +1242,79 @@ comparison, the licence document text and the holder lines for all 268 — is in
 the measurement record dated 2026-11-11 under
 `E:/labcairn-local/phase3-g1-evidence/`, outside the repository, together with
 the scripts that produced it.
+
+
+5.4  Reproducing the installer-binary and web-tree figures
+------------------------------------------------------------
+
+The eight installer binaries live in the build product, not in the repository,
+so their commands start from a build. The web tree's lock figures need
+neither a build nor an install; its licence classes do.
+
+**The eight installer binaries.**
+
+  # 1. the build — the installer carries them
+  pnpm --dir shell install --frozen-lockfile
+  pnpm --dir shell exec electron-builder --win nsis
+
+  # 2. the archive's members; the sizes here are the archive's own
+  7z l "shell/dist/LabCairn Setup 0.0.0.exe"
+    # $PLUGINSDIR\System.dll       6931      $PLUGINSDIR\nsExec.dll      3299
+    # $PLUGINSDIR\UAC.dll          8018      $PLUGINSDIR\nsis7z.dll   242382
+    # $PLUGINSDIR\StdUtils.dll    45608      $PLUGINSDIR\WinShell.dll   1080
+    # $PLUGINSDIR\nsDialogs.dll    4684
+
+  # 3. each member's own bytes and hash — the sizes §2.5 prints
+  7z x "shell/dist/LabCairn Setup 0.0.0.exe" -o<dir> -y
+  7z x "<dir>/\$PLUGINSDIR/app-64.7z" -o<payload> -y
+  sha256sum "<dir>/\$PLUGINSDIR/"*.dll "<payload>/resources/elevate.exe"
+
+  # 4. where each binary's terms come from — the two electron-builder caches.
+  #    ELECTRON_BUILDER_CACHE names the cache directory; the two bundles below
+  #    are the ones electron-builder downloads for the NSIS target.
+  sha256sum "$ELECTRON_BUILDER_CACHE"/nsis-resources-3.4.1/*/plugins/x86-unicode/*.dll
+  sha256sum "$ELECTRON_BUILDER_CACHE"/nsis-3.0.4.1/*/Plugins/x86-unicode/*.dll
+  sha256sum "$ELECTRON_BUILDER_CACHE"/nsis-3.0.4.1/*/elevate.exe
+  sha256sum "$ELECTRON_BUILDER_CACHE"/nsis-3.0.4.1/*/COPYING
+    # the four zlib/libpng binaries are byte-identical to the second and third
+    # listings; StdUtils.dll, UAC.dll, WinShell.dll and nsis7z.dll are
+    # byte-identical to the first. The nsis-resources bundle carries no
+    # licence file at all, which is what leaves UAC.dll and WinShell.dll
+    # without findable terms.
+
+**The web tree.**
+
+  # 1. the surface, read out of the lock — no install, no network, fresh checkout
+  node .github/web-lockfile-keys.mjs web/pnpm-lock.yaml
+    # packages_keys: 266   snapshots_keys: 266   union_keys: 299
+    # peer_suffixed_keys: 33   distinct_name_version: 266
+    # licence_field_occurrences: 0
+
+  # 2. the installed tree, and the classes the lock cannot carry
+  pnpm --dir web install --frozen-lockfile
+  node .github/web-lockfile-keys.mjs web/pnpm-lock.yaml --installed
+    # installed_records: 624   installed_distinct_name_version: 241
+    # resolved_keys: 241   unresolved_keys: 25
+    # licence classes: MIT 192, Apache-2.0 19, ISC 11, BSD-2-Clause 8,
+    #   BSD-3-Clause 3, MIT-0 2, MPL-2.0 2, BlueOak-1.0.0 2, CC-BY-4.0 1,
+    #   CC0-1.0 1
+
+  # 3. the 25 a single-platform install cannot answer, from the registry
+  node .github/web-lockfile-keys.mjs web/pnpm-lock.yaml --installed --registry
+    # resolved_keys: 266   unresolved_keys: 0
+    # licence classes: MIT 207, Apache-2.0 19, MPL-2.0 12, ISC 11,
+    #   BSD-2-Clause 8, BSD-3-Clause 3, MIT-0 2, BlueOak-1.0.0 2,
+    #   CC-BY-4.0 1, CC0-1.0 1
+
+  # 4. one package's licence on its own, from the registry
+  curl -fsS https://registry.npmjs.org/lightningcss-android-arm64/1.33.0
+  curl -fsS https://registry.npmjs.org/caniuse-lite/1.0.30001816
+
+The measurement record for §2.5 and §2.6 is the same directory: the LGPL
+obligation findings of 2026-11-11 and the independent re-review of the NOTICE
+classification of 2026-11-11, under
+`E:/labcairn-local/phase3-g1-evidence/`, together with the scripts and the
+extracted artefacts they produced. The two figures this file prints that the
+record does not carry — the eight sha256 sums and the 266-key licence
+distribution — are reproduced by the commands above and by
+`.github/web-lockfile-keys.mjs`.
