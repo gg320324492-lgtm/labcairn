@@ -411,6 +411,18 @@ component a registry field would hide:
     `postject@1.0.0-alpha.6`'s base64 blob. They are named because dropping a
     flag silently is how a real finding gets lost.
 
+**How firm the permissive reading is, package by package.** A second
+independent re-review took all 268 identifiers again, from the registry and
+from each published tarball, and classified them **228 confirmed permissive,
+40 the owner's judgement, 0 undeterminable**. The forty are not copyleft and
+the claim above stands; what they show is the strength of the *permissive*
+reading for each package. **Sixteen of them carry their licence only as a
+manifest field** — no licence document in the published tarball — so their
+identifier rests on that one source. The other twenty-four are the cases this
+section already names: `node-gyp`'s vendored `packaging`, `undici`'s second
+`LICENSE`, the four deprecated packages, `argparse@2.0.1`'s venue clause, and
+the four that offer a choice.
+
 Two things in this surface are the npm analogue of §2.2's bundled-licence
 finding, and the earlier version of this section named neither:
 

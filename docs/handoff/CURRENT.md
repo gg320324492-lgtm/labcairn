@@ -16,7 +16,7 @@ advisories found. The G4 checklist revision 2 carries 31 classifiable rows
 whose signatures stay `PENDING` until the gate's implementation (the
 installed build and the trial) is complete. NOTICE records the full
 268-package shell dependency closure (13 runtime and 255 build-only
-packages, all permissive licences), witnessed by
+packages, none of them copyleft), witnessed by
 `shell/test/notice-licences.test.mjs`. On 2026-11-12 the owner widened its
 scope to the two surfaces it had left out: `NOTICE` §2.5 records the eight
 binaries the NSIS installer distributes (two LGPL-2.1, two with no findable
