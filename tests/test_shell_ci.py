@@ -87,6 +87,10 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: their eight, seven and seven cases watch the installer's redistributed
 #: binaries, the shell tree's terms and the web tree's terms against the
 #: artefacts those claims are about.
+#: `packaging-config.test.mjs` rose from nine cases to fourteen when the
+#: LGPL licence texts were made to travel in the installer: the five new
+#: cases watch the mechanism that puts them there, and the mutation that
+#: removes the texts from the include so that the check sees the gap.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
@@ -98,7 +102,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
     "notice-scope.test.mjs": 8,
-    "packaging-config.test.mjs": 9,
+    "packaging-config.test.mjs": 14,
     "shell-tree-terms.test.mjs": 7,
     "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
