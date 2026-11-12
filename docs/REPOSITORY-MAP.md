@@ -25,7 +25,7 @@ claim the CI gate holds.
 raised the dated count to **826 tracked files** and **195 Markdown files**.
 After the shell CI workflow and the T08 packaging configuration merged,
 `6cdbfb56ce29dd19e4f56dae549b4d476d998d1e` printed **831 tracked files**.
-After the full NOTICE dependency surface landed, the live measurement at
+After the full NOTICE dependency surface landed, the measurement at
 `bf2f6f450c93104b34fac38d4f853880dca53872` prints **833 tracked files**:
 483 `.py`, 195 `.md`, 29 `.json`, 30 `.mjs`, 26 `.tsx`, 23 `.ts`, 13
 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining configuration, fixture and
@@ -33,7 +33,7 @@ binary files. The 823 / 192, 826 / 195 and 831 / 195 figures are named
 earlier measurements, not current totals.
 
 **Read 2026-11-11 (after the packaging guard landed):** at
-`806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1` the live measurement prints
+`806e3ddd0a9413d3c0b02febee02ec5a0eceaaf1` the measurement prints
 **834 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 31 `.mjs`, 26
 `.tsx`, 23 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
 configuration, fixture and binary files. The 833 figure is the one named
@@ -41,7 +41,7 @@ in the paragraph above; it, and the 823 / 192, 826 / 195 and 831 / 195
 figures before it, are earlier measurements, not current totals.
 
 **Read 2026-11-12 (after the NOTICE scope widened):** at
-`df18d46b3bbc110027ea8268fb79cebca55ab1b7` the live measurement prints
+`df18d46b3bbc110027ea8268fb79cebca55ab1b7` the measurement prints
 **836 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 33 `.mjs`, 26
 `.tsx`, 23 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
 configuration, fixture and binary files. The two new files are the two the
@@ -49,6 +49,15 @@ widened scope added: `.github/web-lockfile-keys.mjs`, the reader §5.4 names
 for the web tree, and `shell/test/notice-scope.test.mjs`, the witness that
 watches NOTICE's scope against the surfaces it names. The 834 figure is the
 one named above and is an earlier measurement, not the current total.
+
+**Read 2026-11-12 (after the web attribution landed):** at
+`6cd844670f4136df5b7e49613ce201c22d20590a` the measurement prints
+**838 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 33 `.mjs`, 26
+`.tsx`, 25 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The two new files are the web
+attribution's: `web/scripts/third-party-notices.ts` and
+`web/src/thirdPartyNotices.test.ts`. The 836 figure is the one named above
+and is an earlier measurement, not the current total.
 
 ## 1. Classification measured on 2026-11-07
 

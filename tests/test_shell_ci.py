@@ -95,7 +95,7 @@ SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "packaging-config.test.mjs": 9,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "8b26002f5cfb9625d36b868de08bd00b0341bb11"
+CASE_FLOORS_MEASURED_AT: Final[str] = "6cd844670f4136df5b7e49613ce201c22d20590a"
 
 
 # --------------------------------------------------------------------------

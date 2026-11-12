@@ -6,7 +6,7 @@ Phase 3 gate is closed.** The accumulated batch was delivered in
 as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
 `evaluation` skipping by design; a live ahead count is re-measured at
 delivery; the live pointers had stopped at the 2026-11-10 refresh
-(`7681c35`), and the record commits since are reflected by this entry. The
+(`7681c35`); the record commits since are reflected by this entry. The
 G1, G2,
 G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
 `LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
