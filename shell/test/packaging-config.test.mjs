@@ -21,6 +21,8 @@ const CONFIG_PATH = path.join(SHELL_ROOT, 'electron-builder.yml')
 const MANIFEST_PATH = path.join(SHELL_ROOT, 'package.json')
 const LOCK_PATH = path.join(SHELL_ROOT, 'pnpm-lock.yaml')
 const GUARD_PATH = path.join(SHELL_ROOT, 'scripts', 'require-web-dist.mjs')
+const LICENCES_PATH = path.join(SHELL_ROOT, 'licenses')
+const NSIS_INCLUDE_PATH = path.join(SHELL_ROOT, 'nsis', 'licenses.nsh')
 
 const config = fs.readFileSync(CONFIG_PATH, 'utf8')
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
@@ -166,4 +168,104 @@ test('the bundle guard refuses an empty bundle and accepts one with the entry do
   } finally {
     fs.rmSync(complete, { recursive: true, force: true })
   }
+})
+
+/**
+ * The licence texts the installer carries.
+ *
+ * LGPL-2.1 section 1 requires a copy of the Licence to travel with the
+ * Library, and the NSIS installer is what carries the Library: the plug-ins
+ * are members of the installer's own archive, extracted to `$PLUGINSDIR` at
+ * install time. So the texts have to be in that archive too, in the same
+ * place, or the obligation is not discharged by the artefact.
+ *
+ * These cases watch the mechanism rather than the build: the build needs
+ * electron-builder, a network and minutes, and the mechanism is what a
+ * reader has to be able to check. The build that proves it is recorded in
+ * `NOTICE` §5.4.
+ */
+
+/** The `File /oname=…` lines of the include, and the member they write. */
+function fileCommands(include) {
+  const commands = []
+  for (const line of include.split('\n')) {
+    const match = line.match(/^\s*File \/oname=(\S+)\s+"([^"]+)"\s*$/)
+    if (match) commands.push({ member: match[1], source: match[2] })
+  }
+  return commands
+}
+
+/** The file name of the repository text a `File` command writes. */
+function carriedName(command) {
+  return path.basename(command.source.replace(/\\/g, path.sep))
+}
+
+/** The licence texts the repository holds. */
+function repositoryTexts() {
+  return fs.readdirSync(LICENCES_PATH).filter((name) => name.endsWith('.txt'))
+}
+
+/** The licence texts a given include carries. */
+function carriedTexts(include) {
+  return new Set(fileCommands(include).map(carriedName))
+}
+
+test('the packaging config names the NSIS include that carries the licence texts', () => {
+  assert.match(config, /^ {2}include: nsis\/licenses\.nsh$/m)
+  assert.ok(fs.existsSync(NSIS_INCLUDE_PATH), 'the configuration names an NSIS include that is absent')
+})
+
+test("the NSIS include writes each licence text into the installer's plugin directory", () => {
+  const include = fs.readFileSync(NSIS_INCLUDE_PATH, 'utf8')
+  assert.match(include, /^!macro customInit$/m)
+  assert.match(include, /^!macroend$/m)
+  assert.match(include, /^\s*InitPluginsDir$/m)
+  assert.match(include, /^\s*CreateDirectory "\$PLUGINSDIR\\licenses"$/m)
+
+  const commands = fileCommands(include)
+  assert.ok(commands.length > 0, 'the include writes no file at all')
+  for (const command of commands) {
+    assert.match(
+      command.member,
+      /^\$PLUGINSDIR\\licenses\\[^\\]+$/,
+      `the include writes ${command.member} outside the plugin directory's licenses subdirectory`,
+    )
+    const source = command.source.replace('${PROJECT_DIR}', SHELL_ROOT).replace(/\\/g, path.sep)
+    assert.ok(fs.existsSync(source), `the include writes ${command.member} from ${command.source}, which is absent`)
+  }
+})
+
+test('every licence text in the repository is carried by the NSIS include', () => {
+  const carried = carriedTexts(fs.readFileSync(NSIS_INCLUDE_PATH, 'utf8'))
+  const present = repositoryTexts()
+  assert.ok(present.length > 0, 'the repository holds no licence text at all')
+  for (const name of present) {
+    assert.ok(carried.has(name), `shell/licenses/${name} is in the repository but the NSIS include does not carry it`)
+  }
+})
+
+test('the licence texts the include carries are the ones the repository holds', () => {
+  const include = fs.readFileSync(NSIS_INCLUDE_PATH, 'utf8')
+  const present = new Set(repositoryTexts())
+  for (const command of fileCommands(include)) {
+    const name = carriedName(command)
+    assert.ok(present.has(name), `the include writes ${name}, which shell/licenses/ does not hold`)
+  }
+})
+
+test('a licence text the include does not name is a gap the mutation shows', () => {
+  const include = fs.readFileSync(NSIS_INCLUDE_PATH, 'utf8')
+  const commands = fileCommands(include)
+  const first = commands[0]
+  assert.ok(first, 'the include writes no file, so there is nothing to mutate')
+
+  const mutated = include.replace(first.source, '${PROJECT_DIR}\\licenses\\NOT-THERE.txt')
+  assert.notEqual(mutated, include, 'the mutation did not change the include')
+
+  const carried = carriedTexts(mutated)
+  const dropped = carriedName(first)
+  assert.ok(!carried.has(dropped), 'the mutated include still carries the licence text it was supposed to drop')
+
+  const gaps = repositoryTexts().filter((name) => !carried.has(name))
+  assert.ok(gaps.length > 0, 'the mutation left the repository texts carried, so the check has no teeth')
 })
