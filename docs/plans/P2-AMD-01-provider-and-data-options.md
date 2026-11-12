@@ -1,5 +1,7 @@
 # P2-AMD-01 — The suppliers and the data categories: what is measured, and what is not
 
+**Anchors:** 2 — every converted pointer below carries the words it cites.
+
 **Status:** drafted 2026-10-30, **as decision support** for the first of the
 owner's four decisions in the adjustment's §10.5 (the owner-side P2-AMD-01
 adjustment of 2026-10-30; transcribed in
@@ -51,8 +53,9 @@ probe has run for this provider"*.
 
 ## 2. The protocols the tree speaks, and what that means for a choice
 
-**Two protocols**, both through `pydantic-ai`: **`anthropic`** and
-**`openai`** (`src/labcairn/providers/pydantic_models.py:137-150`).
+**Two protocols**, both through `pydantic-ai`: **`anthropic`**
+(`src/labcairn/providers/pydantic_models.py:149` — `if settings.protocol is Protocol.ANTHROPIC:`)
+and **`openai`** (`src/labcairn/providers/pydantic_models.py:162` — `from pydantic_ai.models.openai import OpenAIChatModel`).
 
 **And that is the practical route to the suppliers the adjustment names.**
 A supplier that offers an **OpenAI-compatible endpoint** can be configured
