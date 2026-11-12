@@ -593,7 +593,81 @@ export function listedSizeProblems(members, recorded) {
  * record has to be re-measured, and this is the arm that says so without needing
  * the extract of an installation-time directory.
  */
-export function listedCensusProblems(members, recordedCensus, claimsCarry, licenceDocuments) {
+/**
+ * §2.5.1's three obligation states, read from their own bullets.
+ *
+ * The section does **not** have one state. It has three, and they are deliberately
+ * different: the §1 text-and-notice obligation is DONE, the §4 corresponding-source
+ * route is PARTLY DONE / NOT YET POINTED AT, and replaceability is NOT MEASURED. A
+ * reader that scanned the whole section for `DONE` or `NOT DONE` would let one
+ * bullet's word decide the whole record, and the word appears in all three. The
+ * text-and-notice bullet is identified by its own heading, and the other two are
+ * required to be present so the shape is watched rather than assumed.
+ */
+export function obligationStates(noticeText) {
+  const section = noticeSubsection(noticeText, '2.5.1').join(' ')
+  const textAndNotice = /\*\*The licence text and the notice \(§1, §6\) — (DONE|NOT DONE)\.\*\*/.exec(section)
+  const correspondingSource = /\*\*The corresponding source \(§4, §6\(c\)\) — PARTLY DONE/.test(section)
+  const replaceability = /\*\*Replaceability \(§6\(b\)[^*]*— NOT\s+MEASURED\.\*\*/.test(section)
+  return {
+    textAndNotice: textAndNotice ? textAndNotice[1] : null,
+    correspondingSource,
+    replaceability,
+  }
+}
+
+/**
+ * How many licence texts §2.5.1 says the archive carries.
+ *
+ * The section states "six of them are the licence texts under
+ * `$PLUGINSDIR\licenses\`" for the 2026-11-12 build, and "none of them is a licence
+ * document" for the older one. That number is a claim about the artefact, not a
+ * restatement of DONE: a record can say DONE while naming five, or NOT DONE while
+ * naming none, and the listing is what decides. `null` means the section printed no
+ * count at all, which is reported rather than compared as zero.
+ */
+export function licenceTextCountClaim(noticeText) {
+  const section = noticeSubsection(noticeText, '2.5.1').join(' ')
+  const none = /none of them is a licence\s+document/i.test(section)
+  if (none) return 0
+  // The section wraps this sentence, and `join(' ')` keeps each line's leading
+  // indentation -- "six of them are     the licence texts". A pattern that
+  // required one space read nothing out of a section that states the count
+  // plainly, and the text-count arm then reported itself as unmeasurable.
+  const match = /\*\*(\w+)\*\* of them are\s+the licence texts/i.exec(section)
+    ?? /(\w+) of them are\s+the licence texts/i.exec(section)
+  if (!match) return null
+  return _COUNT_WORDS[match[1].toLowerCase()] ?? null
+}
+
+const _COUNT_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+}
+
+/**
+ * §2.5.1's ten/sixteen-member census and its licence-text state against a listing.
+ *
+ * Two independent properties are checked against the same artefact:
+ *
+ *   * the archived member count and the seven plug-in DLLs;
+ *   * the **§1 text-and-notice state and its stated text count**: `DONE` with the
+ *     stated number of `licences/` documents, or `NOT DONE` with none. Both
+ *     consistent states must pass -- this is an equivalence, not a rule that
+ *     requires one particular word. Either direction of disagreement reddens it.
+ *
+ * `recordedTexts` is §2.5.1's own number (`null` when it prints none). The other
+ * two obligation states are required to be present: reading the whole section as
+ * one DONE/NOT DONE sentence would let the §4 or §6(b) bullet decide the §1 arm.
+ */
+export function listedCensusProblems(
+  members,
+  recordedCensus,
+  claimsCarry,
+  licenceDocuments,
+  recordedTexts = null,
+) {
   const problems = []
   const plugin = members.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
   const uninstaller = members.filter((member) => /^\$R0\//.test(member.member))
@@ -623,6 +697,17 @@ export function listedCensusProblems(members, recordedCensus, claimsCarry, licen
       + `${docs.length} licence document(s) under $PLUGINSDIR `
       + `(${docs.map((member) => member.member).join(', ')}) — the record is behind the `
       + 'artefact, and §2.5.1 has to be re-measured against it',
+    )
+  }
+  if (recordedTexts === null) {
+    problems.push(
+      '§2.5.1 states no count of licence texts for the NSIS archive, so its "six of them '
+      + 'are the licence texts" claim has nothing to compare with the listing',
+    )
+  } else if (recordedTexts !== docs.length) {
+    problems.push(
+      `§2.5.1 states ${recordedTexts} licence text(s) in the NSIS archive; the listing `
+      + `names ${docs.length} under $PLUGINSDIR`,
     )
   }
   return problems

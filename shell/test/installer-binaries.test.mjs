@@ -82,9 +82,11 @@ import {
   licenceDocumentKind,
   licenceDocumentsIn,
   compressedSizeTable,
+  licenceTextCountClaim,
   listedCensusProblems,
   listedLicenceDocuments,
   listedSizeProblems,
+  obligationStates,
   memberRecordProblems,
   termsSourceProblems,
   termsSources,
@@ -663,11 +665,26 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   ran(`the installer listing against §2.5.1 (${nsis.length} NSIS listing(s), ${extracted.length} extracted member(s))`)
 
   const section = noticeSubsection(NOTICE_TEXT, '2.5.1').join('\n')
-  const claimsCarry = /\*\*The licence text and the notice \(§1, §6\) — DONE\.\*\*/.test(section)
-  const claimsAbsent = /The licence text and the notice \(§1, §6\) — NOT DONE/.test(section)
+  // §2.5.1 is **three** separate obligation states, not one. The §1 text-and-
+  // notice state is DONE or NOT DONE; the §4 corresponding-source state is
+  // PARTLY DONE, NOT YET POINTED AT; replaceability is NOT MEASURED. Reading
+  // `DONE`/`NOT DONE` across the whole section would let one bullet's word decide
+  // an arm that is about the other bullet. The state is read from its own bullet,
+  // and the other two are required to be present so the shape itself is watched.
+  const states = obligationStates(NOTICE_TEXT)
   assert.ok(
-    claimsCarry !== claimsAbsent,
-    '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE", so there is no recorded state to compare the artefact with',
+    states.textAndNotice === 'DONE' || states.textAndNotice === 'NOT DONE',
+    '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE" in its §1 bullet, so there is no recorded state to compare the artefact with',
+  )
+  assert.ok(
+    states.correspondingSource && states.replaceability,
+    '§2.5.1 no longer separates the §4 corresponding-source (PARTLY DONE) and §6(b) replaceability (NOT MEASURED) states from the §1 text-and-notice state; the three must not be read as one',
+  )
+  const claimsCarry = states.textAndNotice === 'DONE'
+  const recordedTexts = licenceTextCountClaim(NOTICE_TEXT)
+  assert.ok(
+    recordedTexts !== null,
+    '§2.5.1 states no count of licence texts for the NSIS archive ("six of them are the licence texts" / "none of them is a licence document"), so its text claim has nothing to compare with the listing',
   )
   // §2.5.1 writes the number out ("lists **ten** members"), not as a digit. A
   // pattern that asked for `\d+` read nothing out of a section that states its
@@ -709,7 +726,7 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       return true
     })
     const documents = listedLicenceDocuments(unique)
-    const problems = listedCensusProblems(unique, recordedCensus, claimsCarry, documents)
+    const problems = listedCensusProblems(unique, recordedCensus, claimsCarry, documents, recordedTexts)
     assert.deepEqual(problems, [], problems.join('; '))
     // §5.4's seven compressed sizes are a second statement about the same
     // archive, and `Packed Size` in the listing is the artefact's answer. They
@@ -1071,35 +1088,106 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     6931,
     'the listing reader did not read a member\'s compressed size, which is the number §5.4 says the listing prints',
   )
+  // The obligation state is an **equivalence**, not a rule requiring one word.
+  // `NOT DONE` + no licence texts and `DONE` + the stated texts must both pass;
+  // either direction of disagreement must fail. The old witness kept only one
+  // direction in mind because the record used to say NOT DONE.
   assert.deepEqual(
-    listedCensusProblems(parsedPlain.members, 10, false, listedLicenceDocuments(parsedPlain.members)),
+    listedCensusProblems(parsedPlain.members, 10, false, listedLicenceDocuments(parsedPlain.members), 0),
     [],
-    'the clean NSIS listing did not satisfy §2.5.1\'s census, so the controls below prove nothing',
+    'the consistent NOT DONE / no-texts state failed, so the equivalence is not symmetric',
+  )
+  const sixTexts = [
+    '$PLUGINSDIR/licences/LGPL-2.1.txt',
+    '$PLUGINSDIR/licences/STDOUTILS-NOTICE.txt',
+    '$PLUGINSDIR/licences/STDOUTILS-LGPL-CLARIFICATION.txt',
+    '$PLUGINSDIR/licences/NSIS7Z-LICENSE.txt',
+    '$PLUGINSDIR/licences/7ZIP-LICENSE.txt',
+    '$PLUGINSDIR/licences/README.txt',
+  ].map((member) => ({ member, name: path.posix.basename(member), packedSize: 9316 }))
+  const carriedBuild = [...parsedPlain.members, ...sixTexts]
+  assert.deepEqual(
+    listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), 6),
+    [],
+    'the consistent DONE / six-texts state failed, so the equivalence is not symmetric',
+  )
+  // §2.5.1's stated *count* is a claim about the artefact: DONE with five texts,
+  // or NOT DONE with one, must both redden even though the state word is right.
+  const fiveTexts = listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), 5)
+  assert.ok(
+    fiveTexts.some((problem) => /states 5 licence text/.test(problem)),
+    `DONE with five texts while the listing names six produced: ${fiveTexts.join('; ')}`,
+  )
+  const unstatedTexts = listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), null)
+  assert.ok(
+    unstatedTexts.some((problem) => /states no count of licence texts/.test(problem)),
+    `a §2.5.1 with no text count was compared as zero instead of reported: ${unstatedTexts.join('; ')}`,
   )
 
   // A ninth plug-in DLL arriving in the archive: the census reports it.
   const withNinth = [...parsedPlain.members, { member: '$PLUGINSDIR/Intruder.dll', name: 'intruder.dll', packedSize: 4096 }]
-  const ninthProblems = listedCensusProblems(withNinth, 10, false, listedLicenceDocuments(withNinth))
+  const ninthProblems = listedCensusProblems(withNinth, 10, false, listedLicenceDocuments(withNinth), 0)
   assert.ok(
     ninthProblems.some((problem) => /counts 10 members/.test(problem) && /counts seven plug-in DLLs/.test(problem)) || ninthProblems.length >= 2,
     `a ninth plug-in DLL in the listing produced: ${ninthProblems.join('; ')}`,
   )
 
-  // A licence document arriving while §2.5.1 still records NOT DONE: the exact
-  // state the LGPL-text batch produces, and the reason this arm exists at all.
+  // A licence document arriving while §2.5.1 still records NOT DONE: one of the
+  // two mismatch directions, and the reason the arm is an equivalence.
   const withLicence = [...parsedPlain.members, { member: '$PLUGINSDIR/licences/LGPL-2.1.txt', name: 'lgpl-2.1.txt', packedSize: 9316 }]
-  const licenceProblems = listedCensusProblems(withLicence, 10, false, listedLicenceDocuments(withLicence))
+  const licenceProblems = listedCensusProblems(withLicence, 10, false, listedLicenceDocuments(withLicence), 0)
   assert.ok(
     licenceProblems.some((problem) => /NOT DONE/.test(problem) && /LGPL-2\.1\.txt/.test(problem)),
     `a licence document in the listing while §2.5.1 says NOT DONE produced: ${licenceProblems.join('; ')}`,
   )
 
-  // The obligation recorded as DONE while the listing names no document.
-  const doneProblems = listedCensusProblems(parsedPlain.members, 10, true, [])
+  // The other mismatch direction: DONE while the listing names no document.
+  const doneProblems = listedCensusProblems(parsedPlain.members, 10, true, [], 0)
   assert.ok(
     doneProblems.some((problem) => /DONE/.test(problem)),
     `§2.5.1 claiming DONE over a listing with no licence document produced: ${doneProblems.join('; ')}`,
   )
+
+  // The three states are read from their own bullets, not from a whole-section
+  // `DONE` scan: §4 is PARTLY DONE and §6(b) is NOT MEASURED while §1 states
+  // whichever of DONE / NOT DONE this NOTICE copy is in. Asserting a fixed
+  // `DONE` here would make the controls case itself fail when the witness is fed
+  // a doctored NOTICE that consistently records NOT DONE -- a red about the
+  // fixture, not about the property. Both directions are put to the reader.
+  const states = obligationStates(NOTICE_TEXT)
+  assert.ok(
+    states.textAndNotice === 'DONE' || states.textAndNotice === 'NOT DONE',
+    'the §1 text-and-notice state was not read from its own bullet',
+  )
+  assert.equal(states.correspondingSource, true, 'the §4 PARTLY DONE state was not read')
+  assert.equal(states.replaceability, true, 'the §6(b) NOT MEASURED state was not read')
+  const statedTexts = licenceTextCountClaim(NOTICE_TEXT)
+  assert.ok(statedTexts !== null, '§2.5.1\'s licence-text count was not read')
+  assert.equal(
+    statedTexts,
+    states.textAndNotice === 'DONE' ? 6 : 0,
+    '§2.5.1 states a licence-text count that disagrees with its own §1 state',
+  )
+  // Flip the §1 state in a copy: the reader must answer differently, or a
+  // witness could be pinned to whichever word the current tree happens to print.
+  const flippedState = NOTICE_TEXT.replace(
+    'The licence text and the notice (§1, §6) — DONE.',
+    'The licence text and the notice (§1, §6) — NOT DONE.',
+  ).replace(
+    'The licence text and the notice (§1, §6) — NOT DONE.',
+    'The licence text and the notice (§1, §6) — DONE.',
+  )
+  if (flippedState !== NOTICE_TEXT) {
+    assert.notEqual(
+      obligationStates(flippedState).textAndNotice,
+      states.textAndNotice,
+      'flipping §2.5.1\'s §1 state did not change what the reader reads, so the state arm is pinned to a word',
+    )
+  }
+  const driftedCount = NOTICE_TEXT.replace('six of them are', 'five of them are')
+  if (driftedCount !== NOTICE_TEXT) {
+    assert.equal(licenceTextCountClaim(driftedCount), 5, 'changing §2.5.1\'s stated text count did not change the read')
+  }
 
   // `-slt` shape: `Path = …` / `Packed Size = …` blocks, with CRLF and the
   // archive header's own `Path =` line, which is not a member.
