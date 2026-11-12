@@ -75,14 +75,18 @@ import {
   bundleFiles,
   bundleNamedFromRecord,
   defaultCacheDir,
+  extractCoverage,
   extractMembers,
   findCacheBundles,
   fingerprint,
   isLicenceDocument,
   licenceDocumentKind,
   licenceDocumentsIn,
+  carriedLicenceTextProblems,
   compressedSizeTable,
+  licenceTextClaims,
   licenceTextCountClaim,
+  licenceTextFileProblems,
   listedCensusProblems,
   listedLicenceDocuments,
   listedSizeProblems,
@@ -381,6 +385,7 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   const listings = nsisListings()
   const listed = listedMembers()
   const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const COVERAGE = extractCoverage(extracted)
   // Any layer is evidence. A caller with only the payload's `7z l` output can
   // still measure §2.5's `elevate.exe` record; requiring the NSIS layer here was
   // the last shape of "an arm that could not look" -- it reported no source at all
@@ -425,8 +430,13 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   // source. Only the layers a source was actually available for are compared, and
   // the other one is reported as NOT RUN rather than called a finding.
   const layers = new Set()
-  if (listings.length > 0 || inScope.some((member) => member.member.startsWith('$PLUGINSDIR/'))) layers.add('plugins')
-  if (inScope.some((member) => member.member.startsWith('resources/'))) layers.add('payload')
+  // A layer is measured when the source presents that layer's *binaries*. An
+  // extract of `$PLUGINSDIR\licenses\` alone holds six licence texts and no
+  // plug-in; counting it as evidence about the plug-ins would report that the
+  // installer carries none of them.
+  if (listings.length > 0 || COVERAGE.coversPlugins) layers.add('plugins')
+  if (listings.some((listing) => listing.members.some((member) => member.member.startsWith('resources/')))
+    || COVERAGE.coversPayload) layers.add('payload')
   const { unrecorded, missing } = memberRecordProblems(binaries, RECORDS, [...layers])
   for (const layer of ['plugins', 'payload']) {
     if (!layers.has(layer)) {
@@ -653,6 +663,7 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   const nsis = nsisListings()
   const listed = listedMembers()
   const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const COVERAGE = extractCoverage(extracted)
   if (nsis.length === 0 && extracted.length === 0) {
     // A payload-only listing cannot check §2.5.1's NSIS-archive census: that
     // section is about the installer's own ten members, and the outer 7z payload
@@ -742,7 +753,12 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
 
   // Where an extract really exists, its own member census agrees with the same
   // record, and the documents it holds are the ones the listing named.
-  if (extracted.length > 0) {
+  //
+  // An extract is not the installer: it is whatever was unpacked. The 2026-11-12
+  // build's `extract3` holds only `$PLUGINSDIR\licenses\` -- six texts and no
+  // plug-in -- so the census arm below is measurable from it and the plug-in
+  // census is not. Each arm says which.
+  if (extracted.length > 0 && COVERAGE.coversPlugins) {
     ran('§2.5.1\'s census against the installer extract')
     const pluginsdir = extracted.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
     const pluginDlls = pluginsdir.filter((member) => /\.dll$/i.test(member.member))
@@ -756,11 +772,24 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       recordedCensus - 1,
       `§2.5.1 counts ${recordedCensus} NSIS-archive members: ${recordedCensus - 1} under $PLUGINSDIR plus the uninstaller at $R0. The extract's $PLUGINSDIR holds ${pluginsdir.length} — a member arriving there is either an unrecorded binary or a licence document the record has to speak about`,
     )
-    const licenceMembers = extracted.filter((member) => isLicenceDocument(member))
+  } else if (extracted.length > 0) {
+    notRun('§2.5.1\'s census against the installer extract', `the extract holds no plug-in binary (${COVERAGE.summary}), so §2.5.1's member census is not measurable from it`)
+  } else {
+    notRun('§2.5.1\'s census against the installer extract', 'no extract (a 7z listing names the members but does not carry their bytes)')
+  }
+
+  const licenceMembers = extracted.filter((member) => isLicenceDocument(member))
+  if (licenceMembers.length > 0) {
+    ran('§2.5.1\'s licence-text state against the installer extract')
     if (claimsCarry) {
       assert.ok(
         licenceMembers.length > 0,
         '§2.5.1 records the licence-text obligation as DONE, but the extract carries no licence document',
+      )
+      assert.equal(
+        licenceMembers.length,
+        recordedTexts,
+        `§2.5.1 states ${recordedTexts} licence text(s) in the NSIS archive; the extract carries ${licenceMembers.length} (${licenceMembers.map((m) => path.basename(m.member)).join(', ')})`,
       )
       const texts = licenceMembers.map((member) => fs.readFileSync(member.path, 'utf8'))
       assert.ok(
@@ -775,11 +804,11 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       )
     }
   } else {
-    notRun('§2.5.1\'s census against the installer extract', 'no extract (a 7z listing names the members but does not carry their bytes)')
+    notRun('§2.5.1\'s licence-text state against the installer extract', 'no extract carrying licence texts (a 7z listing names the members but does not carry their bytes)')
   }
 
   // The optional byte-level arms: only where an extract holds the real bytes.
-  if (extracted.length > 0) {
+  if (extracted.length > 0 && COVERAGE.coversPlugins) {
     ran('the installer extract\'s per-member sha256 and compiled-binary statement arms')
     const mismatches = []
     const withStatements = []
@@ -806,8 +835,61 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       `${withStatements.join('; ')} — §2.5 says "the compiled binary carries no licence text" and §2.5.1 measures it`,
     )
   } else {
-    notRun('the installer extract\'s per-member sha256 and compiled-binary statement arms', 'no extract (a 7z listing carries names and sizes, not bytes)')
+    notRun('the installer extract\'s per-member sha256 and compiled-binary statement arms', extracted.length > 0
+      ? `the extract holds no plug-in binary (${COVERAGE.summary}), so §2.5's eight binaries are not measurable from it`
+      : 'no extract (a 7z listing carries names and sizes, not bytes)')
   }
+})
+
+// ---------------------------------------------------------------------------
+// 6. The licence texts the installer carries are the repository's own files.
+// ---------------------------------------------------------------------------
+test('the licence texts the installer carries are the repository\'s own files, byte for byte', () => {
+  // **What §2.5.1 claims.** "Extracting the archive and hashing the six members
+  // gives the sha256s of the repository's six files -- five of the six are
+  // recorded in `shell/licenses/`'s `README.txt`, the sixth being that README
+  // itself, which cannot record its own hash."
+  //
+  // That is a claim about bytes, and it is the claim that discharges §1: the text
+  // travelling with `StdUtils.dll` has to be *this tree's* text. Naming the six
+  // files is not enough, and a count is not enough either.
+  //
+  // **Two arms, and the first one needs no artefact.** The repository's own
+  // README records five hashes; the files in `shell/licenses/` must match them,
+  // so a text edited without its README entry updated is caught even with no
+  // installer on the machine. The second arm compares the bytes the artefact
+  // carries with those files, and reports itself as not run where there is no
+  // extract. `LABCAIRN_LICENCE_TEXT_DIR` names a different directory for the
+  // mutation checks, so they can edit a copy instead of a tracked file.
+  const LICENCES_DIR = process.env.LABCAIRN_LICENCE_TEXT_DIR ?? path.join(REPO_ROOT, 'shell', 'licenses')
+  assert.ok(fs.existsSync(LICENCES_DIR), `the tree holds no shell/licenses/ directory, so the licence texts §2.5.1 names have no source here`)
+
+  ran('shell/licenses/README.txt\'s recorded hashes against the files it names')
+  const readmeText = fs.readFileSync(path.join(LICENCES_DIR, 'README.txt'), 'utf8')
+  const claims = licenceTextClaims(readmeText)
+  assert.ok(claims.size > 0, 'shell/licenses/README.txt records no hash for any file, so its entries are unchecked')
+  const fileProblems = licenceTextFileProblems(claims, LICENCES_DIR)
+  assert.deepEqual(fileProblems, [], fileProblems.join('; '))
+
+  // §2.5.1 says five of the six are recorded and the sixth is the README itself,
+  // which cannot record its own hash. A README that recorded nothing, or that
+  // recorded only some, would leave files travelling without a stated hash.
+  const repositoryFiles = fs.readdirSync(LICENCES_DIR).filter((name) => fs.statSync(path.join(LICENCES_DIR, name)).isFile())
+  assert.equal(
+    claims.size,
+    repositoryFiles.length - 1,
+    `shell/licenses/ holds ${repositoryFiles.length} file(s) and its README records ${claims.size} hash(es); §2.5.1 says five of the six are recorded and the sixth is the README itself, which cannot record its own hash`,
+  )
+
+  const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const carried = extracted.filter((member) => isLicenceDocument(member))
+  if (carried.length === 0) {
+    notRun('the carried licence texts against the repository\'s files', 'no extract carrying licence texts (LABCAIRN_LICENCE_INSTALLER_EXTRACT names one; the 2026-11-12 build writes them to $PLUGINSDIR\\licenses\\)')
+    return
+  }
+  ran('the carried licence texts against the repository\'s files')
+  const carriedProblems = carriedLicenceTextProblems(carried, LICENCES_DIR)
+  assert.deepEqual(carriedProblems, [], carriedProblems.join('; '))
 })
 
 // ---------------------------------------------------------------------------
