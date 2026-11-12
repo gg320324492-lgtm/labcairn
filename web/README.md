@@ -13,21 +13,21 @@ The skeleton came from work order **LC-P1-01 / T10** (see
 
 Fourteen views over one task, each read from the API and drawn:
 
-| View               | What it draws                                                                           |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| **Projects**       | The tasks in the workspace's store, and the one the service is bound to                 |
-| **Plan**           | The declared workflow, and how far the task has got through it                          |
-| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to       |
-| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it   |
-| **Figure**         | The consent a figure needs, and the run that spends it                                  |
-| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by      |
-| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`         |
-| **Artefacts**      | The receipts, and a preview of each artefact                                            |
-| **Revisions**      | What each path has been through, and which revision is current                          |
-| **Trajectory**     | The advisor's comments, the edits that answered them, and the states of the responses   |
-| **Version graph**  | A project's versions, and the accepted edges between them                               |
-| **Guidance**       | The rules, their state and their counterexamples, and the door that settles one         |
-| **Proposals**      | The model's answer and the person's verdict on it, each labelled with whose words it is |
+| View               | What it draws                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| **Projects**       | The tasks in the workspace's store, and the one the service is bound to                  |
+| **Plan**           | The declared workflow, and how far the task has got through it                           |
+| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to        |
+| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it    |
+| **Figure**         | The consent a figure needs, and the run that spends it                                   |
+| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by       |
+| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`          |
+| **Artefacts**      | The receipts, and a preview of each artefact                                             |
+| **Revisions**      | What each path has been through, and which revision is current                           |
+| **Trajectory**     | The advisor's comments, the edits that answered them, and the states of the responses    |
+| **Version graph**  | A project's versions, and the accepted edges between them                                |
+| **Guidance**       | The rules, their state and their counterexamples, and the door that settles one          |
+| **Proposals**      | The model's answer and the person's verdict on it, each labelled with whose words it is  |
 | **Events**         | The task's event stream (`seq`, `type`, transition), with disconnect and reconnect shown |
 
 The table counts view components imported and rendered by `Workbench.tsx`, not

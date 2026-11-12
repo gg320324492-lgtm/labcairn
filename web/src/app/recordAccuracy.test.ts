@@ -66,7 +66,7 @@ describe("the package's own record", () => {
     // workbench now opens GET /events through EventsView/useEventStream, so the
     // old "event stream is not read" wording would be a false claim held green
     // by the test that reads it.
-    expect(readme).toContain('The service\'s event stream is read')
+    expect(readme).toContain("The service's event stream is read")
     expect(readme).not.toContain('event stream is not read')
   })
 
