@@ -153,6 +153,16 @@ For each LabCairn work order:
 
 The exclusion promise stated above was, on `main` before `89c16d4`, **unenforceable slogan**: that branch held documentation only — no `pyproject.toml`, no CI workflow, no index configuration and no secret-scan configuration. On `feat/lc-p1-01-baseline` (PR #2, not merged) the situation is the opposite: every row of the table below exists as real configuration, and `tests/test_no_reference_leakage.py` plus the `reference-exclusion` required status check are what turn the slogan into an executable gate. **The honest statement is two-sided: enforced on the branch, unproven on the main branch.** Only two of the three promises are physically in force today — reference clones genuinely live outside the repository, `git check-ignore` was verified to match all three ignore rules, and the `snapshot.json` mechanism records pins locally. **"Not packaged", "not indexed" and "secret scan covers tracked files only" are asserted in prose on `main` and backed by nothing; on the branch they are backed by configuration that has not yet been merged.** The table below converts them into artifacts that must exist and be verified.
 
+> **Dated snapshot — true when written, superseded since.** The paragraph above
+> describes the state before PR #2 landed: `feat/lc-p1-01-baseline` was open and
+> its configuration had not reached `main`. PR #2 **merged on 2026-10-15 at
+> 12:58:46 UTC** as `89c16d4c40da857e42f34cef27d11617278e9670`
+> (`gh pr view 2 --json state,mergedAt,mergeCommit` → `MERGED`, exit 0). The
+> `pyproject.toml`, CI workflows, ignore rules and `tests/test_no_reference_leakage.py`
+> it names are in `main` today; the "not merged" and "unproven on the main
+> branch" halves therefore describe only the pre-merge tree. The paragraph is
+> left as written because it is a record of the review's two-sided finding.
+
 Throughout this section the reference paths to exclude are, as glob patterns: **`_references*`**, **`.upstreams*`**, **`labcairn-upstreams*`**.
 
 | Target file / configuration | Requirement |
@@ -193,6 +203,17 @@ These are recorded here because they will otherwise be re-discovered as false co
 - **The tracked tree is no longer 14 LabCairn-authored files**, and LabCairn has its own test suite (174 tests) that is independent of upstream behaviour. That supplies the *material* the last bullet's dossier must distinguish — the dossier itself still belongs to LC-P1-14 (G5) and that checkbox remains **unchecked**.
 
 The frozen bullets above describe `main` as it stood at LC-P1-00. Since `89c16d4` they are **superseded on `main`** by the disposition above; they are left unchanged because they are a record of a review that happened, not a live status.
+
+> **Denominators for the disposition's two counts, re-measured 2026-11-12.** The
+> **five CI workflows** and **99 tests** are the values at `89c16d4`, the merge
+> this disposition names: `git ls-tree -r --name-only 89c16d4 -- .github/workflows
+> | wc -l` → 5, and `pytest --collect-only -q` on a `git archive 89c16d4` export
+> → 99 collected for `tests/test_no_reference_leakage.py` and **174** for the
+> whole suite (both exit 0). At `e991d49e511e6f273eadd61aa7836761b6a95753` the
+> counts are **8 workflows** (`git ls-files .github/workflows | wc -l`), **110**
+> collected for that one file and **5237** for the whole suite. The three figures
+> in the disposition are not statements about today's tree; they are the
+> measurements made at the merge it describes.
 
 ---
 

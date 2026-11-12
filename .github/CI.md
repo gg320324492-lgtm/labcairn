@@ -147,7 +147,7 @@ declaration fixes below add three — a name with no matrix, the
 **not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
 `fail-fast: false`; the name is unique across every workflow; each recorded file
 still declares at least its Node cases, anchored at the revision the floors name
-(5/3/5/8/5/6/7/8/9/7/7/4 = 74 across twelve files); and no shell test file exists without a
+(5/3/5/9/5/6/7/8/14/7/7/4 = 80 across twelve files); and no shell test file exists without a
 recorded floor. Several witnesses feed the file's own readers synthetic trees — a
 command naming three of twelve files, a glob that does not cross a directory, a matrix
 axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
@@ -162,7 +162,7 @@ is why the floors and the recorded-floor check exist.
 
 **Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
 `lint`'s once was; the first runner run is the measurement. A development-machine run of
-the same command shape measured 74/74 on Node v24.16.0. Neither is a recorded cost; the
+the same command shape measured 80/80 on Node v24.16.0. Neither is a recorded cost; the
 `0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.
@@ -301,6 +301,30 @@ partition printed above belongs to `e5472f8`. A reader who opens the shard file
 Ubuntu 422.8s against 248.6s, `max / min` **1.7010**, a negative slack — because
 that tree had not been re-partitioned yet. Re-measure both from the table named
 in the row you are reading, not from the anchor's own tree.
+
+**And `measured_at` names a tree, not a table — so a second anchor is needed.**
+`measured_at` says which tree the per-file costs were timed on, and this
+repository measured the *same* tree twice. Five revisions of
+`.github/ci-shards.json` declare `measured_at = cf081e404be9…`: `6a5e17d`,
+`2ee2dc8`, `f724eab`, `b534bee` and `5c8abf1`. The first four record Ubuntu
+`[325.81, 264.73, 264.72, 264.72, 264.73]`; `5c8abf1` records
+`[325.81, 264.70, 264.69, 264.69, 264.70]`. The tables differ by hundredths of a
+second per file, so the ratio differs in the fourth decimal: **1.2308** from the
+first group, **1.2309** from `5c8abf1`. Both are correct arithmetic on a real
+table, and "re-measure it from the costs measured at `cf081e4`" reproduces
+**either one** — so the instruction cannot be checked, because nothing says which
+table it expects.
+
+**So this row carries both anchors, and the rule is stated rather than implied.**
+The figure above is `max / min` on the table **as carried by `e5472f8`** — which
+is the table `6a5e17d` wrote (their `ci-shards.json` blobs are byte-identical);
+`e5472f8` itself is not a revision of that file, it only carries it. Its
+`measured_at` is `cf081e4`. A `measured_at` anchor identifies the tree the timings
+came from; the revision you **open the file at** identifies the table. A record
+quoting a derived figure needs the second anchor too, or a later reader reproduces
+a number and cannot tell whether it matches. Where a record quotes `measured_at`
+without naming the file's own revision, treat the last decimal as unanchored.
+
 
 **What this paragraph printed before 2026-11-12, and why that was wrong.** It
 printed **1.176**. That figure is not what this project's balance check

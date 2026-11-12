@@ -274,6 +274,17 @@ endpoint fingerprint as the two local runs above — `db47efa5…385c`, `tool_ca
 and `usage_reporting` ok, both structured-output forms unsupported at the client.
 GitHub masked the key as `***` in the log, which is the only place the run could
 have shown it.
+
+> **Denominator note (added 2026-11-12).** "The credential lives in the
+> repository" means **one GitHub Actions secret**, not a tracked key:
+> `gh api repos/gg320324492-lgtm/labcairn/actions/secrets --jq '.total_count'`
+> → 1 (exit 0), while `git ls-files | grep -iE
+> 'credential|api_key|secret|\.env'` names `.env.example`,
+> `src/labcairn/providers/credentials.py` and two records, and no key.
+> `docs/QUICKSTART.md` §2 says "there is no credential in this repository"
+> about the **tracked files of a local clone** — a different object with the
+> same noun. Neither statement is false, and neither implies the other.
+
 **What changed on 2026-10-28, besides the file:** the harness used to refuse the
 class even when a reader named it — `--classes real_model_smoke` printed the
 runnability table's sentence about the environment without looking at the

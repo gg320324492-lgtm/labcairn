@@ -4,6 +4,15 @@
 **Subject:** `main` @ `26f161e` · **Date:** 2026-10-25
 **Status:** the boundary this document draws, with the evidence for each line.
 
+> **Anchor note (added 2026-11-12).** `26f161e` is a real commit and is an
+> ancestor of `8ddd8b0`, the commit that first added this file on 2026-10-25 —
+> but it does not contain this file (`git cat-file -e
+> 26f161e:docs/THREAT-MODEL.md` exits 128). The subject line therefore names the
+> tree the threat model's *subject matter* was measured on, not a revision a
+> reader can open to see this document. The document is a dated review of that
+> tree, and every claim below is about `26f161e`; it is not a statement about
+> the current checkout.
+
 ---
 
 ## What this document is, and what it is not

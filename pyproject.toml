@@ -15,11 +15,15 @@ license = "MIT"
 # Runtime dependencies. Declared from docs/ARCHITECTURE.md "Stack choices" so the
 # Phase 1 stack is pinned by the lockfile from LC-P1-01 onward.
 #
-# HONEST CAVEAT: as of this commit none of these is imported by any module under
-# src/. They are declared because the architecture commits to them and the
-# lockfile is the point of T02, not because a line of code needs them yet.
-# A dependency that nothing imports is an unverified claim; LC-P1-03/05/12 are
-# where each becomes real. See the T02 delivery report.
+# HONEST CAVEAT (dated 2026-10-15, at 88f2db0): at that revision none of these
+# was imported by any module under src/ -- it held only two __init__.py files.
+# They were declared because the architecture committed to them and the lockfile
+# was the point of T02, not because a line of code needed them yet. **That
+# caveat is a historical fact, not a statement about this tree:** at
+# e991d49e511e6f273eadd61aa7836761b6a95753 (measured there, not carried forward)
+# every one of the declared runtime dependencies is imported under src/, each
+# with a non-zero `git grep -l -E '(import|from) +<pkg>' HEAD -- 'src/**/*.py'`
+# count. See the T02 delivery report for what was true when the list was written.
 dependencies = [
     # LC-P1-11 report export. The decision record is
     # docs/adr/ADR-0013-report-export-libraries.md, which measured both

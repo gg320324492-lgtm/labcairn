@@ -1,7 +1,7 @@
 # The P1 review dossier — upstream designs, LabCairn's independent implementation, and its tests
 
 **Work order:** LC-P1-14 (public alpha handoff and review dossier) · **Task:** T08
-**Status:** the dossier exists; the checkbox it discharges is `docs/UPSTREAM_REFERENCES.md:187`.
+**Status:** the dossier exists; the checkbox it discharges is `docs/UPSTREAM_REFERENCES.md:197`.
 **Tree it describes:** `dd08573` — the merge of the first four G5 components into the delivery branch. Every claim below is about the tree at that commit.
 **Measured:** 2026-10-25.
 
@@ -365,7 +365,7 @@ Three refusals are worth a reviewer's attention because the upstream design was
 
 ### 4.2 Tier 3, measured
 
-`docs/UPSTREAM_REFERENCES.md:186` records the LC-P1-00 acceptance bullet as
+`docs/UPSTREAM_REFERENCES.md:196` records the LC-P1-00 acceptance bullet as
 "vacuously satisfied: **no upstream source was copied or adapted**", on the
 grounds that the tracked tree was then 14 LabCairn-authored files. That is a
 record of a review that happened; it is **not** a live status, and it was not
@@ -374,7 +374,7 @@ independent checks, and what each one found:
 
 | # | Check | Result |
 |---|---|---|
-| 1 | `git ls-files` for any path matching the three reference families `_references*`, `.upstreams*`, `labcairn-upstreams*` (`docs/UPSTREAM_REFERENCES.md:156`) | **No upstream file is tracked.** The project's own matcher is segment-based rather than substring-based, and it deliberately lets `docs/UPSTREAM_REFERENCES.md` through as a **near miss that must stay visible** — `tests/test_no_reference_leakage.py:508` asserts that this file is *not* a reference path. That is the only near miss in the tracked tree, and it is LabCairn's own document about upstream. |
+| 1 | `git ls-files` for any path matching the three reference families `_references*`, `.upstreams*`, `labcairn-upstreams*` (`docs/UPSTREAM_REFERENCES.md:166`) | **No upstream file is tracked.** The project's own matcher is segment-based rather than substring-based, and it deliberately lets `docs/UPSTREAM_REFERENCES.md` through as a **near miss that must stay visible** — `tests/test_no_reference_leakage.py:508` asserts that this file is *not* a reference path. That is the only near miss in the tracked tree, and it is LabCairn's own document about upstream. |
 | 2 | `git log --all --diff-filter=A` for any upstream path ever added | **No upstream source tree has ever been tracked**, on any branch in this repository. The only added file a loose substring search finds is `docs/UPSTREAM_REFERENCES.md` — LabCairn's own document. |
 | 3 | Grep of `src/` for upstream identifiers (`CANNOT_ANSWER_PHRASE`, `GROUP_PREFIXES`, `PRECISE_LOCATOR_RE`, `_check_fs_permission`, `should_confirm`, `ConfirmationPolicyBase`, `sanitize_messages`, `UsageLimits`, `TodoListMiddleware`, `EventLog`, …) | **Zero hits.** The identifiers that do appear — `ModelProfile`, `accumulated_cost`, `SecurityRisk`, `ErrorClassification` — appear only inside docstrings and comments, as citations to the observation that motivated a decision. |
 | 4 | Grep of `src/` for the upstream *package* names (`pydantic_ai`, `openhands`, `deepagents`, `paperspine`, `paperqa`, `pqac-`) | Hits are **comments and docstrings only**, except the three import sites in §4.3. The same four names appear in `pyproject.toml` only inside comments that cite the paper-qa licence lesson — not as a dependency. |
@@ -397,20 +397,20 @@ two it is in every case.
 **The upstream trees are also not a build input.** The exclusion checklist
 requires that the reference clones live outside the repository and that
 `git ls-files`, the built sdist and the built wheel contain no reference path
-(`docs/UPSTREAM_REFERENCES.md:163`, `docs/UPSTREAM_REFERENCES.md:164`), and it records that the sibling
+(`docs/UPSTREAM_REFERENCES.md:173`, `docs/UPSTREAM_REFERENCES.md:174`), and it records that the sibling
 directory is itself unprotected because `.gitignore` does not reach above its own
-directory (`docs/UPSTREAM_REFERENCES.md:173`). `tests/test_no_reference_leakage.py`
+directory (`docs/UPSTREAM_REFERENCES.md:183`). `tests/test_no_reference_leakage.py`
 is what turns that from a promise into a gate — 26 test functions, measured
 2026-10-25, covering the tracked-file listing, the built artifacts, the git
 ignore rules under every case variant, the workflows, and
 `test_no_module_level_dependency_on_the_sibling_reference_directory`.
 
 **And the one acceptance bullet that was never discharged is now discharged by
-the other half.** `docs/UPSTREAM_REFERENCES.md:185` records "no hard runtime/CI
+the other half.** `docs/UPSTREAM_REFERENCES.md:195` records "no hard runtime/CI
 dependency on reference clones" as only partially testable at LC-P1-00, because
 there was no build system. There is now: a Hatchling build with an explicit
 recursive package root, and the `reference-exclusion` required status check
-(`docs/UPSTREAM_REFERENCES.md:191`, `docs/UPSTREAM_REFERENCES.md:192`). An external contributor can build
+(`docs/UPSTREAM_REFERENCES.md:201`, `docs/UPSTREAM_REFERENCES.md:202`). An external contributor can build
 LabCairn without any of the five clones present.
 
 ### 4.3 Tier 2, stated plainly: `pydantic-ai` is an installed dependency
@@ -502,7 +502,7 @@ the tree named at the top of this document by counting `def test_` occurrences
 under `tests/`. **This is a definition count, not a case count**: parameterised
 cases expand it, and a collected run reports more. The LC-P1-01 record counted
 99 tests in `tests/test_no_reference_leakage.py` alone
-(`docs/UPSTREAM_REFERENCES.md:192`); that file now defines 26 test functions,
+(`docs/UPSTREAM_REFERENCES.md:202`); that file now defines 26 test functions,
 six of them parameterised, so the two figures are not measuring the same thing
 and **neither is carried forward as a fact about the suite.**
 
@@ -618,7 +618,7 @@ Stated plainly, because a dossier that lists only its strengths is a brochure.
 
 ## 8. The record this document discharges
 
-`docs/UPSTREAM_REFERENCES.md:187` carries the LC-P1-00 acceptance bullet:
+`docs/UPSTREAM_REFERENCES.md:197` carries the LC-P1-00 acceptance bullet:
 
 > *P1 review dossier names relevant upstream designs and clearly identifies
 > LabCairn's independent implementation and its tests.* — **Belongs to LC-P1-14

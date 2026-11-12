@@ -762,7 +762,10 @@ byte-identical to the NSIS 3.0.4.1 distribution the build downloads, whose own
 `3c8de989f6504d52f5f8dfafedb6668cd47201f5d01f1319570727c091425dd6`) licenses
 its plug-ins under the zlib/libpng licence. The other four come from
 `nsis-resources-3.4.1`, electron-builder's own bundle, which carries **no
-licence file at all**.
+licence file at all** — so their terms are found upstream instead, in NSIS's own
+3.13 release bundle, which ships the same four plug-ins byte for byte together
+with a `LICENSES` tree attributing each one to the upstream release it came
+from.
 
   StdUtils.dll — 102,400 bytes
     path     $PLUGINSDIR\StdUtils.dll
@@ -778,31 +781,58 @@ licence file at all**.
   nsis7z.dll — 434,176 bytes
     path     $PLUGINSDIR\nsis7z.dll
     sha256   b393f05e8ff919ef071181050e1873c9a776e1a0ae8329aefff7007d0cadf592
-    bundle   nsis-resources-3.4.1
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
+             NSIS's own 3.13 bundle, whose `LICENSES` tree attributes it to
+             the LZMA SDK notice below
     licence  LGPL-2.1 — 7-Zip's terms, which cover the plug-in's sources as
              "the GNU LGPL" apart from the Rar* files, which carry the unRAR
-             restriction
+             restriction; the LZMA SDK notice covers its compression code
     holder   Igor Pavlov and the 7-Zip contributors
-    where    the DLL carries 7-Zip's own C++ symbol names; whether the Rar*
-             handler is compiled into this build was **not** established, and a
-             format-table string is not proof of linkage
+    where    the plug-in's own `Contrib/nsis7z/DOC/nsis7z.txt` says it "Uses
+             7-Zip source code, (C) 1999-2015 Igor Pavlov" and that it was
+             rebuilt from 7-Zip's sources; upstream NSIS attributes the
+             byte-identical plug-in to the LZMA SDK's public-domain notice
+             (`Contrib/nsis7z/DOC/License.txt`, sha256 63fcfe54…, 476 bytes),
+             and both texts travel with the installer so that either reading
+             is covered; the Rar* handler is **not** compiled into this build
+             — the plug-in's source archive carries no `Compress/Rar*` file,
+             and the DLL's own bytes contain no `Rar`, `NRar` or `unrar`
+             string at all
 
   UAC.dll — 14,848 bytes
     path     $PLUGINSDIR\UAC.dll
     sha256   2f7f8fc05dc4fd0d5cda501b47e4433357e887bbfed7292c028d99c73b52dc08
-    bundle   nsis-resources-3.4.1
-    licence  **unresolved**
-    holder   —
-    where    the bundle that carries this plug-in states no terms for it, and
-             carries no licence document to state them in
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
+             NSIS's own 3.13 bundle, whose `LICENSES` tree attributes it to
+             the upstream UAC release below
+    licence  zlib/libpng
+    holder   Anders (the UAC plug-in's author)
+    where    the bundle electron-builder downloads carries no licence document,
+             but the plug-in's own release does: upstream NSIS's `LICENSES`
+             tree records the source as
+             `https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip`
+             (sha256 20e3192a…), and that archive's `License.txt` is the
+             zlib/libpng text (sha256 997fd014…, 956 bytes) — the same text
+             the NSIS wiki's own plug-in page states ("License: zlib"); the
+             archive's `Plugins/x86-unicode/UAC.dll` is the shipped file byte
+             for byte
 
   WinShell.dll — 3,072 bytes
     path     $PLUGINSDIR\WinShell.dll
     sha256   9be85b986ea66a6997dde658abe82b3147ed2a1a3dcb784bb5176f41d22815a6
-    bundle   nsis-resources-3.4.1
-    licence  **unresolved**
-    holder   —
-    where    as UAC.dll above
+    bundle   nsis-resources-3.4.1 — byte-identical to the plug-in in upstream
+             NSIS's own 3.13 bundle
+    licence  zlib/libpng
+    holder   Anders (the WinShell plug-in's author)
+    where    the same route as UAC.dll above: upstream NSIS's `LICENSES` tree
+             records the source as
+             `https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip`
+             (sha256 34e111f8…), whose `Plugins/x86-unicode/WinShell.dll` is
+             the shipped file byte for byte; the archive carries no licence
+             file of its own, and upstream's `NOTICE-plugin-api.txt` records
+             why the terms are still determinate — the plug-in is built
+             against NSIS's plug-in API header `api.h`, which NSIS licenses
+             under the zlib/libpng terms (sha256 182d1d73…, 1,135 bytes)
 
   System.dll — 12,288 bytes
     path     $PLUGINSDIR\System.dll
@@ -838,10 +868,9 @@ licence file at all**.
     holder   the NSIS project
     where    as System.dll above
 
-Two of the eight are therefore LGPL, two have no findable terms, and four are
-zlib/libpng. The eight do not include the Electron runtime payload the
-installer also carries: §2.4.1 records the licence documents that travel with
-it.
+Two of the eight are therefore LGPL and six are zlib/libpng. The eight do not
+include the Electron runtime payload the installer also carries: §2.4.1 records
+the licence documents that travel with it.
 
 2.5.1  What the LGPL-2.1 obligations are, and what has been done
 -------------------------------------------------------------------
@@ -898,33 +927,77 @@ of the clarification's preconditions hold for this build — the shipped DLL is 
 verbatim upstream copy, and the installer calls it only through the plug-in
 interface.
 
-**What the 2026-11-11 build does about it.** Each obligation, and where it
+**What the 2026-11-12 build does about it.** Each obligation, and where it
 stands:
 
-  * **The licence text and the notice (§1, §6) — NOT DONE.** The installer
-    carries **zero** licence text for either LGPL binary. Measured: no licence
-    string occurs inside `StdUtils.dll` or `nsis7z.dll` (a grep for
-    `lgpl|lesser general public|gnu general public|LegalCopyright|LoRd_MuldeR|Copyright`
-    returns 0 hits and exit 1 on each), and the NSIS archive lists **ten**
-    members and none of them is a licence document — the seven plug-in DLLs,
+  * **The licence text and the notice (§1, §6) — DONE.** The installer now
+    carries the licence texts for the two LGPL binaries, in the installer's own
+    `$PLUGINSDIR\licenses\` directory, beside the plug-ins they cover.
+
+    The mechanism is `shell/nsis/licenses.nsh`, a custom NSIS include that
+    `shell/electron-builder.yml` names through electron-builder's `nsis.include`
+    option. electron-builder expands the include's `customInit` macro inside the
+    installer's `.onInit` function, after `InitPluginsDir`; the macro writes the
+    texts to `$PLUGINSDIR\licenses\` with `File /oname=…`. The six texts are
+    the ones in `shell/licenses/`: `LGPL-2.1.txt` (the Licence itself, from
+    gnu.org), `STDOUTILS-NOTICE.txt` (the copyright notice and the grant
+    `StdUtils.dll` carries), `STDOUTILS-LGPL-CLARIFICATION.txt` (the author's
+    own notice, which §1 requires be kept intact), `NSIS7Z-LICENSE.txt` (the
+    LZMA SDK notice upstream attributes the plug-in to), `7ZIP-LICENSE.txt` (7-Zip's
+    own licence text) and `README.txt` (what the directory holds and where each
+    text came from).
+
+    Measured on the build of 2026-11-12 — command, exit code and members are
+    in §5.4 — the NSIS archive lists **sixteen** members, and six of them are
+    the licence texts under `$PLUGINSDIR\licenses\`. The seven plug-in DLLs,
     `modern-wizard.bmp` and `app-64.7z` under `$PLUGINSDIR`, plus the
-    uninstaller executable at `$R0`. The Electron licence documents the payload
-    carries (§2.4.1) cover the Electron and Chromium material, not these
-    binaries. This file records the obligation and where the text may be
-    obtained (§5.4), but the artefact does not carry it.
+    uninstaller executable at `$R0`, are the other ten. Extracting the archive
+    and hashing the six members gives the sha256s of the repository's six
+    files — five of the six are recorded in `shell/licenses/`'s `README.txt`,
+    the sixth being that README itself, which cannot record its own hash — so
+    the bytes in the archive are the bytes in the repository.
+
+    Two things this does **not** claim. The licence text travels in the
+    installer's payload, not in the installed application's directory: the
+    plug-ins are extracted to `$PLUGINSDIR` at install time and are not
+    installed as files of their own, and the texts sit beside them there. And
+    the texts do not change what the two DLLs are: no licence string occurs
+    inside `StdUtils.dll` or `nsis7z.dll` themselves (the same grep as before
+    returns 0 hits and exit 1 on each), so the notice is a companion of the
+    binaries in the archive, not a replacement for anything inside them.
 
   * **The corresponding source (§4, §6(c)) — PARTLY DONE, NOT YET POINTED
     AT.** The source for the shipped `StdUtils.dll` exists and is identified:
-    the upstream StdUtils 1.14 release archive `StdUtils.2018-10-27.zip` (the
-    release build of 2018-10-27, whose `Plugins/Unicode/StdUtils.dll` is the
-    shipped file byte for byte) contains
-    `Contrib/StdUtils/StdUtils.2018-10-27.Sources.tar`, the complete sources
-    as 23 files in 11 folders. Obtaining it means fetching the upstream
-    project's release archive of that name and taking that member out of it.
-    The installer does not yet point at it, and no written offer under §6(c)
-    exists, so the obligation is not discharged. For `nsis7z.dll` the
-    corresponding source was **not** located: the upstream build the shipped
-    plug-in was made from was not identified.
+    the upstream StdUtils 1.14 release archive `StdUtils.2018-10-27.zip`, at
+    `https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip`
+    (fetched 2026-11-12; the archive's own sha256 is
+    `3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c`),
+    carries `Contrib/StdUtils/StdUtils.2018-10-27.Sources.tar` — the complete
+    sources as 94 files in 18 folders, 972,800 bytes, sha256
+    `db9f98d7a947d5a6b7cd341e01edd412ea04510c5faee19a23b1e84582d86121` — and
+    the release build's `Plugins/Unicode/StdUtils.dll` is the shipped file byte
+    for byte.
+
+    **The step that has to happen at release time.** §4's final paragraph is
+    satisfied by "offering equivalent access to copy the source code from the
+    same place" — the same place the binary is obtained from. LabCairn has no
+    release yet, so this is a precondition of the first release and not a fact
+    about the present tree: whoever cuts that release must attach
+    `StdUtils.2018-10-27.Sources.tar` (sha256 `db9f98d7…`) to the same release
+    page as the installer, and record that attachment where a user can find
+    it. Until that is done the obligation is not discharged, and no written
+    offer under §6(c) exists either.
+
+    For `nsis7z.dll` the corresponding source is now located: the upstream
+    `Nsis7z_19.00.7z` release (sha256
+    `6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58`, fetched
+    2026-11-12 from
+    `https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z`) holds
+    the plug-in's own sources, `Contrib/nsis7z/CPP/7zip/{Bundles,UI}/NSIS/`,
+    which is where the DLL's 7-Zip-derived code comes from. It is a
+    release-time precondition in the same sense. Neither source is yet offered
+    from the place the binary is obtained, which is what §4's final paragraph
+    requires and what this distribution still owes.
 
   * **Replaceability (§6(b), and §4's final paragraph for the §4 path) — NOT
     MEASURED.** The route LGPL-2.1 contemplates is a DLL loaded at runtime that
@@ -937,9 +1010,14 @@ stands:
     measured: whether an installer carrying such a build still completes the
     installation. No installer with a modified `StdUtils.dll` was built or
     run, so this file records the route and not a tested result. The load is
-    narrow — `StdUtils::TestParameter` is the only function of the plug-in the
-    generated installer calls, seven times, through the flag macros
-    `electron-builder` emits unconditionally — but "narrow" is not "verified".
+    narrow — resolving the include tree the generated installer pulls in shows
+    it calls **four** of the plug-in's exports, and no other: `TestParameter`
+    (seven call sites, through the flag macros `electron-builder` emits
+    unconditionally), `ExecShellAsUser` (the installer's start-application
+    step), `GetAllParameters` (reading the `/D=` switch) and `GetParentPath`
+    (copying the uninstaller) — against the 59 names `StdUtils.dll` exports.
+    A replacement therefore has to keep those four working, and "narrow" is
+    still not "verified".
 
 2.5.2  What is deliberately not settled here
 ----------------------------------------------
@@ -958,8 +1036,10 @@ attempted in this section:
 
 The owner's decision of 2026-11-12 was to keep the LGPL plug-in and discharge
 the obligations rather than remove or replace it, and to widen this file's
-scope to the toolchain binaries and the web tree. The four unresolved and
-LGPL entries above are the record of what that decision leaves open.
+scope to the toolchain binaries and the web tree. The two LGPL entries above
+now carry their licence text; the two entries whose terms this file records as
+unresolved, and the fact that no source is yet offered from the place the
+binaries are obtained, are the record of what that decision still leaves open.
 
 
 -------------------------------------------------------------------------------
@@ -967,8 +1047,12 @@ LGPL entries above are the record of what that decision leaves open.
 -----------------
 
 `web/package.json` declares two runtime dependencies (`react` 19.3.1,
-`react-dom` 19.3.1) and twenty devDependencies. `web/pnpm-lock.yaml` pins the
-resolved tree.
+`react-dom` 19.3.1) and **nineteen** devDependencies. Re-measured 2026-11-12
+at `6cd844670f4136df5b7e49613ce201c22d20590a` (`git rev-parse HEAD`,
+printed); the file's bytes are that revision's. The earlier figure of twenty
+was never true at any revision of the file: of the three revisions that have
+touched `web/package.json`, all three declare nineteen. `web/pnpm-lock.yaml`
+pins the resolved tree.
 
 **The lock carries no licence at all.** Measured: the case-insensitive
 substring `licen` occurs **0** times in `web/pnpm-lock.yaml`. The lock pins
@@ -1059,10 +1143,14 @@ The owner's decision of 2026-11-12 is to restore it: the web build writes a
 module graph, and `shell/electron-builder.yml` copies `web/dist/` into
 `resources/web-dist/` with the rest of the build output — so the file lands at
 `resources/web-dist/THIRD-PARTY-NOTICES`, beside the bundle. **That mechanism
-is not in this tree yet** and this file makes no claim that it is: at the
-revision this section was measured at, the shipped directory holds three
-files and the bundle carries no notice. The obligation is named, the route is
-recorded, and the state is open.
+is in this tree** — `web/scripts/third-party-notices.ts` and
+`web/src/thirdPartyNotices.test.ts` — and the build of 2026-11-12 carries it:
+`resources/web-dist/THIRD-PARTY-NOTICES` (124,241 bytes) names `react@19.3.1`
+with its `MIT` licence, its `Copyright (c) Meta Platforms, Inc. and
+affiliates.` line and the licence text itself. The state recorded above — the
+2026-11-11 measurement, which found no attribution in the bundle — is what
+that build measured; the 2026-11-12 build carries the notice the decision
+called for.
 
 
 -------------------------------------------------------------------------------
@@ -1315,6 +1403,11 @@ neither a build nor an install; its licence classes do.
   pnpm --dir web install --frozen-lockfile
   pnpm --dir web run build
   LABCAIRN_SHELL_DIST_DIR=<dir> pnpm --dir shell run dist   # electron-builder --win
+    # the build of 2026-11-12: exit code 0, read from the command itself and
+    # not from a pipe. Its output directory and electron-builder's cache were
+    # both outside the repository:
+    #   LABCAIRN_SHELL_DIST_DIR=E:/labcairn-local/lgpl-compliance-2026-11-12/dist3
+    #   ELECTRON_BUILDER_CACHE=E:/labcairn-local/cache/electron-builder
 
   # 2. the archive's members; the sizes here are the archive's own compressed
   #    sizes, and §2.5 prints each binary's unpacked size, which step 3 prints
@@ -1323,11 +1416,23 @@ neither a build nor an install; its licence classes do.
     # $PLUGINSDIR\UAC.dll          8018      $PLUGINSDIR\nsis7z.dll   242382
     # $PLUGINSDIR\StdUtils.dll    45608      $PLUGINSDIR\WinShell.dll   1080
     # $PLUGINSDIR\nsDialogs.dll    4684
+    # $PLUGINSDIR\licenses\LGPL-2.1.txt                    9316
+    # $PLUGINSDIR\licenses\STDOUTILS-NOTICE.txt             1829
+    # $PLUGINSDIR\licenses\STDOUTILS-LGPL-CLARIFICATION.txt  1044
+    # $PLUGINSDIR\licenses\NSIS7Z-LICENSE.txt                314
+    # $PLUGINSDIR\licenses\7ZIP-LICENSE.txt                 1873
+    # $PLUGINSDIR\licenses\README.txt                        2277
 
   # 3. each member's own bytes and hash — the sizes and sha256s §2.5 prints
   7z x "<dir>/LabCairn Setup 0.0.0.exe" -o<extract> -y
   7z x "<extract>/\$PLUGINSDIR/app-64.7z" -o<payload> -y
   sha256sum "<extract>/\$PLUGINSDIR/"*.dll "<payload>/resources/elevate.exe"
+
+  # 3a. the licence texts the archive carries, against the repository's copies
+  sha256sum "<extract>/\$PLUGINSDIR/licenses/"*.txt
+  sha256sum shell/licenses/*.txt
+    # the two listings agree member for member: the archive carries the
+    # repository's bytes unchanged
 
   # 4. where each binary's terms come from — the two electron-builder caches.
   #    ELECTRON_BUILDER_CACHE names the cache directory; the two bundles below
@@ -1339,8 +1444,8 @@ neither a build nor an install; its licence classes do.
     # the four zlib/libpng binaries are byte-identical to the second and third
     # listings; StdUtils.dll, UAC.dll, WinShell.dll and nsis7z.dll are
     # byte-identical to the first. The nsis-resources bundle carries no
-    # licence file at all, which is what leaves UAC.dll and WinShell.dll
-    # without findable terms.
+    # licence file at all, which is why UAC.dll's and WinShell.dll's terms
+    # are found upstream instead — see §2.5's two rows.
 
 **The web tree.**
 

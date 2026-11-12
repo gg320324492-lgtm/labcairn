@@ -761,3 +761,594 @@ def test_the_human_review_checklists_node_ids_exist() -> None:
         "the checklist cites node ids that are not in the tree, so a reviewer "
         f"following it would report a missing witness: {broken}"
     )
+
+
+# --------------------------------------------------------------------------
+# item 8: paths cited in a carried-open-issues region
+# --------------------------------------------------------------------------
+
+#: A repo-rooted path a record cites: ``docs/acceptance/x.md``, ``tests/test_x.py``.
+_CITED_PATH = re.compile(
+    r"(?<![\w/.-])((?:src|tests|docs|web|shell|scripts|examples|\.github|migrations)"
+    r"/[\w./-]+\.(?:py|md|yml|yaml|json|mjs|ts|tsx|txt|toml|sql|nsh))"
+)
+
+#: A revision in backticks, in the 7-to-12-character short form the board writes.
+_SHORT_REV = re.compile(r"`([0-9a-f]{7,12})`")
+
+#: The lines that open a carried-issues region. **The phrase, not the `#`**: both records
+#: write their region header as a bold sentence rather than a Markdown heading, so a reader
+#: keyed on headings finds neither region and reports the carried issues as checked.
+ISSUE_REGION_HEADERS = ("carried open issues", "open issues carried forward")
+
+#: The records whose carried-issues regions are read.
+ISSUE_REGION_RECORDS = (PLAN, REPO / "docs" / "ROADMAP.md")
+
+
+def _tracked_files() -> set[str]:
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    return {line for line in result.stdout.decode("utf-8").split("\n") if line.strip()}
+
+
+def _existed_at(revision: str, path: str) -> bool:
+    result = subprocess.run(
+        ["git", "ls-tree", "--name-only", revision, "--", path],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    return result.stdout.decode("utf-8").strip() != ""
+
+
+def _issue_region_rows(text: str) -> list[tuple[int, str]]:
+    """The rows of every carried-issues region: **table rows and bullets**.
+
+    `docs/PHASE_1_WORKORDERS.md` writes its carried issues as a Markdown table and
+    `docs/ROADMAP.md` writes its carried-forward summary as a bullet list. Both cite file
+    paths. A reader that understood only tables would leave the second region's citations
+    unwatched while the witness still reported that carried issues are checked — which is a
+    check that covers one of the two places the claim lives.
+    """
+    out: list[tuple[int, str]] = []
+    inside = False
+    for number, line in enumerate(text.split("\n"), start=1):
+        stripped = line.strip()
+        if not inside:
+            inside = any(phrase in stripped.lower() for phrase in ISSUE_REGION_HEADERS)
+            continue
+        if stripped.startswith("#"):
+            inside = False
+            continue
+        if stripped.startswith(("|", "- ")):
+            out.append((number, stripped))
+    return out
+
+
+def _unopenable_issue_paths(text: str, tracked: set[str]) -> list[str]:
+    """Paths a carried-issues row cites that a reader cannot open.
+
+    **Two readings are legal, and both are checked.** The file is tracked today — the issue
+    is still open at a path that exists. Or the **same row** cites a revision at which the
+    path existed: the row is naming the file as it was when the finding was filed, which is
+    what a closed issue legitimately does. `PHASE_1_WORKORDERS.md`'s three support-module rows
+    are exactly this case — `tests/test_store_support.py` has not existed since `a1f9e54`
+    renamed them out of the `test_*` glob on 2026-11-02, and the row cites `e9b56ba`, `5dbf09b`
+    and `a1f9e54`, all of which have it.
+
+    A row that cites a path neither tracked today nor present at any revision the row itself
+    names is a pointer to nothing, and the reader following it finds no evidence either way.
+    """
+    problems: list[str] = []
+    for _number, row in _issue_region_rows(text):
+        if set(row) <= {"|", "-", " "}:
+            continue
+        revisions = sorted(set(_SHORT_REV.findall(row)))
+        for path in sorted(set(_CITED_PATH.findall(row))):
+            if path in tracked:
+                continue
+            if any(_existed_at(revision, path) for revision in revisions):
+                continue
+            problems.append(
+                f"{row[:60].strip()}…"
+                f"\n    cites {path}, which is not a tracked file, and the row names "
+                f"{revisions or 'no revision'} — none of which has that path. A reader "
+                "following the row cannot open the file it names, in this tree or at the "
+                "revision it cites."
+            )
+    return problems
+
+
+def test_a_carried_open_issue_cites_a_path_a_reader_can_open() -> None:
+    """Every path a carried-issues row names exists, or existed at a revision that row cites.
+
+    **Why this is watched.** A carried-open-issues row is the board's promise that a finding
+    is still findable: its Note column names the file the finding is about, and a reader —
+    a reviewer, or the next window — goes there. If the path is gone and the row names no
+    revision that has it, the row is a pointer to nothing, and the issue reads as still open
+    when its evidence is unlocatable. `docs/ROADMAP.md` carries nine such rows and
+    `docs/PHASE_1_WORKORDERS.md` thirteen; until now neither was read.
+
+    **Why "existed at a cited revision" is a legal reading, and why the revision has to be in
+    the same row.** Three rows cite `tests/test_store_support.py`, `tests/test_recovery_support.py`
+    and `tests/test_skill_support.py`, and no such file exists in this checkout: they were
+    renamed out of the `test_*` glob on 2026-11-02. Banning those paths would be the mistake
+    this project already names — rewriting a dated record to match today. They are legal
+    **because the same row cites `e9b56ba`, `5dbf09b` and `a1f9e54`, and each of those
+    revisions has the files.** The exemption is measured at the revision the row itself names;
+    a row that names no revision gets no exemption.
+
+    **What it cannot watch.** Whether the row's prose is still true, and whether an issue that
+    reads as open actually is. It watches only the one mechanical thing: the path it sends a
+    reader to is openable.
+    """
+    tracked = _tracked_files()
+    assert tracked, "no tracked files, so nothing this witness checks could resolve"
+
+    problems: list[str] = []
+    read = 0
+    for record in ISSUE_REGION_RECORDS:
+        assert record.is_file(), (
+            f"{record.relative_to(REPO)} is a board record, and it is not there"
+        )
+        text = record.read_text(encoding="utf-8")
+        rows = _issue_region_rows(text)
+        assert rows, f"{record.relative_to(REPO)} carries no carried-issues rows to read"
+        read += len(rows)
+        problems.extend(_unopenable_issue_paths(text, tracked))
+
+    assert read >= 20, (
+        f"the carried-issues regions together yielded only {read} rows, which is too few for "
+        "this to be a check of the board rather than of one row"
+    )
+    assert not problems, (
+        "carried open issues cite paths a reader cannot open:\n  "
+        + "\n  ".join(problems)
+        + "\n\nEither the path is current and a rename or a move broke the citation, or the row "
+        "means the name as filed and has to cite the revision that has it."
+    )
+
+
+def test_the_issue_path_check_fails_on_an_unanchored_citation() -> None:
+    """The path check is seen to fail for the property, on copies in memory.
+
+    **Two mutations, each one a distinct way the rule is real.** (1) A path in a row that
+    cites **no revision** is renamed to a plausible sibling that has never existed: the row
+    keeps its shape, its wording, and its table cell, and the pointer breaks. (2) The
+    revisions are stripped out of the row that legitimately cites historical names: the paths
+    are unchanged and still legal-looking, and the row loses the only thing that made them
+    legal. Mutation (2) is the one that proves the exemption is measured — a reader that
+    reddens only on (1) is reading file existence, not the row.
+
+    **Controls.** The unmutated records report nothing, so every report below is the mutation;
+    each mutation is asserted to change bytes before any report is credited to it, because a
+    needle that matches nothing produces a "mutant" identical to the original; and the real
+    records' bytes are compared before and after.
+    """
+    tracked = _tracked_files()
+
+    board = PLAN.read_text(encoding="utf-8")
+    roadmap = (REPO / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+    board_bytes = PLAN.read_bytes()
+    roadmap_bytes = (REPO / "docs" / "ROADMAP.md").read_bytes()
+
+    def problems_for(board_text: str, roadmap_text: str) -> list[str]:
+        return _unopenable_issue_paths(board_text, tracked) + _unopenable_issue_paths(
+            roadmap_text, tracked
+        )
+
+    assert problems_for(board, roadmap) == [], (
+        f"the records as they stand already report: {problems_for(board, roadmap)}"
+    )
+
+    rows = _issue_region_rows(board)
+
+    # Mutation 1: a row that cites no revision gets a path that never existed.
+    plain_rows = [
+        (number, row)
+        for number, row in rows
+        if _CITED_PATH.search(row) and not _SHORT_REV.search(row)
+    ]
+    assert plain_rows, "no carried-issues row cites a path without citing a revision"
+    _number, row = plain_rows[0]
+    citation = _CITED_PATH.search(row)
+    assert citation is not None, "the row selected for mutation 1 cites no path"
+    path = citation.group(0)
+    # The extension is kept: a needle anchored on `.py` matched nothing in the row this
+    # check picked, which cites a `.md`, and the "mutation" rewrote nothing while the
+    # calibration reported "0 problems" for it.
+    bogus = re.sub(r"[A-Za-z0-9_-]+(\.\w+)$", r"never_witness_here\1", path)
+    assert bogus != path, f"the rename needle matched nothing in {path!r}"
+    mutated_board = board.replace(path, bogus, 1)
+    assert mutated_board != board, "mutation 1 changed no bytes"
+    found = problems_for(mutated_board, roadmap)
+    assert any(bogus in problem for problem in found), (
+        f"renaming {path} to {bogus} — a path that has never existed — was not reported: {found}"
+    )
+
+    # Mutation 2: strip the revisions from the row whose historical names are legal.
+    anchored = [
+        (number, row)
+        for number, row in rows
+        if _CITED_PATH.search(row) and _SHORT_REV.search(row) and "test_store_support" in row
+    ]
+    assert anchored, (
+        "no carried-issues row cites both a historical path and a revision, so the exemption "
+        "this witness grants is not exercised by the tree and this control tests nothing"
+    )
+    _number, row = anchored[0]
+    stripped_row = _SHORT_REV.sub("that revision", row)
+    assert stripped_row != row, "mutation 2's row edit changed nothing"
+    mutated_board2 = board.replace(row, stripped_row, 1)
+    assert mutated_board2 != board, "mutation 2 changed no bytes"
+    found2 = problems_for(mutated_board2, roadmap)
+    assert found2, (
+        "removing the revisions from a row that cites historical paths left it clean. The "
+        "exemption is then not measured at the cited revision at all — any path would pass."
+    )
+    assert any("test_store_support.py" in problem for problem in found2), found2
+
+    assert PLAN.read_bytes() == board_bytes, (
+        f"{PLAN.relative_to(REPO)} changed while it was being read"
+    )
+    assert (REPO / "docs" / "ROADMAP.md").read_bytes() == roadmap_bytes, (
+        "docs/ROADMAP.md changed while it was being read"
+    )
+
+
+# --------------------------------------------------------------------------
+# item 9: the release notes' claims about repository state
+# --------------------------------------------------------------------------
+
+RELEASE_NOTES = REPO / "docs" / "RELEASE-NOTES.md"
+
+#: The marker phrase this repository's supersession convention settled on.
+_SUPERSESSION = re.compile(r"dated snapshot", re.I)
+
+#: A commit the file states as the place something landed, closed or merged.
+_LANDED_AT = re.compile(r"\bat\s+`([0-9a-f]{7,40})`|\(`([0-9a-f]{7,40})`\)")
+
+#: A full commit token, as an anchor must be written.
+_FULL_TOKEN = re.compile(r"\b[0-9a-f]{7,40}\b")
+
+#: The file's statement of its own release state.
+_NO_TAG = re.compile(r"\bno tag has been cut\b", re.I)
+
+#: `#146 … open` and `open … #146`, with **no sentence terminator in between**. The bound is
+#: the whole claim: a window around the reference matched `(PR #118)` against `when the gate
+#: was still open` two sentences earlier — a claim about a gate, not about a pull request —
+#: and the first calibration run reported both references as defects on a file whose wording
+#: is correct.
+_OPEN_NEAR_PR: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"(?:pull request|PR) #(\d{2,4})[^.!?]*?\b(?:open|not (?:yet )?merged|awaiting|unmerged)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:open|not (?:yet )?merged|awaiting|unmerged)\b[^.!?]*?(?:pull request|PR) #(\d{2,4})",
+        re.I,
+    ),
+)
+
+
+def _is_ancestor(token: str) -> bool:
+    full = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{token}^{{commit}}"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    if full.returncode:
+        return False
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", full.stdout.decode().strip(), "HEAD"],
+            cwd=REPO,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _merge_commit_for(pr: int) -> str | None:
+    """The merge commit whose **subject** names this pull request, or None.
+
+    Subjects, not bodies: `git log --grep` matches bodies by default, and this project's
+    merge subjects are where the branch convention lives. A body match is how an earlier
+    attempt in this file appeared to fail on changes that had nothing to do with the claim.
+    """
+    result = subprocess.run(
+        ["git", "log", "--all", "--format=%H\x1f%s", "--grep", f"#{pr}"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    for line in result.stdout.decode("utf-8").split("\n"):
+        if "\x1f" not in line:
+            continue
+        sha, subject = line.split("\x1f", 1)
+        if re.search(rf"Merge pull request #{pr}\b", subject):
+            return sha
+    return None
+
+
+def _supersession_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """(first, last) line numbers of each marker block, 1-based and inclusive."""
+    blocks: list[tuple[int, int]] = []
+    index = 0
+    while index < len(lines):
+        if _SUPERSESSION.search(lines[index]):
+            first = index
+            while first > 0 and lines[first - 1].startswith(">"):
+                first -= 1
+            last = index
+            while last + 1 < len(lines) and lines[last + 1].startswith(">"):
+                last += 1
+            blocks.append((first + 1, last + 1))
+            index = last + 1
+        else:
+            index += 1
+    return blocks
+
+
+def _paragraph_starts(lines: list[str], before_line: int) -> int:
+    """The first line of the paragraph that ends just before `before_line` (1-based)."""
+    index = before_line - 2
+    while index >= 0 and not lines[index].strip():
+        index -= 1
+    if index < 0:
+        return before_line
+    start = index
+    while start - 1 >= 0 and lines[start - 1].strip():
+        start -= 1
+    return start + 1
+
+
+def _marked_lines(text: str) -> tuple[set[int], list[int]]:
+    """Lines a supersession marker covers, and the lines where a marker phrase sits badly.
+
+    **The block, and the paragraph immediately above it.** This repository writes the marker
+    as a note *about* the passage it follows: `RELEASE-NOTES.md`'s says "The clause above is a
+    dated snapshot", and `.github/CI.md`'s says "The two sentences above … are left as
+    written". A reader that covers only the block calls both records' dated claims unmarked
+    and reddens on correct records — which is the false positive the calibration produced
+    twice. Walking up over the blank line that separates a marker from its passage is what
+    makes the convention's own wording readable; starting at the line directly above and
+    refusing when it is blank covers nothing.
+    """
+    lines = text.split("\n")
+    covered: set[int] = set()
+    misplaced: list[int] = []
+    for first, last in _supersession_blocks(lines):
+        covered.update(range(first, last + 1))
+        paragraph_start = _paragraph_starts(lines, first)
+        if paragraph_start < first:
+            covered.update(range(paragraph_start, first))
+        if not lines[first - 1].startswith(">"):
+            misplaced.append(first)
+    return covered, misplaced
+
+
+def _paragraph_claims(text: str) -> list[tuple[int, str]]:
+    """(first line, paragraph) for each prose paragraph — the unit a claim is read in.
+
+    A `>` block-quote is skipped as a paragraph of its own: it is the record's note about a
+    claim, not another claim. Reading a marker as a claim would let the marker answer the
+    question it exists to be asked.
+    """
+    out: list[tuple[int, str]] = []
+    paragraph: list[str] = []
+    start = 0
+    for number, line in enumerate(text.split("\n"), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ">")):
+            if paragraph:
+                out.append((start, " ".join(paragraph)))
+                paragraph = []
+            continue
+        if not paragraph:
+            start = number
+        paragraph.append(stripped)
+    if paragraph:
+        out.append((start, " ".join(paragraph)))
+    return out
+
+
+def _release_note_problems(text: str) -> list[str]:
+    """Every claim `docs/RELEASE-NOTES.md` makes that this repository's own state contradicts."""
+    problems: list[str] = []
+    covered, misplaced = _marked_lines(text)
+    tags = [
+        t
+        for t in subprocess.run(["git", "tag"], cwd=REPO, capture_output=True, check=False)
+        .stdout.decode()
+        .split("\n")
+        if t.strip()
+    ]
+
+    for number, paragraph in _paragraph_claims(text):
+        exempt = number in covered
+
+        for pattern in _OPEN_NEAR_PR:
+            for match in pattern.finditer(paragraph):
+                pr = int(match.group(1))
+                merged = _merge_commit_for(pr)
+                if not merged or exempt:
+                    continue
+                problems.append(
+                    f"line {number} says pull request #{pr} is open, and this repository has a "
+                    f"merge commit naming it ({merged[:12]}…). The claim sits outside a "
+                    "supersession marker, so it reads as a description of today and today "
+                    "contradicts it."
+                )
+
+        for match in _LANDED_AT.finditer(paragraph):
+            token = match.group(1) or match.group(2)
+            if _is_ancestor(token):
+                continue
+            problems.append(
+                f"line {number} states that something landed at {token[:12]}, and that token is "
+                "not a commit on this repository's history — the sentence names a place a reader "
+                "cannot go."
+            )
+
+        if _NO_TAG.search(paragraph) and tags and not exempt:
+            problems.append(
+                f"line {number} says no tag has been cut, and this repository has {len(tags)} "
+                f"tag(s): {tags[:4]}"
+            )
+
+    for first in misplaced:
+        problems.append(
+            f"line {first} carries the supersession phrase outside a block-quote, so the marker "
+            "this project's convention relies on is not in the form a reader or a tool looks for"
+        )
+
+    header = "\n".join(text.split("\n")[:14])
+    anchor = re.search(r"tree this describes[^`]*`([0-9a-f]{7,40})`", header, re.I)
+    if anchor and not _is_ancestor(anchor.group(1)):
+        problems.append(
+            f"the header says this document describes the tree at {anchor.group(1)[:12]}, which "
+            "is not an ancestor of HEAD — a reader following the anchor lands elsewhere"
+        )
+    return problems
+
+
+def test_the_release_notes_agree_with_the_repositorys_own_state() -> None:
+    """Every state claim `docs/RELEASE-NOTES.md` makes is checkable against this repository.
+
+    **Why this is watched.** The release notes are the document an outsider reads to decide
+    what is true of the tree: which commit it describes, whether a pull request is still open,
+    which commit closed what, whether a tag exists. None of those needs GitHub to verify — the
+    anchor is an ancestor or it is not, a merge commit names a pull request or does not, a tag
+    exists or does not. A release document contradicted by the repository it documents is the
+    worst kind of stale record, because it is read as authoritative by someone with no way to
+    check it.
+
+    **The case this was written for.** Line 8 says the 2026-11-03 items are measured on a
+    branch that has not landed, "pull request #146 open", and that their numbers "are not
+    claims about `main` until the merge". Pull request #146 **merged** on 2026-11-04 as
+    `384eb2f3a6c8`, a merge commit this repository has. The claim is true of 2026-11-03 and
+    false today, and the file already says so: the marker at line 12 states that the clause
+    above is a dated snapshot and that #146 merged. **The exemption is the marker, and the
+    marker is what is watched** — remove the phrase and the same sentence is reported.
+
+    **Dated-and-marked is legal; unmarked is a defect** — the same rule the supersession
+    witness applies to `.github/CI.md`. A marker covers the block **and the paragraph it
+    annotates**, because the convention writes the marker *after* the passage it is about.
+
+    **What it cannot watch.** Whether the release's *substance* is accurately described: the
+    limitations, the measurements, the licence position. It watches the claims the repository
+    itself can answer, and only those.
+    """
+    assert RELEASE_NOTES.is_file(), f"{RELEASE_NOTES.relative_to(REPO)} is missing"
+    text = RELEASE_NOTES.read_text(encoding="utf-8")
+
+    claims = _release_note_problems(text)
+    assert not claims, (
+        "docs/RELEASE-NOTES.md states repository state the repository contradicts:\n  "
+        + "\n  ".join(claims)
+        + "\n\nEither the sentence is current and wrong — correct it — or it was true when "
+        "written, in which case it keeps its wording and gains a supersession marker naming the "
+        "reading that supersedes it."
+    )
+
+    marked, _misplaced = _marked_lines(text)
+    assert marked, (
+        "no dated snapshot in the release notes is marked any more. The marked ones are where "
+        "the file's own history stays readable — the 2026-11-03 quarantine, the 2026-10-25 "
+        "G5 paragraph — and their disappearance means the document was flattened rather than "
+        "corrected."
+    )
+    references = len(_OPEN_NEAR_PR[0].findall(text)) + len(_OPEN_NEAR_PR[1].findall(text))
+    assert references, (
+        "the release notes no longer state a pull-request state beside an open/merged word, so "
+        "this witness has nothing to compare against the merge commits"
+    )
+
+
+def test_the_release_state_check_fails_when_the_marker_is_removed_or_a_commit_is_invented(
+    repo_root: Path,
+) -> None:
+    """The release-state reader is seen to fail for the property, on copies in memory.
+
+    **Two mutations, one for each half of the rule.** (1) **The supersession phrase is
+    removed** from the marker under the "pull request #146 open" clause, leaving every other
+    word intact. The claim is unchanged and is now unmarked, so it must be reported against
+    the merge commit this repository has. This is the half that proves the marker — not the
+    wording — is what makes a superseded sentence legal. (2) **A `landed at` commit is
+    replaced** by a token that is well-formed — exactly 40 hex characters — and is not a
+    commit here. The sentence keeps its shape and names a place a reader cannot reach.
+
+    **A control on the needle itself.** The first version of mutation 2 invented a 41-character
+    token, which the revision pattern refuses to match at all, so the "mutant" produced no
+    report from a mutation that had genuinely happened. Both mutations are asserted to change
+    bytes, and mutation 2's token is asserted to be the length the reader recognises.
+
+    **Control.** The real file's bytes are compared before and after, so the demonstration
+    cannot write the record it guards.
+    """
+    path = repo_root / "docs" / "RELEASE-NOTES.md"
+    original_bytes = path.read_bytes()
+    text = original_bytes.decode("utf-8")
+
+    assert _release_note_problems(text) == [], (
+        f"the release notes as they stand already report: {_release_note_problems(text)}"
+    )
+
+    lines = text.split("\n")
+    marked, misplaced = _marked_lines(text)
+    assert not misplaced, f"the tree already carries a misplaced marker: {misplaced}"
+    assert marked, "the tree carries no supersession marker, so mutation 1 has nothing to remove"
+    blocks = _supersession_blocks(lines)
+    assert blocks, "no marker block found, so mutation 1 has nothing to remove"
+    # The **block's** first line, not the first covered line: `_marked_lines` also covers the
+    # paragraph the block annotates, and `min(marked)` is that paragraph — the first run of
+    # this demonstration read it as the block and asserted a `>` line was where ordinary prose
+    # sits.
+    marker_first, marker_last = blocks[0]
+    assert lines[marker_first - 1].startswith(">"), (
+        f"the marker block is expected to begin at line {marker_first} with a `>` line; found "
+        f"{lines[marker_first - 1][:60]!r}"
+    )
+
+    # Mutation 1: the phrase goes, the prose stays.
+    marker_text = "\n".join(lines[marker_first - 1 : marker_last])
+    assert _SUPERSESSION.search(marker_text), "the marker block does not contain the phrase"
+    unmarked_marker = _SUPERSESSION.sub("recorded at the time", marker_text, count=1)
+    assert unmarked_marker != marker_text, "mutation 1's phrase removal matched nothing"
+    unmarked = text.replace(marker_text, unmarked_marker, 1)
+    assert unmarked != text, "mutation 1 changed no bytes"
+    found = _release_note_problems(unmarked)
+    assert any("pull request #146" in problem for problem in found), (
+        f"removing the supersession phrase left the 'pull request #146 open' claim unreported. "
+        f"This repository has a merge commit naming #146, so the marker is the only thing that "
+        f"makes that sentence legal, and the reader did not see it: {found}"
+    )
+
+    # Mutation 2: an invented commit where a real one is cited.
+    landed = _LANDED_AT.findall(text)
+    assert landed, "the release notes cite no `landed at` commit, so mutation 2 has no target"
+    real = next(t for pair in landed for t in pair if t)
+    # Exactly 40 hex characters: a longer token is not a revision shape the reader matches at
+    # all, and the first version of this control "mutated" a file into something its reader
+    # could not see a commit in — 0 problems from a mutation that had happened.
+    impostor = real[:7] + "9" * (40 - 7)
+    assert len(impostor) == 40, f"the impostor token is {len(impostor)} characters, not 40"
+    assert not _commit_exists(impostor), f"{impostor[:12]}… is a commit here, so it is not invented"
+    invented = text.replace(f"`{real}`", f"`{impostor}`", 1)
+    assert invented != text, "mutation 2 changed no bytes"
+    found2 = _release_note_problems(invented)
+    assert any(impostor[:12] in problem for problem in found2), (
+        f"replacing the cited commit {real[:12]} with {impostor[:12]} — well-formed, not a "
+        f"commit in this repository — was not reported: {found2}"
+    )
+
+    assert path.read_bytes() == original_bytes, (
+        "docs/RELEASE-NOTES.md changed while it was being read"
+    )
