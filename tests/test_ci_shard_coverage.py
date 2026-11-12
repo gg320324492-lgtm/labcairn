@@ -2338,10 +2338,14 @@ _WORKFLOW_NAMED: Final[re.Pattern[str]] = re.compile(r"\b([a-z0-9][a-z0-9-]*\.ya
 #: How many job-count claims each record carries, measured 2026-11-12 by running this
 #: instrument over the three records. Pinned, because the way a check goes green while a
 #: record moves out of its reach is that a claim stops being readable: the count moving says
-#: the record changed and this witness no longer sees the same claims.
+#: either the record changed or this witness stopped seeing a claim it used to see, and the
+#: second is the more dangerous of the two. `python.yml` reads 8 rather than 7 because an
+#: earlier `_record_paragraphs` left a `# ` inside a joined YAML comment, which cut
+#: "not the eleven that a / pull-request event spends" between the number and its quantity:
+#: the claim was invisible to the witness while the comment stayed exactly where it was.
 JOB_COUNT_CLAIMS: Final[dict[str, int]] = {
     "CI.md": 11,
-    "python.yml": 7,
+    "python.yml": 8,
     "LC-P1-13-evaluation-ci.md": 4,
 }
 
@@ -2365,47 +2369,86 @@ def _record_paragraphs(text: str) -> list[tuple[int, str]]:
     survived stated no quantity, so the figure went unreadable — the same failure the
     required-check witness above documents for paragraph anchors.
 
-    A `#` comment block in a workflow is a paragraph too: `python.yml`'s job-count comment
-    wraps across eight lines, and the claim is only readable with the block joined. A
-    Markdown **heading** ends a paragraph instead of joining one, because a heading carries
+    A `#` comment block in a workflow is a paragraph too, and **its comment marker is
+    stripped from every line before joining**. Keeping the marker on the line that *starts*
+    a block — which is what an earlier version of this function did — leaves `# ` inside the
+    joined text, and the sentence `not the eleven that a` / `pull-request event spends` gets a
+    `# ` between the number and the quantity it states. The claim then matches no shape, and
+    the record silently drops out of the witness while the sentence stays exactly where it
+    was: a claim that leaves the check without anyone editing the record.
+
+    A Markdown **heading** ends a paragraph instead of joining one, because a heading carries
     a date and that date must not leak into the dating of the sentence beneath it.
     """
     out: list[tuple[int, str]] = []
     buffer: list[str] = []
     start = 0
     inside_fence = False
-    previous_was_comment = False
+    previous_was_marker = False
+
+    def flush() -> None:
+        if buffer:
+            out.append((start, " ".join(buffer)))
+            buffer.clear()
+
     for number, raw in enumerate(text.split("\n"), start=1):
         line = raw.strip()
         if line.startswith("```"):
-            if buffer:
-                out.append((start, " ".join(buffer)))
-                buffer = []
+            flush()
             inside_fence = not inside_fence
-            previous_was_comment = False
+            previous_was_marker = False
             continue
         if inside_fence:
             # A workflow's YAML body is read structurally by `_workflow_figures`, never as
             # prose: `shard: [0, 1, 2, 3, 4]` is the matrix, not a sentence about five.
             continue
-        is_comment = line.startswith("# ") and not line.startswith("##")
-        if is_comment and previous_was_comment and buffer:
-            buffer.append(line.lstrip("# ").strip())
+        if not line:
+            flush()
+            previous_was_marker = False
             continue
-        if (not line) or (line.startswith("#") and not is_comment) or line.startswith("|"):
-            if buffer:
-                out.append((start, " ".join(buffer)))
-                buffer = []
-            if line:
-                out.append((number, line.lstrip("# ").strip() if is_comment else line))
-            previous_was_comment = is_comment
+        if line.startswith("|"):
+            # A table row is a paragraph of its own. CI.md's job table is where the shard
+            # arithmetic cell (`2 platforms <multiplication sign> 5 shards = 10 jobs`) and
+            # `2 platforms = 2 jobs` are stated, and a reader that skipped table rows dropped
+            # three claims from the witness while the table stayed exactly where it was.
+            flush()
+            out.append((number, line))
+            previous_was_marker = False
             continue
+        if line.startswith("##"):
+            # A Markdown heading: its own paragraph, marker removed.
+            flush()
+            out.append((number, line.lstrip("#").strip()))
+            previous_was_marker = False
+            continue
+        if line.startswith("#"):
+            body = line.lstrip("#").strip()
+            if not body:
+                # A bare `#` is a separator inside a comment block, not part of the sentence:
+                # two comment paragraphs joined into one read as one long sentence.
+                flush()
+                previous_was_marker = False
+                continue
+            # The marker is removed on **every** comment line before joining. Keeping it on the
+            # line that starts a block — which an earlier version of this function did — leaves
+            # `# ` inside the joined text, so `not the eleven that a` / `pull-request event
+            # spends` gets a `# ` between the number and the quantity it states, matches no
+            # shape, and the claim leaves the check without anyone editing the record.
+            if previous_was_marker and buffer:
+                buffer.append(body)
+            else:
+                flush()
+                start = number
+                buffer.append(body)
+            previous_was_marker = True
+            continue
+        if previous_was_marker:
+            flush()
         if not buffer:
             start = number
         buffer.append(line)
-        previous_was_comment = False
-    if buffer:
-        out.append((start, " ".join(buffer)))
+        previous_was_marker = False
+    flush()
     return out
 
 
