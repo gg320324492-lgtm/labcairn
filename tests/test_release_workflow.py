@@ -1099,13 +1099,19 @@ def test_notice_bundled_licence_files_state_the_clauses_named_for_them(tmp_path:
     )
 
     site = watch.site_packages_of()
-    problems, unanswerable = watch.bundled_entry_problems(entries, site)
+    read = _closure_read()
+    installed = watch.installed_versions(read.distinct_rows)
+    foreign_rows, _broken = watch.answerability(read, installed)
+    problems, unanswerable, foreign_claims = watch.bundled_entry_problems(
+        entries, site, [row.name for row in foreign_rows]
+    )
     assert not unanswerable, (
         f"§2.3's licence paths could not be checked: {unanswerable} sit in a dist-info "
         "that cannot be read here. This is the environment, not the record."
     )
     assert not problems, (
-        f"§2.3's bundled-licence claims do not match the installed files: {problems}"
+        f"§2.3's bundled-licence claims do not match the installed files: {problems} "
+        f"(claims this platform does not install and so cannot check: {foreign_claims})"
     )
 
     version_problems = watch.installed_version_problems(
@@ -1143,9 +1149,14 @@ def test_notice_bundled_licence_files_state_the_clauses_named_for_them(tmp_path:
     # the state the real tree is in, restated on a fixture so the three states below
     # are distinguishable from it rather than inferred from its absence.
     stating = build(tmp_path / "stating", "GNU LESSER GENERAL PUBLIC LICENSE\nVersion 2.1\n")
-    clean_problems, clean_unanswerable = watch.bundled_entry_problems([entry], stating)
+    clean_problems, clean_unanswerable, clean_foreign = watch.bundled_entry_problems(
+        [entry], stating
+    )
     assert clean_problems == [] and clean_unanswerable == [], (
         f"the clean fixture did not compare clean: {clean_problems} / {clean_unanswerable}"
+    )
+    assert clean_foreign == [], (
+        f"the clean fixture excused a claim it should have checked: {clean_foreign}"
     )
 
     # (b) The file is there but states a different licence. This is the finding a
@@ -1153,12 +1164,17 @@ def test_notice_bundled_licence_files_state_the_clauses_named_for_them(tmp_path:
     swapped = build(
         tmp_path / "swapped", "MIT License\n\nPermission is hereby granted, free of charge\n"
     )
-    swapped_problems, swapped_unanswerable = watch.bundled_entry_problems([entry], swapped)
+    swapped_problems, swapped_unanswerable, swapped_foreign = watch.bundled_entry_problems(
+        [entry], swapped
+    )
     assert len(swapped_problems) == 1 and "lgpl" in swapped_problems[0], (
         f"an LGPL claim over a file holding MIT text produced: {swapped_problems}"
     )
     assert swapped_unanswerable == [], (
         f"the swapped case was reported as unanswerable: {swapped_unanswerable}"
+    )
+    assert swapped_foreign == [], (
+        f"the swapped case excused a claim it should have checked: {swapped_foreign}"
     )
 
     # (c) The distribution is installed but its dist-info cannot be read -- no METADATA,
@@ -1167,24 +1183,50 @@ def test_notice_bundled_licence_files_state_the_clauses_named_for_them(tmp_path:
     hollow_root = tmp_path / "hollow"
     hollow_info = hollow_root / dist_info
     (hollow_info / "licenses").mkdir(parents=True)
-    hollow_problems, hollow_unanswerable = watch.bundled_entry_problems([entry], hollow_root)
+    hollow_problems, hollow_unanswerable, hollow_foreign = watch.bundled_entry_problems(
+        [entry], hollow_root
+    )
     assert hollow_problems == [], (
         f"a dist-info with no METADATA was reported as a §2.3 failure: {hollow_problems}"
     )
     assert hollow_unanswerable == [licence_relative], (
         f"the unreadable dist-info was not reported as the arm not running: {hollow_unanswerable}"
     )
+    assert hollow_foreign == [], (
+        f"the unreadable dist-info was excused as platform-foreign: {hollow_foreign}"
+    )
 
     # (d) The distribution is not installed at all: a finding about NOTICE, because §2.3
     # names a path inside a distribution this closure does not hold.
     missing_root = tmp_path / "missing"
     missing_root.mkdir()
-    missing_problems, missing_unanswerable = watch.bundled_entry_problems([entry], missing_root)
+    missing_problems, missing_unanswerable, missing_foreign = watch.bundled_entry_problems(
+        [entry], missing_root
+    )
     assert len(missing_problems) == 1 and "no distribution named" in missing_problems[0], (
         f"§2.3 naming a path inside an uninstalled distribution produced: {missing_problems}"
     )
     assert missing_unanswerable == [], (
         f"an absent distribution was reported as unreadable: {missing_unanswerable}"
+    )
+    assert missing_foreign == [], (
+        f"an absent distribution this platform installs was excused: {missing_foreign}"
+    )
+
+    # (d2) The same absent distribution, but one this platform does not install:
+    # the claim is not checkable here, and it is not a finding about NOTICE.
+    foreign_problems, foreign_unanswerable, foreign_claims = watch.bundled_entry_problems(
+        [entry], missing_root, ["synth"]
+    )
+    assert foreign_problems == [], (
+        f"a claim inside a distribution this platform does not install was reported as a "
+        f"finding about NOTICE: {foreign_problems}"
+    )
+    assert foreign_unanswerable == [], (
+        f"a platform-foreign claim was reported as unreadable: {foreign_unanswerable}"
+    )
+    assert len(foreign_claims) == 1 and "not installed on this platform" in foreign_claims[0], (
+        f"the platform-foreign claim was not reported as such: {foreign_claims}"
     )
 
     # (e) The version §2.3 names is part of the claim, on a fixture where it disagrees.

@@ -733,31 +733,68 @@ def dist_info_is_readable(dist_info_dir: Path) -> bool:
     return (dist_info_dir / "METADATA").is_file()
 
 
+def package_of_dist_info(dist_info: str) -> str | None:
+    """The package a `{name}-{version}.dist-info` directory belongs to.
+
+    PEP 427 writes the directory as the escaped distribution name, a dash, the
+    version, and the suffix. The version is the last dash-separated part, so
+    `pywin32-312.dist-info` is `pywin32` and `zope-interface-5.4.0.dist-info`
+    is `zope-interface`. A directory that does not carry that shape yields
+    `None`, and the caller then treats the claim as checkable here rather
+    than excusing it.
+    """
+    if not dist_info.endswith(".dist-info"):
+        return None
+    stem = dist_info[: -len(".dist-info")]
+    name, separator, version = stem.rpartition("-")
+    if not separator or not version:
+        return None
+    return canonical(name)
+
+
 def bundled_entry_problems(
     entries: Sequence[BundledEntry],
     site_packages: Path,
-) -> tuple[list[str], list[str]]:
+    foreign: Sequence[str] = (),
+) -> tuple[list[str], list[str], list[str]]:
     """§2.3's licence-file claims against the files the installed distributions hold.
 
-    Returns `(problems, unanswerable)`. Three states are distinguished:
+    Returns `(problems, unanswerable, foreign_claims)`. Four states are
+    distinguished:
 
       * the file is there and does not state the clause §2.3 credits it with -- a
         finding about NOTICE, and the one a file-exists-only check would miss, because
         §2.3 does not claim "a licence file exists", it claims which licence that file
         states;
-      * the distribution is not installed at all -- a finding about NOTICE when §2.3
-        names a path inside a distribution this closure does not hold;
+      * the distribution is not installed at all **and this platform does not install
+        it** -- **not** a finding about NOTICE. §2.3 names a file inside a
+        distribution the closure installs on another platform only (`pywin32` on
+        Windows), so on this platform the claim cannot be checked either way. It is
+        reported in `foreign_claims` so a witness can say the arm did not run here
+        rather than blaming the record for a package that is not here on purpose;
+      * the distribution is not installed at all, and this platform should install
+        it -- a finding about NOTICE, because §2.3 names a path inside a
+        distribution this closure does not hold;
       * the distribution is installed but its `dist-info` cannot be read -- **not** a
-      finding about NOTICE, and reported in `unanswerable` so a witness can say the arm
-      did not run rather than saying it passed or that the record is wrong.
+        finding about NOTICE, and reported in `unanswerable` so a witness can say the arm
+        did not run rather than saying it passed or that the record is wrong.
     """
     problems: list[str] = []
     unanswerable: list[str] = []
+    foreign_claims: list[str] = []
+    foreign_names = {canonical(name) for name in foreign}
     for entry in entries:
         for claim in entry.claims:
             dist_info, _, _remainder = claim.path.partition("/")
             dist_dir = site_packages / dist_info
             if not dist_dir.is_dir():
+                package = package_of_dist_info(dist_info)
+                if package is not None and package in foreign_names:
+                    foreign_claims.append(
+                        f"§2.3 names {claim.path}, and {dist_info} is not installed on this "
+                        "platform"
+                    )
+                    continue
                 problems.append(
                     f"§2.3 names {claim.path}, and no distribution named "
                     f"{dist_info} is installed here"
@@ -789,7 +826,7 @@ def bundled_entry_problems(
                     f"§2.3 credits {claim.path} with {', '.join(missing)}; the installed "
                     f"{dist_info} holds that file and it states none of them"
                 )
-    return problems, unanswerable
+    return problems, unanswerable, foreign_claims
 
 
 def installed_version_problems(
@@ -1082,7 +1119,7 @@ def main(argv: Sequence[str] = ()) -> int:
     entries = bundled_entries(notice_text)
     print(f"§2.3 entries: {len(entries)}")
     site = site_packages_of()
-    bundled_problems, unreadable = bundled_entry_problems(entries, site)
+    bundled_problems, unreadable, _foreign_claims = bundled_entry_problems(entries, site)
     for problem in bundled_problems:
         print(f"  BUNDLED {problem}")
     if unreadable:
