@@ -32,3 +32,10 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+  # The licence texts the installer carries. LGPL-2.1 section 1 requires a
+  # copy of the Licence to travel with the Library, and the plug-ins are
+  # distributed inside this installer rather than as installed files — so the
+  # texts have to be in the installer's own $PLUGINSDIR, beside the binaries
+  # they govern. `shell/nsis/licenses.nsh` declares the macro that puts them
+  # there; `shell/licenses/README.txt` records where each text came from.
+  include: nsis/licenses.nsh

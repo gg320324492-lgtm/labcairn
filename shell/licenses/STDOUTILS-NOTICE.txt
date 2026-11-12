@@ -1,0 +1,85 @@
+StdUtils plug-in for NSIS — notice and licence
+=============================================
+
+The installer distributed with LabCairn carries a copy of the StdUtils
+plug-in for NSIS (`StdUtils.dll`, 102,400 bytes, sha256
+`b72e9013a6204e9f01076dc38dabbf30870d44dfc66962adbf73619d4331601e`). This
+document states the terms that apply to that copy. It is written for this
+distribution from the upstream project's own notice and source headers, and
+it travels with the binary in the installer's `$PLUGINSDIR\licenses`
+directory.
+
+Copyright
+----------
+
+Copyright (C) 2004-2018 LoRd_MuldeR <MuldeR2@GMX.de>
+
+The StdUtils plug-in Library for NSIS is free software; you can redistribute
+it and/or modify it under the terms of the GNU Lesser General Public License
+as published by the Free Software Foundation; either version 2.1 of the
+License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA, or visit
+<https://www.gnu.org/licenses/>.
+
+The full text of the GNU Lesser General Public License version 2.1 travels
+with this document, in the file `LGPL-2.1.txt`.
+
+The copy this installer carries
+--------------------------------
+
+The `StdUtils.dll` in this installer is a verbatim copy of the upstream
+StdUtils 1.14 release build of 2018-10-27: it is byte for byte the file
+`Plugins/Unicode/StdUtils.dll` from the upstream release archive
+`StdUtils.2018-10-27.zip`. It is not modified, and no part of the
+StdUtils plug-in Library's source code is incorporated into any other part of
+the LabCairn distribution.
+
+The installer calls the plug-in strictly through the NSIS plug-in interface,
+and the copy it carries is the whole of the Library as distributed here. The
+author's own clarification of what that means for a distributor is
+reproduced verbatim in `STDOUTILS-LGPL-CLARIFICATION.txt`, which travels with
+this document; under it, an installer that incorporates and uses the plug-in
+through the plug-in interface and distributes verbatim copies of it is a "work
+that uses the Library" rather than a derivative of it, and may be distributed
+under the terms of the distributor's choice.
+
+Replaceability
+--------------
+
+The plug-in may be replaced. Nothing in this distribution restricts its
+modification, and LGPL-2.1 §2 permits a modified version to be distributed
+under the terms of §1, provided that the modified work carries the notices §2
+requires and is itself accompanied by its corresponding source code.
+
+In this distribution the plug-in is a build-time component of the installer
+rather than a component of the installed application: the installer extracts
+it to `$PLUGINSDIR` at install time and calls it there, and it is not
+installed as a file of its own. Replacing it therefore means replacing the
+copy inside the installer archive — a build of the plug-in that keeps the
+`StdUtils::TestParameter` export and its calling convention can be put in the
+archive's place before the installer runs.
+
+Corresponding source code
+-------------------------
+
+The complete corresponding source code for the `StdUtils.dll` this installer
+carries is the upstream `StdUtils.2018-10-27.Sources.tar` archive, which
+ships inside the upstream `StdUtils.2018-10-27.zip` release. The upstream
+release archive is published at
+
+    https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip
+
+with sha256
+`3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c`;
+the sources archive inside it has sha256
+`db9f98d7a947d5a6b7cd341e01edd412ea04510c5faee19a23b1e84582d86121`.
+`NOTICE` §2.5.1 records how the obligation to make that source available
+alongside the binary is discharged.

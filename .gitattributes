@@ -57,3 +57,15 @@ uv.lock             text eol=lf
 # diff would bury a real change.
 docs/plans/LC-P1-01-approved-amendments.md   text eol=lf
 docs/PHASE_1_WORKORDERS.md                  text eol=lf
+
+# Licence texts reproduced verbatim from their upstream sources.
+#
+# `shell/licenses/` holds third-party documents copied byte for byte from
+# gnu.org, from 7-zip.org and from the NSIS release. Two of them — 7-Zip's
+# licence text and the LZMA SDK notice upstream attributes nsis7z to — use
+# CRLF upstream, and `NOTICE` §2.5 quotes their upstream sizes and sha256s.
+# Normalising their line endings would change those bytes, make the copy the
+# installer carries differ from the copy upstream ships, and make the
+# installer's member differ from the repository's file. They are therefore
+# stored exactly as fetched, on every platform alike.
+shell/licenses/*.txt   -text
