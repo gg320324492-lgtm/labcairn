@@ -35,6 +35,15 @@ This was carried since G1 as "deferred, decide before LC-P1-08." LC-P1-08 is now
 
 No PDF dependency has been added to the repository. PyMuPDF appears in documentation only.
 
+> **Dated snapshot — true when written, superseded since.** This ADR was written
+> on 2026-10-17 (`1722326`), before `pdfplumber>=0.11,<1` entered
+> `pyproject.toml` on 2026-10-18 (`221bd91`). At `e991d49` the dependency is
+> present in `pyproject.toml` and `uv.lock`, and `src/labcairn/material/pdf.py`
+> imports it (`git grep -l 'import pdfplumber' HEAD -- src/` → one file, exit 0).
+> The sentence is left as written because it records what the decision was made
+> against; the "Chosen" row below states the decision, not the state of the
+> install at that moment.
+
 ## Alternatives
 
 | Package | Licence | Role | Verdict |
@@ -68,6 +77,14 @@ uv run --with pdfplumber python scripts/probes/pdf_spans.py
 ```
 
 The scripts are **not** wired into CI: they need `pdfplumber`, which is not yet a project dependency, and LC-P1-08 turns them into real tests when it adopts it. Parsing source was not studied, and **none of this is a benchmark** — no timing, no large document, no speed claim.
+
+> **Dated snapshot — true at this ADR's writing (2026-10-17, `1722326`).**
+> `pdfplumber>=0.11,<1` entered `pyproject.toml` on 2026-10-18 (`221bd91`),
+> the day after this ADR; at `e991d49` it is a declared runtime dependency,
+> `uv.lock` pins `pdfplumber 0.11.10`, and `src/labcairn/material/pdf.py`
+> imports it. The sentence is left as written because it states what the
+> decision was made against. The "Chosen" row above names the decision, and
+> the Decision section below names the resulting dependency.
 
 ## Decision
 

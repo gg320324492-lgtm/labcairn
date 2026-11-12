@@ -43,8 +43,8 @@ const NOTICE_PATH = path.resolve(import.meta.dirname, '..', 'NOTICE')
 const BINARY_HEADING = /^ {2}([A-Za-z0-9_.-]+\.(?:dll|exe)) — ([\d,]+) bytes$/
 /** `    sha256   b72e9013…` — one field of a §2.5 binary block. */
 const BINARY_FIELD = /^ {4}(path|sha256|bundle|licence|holder|where)\s{2,}(\S.*)$/
-/** A continuation line of a wrapped §2.5 field value. */
-const BINARY_CONTINUATION = /^ {11}\S/
+/** A continuation line of a wrapped §2.5 field value, aligned under its value. */
+const BINARY_CONTINUATION = /^ {5,}\S/
 /** `Measured 2026-11-11 … 15,488 bytes, sha256` + the hash on the next line. */
 const COPYING_CLAIM = /`COPYING` \(([\d,]+) bytes, sha256\s*\n?([0-9a-f]{64})\)/
 /**
@@ -295,6 +295,16 @@ const LICENCE_TEXT_OPENINGS = [
  */
 export function licenceDocumentKind(file) {
   if (LICENCE_NAME.test(path.basename(file))) return 'name'
+  // A file that travels *in a licences directory* is a licence text, whatever its
+  // name. Measured here: the installer's six texts are `LGPL-2.1.txt`,
+  // `STDOUTILS-NOTICE.txt`, `STDOUTILS-LGPL-CLARIFICATION.txt`,
+  // `NSIS7Z-LICENSE.txt`, `7ZIP-LICENSE.txt` and `README.txt`, and a name
+  // pattern recognised **one** of the six -- the others carry the licence word
+  // after a hyphen, which the pattern's separator class did not include. So the
+  // extract arm counted one licence document where the archive carries six, and
+  // §2.5.1's own wording is "the licence texts under `$PLUGINSDIR\licenses\`":
+  // the directory is the rule.
+  if (LICENCE_DIRECTORY.test(path.dirname(file))) return 'directory'
   let head
   try {
     const handle = fs.openSync(file, 'r')
@@ -310,6 +320,151 @@ export function licenceDocumentKind(file) {
   }
   if (/\x00/.test(head)) return null
   return LICENCE_TEXT_OPENINGS.some((pattern) => pattern.test(head)) ? 'text' : null
+}
+
+/** A directory whose name says the files in it are licence texts. */
+const LICENCE_DIRECTORY = /(^|[\\/])(licen[cs]es?)$/i
+
+/**
+ * The licence texts the repository ships, and the hashes its README records.
+ *
+ * §2.5.1 states that "hashing the six members gives the sha256s of the
+ * repository's six files -- five of the six are recorded in
+ * `shell/licenses/`'s `README.txt`, the sixth being that README itself, which
+ * cannot record its own hash". That is a claim about bytes, and it is checkable
+ * twice over: the README's recorded hashes must match the files in the tree, and
+ * the texts the installer carries must be those files.
+ *
+ * The README is parsed per entry -- a heading naming the file, then its byte
+ * count, then its hash -- rather than by collecting every hash in the document.
+ * The LGPL entry quotes a *different* file's hash (upstream's own `LGPL.txt`,
+ * `1e7e6bae…`), and a reader that took every hash in the file would attribute
+ * that one to `LGPL-2.1.txt` and report a mismatch against a correct tree.
+ */
+export function licenceTextClaims(readmeText) {
+  const claims = new Map()
+  const entry = /^`([^`]+)`\s*$/gm
+  const starts = [...readmeText.matchAll(entry)]
+  for (let index = 0; index < starts.length; index += 1) {
+    const name = starts[index][1]
+    const from = starts[index].index + starts[index][0].length
+    const to = index + 1 < starts.length ? starts[index + 1].index : readmeText.length
+    const body = readmeText.slice(from, to)
+    // The size and the word "sha256" may sit on different lines: the
+    // STDOUTILS-NOTICE.txt entry reads "4,052 bytes,\nsha256\n    `hash`". A
+    // pattern that required them on one line read four of the five claims the
+    // section says the README records, and the file it then could not account
+    // for looked like one the README had never mentioned.
+    const claim = /([\d,]+) bytes,?\s*\n?\s*sha256\s*\n\s*`([0-9a-f]{64})`/.exec(body)
+    if (!claim) continue
+    claims.set(name, { bytes: Number(claim[1].replace(/,/g, '')), sha256: claim[2] })
+  }
+  return claims
+}
+
+/**
+ * The repository's licence texts against the hashes its README records.
+ *
+ * `dir` is the repository's own `shell/licenses/`. The README cannot record its
+ * own hash, so it is exempt; every other file must match both the byte count and
+ * the sha256 its entry states. A file edited without its README entry updated is
+ * the drift this catches -- and it is the drift that would put a different text
+ * in the installer than the one the record describes.
+ */
+export function licenceTextFileProblems(claims, dir) {
+  const problems = []
+  for (const [name, claim] of claims) {
+    const file = path.join(dir, name)
+    if (!fs.existsSync(file)) {
+      problems.push(`shell/licenses/README.txt records ${name} (${claim.bytes} bytes, sha256 ${claim.sha256.slice(0, 12)}…), and the tree holds no such file`)
+      continue
+    }
+    const print = fingerprint(file)
+    if (print.bytes !== claim.bytes) {
+      problems.push(`shell/licenses/README.txt records ${name} as ${claim.bytes} bytes; the file is ${print.bytes}`)
+    }
+    if (print.sha256 !== claim.sha256) {
+      problems.push(`shell/licenses/README.txt records ${name} as sha256 ${claim.sha256.slice(0, 16)}…; the file is ${print.sha256.slice(0, 16)}…`)
+    }
+  }
+  return problems
+}
+
+/**
+ * The licence texts the artefact carries against the repository's own files.
+ *
+ * §2.5.1 claims the six carried members *are* the repository's six files. That is
+ * the claim that discharges §1: the text travelling with `StdUtils.dll` has to be
+ * the text this tree holds, byte for byte. Naming them is not enough -- the bytes
+ * are what travel.
+ *
+ * `carried` are the extract's licence-text members (name and hash), `dir` the
+ * repository's `shell/licenses/`. Both directions: a text the installer carries
+ * that the tree does not hold, and a file the tree holds that the installer does
+ * not carry.
+ */
+export function carriedLicenceTextProblems(carried, dir) {
+  const problems = []
+  const repository = new Map()
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue
+    repository.set(entry.name.toLowerCase(), fingerprint(path.join(dir, entry.name)))
+  }
+  const carriedNames = new Set()
+  for (const member of carried) {
+    const name = path.posix.basename(member.member)
+    const key = name.toLowerCase()
+    carriedNames.add(key)
+    const own = repository.get(key)
+    if (!own) {
+      problems.push(`the installer carries ${member.member}, which shell/licenses/ does not hold`)
+      continue
+    }
+    if (member.sha256 && own.sha256 !== member.sha256) {
+      problems.push(
+        `the installer's ${name} is sha256 ${String(member.sha256).slice(0, 16)}… and shell/licenses/${name} is ${own.sha256.slice(0, 16)}… — the text travelling with the installer is not the text this tree holds`,
+      )
+    }
+  }
+  for (const [name] of repository) {
+    if (!carriedNames.has(name)) {
+      problems.push(`shell/licenses/${name} is not carried by the installer`)
+    }
+  }
+  return problems
+}
+
+/**
+ * What an extract actually covers.
+ *
+ * An extract is not the installer: it is whatever was unpacked. Measured here, the
+ * 2026-11-12 build's `extract3` holds only `$PLUGINSDIR\licenses\` -- the six
+ * licence texts, and none of the seven plug-in DLLs. An arm that needed the
+ * plug-ins and compared the whole extract against §2.5's eight binaries would
+ * report that the installer carries none of them, which is a red about the
+ * record caused by an extract that never held them.
+ *
+ * So each arm says what its source covers: the plug-in arms need the plug-ins,
+ * the payload arm needs the payload, and the licence-text arm needs the texts.
+ * A source that covers a layer is evidence for that layer only.
+ */
+export function extractCoverage(members) {
+  const plugins = members.filter((member) => /^\$PLUGINSDIR\/[^/]+\.(?:dll|exe)$/i.test(member.member))
+  const payload = members.filter((member) => /^resources\/[^/]+\.(?:dll|exe)$/i.test(member.member))
+  const texts = members.filter((member) => /^\$PLUGINSDIR\/licen[cs]es\//i.test(member.member))
+  return {
+    plugins,
+    payload,
+    texts,
+    coversPlugins: plugins.length > 0,
+    coversPayload: payload.length > 0,
+    coversTexts: texts.length > 0,
+    summary: [
+      `${plugins.length} plug-in binary(ies)`,
+      `${payload.length} payload binary(ies)`,
+      `${texts.length} licence text(s)`,
+    ].join(', '),
+  }
 }
 
 /**
@@ -593,7 +748,81 @@ export function listedSizeProblems(members, recorded) {
  * record has to be re-measured, and this is the arm that says so without needing
  * the extract of an installation-time directory.
  */
-export function listedCensusProblems(members, recordedCensus, claimsCarry, licenceDocuments) {
+/**
+ * §2.5.1's three obligation states, read from their own bullets.
+ *
+ * The section does **not** have one state. It has three, and they are deliberately
+ * different: the §1 text-and-notice obligation is DONE, the §4 corresponding-source
+ * route is PARTLY DONE / NOT YET POINTED AT, and replaceability is NOT MEASURED. A
+ * reader that scanned the whole section for `DONE` or `NOT DONE` would let one
+ * bullet's word decide the whole record, and the word appears in all three. The
+ * text-and-notice bullet is identified by its own heading, and the other two are
+ * required to be present so the shape is watched rather than assumed.
+ */
+export function obligationStates(noticeText) {
+  const section = noticeSubsection(noticeText, '2.5.1').join(' ')
+  const textAndNotice = /\*\*The licence text and the notice \(§1, §6\) — (DONE|NOT DONE)\.\*\*/.exec(section)
+  const correspondingSource = /\*\*The corresponding source \(§4, §6\(c\)\) — PARTLY DONE/.test(section)
+  const replaceability = /\*\*Replaceability \(§6\(b\)[^*]*— NOT\s+MEASURED\.\*\*/.test(section)
+  return {
+    textAndNotice: textAndNotice ? textAndNotice[1] : null,
+    correspondingSource,
+    replaceability,
+  }
+}
+
+/**
+ * How many licence texts §2.5.1 says the archive carries.
+ *
+ * The section states "six of them are the licence texts under
+ * `$PLUGINSDIR\licenses\`" for the 2026-11-12 build, and "none of them is a licence
+ * document" for the older one. That number is a claim about the artefact, not a
+ * restatement of DONE: a record can say DONE while naming five, or NOT DONE while
+ * naming none, and the listing is what decides. `null` means the section printed no
+ * count at all, which is reported rather than compared as zero.
+ */
+export function licenceTextCountClaim(noticeText) {
+  const section = noticeSubsection(noticeText, '2.5.1').join(' ')
+  const none = /none of them is a licence\s+document/i.test(section)
+  if (none) return 0
+  // The section wraps this sentence, and `join(' ')` keeps each line's leading
+  // indentation -- "six of them are     the licence texts". A pattern that
+  // required one space read nothing out of a section that states the count
+  // plainly, and the text-count arm then reported itself as unmeasurable.
+  const match = /\*\*(\w+)\*\* of them are\s+the licence texts/i.exec(section)
+    ?? /(\w+) of them are\s+the licence texts/i.exec(section)
+  if (!match) return null
+  return _COUNT_WORDS[match[1].toLowerCase()] ?? null
+}
+
+const _COUNT_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+}
+
+/**
+ * §2.5.1's ten/sixteen-member census and its licence-text state against a listing.
+ *
+ * Two independent properties are checked against the same artefact:
+ *
+ *   * the archived member count and the seven plug-in DLLs;
+ *   * the **§1 text-and-notice state and its stated text count**: `DONE` with the
+ *     stated number of `licences/` documents, or `NOT DONE` with none. Both
+ *     consistent states must pass -- this is an equivalence, not a rule that
+ *     requires one particular word. Either direction of disagreement reddens it.
+ *
+ * `recordedTexts` is §2.5.1's own number (`null` when it prints none). The other
+ * two obligation states are required to be present: reading the whole section as
+ * one DONE/NOT DONE sentence would let the §4 or §6(b) bullet decide the §1 arm.
+ */
+export function listedCensusProblems(
+  members,
+  recordedCensus,
+  claimsCarry,
+  licenceDocuments,
+  recordedTexts = null,
+) {
   const problems = []
   const plugin = members.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
   const uninstaller = members.filter((member) => /^\$R0\//.test(member.member))
@@ -623,6 +852,17 @@ export function listedCensusProblems(members, recordedCensus, claimsCarry, licen
       + `${docs.length} licence document(s) under $PLUGINSDIR `
       + `(${docs.map((member) => member.member).join(', ')}) — the record is behind the `
       + 'artefact, and §2.5.1 has to be re-measured against it',
+    )
+  }
+  if (recordedTexts === null) {
+    problems.push(
+      '§2.5.1 states no count of licence texts for the NSIS archive, so its "six of them '
+      + 'are the licence texts" claim has nothing to compare with the listing',
+    )
+  } else if (recordedTexts !== docs.length) {
+    problems.push(
+      `§2.5.1 states ${recordedTexts} licence text(s) in the NSIS archive; the listing `
+      + `names ${docs.length} under $PLUGINSDIR`,
     )
   }
   return problems
@@ -798,6 +1038,127 @@ export function toolchainRecordProblems(records, declarations) {
 export function bundleNamedFromRecord(record) {
   const match = /^(nsis-resources-[\d.]+|nsis-[\d.]+)/.exec(record.fields.bundle ?? '')
   return match ? match[1] : null
+}
+
+// ---------------------------------------------------------------------------
+// Where a named licence's terms come from.
+//
+// `nsis-resources-3.4.1` carries no licence document. §2.5's records therefore
+// name the *upstream* source of each grant: a plug-in's own source header, the
+// 7-Zip terms, and -- after the upstream-provenance review -- NSIS 3.13's
+// `LICENSES` tree, which attributes UAC.dll and WinShell.dll to their upstream
+// release archives. Those are different artefacts from the bundle the build
+// downloads, and keeping them apart is the point: a source inside the bundle is
+// not the same claim as a source in NSIS's own release tree.
+// ---------------------------------------------------------------------------
+
+/** A short `sha256 997fd014…` reference as §2.5 writes it. */
+const SHORT_HASH = /sha256\s+([0-9a-f]{8})…/gi
+
+/** A source named in a §2.5 `where` field: an URL or a backticked file path. */
+const SOURCE_PATH = /`([^`]+)`|https?:\/\/[^\s`.,;)]+/g
+
+/**
+ * Read the "where the terms come from" claims out of one §2.5 record.
+ *
+ * Two shapes count as a source: a named path/URL, and a short sha256 that binds
+ * the claim to a specific artefact. A record with a named licence but neither is
+ * the defect this reads for -- a grant with no provenance. A record with only a
+ * hash and no path is incomplete in the other direction: the hash says *which*
+ * bytes, but not *where* they came from.
+ */
+export function termsSources(record) {
+  const where = record.fields.where ?? ''
+  const hashes = [...where.matchAll(SHORT_HASH)].map((match) => match[1].toLowerCase())
+  const paths = [...where.matchAll(SOURCE_PATH)].map((match) => (match[1] ?? match[0]).trim())
+  // A source route is either an upstream URL/archive, a file inside the NSIS
+  // LICENSES tree, or a *prose* statement of where the grant is stated. StdUtils
+  // is the third shape: §2.5 says "the plug-in's own source header states the
+  // grant" and names no backticked path, because the header does not survive into
+  // the installer. That is a source and a limit, not an absence -- demanding a
+  // path for it would turn a correct record into a failure for a reason that has
+  // nothing to do with the property under watch.
+  const named = paths.filter((value) =>
+    /nsis\.sourceforge\.io|github\.com|LICENSES|\.zip|\.txt|api\.h|COPYING|source header|7-Zip/i.test(value),
+  )
+  const proseSource = /source header states the grant|7-Zip's terms|compiled binary carries no licence text|LICENSES` tree|upstream NSIS/i.test(where)
+  return { hashes, paths: named, proseSource, hasTermsSource: named.length > 0 || proseSource, text: where }
+}
+
+/**
+ * §2.5's named-licence records against the requirement that each names its source.
+ *
+ * No count is watched: the number of plug-ins whose terms have been resolved is a
+ * measurement that can grow as upstream provenance is found. What must hold is
+ * that every record stating a specific licence states where that licence comes
+ * from, and every short hash it quotes is bound to a named source. A record still
+ * marked `unresolved` is allowed to have none: that is what the word means.
+ */
+export function termsSourceProblems(records) {
+  const problems = []
+  let named = 0
+  for (const record of records) {
+    const licence = record.fields.licence ?? ''
+    if (/unresolved/i.test(licence)) continue
+    named += 1
+    const source = termsSources(record)
+    if (!source.hasTermsSource) {
+      problems.push(`${record.name}: §2.5 records ${JSON.stringify(licence)} but its \`where\` field names no source for the terms`)
+    }
+    if (source.hashes.length > 0 && source.paths.length === 0) {
+      problems.push(`${record.name}: §2.5 quotes ${source.hashes.length} sha256 value(s) but names no source path they belong to`)
+    }
+  }
+  if (named === 0) {
+    problems.push('§2.5 names no licence at all for these binaries, so the source requirement has nothing to watch')
+  }
+  return { problems, named }
+}
+
+/**
+ * The short hashes §2.5 quotes against the files in an upstream provenance tree.
+ *
+ * `LABCAIRN_LICENCE_UPSTREAM_DIR` names a directory holding NSIS 3.13's
+ * `LICENSES` tree (and, optionally, the upstream release archives). Each short
+ * hash is looked up by hashing the files under that directory: a match proves the
+ * record's quoted bytes are really there, a miss says so by name. The lookup is
+ * deliberately over files rather than over a hard-coded path list -- §2.5's
+ * `where` fields name paths inside an upstream tree whose layout is not this
+ * repository's to pin.
+ */
+export function upstreamHashProblems(records, upstreamDirs) {
+  // The upstream evidence lives in more than one place: NSIS 3.13's `LICENSES`
+  // tree holds the licence texts (UAC's `License.txt`, WinShell's
+  // `NOTICE-plugin-api.txt`, nsis7z's `DOC/License.txt`), while the release
+  // archives themselves (`UAC.zip`, `WinShell.zip`) were fetched into a separate
+  // provenance directory for the obligation review. Both are named by
+  // `LABCAIRN_LICENCE_UPSTREAM_DIR`, `path.delimiter`-separated.
+  const dirs = (Array.isArray(upstreamDirs) ? upstreamDirs : [upstreamDirs])
+    .filter(Boolean)
+    .filter((dir) => fs.existsSync(dir))
+  if (dirs.length === 0) {
+    return { available: false, problems: [], unmeasured: records.flatMap((record) => termsSources(record).hashes) }
+  }
+  const real = new Map()
+  for (const dir of dirs) {
+    for (const file of bundleFiles(dir)) {
+      const print = fingerprint(file)
+      real.set(print.sha256.slice(0, 8), { file, ...print })
+    }
+  }
+  const problems = []
+  const matched = []
+  for (const record of records) {
+    for (const short of termsSources(record).hashes) {
+      const found = real.get(short)
+      if (!found) {
+        problems.push(`${record.name}: §2.5 quotes sha256 ${short}… and no file under ${dirs.join(', ')} hashes to it`)
+        continue
+      }
+      matched.push({ record: record.name, short, ...found })
+    }
+  }
+  return { available: true, problems, matched, unmeasured: [] }
 }
 
 async function main(argv) {

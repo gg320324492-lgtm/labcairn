@@ -147,7 +147,7 @@ declaration fixes below add three — a name with no matrix, the
 **not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
 `fail-fast: false`; the name is unique across every workflow; each recorded file
 still declares at least its Node cases, anchored at the revision the floors name
-(5/3/5/8/5/6/7/8/14/7/7/4 = 79 across twelve files); and no shell test file exists without a
+(5/3/5/9/5/6/7/8/14/7/7/4 = 80 across twelve files); and no shell test file exists without a
 recorded floor. Several witnesses feed the file's own readers synthetic trees — a
 command naming three of twelve files, a glob that does not cross a directory, a matrix
 axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
@@ -162,7 +162,7 @@ is why the floors and the recorded-floor check exist.
 
 **Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
 `lint`'s once was; the first runner run is the measurement. A development-machine run of
-the same command shape measured 79/79 on Node v24.16.0. Neither is a recorded cost; the
+the same command shape measured 80/80 on Node v24.16.0. Neither is a recorded cost; the
 `0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.

@@ -244,6 +244,17 @@ runners, and it is the machine the work was written on. So the rule is
 about *when a run starts*, not about *whether the work is checked* — and a
 change that is going to the owner should be checked by the runner first.
 
+> **Dated snapshot — true when written, re-measured 2026-11-12.** The
+> **sixteen** in the paragraph above is the branch-protection reading at this
+> document's writing. The reading taken on 2026-11-11 at
+> `6b3211ae631c7c9548ca160615f88daa6da7d5dd`, and re-read live on 2026-11-12,
+> is **fifteen** required contexts (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 15, exit 0); `.github/CI.md`'s
+> fenced list names fifteen. The sentence is left as written because it is a
+> dated reading; the rule it explains — a run is not started unless it is
+> needed — has not changed.
+
 **What it does not change.** C-1 still holds: a required `pull_request`
 workflow runs unfiltered, and the test that watches that is still there. The
 decision is about **this session's** behaviour, not about the gate's rules.

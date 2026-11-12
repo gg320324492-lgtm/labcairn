@@ -70,6 +70,19 @@ container and [the archives index](../../CHANGELOG.md#archives).
   branch-protection decisions, and the drain witness's repair below. Twenty
   checks passed and the schedule-only `evaluation` job skipped by design;
   the ledger across the merge reports `LOST -- none` and `ADDED -- 15`.
+
+> **Denominators, re-measured 2026-11-12 and left in the dated entry.** The
+> merge carries **ten** commits, not nine: `git rev-list --count
+> 720275af^1..720275af^2` → 10, and `gh pr view 157 --json commits` → 10. The
+> check runs on the merge commit are **17 `success` and 1 `skipped`
+> (`evaluation`)** — 18 reported checks, not twenty
+> (`gh api …/commits/720275af…/check-runs`, exit 0). A `gh pr view 157
+> --json statusCheckRollup` read gives 21 rows because it also includes the
+> pull-request-side entries; that is a third denominator. The countable claim
+> is: ten commits landed, seventeen checks passed, one was skipped by design.
+> The bullet above is left as written because it is a dated record; this note
+> says which of its numbers a reader can reproduce.
+
 - **An independent re-review of NOTICE's own classification.** The 268
   packages' identifiers were taken independently, from the registry and from
   each published tarball: **228 confirmed permissive, 40 need the owner's

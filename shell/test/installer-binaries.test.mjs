@@ -75,17 +75,26 @@ import {
   bundleFiles,
   bundleNamedFromRecord,
   defaultCacheDir,
+  extractCoverage,
   extractMembers,
   findCacheBundles,
   fingerprint,
   isLicenceDocument,
   licenceDocumentKind,
   licenceDocumentsIn,
+  carriedLicenceTextProblems,
   compressedSizeTable,
+  licenceTextClaims,
+  licenceTextCountClaim,
+  licenceTextFileProblems,
   listedCensusProblems,
   listedLicenceDocuments,
   listedSizeProblems,
+  obligationStates,
   memberRecordProblems,
+  termsSourceProblems,
+  termsSources,
+  upstreamHashProblems,
   parseInstallerListing,
   recordLayer,
   storeDirectoryFor,
@@ -99,7 +108,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.resolve(HERE, '..')
 const REPO_ROOT = path.resolve(SHELL_ROOT, '..')
 
-const NOTICE_TEXT = readNotice()
+// The override exists for the mutation checks: a witness that can only be shown
+// to fail by editing a tracked file is a witness whose mutation checks leave the
+// tree dirty. Every §2.5 reader in this file reads NOTICE_TEXT, so one override
+// moves the whole record while the artefacts stay untouched.
+const NOTICE_TEXT = readNotice(process.env.LABCAIRN_LICENCE_NOTICE ?? undefined)
 const RECORDS = binaryRecords(NOTICE_TEXT)
 const COPYING = copyingClaim(NOTICE_TEXT)
 
@@ -243,6 +256,22 @@ function listedMembers() {
 
 const CACHE = findCacheBundles(CACHE_DIR)
 
+/**
+ * Where the *upstream* provenance lives, as distinct from the bundle the build
+ * downloads. `nsis-resources-3.4.1` carries no licence document; the terms for
+ * UAC.dll and WinShell.dll come from NSIS 3.13's `LICENSES` tree and from the
+ * upstream release archives themselves. §2.5 quotes short sha256 values for
+ * both, and this is the source that can confirm those bytes.
+ *
+ * `LABCAIRN_LICENCE_UPSTREAM_DIR` names one or more directories, separated by
+ * `path.delimiter`. It is an override like the other artefact variables: the
+ * upstream release is not part of the checkout, and a runner that has none of it
+ * reports the hash arm as NOT RUN rather than pretending to have measured it.
+ */
+const UPSTREAM_DIRS = (process.env.LABCAIRN_LICENCE_UPSTREAM_DIR ?? '')
+  .split(path.delimiter)
+  .filter((entry) => entry.length > 0 && fs.existsSync(entry))
+
 const NO_LISTING_REASON =
   'no installer listing or extract (LABCAIRN_LICENCE_INSTALLER_LISTING names saved `7z l` '
   + 'output, LABCAIRN_LICENCE_INSTALLER names the exe to list, and '
@@ -356,6 +385,7 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   const listings = nsisListings()
   const listed = listedMembers()
   const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const COVERAGE = extractCoverage(extracted)
   // Any layer is evidence. A caller with only the payload's `7z l` output can
   // still measure §2.5's `elevate.exe` record; requiring the NSIS layer here was
   // the last shape of "an arm that could not look" -- it reported no source at all
@@ -400,8 +430,13 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   // source. Only the layers a source was actually available for are compared, and
   // the other one is reported as NOT RUN rather than called a finding.
   const layers = new Set()
-  if (listings.length > 0 || inScope.some((member) => member.member.startsWith('$PLUGINSDIR/'))) layers.add('plugins')
-  if (inScope.some((member) => member.member.startsWith('resources/'))) layers.add('payload')
+  // A layer is measured when the source presents that layer's *binaries*. An
+  // extract of `$PLUGINSDIR\licenses\` alone holds six licence texts and no
+  // plug-in; counting it as evidence about the plug-ins would report that the
+  // installer carries none of them.
+  if (listings.length > 0 || COVERAGE.coversPlugins) layers.add('plugins')
+  if (listings.some((listing) => listing.members.some((member) => member.member.startsWith('resources/')))
+    || COVERAGE.coversPayload) layers.add('payload')
   const { unrecorded, missing } = memberRecordProblems(binaries, RECORDS, [...layers])
   for (const layer of ['plugins', 'payload']) {
     if (!layers.has(layer)) {
@@ -470,7 +505,16 @@ test('the zlib/libpng terms §2.5 records for four binaries are stated by the CO
   )
 })
 
-test('the two §2.5 records it calls unresolved are unresolved because their bundle states no terms at all', () => {
+test('every named licence in the licence-less bundle names where its terms come from', () => {
+  // **The invariant, not the count.** §2.5's four records from
+  // `nsis-resources-3.4.1` all name a licence now: StdUtils through its own source
+  // header, nsis7z through 7-Zip's terms, and UAC/WinShell through upstream NSIS
+  // 3.13's `LICENSES` tree. A previous version of this case asserted "exactly
+  // two", which went red the moment the record became more accurate. The number
+  // is a measurement that may grow as upstream provenance is found; what must
+  // hold is that a record naming a licence also names *where that licence comes
+  // from*, and that the source is an upstream artefact rather than the bundle
+  // itself -- which carries no licence file at all.
   if (!CACHE.available) {
     notRun('nsis-resources-3.4.1\'s absence of a licence document', CACHE_REASON)
     return
@@ -488,18 +532,47 @@ test('the two §2.5 records it calls unresolved are unresolved because their bun
     )
     return
   }
-  // No document: the records that state a *specific* licence for a binary from
-  // this bundle are the ones that need a source, and §2.5 gives one for the two
-  // LGPL entries (the plug-in's own source header, the 7-Zip terms) while
-  // naming the other two as unresolved.
-  const specific = RECORDS.filter(
-    (record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1' && !/unresolved/i.test(record.fields.licence ?? ''),
-  )
-  assert.equal(
-    specific.length,
-    2,
-    `§2.5 records ${specific.length} binaries from nsis-resources-3.4.1 with a named licence; with no licence document in that bundle, only the two whose grant comes from elsewhere (StdUtils' own source header, 7-Zip's terms) can be recorded, and ${specific.map((s) => s.name).join(', ')} would need a source`,
-  )
+
+  const fromBundle = RECORDS.filter((record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1')
+  assert.ok(fromBundle.length > 0, '§2.5 names no binary from nsis-resources-3.4.1, so the source requirement has nothing to watch')
+
+  // Every named licence records a source. `unresolved`, if any remain, is allowed
+  // to have none -- that is what the word means.
+  ran('§2.5\'s named licences against their stated sources')
+  const sourceCheck = termsSourceProblems(fromBundle)
+  assert.deepEqual(sourceCheck.problems, [], sourceCheck.problems.join('; '))
+  assert.equal(sourceCheck.named, fromBundle.length - recordedUnresolved.length,
+    `§2.5 names ${sourceCheck.named} licences and ${recordedUnresolved.length} unresolved entries; the two must account for every record from this bundle`)
+
+  // The sources are two different artefacts and must not be conflated: the bundle
+  // electron-builder downloads carries no licence document, while the NSIS 3.13
+  // release tree does. A `where` field that pointed at the downloaded bundle for
+  // UAC/WinShell would be citing a document this arm has just shown is absent.
+  const nsis313 = fromBundle.filter((record) => /LICENSES|upstream NSIS/i.test(termsSources(record).text))
+  assert.ok(nsis313.length > 0, 'no §2.5 record names upstream NSIS 3.13\'s LICENSES tree as a source; the UAC/WinShell grants have nowhere to be checked')
+  for (const record of nsis313) {
+    assert.doesNotMatch(
+      termsSources(record).text,
+      /nsis-resources-3\.4\.1[^\n]*\b(COPYING|LICENSE|licence document)\b/i,
+      `${record.name}: §2.5 cites the downloaded bundle for its terms, but the bundle carries no licence document -- the two sources are different artefacts`,
+    )
+  }
+
+  // The quoted short hashes, checked against the real upstream files where the
+  // provenance tree is available. Where it is not, the arm says exactly what it
+  // did not measure: the source-path requirement above still ran.
+  const upstream = upstreamHashProblems(fromBundle, UPSTREAM_DIRS)
+  if (!upstream.available) {
+    notRun('§2.5\'s quoted upstream sha256 values against the real files',
+      `no upstream NSIS 3.13 LICENSES tree or release archives (LABCAIRN_LICENCE_UPSTREAM_DIR names one, path.delimiter-separated); ${upstream.unmeasured.length} quoted hash(es) were not measured here: ${upstream.unmeasured.join(', ') || 'none'}`)
+    return
+  }
+  ran('§2.5\'s quoted upstream sha256 values against the real files')
+  assert.deepEqual(upstream.problems, [], upstream.problems.join('; '))
+  assert.ok(upstream.matched.length > 0, 'the upstream tree was found but none of §2.5\'s quoted hashes were checked, so the hash arm measured nothing')
+  const quoted = fromBundle.flatMap((record) => termsSources(record).hashes)
+  assert.equal(upstream.matched.length, quoted.length,
+    `§2.5 quotes ${quoted.length} short hash(es) and ${upstream.matched.length} were bound to real files upstream`)
 })
 
 // ---------------------------------------------------------------------------
@@ -590,6 +663,7 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   const nsis = nsisListings()
   const listed = listedMembers()
   const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const COVERAGE = extractCoverage(extracted)
   if (nsis.length === 0 && extracted.length === 0) {
     // A payload-only listing cannot check §2.5.1's NSIS-archive census: that
     // section is about the installer's own ten members, and the outer 7z payload
@@ -602,11 +676,26 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   ran(`the installer listing against §2.5.1 (${nsis.length} NSIS listing(s), ${extracted.length} extracted member(s))`)
 
   const section = noticeSubsection(NOTICE_TEXT, '2.5.1').join('\n')
-  const claimsCarry = /\*\*The licence text and the notice \(§1, §6\) — DONE\.\*\*/.test(section)
-  const claimsAbsent = /The licence text and the notice \(§1, §6\) — NOT DONE/.test(section)
+  // §2.5.1 is **three** separate obligation states, not one. The §1 text-and-
+  // notice state is DONE or NOT DONE; the §4 corresponding-source state is
+  // PARTLY DONE, NOT YET POINTED AT; replaceability is NOT MEASURED. Reading
+  // `DONE`/`NOT DONE` across the whole section would let one bullet's word decide
+  // an arm that is about the other bullet. The state is read from its own bullet,
+  // and the other two are required to be present so the shape itself is watched.
+  const states = obligationStates(NOTICE_TEXT)
   assert.ok(
-    claimsCarry !== claimsAbsent,
-    '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE", so there is no recorded state to compare the artefact with',
+    states.textAndNotice === 'DONE' || states.textAndNotice === 'NOT DONE',
+    '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE" in its §1 bullet, so there is no recorded state to compare the artefact with',
+  )
+  assert.ok(
+    states.correspondingSource && states.replaceability,
+    '§2.5.1 no longer separates the §4 corresponding-source (PARTLY DONE) and §6(b) replaceability (NOT MEASURED) states from the §1 text-and-notice state; the three must not be read as one',
+  )
+  const claimsCarry = states.textAndNotice === 'DONE'
+  const recordedTexts = licenceTextCountClaim(NOTICE_TEXT)
+  assert.ok(
+    recordedTexts !== null,
+    '§2.5.1 states no count of licence texts for the NSIS archive ("six of them are the licence texts" / "none of them is a licence document"), so its text claim has nothing to compare with the listing',
   )
   // §2.5.1 writes the number out ("lists **ten** members"), not as a digit. A
   // pattern that asked for `\d+` read nothing out of a section that states its
@@ -618,6 +707,8 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
   assert.ok(census, '§2.5.1 states no member count for the NSIS archive, so its census has nothing to compare with')
   const MEMBER_COUNT_WORDS = {
     eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+    fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+    nineteen: 19, twenty: 20,
   }
   const recordedCensus = MEMBER_COUNT_WORDS[census[1].toLowerCase()]
   assert.ok(
@@ -646,7 +737,7 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       return true
     })
     const documents = listedLicenceDocuments(unique)
-    const problems = listedCensusProblems(unique, recordedCensus, claimsCarry, documents)
+    const problems = listedCensusProblems(unique, recordedCensus, claimsCarry, documents, recordedTexts)
     assert.deepEqual(problems, [], problems.join('; '))
     // §5.4's seven compressed sizes are a second statement about the same
     // archive, and `Packed Size` in the listing is the artefact's answer. They
@@ -662,7 +753,12 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
 
   // Where an extract really exists, its own member census agrees with the same
   // record, and the documents it holds are the ones the listing named.
-  if (extracted.length > 0) {
+  //
+  // An extract is not the installer: it is whatever was unpacked. The 2026-11-12
+  // build's `extract3` holds only `$PLUGINSDIR\licenses\` -- six texts and no
+  // plug-in -- so the census arm below is measurable from it and the plug-in
+  // census is not. Each arm says which.
+  if (extracted.length > 0 && COVERAGE.coversPlugins) {
     ran('§2.5.1\'s census against the installer extract')
     const pluginsdir = extracted.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
     const pluginDlls = pluginsdir.filter((member) => /\.dll$/i.test(member.member))
@@ -676,11 +772,24 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       recordedCensus - 1,
       `§2.5.1 counts ${recordedCensus} NSIS-archive members: ${recordedCensus - 1} under $PLUGINSDIR plus the uninstaller at $R0. The extract's $PLUGINSDIR holds ${pluginsdir.length} — a member arriving there is either an unrecorded binary or a licence document the record has to speak about`,
     )
-    const licenceMembers = extracted.filter((member) => isLicenceDocument(member))
+  } else if (extracted.length > 0) {
+    notRun('§2.5.1\'s census against the installer extract', `the extract holds no plug-in binary (${COVERAGE.summary}), so §2.5.1's member census is not measurable from it`)
+  } else {
+    notRun('§2.5.1\'s census against the installer extract', 'no extract (a 7z listing names the members but does not carry their bytes)')
+  }
+
+  const licenceMembers = extracted.filter((member) => isLicenceDocument(member))
+  if (licenceMembers.length > 0) {
+    ran('§2.5.1\'s licence-text state against the installer extract')
     if (claimsCarry) {
       assert.ok(
         licenceMembers.length > 0,
         '§2.5.1 records the licence-text obligation as DONE, but the extract carries no licence document',
+      )
+      assert.equal(
+        licenceMembers.length,
+        recordedTexts,
+        `§2.5.1 states ${recordedTexts} licence text(s) in the NSIS archive; the extract carries ${licenceMembers.length} (${licenceMembers.map((m) => path.basename(m.member)).join(', ')})`,
       )
       const texts = licenceMembers.map((member) => fs.readFileSync(member.path, 'utf8'))
       assert.ok(
@@ -695,11 +804,11 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       )
     }
   } else {
-    notRun('§2.5.1\'s census against the installer extract', 'no extract (a 7z listing names the members but does not carry their bytes)')
+    notRun('§2.5.1\'s licence-text state against the installer extract', 'no extract carrying licence texts (a 7z listing names the members but does not carry their bytes)')
   }
 
   // The optional byte-level arms: only where an extract holds the real bytes.
-  if (extracted.length > 0) {
+  if (extracted.length > 0 && COVERAGE.coversPlugins) {
     ran('the installer extract\'s per-member sha256 and compiled-binary statement arms')
     const mismatches = []
     const withStatements = []
@@ -726,8 +835,61 @@ test('§2.5.1\'s record of what the installer carries matches what the artefact 
       `${withStatements.join('; ')} — §2.5 says "the compiled binary carries no licence text" and §2.5.1 measures it`,
     )
   } else {
-    notRun('the installer extract\'s per-member sha256 and compiled-binary statement arms', 'no extract (a 7z listing carries names and sizes, not bytes)')
+    notRun('the installer extract\'s per-member sha256 and compiled-binary statement arms', extracted.length > 0
+      ? `the extract holds no plug-in binary (${COVERAGE.summary}), so §2.5's eight binaries are not measurable from it`
+      : 'no extract (a 7z listing carries names and sizes, not bytes)')
   }
+})
+
+// ---------------------------------------------------------------------------
+// 6. The licence texts the installer carries are the repository's own files.
+// ---------------------------------------------------------------------------
+test('the licence texts the installer carries are the repository\'s own files, byte for byte', () => {
+  // **What §2.5.1 claims.** "Extracting the archive and hashing the six members
+  // gives the sha256s of the repository's six files -- five of the six are
+  // recorded in `shell/licenses/`'s `README.txt`, the sixth being that README
+  // itself, which cannot record its own hash."
+  //
+  // That is a claim about bytes, and it is the claim that discharges §1: the text
+  // travelling with `StdUtils.dll` has to be *this tree's* text. Naming the six
+  // files is not enough, and a count is not enough either.
+  //
+  // **Two arms, and the first one needs no artefact.** The repository's own
+  // README records five hashes; the files in `shell/licenses/` must match them,
+  // so a text edited without its README entry updated is caught even with no
+  // installer on the machine. The second arm compares the bytes the artefact
+  // carries with those files, and reports itself as not run where there is no
+  // extract. `LABCAIRN_LICENCE_TEXT_DIR` names a different directory for the
+  // mutation checks, so they can edit a copy instead of a tracked file.
+  const LICENCES_DIR = process.env.LABCAIRN_LICENCE_TEXT_DIR ?? path.join(REPO_ROOT, 'shell', 'licenses')
+  assert.ok(fs.existsSync(LICENCES_DIR), `the tree holds no shell/licenses/ directory, so the licence texts §2.5.1 names have no source here`)
+
+  ran('shell/licenses/README.txt\'s recorded hashes against the files it names')
+  const readmeText = fs.readFileSync(path.join(LICENCES_DIR, 'README.txt'), 'utf8')
+  const claims = licenceTextClaims(readmeText)
+  assert.ok(claims.size > 0, 'shell/licenses/README.txt records no hash for any file, so its entries are unchecked')
+  const fileProblems = licenceTextFileProblems(claims, LICENCES_DIR)
+  assert.deepEqual(fileProblems, [], fileProblems.join('; '))
+
+  // §2.5.1 says five of the six are recorded and the sixth is the README itself,
+  // which cannot record its own hash. A README that recorded nothing, or that
+  // recorded only some, would leave files travelling without a stated hash.
+  const repositoryFiles = fs.readdirSync(LICENCES_DIR).filter((name) => fs.statSync(path.join(LICENCES_DIR, name)).isFile())
+  assert.equal(
+    claims.size,
+    repositoryFiles.length - 1,
+    `shell/licenses/ holds ${repositoryFiles.length} file(s) and its README records ${claims.size} hash(es); §2.5.1 says five of the six are recorded and the sixth is the README itself, which cannot record its own hash`,
+  )
+
+  const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  const carried = extracted.filter((member) => isLicenceDocument(member))
+  if (carried.length === 0) {
+    notRun('the carried licence texts against the repository\'s files', 'no extract carrying licence texts (LABCAIRN_LICENCE_INSTALLER_EXTRACT names one; the 2026-11-12 build writes them to $PLUGINSDIR\\licenses\\)')
+    return
+  }
+  ran('the carried licence texts against the repository\'s files')
+  const carriedProblems = carriedLicenceTextProblems(carried, LICENCES_DIR)
+  assert.deepEqual(carriedProblems, [], carriedProblems.join('; '))
 })
 
 // ---------------------------------------------------------------------------
@@ -1008,35 +1170,106 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     6931,
     'the listing reader did not read a member\'s compressed size, which is the number §5.4 says the listing prints',
   )
+  // The obligation state is an **equivalence**, not a rule requiring one word.
+  // `NOT DONE` + no licence texts and `DONE` + the stated texts must both pass;
+  // either direction of disagreement must fail. The old witness kept only one
+  // direction in mind because the record used to say NOT DONE.
   assert.deepEqual(
-    listedCensusProblems(parsedPlain.members, 10, false, listedLicenceDocuments(parsedPlain.members)),
+    listedCensusProblems(parsedPlain.members, 10, false, listedLicenceDocuments(parsedPlain.members), 0),
     [],
-    'the clean NSIS listing did not satisfy §2.5.1\'s census, so the controls below prove nothing',
+    'the consistent NOT DONE / no-texts state failed, so the equivalence is not symmetric',
+  )
+  const sixTexts = [
+    '$PLUGINSDIR/licences/LGPL-2.1.txt',
+    '$PLUGINSDIR/licences/STDOUTILS-NOTICE.txt',
+    '$PLUGINSDIR/licences/STDOUTILS-LGPL-CLARIFICATION.txt',
+    '$PLUGINSDIR/licences/NSIS7Z-LICENSE.txt',
+    '$PLUGINSDIR/licences/7ZIP-LICENSE.txt',
+    '$PLUGINSDIR/licences/README.txt',
+  ].map((member) => ({ member, name: path.posix.basename(member), packedSize: 9316 }))
+  const carriedBuild = [...parsedPlain.members, ...sixTexts]
+  assert.deepEqual(
+    listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), 6),
+    [],
+    'the consistent DONE / six-texts state failed, so the equivalence is not symmetric',
+  )
+  // §2.5.1's stated *count* is a claim about the artefact: DONE with five texts,
+  // or NOT DONE with one, must both redden even though the state word is right.
+  const fiveTexts = listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), 5)
+  assert.ok(
+    fiveTexts.some((problem) => /states 5 licence text/.test(problem)),
+    `DONE with five texts while the listing names six produced: ${fiveTexts.join('; ')}`,
+  )
+  const unstatedTexts = listedCensusProblems(carriedBuild, 16, true, listedLicenceDocuments(carriedBuild), null)
+  assert.ok(
+    unstatedTexts.some((problem) => /states no count of licence texts/.test(problem)),
+    `a §2.5.1 with no text count was compared as zero instead of reported: ${unstatedTexts.join('; ')}`,
   )
 
   // A ninth plug-in DLL arriving in the archive: the census reports it.
   const withNinth = [...parsedPlain.members, { member: '$PLUGINSDIR/Intruder.dll', name: 'intruder.dll', packedSize: 4096 }]
-  const ninthProblems = listedCensusProblems(withNinth, 10, false, listedLicenceDocuments(withNinth))
+  const ninthProblems = listedCensusProblems(withNinth, 10, false, listedLicenceDocuments(withNinth), 0)
   assert.ok(
     ninthProblems.some((problem) => /counts 10 members/.test(problem) && /counts seven plug-in DLLs/.test(problem)) || ninthProblems.length >= 2,
     `a ninth plug-in DLL in the listing produced: ${ninthProblems.join('; ')}`,
   )
 
-  // A licence document arriving while §2.5.1 still records NOT DONE: the exact
-  // state the LGPL-text batch produces, and the reason this arm exists at all.
+  // A licence document arriving while §2.5.1 still records NOT DONE: one of the
+  // two mismatch directions, and the reason the arm is an equivalence.
   const withLicence = [...parsedPlain.members, { member: '$PLUGINSDIR/licences/LGPL-2.1.txt', name: 'lgpl-2.1.txt', packedSize: 9316 }]
-  const licenceProblems = listedCensusProblems(withLicence, 10, false, listedLicenceDocuments(withLicence))
+  const licenceProblems = listedCensusProblems(withLicence, 10, false, listedLicenceDocuments(withLicence), 0)
   assert.ok(
     licenceProblems.some((problem) => /NOT DONE/.test(problem) && /LGPL-2\.1\.txt/.test(problem)),
     `a licence document in the listing while §2.5.1 says NOT DONE produced: ${licenceProblems.join('; ')}`,
   )
 
-  // The obligation recorded as DONE while the listing names no document.
-  const doneProblems = listedCensusProblems(parsedPlain.members, 10, true, [])
+  // The other mismatch direction: DONE while the listing names no document.
+  const doneProblems = listedCensusProblems(parsedPlain.members, 10, true, [], 0)
   assert.ok(
     doneProblems.some((problem) => /DONE/.test(problem)),
     `§2.5.1 claiming DONE over a listing with no licence document produced: ${doneProblems.join('; ')}`,
   )
+
+  // The three states are read from their own bullets, not from a whole-section
+  // `DONE` scan: §4 is PARTLY DONE and §6(b) is NOT MEASURED while §1 states
+  // whichever of DONE / NOT DONE this NOTICE copy is in. Asserting a fixed
+  // `DONE` here would make the controls case itself fail when the witness is fed
+  // a doctored NOTICE that consistently records NOT DONE -- a red about the
+  // fixture, not about the property. Both directions are put to the reader.
+  const states = obligationStates(NOTICE_TEXT)
+  assert.ok(
+    states.textAndNotice === 'DONE' || states.textAndNotice === 'NOT DONE',
+    'the §1 text-and-notice state was not read from its own bullet',
+  )
+  assert.equal(states.correspondingSource, true, 'the §4 PARTLY DONE state was not read')
+  assert.equal(states.replaceability, true, 'the §6(b) NOT MEASURED state was not read')
+  const statedTexts = licenceTextCountClaim(NOTICE_TEXT)
+  assert.ok(statedTexts !== null, '§2.5.1\'s licence-text count was not read')
+  assert.equal(
+    statedTexts,
+    states.textAndNotice === 'DONE' ? 6 : 0,
+    '§2.5.1 states a licence-text count that disagrees with its own §1 state',
+  )
+  // Flip the §1 state in a copy: the reader must answer differently, or a
+  // witness could be pinned to whichever word the current tree happens to print.
+  const flippedState = NOTICE_TEXT.replace(
+    'The licence text and the notice (§1, §6) — DONE.',
+    'The licence text and the notice (§1, §6) — NOT DONE.',
+  ).replace(
+    'The licence text and the notice (§1, §6) — NOT DONE.',
+    'The licence text and the notice (§1, §6) — DONE.',
+  )
+  if (flippedState !== NOTICE_TEXT) {
+    assert.notEqual(
+      obligationStates(flippedState).textAndNotice,
+      states.textAndNotice,
+      'flipping §2.5.1\'s §1 state did not change what the reader reads, so the state arm is pinned to a word',
+    )
+  }
+  const driftedCount = NOTICE_TEXT.replace('six of them are', 'five of them are')
+  if (driftedCount !== NOTICE_TEXT) {
+    assert.equal(licenceTextCountClaim(driftedCount), 5, 'changing §2.5.1\'s stated text count did not change the read')
+  }
 
   // `-slt` shape: `Path = …` / `Packed Size = …` blocks, with CRLF and the
   // archive header's own `Path =` line, which is not a member.
@@ -1107,4 +1340,90 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     false,
     `an unmeasured size was printed as zero: ${unmeasured.join('; ')}`,
   )
+
+  // (j) The source-of-terms invariant, on the same functions the case above
+  //     runs. The record became *more* accurate (four named licences instead of
+  //     two); what must redden is a named licence with no source, not the count.
+  const fromBundle = structuredClone(RECORDS).filter(
+    (record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1',
+  )
+  assert.equal(fromBundle.length, 4, `§2.5 names ${fromBundle.length} binaries from this bundle; the fixture that follows is stale`)
+  const cleanSources = termsSourceProblems(fromBundle)
+  assert.deepEqual(cleanSources.problems, [], 'the unmutated records already fail the source requirement, so these controls prove nothing')
+
+  // A fifth plug-in whose terms are resolved upstream: the invariant still holds.
+  // This is the shape that made the old "exactly 2" assertion go red.
+  const grown = [...fromBundle, {
+    name: 'Fifth.dll',
+    bytes: 1,
+    fields: {
+      licence: 'MIT',
+      where: 'upstream NSIS\'s `LICENSES` tree names the source as `Fifth.zip` (sha256 abcdef12…)',
+      bundle: 'nsis-resources-3.4.1',
+    },
+  }]
+  assert.deepEqual(termsSourceProblems(grown).problems, [], 'adding a properly sourced record reddened the invariant, which is watching the count rather than the property')
+
+  // A named licence with no source: the finding the invariant exists for.
+  const unsourced = structuredClone(fromBundle)
+  unsourced.find((record) => record.name === 'UAC.dll').fields.where = 'a compiled DLL with no licence text'
+  const unsourcedProblems = termsSourceProblems(unsourced).problems
+  assert.equal(unsourcedProblems.length, 1, `a named licence with no source produced: ${unsourcedProblems.join('; ')}`)
+  assert.match(unsourcedProblems[0], /UAC\.dll/, unsourcedProblems[0])
+
+  // A hash with no source path is incomplete in the other direction.
+  const hashOnly = structuredClone(fromBundle)
+  hashOnly.find((record) => record.name === 'UAC.dll').fields.where = 'sha256 20e3192a…'
+  const hashProblems = termsSourceProblems(hashOnly).problems
+  assert.ok(
+    hashProblems.some((problem) => /quotes 1 sha256/.test(problem)),
+    `a short hash with no path produced: ${hashProblems.join('; ')}`,
+  )
+
+  // `unresolved` is allowed to have no source. Demanding one there would turn the
+  // record's own vocabulary into a failure.
+  const unresolved = structuredClone(fromBundle)
+  unresolved.find((record) => record.name === 'UAC.dll').fields.licence = '**unresolved**'
+  unresolved.find((record) => record.name === 'UAC.dll').fields.where = 'no terms found'
+  assert.deepEqual(termsSourceProblems(unresolved).problems, [], 'an unresolved record was required to name a source it does not have')
+
+  // The two artefacts are distinct: a `where` field that cites the downloaded
+  // bundle as carrying the licence document is contradicted by the cache.
+  const conflated = structuredClone(fromBundle)
+  conflated.find((record) => record.name === 'UAC.dll').fields.where =
+    'nsis-resources-3.4.1 carries a licence document with the zlib/libpng grant'
+  const upstreamEntry = conflated.filter((record) => /LICENSES|upstream NSIS/i.test(termsSources(record).text))
+  assert.ok(upstreamEntry.length < fromBundle.length, 'the conflation control did not change which records cite upstream NSIS')
+
+  // Upstream hash comparison: a quoted hash with no matching file reddens, and
+  // an absent provenance tree reports every quoted hash as unmeasured (never a
+  // pass, never a zero).
+  const upstreamAbsent = upstreamHashProblems(fromBundle, [])
+  assert.equal(upstreamAbsent.available, false, 'an absent provenance tree was reported as available')
+  assert.deepEqual(upstreamAbsent.problems, [], 'an absent provenance tree invented hash findings')
+  assert.equal(upstreamAbsent.unmeasured.length, 5, `§2.5 quotes five hashes; ${upstreamAbsent.unmeasured.length} were reported unmeasured`)
+  const upstreamBogus = structuredClone(fromBundle)
+  upstreamBogus.find((record) => record.name === 'UAC.dll').fields.where =
+    'upstream NSIS\'s `LICENSES` tree names `UAC.zip` (sha256 deadbeef…)'
+  if (UPSTREAM_DIRS.length > 0) {
+    const bogus = upstreamHashProblems(upstreamBogus, UPSTREAM_DIRS)
+    assert.ok(
+      bogus.problems.some((problem) => /deadbeef/.test(problem)),
+      `a quoted hash no upstream file holds produced: ${bogus.problems.join('; ')}`,
+    )
+  } else {
+    // The same comparison over a fixture directory: one real file, one quoted
+    // hash that is not its hash. A reader that matched by name rather than bytes
+    // would pass this.
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'labcairn-upstream-control-'))
+    try {
+      fs.writeFileSync(path.join(scratch, 'UAC.zip'), 'not the bytes §2.5 quotes')
+      const bogus = upstreamHashProblems(upstreamBogus, [scratch])
+      assert.equal(bogus.available, true, 'the fixture provenance tree was reported as unavailable')
+      assert.ok(bogus.problems.some((problem) => /deadbeef/.test(problem)),
+        `a quoted hash no file in the tree holds produced: ${bogus.problems.join('; ')}`)
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true })
+    }
+  }
 })

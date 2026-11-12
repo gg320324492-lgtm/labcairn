@@ -11,26 +11,36 @@ The skeleton came from work order **LC-P1-01 / T10** (see
 
 ## What it shows
 
-Thirteen panels over one task, each read from the API and drawn:
+Fourteen views over one task, each read from the API and drawn:
 
-| View               | What it draws                                                                           |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| **Projects**       | The tasks in the workspace's store, and the one the service is bound to                 |
-| **Plan**           | The declared workflow, and how far the task has got through it                          |
-| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to       |
-| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it   |
-| **Figure**         | The consent a figure needs, and the run that spends it                                  |
-| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by      |
-| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`         |
-| **Artefacts**      | The receipts, and a preview of each artefact                                            |
-| **Revisions**      | What each path has been through, and which revision is current                          |
-| **Trajectory**     | The advisor's comments, the edits that answered them, and the states of the responses   |
-| **Version graph**  | A project's versions, and the accepted edges between them                               |
-| **Guidance**       | The rules, their state and their counterexamples, and the door that settles one         |
-| **Proposals**      | The model's answer and the person's verdict on it, each labelled with whose words it is |
+| View               | What it draws                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| **Projects**       | The tasks in the workspace's store, and the one the service is bound to                  |
+| **Plan**           | The declared workflow, and how far the task has got through it                           |
+| **Steps**          | The runtime stages the store holds, with the run and the attempt each belonged to        |
+| **Approval**       | The question the task is waiting on a human to answer, and the button that answers it    |
+| **Figure**         | The consent a figure needs, and the run that spends it                                   |
+| **Source anchors** | The material the task is bound to, its content hash and the key it is addressed by       |
+| **Evidence**       | The declared evidence stage's standing, and the runtime stages named `evidence`          |
+| **Artefacts**      | The receipts, and a preview of each artefact                                             |
+| **Revisions**      | What each path has been through, and which revision is current                           |
+| **Trajectory**     | The advisor's comments, the edits that answered them, and the states of the responses    |
+| **Version graph**  | A project's versions, and the accepted edges between them                                |
+| **Guidance**       | The rules, their state and their counterexamples, and the door that settles one          |
+| **Proposals**      | The model's answer and the person's verdict on it, each labelled with whose words it is  |
+| **Events**         | The task's event stream (`seq`, `type`, transition), with disconnect and reconnect shown |
 
-The page changes two things: a pending approval, and the verdict a person
-returns on a guidance rule. Everything else it does is read.
+The table counts view components imported and rendered by `Workbench.tsx`, not
+`<Panel>` render sites: `grep -oE '<[A-Za-z]+View' web/src/app/Workbench.tsx |
+sort -u | wc -l` prints 14. The `Events` view is keyed by the bound task, so
+selecting a different task restarts its stream.
+
+The page makes seven kinds of write to the API, at seven `POST` call sites in
+`src/app/Workbench.tsx`, `src/views/FigureView.tsx`, `src/views/GuidanceView.tsx`
+and `src/views/ProposalsView.tsx`: grant an approval, render a report, select the
+bound task, request and run a figure, confirm a guidance rule, and settle a
+proposal. Everything else it does is read. The count is of call sites, not of
+requests a session makes — one button press can send more than one.
 
 **The panels draw only what the contract carries.** A panel that drew a list
 it could not see would be a second spelling of the model behind it, and a
@@ -102,10 +112,16 @@ report is shown with the limit the report itself states.
 
 ## What it does not do yet
 
-- **The service's event stream is not read.** The workbench shows the task's
-  state and reads it again when something changes.
-- **The selected project cannot be switched.** The service is bound to one
-  task, and the API has no route to change that.
+- **The service's event stream is read, but it is not the source of truth.**
+  `EventsView` opens `GET /events` through `useEventStream` and shows the
+  sequence, disconnect state and reconnect behaviour. The workbench still reads
+  the task's state from the API rather than reconstructing it from events, so a
+  dropped stream never changes what a panel draws.
+- **The bound task can be switched, through a route that exists.**
+  `POST /task/select` in `src/labcairn/api/routes.py` is called by
+  `Workbench.tsx` (`API_PATHS.taskSelect`). The service stays bound to one task
+  at a time; the binding is changed by that call, and the `Events` view is keyed
+  by the new bound task.
 - **The contract carries no list of anchors.** The anchors view draws each
   source's hash and key, and the evidence view draws the evidence stage's
   standing; both say so on the screen rather than implying that the records
@@ -202,7 +218,7 @@ web/
 
 This package is the workbench and nothing else: the CLI, the application
 layer and the service live in the Python tree. The web package draws what the
-API returns and asks the API to do one thing.
+API returns and makes the seven kinds of write listed under "What it shows".
 
 Do not add a remote host, a font service, an analytics script, or a request to
 any absolute URL. A local-first tool that phones home is not local-first, and

@@ -127,6 +127,18 @@ the pull request is still how anything reaches it. **What does not change:**
 the sixteen required checks still run on it, and the review that decides
 whether a work order is *accepted* is still the independent one.
 
+> **Dated snapshot — true when written, re-measured 2026-11-12.** This matrix
+> was written on 2026-10-30 (`87ed186`), when the branch-protection reading was
+> sixteen contexts. On 2026-11-11 at
+> `6b3211ae631c7c9548ca160615f88daa6da7d5dd` the reading was **fifteen** contexts;
+> re-read live on 2026-11-12 it is **fifteen** (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 15, exit 0), and the fenced
+> list in `.github/CI.md` names fifteen too. The count in the sentence above is
+> left as written because it is a dated reading; the standing fact — `main`
+> stays protected, and a pull request is how anything reaches it — has not
+> changed.
+
 ### 2.4 Three roles do not need three models, and the adjustment is right
 
 The adjustment says one base model may play several roles, and that the

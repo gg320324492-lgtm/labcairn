@@ -234,10 +234,19 @@ PDF 库由摄取工单（LC-P1-08）点名，由 [ADR-0008](docs/adr/ADR-0008-pd
 
 ### 项目开发状态
 
-项目的**第一阶段已在 G5 关闭，第二阶段的出口门与行政收尾均已 CLOSED**。下面列出的命令行是今天真实存在的东西，其余部分会随路径被实现和验证后到来。
+项目的**第一阶段已在 G5 关闭，第二阶段的出口门与行政收尾均已 CLOSED**。今天代码库里已有的东西：
+
+- **证据链** —— 批注、修订、对应关系与裁决各为一个环，试点语料在产品里而不是在文件夹里。
+- **DOCX 读取器与版本图** —— 修订、批注与锚点各报告一次；版本边由材料自身的时间戳建成。
+- **指导记忆** —— 规则是带版本的记录；只有裁决认为「已被回答」的来源上的规则才会被检索服务。
+- **冻结的 P1 基线与引用标识** —— 本阶段的比较分母，以及携带来源与解析状态的标识记录。
+- **盲评与竞争者对比已实测，结论为无可测能力增益** —— 机制、见证、记录与限制都在树里；真实 provider 烟测仍等 owner 决定。
+
+下面列出的命令行是今天真实存在的东西，其余部分会随路径被实现和验证后到来。阶段的实测结论与行政收尾见[第二阶段工单](docs/plans/PHASE_2-work-orders.md)与[最终开放项账本](docs/acceptance/LC-P2-28-phase2-open-items.md)。
 
 - [四阶段路线图](docs/ROADMAP.md)
 - [第一阶段开发工单与验收关口](docs/PHASE_1_WORKORDERS.md)
+- [第二阶段 —— 一张工单：已建成什么，还差什么](docs/plans/PHASE_2-work-orders.md)
 - [架构与数据边界](docs/ARCHITECTURE.md)
 - [评估协议](docs/EVALUATION.md)
 - [威胁模型——产品保护什么，以及不声称什么](docs/THREAT-MODEL.md)
@@ -285,7 +294,7 @@ pnpm format:check
 
 `labcairn` 是真实的 console script，由 `uv sync` 安装，它是本地 API 与 Web 工作台所调用的同一应用层上的开发者界面——所以它报告什么，它们就报告什么。
 
-这些命令背后的科研工作流仍在建设中，第一阶段工单承诺的大部分能力仍在后面。命令行之所以先在，是因为界面、它的机器可读形式以及退出码都已经定下来了，而填满它们的工作还在前面。
+这些命令背后的科研工作流仍在建设中，工单承诺的能力仍在陆续到来。命令行之所以先在，是因为界面、它的机器可读形式以及退出码都已经定下来了，而填满它们的工作还在前面。
 
 ```bash
 uv run labcairn --help
@@ -312,7 +321,7 @@ uv run labcairn --help
 
 **`doctor` 只报告，不修复。** 它说出它发现了什么。它不会修复损坏的数据库、不会补写缺失的策略，也不会去够付费模型端点——除非 `--probe` 这么要求。
 
-**`labcairn task report` 能渲染报告，`labcairn task figure` 能画图。** 两者都既有命令、也有本地服务的对应路由（`POST /report` 与 `POST /analysis`），而且都调用应用层自己的操作，不是绕开它另开一条路；报告另外还有一个 workbench 上的按钮。**画图除了许可还需要同意**：批准把材料、算子、它的参数**以及配方的路径**一起绑住（ADR-0012 约束 7），所以旁边还有 `labcairn task approval-request` 与 `labcairn task approval-grant`；故意没有一步式的捷径——能自己造同意的运行，就不算被同意过的运行。**两种产出都要有内容可承载**：无话可说的任务会被拒绝并给出理由，且不会写下任何文件。**`labcairn task claim` 是任务获得可承载内容的方式**：它针对摄取写进账本的一个地址，记录一条 `extracted` 证据记录——`labcairn sources addresses` 列出这些地址，而 `POST /claims` 与 `GET /sources/{source_id}/addresses` 是同样两个操作在服务上的形态。快速上手会走这条路径，发布说明则说明还剩下什么（§2.2：记录既可以由人写入、也可以由模型提议——`POST /claims/extract` 的产物永远是提案，不是人的 claim——人通过 `POST /records/{evidence_id}/accept` 裁决提案；C1、C2、C3 仍未由产品运行）。
+**`labcairn task report` 能渲染报告，`labcairn task figure` 能画图。** 两者都既有命令、也有本地服务的对应路由（`POST /report` 与 `POST /analysis`），而且都调用应用层自己的操作，不是绕开它另开一条路；**两者在 workbench 上都有入口**——报告是一个按钮，图形是一个面板：先发起批准请求，在 Approval 面板里答复，批准后再运行。**画图除了许可还需要同意**：批准把材料、算子、它的参数**以及配方的路径**一起绑住（ADR-0012 约束 7），所以旁边还有 `labcairn task approval-request` 与 `labcairn task approval-grant`；故意没有一步式的捷径——能自己造同意的运行，就不算被同意过的运行。**两种产出都要有内容可承载**：无话可说的任务会被拒绝并给出理由，且不会写下任何文件。**`labcairn task claim` 是任务获得可承载内容的方式**：它针对摄取写进账本的一个地址，记录一条 `extracted` 证据记录——`labcairn sources addresses` 列出这些地址，而 `POST /claims` 与 `GET /sources/{source_id}/addresses` 是同样两个操作在服务上的形态。快速上手会走这条路径，发布说明则说明还剩下什么（§2.2：记录既可以由人写入、也可以由模型提议——`POST /claims/extract` 的产物永远是提案，不是人的 claim——人通过 `POST /records/{evidence_id}/accept` 裁决提案；C1、C2、C3 仍未由产品运行）。
 
 ### 原则
 
