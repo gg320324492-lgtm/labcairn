@@ -534,7 +534,18 @@ check this ruling, and both are witnessed.**
   docstrings (*"Not a test module — it defines no `test_*` functions"*), and
   `test_skill_support.py` describes itself as *"shared fixtures and honest stage
   bodies"*; other test files import them for their builders. They are filed in a
-  gate class, they are in every shard, CI pays to collect them, and no case comes
+  gate class, they are listed in the shard list on both platforms — **one shard
+  each, not "every shard", which is what this record printed and what
+  `ci-shards.json` has never recorded**: measured 2026-11-12 over the 84
+  revisions of that file, 56 name the three at all — **54 place each in exactly
+  one** shard on each platform, one is the 2026-10-24 single-platform table
+  (`5dbf09b`: four groups, each file in exactly one group), and one is `a1f9e54`
+  (2026-11-02), the removal, which dropped them from the shards while their cost
+  entries lagged a commit behind. **No revision ever placed one of them in more
+  than one shard on a platform.** Which
+  shard varies with the re-partition — at `e9b56ba`, 2026-10-29, they sat in
+  Ubuntu shards 1 / 2 / 4 and Windows shards 0 / 2 / 1, of five shards per platform
+  — CI pays to collect them, and no case comes
   out. The row used to report them as files *"this run did not select"*, which is
   false — the run selected them; nothing was there. `test_ci_shard_coverage` and
   the partition's own witnesses cannot see this, because both ask *"is every test
