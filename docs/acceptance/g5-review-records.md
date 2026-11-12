@@ -368,9 +368,9 @@ records and the changelog — for the harness's own ranking words (`better`,
 
 - README.md:117 — *"the work that fills them in is still ahead"* (about
   unfinished work, not a comparison);
-- `docs/REVIEW-DOSSIER.md:17` — *"it contains no claim that LabCairn is
+- `docs/REVIEW-DOSSIER.md:31` — *"it contains no claim that LabCairn is
   better than any upstream project"* (a negation);
-- `docs/REVIEW-DOSSIER.md:101` — *"an invented or guessed SHA is worse than a
+- `docs/REVIEW-DOSSIER.md:115` — *"an invented or guessed SHA is worse than a
   blank"* (about SHAs);
 - the two acceptance records quoting the watch list itself.
 
@@ -1727,7 +1727,7 @@ second run.
 
 | # | The finding | My mutation, re-run | Now |
 |---|---|---|---|
-| **R30** | the exemption's boundaries were raw backspace bytes, so a denial was reported as a claim, and the exemption had no witness | (a) a denied claim, planted as a plain paragraph; (b) the same paragraph with the exemption neutralised | **CLOSED** — (a) **green**, the denial is not reported; (b) **RED** on the planted paragraph **and on `docs/REVIEW-DOSSIER.md:16`**, whose paragraph needs the exemption — so the mechanism is not dead and cannot be neutered silently |
+| **R30** | the exemption's boundaries were raw backspace bytes, so a denial was reported as a claim, and the exemption had no witness | (a) a denied claim, planted as a plain paragraph; (b) the same paragraph with the exemption neutralised | **CLOSED** — (a) **green**, the denial is not reported; (b) **RED** on the planted paragraph **and on `docs/REVIEW-DOSSIER.md:30`**, whose paragraph needs the exemption — so the mechanism is not dead and cannot be neutered silently |
 | **R31** | the records' prose contradicted their own table, and one cell was stale | the `c362317` report and the manifests at each run's commit, read against all three tables | **CLOSED, with one correction** — the prose now says which run it describes, both current tables say four, and **the historical table's count, which this fix had changed to four, is corrected back to the three its own run measured** (§18.4) |
 | **R32** | the sentence split let a claim whose target and verdict word fell in different sentences | the same claim, planted as one paragraph; and a cross-line claim, planted again | **CLOSED** — both **RED**, and the message shows the joined paragraph |
 
@@ -1754,7 +1754,7 @@ was red.
 **The exemption is load-bearing, and that is measured rather than asserted.** I
 planted the same paragraph again and neutralised the exemption with
 `_NEGATION = re.compile(r"(?!)")`. The watch went **RED**, and the offenders
-were the planted paragraph **and `docs/REVIEW-DOSSIER.md:16`**:
+were the planted paragraph **and `docs/REVIEW-DOSSIER.md:30`**:
 
 > **What this document is not.** It is not a comparison, and it contains no
 > claim that LabCairn is better than any upstream project.

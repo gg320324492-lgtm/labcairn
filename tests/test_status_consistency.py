@@ -27,6 +27,27 @@ teaches people to ignore it. The parsers below are therefore tolerant of
 the ways these documents get reworded -- bold, capitalisation, synonyms,
 enumeration, line wrapping -- rather than exact. An earlier draft was
 not, and fired on eight ordinary phrasings of the gate line.
+
+Three more records are watched here now, because they fail the same way
+-- a record that points at something a reader cannot open:
+
+5. the carried-open-issues regions of ``docs/PHASE_1_WORKORDERS.md`` and
+   ``docs/ROADMAP.md`` cite file paths; a row that cites neither a
+   tracked file nor a revision at which the file existed is a pointer to
+   nothing
+6. ``docs/RELEASE-NOTES.md`` says pull request #146 is open, and this
+   repository has the merge commit naming it; the sentence is legal only
+   while a supersession marker says it is a dated reading
+7. ``docs/REVIEW-DOSSIER.md`` declares the tree it describes, and every
+   claim it makes -- a witness, an ADR, a path -- must be about that
+   tree, or be named in the dossier's supersession marker as a later
+   reading
+
+Item 7 is the only one of the three that needs this repository's
+**history** rather than its working tree, so it reads a fixed revision
+with git. It is the one check here that can be skipped: a checkout
+without that revision cannot answer the question, and a check that
+guessed would be worse than one that says so.
 """
 
 from __future__ import annotations
@@ -1351,4 +1372,203 @@ def test_the_release_state_check_fails_when_the_marker_is_removed_or_a_commit_is
 
     assert path.read_bytes() == original_bytes, (
         "docs/RELEASE-NOTES.md changed while it was being read"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The dossier holds to the tree it declares
+# --------------------------------------------------------------------------- #
+
+#: The review dossier: the document an external reviewer reads to tell LabCairn's own work
+#: from somebody else's. Its header declares the tree it describes, and that declaration is
+#: a claim about this repository's own history.
+DOSSIER = REPO / "docs" / "REVIEW-DOSSIER.md"
+
+#: The tree the dossier says it describes.
+_DECLARED_TREE = re.compile(r"\*\*Tree it describes:\*\*\s*`([0-9a-f]{7,40})`")
+
+#: A path the dossier cites, read in the same shape ``tests/test_review_dossier.py`` reads
+#: them: backticked, and rooted in one of the repository's own directories.
+_DOSSIER_PATH = re.compile(r"`((?:src|tests|docs|scripts|examples|web|\.github)/[A-Za-z0-9_./-]+)`")
+
+#: A test the dossier names as the witness for a LabCairn behaviour.
+_DOSSIER_TEST = re.compile(r"tests/(test_[A-Za-z0-9_]+\.py)::(test_[A-Za-z0-9_]+)")
+
+#: An ADR the dossier names.
+_DOSSIER_ADR = re.compile(r"ADR-(\d{4})")
+
+
+def _revision_exists(revision: str) -> bool:
+    result = subprocess.run(
+        ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _text_at(revision: str, path: str) -> str | None:
+    """The file's text at `revision`, or None if that tree does not carry it."""
+    result = subprocess.run(
+        ["git", "show", f"{revision}:{path}"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        return None
+    return result.stdout.decode("utf-8", "replace")
+
+
+def _supersession_marker(text: str) -> str:
+    """The dossier's supersession marker: the blockquote that carries the phrase.
+
+    The dossier has three blockquotes and only one of them marks a superseded sentence, so
+    the marker is found by the phrase the 2026-11-12 convention settled on rather than by
+    its position in the file.
+    """
+    blocks: list[str] = []
+    current: list[str] = []
+    for line in text.split("\n"):
+        if line.lstrip().startswith(">"):
+            current.append(line)
+        elif current:
+            blocks.append("\n".join(current))
+            current = []
+    if current:
+        blocks.append("\n".join(current))
+    for block in blocks:
+        if "dated snapshot" in block.lower():
+            return block
+    return ""
+
+
+def _dossier_exceptions(revision: str, text: str) -> list[str]:
+    """Every claim the dossier makes that the tree it declares does not carry.
+
+    **Three kinds of claim, and each one is about a tree.** A test the dossier names as a
+    witness has to be defined at the declared tree: a reader who checks the claim there must
+    find the witness. An ADR it names has to exist there. A path it points at has to be
+    there.
+    """
+    exceptions: list[str] = []
+    for file_name, function in sorted(set(_DOSSIER_TEST.findall(text))):
+        body = _text_at(revision, f"tests/{file_name}")
+        if body is None or f"def {function}(" not in body:
+            exceptions.append(f"tests/{file_name}::{function}")
+    adr_listing = subprocess.run(
+        ["git", "ls-tree", "--name-only", revision, "--", "docs/adr/"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    ).stdout.decode("utf-8", "replace")
+    for number in sorted(set(_DOSSIER_ADR.findall(text))):
+        if not any(name.startswith(f"docs/adr/ADR-{number}-") for name in adr_listing.split("\n")):
+            exceptions.append(f"ADR-{number}")
+    for path in sorted(set(_DOSSIER_PATH.findall(text))):
+        if not _existed_at(revision, path):
+            exceptions.append(path)
+    return exceptions
+
+
+def _unnamed_exceptions(text: str, revision: str) -> list[str]:
+    """The claims the dossier makes outside its declared tree that it does not name.
+
+    A dossier that says "every claim below is about the tree at `dd08573`" and then cites
+    something that tree does not carry is sending the reader to a tree where the evidence is
+    not. The repair is not to hide the claim; it is to **name** it, in a marker, so that the
+    reader knows which claims are later readings and which are about the declared tree.
+    """
+    marker = _supersession_marker(text)
+    return [item for item in _dossier_exceptions(revision, text) if item not in marker]
+
+
+def test_the_dossier_holds_to_the_tree_it_declares() -> None:
+    """Every claim the dossier makes must be about the tree it declares, or be named.
+
+    ``docs/REVIEW-DOSSIER.md`` says "**Tree it describes:** `dd08573` ... Every claim below
+    is about the tree at that commit." A reader who opens that tree to check a claim must
+    find what the claim leans on: the witness test, the ADR, the path. Where the dossier
+    has since named something the declared tree does not carry, it must **say so** in its
+    supersession marker, or the sentence sends the reader to a tree where the evidence is
+    not.
+
+    **Measured at the tree the dossier declares** (`dossier-labcairn-side.py` in the
+    evidence folder): of the 24 witness tests, 12 ADRs and 59 paths the dossier names, two
+    are not in that tree -- its own witness ``tests/test_review_dossier.py`` (added the same
+    day, ``76d5e1c``) and
+    ``tests/test_source_contracts.py::test_locator_kinds_are_closed_at_six_members`` (added
+    2026-10-29, ``56595a1``). Both are named in the marker, which is what makes them
+    legal rather than a mismatch.
+
+    The one check here that can be skipped: a checkout without the declared revision cannot
+    answer the question, and a check that guessed would be worse than one that says so.
+    """
+    text = DOSSIER.read_text(encoding="utf-8")
+    match = _DECLARED_TREE.search(text)
+    assert match, "the dossier declares no tree"
+    revision = match.group(1)
+    if not _revision_exists(revision):
+        pytest.skip(f"{revision} is not in this checkout, so the question cannot be asked")
+
+    unnamed = _unnamed_exceptions(text, revision)
+    assert not unnamed, (
+        f"the dossier declares the tree at {revision}, and these claims are not about it, "
+        f"and its supersession marker does not name them:\n  " + "\n  ".join(unnamed)
+    )
+
+
+def test_the_dossier_tree_check_fails_when_the_marker_stops_naming_an_exception(
+    repo_root: Path,
+) -> None:
+    """The reader is seen to fail for the property, on copies held in memory.
+
+    **Two mutations.** (1) The supersession marker is removed from the copy: the dossier's
+    two later claims are still there, nothing says they are later, and the reader must
+    report both. This is the half that proves the marker -- not the claim -- is what makes
+    a later claim legal. (2) A claim outside the declared tree is added to the copy, naming
+    a file that tree does not have, and the reader must report it with the marker intact.
+
+    **Control.** The real file's bytes are compared before and after, so the demonstration
+    cannot write the record it guards.
+    """
+    path = repo_root / "docs" / "REVIEW-DOSSIER.md"
+    original_bytes = path.read_bytes()
+    text = original_bytes.decode("utf-8")
+    match = _DECLARED_TREE.search(text)
+    assert match, "the dossier declares no tree"
+    revision = match.group(1)
+    if not _revision_exists(revision):
+        pytest.skip(f"{revision} is not in this checkout, so the question cannot be asked")
+
+    assert _unnamed_exceptions(text, revision) == [], (
+        f"the dossier as it stands already reports: {_unnamed_exceptions(text, revision)}"
+    )
+
+    # Mutation 1: the marker goes, the claims stay.
+    marker = _supersession_marker(text)
+    assert marker, "the dossier carries no supersession marker, so mutation 1 has no target"
+    stripped = text.replace(marker, "", 1)
+    assert stripped != text, "mutation 1 changed no bytes"
+    assert _supersession_marker(stripped) == "", "the marker survived the removal"
+    found = _unnamed_exceptions(stripped, revision)
+    assert found, "removing the marker left the later claims unreported"
+    assert set(found) == set(_dossier_exceptions(revision, text)), (
+        f"removing the marker reported {found}, but the claims outside the declared tree "
+        f"are {_dossier_exceptions(revision, text)}"
+    )
+
+    # Mutation 2: a claim outside the declared tree, with the marker intact.
+    invented = "tests/test_a_file_the_declared_tree_does_not_have.py"
+    assert not _existed_at(revision, invented), f"{invented} is in the tree at {revision}"
+    extended = text + f"\n\nThe behaviour is witnessed by `{invented}`.\n"
+    found2 = _unnamed_exceptions(extended, revision)
+    assert invented in found2, (
+        f"a claim naming {invented}, which the declared tree does not carry, was not "
+        f"reported even though the marker is intact: {found2}"
+    )
+
+    assert path.read_bytes() == original_bytes, (
+        "docs/REVIEW-DOSSIER.md changed while it was being read"
     )

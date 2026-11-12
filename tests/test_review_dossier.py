@@ -91,90 +91,129 @@ _REFERENCE_DIRECTORIES: Final[tuple[str, ...]] = (
 
 
 class Anchor(NamedTuple):
-    """One catalogue line the dossier leans on.
+    """One catalogue line the dossier leans on, anchored **by its wording**.
 
-    ``token`` is the anchor as the dossier writes it — ``"187"`` or
-    ``"38-48"``. ``line`` is the catalogue line the token starts at, and
-    ``fragment`` is wording that line must carry for the anchor to mean
-    anything. ``citations`` is how many times the dossier cites it.
+    ``token`` is the anchor as the dossier writes it — ``"197"`` or ``"114-127"``.
+    ``fragment`` is the wording that makes the line worth citing, and it is the
+    anchor: the line is *found from it*, and the number the dossier cites is then
+    checked against where it was found. ``citations`` is how many times the dossier
+    cites it.
+
+    **Why the wording is the anchor.** A stored line number is a claim about one
+    revision of a file that other batches edit. Replaying the old stored-number
+    tests on the tree where 21 lines were inserted into
+    ``docs/UPSTREAM_REFERENCES.md`` (``dossier-old-tests-replay.py`` in the
+    evidence folder): 3 blank-line failures, 9 "fragment not at its line" failures,
+    **and no broken anchor escaped both** — the old mechanism saw the drift. What it
+    could not do was describe it truthfully. Each of the 9 read
+    ``CATALOGUE:156 no longer carries '<wording>', which is what :156 is cited
+    for``, which accuses the record of losing the wording. In all 9 the wording was
+    intact exactly ten lines lower, and in 7 of the 9 the cited line was not blank
+    at all — so the message read as "the record lost the wording" when the number
+    had moved; and none of the 9 said where the wording had gone. Finding the
+    wording first turns the report into a lookup, and adds the one check the old
+    tests had not: a wording present on more
+    than one line anchors nothing (see
+    :func:`test_every_load_bearing_anchor_carries_the_wording_it_is_cited_for`).
     """
 
     token: str
-    line: int
     fragment: str
     citations: int
 
 
-#: Every catalogue line the dossier leans on.
+def _span(token: str) -> tuple[int, int]:
+    """The first and last catalogue line a citation token covers: ``1`` for ``"197"``,
+    14 lines for ``"114-127"``."""
+    start, _, end = token.partition("-")
+    return int(start), int(end) if end else int(start)
+
+
+def _find_fragment(lines: list[str], fragment: str) -> list[int]:
+    """Every 1-based line of the catalogue that carries ``fragment``."""
+    return [number for number, text in enumerate(lines, start=1) if fragment in text]
+
+
+#: Every catalogue line the dossier leans on, each anchored **by its wording**.
 #:
-#: The fragment is the wording that makes the line worth citing, and the
-#: citation count is the number of places the dossier says so. A citation
-#: that moves off the line it belongs to drops that line's count, and this
-#: file notices. That is the whole mechanism: the dossier cannot quietly
-#: start pointing at a neighbouring line that happens to exist.
+#: The wording is the anchor; the line number the dossier cites is *found from it*
+#: and then checked against it. A stored line number is a claim about one revision
+#: of a file other batches edit — `docs/UPSTREAM_REFERENCES.md` gained 21 lines from
+#: another batch and every stored number below shifted. Replaying the old tests on
+#: that tree (`dossier-old-tests-replay.py` in the evidence folder): 3 blank-line
+#: failures and 9 "fragment not at its line" failures, and **nothing escaped both** —
+#: the old mechanism did detect the drift. What it could not do was describe it: each
+#: of the 9 said `CATALOGUE:<n> no longer carries '<wording>'`, accusing the record
+#: of losing text that was intact ten lines lower, and not one said where it had
+#: gone. A wording is unique in the catalogue (measured: 37 of 37), so the number can
+#: be checked instead of trusted, and a wording that stops being unique is reported
+#: instead of silently resolved to its first match.
 _LOAD_BEARING: Final[tuple[Anchor, ...]] = (
+    Anchor("30", "verified by opening the LICENSE files at the pinned commit", 3),
+    Anchor("32", "On 2026-11-02 all five pins were verified against the remote", 2),
+    Anchor("34", "resolved all five commits against GitHub at review time", 2),
+    Anchor("38-48", "| ID | GitHub | Study areas |", 1),
+    Anchor("45-48", "| `opencode` | https://github.com/anomalyco/opencode |", 1),
+    Anchor("48", "| `ai-scientist-v2` |", 1),
+    Anchor("50", "an invented or guessed SHA is worse than a blank", 1),
+    Anchor("52", "a capability counts only when a code path constructs it", 3),
+    Anchor("54", "## Verified license boundaries (measured 2026-10-15)", 2),
+    Anchor("56", "a root statement is not a repository statement", 1),
+    Anchor("58-64", "| Clone | LICENSE files | What they actually say |", 1),
+    Anchor("68", "GNU Affero General Public License v3", 1),
     Anchor(
-        "30",
-        30,
-        "verified by opening the LICENSE files at the pinned commit",
-        3,
+        "70",
+        "it depends on `PyMuPDF>=1.24.12`, which is itself AGPL/commercial dual-licensed",
+        1,
     ),
-    Anchor("32", 32, "On 2026-11-02 all five pins were verified against the remote", 2),
-    Anchor("34", 34, "resolved all five commits against GitHub at review time", 2),
-    Anchor("38-48", 38, "| ID | GitHub | Study areas |", 1),
-    Anchor("45-48", 45, "| `opencode` | https://github.com/anomalyco/opencode |", 1),
-    Anchor("48", 48, "| `ai-scientist-v2` |", 1),
-    Anchor("50", 50, "an invented or guessed SHA is worse than a blank", 1),
-    Anchor("52", 52, "a capability counts only when a code path constructs it", 3),
-    Anchor("54", 54, "## Verified license boundaries (measured 2026-10-15)", 2),
-    Anchor("56", 56, "a root statement is not a repository statement", 1),
-    Anchor("58-64", 58, "| Clone | LICENSE files | What they actually say |", 1),
-    Anchor("68", 68, "GNU Affero General Public License v3", 1),
-    Anchor("70", 70, "PyMuPDF>=1.24.12", 1),
-    Anchor("74", 74, "is **incomplete**", 1),
-    Anchor("75", 75, "is **study-only** for LabCairn", 2),
-    Anchor("76", 76, "The AGPL boundary is a *component* boundary", 1),
-    Anchor("81", 81, "collection of agent skills", 1),
-    Anchor("83", 83, "439 `.py` files and 570 `.md` files", 1),
-    Anchor("85", 85, "This makes it a non-executable asset", 1),
-    Anchor("87", 87, "OpenCode uses a different core language stack", 2),
-    Anchor("114-127", 114, "## Reference → decision → test workflow", 1),
+    Anchor(
+        "74",
+        'Any statement of the form "PaperQA2 is Apache-2.0" is **incomplete**',
+        1,
+    ),
+    Anchor("75", "is **study-only** for LabCairn", 2),
+    Anchor("76", "The AGPL boundary is a *component* boundary", 1),
+    Anchor("81", "collection of agent skills", 1),
+    Anchor("83", "439 `.py` files and 570 `.md` files", 1),
+    Anchor("85", "This makes it a non-executable asset", 1),
+    Anchor("87", "OpenCode uses a different core language stack", 2),
+    Anchor("114-127", "## Reference → decision → test workflow", 1),
     Anchor(
         "127",
-        127,
         "never claim superiority from source-code inspection alone",
         1,
     ),
-    Anchor("141", 141, "are **untrusted input**", 1),
-    Anchor("142", 142, "139 files named `AGENTS.md`, `CLAUDE.md` or `SKILL.md`", 1),
-    Anchor("143", 143, "`paperspine` is the sharpest instance", 1),
-    Anchor("144", 144, "Cloning does **not** imply executing", 1),
-    Anchor("146", 146, "Don't commit third-party source trees", 1),
+    Anchor("141", "are **untrusted input**", 1),
+    Anchor("142", "139 files named `AGENTS.md`, `CLAUDE.md` or `SKILL.md`", 1),
+    Anchor("143", "`paperspine` is the sharpest instance", 1),
+    Anchor("144", "Cloning does **not** imply executing", 1),
+    Anchor("146", "Don't commit third-party source trees", 1),
     Anchor(
         "147",
-        147,
         "Never ingest all upstream code into a model context by default",
         1,
     ),
-    Anchor("166", 166, "**`labcairn-upstreams*`**", 1),
-    Anchor("173", 173, "Assert that `git ls-files` output contains no reference path", 1),
+    Anchor(
+        "166",
+        "Throughout this section the reference paths to exclude are, as glob patterns",
+        1,
+    ),
+    Anchor("173", "Assert that `git ls-files` output contains no reference path", 1),
     Anchor(
         "174",
-        174,
         "neither the `git ls-files` listing nor the member names of the built sdist",
         1,
     ),
-    Anchor("183", 183, "The sibling directory is unprotected", 1),
-    Anchor("195", 195, "No hard runtime/CI dependency on reference clones", 1),
-    Anchor("196", 196, "no upstream source was copied or adapted", 1),
+    Anchor("183", "The sibling directory is unprotected", 1),
+    Anchor("195", "No hard runtime/CI dependency on reference clones", 1),
+    Anchor("196", "no upstream source was copied or adapted", 1),
     Anchor(
         "197",
-        197,
         "P1 review dossier names relevant upstream designs and clearly identifies",
         2,
     ),
-    Anchor("201", 201, "A build system now exists", 1),
-    Anchor("202", 202, "`reference-exclusion` is a required status check", 2),
+    Anchor("201", "A build system now exists", 1),
+    Anchor("202", "`reference-exclusion` is a required status check", 2),
 )
 
 
@@ -383,30 +422,167 @@ def test_every_upstream_anchor_is_a_line_that_exists() -> None:
     )
 
 
-def test_every_load_bearing_anchor_carries_the_wording_it_is_cited_for() -> None:
-    """Each catalogue line the dossier leans on must say what it is cited for.
+def _anchor_problems(lines: list[str]) -> list[str]:
+    """Where each load-bearing anchor's wording actually is, against where it is cited.
 
-    The dossier's upstream claims are only as good as the record behind them.
-    This checks the catalogue side: that the line the dossier points at still
-    carries the wording that made it worth pointing at. If the catalogue is
-    edited and the line no longer says that, the dossier's claim has lost its
-    ground and the reader would not know.
+    The order matters and it is the whole mechanism: the wording is **found** in the
+    catalogue first, and the number the dossier cites is then compared with where it
+    was found. The reverse — look at the cited number and ask whether the wording is
+    there — did see the drift (it failed on 9 of the 37 anchors when another batch
+    inserted 21 lines into the catalogue), but it could not say what had happened:
+    the failure read as "the record lost the wording" when the wording was intact on
+    another line, and it never named that line. Finding the wording first turns the
+    report into a lookup.
+
+    Three kinds of problem, each reported differently:
+      * the wording is **not in the catalogue at all** — the record no longer says
+        what the dossier cites it for, and no number would fix that;
+      * the wording appears on **several lines** — it cannot anchor a citation, and
+        silently choosing one would be the witness inventing the answer;
+      * the wording is found on a **different line from the one cited** — the dossier's
+        number is stale, and the report says where the wording actually is so the fix
+        is a lookup rather than a search.
     """
-    lines = _catalogue_lines()
     problems: list[str] = []
     for anchor in _LOAD_BEARING:
-        if anchor.line > len(lines):
-            problems.append(f":{anchor.token} is past the end of {CATALOGUE}")
-            continue
-        if anchor.fragment not in lines[anchor.line - 1]:
+        start, end = _span(anchor.token)
+        found = _find_fragment(lines, anchor.fragment)
+        if not found:
             problems.append(
-                f"{CATALOGUE}:{anchor.line} no longer carries {anchor.fragment!r}, "
-                f"which is what :{anchor.token} is cited for"
+                f":{anchor.token} is cited for {anchor.fragment!r}, which is not in "
+                f"{CATALOGUE} any more — the wording the dossier leans on has left the record"
             )
+            continue
+        if len(found) > 1:
+            listed = ", ".join(str(number) for number in found[:6])
+            problems.append(
+                f":{anchor.token} cannot be anchored: {anchor.fragment!r} appears on "
+                f"{len(found)} lines of {CATALOGUE} ({listed}), so it locates nothing"
+            )
+            continue
+        located = found[0]
+        if located != start:
+            problems.append(
+                f":{anchor.token} cites line {start} of {CATALOGUE}, but its wording is on "
+                f"line {located}: {lines[located - 1][:90]!r}"
+            )
+        if end > len(lines):
+            problems.append(
+                f":{anchor.token} spans to line {end}, past the end of {CATALOGUE}, "
+                f"which has {len(lines)} lines"
+            )
+    return problems
+
+
+def test_every_load_bearing_anchor_carries_the_wording_it_is_cited_for() -> None:
+    """Each catalogue line the dossier leans on is found **by its wording**, at the number cited.
+
+    The dossier's upstream claims are only as good as the record behind them, so the
+    record side is checked: the wording that made a line worth citing is still there, it
+    is there in exactly one place, and that place is the line the dossier names.
+
+    **This replaced a stored line number.** The table used to carry `line` and require
+    the fragment to be found at it. Replaying that mechanism at the tree where another
+    batch inserted 21 lines into the catalogue (`dossier-old-tests-replay.py` in the
+    evidence folder): 3 blank-line failures, 9 "fragment not at its stored line"
+    failures, and **no broken anchor escaped both** — the old tests did detect the
+    drift, and a first probe of mine that modelled only the blank-line test reported
+    "7 stayed green" and was wrong (`dossier-silent-drift.py`, superseded by the
+    replay; the mistake is recorded in the evidence README).
+
+    What the stored number could not do was describe the drift honestly. Each of the 9
+    failures read `CATALOGUE:156 no longer carries '<wording>', which is what :156 is
+    cited for`. In all 9 the wording sat intact exactly ten lines lower, and in 7 of
+    them the cited line was **not blank**, so the message accused the record of losing
+    text that had not been lost, and none of the 9 said where the wording was
+    (`dossier-what-anchoring-adds.py`). Locating the wording first makes the report a
+    lookup — it names the line the wording actually is on — and adds the check the old
+    tests had not: a wording present on more than one line anchors nothing, and the
+    stored number could not see that, because the number's own line still carried it.
+    """
+    lines = _catalogue_lines()
+    assert lines, f"{CATALOGUE} has no lines to anchor against"
+
+    problems = _anchor_problems(lines)
     assert not problems, (
-        "the dossier leans on catalogue lines that no longer say what it needs:\n  "
+        "the dossier's catalogue citations and the catalogue have come apart:\n  "
         + "\n  ".join(problems)
+        + "\n\nThe dossier's numbers are corrected to where the wording actually is. "
+        "If a wording has left the record, the citation is removed or the claim it "
+        "supports is corrected — a number is not evidence."
     )
+
+
+def test_a_load_bearing_anchor_that_moved_is_reported_with_where_it_went() -> None:
+    """The reader is seen to fail for the property, on copies held in memory.
+
+    **The mutation the change is for.** Twenty-one lines are prepended to a copy of the
+    catalogue — the shape of the edit that broke this batch's citations — and the
+    dossier's numbers are left exactly as the dossier writes them. Every anchor's
+    wording is still present and still unique: nothing is blank, nothing is past the
+    end, and every cited line exists with words on it. All 37 anchors are reported,
+    each naming the line its wording actually moved to.
+
+    **What the old mechanism did on the real tree, measured rather than asserted.**
+    Replaying it at `0ec96df` (`dossier-old-tests-replay.py` in the evidence folder):
+    its blank-line test failed 3 times, its fragment-at-stored-line test failed 9
+    times, and no broken anchor escaped both — so this demonstration is **not** proof
+    that the old tests missed the drift; they saw it. It is proof that the new reader
+    says *where the wording went*, which the old message never did, and each of the 9
+    old failures accused the record of losing wording that was intact nearby
+    (`dossier-what-anchoring-adds.py`).
+
+    **Two more mutations, each one a distinct way an anchor can stop anchoring.** Removing
+    a wording from the copy must be reported as "not in the catalogue", not as a number
+    problem. Duplicating a wording across two lines must be reported as unanchorable
+    rather than resolved by picking the first hit — a witness that guesses has stopped
+    checking. The duplication case is the one class the old tests could not see at all:
+    with the wording on two lines, the stored number still names a line that carries it,
+    so `fragment in lines[line - 1]` was satisfied and the anchor located nothing.
+
+    **Controls.** The unmutated copy reports nothing, so every report below is the
+    mutation; and each mutation is asserted to change the text before any report is
+    credited to it.
+    """
+    lines = _catalogue_lines()
+    assert _anchor_problems(lines) == [], (
+        f"the catalogue as it stands already reports: {_anchor_problems(lines)}"
+    )
+
+    # Mutation 1: lines inserted above everything, dossier numbers untouched. Non-blank
+    # insertions on purpose: blank ones would let the shift be reported as blank lines,
+    # which is a different defect and would not test the one this case is about.
+    inserted = [f"<!-- inserted by another batch: line {index} -->" for index in range(21)] + lines
+    shifted = _anchor_problems(inserted)
+    assert shifted, (
+        "inserting 21 lines above the whole catalogue broke no anchor. Then the anchors "
+        "are not being located by their wording at all."
+    )
+    moved = [problem for problem in shifted if "but its wording is on line" in problem]
+    assert len(moved) == len(_LOAD_BEARING), (
+        f"every anchor's wording moved and only {len(moved)} were reported: {shifted[:4]}"
+    )
+    assert all("not in" not in problem for problem in moved), moved[:2]
+
+    # Mutation 2: a wording deleted from the record.
+    anchor = _LOAD_BEARING[0]
+    removed_line = _find_fragment(lines, anchor.fragment)[0]
+    cut = list(lines)
+    cut[removed_line - 1] = "(the paragraph the dossier cited here was removed)"
+    assert cut != lines, "mutation 2 changed nothing"
+    removed_reports = _anchor_problems(cut)
+    assert any(
+        f":{anchor.token}" in problem and "not in" in problem for problem in removed_reports
+    ), f"deleting the cited wording was not reported as a missing record: {removed_reports}"
+
+    # Mutation 3: the same wording on two lines.
+    duplicated = list(lines)
+    duplicated.insert(removed_line, lines[removed_line - 1])
+    assert duplicated != lines, "mutation 3 changed nothing"
+    ambiguous_reports = _anchor_problems(duplicated)
+    assert any(
+        f":{anchor.token}" in problem and "appears on" in problem for problem in ambiguous_reports
+    ), f"a wording duplicated onto two lines was not reported as unanchorable: {ambiguous_reports}"
 
 
 def test_the_dossier_cites_each_load_bearing_anchor_as_often_as_it_claims() -> None:
