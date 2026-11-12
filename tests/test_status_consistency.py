@@ -1595,10 +1595,10 @@ def test_the_dossier_tree_check_fails_when_the_marker_stops_naming_an_exception(
 #: one -- the wording is **found**, and the report names the line it moved to.
 #:
 #: **A pointer without words is not read.** The conversion is happening in several windows,
-#: and 553 single-line pointers exist across 62 documents today; a check that reddened on the
-#: documents that have not converted yet is a check people route around. The declaration is
-#: what opts a document in -- which is also the gap: a document that never declares is
-#: unchecked, and that is stated here rather than hidden.
+#: and 540 single-line pointers exist across 55 documents at `3fcfbf6` (543 across 56 at
+#: `5446df8`); a check that reddened on the documents that have not converted yet is a check
+#: people route around. The declaration is what opts a document in -- which is also the gap: a
+#: document that never declares is unchecked, and that is stated here rather than hidden.
 
 #: The count a converted document declares. **Only the number is read**, because a document
 #: that reworded the sentence beside it would otherwise switch the watch off silently -- the
@@ -1607,28 +1607,34 @@ def test_the_dossier_tree_check_fails_when_the_marker_stops_naming_an_exception(
 _ANCHOR_DECLARATION = re.compile(r"^\*\*Anchors:\*\*[ \t]+(?P<count>\d+)\b", re.MULTILINE)
 
 #: A pointer: a path and one line number, in backticks. A **span** citation (``:120-135``) is
-#: not this form and is not read here. 266 spans exist across 28 documents today; that is a
-#: gap in the format, recorded rather than papered over with a rule nobody agreed to.
+#: not this form and is not read here: **264** exist across **28** documents at `5446df8`,
+#: counted with this file's own patterns -- fence-skipped and shape-guarded, the same ruler
+#: that counts the single-line pointers (266 under a looser pattern that also counts two
+#: upstream symbol citations). That is a gap in the format, recorded rather than papered over
+#: with a rule nobody agreed to.
 _POINTER = re.compile(r"`(?P<path>[^`\s:]+):(?P<line>\d{1,6})`")
 
 #: The shape a path segment has to have before the token is read as a pointer at all: a name,
 #: a dot, and an extension that **starts with a letter**. Directory separators are part of the
 #: name; `docs/plans/PHASE_3-work-orders.md` is a pointer and must survive the shape check.
 #:
-#: **Why this exists.** Nine documents in this tree write ``127.0.0.1:8000`` and
-#: ``localhost:4317`` in backticks -- a host and a port, not a file and a line. Matched
-#: against the pattern above, ``127.0.0.1:8000`` is a path of ``127.0.0.1`` and a line of
-#: 8000, and the document that carries it would be told a file does not exist. Nine such
-#: tokens sit in documents today that declare nothing, so they are not read today either;
-#: the day one of those documents converts a pointer is the day the false report arrives,
-#: and a witness is not allowed to be *almost* right about the document that opts in.
+#: **Why this exists.** Six tracked documents write ``127.0.0.1:8000``,
+#: ``127.0.0.1:5173`` and ``localhost:8000`` in backticks -- eight tokens, a host and a port,
+#: not a file and a line. Matched against the pattern above, ``127.0.0.1:8000`` is a path of
+#: ``127.0.0.1`` and a line of 8000, and the document that carries it would be told a file
+#: does not exist. None of those documents declares an anchor count today, so they are not
+#: read today either; the day one of them converts a pointer is the day the false report
+#: arrives, and a witness is not allowed to be *almost* right about the document that opts in.
 #:
-#: The cost is stated: an extensionless file (``Makefile:12``) is not read either. Measured
-#: at `f92e556`, every extensionless ``name:NUMBER`` token in the tree -- 33 of them -- is
-#: either a host and port, or a symbol citation in an upstream study (`_step:707`), or a
-#: section citation in an ADR (`ADR-0002:391`). Not one names a file this repository carries.
-#: `test_the_pointer_pattern_reads_a_file_and_not_a_host` holds that measurement, so the day
-#: the rule starts skipping something real is noticed rather than absorbed.
+#: The cost is stated, and measured rather than eyeballed: an extensionless file
+#: (``Makefile:12``) is not read either. At `109d791`, the revision this rule landed in,
+#: **41** ``name:NUMBER`` tokens are rejected, in nine documents: **7** dotted quads
+#: (``127.0.0.1``), **33** names with no dot at all (the upstream studies' symbol citations
+#: -- `_step:707`, `FilesystemPermission:366` -- plus `ADR-0002:391`, two `l=2` measurement
+#: rows and one ``localhost``), and **1** name whose extension segment begins with an
+#: underscore (`FilesystemMiddleware.__init__:1903`). Not one names a file this repository
+#: tracks. `test_the_pointer_pattern_reads_a_file_and_not_a_host` holds that measurement, so
+#: the day the rule starts skipping something real is noticed rather than absorbed.
 _FILE_SHAPED_PATH = re.compile(r"^[A-Za-z0-9_/+.\-]*\.[A-Za-z][A-Za-z0-9]*$")
 
 #: The words a converted pointer carries: an em dash -- ``--`` accepted too, because a document
@@ -1637,13 +1643,16 @@ _FILE_SHAPED_PATH = re.compile(r"^[A-Za-z0-9_/+.\-]*\.[A-Za-z][A-Za-z0-9]*$")
 #: still read; the span itself is read on one line.
 _ANCHOR_TAIL = re.compile(r"(?P<gap>\s*)(?:—|--)[ \t]*`(?P<words>[^\n`]+)`")
 
-#: A pointer that is a link **label**: ``[`path:LINE`](target)``. Nine such pointers exist
-#: today, and the format as written cannot be applied to one -- the words would have to sit
-#: either inside the label, making the link's own text carry the citation, or after the
-#: closing parenthesis, where a reader-only pattern would not find them. This reads the second
-#: shape, and resolves the file from the link's **target**, which is where the document
-#: actually says the file is. ``docs/ROADMAP.md:88`` is this shape, and it is one of the two
-#: example documents, so the extension is not theoretical.
+#: A pointer that is a link **label**: ``[`path:LINE`](target)``. **9** such pointers exist in
+#: four documents at `5446df8`, and the format as written cannot be applied to one -- the
+#: words would have to sit either inside the label, making the link's own text carry the
+#: citation, or after the closing parenthesis, where a reader-only pattern would not find them.
+#: This reads the second shape, and resolves the file from the link's **target**, which is
+#: where the document actually says the file is: the label `G2-acceptance.md` over the target
+#: `acceptance/G2-acceptance.md` resolves only that way. ``docs/ROADMAP.md:90`` is this shape,
+#: in one of the two example documents, so the extension is not theoretical -- and the line
+#: number in this sentence is itself a pointer, which is why it names the revision it was
+#: read at.
 _LINK_CLOSE = re.compile(r"\]\(\s*<?([^)\s>]+)>?(?:\s+[\"'][^\"']*[\"'])?\s*\)")
 
 #: Below this a quoted span does not identify a line. A short span is **reported**, never
@@ -1704,10 +1713,16 @@ def _word_lines(lines: list[str], needle: str, limit: int = 8) -> list[int]:
 def _cited_file(doc: Path, cited: str, href: str | None = None) -> Path | None:
     """The file a cited path names: repo-root-relative, or relative to the document.
 
-    Both are used in this tree -- measured at `3fcfbf6`: 238 pointers resolve from the root
-    and 5 from their own directory. A pointer that resolves neither is a pointer to nothing,
-    and the 117 that resolve only under a written-out prefix (`application/context.py` for
-    `src/labcairn/application/context.py`) are named in the report rather than forgiven here.
+    Both are used in this tree -- measured at `5446df8`, over the 543 candidates this reader
+    accepts: **240** resolve from the repository root and **6** from the document's own
+    directory. **297 resolve neither way**, and they are not one kind: **111** are written
+    under a package root the reader will not guess (`application/context.py` for
+    `src/labcairn/application/context.py`), and **186** name files this repository does not
+    carry at all -- the upstream clones (`libs/deepagents/…`, `graph.py:1008`) and bare module
+    names (`commands.py:1452`, `permissions.py:524`). A pointer that resolves neither is a
+    pointer to nothing, and it is **reported** rather than forgiven: guessing a prefix would
+    pass a pointer that names the wrong file, and the 186 are exactly the citations a reader
+    following a converted document would find nothing to open.
 
     For a link-labelled pointer the link's **target** is tried last: the document said where
     the file is, and the label is the shorter spelling of the same thing. It is tried last so
@@ -2019,19 +2034,22 @@ def test_the_pointer_pattern_reads_a_file_and_not_a_host() -> None:
 
     **Both halves are watched, because the guard can fail in either direction.**
 
-    *It lets something through that is not a file.* Nine tracked documents write
-    ``127.0.0.1:8000`` and ``localhost:4317`` in backticks. Read as a pointer,
-    ``127.0.0.1`` is a path and ``8000`` is a line, and the document carrying it is told a
-    file does not exist -- a red that is not about the property. The probe below is a document
-    that declares an anchor count and carries a host-and-port beside its words: with the guard
-    off it reports a missing file, and with the guard as shipped it reports nothing.
+    *It lets something through that is not a file.* Six tracked documents carry eight
+    host-and-port tokens -- ``127.0.0.1:8000``, ``127.0.0.1:5173`` and ``localhost:8000``, in
+    backticks. Read as a pointer, ``127.0.0.1`` is a path and ``8000`` is a line, and the
+    document carrying it is told a file does not exist -- a red that is not about the
+    property. The probe below is a document that declares an anchor count and carries a
+    host-and-port beside its words: with the guard off it reports a missing file, and with
+    the guard as shipped it reports nothing.
 
     *It keeps something out that is a file.* The shape rule accepts a dot and an extension
     beginning with a letter, so an extensionless file is not read. Measured through the
-    witness's own patterns at `f92e556`, **41** ``name:NUMBER`` tokens are rejected, and not
-    one of them names a file this repository tracks -- they are hosts and ports, symbol
-    citations in the upstream studies (`_step:707`, `FilesystemPermission:366`), a section
-    citation in an ADR (`ADR-0002:391`) and one measurement row (`l=2`). This asserts that
+    witness's own patterns at `109d791`, the revision the rule landed in, **41**
+    ``name:NUMBER`` tokens are rejected, and not one of them names a file this repository
+    tracks: **7** dotted quads, **33** names with no dot (the upstream studies' symbol
+    citations -- `_step:707`, `FilesystemPermission:366` -- plus `ADR-0002:391`, two `l=2`
+    measurement rows and one bare ``localhost``), and **1** name whose extension segment
+    begins with an underscore (`FilesystemMiddleware.__init__:1903`). This asserts that
     measurement, so the day the rule starts skipping something real -- a `Makefile:12` in a
     document that converted its pointers -- the check goes red and names it, instead of the
     pointer quietly going unread. `.gitignore:4` is in the accepted set precisely because
