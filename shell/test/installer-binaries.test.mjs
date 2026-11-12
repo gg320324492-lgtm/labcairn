@@ -15,13 +15,28 @@
  *
  * **Where the reader comes from.** NOTICE §5.4 names the artefacts: the two
  * electron-builder caches the NSIS target downloads
- * (`${ELECTRON_BUILDER_CACHE}/nsis-3.0.4.1`, `…/nsis-resources-3.4.1`) and the
- * installer extract. This file hashes the real bytes in those bundles and
- * compares. A third source is `app-builder-lib`'s own `getBinFromUrl` declaration
- * — the bundle names and checksums the build asks its downloader to verify —
- * which is what ties "the bundle §2.5 names" to "the bundle this version of
- * electron-builder fetches": bump `electron-builder` and the plug-ins move to a
- * newer bundle, and the declaration changes.
+ * (`${ELECTRON_BUILDER_CACHE}/nsis-3.0.4.1`, `…/nsis-resources-3.4.1`), the
+ * installer's `7z l` member list, and — where one can be produced — an extract.
+ * This file hashes the real bytes in those bundles and compares. A third source
+ * is `app-builder-lib`'s own `getBinFromUrl` declaration — the bundle names and
+ * checksums the build asks its downloader to verify — which is what ties "the
+ * bundle §2.5 names" to "the bundle this version of electron-builder fetches":
+ * bump `electron-builder` and the plug-ins move to a newer bundle, and the
+ * declaration changes.
+ *
+ * **The listing is the source the installer arms actually use.** `$PLUGINSDIR` is
+ * an installation-time temporary directory, and 7-Zip's NSIS handler lists its
+ * members without extracting them: a re-review measured a plain `7za x`, `-spf`
+ * and `e '$PLUGINSDIR\*'` against the 2026-11-11 build, and none produced those
+ * plug-ins. The first version of this witness waited for an extract, so two arms
+ * could only ever report `NOT RUN`. A `7z l` of the installer gives the member
+ * names, their compressed sizes (the numbers §5.4 step 2 prints) and the absence
+ * or presence of a licence-document name -- everything §2.5.1's ten-member census
+ * and its licence-text obligation need. The 7-Zip version matters: 26.02 (x64)
+ * reports `Type = Nsis` and lists the plug-ins; the 24.09 (x86) binary
+ * electron-builder caches reports `Type = 7z` and lists only the outer payload.
+ * An extract, where one exists, is an optional strengthening: it adds the
+ * per-member sha256 and compiled-binary statement arms.
  *
  * **What it does not do.** It draws no licence conclusion from a binary's bytes.
  * §2.5 records that the compiled binaries carry no licence text, and §2.5.1
@@ -41,6 +56,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -65,7 +81,13 @@ import {
   isLicenceDocument,
   licenceDocumentKind,
   licenceDocumentsIn,
+  compressedSizeTable,
+  listedCensusProblems,
+  listedLicenceDocuments,
+  listedSizeProblems,
   memberRecordProblems,
+  parseInstallerListing,
+  recordLayer,
   storeDirectoryFor,
   toolchainDeclarations,
   toolchainRecordProblems,
@@ -91,7 +113,140 @@ const EXTRACT_DIRS = (process.env.LABCAIRN_LICENCE_INSTALLER_EXTRACT ?? '')
   .split(path.delimiter)
   .filter((entry) => entry.length > 0 && fs.existsSync(entry))
 
+/**
+ * The installer's own `7z l` listing, the third source.
+ *
+ * `$PLUGINSDIR` is an installation-time temporary directory: 7-Zip's NSIS handler
+ * can list its members but does not extract them. Measured here with three `7za`
+ * invocations against the 2026-11-11 build: a plain `x` yields only the payload,
+ * `-spf` the same, and `e '$PLUGINSDIR\*'` reports `Files: 0`. So an extract of
+ * those plug-ins is not an artefact any machine can produce by unpacking, and a
+ * witness that waits for one has arms that can never run. The **listing** is
+ * obtainable wherever the installer is, and it carries the member names, the
+ * compressed sizes and the absence/presence of licence documents -- which is
+ * exactly what §2.5.1's ten-member census and obligation record need.
+ *
+ * `LABCAIRN_LICENCE_INSTALLER_LISTING` names one or more saved `7z l` outputs
+ * (`path.delimiter`-separated, the same shape as the extract variable): typically
+ * one of the NSIS installer itself and one of its payload. A caller with a live
+ * installer but no saved log can run §5.4 step 2 (`7z l "<installer>"`) and name
+ * the result. An explicit `LABCAIRN_LICENCE_INSTALLER` names the exe and the
+ * witness runs `7za l` itself, where a 7za is findable.
+ */
+const LISTING_PATHS = (process.env.LABCAIRN_LICENCE_INSTALLER_LISTING ?? '')
+  .split(path.delimiter)
+  .filter((entry) => entry.length > 0 && fs.existsSync(entry))
+
+/**
+ * The 7-Zip binaries worth trying when given a live installer.
+ *
+ * The version matters: system 7-Zip 26.02 (x64) reports `Type = Nsis` and lists
+ * the nine `$PLUGINSDIR` members plus the uninstaller, while the 24.09 (x86)
+ * binary electron-builder caches reports `Type = 7z` and lists only the outer
+ * payload. `parseInstallerListing` returns the type with the members, so a
+ * listing of the wrong layer is reported rather than mistaken for a short
+ * installer. The environment variable is first because this machine's
+ * `ELECTRON_BUILDER_CACHE` points at a different cache tree than the one the
+ * evidence directories were built from.
+ */
+function sevenZipCandidates() {
+  const roots = [
+    process.env.LABCAIRN_LICENCE_7Z ?? '',
+    process.env.ELECTRON_BUILDER_CACHE ?? '',
+    path.join(shellPaths({ here: HERE }).checkoutRoot, '.local', 'cache', 'electron-builder'),
+    'C:\\Program Files\\7-Zip',
+    'E:\\labcairn-local\\cache\\electron-builder',
+  ].filter(Boolean)
+  const candidates = []
+  for (const root of roots) {
+    const direct = path.join(root, '7z.exe')
+    if (fs.existsSync(direct)) candidates.push(direct)
+    const sevenZipDir = path.join(root, '7zip@1.0.0')
+    if (!fs.existsSync(sevenZipDir)) continue
+    for (const entry of fs.readdirSync(sevenZipDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      for (const name of ['7za.exe', '7z.exe']) {
+        const file = path.join(sevenZipDir, entry.name, 'bin', name)
+        if (fs.existsSync(file)) candidates.push(file)
+      }
+    }
+  }
+  return [...new Set(candidates)]
+}
+
+/**
+ * Read every available listing, from saved logs and — when an installer is named
+ * — from `7za l` run here. `spawnSync` is the shape this file already uses for
+ * nothing else, but a listing is a read-only command with no side effects and its
+ * stdout is the artefact; a failed invocation is reported in `failures` rather
+ * than silently shrinking the member set.
+ */
+function installerListings() {
+  const texts = []
+  const failures = []
+  for (const file of LISTING_PATHS) {
+    try {
+      texts.push({ source: file, text: fs.readFileSync(file, 'utf8') })
+    } catch (error) {
+      failures.push(`${file}: ${String(error?.message ?? error)}`)
+    }
+  }
+  const exe = process.env.LABCAIRN_LICENCE_INSTALLER
+  if (exe && fs.existsSync(exe)) {
+    const tried = []
+    let produced = false
+    for (const sevenZip of sevenZipCandidates()) {
+      const result = spawnSync(sevenZip, ['l', exe], { encoding: 'utf8', timeout: 120_000 })
+      const parsed = result.stdout ? parseInstallerListing(result.stdout) : null
+      const isNsis = parsed?.type?.toLowerCase() === 'nsis'
+        && parsed.members.some((member) => member.member.startsWith('$PLUGINSDIR/'))
+      tried.push(`${sevenZip} status=${result.status ?? result.error?.message} type=${parsed?.type ?? 'none'}`)
+      if (result.status === 0 && result.stdout) {
+        texts.push({ source: `${sevenZip} l ${exe}`, text: result.stdout })
+        // The outer 7z payload is a listing too, and §2.5 names `elevate.exe`
+        // inside it, so both layers are kept. But only an NSIS-layer listing
+        // satisfies the installer itself: a 24.09 (x86) 7za that reports
+        // `Type = 7z` has not listed the plug-ins, and the next candidate must
+        // be tried rather than accepted as a short installer.
+        if (isNsis) produced = true
+        if (isNsis && parsed.members.some((member) => member.member.startsWith('resources/'))) break
+      }
+    }
+    if (!produced) {
+      failures.push(`no 7za produced an NSIS-layer listing for ${exe}; tried ${tried.join(' | ') || 'no 7za found'}`)
+    }
+  }
+  const parsed = texts.map(({ source, text }) => ({ source, ...parseInstallerListing(text) }))
+  return { listings: parsed, failures }
+}
+
+const INSTALLER = installerListings()
+
+/** The NSIS-layer listings: those whose archive type is Nsis and which name the plug-ins. */
+function nsisListings() {
+  return INSTALLER.listings.filter(
+    (listing) => listing.type?.toLowerCase() === 'nsis'
+      && listing.members.some((member) => member.member.startsWith('$PLUGINSDIR/')),
+  )
+}
+
+/** All archived members, from every layer, deduplicated by member name. */
+function listedMembers() {
+  const found = new Map()
+  for (const listing of INSTALLER.listings) {
+    for (const member of listing.members) {
+      if (!found.has(member.member.toLowerCase())) found.set(member.member.toLowerCase(), member)
+    }
+  }
+  return [...found.values()]
+}
+
 const CACHE = findCacheBundles(CACHE_DIR)
+
+const NO_LISTING_REASON =
+  'no installer listing or extract (LABCAIRN_LICENCE_INSTALLER_LISTING names saved `7z l` '
+  + 'output, LABCAIRN_LICENCE_INSTALLER names the exe to list, and '
+  + 'LABCAIRN_LICENCE_INSTALLER_EXTRACT names an unpacked extract)'
 
 /**
  * Where an installed `app-builder-lib` could be found, in the order tried.
@@ -192,11 +347,25 @@ test('every §2.5 binary hash and size is the byte count and hash of the real fi
 // 2. No binary enters the artefact that §2.5 does not name.
 // ---------------------------------------------------------------------------
 test('the binaries the installer actually carries are exactly the eight §2.5 records — no ninth binary', () => {
-  if (EXTRACT_DIRS.length === 0) {
-    notRun('the extract\'s binaries against §2.5\'s eight names', EXTRACT_REASON)
+  // The listing is the source that is actually obtainable: `$PLUGINSDIR` is an
+  // installation-time temporary directory, and 7-Zip's NSIS handler lists its
+  // members without extracting them. An extract, when one exists, is an optional
+  // strengthening -- it adds the sha256 arm below -- not a prerequisite. Waiting
+  // for one left this case NOT RUN on every machine, which is the gap a re-review
+  // found and this change closes.
+  const listings = nsisListings()
+  const listed = listedMembers()
+  const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  // Any layer is evidence. A caller with only the payload's `7z l` output can
+  // still measure §2.5's `elevate.exe` record; requiring the NSIS layer here was
+  // the last shape of "an arm that could not look" -- it reported no source at all
+  // while a real listing named the member it needed. The per-layer sentinel below
+  // says which layer was not measured.
+  if (listed.length === 0 && extracted.length === 0) {
+    notRun('the installer\'s binaries against §2.5\'s eight names', NO_LISTING_REASON)
     return
   }
-  ran('the extract\'s binaries against §2.5\'s eight names')
+  ran(`the installer's binaries against §2.5's eight names (${listed.length} listed member(s), ${extracted.length} extracted member(s))`)
 
   // §2.5.2 records the owner's 2026-11-12 decision on this exact point: "a
   // per-binary licence census of the installer binaries, witnessed by a test —
@@ -211,10 +380,34 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   // would report plug-ins that never travel. And it is not the Electron payload
   // either: `ffmpeg.dll` and the rest of the runtime are §2.4.1's surface, whose
   // terms travel in `LICENSES.chromium.html`, and §2.5 says so.
-  const members = extractMembers(EXTRACT_DIRS)
-  const inScope = members.filter((member) => /^\$PLUGINSDIR\/|^resources\//.test(member.member))
-  const binaries = inScope.filter((member) => /\.(dll|exe)$/i.test(member.member))
-  const { unrecorded, missing } = memberRecordProblems(binaries, RECORDS)
+  const inScope = [
+    ...listed.filter((member) => /^\$PLUGINSDIR\/|^resources\//.test(member.member)),
+    ...extracted.filter((member) => /^\$PLUGINSDIR\/|^resources\//.test(member.member)),
+  ]
+  const binaries = inScope
+    .filter((member) => /\.(dll|exe)$/i.test(member.member))
+    // The payload's Electron runtime DLLs (ffmpeg.dll, d3dcompiler_47.dll, …)
+    // are §2.4.1's surface, and §2.5 says so. §2.5 claims to enumerate the
+    // seven plug-ins in `$PLUGINSDIR` and `elevate.exe` in `resources/`, so only
+    // those two groups are in scope.
+    .filter((member) => /^\$PLUGINSDIR\/[^/]+\.(dll|exe)$|^resources\/[^/]+\.(dll|exe)$/i.test(member.member))
+
+  // §2.5's eight records span two different archives: seven plug-ins in the NSIS
+  // installer's `$PLUGINSDIR`, and `elevate.exe` inside the payload. A `7z l` of
+  // the installer lists the first layer only; the payload needs its own listing or
+  // extract. Comparing all eight records against a single-layer listing reports
+  // `elevate.exe` as missing -- a false red about NOTICE caused by an absent
+  // source. Only the layers a source was actually available for are compared, and
+  // the other one is reported as NOT RUN rather than called a finding.
+  const layers = new Set()
+  if (listings.length > 0 || inScope.some((member) => member.member.startsWith('$PLUGINSDIR/'))) layers.add('plugins')
+  if (inScope.some((member) => member.member.startsWith('resources/'))) layers.add('payload')
+  const { unrecorded, missing } = memberRecordProblems(binaries, RECORDS, [...layers])
+  for (const layer of ['plugins', 'payload']) {
+    if (!layers.has(layer)) {
+      notRun(`the installer's ${layer} layer against §2.5`, `no ${layer} listing or extract (§2.5 records ${layer === 'plugins' ? 'seven plug-ins in $PLUGINSDIR, named by an NSIS-layer 7z l' : 'elevate.exe in resources/, named by a payload-layer 7z l'}; the two are different archives)`)
+    }
+  }
 
   assert.deepEqual(
     unrecorded,
@@ -227,6 +420,25 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
     [],
     `§2.5 records ${missing.join(', ')} but the installer carries none of them — §2.5 is describing an artefact that no longer contains it`,
   )
+
+  // The optional strengthening: where an extract really holds a member's bytes,
+  // §2.5's sha256 has to be that member's hash. A listing has names and sizes but
+  // no bytes, so this arm says what it did not measure if the extract is absent.
+  if (extracted.length === 0) {
+    notRun('the installer extract\'s per-member sha256 arm', 'no extract (a 7z listing names the members but does not carry their bytes; LABCAIRN_LICENCE_INSTALLER_EXTRACT names one)')
+    return
+  }
+  ran('the installer extract\'s per-member sha256 arm')
+  const mismatches = []
+  for (const record of RECORDS) {
+    const member = extracted.find(
+      (candidate) => path.basename(candidate.member).toLowerCase() === record.name.toLowerCase(),
+    )
+    if (member && member.sha256 !== record.fields.sha256) {
+      mismatches.push(`${record.name}: extract ${String(member.sha256).slice(0, 16)}… vs §2.5 ${record.fields.sha256?.slice(0, 16)}…`)
+    }
+  }
+  assert.deepEqual(mismatches, [], mismatches.join('; '))
 })
 
 // ---------------------------------------------------------------------------
@@ -367,15 +579,27 @@ test('the NSIS bundles §2.5 names are the bundles the pinned electron-builder d
 // ---------------------------------------------------------------------------
 // 5. The obligation record and the artefact agree about what the artefact carries.
 // ---------------------------------------------------------------------------
-test('§2.5.1\'s record of what the installer carries matches what the extract carries', () => {
-  if (EXTRACT_DIRS.length === 0) {
-    notRun('the installer extract against §2.5.1', EXTRACT_REASON)
+test('§2.5.1\'s record of what the installer carries matches what the artefact carries', () => {
+  // §2.5.1's member census and its licence-text obligation are claims about what
+  // the *archive holds*: ten members, seven plug-in DLLs, and none of them a
+  // licence document. 7-Zip's NSIS listing states all three (member names, their
+  // compressed sizes, and the absence/presence of licence names), and it is the
+  // source obtainable wherever the installer is. An extract -- which 7-Zip's NSIS
+  // handler cannot produce for `$PLUGINSDIR` -- is an optional strengthening: it
+  // adds the per-member sha256 and compiled-binary statement arms below.
+  const nsis = nsisListings()
+  const listed = listedMembers()
+  const extracted = EXTRACT_DIRS.length ? extractMembers(EXTRACT_DIRS) : []
+  if (nsis.length === 0 && extracted.length === 0) {
+    // A payload-only listing cannot check §2.5.1's NSIS-archive census: that
+    // section is about the installer's own ten members, and the outer 7z payload
+    // is a different archive. The reason says so rather than reporting no source.
+    notRun('the installer listing against §2.5.1', listed.length > 0
+      ? `no NSIS-layer listing (the ${listed.length} listed member(s) are from a \`Type = 7z\` payload listing, which is a different archive from the NSIS installer §2.5.1 counts)`
+      : NO_LISTING_REASON)
     return
   }
-  ran('the installer extract against §2.5.1')
-
-  const members = extractMembers(EXTRACT_DIRS)
-  assert.ok(members.length > 0, `the extract at ${EXTRACT_DIRS.join(', ')} holds no members`)
+  ran(`the installer listing against §2.5.1 (${nsis.length} NSIS listing(s), ${extracted.length} extracted member(s))`)
 
   const section = noticeSubsection(NOTICE_TEXT, '2.5.1').join('\n')
   const claimsCarry = /\*\*The licence text and the notice \(§1, §6\) — DONE\.\*\*/.test(section)
@@ -384,91 +608,126 @@ test('§2.5.1\'s record of what the installer carries matches what the extract c
     claimsCarry !== claimsAbsent,
     '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE", so there is no recorded state to compare the artefact with',
   )
+  // §2.5.1 writes the number out ("lists **ten** members"), not as a digit. A
+  // pattern that asked for `\d+` read nothing out of a section that states its
+  // census plainly, and the whole listing arm then reported itself as unreadable.
+  // §2.5.1 wraps between the count and the word "members":
+  //   "the NSIS archive lists **ten**\n    members and none of them …"
+  // so the two words have to be allowed to sit on different lines.
+  const census = /the NSIS archive lists \*\*(\w+)\*\*\s+members/.exec(section)
+  assert.ok(census, '§2.5.1 states no member count for the NSIS archive, so its census has nothing to compare with')
+  const MEMBER_COUNT_WORDS = {
+    eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  }
+  const recordedCensus = MEMBER_COUNT_WORDS[census[1].toLowerCase()]
+  assert.ok(
+    Number.isInteger(recordedCensus),
+    `§2.5.1 states its archive has "**${census[1]}**" members, which is not a count this reader can compare: add the word to the vocabulary rather than guessing a number`,
+  )
 
-  const licenceMembers = members.filter((member) => isLicenceDocument(member))
   const lgplRecords = RECORDS.filter((record) => /LGPL/i.test(record.fields.licence ?? ''))
   assert.equal(lgplRecords.length, 2, `§2.5 records ${lgplRecords.length} LGPL binaries; §2.5.1's obligations are written for two`)
 
-  const carryingLicenceText = licenceMembers.length > 0
-  if (claimsCarry) {
-    assert.ok(
-      carryingLicenceText,
-      '§2.5.1 records the licence-text obligation as DONE, but the extract carries no licence document — the record claims something the artefact does not',
+  // The listing is the primary reader. Its `type` is part of the answer: an outer
+  // `Type = 7z` payload listing (what a 24.09 x86 7za gives) is not the NSIS
+  // archive §2.5.1 counts, and reporting it as such would turn a tooling
+  // difference into a false ten-member discrepancy.
+  if (nsis.length > 0) {
+    ran('§2.5.1\'s census against the NSIS listing')
+    const censusMembers = [
+      ...nsis.flatMap((listing) => listing.members),
+      ...listed.filter((member) => member.member.startsWith('resources/')),
+    ]
+    const seen = new Set()
+    const unique = censusMembers.filter((member) => {
+      const key = member.member.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    const documents = listedLicenceDocuments(unique)
+    const problems = listedCensusProblems(unique, recordedCensus, claimsCarry, documents)
+    assert.deepEqual(problems, [], problems.join('; '))
+    // §5.4's seven compressed sizes are a second statement about the same
+    // archive, and `Packed Size` in the listing is the artefact's answer. They
+    // are not §2.5's unpacked sizes, which is why the two must not be compared.
+    ran('§5.4\'s compressed sizes against the NSIS listing')
+    const sizes = compressedSizeTable(NOTICE_TEXT)
+    assert.ok(sizes.size >= 7, `§5.4 prints ${sizes.size} compressed sizes; the section names seven plug-ins`)
+    const sizeProblems = listedSizeProblems(unique, sizes)
+    assert.deepEqual(sizeProblems, [], sizeProblems.join('; '))
+  } else {
+    notRun('§2.5.1\'s census against the NSIS listing', 'no NSIS-layer listing (the saved log is a `Type = 7z` payload listing, or none was named); the extract arm below is the only source')
+  }
+
+  // Where an extract really exists, its own member census agrees with the same
+  // record, and the documents it holds are the ones the listing named.
+  if (extracted.length > 0) {
+    ran('§2.5.1\'s census against the installer extract')
+    const pluginsdir = extracted.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
+    const pluginDlls = pluginsdir.filter((member) => /\.dll$/i.test(member.member))
+    assert.equal(
+      pluginDlls.length,
+      7,
+      `§2.5.1 counts seven plug-in DLLs under $PLUGINSDIR; the extract presents ${pluginDlls.length} (${pluginDlls.map((m) => path.basename(m.member)).join(', ')})`,
     )
-    const texts = licenceMembers.map((member) => fs.readFileSync(member.path, 'utf8'))
-    for (const record of lgplRecords) {
+    assert.equal(
+      pluginsdir.length,
+      recordedCensus - 1,
+      `§2.5.1 counts ${recordedCensus} NSIS-archive members: ${recordedCensus - 1} under $PLUGINSDIR plus the uninstaller at $R0. The extract's $PLUGINSDIR holds ${pluginsdir.length} — a member arriving there is either an unrecorded binary or a licence document the record has to speak about`,
+    )
+    const licenceMembers = extracted.filter((member) => isLicenceDocument(member))
+    if (claimsCarry) {
+      assert.ok(
+        licenceMembers.length > 0,
+        '§2.5.1 records the licence-text obligation as DONE, but the extract carries no licence document',
+      )
+      const texts = licenceMembers.map((member) => fs.readFileSync(member.path, 'utf8'))
       assert.ok(
         texts.some((text) => /GNU LESSER GENERAL PUBLIC LICENSE/i.test(text)),
-        `§2.5.1 records the licence text as carried, but no carried document is the GNU LGPL text §2.5.1 quotes (§2.5.1's obligations are for ${lgplRecords.map((r) => r.name).join(' and ')})`,
+        `§2.5.1 records the licence text as carried, but no carried document is the GNU LGPL text §2.5.1 quotes (obligations for ${lgplRecords.map((r) => r.name).join(' and ')})`,
+      )
+    } else {
+      assert.equal(
+        licenceMembers.length,
+        0,
+        `§2.5.1 records the licence-text obligation as NOT DONE, but the extract carries ${licenceMembers.length} licence document(s): ${licenceMembers.map((m) => m.member).join(', ')} — the record is behind the artefact, and §2.5.1 has to be re-measured against it`,
       )
     }
   } else {
-    assert.equal(
-      licenceMembers.length,
-      0,
-      `§2.5.1 records the licence-text obligation as NOT DONE, but the extract carries ${licenceMembers.length} licence document(s): ${licenceMembers.map((m) => m.member).join(', ')} — the record is behind the artefact, and §2.5.1 has to be re-measured against it`,
-    )
+    notRun('§2.5.1\'s census against the installer extract', 'no extract (a 7z listing names the members but does not carry their bytes)')
   }
 
-  // §2.5.1's own member census: "the NSIS archive lists ten members and none of
-  // them is a licence document". Watched against the extract §5.4 produces.
-  // §2.5.1's own member census, watched against the extract §5.4 produces:
-  // "the NSIS archive lists **ten** members … the seven plug-in DLLs,
-  // `modern-wizard.bmp` and `app-64.7z` under `$PLUGINSDIR`, plus the
-  // uninstaller executable at `$R0`". The extract §5.4 step 3 produces is the
-  // archive's members, so the $PLUGINSDIR count is checkable and the eight
-  // §2.5 binaries have to be among them.
-  const pluginsdir = members.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
-  const pluginDlls = pluginsdir.filter((member) => /\.dll$/i.test(member.member))
-  assert.equal(
-    pluginDlls.length,
-    7,
-    `§2.5.1 counts seven plug-in DLLs under $PLUGINSDIR; the extract presents ${pluginDlls.length} (${pluginDlls.map((m) => path.basename(m.member)).join(', ')})`,
-  )
-  assert.equal(
-    pluginsdir.length,
-    10 - 1,
-    `§2.5.1 counts ten members for the NSIS archive (the seven plug-ins, modern-wizard.bmp and app-64.7z under $PLUGINSDIR, plus the uninstaller at $R0); the extract's $PLUGINSDIR holds ${pluginsdir.length} members (${pluginsdir.map((m) => path.basename(m.member)).join(', ')})`,
-  )
-  assert.deepEqual(
-    pluginsdir.filter((member) => isLicenceDocument(member)).map((member) => member.member),
-    [],
-    'a licence document sits under $PLUGINSDIR while §2.5.1 records that none of the archive\'s members is one — the record and the artefact disagree about what the installer carries',
-  )
-
-  // The binaries §2.5 names are really inside the extract, with the bytes §2.5 records.
-  const mismatches = []
-  for (const record of RECORDS) {
-    const member = members.find(
-      (candidate) => path.basename(candidate.member).toLowerCase() === record.name.toLowerCase(),
-    )
-    if (!member) {
-      mismatches.push(`${record.name} is in §2.5 but not in the extract`)
-      continue
+  // The optional byte-level arms: only where an extract holds the real bytes.
+  if (extracted.length > 0) {
+    ran('the installer extract\'s per-member sha256 and compiled-binary statement arms')
+    const mismatches = []
+    const withStatements = []
+    for (const record of RECORDS) {
+      const member = extracted.find(
+        (candidate) => path.basename(candidate.member).toLowerCase() === record.name.toLowerCase(),
+      )
+      if (!member) {
+        mismatches.push(`${record.name} is in §2.5 but not in the extract`)
+        continue
+      }
+      if (member.sha256 !== record.fields.sha256) {
+        mismatches.push(`${record.name}: the extract's copy is ${member.sha256.slice(0, 16)}… and §2.5 records ${record.fields.sha256?.slice(0, 16)}…`)
+      }
+      if (/LGPL/i.test(record.fields.licence ?? '')) {
+        const hits = binaryCarriesLicenceStatement(member.path, ['lgpl', 'lesser general public', 'gnu general public', 'LoRd_MuldeR'])
+        if (hits.length > 0) withStatements.push(`${record.name} carries ${hits.join(', ')}`)
+      }
     }
-    if (member.sha256 !== record.fields.sha256) {
-      mismatches.push(`${record.name}: the extract's copy is ${member.sha256.slice(0, 16)}… and §2.5 records ${record.fields.sha256?.slice(0, 16)}…`)
-    }
-  }
-  assert.deepEqual(mismatches, [], mismatches.join('; '))
-
-  // The binaries carry no licence statement, which is what §2.5's `where` field
-  // says and what makes the obligation land on the distributor rather than on
-  // the file. Checked by looking for what would falsify it.
-  const withStatements = []
-  for (const record of lgplRecords) {
-    const member = members.find(
-      (candidate) => path.basename(candidate.member).toLowerCase() === record.name.toLowerCase(),
+    assert.deepEqual(mismatches, [], mismatches.join('; '))
+    assert.deepEqual(
+      withStatements,
+      [],
+      `${withStatements.join('; ')} — §2.5 says "the compiled binary carries no licence text" and §2.5.1 measures it`,
     )
-    if (!member) continue
-    const hits = binaryCarriesLicenceStatement(member.path, ['lgpl', 'lesser general public', 'gnu general public', 'LoRd_MuldeR'])
-    if (hits.length > 0) withStatements.push(`${record.name} carries ${hits.join(', ')}`)
+  } else {
+    notRun('the installer extract\'s per-member sha256 and compiled-binary statement arms', 'no extract (a 7z listing carries names and sizes, not bytes)')
   }
-  assert.deepEqual(
-    withStatements,
-    [],
-    `${withStatements.join('; ')} — §2.5 says "the compiled binary carries no licence text" and §2.5.1 measures it; a binary that does carry one changes where the obligation lands`,
-  )
 })
 
 // ---------------------------------------------------------------------------
@@ -492,8 +751,14 @@ test('an arm that could not look says NOT RUN with a reason, and the sentinel is
   assert.deepEqual(absentToolchain, [], 'the toolchain reader found a declaration in a directory that does not exist')
 
   // An arm whose probe answered "nothing there" must not also be logged as RAN.
+  // The probe for the two installer arms is now *either* an NSIS-layer listing or
+  // an extract, not the extract alone: treating the listing as no evidence would
+  // call a real measurement NOT RUN, which is the same class of mistake the
+  // sibling re-review found in the original witness.
+  const hasInstallerEvidence = listedMembers().length > 0 || EXTRACT_DIRS.length > 0
   const ranWithoutEvidence = RUN_LOG.filter((entry) => entry.startsWith('RAN ')).filter((entry) => {
     if (/bundle bytes|bundle\'s|bundles|NSIS COPYING|unresolved/.test(entry)) return !CACHE.available
+    if (/installer listing|installer\'s binaries/.test(entry)) return !hasInstallerEvidence
     if (/extract/.test(entry)) return EXTRACT_DIRS.length === 0
     return false
   })
@@ -565,29 +830,52 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
     { member: '$PLUGINSDIR/StdUtils.dll', sha256: stdUtilsSha },
     { member: '$PLUGINSDIR/Intruder.dll', sha256: 'a'.repeat(64) },
   ]
-  const carried = memberRecordProblems(members, structuredClone(RECORDS))
+  // Both members are in `$PLUGINSDIR`, so this is a plugins-layer-only source:
+  // §2.5's `elevate.exe` record (payload layer) has no evidence here and must not
+  // be reported as missing.
+  const carried = memberRecordProblems(members, structuredClone(RECORDS), ['plugins'])
   assert.deepEqual(carried.unrecorded, ['intruder.dll'], `an unrecorded binary was not reported: ${JSON.stringify(carried)}`)
-  // The other side of the same comparison: an artefact that carries two of the
-  // eight makes the other seven records name binaries the artefact does not
-  // carry. Both directions are the property, and a function that only reported
-  // one of them would let a §2.5 that grew past the artefact, or an artefact that
-  // shrank past §2.5, pass.
+  // The other side of the same comparison: two of the seven plugin records are
+  // carried, so the other five name binaries the artefact does not. Both
+  // directions are the property, and a function that only reported one of them
+  // would let a §2.5 that grew past the artefact, or an artefact that shrank past
+  // §2.5, pass.
   assert.deepEqual(
     carried.missing,
-    RECORDS.map((record) => record.name.toLowerCase()).filter((name) => name !== 'stdutils.dll').sort(),
+    RECORDS.filter((record) => recordLayer(record) === 'plugins')
+      .map((record) => record.name.toLowerCase()).filter((name) => name !== 'stdutils.dll').sort(),
     `the "§2.5 records a binary the artefact does not carry" side reported the wrong set: ${carried.missing.join(', ')}`,
   )
+  // The fixture's members have to be in the layer §2.5's own `path` field names
+  // for each record: seven plug-ins under `$PLUGINSDIR`, and `elevate.exe` under
+  // `resources/`. Putting all eight in one layer is the false-red shape that a
+  // single-layer 7z listing exposed, and the comparison now refuses it.
+  const memberPath = (record) => `${recordLayer(record) === 'payload' ? 'resources' : '$PLUGINSDIR'}/${record.name}`
   const complete = memberRecordProblems(
-    RECORDS.map((record) => ({ member: `$PLUGINSDIR/${record.name}`, sha256: artefact.get(record.name.toLowerCase())[0].sha256 })),
+    RECORDS.map((record) => ({ member: memberPath(record), sha256: artefact.get(record.name.toLowerCase())[0].sha256 })),
     structuredClone(RECORDS),
   )
-  assert.deepEqual(complete, { unrecorded: [], missing: [] }, 'the unmutated artefact/record pair did not compare clean, so these controls prove nothing')
+  assert.deepEqual(complete, { unrecorded: [], missing: [], measuredLayers: ['payload', 'plugins'] }, 'the unmutated artefact/record pair did not compare clean, so these controls prove nothing')
+
+  // A single-layer source (an installer `7z l` with no payload listing) measures
+  // the plug-ins and reports the payload layer as not run, rather than calling
+  // §2.5's `elevate.exe` record wrong.
+  const pluginsOnly = memberRecordProblems(
+    RECORDS.filter((record) => recordLayer(record) === 'plugins').map((record) => ({
+      member: memberPath(record), sha256: artefact.get(record.name.toLowerCase())[0].sha256,
+    })),
+    structuredClone(RECORDS),
+    ['plugins'],
+  )
+  assert.deepEqual(pluginsOnly.unrecorded, [], `a plugins-only listing invented an unrecorded binary: ${JSON.stringify(pluginsOnly)}`)
+  assert.deepEqual(pluginsOnly.missing, [], `a plugins-only listing reported §2.5's elevate.exe record as missing: ${JSON.stringify(pluginsOnly)}`)
+  assert.deepEqual(pluginsOnly.measuredLayers, ['plugins'], 'the comparison claimed a layer no source was available for')
 
   // A record dropped from §2.5 while the artefact still carries the binary: the
   // artefact side reports it as unrecorded, which is m03's shape.
   const dropped = structuredClone(RECORDS).filter((record) => record.name !== 'StdUtils.dll')
   const allEight = RECORDS.map((record) => ({
-    member: `$PLUGINSDIR/${record.name}`,
+    member: memberPath(record),
     sha256: artefact.get(record.name.toLowerCase())[0].sha256,
   }))
   const afterDrop = memberRecordProblems(allEight, dropped)
@@ -689,4 +977,134 @@ test('the controls fail for the properties: a swapped binary, a drifted size, an
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true })
   }
+
+  // (h) The 7z-listing reader itself. A parser that found nothing would make the
+  //     census arm's "0 members" a *finding* rather than an empty read, and a
+  //     parser that swallowed a licence-document name would hide exactly the
+  //     obligation the sibling batch discharges. Both shapes are put to it, on
+  //     the same text the real 7-Zip 26.02 prints (CRLF included), and on `-slt`.
+  const plain = [
+    '7-Zip 26.02 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-06-25',
+    'Path = the-installer.exe',
+    'Type = Nsis',
+    '   Date      Time    Attr         Size   Compressed  Name',
+    '                    .....                      6931  $PLUGINSDIR\\System.dll',
+    '                    .....                      8018  $PLUGINSDIR\\UAC.dll',
+    '                    .....                     45608  $PLUGINSDIR\\StdUtils.dll',
+    '                    .....                      4684  $PLUGINSDIR\\nsDialogs.dll',
+    '                    .....                      1899  $PLUGINSDIR\\modern-wizard.bmp',
+    '                    .....                      3299  $PLUGINSDIR\\nsExec.dll',
+    '                    .....                    123968060  $PLUGINSDIR\\app-64.7z',
+    '                    .....                    242382  $PLUGINSDIR\\nsis7z.dll',
+    '                    .....                      1080  $PLUGINSDIR\\WinShell.dll',
+    '                    .....                      146493  $R0\\Uninstall LabCairn.exe',
+    '                    ....A       107520        49588  resources\\elevate.exe',
+  ].join('\r\n')
+  const parsedPlain = parseInstallerListing(plain)
+  assert.equal(parsedPlain.type, 'Nsis', 'the listing reader did not read the archive type, so a payload-only 7z listing could pass as an NSIS one')
+  assert.equal(parsedPlain.members.length, 11, `the listing reader found ${parsedPlain.members.length} of the 11 members it was given`)
+  assert.equal(
+    parsedPlain.members.find((member) => member.name === 'system.dll')?.packedSize,
+    6931,
+    'the listing reader did not read a member\'s compressed size, which is the number §5.4 says the listing prints',
+  )
+  assert.deepEqual(
+    listedCensusProblems(parsedPlain.members, 10, false, listedLicenceDocuments(parsedPlain.members)),
+    [],
+    'the clean NSIS listing did not satisfy §2.5.1\'s census, so the controls below prove nothing',
+  )
+
+  // A ninth plug-in DLL arriving in the archive: the census reports it.
+  const withNinth = [...parsedPlain.members, { member: '$PLUGINSDIR/Intruder.dll', name: 'intruder.dll', packedSize: 4096 }]
+  const ninthProblems = listedCensusProblems(withNinth, 10, false, listedLicenceDocuments(withNinth))
+  assert.ok(
+    ninthProblems.some((problem) => /counts 10 members/.test(problem) && /counts seven plug-in DLLs/.test(problem)) || ninthProblems.length >= 2,
+    `a ninth plug-in DLL in the listing produced: ${ninthProblems.join('; ')}`,
+  )
+
+  // A licence document arriving while §2.5.1 still records NOT DONE: the exact
+  // state the LGPL-text batch produces, and the reason this arm exists at all.
+  const withLicence = [...parsedPlain.members, { member: '$PLUGINSDIR/licences/LGPL-2.1.txt', name: 'lgpl-2.1.txt', packedSize: 9316 }]
+  const licenceProblems = listedCensusProblems(withLicence, 10, false, listedLicenceDocuments(withLicence))
+  assert.ok(
+    licenceProblems.some((problem) => /NOT DONE/.test(problem) && /LGPL-2\.1\.txt/.test(problem)),
+    `a licence document in the listing while §2.5.1 says NOT DONE produced: ${licenceProblems.join('; ')}`,
+  )
+
+  // The obligation recorded as DONE while the listing names no document.
+  const doneProblems = listedCensusProblems(parsedPlain.members, 10, true, [])
+  assert.ok(
+    doneProblems.some((problem) => /DONE/.test(problem)),
+    `§2.5.1 claiming DONE over a listing with no licence document produced: ${doneProblems.join('; ')}`,
+  )
+
+  // `-slt` shape: `Path = …` / `Packed Size = …` blocks, with CRLF and the
+  // archive header's own `Path =` line, which is not a member.
+  const slt = [
+    'Path = the-installer.exe',
+    'Type = Nsis',
+    '----------',
+    'Path = $PLUGINSDIR\\System.dll',
+    'Packed Size = 6931',
+    '----------',
+    'Path = $PLUGINSDIR\\StdUtils.dll',
+    'Packed Size = 45608',
+    '----------',
+    'Path = $R0\\Uninstall LabCairn.exe',
+    'Packed Size = 146493',
+  ].join('\r\n')
+  const parsedSlt = parseInstallerListing(slt)
+  assert.deepEqual(
+    parsedSlt.members.map((member) => member.member),
+    ['$PLUGINSDIR/System.dll', '$PLUGINSDIR/StdUtils.dll', '$R0/Uninstall LabCairn.exe'],
+    `the -slt reader read the archive header as a member or lost a block: ${JSON.stringify(parsedSlt.members)}`,
+  )
+  assert.equal(parsedSlt.members[1].packedSize, 45608, 'the -slt reader did not read the block\'s Packed Size')
+
+  // A payload-only listing (the 24.09 x86 7za's `Type = 7z` output) is not an
+  // NSIS listing, and the witness must not mistake it for a short installer.
+  const payloadOnly = parseInstallerListing('Type = 7z\r\n                    ....A       107520        49588  resources\\elevate.exe\r\n')
+  assert.equal(payloadOnly.type, '7z', 'a payload-only listing was reported as an NSIS one')
+  assert.equal(
+    payloadOnly.members.filter((member) => member.member.startsWith('$PLUGINSDIR/')).length,
+    0,
+    'a payload-only listing invented $PLUGINSDIR members',
+  )
+
+  // (i) §5.4's compressed-size table, read from NOTICE and compared with a
+  //     listing. The same function the arm above runs, with one value changed.
+  const sizes = compressedSizeTable(NOTICE_TEXT)
+  assert.ok(sizes.size >= 7, `§5.4 prints ${sizes.size} compressed sizes; it names seven plug-ins`)
+  assert.deepEqual(
+    listedSizeProblems(parsedPlain.members, sizes),
+    [],
+    '§5.4\'s compressed sizes disagreed with the clean NSIS listing, so the controls below prove nothing',
+  )
+  const driftedSize = new Map(sizes)
+  const firstSize = [...driftedSize.keys()][0]
+  driftedSize.set(firstSize, driftedSize.get(firstSize) + 1)
+  const sizeDrift = listedSizeProblems(parsedPlain.members, driftedSize)
+  assert.equal(sizeDrift.length, 1, `one compressed size off by one produced: ${sizeDrift.join('; ')}`)
+  assert.match(sizeDrift[0], /compressed bytes for/, sizeDrift[0])
+
+  const missingSize = new Map(sizes)
+  missingSize.set('not-a-plugin.dll', 4096)
+  const sizeMissing = listedSizeProblems(parsedPlain.members, missingSize)
+  assert.ok(
+    sizeMissing.some((problem) => /not-a-plugin\.dll/.test(problem) && /does not name/.test(problem)),
+    `a §5.4 row for a plug-in not in the listing produced: ${sizeMissing.join('; ')}`,
+  )
+  const noSize = parsedPlain.members.map((member) =>
+    member.name === firstSize ? { ...member, packedSize: null } : member,
+  )
+  const unmeasured = listedSizeProblems(noSize, sizes)
+  assert.ok(
+    unmeasured.some((problem) => /gives no Packed Size/.test(problem)),
+    `a listing with no Packed Size was compared as zero rather than reported: ${unmeasured.join('; ')}`,
+  )
+  assert.equal(
+    unmeasured.some((problem) => /gives 0\b/.test(problem)),
+    false,
+    `an unmeasured size was printed as zero: ${unmeasured.join('; ')}`,
+  )
 })
