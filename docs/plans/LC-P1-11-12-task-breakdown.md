@@ -230,7 +230,8 @@ CI run are the owner's to call, not the session's.
 
 **Why it was taken.** The gate's own review found that the cost of a run had
 gone up for a reason nobody had decided: the suite was then six shards per
-platform, so a single push starts twelve python jobs, and the `push`
+platform (the six-shard matrix `d8f5788512318c8e9b8b85d13357867749a353f6`
+tried), so a single push starts twelve python jobs, and the `push`
 trigger ran on every branch, so a change was checked three times over. That
 is not a cost the owner asked for, and the answer is not "CI should be
 faster" — it is **"CI should not start unless it is needed"**.
