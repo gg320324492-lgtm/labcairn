@@ -45,17 +45,34 @@ is empty, it reads a report that distinguishes a skip from a pass rather than
 trusting an exit code, and the record it leaves goes to the runner's temp and not
 into the checkout. Each is put to a doctored version of the same input as well,
 so the checks are shown able to fail.
+
+**The closure the gate audits is watched against NOTICE, in the same file.** The
+gate reads every installed distribution's licence and refuses a release whose
+closure carries a term it does not record; NOTICE §2.2 prints the census that
+audit produces and §2.3 names the four dependencies whose *bundled* material
+carries terms of its own. Nothing compared the two, and nothing compared §2.2's
+five closure figures -- 171 requirement lines, 167 Linux, 165 macOS, 168 Windows,
+a union of 170 -- with anything. They are a computation over the markers
+``uv export`` prints for this lock, and the licence file paths §2.3 names are
+files inside installed distributions. ``scripts/notice_licence_watch.py`` is the
+reader; the cases below run it against the real tree and against doctored copies
+of its own outputs, so each is shown able to fail. The gate's labelling is
+extracted from this file's own subject rather than re-implemented here: two
+copies of the licence normalisation drift, and their disagreement looks like a
+licence change.
 """
 
 from __future__ import annotations
 
 import ast
+import importlib.util
 import io
 import re
 import subprocess
 import sys
 import tarfile
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final
 
@@ -813,4 +830,573 @@ def test_the_workflow_avoids_the_context_github_refuses_to_parse(repo_root: Path
             )
     assert "${RUNNER_TEMP}" in text, (
         "nothing writes to the runner's temp, so this job's scratch is somewhere else"
+    )
+
+
+# ---------------------------------------------------------------------------
+# NOTICE §2.2/§2.3 against the closure the release gate audits.
+#
+# `scripts/notice_licence_watch.py` is loaded the way `test_ci_shard_coverage.py`
+# loads `scripts/outsider_path.py`: the script is the tool, the tool is run rather
+# than paraphrased, and `sys.modules` is populated first because the script uses
+# dataclasses and `dataclasses` looks the defining module up by name.
+# ---------------------------------------------------------------------------
+
+#: The reader, loaded once per run. `uv export` takes a fraction of a second and
+#: several cases need the same closure, so it is cached rather than re-run.
+_LICENCE_WATCH: dict[str, Any] = {}
+
+
+def _licence_watch() -> Any:
+    """`scripts/notice_licence_watch.py`, loaded the way the tool is run."""
+    if "module" not in _LICENCE_WATCH:
+        script = Path(__file__).resolve().parent.parent / "scripts" / "notice_licence_watch.py"
+        spec = importlib.util.spec_from_file_location(
+            "notice_licence_watch_for_release_witness", script
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        _LICENCE_WATCH["module"] = module
+    return _LICENCE_WATCH["module"]
+
+
+def _closure_read() -> Any:
+    """The closure, read once: `uv export --frozen --no-dev` over this tree's lock."""
+    if "closure" not in _LICENCE_WATCH:
+        watch = _licence_watch()
+        _LICENCE_WATCH["closure"] = watch.read_closure(watch.export_requirements())
+    return _LICENCE_WATCH["closure"]
+
+
+def test_notice_closure_figures_are_the_figures_the_lock_markers_produce(repo_root: Path) -> None:
+    """§2.2's five closure figures are recomputed from the markers the lock records.
+
+    **The property.** §2.2 states 171 requirement lines, 167 on Linux, 165 on macOS,
+    168 on Windows and a union of 170, and explains the differences as the
+    platform-conditional packages. Those five numbers are not a measurement that has
+    to be carried forward by hand: they are what `packaging.markers` answers for the
+    markers ``uv export`` prints for this lock, and the same evaluator the release
+    gate's own audit uses.
+
+    **Why it needed a witness.** A dependency arriving with a Windows marker, or a
+    marker being narrowed, changes all five figures at once. §2.2 would have kept
+    printing 171/167/165/168/170 and every other check would have stayed green,
+    because nothing read the lock's markers against the section's prose.
+
+    **The union is not the line count.** The export resolves 171 ``name==version``
+    lines; the union of what the three supported platforms install is 170, because one
+    distribution carries ``sys_platform == 'emscripten'`` and installs on none of
+    them. A reader that took §2.2's "union is 170" as the line count would have
+    reported a real, correct section as wrong -- which is a red about the witness, not
+    about the record.
+    """
+    watch = _licence_watch()
+    read = _closure_read()
+    recorded = watch.closure_counts(watch.read_notice())
+
+    assert len(read.rows) == 171, (
+        f"the export names {len(read.rows)} requirement lines; §2.2 states 171, and the "
+        "figure this test is about has stopped being the one the lock gives"
+    )
+    problems = watch.closure_count_problems(read, recorded)
+    assert not problems, f"§2.2's closure figures disagree with the lock's own markers: {problems}"
+
+    # The control: the same reader over an export with one Windows-conditional
+    # package removed. §2.2's figures must move, and the Windows count must move with
+    # it, or the comparison is not reading the markers.
+    mutated_export = "\n".join(
+        line
+        for line in watch.export_requirements(repo_root=repo_root).splitlines()
+        if not line.startswith("pywin32==")
+    )
+    assert mutated_export.count("pywin32==") == 0, "the control did not remove the pinned row"
+    mutated = watch.closure_count_problems(watch.read_closure(mutated_export), recorded)
+    assert any("windows" in problem for problem in mutated), (
+        f"removing a Windows-pinned package left §2.2's Windows figure satisfied: {mutated}"
+    )
+    assert any("total" in problem for problem in mutated), (
+        f"removing a pinned package left §2.2's total satisfied: {mutated}"
+    )
+
+    # And the reverse control: a §2.2 whose figure has drifted reddens it.
+    drifted = dict(recorded)
+    drifted["total"] = recorded["total"] + 1
+    drift_problems = watch.closure_count_problems(read, drifted)
+    assert len(drift_problems) == 1 and "total" in drift_problems[0], (
+        f"a §2.2 total off by one produced: {drift_problems}"
+    )
+
+
+def test_notice_licence_census_closes_against_the_installed_closure(repo_root: Path) -> None:
+    """§2.2's census rows are the labels the installed distributions carry.
+
+    **What is compared.** The labels come from the release gate's own ``label_for``
+    function -- extracted from ``release.yml``'s licence-audit heredoc, not rewritten
+    here -- applied to every pinned distribution installed in the environment running
+    this. §2.2's sixteen rows are then checked against them: a row smaller than what
+    is installed, and a label §2.2 names no row for, are both findings.
+
+    **Where the limit is stated rather than hidden.** Three pinned packages -- jeepney,
+    secretstorage (Linux-only) and httpx2-jsfetch (emscripten-only) -- have nothing
+    installed on the platform running this, so they contribute no label. The total is
+    therefore closed as *rows = labels answered here + foreign packages*, and the
+    foreign set is exactly the one §2.2 itself explains. When a package §2.2 counts has
+    nothing readable installed -- a damaged venv, not a licence question -- the total is
+    reported as **not run** instead of being closed against a number that includes the
+    damage. A red that blames NOTICE for a broken environment is the failure this split
+    exists to prevent, and the control below exercises both states.
+    """
+    watch = _licence_watch()
+    read = _closure_read()
+    notice_text = watch.read_notice()
+    recorded = watch.census_rows(notice_text)
+    installed = watch.installed_versions(read.distinct_rows)
+    labels = watch.label_installed(read.distinct_rows)
+    foreign, broken = watch.answerability(read, installed)
+
+    assert recorded, "§2.2 prints no census rows to compare"
+    assert labels, (
+        "no installed distribution answered with a licence label, so the census "
+        "is not a measurement"
+    )
+    assert not broken, (
+        f"the environment cannot answer {len(broken)} pinned package(s) §2.2 counts for "
+        f"this platform: {', '.join(sorted(row.name for row in broken))}. The licence census "
+        "cannot be measured in this environment; fix the environment rather than the record."
+    )
+
+    problems = watch.census_problems(recorded, labels, foreign, broken)
+    assert not problems, f"§2.2's census does not close against the installed closure: {problems}"
+
+    # The controls, on fixtures: the same comparison function, with one value changed
+    # each time.
+    busiest_label = max(labels.values(), key=lambda entry: recorded.get(entry[0], 0))[0]
+    too_small = dict(recorded)
+    too_small[busiest_label] = 1
+    small_problems = watch.census_problems(too_small, labels, foreign)
+    assert any(busiest_label in problem and "records 1" in problem for problem in small_problems), (
+        f"a census row cut to 1 for {busiest_label!r} was not reported: {small_problems}"
+    )
+
+    # A §2.2 row for a licence nothing in the closure carries. The arm that catches it
+    # is the total, not the per-row loop: the per-row loop walks the labels the
+    # installed distributions actually carry, so a label with no carrier never enters
+    # it -- and it could not, because a row whose only carriers are the three packages
+    # this platform does not install looks identical to a row nothing carries. Naming
+    # the row would require knowing each foreign package's label, which is the part
+    # there is no artefact for here.
+    invented = dict(recorded)
+    invented["GPL-3.0-only"] = 1
+    invented_problems = watch.census_problems(invented, labels, foreign, broken)
+    assert any("census rows add to 172" in problem for problem in invented_problems), (
+        f"a §2.2 row for a licence nothing carries left the census total closed: "
+        f"{invented_problems}"
+    )
+
+    # A dependency leaving the closure while §2.2 keeps its row: no individual row is
+    # too small, so only the total notices. This is why the total is checked at all.
+    dropped_label = next(label for label, _source in labels.values() if recorded.get(label, 0) >= 2)
+    thinned = {key: value for key, value in labels.items() if value[0] != dropped_label}
+    assert len(thinned) < len(labels), "the control removed nothing"
+    total_problems = watch.census_problems(recorded, thinned, foreign)
+    assert any("census rows add to" in problem for problem in total_problems), (
+        f"removing every carrier of {dropped_label!r} did not redden the census "
+        f"total: {total_problems}"
+    )
+
+    # The damaged-environment state, asserted rather than left to the real tree: when
+    # something this platform should have installed is missing, the total arm must say
+    # it did not run, and must not accuse the record.
+    broken_rows = [read.distinct_rows[0]]
+    broken_problems = watch.census_problems(recorded, labels, foreign, broken_rows)
+    assert any("could not be closed" in problem for problem in broken_problems), (
+        f"an unanswerable package did not put the census total into its not-run "
+        f"state: {broken_problems}"
+    )
+    assert not any(
+        "no longer accounts for its own total" in problem for problem in broken_problems
+    ), f"a damaged environment was reported as a record that went stale: {broken_problems}"
+
+
+def test_notice_census_row_count_is_the_rows_it_prints() -> None:
+    """§2.2 states how many distinct licence results it prints, and prints that many.
+
+    The section says "the sixteen distinct results were" and then prints rows. That is
+    a claim about its own table, and a table edited without editing the sentence -- or
+    a sentence left behind when a licence identifier leaves the closure -- is the small,
+    ordinary drift a record suffers. It costs nothing to check and it is the kind of
+    drift that makes a reader stop trusting the rest of the section.
+
+    **The control:** the same reader over a copy of the sentence with the count changed.
+    """
+    watch = _licence_watch()
+    notice_text = watch.read_notice()
+    recorded = watch.census_rows(notice_text)
+    claimed = watch.census_row_count_claim(notice_text)
+
+    assert claimed is not None, "§2.2 states no count of distinct licence results"
+    problems = watch.census_row_count_problems(recorded, claimed)
+    assert not problems, f"§2.2's row-count sentence and its rows disagree: {problems}"
+
+    drifted = watch.census_row_count_problems(recorded, claimed + 1)
+    assert len(drifted) == 1, f"a row count stated one too high produced: {drifted}"
+
+    # And the other direction: a row removed from the table is caught, not resized.
+    without_one = dict(recorded)
+    without_one.pop(next(iter(without_one)))
+    removed_problems = watch.census_row_count_problems(without_one, claimed)
+    assert len(removed_problems) == 1, (
+        f"§2.2 printing one row fewer than it claims produced: {removed_problems}"
+    )
+
+
+def test_notice_bundled_licence_files_state_the_clauses_named_for_them(tmp_path: Path) -> None:
+    """§2.3's four bundled-licence entries are checked against the licence files.
+
+    **What §2.3 claims, and what is checked.** The section does not say "these packages
+    have licence files". It names a file inside an installed distribution and states
+    which licence that file carries -- "its licence file
+    (`numpy-2.5.4.dist-info/licenses/LICENSE.txt`) carries the GCC Runtime Library
+    Exception 3.1 for the OpenBLAS build … stated as GPL-3.0-or-later WITH
+    GCC-exception-3.1", "an LGPL notice for the bundled adodbapi module
+    (`pywin32-312.dist-info/licenses/adodbapi/license.txt`)", "the Scintilla licence for
+    the bundled Scintilla sources". So the check opens the file §2.3 names and looks for
+    the clause §2.3 credits it with. A file-exists-only check would pass a tree where
+    the LGPL notice had been replaced by a different licence in the same path.
+
+    **Claims are paired with paths in document order.** A bullet naming one file claims
+    everything else it says about that file, which is what makes numpy's entry
+    checkable at all: its clauses are stated *after* the path, and a pairing that
+    stopped at the path would check nothing and pass vacuously. A bullet naming two files
+    (pywin32) is the reason the window is not simply extended for everyone -- there the
+    text between the paths belongs to the first path, and extending the last window
+    backwards would credit the Scintilla licence with the LGPL clause.
+
+    **The installed version is part of the claim.** A licence file is evidence only about
+    the artefact it belongs to, so `pywin32 312` against an installed `pywin32 313` is
+    reported: the file at that path may be a different file.
+    """
+    watch = _licence_watch()
+    notice_text = watch.read_notice()
+    entries = watch.bundled_entries(notice_text)
+    assert len(entries) == 4, f"§2.3 names {len(entries)} entries; the section names four"
+    # Three of the four name a licence file inside an installed distribution. The
+    # certifi/tqdm entry names none, and that is §2.3 being accurate rather than
+    # incomplete: its claim is about each package's own licence, and the section says
+    # outright that "LabCairn does not redistribute either of them". An assertion that
+    # all four carry a path would demand a file §2.3 correctly does not cite.
+    with_paths = [entry for entry in entries if entry.claims]
+    assert len(with_paths) == 3, (
+        f"§2.3 entries naming a licence path: {len(with_paths)}; the numpy, Pillow and "
+        f"pywin32 entries each name at least one, and the paths read out of them are "
+        f"{[claim.path for entry in with_paths for claim in entry.claims]}"
+    )
+    assert sum(len(entry.claims) for entry in with_paths) == 4, (
+        f"§2.3's licence paths read out of the three entries: "
+        f"{[claim.path for entry in with_paths for claim in entry.claims]}"
+    )
+
+    site = watch.site_packages_of()
+    read = _closure_read()
+    installed = watch.installed_versions(read.distinct_rows)
+    foreign_rows, _broken = watch.answerability(read, installed)
+    problems, unanswerable, foreign_claims = watch.bundled_entry_problems(
+        entries, site, [row.name for row in foreign_rows]
+    )
+    assert not unanswerable, (
+        f"§2.3's licence paths could not be checked: {unanswerable} sit in a dist-info "
+        "that cannot be read here. This is the environment, not the record."
+    )
+    assert not problems, (
+        f"§2.3's bundled-licence claims do not match the installed files: {problems} "
+        f"(claims this platform does not install and so cannot check: {foreign_claims})"
+    )
+
+    version_problems = watch.installed_version_problems(
+        entries, watch.installed_versions(_closure_read().distinct_rows)
+    )
+    assert not version_problems, (
+        f"§2.3 describes versions this tree does not resolve: {version_problems}"
+    )
+
+    # The controls, on a synthetic site-packages tree: the same function, with the
+    # evidence changed under it. Each state the function distinguishes is put to it.
+    dist_info = "synth-1.0.0.dist-info"
+    licence_relative = f"{dist_info}/licenses/LICENSE.txt"
+
+    claims = watch.PathClaim(path=licence_relative, claims=("lgpl",))
+    entry = watch.BundledEntry(
+        opening="synth 1.0.0 — its licence directory carries an LGPL notice",
+        package="synth",
+        version="1.0.0",
+        claims=(claims,),
+        text="* synth 1.0.0 — its licence directory carries an LGPL notice",
+        folded="* synth 1.0.0 — its licence directory carries an LGPL notice",
+    )
+
+    def build(root: Path, licence_text: str) -> Path:
+        """A site-packages directory holding one readable dist-info with a licence."""
+        info = root / dist_info
+        licences = info / "licenses"
+        licences.mkdir(parents=True)
+        (info / "METADATA").write_text("Name: synth\nVersion: 1.0.0\n", encoding="utf-8")
+        (licences / "LICENSE.txt").write_text(licence_text, encoding="utf-8")
+        return root
+
+    # (a) The file is there and states the clause §2.3 credits it with: clean. This is
+    # the state the real tree is in, restated on a fixture so the three states below
+    # are distinguishable from it rather than inferred from its absence.
+    stating = build(tmp_path / "stating", "GNU LESSER GENERAL PUBLIC LICENSE\nVersion 2.1\n")
+    clean_problems, clean_unanswerable, clean_foreign = watch.bundled_entry_problems(
+        [entry], stating
+    )
+    assert clean_problems == [] and clean_unanswerable == [], (
+        f"the clean fixture did not compare clean: {clean_problems} / {clean_unanswerable}"
+    )
+    assert clean_foreign == [], (
+        f"the clean fixture excused a claim it should have checked: {clean_foreign}"
+    )
+
+    # (b) The file is there but states a different licence. This is the finding a
+    # file-exists-only check misses: the path §2.3 names is still exactly right.
+    swapped = build(
+        tmp_path / "swapped", "MIT License\n\nPermission is hereby granted, free of charge\n"
+    )
+    swapped_problems, swapped_unanswerable, swapped_foreign = watch.bundled_entry_problems(
+        [entry], swapped
+    )
+    assert len(swapped_problems) == 1 and "lgpl" in swapped_problems[0], (
+        f"an LGPL claim over a file holding MIT text produced: {swapped_problems}"
+    )
+    assert swapped_unanswerable == [], (
+        f"the swapped case was reported as unanswerable: {swapped_unanswerable}"
+    )
+    assert swapped_foreign == [], (
+        f"the swapped case excused a claim it should have checked: {swapped_foreign}"
+    )
+
+    # (c) The distribution is installed but its dist-info cannot be read -- no METADATA,
+    # which is what a damaged installation looks like. NOT a finding about NOTICE: the
+    # arm did not run, and that is what has to be reported.
+    hollow_root = tmp_path / "hollow"
+    hollow_info = hollow_root / dist_info
+    (hollow_info / "licenses").mkdir(parents=True)
+    hollow_problems, hollow_unanswerable, hollow_foreign = watch.bundled_entry_problems(
+        [entry], hollow_root
+    )
+    assert hollow_problems == [], (
+        f"a dist-info with no METADATA was reported as a §2.3 failure: {hollow_problems}"
+    )
+    assert hollow_unanswerable == [licence_relative], (
+        f"the unreadable dist-info was not reported as the arm not running: {hollow_unanswerable}"
+    )
+    assert hollow_foreign == [], (
+        f"the unreadable dist-info was excused as platform-foreign: {hollow_foreign}"
+    )
+
+    # (d) The distribution is not installed at all: a finding about NOTICE, because §2.3
+    # names a path inside a distribution this closure does not hold.
+    missing_root = tmp_path / "missing"
+    missing_root.mkdir()
+    missing_problems, missing_unanswerable, missing_foreign = watch.bundled_entry_problems(
+        [entry], missing_root
+    )
+    assert len(missing_problems) == 1 and "no distribution named" in missing_problems[0], (
+        f"§2.3 naming a path inside an uninstalled distribution produced: {missing_problems}"
+    )
+    assert missing_unanswerable == [], (
+        f"an absent distribution was reported as unreadable: {missing_unanswerable}"
+    )
+    assert missing_foreign == [], (
+        f"an absent distribution this platform installs was excused: {missing_foreign}"
+    )
+
+    # (d2) The same absent distribution, but one this platform does not install:
+    # the claim is not checkable here, and it is not a finding about NOTICE.
+    foreign_problems, foreign_unanswerable, foreign_claims = watch.bundled_entry_problems(
+        [entry], missing_root, ["synth"]
+    )
+    assert foreign_problems == [], (
+        f"a claim inside a distribution this platform does not install was reported as a "
+        f"finding about NOTICE: {foreign_problems}"
+    )
+    assert foreign_unanswerable == [], (
+        f"a platform-foreign claim was reported as unreadable: {foreign_unanswerable}"
+    )
+    assert len(foreign_claims) == 1 and "not installed on this platform" in foreign_claims[0], (
+        f"the platform-foreign claim was not reported as such: {foreign_claims}"
+    )
+
+    # (e) The version §2.3 names is part of the claim, on a fixture where it disagrees.
+    stale = watch.BundledEntry(
+        opening="synth 1.0.0 — its licence file",
+        package="synth",
+        version="1.0.0",
+        claims=(claims,),
+        text="* synth 1.0.0 — its licence file",
+        folded="* synth 1.0.0 — its licence file",
+    )
+    stale_problems = watch.installed_version_problems([stale], {"synth": "2.0.0"})
+    assert len(stale_problems) == 1 and "2.0.0" in stale_problems[0], (
+        f"§2.3 describing synth 1.0.0 against an installed 2.0.0 produced: {stale_problems}"
+    )
+    matching_problems = watch.installed_version_problems([stale], {"synth": "1.0.0"})
+    assert matching_problems == [], (
+        f"matching versions were reported as a mismatch: {matching_problems}"
+    )
+
+
+def test_notice_conditional_packages_are_the_packages_the_release_gate_allows() -> None:
+    """§2.3's conditional-licence packages and the gate's allow-list are the same list.
+
+    **Two artefacts, neither of them NOTICE.** The gate's ``CONDITIONAL`` map comes out
+    of ``release.yml``'s own text; §2.3's packages come out of §2.3's own prose. The
+    gate is what decides whether a release may ship a package under a conditional
+    licence, and §2.3 is the record of which packages carry one. If they disagree,
+    either the release ships something §2.3 never recorded, or §2.3 records a condition
+    the gate would refuse -- and both of those are the release gate and the notice
+    telling different stories about the same closure.
+
+    **The gate's refusal is also shown to be reachable.** The map's allowed set is
+    checked against installed labels: an installed distribution carrying a conditional
+    licence the gate records no allowance for is reported, which is what makes the map
+    a live check rather than a comment.
+
+    **The controls:** the same comparison over a §2.3 with the MPL entry removed, and
+    over one that names a package the gate does not allow.
+    """
+    watch = _licence_watch()
+    notice_text = watch.read_notice()
+    entries = watch.bundled_entries(notice_text)
+    read = _closure_read()
+    labels = watch.label_installed(read.distinct_rows)
+
+    problems = watch.conditional_crosscheck_problems(entries, labels)
+    assert not problems, (
+        f"§2.3's conditional entries and the release gate's CONDITIONAL map disagree: {problems}"
+    )
+
+    # The gate's map is not vacuous: it must allow something §2.3 records, and the
+    # installed closure must actually carry the licence the gate allows for those names.
+    conditional = watch.release_audit_namespace()["CONDITIONAL"]
+    assert conditional, (
+        "the release audit defines no CONDITIONAL map, so the comparison below is vacuous"
+    )
+    carried = {
+        label
+        for _name, (label, _source) in labels.items()
+        if any(licence in label for licence in conditional)
+    }
+    assert carried & set(conditional), (
+        f"no installed distribution carries any licence the gate treats as conditional "
+        f"({sorted(conditional)}), so §2.3's conditional list is unchecked here"
+    )
+
+    # (a) §2.3 with its MPL entry deleted: the gate allows certifi and tqdm under
+    # MPL-2.0, and the record no longer says so.
+    without_mpl = "\n".join(
+        line for line in notice_text.split("\n") if not line.startswith("  * MPL-2.0 — certifi")
+    )
+    assert "MPL-2.0 — certifi" not in without_mpl, "the control did not change §2.3"
+    removed_problems = watch.conditional_crosscheck_problems(
+        watch.bundled_entries(without_mpl), labels
+    )
+    assert any("certifi" in problem for problem in removed_problems), (
+        f"a §2.3 that stopped recording certifi under MPL-2.0 produced: {removed_problems}"
+    )
+    assert any("tqdm" in problem for problem in removed_problems), (
+        f"a §2.3 that stopped recording tqdm under MPL-2.0 produced: {removed_problems}"
+    )
+
+    # (b) §2.3 naming a package under a conditional licence the gate does not allow.
+    invented = notice_text.replace(
+        "  * MPL-2.0 — certifi (MPL-2.0) and tqdm (MPL-2.0 AND MIT, so MIT is",
+        "  * MPL-2.0 — certifi (MPL-2.0) and not-a-real-package (MPL-2.0) and "
+        "tqdm (MPL-2.0 AND MIT, so MIT is",
+        1,
+    )
+    assert "not-a-real-package (MPL-2.0)" in invented, "the control did not change §2.3"
+    pinned = {watch.canonical(row.name): row.version for row in read.distinct_rows}
+    invented_problems = watch.package_terms_problems(
+        watch.bundled_entries(invented), labels, pinned
+    )
+    assert any("not-a-real-package" in problem for problem in invented_problems), (
+        f"§2.3 naming a package the closure does not pin produced: {invented_problems}"
+    )
+
+
+def test_the_licence_reader_that_reads_nothing_is_not_a_green_witness() -> None:
+    """Each reader arm refuses to answer when it has nothing to read.
+
+    **Why this case exists.** Every case above is satisfied by an empty list of
+    problems. A reader that collected nothing -- an export that parsed no rows, a §2.2
+    whose census rows the pattern did not match, a §2.3 whose bullets were not bullets
+    -- would produce an empty list and make all of them green at once. That is this
+    repository's recurring failure, so each arm is put to the input that should stop it
+    and required to stop.
+
+    **And the audit-selection guard is exercised.** ``release.yml`` carries two Python
+    heredocs and only one is the licence audit; taking the first runs the release
+    member-list step, which dies on the absence of a build. The reader selects the audit
+    by the function it defines, and this case asserts exactly one block qualifies rather
+    than trusting that the workflow keeps its heredocs in a pleasing order.
+    """
+    watch = _licence_watch()
+
+    # Annotated rather than left to inference: a tuple of heterogeneous lambdas whose
+    # return types differ is inferred as an untyped callable, and strict mypy refuses to
+    # call one. The return value is not what this loop uses -- only whether the call
+    # raises -- so `object` is the honest type.
+    refusals: tuple[tuple[str, Callable[[], object]], ...] = (
+        (
+            "export rows with no requirements",
+            lambda: watch.read_export_rows("lockfileVersion: 1\n"),
+        ),
+        (
+            "§2.2 with no census rows",
+            lambda: watch.census_rows("2.2  The whole closure\n---\nno table here\n2.3  Next\n"),
+        ),
+        (
+            "§2.2 with a missing figure",
+            lambda: watch.closure_counts(
+                "2.2  The whole closure\n---\nresolves 171 requirement lines\n2.3  Next\n"
+            ),
+        ),
+        (
+            "§2.3 with no bullets",
+            lambda: watch.bundled_entries(
+                "2.3  The three that carry a condition\n---\nprose only\n3.  Next\n"
+            ),
+        ),
+        ("a missing subsection", lambda: watch.census_rows("1.  Something\n---\nnothing here\n")),
+    )
+
+    for name, call in refusals:
+        try:
+            call()
+        except (RuntimeError, ValueError):
+            continue
+        raise AssertionError(f"{name} produced an answer where it should have refused")
+
+    # The reader's own refusal is what makes "no problems" mean something: assert that
+    # the arms which did run actually read something out of the real tree.
+    read = _closure_read()
+    assert len(read.rows) > 100, f"the export read {len(read.rows)} rows from this lock"
+    assert len(watch.census_rows(watch.read_notice())) > 10, "§2.2's census read nothing"
+    assert len(watch.bundled_entries(watch.read_notice())) == 4, "§2.3's entries read nothing"
+    assert watch.installed_versions(read.distinct_rows), (
+        "no installed distribution was found to compare with"
+    )
+
+    workflow = (
+        Path(__file__).resolve().parent.parent / ".github" / "workflows" / "release.yml"
+    ).read_text(encoding="utf-8")
+    blocks = re.findall(r"<<'PY'\n(.*?)\n {10}PY\n", workflow, re.S)
+    audits = [block for block in blocks if "def label_for" in block]
+    assert len(audits) == 1, (
+        f"{len(audits)} heredocs in release.yml define label_for; the licence audit is "
+        "expected to be exactly one, and a reader that picked one of them by position "
+        "would run the wrong program"
     )

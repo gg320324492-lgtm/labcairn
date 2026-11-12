@@ -85,14 +85,38 @@ difference between absorbing the mentor's judgement and arranging it.
 projects, twenty versions, **eighteen version edges** (the second
 paper's edges built from the timestamps inside the material itself —
 the advisor's comments of 03-07, the author's revision of 03-12, the
-second advisor's both of 03-16), eighty comments, **1819 recorded
-changes** — the whole of what the files record, the marks an operation
-at a point leaves behind having been shown to be absent from the
-count —, **36 correspondences** of which **2 hold, 8 do not and 26
-wait for a judgement**, and one reply settlement. **The memory serves
-one rule and reports fifteen**, and the chain's own listing says which
-of the eighty comments nobody answered, which are waiting for a
-judgement, and which were judged and did not answer.
+second advisor's both of 03-16), eighty comments — **forty-six on the
+first paper, thirty-four on the second** — **1819 recorded changes**,
+printed beside the two projects and covering no corpus any record names
+(the whole of what the files record, the marks an operation at a point
+leaves behind having been shown to be absent from the count), **36
+correspondences** of which **2 hold, 8 do not and 26 wait for a
+judgement**, and one reply
+settlement. **The memory serves one rule and reports fifteen**, and the
+chain's own listing says which of the eighty comments nobody answered,
+which are waiting for a judgement, and which were judged and did not
+answer.
+
+**Read the denominators together, because the same quantity is printed with two
+figures and the tree never says which one it means.** **1528** is
+[`../acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md)
+§9.1's `revision_events` count of 2026-11-01, and
+[`../handoff/CURRENT.md`](../handoff/CURRENT.md) names it as **the first
+paper's**: 1528 recorded changes, **1439** of them `edit_actions`, 89 the marks
+an operation at a point leaves behind. **1819** is what the 2026-11-02
+re-measurement put **in that same sentence** (`d5579b1` here, `e726bd8` on the
+roadmap), where `1439` and `32` left and `36 correspondences` and `eighteen
+version edges` arrived. **What no record states is the scope of 1819, nor why
+the count moved** — that is the defect this paragraph names rather than
+resolves: the number a reader takes from this row and the number a reader takes
+from §9.1 are different figures for one quantity, and only the older one carries
+the corpus it was taken over. The correspondences run the same way: **22** are
+named (acceptance §9.3) as put forward on the pilot's workspace, **36** are
+printed beside the two projects with no scope given, and ten were judged by the
+owner. **Neither figure can be re-derived from this checkout** — `git ls-files`
+reports no `.docx` file, the pilot corpus is the owner's, and the counts live in
+the pilot database — so a figure quoted without the record it came from is worth
+nothing here.
 
 **The owner ruled on two things the material forced** (2026-11-01), and
 both are in the code, the record and the review points:

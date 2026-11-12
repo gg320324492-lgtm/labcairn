@@ -71,8 +71,13 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **Three support modules no longer wear the `test_*` glob.**
   `tests/test_store_support.py`, `tests/test_recovery_support.py` and
   `tests/test_skill_support.py` were shared fixture modules — 47 test files
-  import them — that pytest collected and found no case in, on every shard
-  of both platforms. They are now `tests/store_support.py`,
+  import them — that pytest collected and found no case in, and that the shard
+  list carried on both platforms (**one shard each, never every shard: of the 56
+  revisions of `ci-shards.json` that name them at all, 54 place each in exactly one
+  shard on each platform, one is the 2026-10-24 single-platform table and one is the
+  2026-11-02 removal — no revision ever placed one in more than one shard. The
+  "every shard" wording this entry and the Phase 1 board row printed was wrong from
+  the day the finding was filed**). They are now `tests/store_support.py`,
   `tests/recovery_support.py` and `tests/skill_support.py`; their shard and
   cost entries and their evaluation-manifest rows are gone, and the
   collected-nothing mechanism keeps its witness through a synthetic
@@ -154,8 +159,25 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **The mentor's own material, in the product — and the chain's four
   rings.** The second corpus is a second paper with a second advisor, and
   the two of them are in the product as two pilot projects: **twenty
-  versions, eighty comments, 1528 recorded changes** and the owner's own
-  judgements on ten of the correspondences the operator put forward. **The
+  versions, eighty comments (forty-six on the first paper, thirty-four on
+  the second), 1528 recorded changes** and the owner's own
+  judgements on ten of the correspondences the operator put forward.
+  **The denominator of this row is not named here, and it should not be
+  taken as a count of the two projects together:** 1528 is what
+  [`../acceptance/LC-P2-09-acceptance.md`](../acceptance/LC-P2-09-acceptance.md)
+  §9.1 measured on the pilot's own workspace on 2026-11-01, and
+  [`../handoff/CURRENT.md`](../handoff/CURRENT.md) names it as the first
+  paper's. The figure that stands in that same sentence in
+  [`../plans/PHASE_2-work-orders.md`](../plans/PHASE_2-work-orders.md) and
+  [`../ROADMAP.md`](../ROADMAP.md) today is **1819**, from a
+  re-measurement on 2026-11-02 — a later date than this entry, and **a figure
+  this archive row has never carried itself**: `grep -c 1819` on this file at
+  `0655bb8b22506dd851e1eff6f29a455465535a1a` exits 1 with a count of 0 (it is
+  3 here only because the note you are reading names the figure), and the
+  1819 sentence itself lives only in the two plan and roadmap records.
+  **Which corpus each covers is stated
+  nowhere in the tree**; see the "Read the denominators together" paragraph of
+  the work-order plan. **The
   chain's second ring holds one row per change a manuscript's file
   records** — `edit_actions`, 1439 of them, because the other 89 are the
   marks an operation at a point leaves behind and **the chain records
@@ -324,8 +346,10 @@ container and [the archives index](../../CHANGELOG.md#archives).
   blocker beside the number 3 invites exactly the wrong reading.
 - **Three CI shard files that collect nothing are reported as such.**
   `test_store_support.py`, `test_recovery_support.py` and `test_skill_support.py`
-  are support modules other tests import; they are filed in a gate class and in
-  every shard, and pytest collects no case in them. The blocker's row used to say
+  are support modules other tests import; they are filed in a gate class and listed
+  in the shard list on both platforms — in **one shard each**, not in every shard,
+  which is what this entry printed until 2026-11-12 — and pytest collects no case
+  in them. The blocker's row used to say
   the run "did not select" them. It now says no case was collected, which is the
   finding — **and whether a required test file that carries no case belongs in
   the shard list is carried to Phase 2 rather than settled here.**

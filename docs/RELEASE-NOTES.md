@@ -9,6 +9,16 @@ landed** (`docs/debt-closures` at `bb8f8f6`, pull request #146 open). Their
 numbers belong to that tree and to the commit each of them names; they are
 not claims about `main` until the merge.
 
+> **The clause above is a dated snapshot from 2026-11-03, kept as written, and
+> its last sentence is no longer true.** Pull request #146 **merged** on
+> 2026-11-04T19:19:22Z as `384eb2f3a6c8a3f340dde625927bd8dbe9cf750c`, an
+> ancestor of `main` (`gh pr view 146 --json state,mergedAt,mergeCommit` on
+> 2026-11-12 → `MERGED`; `git merge-base --is-ancestor bb8f8f6 HEAD` → exit 0).
+> So **the 2026-11-03 numbers *are* claims about `main` today**, and they belong
+> to `bb8f8f6` in the sense that a measurement belongs to the commit it was taken
+> at, not in the sense that the trunk lacks them. Read the quarantine as history:
+> it was accurate for one day.
+
 **Every limitation below names the document that measured it, and each of
 those documents names its own commit.** A number belongs to the commit it
 was measured at.

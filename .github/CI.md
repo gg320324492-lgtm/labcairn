@@ -111,7 +111,7 @@ GitHub enforces.
 1. **`shell.yml` runs the shell's tests.** One job, `shell-test (${{ matrix.os }})`,
    on `windows-latest` and `ubuntu-latest`, `fail-fast: false`, on `push` to `main`
    and unfiltered `pull_request`. It installs **no** pnpm package and downloads **no**
-   Electron binary: the eight files under `shell/test/` import only `node:*` built-ins
+   Electron binary: the twelve files under `shell/test/` import only `node:*` built-ins
    plus paths into `shell/` or `.github/`, and the two lockfile-facing witnesses read
    `pnpm-lock.yaml` and `NOTICE` as text rather than resolving an installed package.
    What the job does install is the
@@ -147,22 +147,22 @@ declaration fixes below add three — a name with no matrix, the
 **not** run `pnpm install`; the name carries `matrix.os`; both legs exist with
 `fail-fast: false`; the name is unique across every workflow; each recorded file
 still declares at least its Node cases, anchored at the revision the floors name
-(5/3/5/5/6/7/9/4 = 44 across eight files); and no shell test file exists without a
+(5/3/5/8/5/6/7/8/9/7/7/4 = 74 across twelve files); and no shell test file exists without a
 recorded floor. Several witnesses feed the file's own readers synthetic trees — a
-command naming three of eight files, a glob that does not cross a directory, a matrix
+command naming three of twelve files, a glob that does not cross a directory, a matrix
 axis the matrix does not declare, and the literal `(matrix.os)` shape — so "the check
 exists" is not offered as "the check can fail".
 
 **Mutation checks run, all four reddened and then restored:** reverting the release name
 reddened the shard witness; deleting `window-security.test.mjs` from a copy reddened the
 floors; a matrix expression naming an undeclared axis is refused rather than compared; and
-the coverage reader reports a three-of-eight command as running three. Deleting a shell file
+the coverage reader reports a three-of-twelve command as running three. Deleting a shell file
 leaves the coverage check green **by design** — the glob still covers what remains — which
 is why the floors and the recorded-floor check exist.
 
 **Not yet runner-measured, intentionally exempt.** The job's duration is unrecorded, as
 `lint`'s once was; the first runner run is the measurement. A development-machine run of
-the same command shape measured 44/44 on Node v24.16.0. Neither is a recorded cost; the
+the same command shape measured 74/74 on Node v24.16.0. Neither is a recorded cost; the
 `0.0` shard-cost placeholders for `test_shell_ci.py` are carried under the balance
 witness's slack rule until the first runner run re-measures them. No CI run is owed for
 this batch.
@@ -178,8 +178,22 @@ keeps `shell.yml`'s `pull_request` trigger unfiltered if it becomes required.
 
 **What changed.** `python.yml` gained a `schedule` trigger and an
 `evaluation` job. On the schedule event `lint` and `python-quality` are
-skipped, so the run spends one job, not thirteen. The job runs the harness
-over the five classes it can run offline and uploads the report.
+skipped, so the run spends one job, not the **eleven** a pull-request event
+spends. **Eleven, counted from the workflow:** three job templates,
+`python-quality`'s matrix expanding to 2 platforms × 5 shards = 10, and `lint`
+as the eleventh; `evaluation` is gated to the schedule and is not among them.
+**The workflow names twelve jobs in total** — the eleven above plus `evaluation`
+— which is what `tests/test_ci_shard_coverage.py`'s name-uniqueness check sees
+(`workflow_job_names.rendered_job_names` returns twelve for this file), and
+**eleven** is what a single pull-request run spends. What this sentence printed
+until 2026-11-12 was **thirteen**, and thirteen was not the count at any
+revision: the matrix has been `[0, 1, 2, 3, 4]` since `5a4d8e9` (2026-10-25),
+the six-shard matrix `d8f5788` (2026-10-24) tried reported **12** shard jobs
+with no `lint` job (`lint` was split out on 2026-11-02, a day before this
+section was written), and with five shards and `lint` the count is **11** — at
+`6cdd89d` (2026-11-03, the commit that wrote this section) as it is today.
+`python.yml`'s `lint` comment and `docs/plans/LC-P1-13-evaluation-ci.md` §5
+carry the same sentence and are corrected with it.
 
 **Why not on pull requests.** The harness runs the same test files the ten
 shard jobs already run, and its measured cost on an Ubuntu runner is
@@ -248,6 +262,17 @@ GitHub's branch-protection settings. Until that is done, a failing `lint` is
 visible but does not block a merge. No file in this repository can make it
 required.
 
+> **Dated snapshot — true when written, superseded since.** The two sentences
+> above are the state as of 2026-11-02, the date of this section, and they are
+> left as written. `lint` **is** a required status check now: it is one of the
+> fifteen required contexts read from GitHub on 2026-11-11 at
+> `6b3211ae631c7c9548ca160615f88daa6da7d5dd` and listed in "The required-check
+> set, measured" above, and re-read live on 2026-11-12 at
+> `0655bb8b22506dd851e1eff6f29a455465535a1a` (`gh api
+> repos/gg320324492-lgtm/labcairn/branches/main/protection --jq
+> '.required_status_checks.contexts | length'` → 15, `lint` among them). When
+> the owner added it is not recorded anywhere in this repository.
+
 **C-6, stated plainly.** C-6 says *"Python lint/type/test CI on Ubuntu and
 Windows"*. Lint and type checking now run on Ubuntu only. The test suite
 still runs on both platforms, and the CLI is still exercised as a real
@@ -263,10 +288,37 @@ them from a runner log before treating them as current.
 
 **What it is.** On Ubuntu, shard 0 is one file: `tests/test_cli.py`. The
 partition is not broken — the other four shards are balanced at 264.7s each
-against the file's 325.8s (measured at `cf081e4`, then the commit recorded in
-`ci-shards.json`), a balance factor of 1.176 inside the 1.6 limit. The file
-is simply the floor: no arrangement of the remaining files makes the shard
-that holds it any shorter.
+against the file's 325.8s (the costs `ci-shards.json` recorded at `e5472f8`,
+the commit that wrote this section, whose own `measured_at` is `cf081e4`),
+**a balance factor of 1.2308** inside the 1.6 limit. The file is simply the
+floor: no arrangement of the remaining files makes the shard that holds it any
+shorter.
+
+**The anchor is the cost table's, not a partition's, and the two readings
+differ.** `cf081e4` is the revision those *costs* were measured at. The
+partition printed above belongs to `e5472f8`. A reader who opens the shard file
+**at `cf081e4` itself** finds a different table and a different partition —
+Ubuntu 422.8s against 248.6s, `max / min` **1.7010**, a negative slack — because
+that tree had not been re-partitioned yet. Re-measure both from the table named
+in the row you are reading, not from the anchor's own tree.
+
+**What this paragraph printed before 2026-11-12, and why that was wrong.** It
+printed **1.176**. That figure is not what this project's balance check
+computes. `tests/test_ci_shard_coverage.py` measures the partition against the
+1.6 limit through `min(loads) × 1.6 − max(loads)` — the slack a new file may
+add — which is the same ratio `.github/make_ci_shards.py` prints as
+`max(loads) / min(loads)`, and on the recorded costs above (325.81 against
+264.72) that ratio is **1.2308**. The 1.176 is the floor against the **mean**
+(325.81 / 276.92 = 1.1765): derivable from the same five costs, but through a
+formula nothing in the repository computes or watches. One quantity, two
+denominators, and the record named the one no witness reads.
+
+**The same quantity today, re-measured rather than carried.** At the costs
+`ci-shards.json` records at
+`46e2c21918286a723f9d07d5409d0e52e7551a85`, Ubuntu's shards are 391.8s against
+307.6s — `max / min` **1.2735**, floor against mean 1.2075 — and Windows is
+895.7s against 895.7s, **1.0000**. `tests/test_cli.py` is the Ubuntu floor there
+as well, and the 1.6 limit is unchanged.
 
 **Why it is slow.** It is an end-to-end subprocess file, on purpose: every
 test starts a real console-script process and reads its exit code and two

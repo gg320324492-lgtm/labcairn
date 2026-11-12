@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 import { DEV_API_BASE } from './src/api/mount.ts'
+import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.ts'
 
 // The LabCairn API is bound to 127.0.0.1 and is served from the same origin
 // as the built workbench, so the page and the API share one origin and the
@@ -29,7 +30,12 @@ import { DEV_API_BASE } from './src/api/mount.ts'
 // allow-list is empty otherwise, so a service that was not told about the
 // development origin refuses it.
 export default defineConfig({
-  plugins: [react()],
+  // The plugin writes `THIRD-PARTY-NOTICES` beside the bundle. The bundler
+  // strips the licence comments the packages shipped, so the attribution of
+  // the third-party code that *is* in the bundle has to travel with it; the
+  // plugin reads the list out of the bundle's own module graph rather than
+  // out of a list somebody wrote down.
+  plugins: [react(), thirdPartyNoticesPlugin()],
   server: {
     host: '127.0.0.1',
     port: 5173,

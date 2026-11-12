@@ -8,7 +8,7 @@ console script and a scratch directory the runner actually has.
 
 **Why it needs watching.** `pyproject.toml`'s `norecursedirs` names `shell` —
 "Electron tree; its Node witnesses are not pytest files" — so no shard, no gate
-class and no witness ledger can see the shell's Node cases (44 across eight
+class and no witness ledger can see the shell's Node cases (52 across nine
 files, measured at `CASE_FLOORS_MEASURED_AT`). Before this file,
 deleting `shell/test/window-security.test.mjs` left **every** pytest test green,
 and renaming a job so that its two platform legs report one name left every
@@ -77,27 +77,33 @@ NODE_CASE: Final[re.Pattern[str]] = re.compile(r"(?m)^(?:test|it)\(")
 #: `notice-licences.test.mjs` arrived with the full NOTICE surface; its seven
 #: cases were measured from the final branch tree at
 #: `f0f55929a35ffb59b682c289045eef26aaeb99dc`, whose `shell/test/` tree is
-#: identical to the merged tree. The eight files together declare 44 cases;
-#: `node --test` measured 44 pass, 0 fail on Node v24.16.0 after the packaged
-#: bundle's own directory was derived, at
-#: `8b26002f5cfb9625d36b868de08bd00b0341bb11`. The five cases the guard adds are its own: the
-#: configuration names it; it is shaped the way electron-builder resolves a
-#: hook; the hook it calls throws on a missing bundle and returns true on a
-#: good one; and the script form refuses a missing bundle and accepts a
-#: complete one.
+#: identical to the merged tree.
+#: `notice-scope.test.mjs` arrived with the widened NOTICE scope; its eight
+#: cases watch §0.1's surface table against the two lockfiles and against the
+#: sections that record copyleft, and they were measured from the branch tree
+#: that added it.
+#: `installer-binaries.test.mjs`, `shell-tree-terms.test.mjs` and
+#: `web-tree-terms.test.mjs` arrived with the four-surface licence coverage;
+#: their eight, seven and seven cases watch the installer's redistributed
+#: binaries, the shell tree's terms and the web tree's terms against the
+#: artefacts those claims are about.
 #: A development-machine count of *what the files declare*, not of duration:
 #: the job's runner cost is recorded separately, after its first runner run.
 SHELL_CASE_FLOORS: Final[dict[str, int]] = {
     "config.test.mjs": 5,
     "dependency-surface.test.mjs": 3,
     "drain-witness.test.mjs": 5,
+    "installer-binaries.test.mjs": 8,
     "live-guard.test.mjs": 5,
     "native-surface.test.mjs": 6,
     "notice-licences.test.mjs": 7,
+    "notice-scope.test.mjs": 8,
     "packaging-config.test.mjs": 9,
+    "shell-tree-terms.test.mjs": 7,
+    "web-tree-terms.test.mjs": 7,
     "window-security.test.mjs": 4,
 }
-CASE_FLOORS_MEASURED_AT: Final[str] = "8b26002f5cfb9625d36b868de08bd00b0341bb11"
+CASE_FLOORS_MEASURED_AT: Final[str] = "7548c6621c2936fe8ec5f21a57b3fc91251e0a44"
 
 
 # --------------------------------------------------------------------------
@@ -570,7 +576,7 @@ def test_every_shell_test_file_is_recorded(repo_root: Path) -> None:
 
 
 def test_the_coverage_check_reports_a_file_the_command_does_not_run() -> None:
-    """A command that names three of the eight files runs three, and says so.
+    """A command that names three of the nine files runs three, and says so.
 
     Without this, the coverage check above could be narrowed — to a substring
     test, or to a command that names one file — and stay green while a shell

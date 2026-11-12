@@ -6,7 +6,7 @@ Phase 3 gate is closed.** The accumulated batch was delivered in
 as `777bb63192af4cb5aef51cd561d5031353d1f230` — 18 checks passing,
 `evaluation` skipping by design; a live ahead count is re-measured at
 delivery; the live pointers had stopped at the 2026-11-10 refresh
-(`7681c35`), and the record commits since are reflected by this entry. The
+(`7681c35`); the record commits since are reflected by this entry. The
 G1, G2,
 G3 and shell follow-up batches are merged into local `main`; `LC-P3-07` and
 `LC-P3-08` have issued work orders but stay blocked on `LC-P3-05`'s installed
@@ -14,10 +14,18 @@ build. `certifi` was upgraded `2026.7.22` → `2026.10.23`, clearing the
 CRITICAL emSign intermediate-CA advisory — the only immediate one of the 25
 advisories found. The G4 checklist revision 2 carries 31 classifiable rows
 whose signatures stay `PENDING` until the gate's implementation (the
-installed build and the trial) is complete. NOTICE now records the full
+installed build and the trial) is complete. NOTICE records the full
 268-package shell dependency closure (13 runtime and 255 build-only
-packages, all permissive licences), witnessed by
-`shell/test/notice-licences.test.mjs`. The owner's eight G4 decisions, the Electron shell choice,
+packages, none of them copyleft), witnessed by
+`shell/test/notice-licences.test.mjs`. On 2026-11-12 the owner widened its
+scope to the two surfaces it had left out: `NOTICE` §2.5 records the eight
+binaries the NSIS installer distributes (two LGPL-2.1, two with no findable
+terms) and §2.6 records the web tree's 266 lock keys (12 MPL-2.0, one
+CC-BY-4.0); §0.1 names the four surfaces a distribution carries, and
+`shell/test/notice-scope.test.mjs` watches the scope against them. The
+LGPL-2.1 plug-in is kept and its obligations are to be discharged, not
+removed; the installer's per-binary licence census and the Chromium
+component review stay deferred. The owner's eight G4 decisions, the Electron shell choice,
 and three later decisions on the in-flight batch are recorded in
 [`../plans/PHASE_3-work-orders.md`](../plans/PHASE_3-work-orders.md)
 §§12–13. The changelog split on 2026-11-11 moved every dated section into

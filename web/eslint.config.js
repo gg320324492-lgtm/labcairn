@@ -43,6 +43,23 @@ export default tseslint.config(
     },
   },
 
+  // The build tooling is TypeScript too, and is checked the same way the
+  // application sources are: it runs at build time and decides what is
+  // shipped, so a defect in it is a defect in the artefact.
+  {
+    files: ['scripts/**/*.ts'],
+    extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked, prettier],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: globals.node,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
   // Vitest setup and test files get the test globals they actually use.
   {
     files: ['src/test/**/*.ts', 'src/**/*.test.{ts,tsx}'],
