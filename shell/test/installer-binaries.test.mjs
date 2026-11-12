@@ -55,16 +55,23 @@ import {
 } from '../../.github/notice-readers.mjs'
 import {
   binaryCarriesLicenceStatement,
+  binaryRecordProblems,
   bundleFiles,
+  bundleNamedFromRecord,
   defaultCacheDir,
   extractMembers,
   findCacheBundles,
   fingerprint,
   isLicenceDocument,
+  licenceDocumentKind,
   licenceDocumentsIn,
+  memberRecordProblems,
+  storeDirectoryFor,
   toolchainDeclarations,
+  toolchainRecordProblems,
 } from '../../.github/installer-binaries.mjs'
 import { lockfileKeys } from '../../.github/shell-lockfile-keys.mjs'
+import { shellPaths } from '../scripts/lib/shell-paths.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHELL_ROOT = path.resolve(HERE, '..')
@@ -86,43 +93,52 @@ const EXTRACT_DIRS = (process.env.LABCAIRN_LICENCE_INSTALLER_EXTRACT ?? '')
 
 const CACHE = findCacheBundles(CACHE_DIR)
 
-/** Which unpacked bundle directory holds a file with this name and this sha256. */
-function locateInCache(bundleName, record) {
-  const dirs = CACHE.bundles.get(bundleName)
-  if (!dirs?.length) return null
-  for (const dir of dirs) {
-    for (const file of bundleFiles(dir)) {
-      if (path.basename(file).toLowerCase() !== record.name.toLowerCase()) continue
-      const print = fingerprint(file)
-      if (print.sha256 === record.fields.sha256) return { dir, file, print }
-    }
-  }
-  return null
-}
-
-/** Every file named `record.name` anywhere in that bundle, whatever its bytes are. */
-function nameMatchesInCache(bundleName, record) {
-  const dirs = CACHE.bundles.get(bundleName) ?? []
-  const found = []
-  for (const dir of dirs) {
-    for (const file of bundleFiles(dir)) {
-      if (path.basename(file).toLowerCase() === record.name.toLowerCase()) found.push(fingerprint(file))
-    }
-  }
-  return found
+/**
+ * Where an installed `app-builder-lib` could be found, in the order tried.
+ *
+ * A worktree checkout has no `node_modules` of its own and the tree it was
+ * cloned from does, which is the same problem `shell/scripts/lib/shell-paths.mjs`
+ * solves for the CLI the drain witness spawns — so the same resolution is used
+ * here rather than a second copy of the rule.
+ */
+function toolchainSearchDirs() {
+  return [
+    process.env.LABCAIRN_LICENCE_APP_BUILDER_LIB ?? '',
+    path.join(SHELL_ROOT, 'node_modules', '.pnpm'),
+    path.join(shellPaths({ here: HERE }).checkoutRoot, 'shell', 'node_modules', '.pnpm'),
+  ].filter((entry) => entry && fs.existsSync(entry))
 }
 
 /**
- * The bundle §2.5's `bundle` field names, before any trailing path.
+ * The files each bundle holds, keyed by lower-cased file name.
  *
- * `nsis-resources-3.4.1 — byte-identical to the upstream StdUtils 1.14 …` names
- * the bundle first and the comparison second; `nsis-3.0.4.1/Plugins/x86-unicode`
- * names the bundle and then the directory inside it.
+ * Built once per bundle rather than once per record: the comparison §2.5 needs
+ * is "is this hash one of the hashes this bundle actually presents", and a
+ * lookup that re-walks the bundle per record reports a different set of
+ * candidates depending on which record asked.
  */
-function bundleNamed(record) {
-  const field = record.fields.bundle ?? ''
-  const match = /^(nsis-resources-[\d.]+|nsis-[\d.]+)/.exec(field)
-  return match ? match[1] : null
+function filesByName(bundleName) {
+  const byName = new Map()
+  for (const dir of CACHE.bundles.get(bundleName) ?? []) {
+    for (const file of bundleFiles(dir)) {
+      const key = path.basename(file).toLowerCase()
+      if (!byName.has(key)) byName.set(key, [])
+      byName.get(key).push(fingerprint(file))
+    }
+  }
+  return byName
+}
+
+/** The §2.5 records, grouped by the bundle each one names. */
+function recordsByBundle() {
+  const grouped = new Map()
+  for (const record of RECORDS) {
+    const bundleName = bundleNamedFromRecord(record)
+    if (!bundleName) continue
+    if (!grouped.has(bundleName)) grouped.set(bundleName, [])
+    grouped.get(bundleName).push(record)
+  }
+  return grouped
 }
 
 const RUN_LOG = []
@@ -146,25 +162,18 @@ test('every §2.5 binary hash and size is the byte count and hash of the real fi
   }
   ran('§2.5 hashes against the bundle bytes')
   const problems = []
-  for (const record of RECORDS) {
-    const bundleName = bundleNamed(record)
-    if (!bundleName) {
-      problems.push(`${record.name}: §2.5 names no recognisable bundle in ${JSON.stringify(record.fields.bundle)}`)
-      continue
-    }
-    const found = locateInCache(bundleName, record)
-    if (!found) {
-      const candidates = nameMatchesInCache(bundleName, record)
-      const detail = candidates.length
-        ? `the bundle holds ${candidates.length} file(s) of that name, whose sha256s are ${candidates.map((c) => c.sha256.slice(0, 16) + '…').join(', ')}`
-        : `the bundle holds no file of that name`
-      problems.push(`${record.name}: §2.5 records sha256 ${record.fields.sha256?.slice(0, 16)}… but ${detail}`)
-      continue
-    }
-    if (found.print.bytes !== record.bytes) {
+  for (const [bundleName, records] of recordsByBundle()) {
+    if (!CACHE.bundles.has(bundleName)) {
       problems.push(
-        `${record.name}: §2.5 records ${record.bytes} bytes but the real file is ${found.print.bytes}`,
+        `§2.5 records ${records.length} binaries from ${bundleName}, which the cache at ${CACHE_DIR} does not hold (it holds: ${[...CACHE.bundles.keys()].join(', ') || 'nothing'})`,
       )
+      continue
+    }
+    problems.push(...binaryRecordProblems(records, filesByName(bundleName)))
+  }
+  for (const record of RECORDS) {
+    if (!bundleNamedFromRecord(record)) {
+      problems.push(`${record.name}: §2.5 names no recognisable bundle in ${JSON.stringify(record.fields.bundle)}`)
     }
   }
   assert.deepEqual(problems, [], problems.join('; '))
@@ -196,22 +205,14 @@ test('the binaries the installer actually carries are exactly the eight §2.5 re
   const members = extractMembers(EXTRACT_DIRS)
   const inScope = members.filter((member) => /^\$PLUGINSDIR\/|^resources\//.test(member.member))
   const binaries = inScope.filter((member) => /\.(dll|exe)$/i.test(member.member))
-  const recorded = new Map(RECORDS.map((record) => [record.name.toLowerCase(), record]))
+  const { unrecorded, missing } = memberRecordProblems(binaries, RECORDS)
 
-  const unrecorded = binaries
-    .map((member) => path.basename(member.member).toLowerCase())
-    .filter((name) => !recorded.has(name))
-    .sort()
   assert.deepEqual(
     unrecorded,
     [],
     `the installer carries ${unrecorded.length} binary(ies) §2.5 records nothing about: ${unrecorded.join(', ')} — a binary that enters the artefact under a licence this file does not name is the defect §2.5.2 says no watcher exists for`,
   )
 
-  const missing = RECORDS
-    .map((record) => record.name.toLowerCase())
-    .filter((name) => !binaries.some((member) => path.basename(member.member).toLowerCase() === name))
-    .sort()
   assert.deepEqual(
     missing,
     [],
@@ -271,7 +272,7 @@ test('the two §2.5 records it calls unresolved are unresolved because their bun
   // LGPL entries (the plug-in's own source header, the 7-Zip terms) while
   // naming the other two as unresolved.
   const specific = RECORDS.filter(
-    (record) => bundleNamed(record) === 'nsis-resources-3.4.1' && !/unresolved/i.test(record.fields.licence ?? ''),
+    (record) => bundleNamedFromRecord(record) === 'nsis-resources-3.4.1' && !/unresolved/i.test(record.fields.licence ?? ''),
   )
   assert.equal(
     specific.length,
@@ -284,33 +285,51 @@ test('the two §2.5 records it calls unresolved are unresolved because their bun
 // 4. The bundle §2.5 names is the bundle the build's own toolchain fetches.
 // ---------------------------------------------------------------------------
 test('the NSIS bundles §2.5 names are the bundles the pinned electron-builder declares, with the checksums it pins', () => {
-  const declarations = toolchainDeclarations([
-    process.env.LABCAIRN_LICENCE_APP_BUILDER_LIB ?? '',
-    path.join(SHELL_ROOT, 'node_modules', '.pnpm'),
-    CACHE_DIR,
-  ].filter(Boolean))
-
-  if (declarations.length === 0) {
-    notRun(
-      'the toolchain declaration against §2.5',
-      `no app-builder-lib to read (its installed package or a copy named by LABCAIRN_LICENCE_APP_BUILDER_LIB): shell.yml installs no node_modules and downloads no toolchain`,
-    )
-    return
-  }
-  ran('the toolchain declaration against §2.5')
-
   const lockText = fs.readFileSync(path.join(SHELL_ROOT, 'pnpm-lock.yaml'), 'utf8')
   const direct = lockfileKeys(lockText)
   const pinnedBuilder = direct.all_entries.filter((key) => /^electron-builder@/.test(key)).sort()
   assert.ok(pinnedBuilder.length > 0, 'shell/pnpm-lock.yaml pins no electron-builder, so the §2.5 toolchain claim has no pin to be about')
 
-  const namedByToolchain = new Set(declarations.map((declaration) => declaration.bundle))
-  const namedByNotice = new Set(RECORDS.map((record) => bundleNamed(record)).filter(Boolean))
-  for (const bundle of namedByNotice) {
-    assert.ok(
-      namedByToolchain.has(bundle),
-      `§2.5 records binaries from ${bundle}, but the pinned electron-builder (${pinnedBuilder.join(', ')}) declares ${[...namedByToolchain].join(', ')} — the toolchain §2.5 describes is not the one this lock pins`,
+  // The declaration is read from the package the *lock pins*, not from whatever
+  // copy the machine happens to have installed: a declaration read from a
+  // different version of app-builder-lib would be a statement about a toolchain
+  // this tree does not use. pnpm names each store directory `<name>@<version>`
+  // plus a peer suffix, so the pinned version selects the directory.
+  const appBuilderKeys = direct.all_entries.filter((key) => /^app-builder-lib@/.test(key)).sort()
+  assert.equal(appBuilderKeys.length, 1, `shell/pnpm-lock.yaml pins ${appBuilderKeys.length} app-builder-lib versions (${appBuilderKeys.join(', ')}); §2.5's toolchain claim is about one`)
+  const pinnedAppBuilder = appBuilderKeys[0]
+  const version = pinnedAppBuilder.slice('app-builder-lib@'.length)
+
+  const stores = toolchainSearchDirs()
+
+  const packageDir = stores
+    .map((store) => storeDirectoryFor(store, 'app-builder-lib', version))
+    .find((dir) => dir !== null)
+
+  if (packageDir === undefined || packageDir === null) {
+    notRun(
+      'the toolchain declaration against §2.5',
+      `no installed app-builder-lib@${version} to read (searched ${stores.join(', ')}; LABCAIRN_LICENCE_APP_BUILDER_LIB names a package directory): shell.yml installs no node_modules and downloads no toolchain`,
     )
+    return
+  }
+  ran('the toolchain declaration against §2.5')
+
+  const declarations = toolchainDeclarations([packageDir])
+  assert.ok(
+    declarations.length > 0,
+    `app-builder-lib@${version} at ${packageDir} declares no NSIS bundle via getBinFromUrl, so §2.5's bundle names have no toolchain to be checked against`,
+  )
+  // The declaration has to be the one the *lock pins*. The store directory's
+  // name is not proof of that (a `node_modules` link points elsewhere), so the
+  // package states it: its own manifest names itself and its version.
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
+  assert.equal(manifest.name, 'app-builder-lib', `the declaration was read from ${packageDir}, whose package.json names ${manifest.name}`)
+  assert.equal(manifest.version, version, `the declaration was read from app-builder-lib ${manifest.version}, but shell/pnpm-lock.yaml pins ${pinnedAppBuilder}`)
+
+  const problems = toolchainRecordProblems(RECORDS, declarations)
+  for (const problem of problems) {
+    assert.fail(`${problem} (pinned ${pinnedAppBuilder} via ${pinnedBuilder.join(', ')})`)
   }
 
   // The archive the build keeps must be the archive the checksum it pinned says
@@ -357,7 +376,7 @@ test('§2.5.1\'s record of what the installer carries matches what the extract c
     '§2.5.1 states neither "the licence text and the notice — DONE" nor "— NOT DONE", so there is no recorded state to compare the artefact with',
   )
 
-  const licenceMembers = members.filter((member) => isLicenceDocument(member.member))
+  const licenceMembers = members.filter((member) => isLicenceDocument(member))
   const lgplRecords = RECORDS.filter((record) => /LGPL/i.test(record.fields.licence ?? ''))
   assert.equal(lgplRecords.length, 2, `§2.5 records ${lgplRecords.length} LGPL binaries; §2.5.1's obligations are written for two`)
 
@@ -403,7 +422,7 @@ test('§2.5.1\'s record of what the installer carries matches what the extract c
     `§2.5.1 counts ten members for the NSIS archive (the seven plug-ins, modern-wizard.bmp and app-64.7z under $PLUGINSDIR, plus the uninstaller at $R0); the extract's $PLUGINSDIR holds ${pluginsdir.length} members (${pluginsdir.map((m) => path.basename(m.member)).join(', ')})`,
   )
   assert.deepEqual(
-    pluginsdir.filter((member) => isLicenceDocument(member.member)).map((member) => member.member),
+    pluginsdir.filter((member) => isLicenceDocument(member)).map((member) => member.member),
     [],
     'a licence document sits under $PLUGINSDIR while §2.5.1 records that none of the archive\'s members is one — the record and the artefact disagree about what the installer carries',
   )
@@ -446,72 +465,167 @@ test('§2.5.1\'s record of what the installer carries matches what the extract c
 // ---------------------------------------------------------------------------
 // 6. The unmeasured arms say so.
 // ---------------------------------------------------------------------------
-test('an arm that could not look says NOT RUN with a reason, and never reads as a pass', () => {
+test('an arm that could not look says NOT RUN with a reason, and the sentinel is the probe\'s own answer', () => {
   assert.ok(RUN_LOG.length > 0, 'no arm reported anything, so this file measured nothing at all')
   const silent = RUN_LOG.filter((entry) => !entry.startsWith('RAN ') && !entry.startsWith('NOT RUN '))
   assert.deepEqual(silent, [], `these arms reported a state that is neither RAN nor NOT RUN: ${silent.join('; ')}`)
   const unexplained = RUN_LOG.filter((entry) => entry.startsWith('NOT RUN ') && !entry.includes(': '))
   assert.deepEqual(unexplained, [], `these arms say NOT RUN without naming a reason: ${unexplained.join('; ')}`)
-  const ranArms = RUN_LOG.filter((entry) => entry.startsWith('RAN ')).length
-  const skipped = RUN_LOG.filter((entry) => entry.startsWith('NOT RUN '))
-  // The arms that must always be able to look, because their reader is the tree
-  // itself rather than an artefact a runner does not build.
-  const alwaysLookable = RUN_LOG.filter(
-    (entry) => entry.startsWith('NOT RUN ') && /§2\.5 hashes|§2\.5\'s eight names/.test(entry),
+
+  // The sentinel is not a sentence this file writes about itself: it is what the
+  // probe answers when there is nothing to read, and this case asks the probe.
+  // A `NOT RUN` no probe would produce is a sentence, and a sentence a witness
+  // asserts about itself is the kind that survives the probe being switched off.
+  const absent = findCacheBundles(path.join(os.tmpdir(), `labcairn-no-such-cache-${process.pid}`))
+  assert.equal(absent.available, false, 'findCacheBundles reported a cache where there is none')
+  assert.equal(absent.bundles.size, 0, 'a missing cache reported bundles it could not have read')
+  const absentToolchain = toolchainDeclarations([path.join(os.tmpdir(), `labcairn-no-such-package-${process.pid}`)])
+  assert.deepEqual(absentToolchain, [], 'the toolchain reader found a declaration in a directory that does not exist')
+
+  // An arm whose probe answered "nothing there" must not also be logged as RAN.
+  const ranWithoutEvidence = RUN_LOG.filter((entry) => entry.startsWith('RAN ')).filter((entry) => {
+    if (/bundle bytes|bundle\'s|bundles|NSIS COPYING|unresolved/.test(entry)) return !CACHE.available
+    if (/extract/.test(entry)) return EXTRACT_DIRS.length === 0
+    return false
+  })
+  assert.deepEqual(
+    ranWithoutEvidence,
+    [],
+    `these arms logged RAN while their probe had nothing to read: ${ranWithoutEvidence.join('; ')}`,
   )
-  if (skipped.length > 0) {
-    const reasons = skipped.map((entry) => entry.split(': ', 2)[1])
-    assert.ok(
-      reasons.every((reason) => /shell\.yml|LABCAIRN_LICENCE_/.test(reason)),
-      `these arms are NOT RUN for a reason that is not "the runner builds no artefact" (${reasons.join(' | ')}): the location was not findable on a machine that should have it`,
-    )
-  }
-  assert.ok(ranArms > 0 || skipped.length === RUN_LOG.length, 'the run log is neither a set of arms that ran nor a set that explains why it did not')
 })
 
 // ---------------------------------------------------------------------------
 // The controls: the properties this file watches, broken on copies of the data.
 // ---------------------------------------------------------------------------
-test('the controls fail for the properties: a swapped binary, a drifted size, a renamed bundle, a bundle the toolchain does not fetch', () => {
+test('the controls fail for the properties: a swapped binary, a drifted size, an unrecorded binary, a bundle the toolchain does not fetch', () => {
+  // The controls hand the *same comparison functions the tests above use* data
+  // with one value changed. The fixture is built here rather than read from an
+  // artefact, which is what makes the controls runnable on a machine the
+  // artefacts do not exist on — and a control that only runs where the artefact
+  // does is a control that never runs on the gate. The fixture is the eight
+  // §2.5 records' own hashes and sizes, which stands for "the artefact is
+  // exactly as §2.5 records it": the state the witness passes in, so a control
+  // that reddens it reddens the property and not the fixture's shape.
+  const artefact = new Map(
+    RECORDS.map((record) => [
+      record.name.toLowerCase(),
+      [{ path: record.name, bytes: record.bytes, sha256: record.fields.sha256 }],
+    ]),
+  )
+
   // (a) A plug-in replaced by another build: the name and the size survive, the
   //     bytes do not. This is the change §2.5's own records would not notice.
   const swapped = structuredClone(RECORDS)
   const target = swapped.find((record) => record.name === 'StdUtils.dll')
   assert.ok(target, '§2.5 records no StdUtils.dll, so this control has nothing to swap')
+  const clean = binaryRecordProblems(structuredClone(RECORDS), artefact)
+  assert.deepEqual(clean, [], 'the unmutated records already fail the comparison, so this control proves nothing')
   target.fields.sha256 = 'f'.repeat(64)
-  const located = locateInCache(bundleNamed(target), target)
-  assert.equal(located, null, 'a §2.5 record whose sha256 no longer matches any real file still located a file — the lookup is not the hash')
+  const afterSwap = binaryRecordProblems(swapped, artefact)
+  assert.equal(afterSwap.length, 1, `a swapped sha256 produced ${afterSwap.length} problems, not 1: ${afterSwap.join('; ')}`)
+  assert.match(afterSwap[0], /StdUtils\.dll/, `the problem names the wrong binary: ${afterSwap[0]}`)
+  // The size still matches, which is the point: only the hash can see this change.
+  assert.equal(afterSwap[0].includes('bytes'), false, `the swapped-hash problem talks about bytes: ${afterSwap[0]}`)
+
+  // (a2) A plug-in §2.5 records that the bundle does not hold at all.
+  const absentBundle = new Map(artefact)
+  absentBundle.delete('stdutils.dll')
+  const afterAbsence = binaryRecordProblems(structuredClone(RECORDS), absentBundle)
+  assert.equal(afterAbsence.length, 1, `a missing binary produced ${afterAbsence.length} problems: ${afterAbsence.join('; ')}`)
+  assert.match(afterAbsence[0], /holds no file of that name/, afterAbsence[0])
 
   // (b) A byte count that drifted from the real file.
   const drifted = structuredClone(RECORDS)
   const sized = drifted.find((record) => record.name === 'nsis7z.dll')
   assert.ok(sized, '§2.5 records no nsis7z.dll')
-  const found = locateInCache(bundleNamed(sized), sized)
-  assert.ok(found, 'the control could not find nsis7z.dll in the bundle it names')
-  assert.notEqual(
-    found.print.bytes,
-    999_999,
-    'the real byte count equals the absurd count the control invented, so the size comparison compares nothing',
+  const realBytes = sized.bytes
+  sized.bytes = realBytes + 1
+  const afterSize = binaryRecordProblems(drifted, artefact)
+  assert.equal(afterSize.length, 1, `a drifted byte count produced ${afterSize.length} problems, not 1: ${afterSize.join('; ')}`)
+  assert.match(
+    afterSize[0],
+    new RegExp(`${sized.bytes} bytes but the real file is ${realBytes}`),
+    `the size problem does not name both numbers: ${afterSize[0]}`,
   )
 
-  // (c) §2.5 naming a bundle the pinned toolchain does not fetch.
-  if (toolchainDeclarations([path.join(SHELL_ROOT, 'node_modules', '.pnpm'), CACHE_DIR].filter(Boolean)).length > 0) {
-    const declarations = toolchainDeclarations([path.join(SHELL_ROOT, 'node_modules', '.pnpm'), CACHE_DIR].filter(Boolean))
-    const named = new Set(declarations.map((declaration) => declaration.bundle))
-    assert.ok(!named.has('nsis-9.9.9'), 'the toolchain declares nsis-9.9.9, so this control cannot use it to show a wrong bundle name reddens the read')
+  // (c) A binary carried by the artefact that no record names, and a record
+  //     naming a binary the artefact does not carry.
+  const stdUtilsSha = artefact.get('stdutils.dll')[0].sha256
+  const members = [
+    { member: '$PLUGINSDIR/StdUtils.dll', sha256: stdUtilsSha },
+    { member: '$PLUGINSDIR/Intruder.dll', sha256: 'a'.repeat(64) },
+  ]
+  const carried = memberRecordProblems(members, structuredClone(RECORDS))
+  assert.deepEqual(carried.unrecorded, ['intruder.dll'], `an unrecorded binary was not reported: ${JSON.stringify(carried)}`)
+  // The other side of the same comparison: an artefact that carries two of the
+  // eight makes the other seven records name binaries the artefact does not
+  // carry. Both directions are the property, and a function that only reported
+  // one of them would let a §2.5 that grew past the artefact, or an artefact that
+  // shrank past §2.5, pass.
+  assert.deepEqual(
+    carried.missing,
+    RECORDS.map((record) => record.name.toLowerCase()).filter((name) => name !== 'stdutils.dll').sort(),
+    `the "§2.5 records a binary the artefact does not carry" side reported the wrong set: ${carried.missing.join(', ')}`,
+  )
+  const complete = memberRecordProblems(
+    RECORDS.map((record) => ({ member: `$PLUGINSDIR/${record.name}`, sha256: artefact.get(record.name.toLowerCase())[0].sha256 })),
+    structuredClone(RECORDS),
+  )
+  assert.deepEqual(complete, { unrecorded: [], missing: [] }, 'the unmutated artefact/record pair did not compare clean, so these controls prove nothing')
+
+  // A record dropped from §2.5 while the artefact still carries the binary: the
+  // artefact side reports it as unrecorded, which is m03's shape.
+  const dropped = structuredClone(RECORDS).filter((record) => record.name !== 'StdUtils.dll')
+  const allEight = RECORDS.map((record) => ({
+    member: `$PLUGINSDIR/${record.name}`,
+    sha256: artefact.get(record.name.toLowerCase())[0].sha256,
+  }))
+  const afterDrop = memberRecordProblems(allEight, dropped)
+  assert.deepEqual(afterDrop.unrecorded, ['stdutils.dll'], `a record §2.5 dropped was not reported as unrecorded: ${JSON.stringify(afterDrop)}`)
+  assert.deepEqual(afterDrop.missing, [], `dropping a record made other records go missing: ${afterDrop.missing.join(', ')}`)
+
+  // (d) §2.5 naming a bundle the toolchain does not fetch.
+  const declarations = [
+    { bundle: 'nsis-3.0.4.1', archive: 'nsis-3.0.4.1.7z', checksum: '9'.repeat(64), declaredIn: 'x' },
+    { bundle: 'nsis-resources-3.4.1', archive: 'nsis-resources-3.4.1.7z', checksum: '8'.repeat(64), declaredIn: 'x' },
+  ]
+  assert.deepEqual(toolchainRecordProblems(structuredClone(RECORDS), declarations), [], 'the real records disagree with a toolchain that names both bundles')
+  const renamed = structuredClone(RECORDS)
+  renamed.find((record) => record.name === 'nsis7z.dll').fields.bundle = 'nsis-resources-9.9.9'
+  const afterRename = toolchainRecordProblems(renamed, declarations)
+  assert.equal(afterRename.length, 1, `a bundle name the toolchain does not declare produced ${afterRename.length} problems: ${afterRename.join('; ')}`)
+  assert.match(afterRename[0], /nsis-resources-9\.9\.9/, `the problem does not name the bundle: ${afterRename[0]}`)
+
+  // (e) The toolchain reader's own answer on a tree that holds nothing is an
+  //     empty list, which is the only thing that makes "the toolchain declares
+  //     no NSIS bundle" a measurement rather than a guess.
+  const nowhere = toolchainDeclarations([path.join(os.tmpdir(), `labcairn-no-package-${process.pid}`)])
+  assert.deepEqual(nowhere, [], 'the toolchain reader found a declaration in a directory that does not exist')
+
+  // (f) The reader the controls feed is the reader the tests use, on data the
+  //     real bundles produce — when the bundles are there. A control whose
+  //     fixture is nothing like the real artefact proves the fixture.
+  const real = findCacheBundles(CACHE_DIR)
+  if (real.available) {
+    const fingerprints = filesByName('nsis-resources-3.4.1')
+    assert.ok(fingerprints.size > 0, 'the real nsis-resources-3.4.1 bundle presented no files')
+    const recorded = RECORDS.find((record) => record.name === 'StdUtils.dll')
+    const actual = fingerprints.get('stdutils.dll') ?? []
     assert.ok(
-      [...new Set(RECORDS.map((record) => bundleNamed(record)).filter(Boolean))].every((bundle) => named.has(bundle)),
-      `§2.5 names ${[...new Set(RECORDS.map((record) => bundleNamed(record)))].join(', ')} and the toolchain declares ${[...named].join(', ')}: the real records do not match the toolchain, so this control is not testing what it claims`,
+      actual.some((print) => print.sha256 === recorded.fields.sha256 && print.bytes === recorded.bytes),
+      'the real bundle does not present the sha256 and size §2.5 records, so the control\'s fixture and the artefact are describing different files',
     )
   }
 
-  // (d) A reader that cannot look reports that, rather than finding nothing and
+  // (g) A reader that cannot look reports that, rather than finding nothing and
   //     calling it clean.
   const empty = findCacheBundles(path.join(os.tmpdir(), `labcairn-no-cache-${process.pid}`))
   assert.equal(empty.available, false, 'findCacheBundles reported a cache where there is none')
   assert.equal(empty.bundles.size, 0, 'a missing cache reported bundles')
 
-  // (e) The extract member scan finds a licence document when one is there.
+  // (e) The extract member scan finds a licence document when one is there —
+  //     including one whose *name* says nothing and whose text says everything.
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'labcairn-licence-scan-'))
   try {
     fs.mkdirSync(path.join(scratch, '$PLUGINSDIR'), { recursive: true })
@@ -520,12 +634,38 @@ test('the controls fail for the properties: a swapped binary, a drifted size, a 
       path.join(scratch, '$PLUGINSDIR', 'COPYING.txt'),
       'GNU LESSER GENERAL PUBLIC LICENSE — this library is licensed under the LGPL.',
     )
+    // The name this project would actually ship the obligation text under.
+    fs.writeFileSync(
+      path.join(scratch, '$PLUGINSDIR', 'LGPL.txt'),
+      'GNU LESSER GENERAL PUBLIC LICENSE\nVersion 2.1, February 1999\n',
+    )
+    // An innocuous name, unmistakable contents: what a name-only pattern misses.
+    fs.writeFileSync(
+      path.join(scratch, '$PLUGINSDIR', 'notes-341.bin.txt'),
+      'GNU LESSER GENERAL PUBLIC LICENSE\nVersion 2.1, February 1999\n',
+    )
+    // A compiled member that mentions the phrase deeper in is not a document.
+    fs.writeFileSync(
+      path.join(scratch, '$PLUGINSDIR', 'blob.dll'),
+      `${'A'.repeat(4200)}GNU LESSER GENERAL PUBLIC LICENSE`,
+    )
     const members = extractMembers([scratch])
-    assert.equal(members.length, 2, `the extract scan found ${members.length} of the 2 members it was given`)
+    assert.equal(members.length, 5, `the extract scan found ${members.length} of the 5 members it was given`)
+    const documents = members.filter((member) => isLicenceDocument(member)).map((member) => member.member).sort()
     assert.deepEqual(
-      members.filter((member) => isLicenceDocument(member.member)).map((member) => member.member),
-      ['$PLUGINSDIR/COPYING.txt'],
-      'the licence-document scan did not identify the licence document it was given, so §2.5.1\'s "none of them is a licence document" is not a measured absence',
+      documents,
+      ['$PLUGINSDIR/COPYING.txt', '$PLUGINSDIR/LGPL.txt', '$PLUGINSDIR/notes-341.bin.txt'],
+      'the licence-document scan did not identify the licence documents it was given, so §2.5.1\'s "none of them is a licence document" is not a measured absence',
+    )
+    assert.equal(
+      licenceDocumentKind(path.join(scratch, '$PLUGINSDIR', 'blob.dll')),
+      null,
+      'the scan read a licence phrase buried 4,200 bytes into a compiled member as a licence document — the absence §2.5.1 records would be unfalsifiable and also unmeasurable',
+    )
+    assert.equal(
+      licenceDocumentKind(path.join(scratch, '$PLUGINSDIR', 'System.dll')),
+      null,
+      'the scan called a member with no licence content a licence document',
     )
     assert.deepEqual(
       binaryCarriesLicenceStatement(path.join(scratch, '$PLUGINSDIR', 'COPYING.txt'), ['lgpl', 'lesser general public']),

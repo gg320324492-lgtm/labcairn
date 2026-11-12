@@ -47,9 +47,23 @@ const BINARY_FIELD = /^ {4}(path|sha256|bundle|licence|holder|where)\s{2,}(\S.*)
 const BINARY_CONTINUATION = /^ {11}\S/
 /** `Measured 2026-11-11 … 15,488 bytes, sha256` + the hash on the next line. */
 const COPYING_CLAIM = /`COPYING` \(([\d,]+) bytes, sha256\s*\n?([0-9a-f]{64})\)/
-/** A bundle electron-builder downloads: `getBinFromUrl("nsis-3.0.4.1", "nsis-3.0.4.1.7z", "<sha256>")`. */
+/**
+ * A bundle electron-builder downloads, as its own code states the download.
+ *
+ * The published `app-builder-lib` is CommonJS, so the call that reads as
+ * `getBinFromUrl("nsis-3.0.4.1", …)` in the TypeScript source is compiled to
+ *
+ *     return (0, binDownload_1.getBinFromUrl)("nsis-3.0.4.1", "nsis-3.0.4.1.7z",
+ *         "9877df902530f96357d13a7a31ae2b9df67f48b11ffc9a1700a7c961574ec5fa");
+ *
+ * — the imported function behind the comma operator, with a `)` between the name
+ * and the argument list. A pattern that required the name and the parenthesis to
+ * be adjacent matched nothing in the published package, and the arm reported
+ * "declares no NSIS bundle" about a package that declares two. Measured here at
+ * `app-builder-lib@26.18.0`, `out/toolsets/windows.js`.
+ */
 const BIN_DECLARATION =
-  /getBinFromUrl\(\s*["'`](nsis[^"'`]*)["'`],\s*["'`]([^"'`]+)["'`],\s*["'`]([0-9a-f]{64})["'`]/g
+  /getBinFromUrl\)*\(\s*["'`](nsis[^"'`]*)["'`],\s*["'`]([^"'`]+)["'`],\s*["'`]([0-9a-f]{64})["'`]/g
 
 /**
  * One numbered subsection of NOTICE, by its heading.
@@ -175,13 +189,47 @@ export function findCacheBundles(cacheDir) {
   return { available: true, cacheDir, bundles: found }
 }
 
-/** Every file a bundle directory holds, with its path below the bundle root. */
+/**
+ * Every file a directory holds, following links.
+ *
+ * `fs.readdirSync(…, { withFileTypes: true })` reports a symbolic link or a
+ * Windows junction as neither a file nor a directory, and pnpm's store is built
+ * out of them: `<name>@<version>/node_modules/<name>` is a link to the store's
+ * own copy, and `<project>/node_modules/<name>` is a link into the store. A walk
+ * that trusts `entry.isDirectory()` therefore stops at the link and finds nothing
+ * below it — measured here as "declares no NSIS bundle" against a package that
+ * declares two. `statSync` follows the link, and a cycle guard on the real path
+ * keeps a linked tree from being walked forever.
+ */
 export function bundleFiles(bundleDir) {
   const files = []
+  const seen = new Set()
   function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let real
+    try {
+      real = fs.realpathSync(dir)
+    } catch {
+      return
+    }
+    if (seen.has(real)) return
+    seen.add(real)
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
       const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
+      let kind = entry.isDirectory() ? 'directory' : entry.isFile() ? 'file' : 'link'
+      if (kind === 'link') {
+        try {
+          kind = fs.statSync(full).isDirectory() ? 'directory' : 'file'
+        } catch {
+          continue
+        }
+      }
+      if (kind === 'directory') walk(full)
       else files.push(full)
     }
   }
@@ -199,8 +247,69 @@ export function bundleFiles(bundleDir) {
  * by looking for what would falsify it.
  */
 export function licenceDocumentsIn(bundleDir) {
-  const NAME = /^(LICEN[CS]E|COPYING|NOTICE|LICENSE\.txt|README)/i
-  return bundleFiles(bundleDir).filter((file) => NAME.test(path.basename(file)))
+  return bundleFiles(bundleDir).filter((file) => licenceDocumentKind(file) !== null)
+}
+
+/**
+ * A file's name, when the name is a licence document's name.
+ *
+ * The names §2.5 and §2.5.1 use for the documents that would settle the
+ * obligations — `COPYING`, `LICENSE.txt`, `LGPL.txt`, `THIRD-PARTY-NOTICES` —
+ * and nothing looser: `README` is deliberately **not** here, because a bundle's
+ * README is not a grant and §2.5.1's absence claim would then be falsified by a
+ * file that states no terms.
+ */
+const LICENCE_NAME = /(^|[/.])(LICEN[CS]E|COPYING|NOTICE|THIRD[- ]PARTY[- ]NOTICES|LGPL|GPL|MPL)([.-]|$)/i
+
+/**
+ * The openings that say a file *is* a licence text.
+ *
+ * The names a licence document can carry are unbounded — `LICENSE.LGPL`,
+ * `COPYLEFT`, `StdUtils-LICENCE` — so the absence §2.5.1 records ("none of them
+ * is a licence document") is only a measured absence if the check also reads
+ * what the file says. Measured on this tree: a `$PLUGINSDIR/LGPL.txt` carrying
+ * the `GNU LESSER GENERAL PUBLIC LICENSE` header is the exact thing the LGPL
+ * obligation would be discharged with, and a name-only pattern missed it.
+ *
+ * Only the head of the file is read, and only as latin1: a compiled DLL that
+ * happens to contain one of these phrases deeper in its data sections is not a
+ * licence document, and a check that read the whole file would say it is.
+ */
+const LICENCE_TEXT_OPENINGS = [
+  /^.{0,400}?\bGNU LESSER GENERAL PUBLIC LICENSE\b/i,
+  /^.{0,400}?\bGNU GENERAL PUBLIC LICENSE\b/i,
+  /^.{0,400}?\bMozilla Public License Version 2\.0\b/i,
+  /^.{0,400}?\bApache License\s*(Version|2)/i,
+  /^.{0,400}?\bMIT License\b/i,
+  /^.{0,400}\bPermission is hereby granted, free of charge\b/i,
+  /^.{0,400}\bThis software is provided 'as-is', without any express or implied warranty\b/i,
+]
+
+/**
+ * Whether a file is a licence document, and on what grounds: `name` or `text`.
+ *
+ * `null` means neither. A binary whose *own bytes* carry a licence statement is
+ * not a document (§2.5 records that the plug-ins carry no licence text, and
+ * `binaryCarriesLicenceStatement` is the check for that claim); this function is
+ * about the members that are documents in their own right.
+ */
+export function licenceDocumentKind(file) {
+  if (LICENCE_NAME.test(path.basename(file))) return 'name'
+  let head
+  try {
+    const handle = fs.openSync(file, 'r')
+    try {
+      const buffer = Buffer.alloc(4096)
+      const read = fs.readSync(handle, buffer, 0, 4096, 0)
+      head = buffer.subarray(0, read).toString('latin1')
+    } finally {
+      fs.closeSync(handle)
+    }
+  } catch {
+    return null
+  }
+  if (/\x00/.test(head)) return null
+  return LICENCE_TEXT_OPENINGS.some((pattern) => pattern.test(head)) ? 'text' : null
 }
 
 /**
@@ -219,6 +328,10 @@ export function licenceDocumentsIn(bundleDir) {
  * (`tests/test_shell_ci.py::test_the_test_step_runs_inside_the_shell_and_names_the_runner_temp`
  * refuses a `pnpm install` step there), so the witness reports this arm as
  * unavailable on a runner rather than pretending it read something.
+ *
+ * A directory that holds no `getBinFromUrl` call yields nothing, which is the
+ * point: a caller that points this at an empty tree gets an empty list and has
+ * to report that, rather than receiving a list assembled from somewhere else.
  */
 export function toolchainDeclarations(searchDirs) {
   const declarations = []
@@ -247,6 +360,39 @@ export function toolchainDeclarations(searchDirs) {
 }
 
 /**
+ * The directory that holds this exact `name@version`'s own files, if any.
+ *
+ * pnpm names each resolved package `<name>@<version>` plus a peer suffix, so the
+ * version the lock pins selects the store directory — the declaration read is
+ * then the declaration of the version the lock pins, not of whatever copy the
+ * machine happens to have installed.
+ *
+ * The package's files are not at the top of that directory: they are under its
+ * `node_modules/<name>`, which is a link, and `fs.readdirSync` reports a link as
+ * neither a file nor a directory, so a recursive walk of the store directory
+ * stops short of the package. Measured here: walking
+ * `.pnpm/app-builder-lib@26.18.0_…/` finds no `out/toolsets/windows.js`, while
+ * the same walk from `.pnpm/app-builder-lib@26.18.0_…/node_modules/app-builder-lib`
+ * finds it. The caller is given the package's own directory for that reason.
+ */
+export function storeDirectoryFor(storeDir, name, version) {
+  if (!fs.existsSync(storeDir)) return null
+  const wanted = `${name}@${version}`
+  const candidates = fs
+    .readdirSync(storeDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(wanted))
+    .map((entry) => path.join(storeDir, entry.name))
+    .sort()
+  for (const candidate of candidates) {
+    const packageDir = path.join(candidate, 'node_modules', name)
+    if (fs.existsSync(path.join(packageDir, 'package.json'))) return packageDir
+  }
+  // A directory the caller named directly, holding the package's own files.
+  const direct = candidates.find((candidate) => fs.existsSync(path.join(candidate, 'package.json')))
+  return direct ?? null
+}
+
+/**
  * The members of an installer extract.
  *
  * §5.4 step 3 produces exactly this: the installer's members under one
@@ -272,9 +418,15 @@ export function extractMembers(extractDirs) {
   return members
 }
 
-/** A member whose name says it is a licence document. */
+/**
+ * Whether an extract member is a licence document, and on what grounds.
+ *
+ * `licenceDocumentKind`'s answer for the member's real path, attached when the
+ * member is read: the claim §2.5.1 makes is about *what the archive holds*, and
+ * a member identified only by a name pattern is a claim about names.
+ */
 export function isLicenceDocument(member) {
-  return /(^|[/.])(LICEN[CS]E|COPYING|LICENSE|NOTICE)(\.|$|\.txt|\.html)/i.test(member)
+  return licenceDocumentKind(member.path) !== null
 }
 
 /**
@@ -298,6 +450,89 @@ export function binaryCarriesLicenceStatement(file, phrases) {
 /** The default cache directory: `ELECTRON_BUILDER_CACHE`, as §5.4 names it. */
 export function defaultCacheDir(env = process.env) {
   return env.ELECTRON_BUILDER_CACHE ?? path.join(env.LOCALAPPDATA ?? '', 'electron-builder', 'Cache')
+}
+
+// ---------------------------------------------------------------------------
+// The comparisons, as functions that take data rather than opening artefacts.
+//
+// A witness that compares the artefacts it opened inside its own test body
+// cannot be shown to fail for the property: the only way to hand it a broken
+// value is to break the artefact, which is a build, a download or a tree
+// mutation. These three take what the record states and what the artefact
+// presents, and answer with the problems. The witness feeds them the real
+// bytes; the controls feed them records with a value changed. Same code both
+// ways — `shell/test/dependency-surface.test.mjs`'s precedent.
+// ---------------------------------------------------------------------------
+
+/**
+ * §2.5's per-binary records against the files the bundle really holds.
+ *
+ * `filesByLowerName` maps a lower-cased file name to every fingerprint found for
+ * it in the bundle the records name. A record whose sha256 is none of them is the
+ * plug-in-swap case: same name, same size, different bytes, terms nobody read.
+ */
+export function binaryRecordProblems(records, filesByLowerName) {
+  const problems = []
+  for (const record of records) {
+    const found = filesByLowerName.get(record.name.toLowerCase()) ?? []
+    const match = found.find((print) => print.sha256 === record.fields.sha256)
+    if (!match) {
+      const detail = found.length
+        ? `the bundle holds ${found.length} file(s) of that name, whose sha256s are ${found.map((c) => `${c.sha256.slice(0, 16)}…`).join(', ')}`
+        : 'the bundle holds no file of that name'
+      problems.push(`${record.name}: §2.5 records sha256 ${(record.fields.sha256 ?? '(none)').slice(0, 16)}… but ${detail}`)
+      continue
+    }
+    if (match.bytes !== record.bytes) {
+      problems.push(`${record.name}: §2.5 records ${record.bytes} bytes but the real file is ${match.bytes}`)
+    }
+  }
+  return problems
+}
+
+/**
+ * §2.5's records against the binaries an artefact actually carries, both ways.
+ *
+ * A carried binary no record names is the defect §2.5.2 records as unwitnessed;
+ * a record naming a binary the artefact does not carry means §2.5 is describing
+ * an artefact that no longer contains it.
+ */
+export function memberRecordProblems(members, records) {
+  const recorded = new Map(records.map((record) => [record.name.toLowerCase(), record]))
+  const carried = members.map((member) => path.basename(member.member).toLowerCase())
+  return {
+    unrecorded: [...new Set(carried.filter((name) => !recorded.has(name)))].sort(),
+    missing: records
+      .map((record) => record.name.toLowerCase())
+      .filter((name) => !carried.includes(name))
+      .sort(),
+  }
+}
+
+/**
+ * §2.5's bundle names against the bundles the pinned toolchain declares.
+ *
+ * Independent of NOTICE's own numbers: `app-builder-lib` states the bundle names
+ * and the checksums it verifies, and that is a second statement about the same
+ * archives §2.5 hashes.
+ */
+export function toolchainRecordProblems(records, declarations) {
+  const named = new Set(declarations.map((declaration) => declaration.bundle))
+  const problems = []
+  for (const bundle of new Set(records.map((record) => bundleNamedFromRecord(record)).filter(Boolean))) {
+    if (!named.has(bundle)) {
+      problems.push(
+        `§2.5 records binaries from ${bundle}, but the pinned toolchain declares ${[...named].join(', ') || 'no bundle'} — the toolchain §2.5 describes is not the one this build fetches`,
+      )
+    }
+  }
+  return problems
+}
+
+/** The bundle a §2.5 record names, before any path or comparison after it. */
+export function bundleNamedFromRecord(record) {
+  const match = /^(nsis-resources-[\d.]+|nsis-[\d.]+)/.exec(record.fields.bundle ?? '')
+  return match ? match[1] : null
 }
 
 async function main(argv) {
