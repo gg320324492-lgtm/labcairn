@@ -71,8 +71,13 @@ container and [the archives index](../../CHANGELOG.md#archives).
 - **Three support modules no longer wear the `test_*` glob.**
   `tests/test_store_support.py`, `tests/test_recovery_support.py` and
   `tests/test_skill_support.py` were shared fixture modules — 47 test files
-  import them — that pytest collected and found no case in, on every shard
-  of both platforms. They are now `tests/store_support.py`,
+  import them — that pytest collected and found no case in, and that the shard
+  list carried on both platforms (**one shard each, never every shard: of the 56
+  revisions of `ci-shards.json` that name them at all, 54 place each in exactly one
+  shard on each platform, one is the 2026-10-24 single-platform table and one is the
+  2026-11-02 removal — no revision ever placed one in more than one shard. The
+  "every shard" wording this entry and the Phase 1 board row printed was wrong from
+  the day the finding was filed**). They are now `tests/store_support.py`,
   `tests/recovery_support.py` and `tests/skill_support.py`; their shard and
   cost entries and their evaluation-manifest rows are gone, and the
   collected-nothing mechanism keeps its witness through a synthetic
@@ -341,8 +346,10 @@ container and [the archives index](../../CHANGELOG.md#archives).
   blocker beside the number 3 invites exactly the wrong reading.
 - **Three CI shard files that collect nothing are reported as such.**
   `test_store_support.py`, `test_recovery_support.py` and `test_skill_support.py`
-  are support modules other tests import; they are filed in a gate class and in
-  every shard, and pytest collects no case in them. The blocker's row used to say
+  are support modules other tests import; they are filed in a gate class and listed
+  in the shard list on both platforms — in **one shard each**, not in every shard,
+  which is what this entry printed until 2026-11-12 — and pytest collects no case
+  in them. The blocker's row used to say
   the run "did not select" them. It now says no case was collected, which is the
   finding — **and whether a required test file that carries no case belongs in
   the shard list is carried to Phase 2 rather than settled here.**
