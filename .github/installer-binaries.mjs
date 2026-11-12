@@ -393,6 +393,242 @@ export function storeDirectoryFor(storeDir, name, version) {
 }
 
 /**
+ * The members of a `7z l` / `7z l -slt` listing of an NSIS installer.
+ *
+ * **Why the listing is a source of its own.** `$PLUGINSDIR` is an installation-time
+ * temporary directory: the plug-ins are written there while the installer runs and
+ * removed when it finishes. 7-Zip's NSIS handler can *list* those members but does
+ * not extract them -- measured here with three `7za` invocations against the
+ * 2026-11-11 build: a plain `x` yields only the payload, `-spf` yields the same,
+ * and `e '$PLUGINSDIR\*'` reports `Files: 0`. So a witness that waited for an
+ * extract of those members had arms that could never run on any machine.
+ *
+ * What the listing does give is exactly what §2.5.1's member census needs: the
+ * member names, their `Packed Size` (the archive's compressed size, which is the
+ * number §5.4 says it prints and §2.5 says is not the unpacked size), and the
+ * absence or presence of a licence-document name. The 7-Zip build matters: the
+ * system 7-Zip 26.02 (x64) reports `Type = Nsis` and lists the nine
+ * `$PLUGINSDIR` members plus `$R0\Uninstall LabCairn.exe`; the 24.09 (x86) binary
+ * electron-builder caches reports `Type = 7z` and lists only the outer payload.
+ * `parseInstallerListing` returns the archive type with the members, so a listing
+ * of the wrong layer is reported rather than mistaken for a short installer.
+ *
+ * Both output shapes are read. Plain `7z l` lines look like
+ *
+ *     2026-11-11 16:29:18 .....    123968060    123968060  $PLUGINSDIR\app-64.7z
+ *                         .....                      6931  $PLUGINSDIR\System.dll
+ *
+ * and `-slt` gives one `Path = …` / `Packed Size = …` block per member.
+ */
+export function parseInstallerListing(listingText) {
+  const type = /^Type\s*=\s*(\S+)/m.exec(listingText)?.[1] ?? null
+  const members = []
+  const seen = new Set()
+  // 7-Zip's Windows output is CRLF. Every line is stripped of its CR before any
+  // `$`-anchored pattern sees it: a trailing `\r` is how a first version of this
+  // reader found 0 members in a listing that names all ten.
+  const lines = listingText.split('\n').map((line) => line.replace(/\r$/, ''))
+
+  /** A member of the NSIS archive, not a line from the archive's own header. */
+  function looksLikeMember(name) {
+    return /^\$(PLUGINSDIR|R0)[\\/]/i.test(name) || /^resources[\\/]/i.test(name)
+  }
+
+  function add(rawName, packedSize) {
+    const name = rawName.trim()
+    if (!name || name.endsWith('\\') || name.endsWith('/')) return
+    if (!looksLikeMember(name)) return
+    const member = name.replace(/\\/g, '/')
+    const key = member.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    members.push({
+      member,
+      name: path.posix.basename(member).toLowerCase(),
+      packedSize: Number.isFinite(packedSize) && packedSize > 0 ? packedSize : null,
+      // A listing names a member; it does not hold its bytes. The hash arm is
+      // optional and only runs where an extract actually exists.
+      sha256: null,
+      path: null,
+    })
+  }
+
+  // -slt shape: `Path = …` then `Packed Size = …` per member. A state machine
+  // rather than a split on the `----------` separator, whose `\s*` also matches
+  // newlines and swallowed every block after the first. The archive header carries
+  // `Path = <installer.exe>`; `looksLikeMember` refuses it.
+  let pending = null
+  for (const line of lines) {
+    const named = /^Path\s*=\s*([^\n]+)$/.exec(line)
+    if (named) {
+      if (pending) add(pending, null)
+      pending = named[1].trim()
+      continue
+    }
+    const packed = /^Packed Size\s*=\s*(\d+)/.exec(line)
+    if (packed && pending) {
+      add(pending, Number(packed[1]))
+      pending = null
+    }
+  }
+  if (pending) add(pending, null)
+
+  // Plain `l` shape. The member name starts at one of the NSIS/payload roots;
+  // locating it first and taking the last number before it as the packed size
+  // works for both a row with one numeric column and a row with two:
+  //
+  //                     .....                      6931  $PLUGINSDIR\System.dll
+  // 2026-11-11 16:29:18 .....    123968060    123968060  $PLUGINSDIR\app-64.7z
+  //                     ....A       107520        49588  resources\elevate.exe
+  const MEMBER_AT = /\$PLUGINSDIR[\\/]|\$R0[\\/]|resources[\\/]/i
+  for (const line of lines) {
+    const at = MEMBER_AT.exec(line)?.index
+    if (at === undefined) continue
+    // A `Path = …` line in an -slt listing also carries a member name; the
+    // state machine above has already read it, with its own Packed Size.
+    if (/^Path\s*=/.test(line)) continue
+    // A `D....` row is a directory. Counting `resources\app.asar.unpacked` as a
+    // binary would report a ninth member that is not a binary at all.
+    if (/\bD\.{3,}[A-Za-z]?\b/.test(line.slice(0, at))) continue
+    const before = line.slice(0, at)
+    const numbers = [...before.matchAll(/(\d+)/g)]
+    const packed = numbers.length ? Number(numbers[numbers.length - 1][1]) : null
+    add(line.slice(at).trim(), packed)
+  }
+  return { type, members }
+}
+
+/**
+ * A licence document named in a listing, where no bytes are available to read.
+ *
+ * `licenceDocumentKind` answers from a file's *name* or its *text*. A listing has
+ * names and no text, so this is the name half of that same vocabulary -- keeping
+ * the two in one place is what stops a `$PLUGINSDIR/licences/LGPL-2.1.txt` from
+ * being missed by one reader and found by the other.
+ */
+export function listedLicenceDocuments(members) {
+  return members.filter((member) => {
+    const name = path.posix.basename(member.member)
+    // A licence document is a name in the grant vocabulary, or a member under a
+    // `licences/` directory. The compiled plug-ins, the wizard bitmap and the
+    // payload archive are neither, and the `LICENCE_NAME` pattern is what keeps a
+    // `.dll` from being counted as one.
+    return LICENCE_NAME.test(name) || /licen[cs]es?\//i.test(member.member)
+  })
+}
+
+/**
+ * The compressed-size table §5.4 step 2 prints for the installer's plug-ins.
+ *
+ * §5.4 says plainly that these are the archive's own compressed sizes and that
+ * §2.5 prints each binary's *unpacked* size instead. That distinction is why a
+ * listing is useful evidence even though it carries no bytes: the seven numbers
+ * §5.4 records are a second, independent statement about the same archive, and
+ * they can be checked against `Packed Size` in a `7z l` output.
+ *
+ * The rows are `# $PLUGINSDIR\System.dll       6931   $PLUGINSDIR\nsExec.dll …`
+ * — two `name size` pairs per line. A read that took §2.5's unpacked sizes as the
+ * expected values would report all seven as wrong, which is a red about the
+ * reader rather than about the artefact.
+ */
+export function compressedSizeTable(noticeText) {
+  const table = new Map()
+  const pattern = /\$PLUGINSDIR\\([A-Za-z0-9_.-]+\.dll)\s{2,}(\d+)/g
+  for (const match of noticeText.matchAll(pattern)) {
+    table.set(match[1].toLowerCase(), Number(match[2]))
+  }
+  if (table.size === 0) {
+    throw new Error('§5.4 prints no compressed-size row — the read found nothing')
+  }
+  return table
+}
+
+/**
+ * §5.4's compressed sizes against the `Packed Size` values in a listing.
+ *
+ * `recorded` comes from NOTICE; `members` come from the artefact. Both directions
+ * are checked: a plug-in whose size moved, a plug-in §5.4 names that the listing
+ * does not, and a listed plug-in §5.4 says nothing about all redden it. A listing
+ * that carried no size at all is reported as an unmeasured value rather than
+ * compared as zero -- the rule this repository prints for a number it did not
+ * measure.
+ */
+export function listedSizeProblems(members, recorded) {
+  const problems = []
+  const listed = new Map(
+    members
+      .filter((member) => member.member.startsWith('$PLUGINSDIR/') && /\.dll$/i.test(member.name))
+      .map((member) => [member.name, member.packedSize]),
+  )
+  for (const [name, size] of recorded) {
+    if (!listed.has(name)) {
+      problems.push(`§5.4 prints a compressed size for ${name}, which the listing does not name`)
+      continue
+    }
+    const actual = listed.get(name)
+    if (actual === null || actual === undefined) {
+      problems.push(`the listing names ${name} but gives no Packed Size, so §5.4's ${size} could not be checked`)
+      continue
+    }
+    if (actual !== size) {
+      problems.push(`§5.4 prints ${size} compressed bytes for ${name}; the listing gives ${actual}`)
+    }
+  }
+  for (const [name, size] of listed) {
+    if (!recorded.has(name)) {
+      problems.push(`the listing names ${name} (${size ?? 'no size'} compressed bytes), which §5.4 records no size for`)
+    }
+  }
+  return problems
+}
+
+/**
+ * §2.5.1's ten-member census against a listing, and the obligation state against
+ * the licence documents the listing names.
+ *
+ * `recordedCensus` is the number §2.5.1 states for the NSIS archive, and
+ * `claimsCarry` is which of its two states -- DONE or NOT DONE -- the record is
+ * in. A listing that names a licence document while the record says NOT DONE is
+ * exactly the state the LGPL-text batch arriving in the installer produces: the
+ * record has to be re-measured, and this is the arm that says so without needing
+ * the extract of an installation-time directory.
+ */
+export function listedCensusProblems(members, recordedCensus, claimsCarry, licenceDocuments) {
+  const problems = []
+  const plugin = members.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
+  const uninstaller = members.filter((member) => /^\$R0\//.test(member.member))
+  if (plugin.length + uninstaller.length !== recordedCensus) {
+    problems.push(
+      `§2.5.1 counts ${recordedCensus} members in the NSIS archive; the listing presents ` +
+      `${plugin.length} under $PLUGINSDIR and ${uninstaller.length} at $R0 = ` +
+      `${plugin.length + uninstaller.length}`,
+    )
+  }
+  const pluginDlls = plugin.filter((member) => /\.dll$/i.test(member.name))
+  if (pluginDlls.length !== 7) {
+    problems.push(
+      `§2.5.1 counts seven plug-in DLLs under $PLUGINSDIR; the listing presents ${pluginDlls.length}`,
+    )
+  }
+  const docs = licenceDocuments.filter((member) => member.member.startsWith('$PLUGINSDIR/'))
+  if (claimsCarry && docs.length === 0) {
+    problems.push(
+      '§2.5.1 records the licence-text obligation as DONE, but the listing names no licence '
+      + 'document under $PLUGINSDIR — the record claims something the artefact does not',
+    )
+  }
+  if (!claimsCarry && docs.length > 0) {
+    problems.push(
+      `§2.5.1 records the licence-text obligation as NOT DONE, but the listing names `
+      + `${docs.length} licence document(s) under $PLUGINSDIR `
+      + `(${docs.map((member) => member.member).join(', ')}) — the record is behind the `
+      + 'artefact, and §2.5.1 has to be re-measured against it',
+    )
+  }
+  return problems
+}
+
+/**
  * The members of an installer extract.
  *
  * §5.4 step 3 produces exactly this: the installer's members under one
@@ -491,21 +727,50 @@ export function binaryRecordProblems(records, filesByLowerName) {
 }
 
 /**
+ * Which layer a §2.5 record's `path` field places it in.
+ *
+ * §2.5's eight records span two *different* archives: seven plug-ins in the NSIS
+ * installer's `$PLUGINSDIR`, and `elevate.exe` inside the payload's `resources/`.
+ * A `7z l` of the installer lists the first layer only; the payload needs its own
+ * listing (or an extract). Comparing all eight records against a single-layer
+ * listing reports `elevate.exe` as missing -- a false red about the record caused
+ * by an absent source, which is exactly the kind of red that gets a witness
+ * disabled. Keeping the layer with the record is what makes a partial source an
+ * honest NOT RUN.
+ */
+export function recordLayer(record) {
+  const recordedPath = record.fields.path ?? ''
+  if (/\$PLUGINSDIR/i.test(recordedPath)) return 'plugins'
+  if (/\bresources\b/i.test(recordedPath)) return 'payload'
+  return 'unknown'
+}
+
+/**
  * §2.5's records against the binaries an artefact actually carries, both ways.
  *
  * A carried binary no record names is the defect §2.5.2 records as unwitnessed;
  * a record naming a binary the artefact does not carry means §2.5 is describing
- * an artefact that no longer contains it.
+ * an artefact that no longer contains it. `layers` names the layers a source was
+ * actually available for, so records in an unmeasured layer are excluded from
+ * both sides rather than reported as findings.
  */
-export function memberRecordProblems(members, records) {
-  const recorded = new Map(records.map((record) => [record.name.toLowerCase(), record]))
-  const carried = members.map((member) => path.basename(member.member).toLowerCase())
+export function memberRecordProblems(members, records, layers = ['plugins', 'payload']) {
+  const measured = new Set(layers)
+  // A record in an unmeasured layer has no evidence either way. Excluding it is
+  // not the same as passing it: the caller reports that layer as NOT RUN, and the
+  // other layer's comparison still has to hold.
+  const comparable = records.filter((record) => measured.has(recordLayer(record)))
+  const recorded = new Map(comparable.map((record) => [record.name.toLowerCase(), record]))
+  const carried = members
+    .filter((member) => measured.has(member.member.startsWith('$PLUGINSDIR/') ? 'plugins' : /^resources\//.test(member.member) ? 'payload' : 'unknown'))
+    .map((member) => path.basename(member.member).toLowerCase())
   return {
     unrecorded: [...new Set(carried.filter((name) => !recorded.has(name)))].sort(),
-    missing: records
+    missing: comparable
       .map((record) => record.name.toLowerCase())
       .filter((name) => !carried.includes(name))
       .sort(),
+    measuredLayers: [...measured].sort(),
   }
 }
 
