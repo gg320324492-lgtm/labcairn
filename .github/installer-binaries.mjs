@@ -43,8 +43,8 @@ const NOTICE_PATH = path.resolve(import.meta.dirname, '..', 'NOTICE')
 const BINARY_HEADING = /^ {2}([A-Za-z0-9_.-]+\.(?:dll|exe)) — ([\d,]+) bytes$/
 /** `    sha256   b72e9013…` — one field of a §2.5 binary block. */
 const BINARY_FIELD = /^ {4}(path|sha256|bundle|licence|holder|where)\s{2,}(\S.*)$/
-/** A continuation line of a wrapped §2.5 field value. */
-const BINARY_CONTINUATION = /^ {11}\S/
+/** A continuation line of a wrapped §2.5 field value, aligned under its value. */
+const BINARY_CONTINUATION = /^ {5,}\S/
 /** `Measured 2026-11-11 … 15,488 bytes, sha256` + the hash on the next line. */
 const COPYING_CLAIM = /`COPYING` \(([\d,]+) bytes, sha256\s*\n?([0-9a-f]{64})\)/
 /**
@@ -798,6 +798,127 @@ export function toolchainRecordProblems(records, declarations) {
 export function bundleNamedFromRecord(record) {
   const match = /^(nsis-resources-[\d.]+|nsis-[\d.]+)/.exec(record.fields.bundle ?? '')
   return match ? match[1] : null
+}
+
+// ---------------------------------------------------------------------------
+// Where a named licence's terms come from.
+//
+// `nsis-resources-3.4.1` carries no licence document. §2.5's records therefore
+// name the *upstream* source of each grant: a plug-in's own source header, the
+// 7-Zip terms, and -- after the upstream-provenance review -- NSIS 3.13's
+// `LICENSES` tree, which attributes UAC.dll and WinShell.dll to their upstream
+// release archives. Those are different artefacts from the bundle the build
+// downloads, and keeping them apart is the point: a source inside the bundle is
+// not the same claim as a source in NSIS's own release tree.
+// ---------------------------------------------------------------------------
+
+/** A short `sha256 997fd014…` reference as §2.5 writes it. */
+const SHORT_HASH = /sha256\s+([0-9a-f]{8})…/gi
+
+/** A source named in a §2.5 `where` field: an URL or a backticked file path. */
+const SOURCE_PATH = /`([^`]+)`|https?:\/\/[^\s`.,;)]+/g
+
+/**
+ * Read the "where the terms come from" claims out of one §2.5 record.
+ *
+ * Two shapes count as a source: a named path/URL, and a short sha256 that binds
+ * the claim to a specific artefact. A record with a named licence but neither is
+ * the defect this reads for -- a grant with no provenance. A record with only a
+ * hash and no path is incomplete in the other direction: the hash says *which*
+ * bytes, but not *where* they came from.
+ */
+export function termsSources(record) {
+  const where = record.fields.where ?? ''
+  const hashes = [...where.matchAll(SHORT_HASH)].map((match) => match[1].toLowerCase())
+  const paths = [...where.matchAll(SOURCE_PATH)].map((match) => (match[1] ?? match[0]).trim())
+  // A source route is either an upstream URL/archive, a file inside the NSIS
+  // LICENSES tree, or a *prose* statement of where the grant is stated. StdUtils
+  // is the third shape: §2.5 says "the plug-in's own source header states the
+  // grant" and names no backticked path, because the header does not survive into
+  // the installer. That is a source and a limit, not an absence -- demanding a
+  // path for it would turn a correct record into a failure for a reason that has
+  // nothing to do with the property under watch.
+  const named = paths.filter((value) =>
+    /nsis\.sourceforge\.io|github\.com|LICENSES|\.zip|\.txt|api\.h|COPYING|source header|7-Zip/i.test(value),
+  )
+  const proseSource = /source header states the grant|7-Zip's terms|compiled binary carries no licence text|LICENSES` tree|upstream NSIS/i.test(where)
+  return { hashes, paths: named, proseSource, hasTermsSource: named.length > 0 || proseSource, text: where }
+}
+
+/**
+ * §2.5's named-licence records against the requirement that each names its source.
+ *
+ * No count is watched: the number of plug-ins whose terms have been resolved is a
+ * measurement that can grow as upstream provenance is found. What must hold is
+ * that every record stating a specific licence states where that licence comes
+ * from, and every short hash it quotes is bound to a named source. A record still
+ * marked `unresolved` is allowed to have none: that is what the word means.
+ */
+export function termsSourceProblems(records) {
+  const problems = []
+  let named = 0
+  for (const record of records) {
+    const licence = record.fields.licence ?? ''
+    if (/unresolved/i.test(licence)) continue
+    named += 1
+    const source = termsSources(record)
+    if (!source.hasTermsSource) {
+      problems.push(`${record.name}: §2.5 records ${JSON.stringify(licence)} but its \`where\` field names no source for the terms`)
+    }
+    if (source.hashes.length > 0 && source.paths.length === 0) {
+      problems.push(`${record.name}: §2.5 quotes ${source.hashes.length} sha256 value(s) but names no source path they belong to`)
+    }
+  }
+  if (named === 0) {
+    problems.push('§2.5 names no licence at all for these binaries, so the source requirement has nothing to watch')
+  }
+  return { problems, named }
+}
+
+/**
+ * The short hashes §2.5 quotes against the files in an upstream provenance tree.
+ *
+ * `LABCAIRN_LICENCE_UPSTREAM_DIR` names a directory holding NSIS 3.13's
+ * `LICENSES` tree (and, optionally, the upstream release archives). Each short
+ * hash is looked up by hashing the files under that directory: a match proves the
+ * record's quoted bytes are really there, a miss says so by name. The lookup is
+ * deliberately over files rather than over a hard-coded path list -- §2.5's
+ * `where` fields name paths inside an upstream tree whose layout is not this
+ * repository's to pin.
+ */
+export function upstreamHashProblems(records, upstreamDirs) {
+  // The upstream evidence lives in more than one place: NSIS 3.13's `LICENSES`
+  // tree holds the licence texts (UAC's `License.txt`, WinShell's
+  // `NOTICE-plugin-api.txt`, nsis7z's `DOC/License.txt`), while the release
+  // archives themselves (`UAC.zip`, `WinShell.zip`) were fetched into a separate
+  // provenance directory for the obligation review. Both are named by
+  // `LABCAIRN_LICENCE_UPSTREAM_DIR`, `path.delimiter`-separated.
+  const dirs = (Array.isArray(upstreamDirs) ? upstreamDirs : [upstreamDirs])
+    .filter(Boolean)
+    .filter((dir) => fs.existsSync(dir))
+  if (dirs.length === 0) {
+    return { available: false, problems: [], unmeasured: records.flatMap((record) => termsSources(record).hashes) }
+  }
+  const real = new Map()
+  for (const dir of dirs) {
+    for (const file of bundleFiles(dir)) {
+      const print = fingerprint(file)
+      real.set(print.sha256.slice(0, 8), { file, ...print })
+    }
+  }
+  const problems = []
+  const matched = []
+  for (const record of records) {
+    for (const short of termsSources(record).hashes) {
+      const found = real.get(short)
+      if (!found) {
+        problems.push(`${record.name}: §2.5 quotes sha256 ${short}… and no file under ${dirs.join(', ')} hashes to it`)
+        continue
+      }
+      matched.push({ record: record.name, short, ...found })
+    }
+  }
+  return { available: true, problems, matched, unmeasured: [] }
 }
 
 async function main(argv) {
