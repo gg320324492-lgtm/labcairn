@@ -40,6 +40,16 @@ configuration, fixture and binary files. The 833 figure is the one named
 in the paragraph above; it, and the 823 / 192, 826 / 195 and 831 / 195
 figures before it, are earlier measurements, not current totals.
 
+**Read 2026-11-12 (after the NOTICE scope widened):** at
+`df18d46b3bbc110027ea8268fb79cebca55ab1b7` the live measurement prints
+**836 tracked files**: 483 `.py`, 195 `.md`, 29 `.json`, 33 `.mjs`, 26
+`.tsx`, 23 `.ts`, 13 `.csv`, 9 `.yml`, 3 `.pdf`, and the remaining
+configuration, fixture and binary files. The two new files are the two the
+widened scope added: `.github/web-lockfile-keys.mjs`, the reader §5.4 names
+for the web tree, and `shell/test/notice-scope.test.mjs`, the witness that
+watches NOTICE's scope against the surfaces it names. The 834 figure is the
+one named above and is an earlier measurement, not the current total.
+
 ## 1. Classification measured on 2026-11-07
 
 The read-only scan measured **733 tracked files** at

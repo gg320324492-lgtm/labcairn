@@ -6,6 +6,63 @@ except that each relative link gained the depth of `docs/changelog/`.
 The root file keeps [`[Unreleased]`](../../CHANGELOG.md#unreleased) as the
 container and [the archives index](../../CHANGELOG.md#archives).
 
+### NOTICE's scope is widened to the three surfaces a distribution carries (2026-11-12)
+
+- **The defect.** `NOTICE` §2.4.2 said **"Nothing in either tree is copyleft."**
+  For the shell's 268 npm packages the claim holds — an independent re-review
+  working from the lockfile, the registry and the published tarballs confirmed
+  that no copyleft identifier appears, no package is `UNLICENSED`, none says
+  `SEE LICENSE IN`, and none offers a choice in which one option is copyleft.
+  What was wrong was the **scope**: a LabCairn installer distributes two more
+  surfaces, and the file named neither.
+- **The installer binaries.** `NOTICE` §2.5 records eight binaries, each traced
+  by sha256 to the electron-builder cache that supplied it. Four come from
+  `nsis-3.0.4.1` and are zlib/libpng per that distribution's own `COPYING`:
+  `System.dll` 12,288, `nsDialogs.dll` 9,728, `nsExec.dll` 6,656, `elevate.exe`
+  107,520. Four come from `nsis-resources-3.4.1`, which carries **no licence
+  file**: `StdUtils.dll` 102,400 is **LGPL-2.1-or-later** (LoRd_MuldeR, a
+  verbatim copy of the upstream 1.14 Unicode release build, sha256
+  `b72e9013…` identical across installer, cache and upstream), `nsis7z.dll`
+  434,176 carries 7-Zip's **LGPL-2.1** terms, and `UAC.dll` 14,848 and
+  `WinShell.dll` 3,072 have **no findable terms** — the bundle that ships them
+  states none.
+- **The web tree.** `NOTICE` §2.6 records 266 lock keys, and the three
+  denominators that are easy to confuse: 266 keys in `packages:` (and 266 in
+  `snapshots:`, 299 in their union), 241 distinct `name@version` installed, 624
+  installed `package.json` records. The lock carries **0** licence fields, so
+  the terms come from the installed tree (241 keys) or the registry (the other
+  25). Over all 266: **12 MPL-2.0** — `lightningcss@1.33.0` and eleven platform
+  variants — and **1 CC-BY-4.0**, `caniuse-lite@1.0.30001816`.
+- **What is not yet discharged.** §2.5.1 states the LGPL-2.1 obligations and
+  where each stands for the 2026-11-11 build: the licence text and notice (§1,
+  §6) are **not done** — the artefact contains zero licence text for either
+  LGPL binary, and the NSIS archive lists ten members of which none is a
+  licence document (the seven plug-in DLLs, `modern-wizard.bmp` and
+  `app-64.7z` under `$PLUGINSDIR`, plus the uninstaller at `$R0`); the
+  corresponding source (§4, §6(c)) is
+  **identified but not pointed at** — upstream's release archive contains
+  `StdUtils.2018-10-27.Sources.tar`, 23 files in 11 folders, and no offer
+  travels with the installer; §6(b) replaceability has a **recorded route and no
+  measured result**. The author's `LGPL_CLARIFICATION.txt` is quoted, including
+  the inconsistency inside it (its Limitations paragraph says *General* Public
+  License where the rest of the document says *Lesser*).
+- **The owner's decision.** Keep the plug-in and discharge the obligations
+  rather than remove or replace it; widen the notice's scope; restore React's
+  MIT attribution through the web build's `THIRD-PARTY-NOTICES`, which lands at
+  `resources/web-dist/THIRD-PARTY-NOTICES`. The installer's per-binary licence
+  census and the Chromium component review are deferred and were not attempted.
+- **The new machinery.** `.github/web-lockfile-keys.mjs` is the reader §5.4
+  names for the web tree; it imports the lockfile grammar from
+  `.github/shell-lockfile-keys.mjs` rather than carrying a second copy.
+  `shell/test/notice-scope.test.mjs` (8 cases) watches the scope: a table
+  narrower than what the sections record, a drifted surface count, a class table
+  that no longer adds up to the lock, a binary with no licence line, a flagged
+  package adopted as a direct dependency, and a sentence asserting the absence of
+  copyleft without naming a surface all redden it. Six mutations were applied to
+  the file itself; each reddened the witness and the restore was byte-identical.
+  `tests/test_shell_ci.py` records the new file's floor, and the shell's Node
+  cases stand at 52 across nine files.
+
 ### The declaration batch is delivered, and the licence surface turns out wider than NOTICE said (2026-11-12)
 
 - **PR #157 merged as `720275afbc6eb51ed8fff53271f5217dc930de73`** — nine
