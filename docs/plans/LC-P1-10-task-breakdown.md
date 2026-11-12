@@ -1,5 +1,7 @@
 # LC-P1-10 — Bounded scientific analysis and plots: task breakdown
 
+**Anchors:** 26 — every converted pointer below carries the words it cites.
+
 **Status:** ready to implement. Detailed decomposition only — nothing here is
 implemented, and this document does not authorise starting without the owner's
 go-ahead.
@@ -57,7 +59,7 @@ Concretely, by the end:
 The contracts this work order implements against are frozen and typed, and in
 one case they are *already written for this work order specifically*.
 
-- **`analysis.run` is a registered capability** (`security/capabilities.py:76`)
+- **`analysis.run` is a registered capability** (`src/labcairn/security/capabilities.py:76` — `ANALYSIS_RUN = "analysis.run"`)
   with a closed argument model, `AnalysisRunArgs` (`:229`), carrying `path`,
   `operator_id` and `parameters`. Its own docstring says there is **no field
   for a code fragment, an expression, a module path or anything else that could
@@ -68,11 +70,11 @@ one case they are *already written for this work order specifically*.
   reproducibility manifest"*, and `ArtifactProducerKind.ANALYSIS_OPERATOR` as
   *"A vetted analysis operator (LC-P1-10)"* — with the example spelling
   `labcairn.analysis.mean@1.2.0` already in the class docstring
-  (`reports/receipt.py:74`, `:81`, `:96`).
-- **The `artifacts` table exists** (`db/models.py:490`) and mirrors that receipt
+  (`src/labcairn/reports/receipt.py:74` — `A figure with its deterministic data source`, `:81`, `:96`).
+- **The `artifacts` table exists** (`src/labcairn/db/models.py:529` — `__tablename__ = "artifacts"`) and mirrors that receipt
   field for field. **The manifest needs no migration.**
 - **`ComputationLocator` already exists and is already specified**
-  (`sources/locators.py:184`): *"A derived number → input hashes + operator +
+  (`src/labcairn/sources/locators.py:262` — `A derived number → input hashes + operator + parameters`): *"A derived number → input hashes + operator +
   parameters. This is the locator for the claim '3.14 came out of this', and
   it is the reason LC-P1-10's reproducibility manifest and ADR-0004's evidence
   model can share one hash lineage (ADR-0004 'Re-evaluation trigger' 3)."* It
@@ -80,19 +82,19 @@ one case they are *already written for this work order specifically*.
   `parameters`, and `describe_locator` already renders it.
 - **Every cell that carries text is individually addressable.** `CsvAdapter` is
   documented as *"One unit per cell, addressed by row number and header name"*
-  (`material/delimited.py:123`), and `CsvLocator.column` is the **header text**,
+  (`src/labcairn/material/delimited.py:123` — `class CsvAdapter:`), and `CsvLocator.column` is the **header text**,
   not an index — *"a ledger that cites 'column 4' is unreadable to the person
   who has to check it"*. The XLSX adapter addresses one unit per **non-empty**
   cell, so an empty spreadsheet cell has no address at all — see T03, where
   that asymmetry turns out to matter.
 - **The locator key grammar is canonical** and has one producer,
-  `render_locator_key` (`material/addressing.py:112`).
+  `render_locator_key` (`src/labcairn/material/addressing.py:135` — `def render_locator_key(locator: SourceLocator) -> str:`).
 - **A quantity reader already exists and is strict.** `read_number`
-  (`evidence/checks/c3.py:107`) accepts *one number and at most one token*,
+  (`src/labcairn/evidence/checks/c3.py:91` — `def check_numeric_consistency(record: EvidenceRecord, *, index: SourceIndex) -> Verdict:`) accepts *one number and at most one token*,
   refusing prose, two figures and thousands separators, for a measured reason
   recorded in its docstring.
 - **The unit discipline is already decided.** C3 compares unit *tokens as
-  written* and never converts (`c3.py:308`): `kg` against `g` fails, and so does
+  written* and never converts (`src/labcairn/evidence/checks/c3.py:250` — `def _compare_units(`): `kg` against `g` fails, and so does
   `kg` against `kilograms`, with the detail naming both tokens.
 
 ### 1.3 Explicitly NOT in LC-P1-10
@@ -186,9 +188,9 @@ The aggregated number is recorded as a manifest and a figure, both
 This was not a free choice — the schema had already decided it. `EvidenceRecord`
 cites `anchor_ids`, which name rows in `source_anchors`; that table's
 `locator_key` is CHECK-constrained to the four *extractable* kinds
-(`db/models.py:1085`, `source_anchors_locator_key_vocabulary`), and
+(`src/labcairn/db/models.py:1085` — `"at least one resolving anchor"`, `source_anchors_locator_key_vocabulary`), and
 `render_locator_key` **raises** for `LocatorKind.COMPUTATION` because a derived
-number has no address in `source_texts` (`material/addressing.py:103`). A
+number has no address in `source_texts` (`src/labcairn/material/addressing.py:103` — `if locator.char_start is not None and locator.char_end is not None:`). A
 computation is therefore **not citable through the ledger, structurally**.
 
 *Cost, stated plainly:* **a figure's numbers are traceable to the input file
@@ -461,7 +463,7 @@ second way for two runs to compare unequal.
 *"no general-purpose model-authored code execution"*: an operator id that is
 not in the constant cannot be run, because there is no code path that could run
 it. The `analysis.run` argument model has no field that could carry code
-either (`security/capabilities.py:229`), so the two halves agree.
+either (`src/labcairn/security/capabilities.py:279` — `class AnalysisRunArgs(_Args):`), so the two halves agree.
 
 The catalogue also holds the **version** of each operator, and a version bump
 is a code change that changes the manifest. That is what makes "operator
@@ -488,7 +490,7 @@ expression language is a program and §1.4.2 rules those out.
 
 **Where the values come from.** The values are read from `source_texts` through
 the anchor registry, **not** by re-opening the file. That is what
-`locate_anchor` does (`evidence/index.py:544`): it reads the stored text for
+`locate_anchor` does (`src/labcairn/evidence/index.py:584` — `def locate_anchor(connection: Connection, anchor: SourceAnchor) -> LocatedContent:`): it reads the stored text for
 the anchor's `locator_key` and joins `sources` for the `readability`.
 
 This is worth being precise about, because the work order's phrase *"numerics
@@ -504,7 +506,7 @@ Re-reading the file at analysis time would make the result depend on a file
 the ledger has not seen, which is the drift I4 exists to prevent.
 
 **The quantity reader is C3's, and there is only one.** `read_number`
-(`evidence/checks/c3.py:107`) already implements the strict rule — one number
+(`src/labcairn/evidence/checks/c3.py:91` — `def check_numeric_consistency(record: EvidenceRecord, *, index: SourceIndex) -> Verdict:`) already implements the strict rule — one number
 and at most one token — for a measured reason: in the corpus, half the words
 that follow a number are prose, so a rule that reads the next word as a unit
 invents units that do not exist.
@@ -571,7 +573,7 @@ being there.
 
 **An XLSX formula with no cached value is not a number.** The spreadsheet
 adapter records it as a problem and **invents no value**
-(`material/spreadsheet.py:175`, `xlsx_formula_without_cached_value`). Such a
+(`src/labcairn/material/spreadsheet.py:175` — `code="xlsx_formula_without_cached_value",`, `xlsx_formula_without_cached_value`). Such a
 cell is `n_invalid` for the same reason, and the selection must not evaluate
 the formula.
 
@@ -583,7 +585,7 @@ biting in a place nobody expected:
   `source_texts` row whose `text` is `""`, with a locator. An empty CSV cell
   is therefore *observable*: countable and addressable.
 - **XLSX does not.** The spreadsheet adapter **skips** a cell whose value is
-  `None` or blank (`material/spreadsheet.py:192`), so an empty XLSX cell
+  `None` or blank (`src/labcairn/material/spreadsheet.py:192` — `if value is None or (isinstance(value, str) and not value.strip()):`), so an empty XLSX cell
   leaves **no row at all**. The ledger holds the cells that carry text and
   nothing else.
 
@@ -593,7 +595,7 @@ indistinguishable from a cell beyond the sheet's used range. **The table's
 rectangular extent is not recoverable from the ledger for XLSX.**
 
 So the missing count is **tri-state**, modelled on `Known`/`Unknown`
-(`core/providers/usage.py:114`, `:159`): a measured count, or an explicit
+(`src/labcairn/core/providers/usage.py:114` — `class Known:`, `:159`): a measured count, or an explicit
 *unknown* with a reason. **Never `0` to mean "unknown"** — that is ADR-0004
 A8, and it is the same rule that keeps `Known(0)` and `Unknown` from comparing
 equal.
@@ -799,14 +801,14 @@ would be showing something the operator did not produce.
 ### T08 — the reproducibility manifest
 
 The manifest is **an `ArtifactReceipt` with `kind=MANIFEST`**, stored in the
-existing `artifacts` table (`db/models.py:490`). **No migration is needed.**
+existing `artifacts` table (`src/labcairn/db/models.py:529` — `__tablename__ = "artifacts"`). **No migration is needed.**
 
 - `produced_by = ANALYSIS_OPERATOR`
 - `producer_id = "labcairn.analysis.chart.bar@1.0.0"` — the spelling
   `receipt.py`'s own docstring uses
 - `derived_from = [DerivationRef(target_kind=MATERIAL_FILE, content_sha256=H)]`
   — `MATERIAL_FILE` and `ARTIFACT` are the two kinds that **must** carry a
-  hash (`receipt.py:122`), and a chain link with no hash is a link nothing can
+  hash (`src/labcairn/reports/receipt.py:122` — `_HASHED_TARGETS: frozenset[DerivationTargetKind] = frozenset(`), and a chain link with no hash is a link nothing can
   invalidate
 - `content_sha256` — the hash of the manifest document's own bytes
 
@@ -815,9 +817,9 @@ manifest artifact (with its hash) and the material file (with its hash).
 
 **The manifest is canonical JSON**, and it uses the convention the project
 already has rather than a second one: `LabCairnModel.json_canonical()`
-(`core/schema.py:106`) — sorted keys, no incidental whitespace, `ensure_ascii=
+(`src/labcairn/core/schema.py:106` — `def json_canonical(self) -> str:`) — sorted keys, no incidental whitespace, `ensure_ascii=
 False` — digested with the algorithm already named in the Skill's ledger,
-`"sha256/canonical-json/v1"` (`skills/ledger.py:59`). Its hash is the hash of
+`"sha256/canonical-json/v1"` (`src/labcairn/skills/ledger.py:70` — `DIGEST_ALGORITHM: str = "sha256/canonical-json/v1"`). Its hash is the hash of
 those bytes. Two runs over the same inputs produce byte-identical manifests —
 which is what lets a receipt be **compared** rather than eyeballed, and is the
 same reason `ComputationLocator` requires sorted, duplicate-free input hashes.
@@ -829,7 +831,7 @@ same directory, `fsync`, `os.replace`), output-root-only, and it reports
 four of those.
 
 **The chain is checked by the contract, not by the schema.** `artifacts.
-derived_from` is an untyped JSON column (`db/models.py:520`), so nothing in
+derived_from` is an untyped JSON column (`src/labcairn/db/models.py:550` — `derived_from: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)`), so nothing in
 the database refuses a manifest whose chain is wrong. The assertion that the
 figure names the manifest's hash, and the manifest names the file's hash, is a
 **test's** job — and §4.1 lists it as one.
@@ -837,7 +839,7 @@ figure names the manifest's hash, and the manifest names the file's hash, is a
 **Two senses of "manifest" now exist, and they are not the same thing.** The
 Skill's delivery artifact already has one: `DeliveredManifestEntry` is
 `{relative_path, content_sha256}` — a *listing* of what a delivered report
-contains (`skills/artifacts.py:584`). LC-P1-10's manifest is a *recipe for
+contains (`src/labcairn/skills/artifacts.py:590` — `class DeliveredManifestEntry(LabCairnModel):`). LC-P1-10's manifest is a *recipe for
 reproducing a derivation*. They are different documents with different
 readers, and the name collision is recorded here so the next writer does not
 assume they are the same thing. LC-P1-11 owns the delivery listing.
@@ -879,9 +881,9 @@ analyse one selection does not authorise another.
 **"Consented CSV/XLSX" has no code-side entity, and this subtask says which
 one it means.** There is no `Consent` record, no per-file consent table, and no
 `consented` flag on `sources`; the codebase's nearest neighbours are the
-`Approval` (single-use, digest-bound, `runtime/operation.py:47`) and
+`Approval` (single-use, digest-bound, `src/labcairn/runtime/operation.py:173` — `class Approval(LabCairnModel):`) and
 `ResearchObjective.declared_materials` (material the researcher has declared
-the task to be about, bound by content hash, `skills/artifacts.py:161`).
+the task to be about, bound by content hash, `src/labcairn/skills/artifacts.py:161` — `class DeclaredMaterial(LabCairnModel):`).
 
 LC-P1-10 uses the **approval**, and the reading is worth stating because the
 work order says *"consented"* and a reader will look for something that is not
@@ -908,7 +910,7 @@ named as unenforced rather than shipped as a timeout that does not fire.
 
 **Where the analysis runs in the workflow, and the gap that creates.** The
 `research-report` Skill's stages are `intake → inventory → retrieve →
-evidence → propose → draft → validate → deliver` (`skills/artifacts.py:66`) and
+evidence → propose → draft → validate → deliver` (`src/labcairn/skills/artifacts.py:65` — `stage name that is not in this set is a typo rather than a variant.`) and
 **none of them is "analyse"**. The operators therefore have no home in the
 stage sequence as it stands.
 
@@ -1096,7 +1098,7 @@ whose absence would leave the clause satisfied in form and empty in fact.
 |---|---|---|
 | The manifest's input hash **is** the source's content hash — one lineage, not two | T08 | the manifest's input hash is byte-identical to `sources.content_sha256` for the same file, and the figure's `derived_from` names the manifest's own hash |
 | The figure's numbers **are** the operator's numbers | T07 | the renderer receives the operator's result object; a caption stating a number the data does not contain is refused |
-| A changed input makes the derivation **stale**, and the system says so | T08, T10 | the exit demonstration changes the file and shows the mismatch; the figure's receipt carries `staleness=STALE` with a reason, which `ArtifactReceipt` requires as a pair (`receipt.py:211`) |
+| A changed input makes the derivation **stale**, and the system says so | T08, T10 | the exit demonstration changes the file and shows the mismatch; the figure's receipt carries `staleness=STALE` with a reason, which `ArtifactReceipt` requires as a pair (`src/labcairn/reports/receipt.py:211` — `@model_validator(mode="after")`) |
 
 
 ### 4.2 The ADR-0004 conditions LC-P1-10 touches
