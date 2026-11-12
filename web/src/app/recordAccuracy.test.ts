@@ -62,7 +62,12 @@ describe("the package's own record", () => {
     const readme = readFileSync(join(packageRoot, 'README.md'), 'utf-8')
 
     expect(readme).toContain('local research workbench')
-    expect(readme).toContain('event stream is not read')
+    // A witness must not pin a limitation that has since been lifted. The
+    // workbench now opens GET /events through EventsView/useEventStream, so the
+    // old "event stream is not read" wording would be a false claim held green
+    // by the test that reads it.
+    expect(readme).toContain('The service\'s event stream is read')
+    expect(readme).not.toContain('event stream is not read')
   })
 
   it('is not vacuous: the record files are found and read', () => {

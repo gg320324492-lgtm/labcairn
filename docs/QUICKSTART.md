@@ -28,6 +28,18 @@ surprise.
 | **Node and pnpm** | Only for the web package's commands. Node ≥ 24.16 with pnpm ≥ 9.15.9 — the versions `web/package.json` declares. The path on this page does not need them. |
 | **A provider credential** | **Not needed, and not used.** There is no credential in this repository, so every step below runs against the repository's own deterministic material with no network call to a model. §6 says what that does and does not establish. |
 
+> **What "in this repository" means, measured 2026-11-12.** It means the
+> **tracked files of a clone**: `git ls-files | grep -iE
+> 'credential|api_key|secret|\.env'` names `.env.example`,
+> `src/labcairn/providers/credentials.py` and two records — no key. The GitHub
+> repository *does* carry one Actions secret (`gh api
+> repos/gg320324492-lgtm/labcairn/actions/secrets --jq '.total_count'` → 1,
+> exit 0), which `.github/workflows/provider-smoke.yml` spends on its schedule
+> and on demand; `docs/RELEASE-NOTES.md` §2.7 records that job. The two
+> statements are not contradictory: this page is about a local clone's quick
+> start, and that one is about the project's CI configuration. Neither path
+> below needs or uses the secret.
+
 Everything below happens **inside a clone of this repository**. The walk
 script (§3) makes its own clone; the by-hand path (§4) assumes you are in
 one.
