@@ -390,9 +390,10 @@ Three identifiers are worth the reader's attention rather than a count:
     permissive but carrying an acknowledgment and a venue clause. It is named
     rather than folded away because the venue clause is the one term in this
     surface a reader should actually see.
-  * Four packages offer a choice: `type-fest@0.13.1` (MIT OR CC0-1.0),
-    `utf8-byte-length@1.0.5` (WTFPL OR MIT), `sanitize-filename@1.6.5`
-    (WTFPL OR ISC) and `truncate-utf8-bytes@1.0.2` (WTFPL).
+  * Three packages offer a choice: `type-fest@0.13.1` (MIT OR CC0-1.0),
+    `utf8-byte-length@1.0.5` (WTFPL OR MIT) and `sanitize-filename@1.6.5`
+    (WTFPL OR ISC). `truncate-utf8-bytes@1.0.2` declares **WTFPL** alone — one
+    licence, not a choice.
 
 **No package among the shell tree's 268 is copyleft.** That claim is about the
 shell tree alone. A LabCairn distribution carries more than these two trees:
@@ -418,10 +419,17 @@ from each published tarball, and classified them **228 confirmed permissive,
 the claim above stands; what they show is the strength of the *permissive*
 reading for each package. **Sixteen of them carry their licence only as a
 manifest field** — no licence document in the published tarball — so their
-identifier rests on that one source. The other twenty-four are the cases this
-section already names: `node-gyp`'s vendored `packaging`, `undici`'s second
-`LICENSE`, the four deprecated packages, `argparse@2.0.1`'s venue clause, and
-the four that offer a choice.
+identifier rests on that one source. The other twenty-four are the packages
+whose permissive reading rests on a detail of their document or their identifier
+rather than on the identifier alone: **twenty** whose licence document names no
+holder, **two** that vendor a third-party binary under another holder's terms
+(`@electron/windows-sign@1.2.2`, `electron-winstaller@5.0.0`), and **two** whose
+identifier offers a choice of licence (`sanitize-filename@1.6.5`,
+`utf8-byte-length@1.0.5`). The cases this file names for other reasons —
+`node-gyp`'s vendored `packaging`, `undici`'s second `LICENSE`, the four
+deprecated packages (`boolean`, `glob`, `inflight`, `rimraf`) and
+`argparse@2.0.1`'s venue clause — are named elsewhere here and are **not** among
+these twenty-four.
 
 Two things in this surface are the npm analogue of §2.2's bundled-licence
 finding, and the earlier version of this section named neither:
