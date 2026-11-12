@@ -1,5 +1,5 @@
 # LabCairn — Threat Model
-**Anchors:** 53 — every converted pointer below carries the words it cites.
+**Anchors:** 53 — every converted pointer below carries the words it cites.  
 **Gate:** G5 (Public alpha) · **Work order:** LC-P1-14 · **Task:** T05
 **Subject:** `main` @ `26f161e` · **Date:** 2026-10-25
 **Status:** the boundary this document draws, with the evidence for each line.

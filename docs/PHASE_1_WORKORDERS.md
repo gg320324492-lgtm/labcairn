@@ -1,5 +1,5 @@
 # Phase 1 — Foundation & MVP / Complete Work Orders
-**Anchors:** 2 — every converted pointer below carries the words it cites.
+**Anchors:** 2 — every converted pointer below carries the words it cites.  
 **Plan ID:** LC-P1-v1.1  
 **Release target:** `v0.1.0-alpha` once acceptance passes, not before.  
 **Gate:** all listed work orders + evaluation + clean-room onboarding acceptance.  

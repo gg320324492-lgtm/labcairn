@@ -1,5 +1,5 @@
 # LabCairn — Release notes
-**Anchors:** 1 — every converted pointer below carries the words it cites.
+**Anchors:** 1 — every converted pointer below carries the words it cites.  
 **Version:** 0.1.0 (`pyproject.toml`) · **Status:** unreleased — no tag has
 been cut · **The tree this describes:** `main` at
 `e13b967`, 2026-11-02
