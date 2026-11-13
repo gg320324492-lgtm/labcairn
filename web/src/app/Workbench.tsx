@@ -58,6 +58,7 @@ import { RevisionsView } from '../views/RevisionsView'
 import { SourcesView } from '../views/SourcesView'
 import { StepsView } from '../views/StepsView'
 import { TrajectoryView } from '../views/TrajectoryView'
+import { VersionSelect } from '../views/VersionSelect'
 import { useWorkbench } from './useWorkbench'
 
 /** What the last request did, and whether one is in flight. */
@@ -186,6 +187,7 @@ export function Workbench(): JSX.Element {
       <SourcesView sources={reads.sources} />
       <EvidenceView plan={reads.plan} steps={reads.steps} />
       <ArtefactsView artifacts={reads.artifacts} />
+      <VersionSelect artifacts={reads.artifacts} />
       <RevisionsView artifacts={reads.artifacts} />
       <ReviewView artifacts={reads.artifacts.data ?? []} cycle={readCycle} />
       <TrajectoryView cycle={readCycle} />
