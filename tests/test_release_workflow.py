@@ -60,6 +60,19 @@ of its own outputs, so each is shown able to fail. The gate's labelling is
 extracted from this file's own subject rather than re-implemented here: two
 copies of the licence normalisation drift, and their disagreement looks like a
 licence change.
+
+**And the LGPL delivery record is watched the same way.** NOTICE §2.5.1 promises
+a corresponding source for every binary §2.5 records under an LGPL-2.1 term, and
+names each one's file, byte count, sha256, upstream URL and the point at which it
+is offered. That is a record with legal weight and no artefact behind it yet --
+nothing has been released -- so the only thing a witness can hold is the record
+itself: that every such binary has an entry, and that each entry states all five
+things rather than gesturing at a source. ``scripts/lgpl_source_release.py`` is
+the reader, and it is also the tool a release would run, which is why the cases
+below call it rather than re-deriving its patterns. The §2.5.1 half of the record
+is additionally checked against the bytes of the upstream archives where they are
+on hand -- ``LABCAIRN_LGPL_SOURCE_DIR`` names the directory -- and reports itself
+as not run where they are not, rather than reporting a hash it never took.
 """
 
 from __future__ import annotations
@@ -67,6 +80,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import io
+import os
 import re
 import subprocess
 import sys
@@ -1400,3 +1414,394 @@ def test_the_licence_reader_that_reads_nothing_is_not_a_green_witness() -> None:
         "expected to be exactly one, and a reader that picked one of them by position "
         "would run the wrong program"
     )
+
+
+# ---------------------------------------------------------------------------
+# NOTICE §2.5.1's LGPL delivery record.
+#
+# `scripts/lgpl_source_release.py` is loaded the way the other scripts in this
+# file are: the script is the tool, the tool is run rather than paraphrased, and a
+# witness that re-derived its patterns would be a second copy that can drift from
+# the thing a release actually runs.
+# ---------------------------------------------------------------------------
+
+
+_LGPL_DELIVERY: dict[str, Any] = {}
+
+#: The files §2.5.1's delivery entries tell a release to carry. Named here so the
+#: checklist case can require each step line to carry one, rather than accepting a
+#: name that only appears in a neighbouring detail line.
+STEP_NAMES: Final[tuple[str, ...]] = (
+    "StdUtils.2018-10-27.Sources.tar",
+    "Nsis7z_19.00.7z",
+    "7z1900-src.7z",
+)
+
+
+def _lgpl_delivery() -> Any:
+    """`scripts/lgpl_source_release.py`, loaded the way the tool is run."""
+    if "module" not in _LGPL_DELIVERY:
+        script = Path(__file__).resolve().parent.parent / "scripts" / "lgpl_source_release.py"
+        spec = importlib.util.spec_from_file_location("lgpl_source_release_for_witness", script)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        _LGPL_DELIVERY["module"] = module
+    return _LGPL_DELIVERY["module"]
+
+
+def _lgpl_script_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "scripts" / "lgpl_source_release.py"
+
+
+def _notice_text() -> str:
+    return (Path(__file__).resolve().parent.parent / "NOTICE").read_text(encoding="utf-8")
+
+
+def _env_directory(name: str) -> Path | None:
+    """A directory an environment variable names, or None where it names none that exists."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    return candidate if candidate.is_dir() else None
+
+
+def _drop_delivery_label(notice_text: str, binary: str, label: str) -> str:
+    """The record with one label of one delivery entry removed, as a control."""
+    heading = f"    Delivery entry — `{binary}`"
+    start = notice_text.index(heading)
+    end = notice_text.index("\n\n", start)
+    block = notice_text[start:end]
+    kept: list[str] = []
+    dropping = False
+    for line in block.split("\n"):
+        match = re.match(r"^ {6}([a-z]+) +\S", line)
+        if match and match.group(1) == label:
+            dropping = True
+            continue
+        if dropping and re.match(r"^ {7,}\S", line):
+            continue
+        dropping = False
+        kept.append(line)
+    assert "\n".join(kept) != block, f"the control removed nothing from the {binary} entry"
+    return notice_text[:start] + "\n".join(kept) + notice_text[end:]
+
+
+def test_the_delivery_checklist_runs_as_a_command_and_reads_the_record() -> None:
+    """The tool a release would run runs here, over the real record, and says what it read.
+
+    **Why the command and not only the import.** A witness that only imports a
+    script shows that its functions work when called from Python. A release
+    performs the script as a command, and the two can disagree: the CLI can render
+    nothing while every function returns a list, and a checklist that prints no
+    step is a checklist nobody carries into the release. So the CLI is run, its
+    exit code read from the process and not from a pipe, and its output required to
+    name both binaries, both of the `nsis7z.dll` artefacts, and the record's own
+    state.
+    """
+    # The child prints §-bearing text, and a console encoding other than UTF-8
+    # arrives as replacement characters: a reader that then asserted on "§2.5.1"
+    # would go red over the encoding rather than over the record. The project's
+    # other subprocess cases pin PYTHONIOENCODING for the same reason.
+    completed = subprocess.run(
+        [sys.executable, str(_lgpl_script_path())],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert completed.returncode == 0, (
+        f"scripts/lgpl_source_release.py exited {completed.returncode}: {completed.stderr.strip()}"
+    )
+    out = completed.stdout
+    for expected in (
+        "StdUtils.2018-10-27.Sources.tar",
+        "Nsis7z_19.00.7z",
+        "7z1900-src.7z",
+        "PARTLY DONE",
+        "LGPL",
+    ):
+        assert expected in out, f"the checklist printed no {expected!r}:\n{out}"
+    assert "carry" in out, f"the checklist named no step to perform:\n{out}"
+    # Each carry line names the file itself. A checklist whose steps say `carry` and
+    # leave the name to a neighbouring line is not a checklist a release can act on
+    # line by line, and an assertion that only looked for the names anywhere in the
+    # output would be satisfied by the detail lines while the step line said nothing.
+    steps = [line for line in out.splitlines() if line.lstrip().startswith("carry")]
+    assert len(steps) >= 3, f"the checklist printed {len(steps)} carry line(s):\n{out}"
+    for step in steps:
+        assert any(name in step for name in STEP_NAMES), (
+            f"a carry line named no file to carry: {step!r}\n{out}"
+        )
+    # The record's own state, echoed rather than restated by the script.
+    assert "§2.5.1 states the obligation as" in out, (
+        f"the checklist asserted a state instead of quoting §2.5.1's:\n{out}"
+    )
+
+
+def test_every_lgpl_binary_notice_records_has_a_delivery_entry() -> None:
+    """Each §2.5 binary under an LGPL term has a §2.5.1 entry, and each entry is complete.
+
+    **The property.** LGPL-2.1 §4 obliges a distributor to convey the complete
+    corresponding machine-readable source with the object code, and §2.5.1 records
+    how this distribution means to do it: for each LGPL binary, a delivery entry
+    naming the file a release carries, its byte count, its sha256, the URL the bytes
+    come from, and the point at which it is offered. A record that names a source in
+    prose -- "the corresponding source is now located" -- is a record a release
+    cannot perform, and it is the shape this section had before it was rewritten.
+
+    **Why the record is what is watched.** Nothing has been released, so no artefact
+    exists to compare the record with. That makes the record the whole of the
+    obligation as it stands, and it makes an incomplete entry invisible until the
+    release that needs it. Each entry is therefore asserted field by field -- file,
+    byte count, 64-hex-digit sha256, URL, timing -- rather than by counting entries,
+    because an entry with a name and a URL but no hash is exactly as unperformable
+    as no entry at all.
+
+    **What this does not claim.** It does not say the obligation is discharged, and
+    it does not say §2.5.1's reading of "corresponding source" is the correct one:
+    §2.5.1 states both readings and puts the choice to the owner. What is watched is
+    that whichever reading is adopted, the record states a step.
+    """
+    watch = _lgpl_delivery()
+    notice_text = _notice_text()
+    records = watch.binary_records(notice_text)
+    entries = watch.delivery_entries(notice_text)
+    state = watch.obligation_state(notice_text)
+
+    lgpl = [record for record in records if record.is_lgpl]
+    assert lgpl, "§2.5 records no binary under an LGPL term, so the delivery record watches nothing"
+    assert {record.name for record in lgpl} == {"StdUtils.dll", "nsis7z.dll"}, (
+        f"§2.5 records these binaries under an LGPL term: {[record.name for record in lgpl]}; "
+        "the delivery record is written for two, and a third arriving means §2.5.1 has to "
+        "say what its corresponding source is"
+    )
+
+    problems = watch.coverage_problems(records, entries)
+    assert problems == [], f"§2.5.1's delivery record is incomplete: {problems}"
+
+    assert state.startswith("PARTLY DONE"), (
+        f"§2.5.1 states the corresponding-source obligation as {state!r}; every entry below "
+        "is written as a step a future release performs, so a record that moved off PARTLY "
+        "DONE has to say what it moved to"
+    )
+
+    for entry in entries:
+        assert entry.artefact_name(), f"{entry.label}: the entry names no artefact"
+        assert entry.recorded_sha256(), f"{entry.label}: the entry records no sha256"
+        assert entry.recorded_bytes(), f"{entry.label}: the entry records no byte count"
+        assert re.search(r"https?://", " ".join(entry.labels.values())), (
+            f"{entry.label}: the entry names no upstream URL"
+        )
+
+    # `nsis7z.dll` is the binary whose corresponding source is more than one file, and
+    # the record says so by naming two entries with parts. A record that quietly
+    # narrowed to the plug-in's own archive -- the narrower of the two readings §2.5.1
+    # puts to the owner -- would still satisfy an "every binary has an entry" count.
+    nsis7z = [entry for entry in entries if entry.binary == "nsis7z.dll"]
+    assert len(nsis7z) == 2, (
+        f"§2.5.1 carries {len(nsis7z)} delivery entries for nsis7z.dll; the record states "
+        "two -- the plug-in's own release, and the archive that completes the 174 sources "
+        "its project file compiles -- and that gap is a claim about bytes only two entries "
+        "can carry"
+    )
+    assert all(entry.part for entry in nsis7z), (
+        f"the nsis7z.dll entries carry parts {[entry.part for entry in nsis7z]}; two entries "
+        "for one binary with no part labels are two records a reader cannot order"
+    )
+
+
+def test_the_delivery_record_is_measured_against_the_upstream_bytes_where_they_are(
+    tmp_path: Path,
+) -> None:
+    """§2.5.1's hashes are checked against the real archives where they are on hand.
+
+    **Why this is a separate case.** The record's sha256 values measure upstream
+    files that are not in the checkout and cannot be. Comparing them with each other
+    proves nothing about those bytes, so this case hashes the real archives against
+    the record. Where they are not on the machine it says so and names the variable
+    that would name them, rather than reporting a hash it never took.
+
+    **And the mismatch arm runs first, and always.** It needs no upstream archive --
+    the bytes are written into a temp directory -- so a runner that has none of the
+    real material still sees this witness shown able to fail.
+    """
+    watch = _lgpl_delivery()
+    notice_text = _notice_text()
+    entries = watch.delivery_entries(notice_text)
+
+    # Every artefact is planted, and each with the byte count §2.5.1 records for it.
+    # That is what isolates the hash arm: planted files of the wrong size produce a
+    # size report that also names sha256, and a witness satisfied by "some problem
+    # mentions sha256" would stay green with the hash comparison neutered. With the
+    # sizes right, the only thing left to report is the hash.
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    for entry in entries:
+        name = entry.artefact_name()
+        recorded_bytes = entry.recorded_bytes()
+        assert name and recorded_bytes, f"{entry.label}: no artefact name or byte count to plant"
+        (planted / name).write_bytes(b"\0" * recorded_bytes)
+    wrong_hash = watch.check_against_directory(entries, planted)
+    for entry in entries:
+        name = entry.artefact_name()
+        owned = [problem for problem in wrong_hash if name in problem]
+        assert owned, (
+            f"a planted {name} of the wrong bytes produced no problem naming it: {wrong_hash}"
+        )
+        assert all("sha256" in problem for problem in owned), (
+            f"a planted {name} of the right size and the wrong contents produced a report that "
+            f"never named sha256: {owned}"
+        )
+        assert not any("bytes;" in problem for problem in owned), (
+            f"a planted {name} of the recorded size was reported as a size mismatch: {owned}"
+        )
+
+    # The missing-file arm, watched on its own: with one artefact absent, the report
+    # must name that file rather than only the ones that were present.
+    missing = tmp_path / "missing"
+    missing.mkdir()
+    absent = entries[-1]
+    for entry in entries[:-1]:
+        name = entry.artefact_name()
+        assert name, f"{entry.label}: no artefact name to plant"
+        (missing / name).write_bytes(b"\0" * (entry.recorded_bytes() or 1))
+    gaps = watch.check_against_directory(entries, missing)
+    gap_named = [problem for problem in gaps if absent.artefact_name() in problem]
+    assert gap_named, f"an absent {absent.artefact_name()} produced no problem naming it: {gaps}"
+
+    directory = _env_directory("LABCAIRN_LGPL_SOURCE_DIR")
+    if directory is None:
+        pytest.skip(
+            "no directory of upstream source archives (LABCAIRN_LGPL_SOURCE_DIR names one; "
+            f"§5.4's step 4b prints the fetches that fill it), so {len(entries)} recorded "
+            "sha256 values were not measured against upstream bytes in this run"
+        )
+    problems = watch.check_against_directory(entries, directory)
+    assert problems == [], (
+        f"§2.5.1's recorded hashes are not the hashes of the archives: {problems}"
+    )
+
+
+def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
+    """Each way the record can stop being performable reddens it, and names what it lost.
+
+    **Why the controls are here.** Every case above is satisfied by an empty list of
+    problems. A reader that collected nothing -- a §2.5.1 whose entries its patterns
+    did not match, a §2.5 whose LGPL rows it did not see -- would report those as
+    clean, and a green report about a record that said nothing is the failure this
+    repository keeps having to name. So each way the record can fail to state a step
+    is put to the same reader: an LGPL binary with no entry at all (the record's
+    earlier shape), a sha256 whose shape is wrong, an entry missing its artefact, its
+    URL or its stated point, a §2.5 that gains an LGPL binary §2.5.1 never heard of,
+    and a §2.5.1 with no entries at all.
+    """
+    watch = _lgpl_delivery()
+    notice_text = _notice_text()
+    records = watch.binary_records(notice_text)
+    entries = watch.delivery_entries(notice_text)
+
+    first_entry = notice_text.index("    Delivery entry — `StdUtils.dll`")
+
+    # (a) The entry for one binary deleted outright: the record before it was rewritten.
+    following = notice_text.index("    Delivery entry — `nsis7z.dll`", first_entry)
+    without_stdutils = notice_text[:first_entry] + notice_text[following:]
+    assert "Delivery entry — `StdUtils.dll`" not in without_stdutils, (
+        "the control did not remove the StdUtils.dll entry"
+    )
+    stripped_problems = watch.coverage_problems(
+        watch.binary_records(without_stdutils), watch.delivery_entries(without_stdutils)
+    )
+    assert any("StdUtils.dll" in problem for problem in stripped_problems), (
+        f"a §2.5.1 that stopped delivering a source for StdUtils.dll produced: {stripped_problems}"
+    )
+
+    # (b) A sha256 whose shape is wrong: the recorded value with one hex digit dropped.
+    stdutils = next(item for item in entries if item.binary == "StdUtils.dll")
+    recorded = stdutils.recorded_sha256()
+    assert recorded is not None and len(recorded) == 64, "the real entry records no 64-digit sha256"
+    damaged = notice_text.replace(recorded, recorded[:-1], 1)
+    assert recorded not in damaged, "the control did not damage the sha256"
+    damaged_problems = watch.coverage_problems(
+        watch.binary_records(damaged), watch.delivery_entries(damaged)
+    )
+    assert any("sha256" in problem for problem in damaged_problems), (
+        f"a §2.5.1 whose StdUtils.dll sha256 is 63 characters produced: {damaged_problems}"
+    )
+
+    # (c) Each remaining required field, removed one at a time.
+    for label, expectation in (
+        ("artefact", "names no file"),
+        ("fetched", "no upstream URL"),
+        ("at", "point at which"),
+    ):
+        mutated = _drop_delivery_label(notice_text, "StdUtils.dll", label)
+        label_problems = watch.coverage_problems(
+            watch.binary_records(mutated), watch.delivery_entries(mutated)
+        )
+        assert label_problems, f"a delivery entry missing its {label!r} label produced nothing"
+        assert any(expectation in problem for problem in label_problems), (
+            f"a delivery entry missing its {label!r} label produced: {label_problems}"
+        )
+
+    # (d) A §2.5 that gains an LGPL binary while §2.5.1 stays as it is.
+    gained = notice_text.replace(
+        "  nsis7z.dll — 434,176 bytes",
+        "  Synth.dll — 1,024 bytes\n"
+        "    path     $PLUGINSDIR\\Synth.dll\n"
+        "    sha256   0000000000000000000000000000000000000000000000000000000000000000\n"
+        "    bundle   somewhere\n"
+        "    licence  LGPL-2.1\n"
+        "    holder   nobody\n"
+        "    where    nowhere\n\n"
+        "  nsis7z.dll — 434,176 bytes",
+        1,
+    )
+    assert "Synth.dll" in gained, "the control did not add a binary to §2.5"
+    gained_records = watch.binary_records(gained)
+    gained_lgpl = [item.name for item in gained_records if item.is_lgpl]
+    assert "Synth.dll" in gained_lgpl, f"§2.5's new binary was not read as LGPL: {gained_lgpl}"
+    gained_problems = watch.coverage_problems(gained_records, watch.delivery_entries(gained))
+    assert any("Synth.dll" in problem for problem in gained_problems), (
+        f"a §2.5 that gained an LGPL binary §2.5.1 never recorded produced: {gained_problems}"
+    )
+
+    # (e) A §2.5.1 with no delivery entries at all refuses rather than reporting clean.
+    how = notice_text.index('\n\n    **How "corresponding source"')
+    emptied = notice_text[:first_entry] + notice_text[how:]
+    try:
+        watch.delivery_entries(emptied)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError(
+            "a §2.5.1 carrying no delivery entry returned a list instead of refusing, and "
+            "every case above would then be green over a record that delivered nothing"
+        )
+
+    # (f) A §2.5 whose binary blocks are gone: the reader refuses rather than reporting
+    # an empty census. Without this arm, a reader that returned "no records" where the
+    # section names eight would still satisfy every assertion above, because "no LGPL
+    # binaries" and "no problems" are the same empty list to a coverage check.
+    first_binary = notice_text.index("  StdUtils.dll — 102,400 bytes")
+    census = notice_text.index("Two of the eight are therefore LGPL")
+    emptied_binaries = notice_text[:first_binary] + notice_text[census:]
+    assert "StdUtils.dll — 102,400 bytes" not in emptied_binaries, (
+        "the control did not remove §2.5's binary blocks"
+    )
+    try:
+        watch.binary_records(emptied_binaries)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError(
+            "a §2.5 naming no binary returned records instead of refusing; the delivery "
+            "record would then watch nothing and report that as clean"
+        )
+
+    # The reader read something out of the real tree: the arms that ran are named.
+    assert len(records) == 8, f"§2.5 read {len(records)} binaries; the record states eight"
+    assert len(entries) >= 2, f"§2.5.1 read {len(entries)} delivery entries"
