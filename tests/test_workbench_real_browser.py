@@ -31,6 +31,80 @@ watches the panel say that, because a panel that looked connected on a service w
 nothing to stream would be the screen claiming what the service does not have.
 """
 
+# --------------------------------------------------------------------------- #
+# Assertion standing — measured 2026-11-14. Read this before editing below.
+# --------------------------------------------------------------------------- #
+#
+# **The assertions in this file are not of equal standing, and this header
+# says which is which.** The standing was measured, not judged: the product an
+# assertion watches was made to lie (the built page, the client, or the
+# service), the assertion under test was knocked out, and the file was run
+# against the lie. A red run with the assertion gone means the property has a
+# second guard here; a green run means the assertion was the property's only
+# guard in this file. (A knockout against a *healthy* product proves nothing:
+# every such run stayed green but one, which failed on a NameError the
+# knockout itself created. The standing comes from the broken-product runs.)
+#
+# **Unique roots — the fault was caught by nothing else in this file:**
+#   * the goal-text checks: the objective's and the success criterion's own
+#     words on the screen (knocked out together against a page that dropped
+#     the objective; nothing else turned red);
+#   * the loopback check: the footer's "the local API and nothing else"
+#     promise, checked on the wire;
+#   * the token-path check and the token-not-rendered check: the session's
+#     two halves — the file the token was written to is named, and the token
+#     itself never reaches the page (each was knocked out against its own
+#     fault; nothing else turned red);
+#   * the Projects-panel selected-flag checks: the page's own marking of the
+#     selection is honest (a panel that marked an unbound record turned
+#     nothing else red);
+#   * the issue-key listing, the comment-words check and the version-id
+#     check: the chain comment's three visible fields. The words and the
+#     version id do **not** back each other up — each was knocked out against
+#     its own fault and the file stayed green;
+#   * the refused-second-grant check: one approval cannot be granted twice on
+#     the API (with it and the no-second-Grant button check knocked out, a
+#     service that accepted a second grant turned nothing else red).
+#
+# **Backed up — measured: the fault was still caught with the assertion gone:**
+#   * the stream refusal on the wire: a service that answers the unwired
+#     stream with 200 turns the every-read test's status check and the
+#     Events-panel test's status check red — either alone suffices;
+#   * the Events panel's honesty: a panel that reports the stream live turns
+#     the not-live check and the interrupted/disconnected check red — either
+#     alone suffices, and only the second demands the honest sentence;
+#   * the header's title: a placeholder title turns the non-placeholder
+#     check, the equals-the-CLI check and the after-selection check red; a
+#     wrong title that is not the placeholder turns the latter two red;
+#   * the same-document checks: a document carrying a field the screen never
+#     draws turns the before-selection and after-selection checks red;
+#   * the health read's task id: a service that reports a foreign task turns
+#     the health check and the selected-flag checks red;
+#   * the browser-cache pin: a pin that is recorded but not applied turns the
+#     driver-resolved-cache check and the replaced-cache control red (on a
+#     machine that carries an inherited cache);
+#   * the session read: a refused /session turns the answered-200 check and
+#     the session test's answered check red (the read itself was still made).
+#
+# **A guard that is not an assertion.** The service must answer `/health`
+# before any assertion here runs: the helper's ready probe turns a service
+# whose health read fails into a file-wide skip. The answered-200 check's
+# health half is therefore guarded twice — by the arrangement and by the
+# assertion.
+#
+# **Not individually measured.** The origin checks, the panels-count check,
+# the driver-version/channel/browser-version checks, the
+# cache-outside-the-repository check, the workspace-pointer check, the
+# approval panel's screen-side checks and the Events panel's drawn/status-line
+# checks were not each given a product fault of their own; no standing is
+# claimed for them here beyond what the tests themselves say.
+#
+# **What this header does not claim.** A skip is still not a pass: the
+# standing above holds for a run in which this file actually drove a browser.
+# A backup inside this file is not the only backup the project has —
+# `tests/test_workbench_live_service.py` and the web unit suite watch several
+# of the same properties at their own layers.
+
 from __future__ import annotations
 
 import importlib.metadata
