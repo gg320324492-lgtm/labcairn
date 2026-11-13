@@ -315,8 +315,9 @@ jobs:
       - name: fetch and verify the LGPL upstream archives
         shell: bash
         env:
-          LABCAIRN_LGPL_SOURCE_DIR: ${{ github.workspace }}/.lgpl-upstream/sources
-          LABCAIRN_LGPL_EXTRACT_DIR: ${{ github.workspace }}/.lgpl-upstream/extracts
+          RUNNER_TEMP: ${{ runner.temp }}
+          LABCAIRN_LGPL_SOURCE_DIR: ${{ runner.temp }}/lgpl-upstream-archives
+          LABCAIRN_LGPL_EXTRACT_DIR: ${{ runner.temp }}/lgpl-upstream-extracts
         run: |
           set -euo pipefail
           if ! command -v 7z >/dev/null 2>&1 && ! command -v 7zz >/dev/null 2>&1; then
@@ -328,13 +329,13 @@ jobs:
               exit 1
             fi
           fi
-          # The archives are cached under the runner's temp, and the fetch step
-          # copies them from the cache into the source directory the pytest
-          # step reads — the cache path and the read path are the same
-          # directory, so a restored cache is used in place and a cold run
-          # fills it once.
+          # The archives are cached under the runner's temp, and the fetch
+          # step fills that same directory, so a restored cache is used in
+          # place and a cold run downloads and verifies once. The extracts
+          # land beside the archives, under the runner's temp as well: the
+          # script refuses to write inside the checkout, and these are
+          # third-party trees.
           mkdir -p "$RUNNER_TEMP/lgpl-upstream-archives"
-          LABCAIRN_LGPL_SOURCE_DIR="$RUNNER_TEMP/lgpl-upstream-archives" \
           python scripts/lgpl_upstream_archives.py \
             "$RUNNER_TEMP/lgpl-upstream-archives" \
             "$LABCAIRN_LGPL_EXTRACT_DIR" \
@@ -382,10 +383,10 @@ jobs:
           SHARD: ${{ matrix.shard }}
           PLATFORM: ${{ matrix.os }}
           # The LGPL truth arms read the directories the fetch step above
-          # filled; declared here so every step that names them declares them
-          # (the workflow's own variable witness requires that).
-          LABCAIRN_LGPL_SOURCE_DIR: ${{ github.workspace }}/.lgpl-upstream/sources
-          LABCAIRN_LGPL_EXTRACT_DIR: ${{ github.workspace }}/.lgpl-upstream/extracts
+          # filled — under the runner's temp, not under the checkout, because
+          # the fetch script refuses to write inside the repository.
+          LABCAIRN_LGPL_SOURCE_DIR: ${{ runner.temp }}/lgpl-upstream-archives
+          LABCAIRN_LGPL_EXTRACT_DIR: ${{ runner.temp }}/lgpl-upstream-extracts
         run: |
           files="$(python -c "import json,os; d=json.load(open('.github/ci-shards.json')); print(' '.join(d['shards'][os.environ['PLATFORM']][int(os.environ['SHARD'])]))")"
           uv run pytest $files --durations=0
