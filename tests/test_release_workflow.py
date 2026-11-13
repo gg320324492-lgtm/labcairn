@@ -1598,6 +1598,35 @@ def test_every_lgpl_binary_notice_records_has_a_delivery_entry() -> None:
             f"{entry.label}: the entry names no upstream URL"
         )
 
+    # **The name a release carries is a name the record itself knows.** An artefact name
+    # that appears nowhere outside its own `artefact` label is a name nothing cross-checks:
+    # renaming it -- the sha256 shape still legal, the byte count untouched -- left R3 and
+    # the checks above green, because no assertion asked where the name comes from. So each
+    # name must resolve inside the record: it is either a file §5.4's fetch list names (the
+    # two `nsis7z.dll` archives, fetched by name), or it is the tar the `StdUtils.dll`
+    # entry derives from the fetched `sources.tbz2` -- the record's own sentence says the
+    # bunzip2 output is byte-identical to the artefact, and §5.4's cross-check line pins
+    # the bytes by printing the artefact's sha256. Both readings are internal to NOTICE,
+    # so this arm runs in CI without any upstream archive on the machine.
+    section_54 = watch._subsection(notice_text, "5.4")
+    fetched_names = set(re.findall(r"-o ([A-Za-z0-9._-]+) ", section_54))
+
+    def _stem(name: str) -> str:
+        return name.rsplit(".", 1)[0].lower()
+
+    for entry in entries:
+        name = entry.artefact_name()
+        entry_labels = " ".join(entry.labels.values()).lower()
+        tied_to_a_fetch = any(
+            _stem(name) == _stem(fetched) and fetched.lower() in entry_labels
+            for fetched in fetched_names
+        )
+        assert name in fetched_names or tied_to_a_fetch, (
+            f"{entry.label}: the artefact name {name!r} appears in no fetch list of §5.4 and "
+            f"is derived from none it names; a release checklist cannot carry a file the "
+            f"record gives no other account of"
+        )
+
     # `nsis7z.dll` is the binary whose corresponding source is more than one file, and
     # the record says so by naming two entries with parts. A record that quietly
     # narrowed to the plug-in's own archive -- the narrower of the two readings §2.5.1
@@ -1705,7 +1734,22 @@ def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
     records = watch.binary_records(notice_text)
     entries = watch.delivery_entries(notice_text)
 
-    first_entry = notice_text.index("    Delivery entry — `StdUtils.dll`")
+    # **The cut point is found by design or reported by design.** The arms below cut the
+    # record at a delivery entry's heading. If the entry this line looks for has already
+    # gone -- the record on disk was rewritten before the run -- a plain `str.index` would
+    # crash the preparation here, and the failure a reader saw would be a traceback about
+    # a substring rather than the sentence that says what vanished. The record failing to
+    # state an entry is case (a) below; arriving at that case with the entry already gone
+    # from the real file is the same defect, reported here.
+    entry_heading = "    Delivery entry — `StdUtils.dll`"
+    if entry_heading not in notice_text:
+        pytest.fail(
+            "NOTICE §2.5.1 carries no delivery entry for StdUtils.dll at all -- the record "
+            "this witness reads has lost the entry the controls below cut and restore; "
+            "case (a) below is that defect found in the record itself"
+        )
+
+    first_entry = notice_text.index(entry_heading)
 
     # (a) The entry for one binary deleted outright: the record before it was rewritten.
     following = notice_text.index("    Delivery entry — `nsis7z.dll`", first_entry)
