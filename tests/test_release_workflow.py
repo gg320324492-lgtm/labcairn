@@ -1782,6 +1782,26 @@ def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
             "every case above would then be green over a record that delivered nothing"
         )
 
+    # (f) A §2.5 whose binary blocks are gone: the reader refuses rather than reporting
+    # an empty census. Without this arm, a reader that returned "no records" where the
+    # section names eight would still satisfy every assertion above, because "no LGPL
+    # binaries" and "no problems" are the same empty list to a coverage check.
+    first_binary = notice_text.index("  StdUtils.dll — 102,400 bytes")
+    census = notice_text.index("Two of the eight are therefore LGPL")
+    emptied_binaries = notice_text[:first_binary] + notice_text[census:]
+    assert "StdUtils.dll — 102,400 bytes" not in emptied_binaries, (
+        "the control did not remove §2.5's binary blocks"
+    )
+    try:
+        watch.binary_records(emptied_binaries)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError(
+            "a §2.5 naming no binary returned records instead of refusing; the delivery "
+            "record would then watch nothing and report that as clean"
+        )
+
     # The reader read something out of the real tree: the arms that ran are named.
     assert len(records) == 8, f"§2.5 read {len(records)} binaries; the record states eight"
     assert len(entries) >= 2, f"§2.5.1 read {len(entries)} delivery entries"
