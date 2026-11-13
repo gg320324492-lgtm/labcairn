@@ -1,5 +1,5 @@
 # ADR-0008: The PDF library LC-P1-08 will depend on, and why not the one its work order names
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-17; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Accepted
 **Work order:** LC-P1-08 (material inventory and source locators)
 **Date:** 2026-10-17

@@ -1,5 +1,5 @@
 # ADR-0003: Event model and permission model
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-15; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P1-04 (workspace/tool permission boundary), LC-P1-05 (SQLite task store and transactional events), LC-P1-06 (checkpoint, operation reconciliation and revision)
 **Date:** 2026-10-15

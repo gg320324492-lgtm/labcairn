@@ -1,5 +1,5 @@
 # G1 — Acceptance evidence (LC-P1-02, LC-P1-03, LC-P1-04)
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-16; the tree has moved since. Follow the sentence, not the number.  
 **Status:** implemented; **G1 NOT closed** — one acceptance clause is unmet and needs an authorisation this role cannot give itself. *(Written 2026-10-16 02:33; the clause was met ~17 hours later at `b237751` and G1 has since closed — see "The clause that was not met, and what became of it".)*
 **Branch:** `feat/g1-trusted-core` · **PR:** opened from this branch
 **Base:** `main` @ `9f9c4f0` · **Date:** 2026-10-16

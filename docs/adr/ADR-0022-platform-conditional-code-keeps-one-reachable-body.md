@@ -1,5 +1,5 @@
 # ADR-0022 — Platform-conditional code keeps one reachable body on both checker platforms
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-09; the tree has moved since. Follow the sentence, not the number.  
 **Owner note (2026-11-09).** Drafted outside the checkout by an independent
 agent session (a human reader was not performed), reviewed, and ratified into
 the tree by the owner's selection the same day; the drafting provenance stays

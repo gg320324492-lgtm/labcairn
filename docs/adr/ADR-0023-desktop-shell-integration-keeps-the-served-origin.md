@@ -1,5 +1,5 @@
 # ADR-0023 — A desktop shell wraps the origin the service already serves
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-10; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Accepted (2026-11-10, owner's Electron selection) — the integration
 shape, the candidate ranking and the contracts below are the decision;
 implementation is a separate window and is not claimed here

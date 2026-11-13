@@ -1,5 +1,5 @@
 # LC-P2-16 — independent review of the issue-key outlet's acceptance record
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **Record reviewed:** `docs/acceptance/LC-P2-16-acceptance.md` (the outlet that
 lists the chain's issue keys: the layer read, the route, and the panel), as it
 stands in this branch.

@@ -1,5 +1,5 @@
 # ADR-0002: Model and tool execution boundary
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-15; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Proposed
 **Work order:** LC-P1-01 (minimum `Known` / `Unknown` / `UsageValue` / `UnknownReason` value types only, for the FakeProvider), LC-P1-02 (module boundaries), LC-P1-03 (providers, budgets, capability detection)
 **Date:** 2026-10-15

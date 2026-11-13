@@ -1,5 +1,5 @@
 # LC-P1-14 — The outsider's path
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood when it was written; the tree has moved since. Follow the sentence, not the number.  
 **The claim.** `docs/EVALUATION.md` names six Phase 1 blockers, and the
 first one is the only one that is about a **person** rather than about the
 product:

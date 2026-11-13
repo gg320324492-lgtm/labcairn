@@ -1,5 +1,5 @@
 # ADR-0012: The chart library LC-P1-10 will draw with, and the two settings its determinism needs
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-10-19; the tree has moved since. Follow the sentence, not the number.  
 **Status:** Accepted
 **Work order:** LC-P1-10 (bounded scientific analysis and plots) — T00, the
 dependency decision

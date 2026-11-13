@@ -1,5 +1,5 @@
 # LC-P1-06 — The artifact ledger made durable
-
+**Line numbers.** The `file:line` pointers in this record name the lines as they stood on 2026-11-02; the tree has moved since. Follow the sentence, not the number.  
 **Work order:** LC-P1-06 (checkpoint, operation reconciliation and revision) —
 the debt G2's acceptance recorded, not one of the work order's own clauses
 **Gate:** G2
