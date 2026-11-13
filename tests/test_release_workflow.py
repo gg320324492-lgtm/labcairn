@@ -1428,6 +1428,15 @@ def test_the_licence_reader_that_reads_nothing_is_not_a_green_witness() -> None:
 
 _LGPL_DELIVERY: dict[str, Any] = {}
 
+#: The files §2.5.1's delivery entries tell a release to carry. Named here so the
+#: checklist case can require each step line to carry one, rather than accepting a
+#: name that only appears in a neighbouring detail line.
+STEP_NAMES: Final[tuple[str, ...]] = (
+    "StdUtils.2018-10-27.Sources.tar",
+    "Nsis7z_19.00.7z",
+    "7z1900-src.7z",
+)
+
 
 def _lgpl_delivery() -> Any:
     """`scripts/lgpl_source_release.py`, loaded the way the tool is run."""
@@ -1505,8 +1514,7 @@ def test_the_delivery_checklist_runs_as_a_command_and_reads_the_record() -> None
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert completed.returncode == 0, (
-        f"scripts/lgpl_source_release.py exited {completed.returncode}: "
-        f"{completed.stderr.strip()}"
+        f"scripts/lgpl_source_release.py exited {completed.returncode}: {completed.stderr.strip()}"
     )
     out = completed.stdout
     for expected in (
@@ -1518,6 +1526,16 @@ def test_the_delivery_checklist_runs_as_a_command_and_reads_the_record() -> None
     ):
         assert expected in out, f"the checklist printed no {expected!r}:\n{out}"
     assert "carry" in out, f"the checklist named no step to perform:\n{out}"
+    # Each carry line names the file itself. A checklist whose steps say `carry` and
+    # leave the name to a neighbouring line is not a checklist a release can act on
+    # line by line, and an assertion that only looked for the names anywhere in the
+    # output would be satisfied by the detail lines while the step line said nothing.
+    steps = [line for line in out.splitlines() if line.lstrip().startswith("carry")]
+    assert len(steps) >= 3, f"the checklist printed {len(steps)} carry line(s):\n{out}"
+    for step in steps:
+        assert any(name in step for name in STEP_NAMES), (
+            f"a carry line named no file to carry: {step!r}\n{out}"
+        )
     # The record's own state, echoed rather than restated by the script.
     assert "§2.5.1 states the obligation as" in out, (
         f"the checklist asserted a state instead of quoting §2.5.1's:\n{out}"
@@ -1615,20 +1633,45 @@ def test_the_delivery_record_is_measured_against_the_upstream_bytes_where_they_a
     notice_text = _notice_text()
     entries = watch.delivery_entries(notice_text)
 
+    # Every artefact is planted, and each with the byte count §2.5.1 records for it.
+    # That is what isolates the hash arm: planted files of the wrong size produce a
+    # size report that also names sha256, and a witness satisfied by "some problem
+    # mentions sha256" would stay green with the hash comparison neutered. With the
+    # sizes right, the only thing left to report is the hash.
     planted = tmp_path / "planted"
     planted.mkdir()
-    entry = entries[0]
-    name = entry.artefact_name()
-    assert name, f"{entry.label}: no artefact name to plant"
-    (planted / name).write_bytes(b"not the archive the record describes")
-    mismatches = watch.check_against_directory(entries, planted)
-    assert any(name in problem for problem in mismatches), (
-        f"a planted {name} of the wrong bytes produced: {mismatches}"
-    )
-    assert any("sha256" in problem for problem in mismatches), (
-        f"a planted {name} of the wrong bytes produced a report that never named sha256: "
-        f"{mismatches}"
-    )
+    for entry in entries:
+        name = entry.artefact_name()
+        recorded_bytes = entry.recorded_bytes()
+        assert name and recorded_bytes, f"{entry.label}: no artefact name or byte count to plant"
+        (planted / name).write_bytes(b"\0" * recorded_bytes)
+    wrong_hash = watch.check_against_directory(entries, planted)
+    for entry in entries:
+        name = entry.artefact_name()
+        owned = [problem for problem in wrong_hash if name in problem]
+        assert owned, (
+            f"a planted {name} of the wrong bytes produced no problem naming it: {wrong_hash}"
+        )
+        assert all("sha256" in problem for problem in owned), (
+            f"a planted {name} of the right size and the wrong contents produced a report that "
+            f"never named sha256: {owned}"
+        )
+        assert not any("bytes;" in problem for problem in owned), (
+            f"a planted {name} of the recorded size was reported as a size mismatch: {owned}"
+        )
+
+    # The missing-file arm, watched on its own: with one artefact absent, the report
+    # must name that file rather than only the ones that were present.
+    missing = tmp_path / "missing"
+    missing.mkdir()
+    absent = entries[-1]
+    for entry in entries[:-1]:
+        name = entry.artefact_name()
+        assert name, f"{entry.label}: no artefact name to plant"
+        (missing / name).write_bytes(b"\0" * (entry.recorded_bytes() or 1))
+    gaps = watch.check_against_directory(entries, missing)
+    gap_named = [problem for problem in gaps if absent.artefact_name() in problem]
+    assert gap_named, f"an absent {absent.artefact_name()} produced no problem naming it: {gaps}"
 
     directory = _env_directory("LABCAIRN_LGPL_SOURCE_DIR")
     if directory is None:
@@ -1638,7 +1681,9 @@ def test_the_delivery_record_is_measured_against_the_upstream_bytes_where_they_a
             "sha256 values were not measured against upstream bytes in this run"
         )
     problems = watch.check_against_directory(entries, directory)
-    assert problems == [], f"§2.5.1's recorded hashes are not the hashes of the archives: {problems}"
+    assert problems == [], (
+        f"§2.5.1's recorded hashes are not the hashes of the archives: {problems}"
+    )
 
 
 def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
@@ -1671,8 +1716,7 @@ def test_the_delivery_reader_refuses_a_record_that_states_nothing() -> None:
         watch.binary_records(without_stdutils), watch.delivery_entries(without_stdutils)
     )
     assert any("StdUtils.dll" in problem for problem in stripped_problems), (
-        f"a §2.5.1 that stopped delivering a source for StdUtils.dll produced: "
-        f"{stripped_problems}"
+        f"a §2.5.1 that stopped delivering a source for StdUtils.dll produced: {stripped_problems}"
     )
 
     # (b) A sha256 whose shape is wrong: the recorded value with one hex digit dropped.
