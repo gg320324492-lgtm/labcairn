@@ -78,6 +78,7 @@ as not run where they are not, rather than reporting a hash it never took.
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import io
 import os
@@ -2365,4 +2366,649 @@ def test_the_closure_audit_reads_its_expected_values_out_of_the_record(
     )
     assert "unRarLicense" in red.stderr, (
         f"the audit reddened without naming the count that disagrees: {red.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# NOTICE §2.5.1's replaceability record — LGPL-2.1 §6(b).
+#
+# §2.5.1 used to record replaceability as NOT MEASURED, and the witness for that was
+# the absence of one: a record that says "not measured" needs no evidence, so nothing
+# in the tree could tell a careful refusal to claim apart from a claim nobody checked.
+# On 2026-11-13 the item became a measurement, and with it came the parts that can
+# rot: a date, three modified plug-ins with their sha256 values, four installers with
+# the exit codes their runs returned, four observation files the installs wrote, and a
+# paragraph saying what none of it shows.
+#
+# `scripts/lgpl_replaceability.py` is the reader, and it is run rather than
+# paraphrased, for the reason the delivery record above states: a witness that
+# re-derived the patterns would be a second copy, and the second copy can drift from
+# the one a release actually runs.
+#
+# What is watched is the shape §2.5.1 owes a reader when it states a measurement:
+# either the item states no measurement, in which case it asks for nothing, or it
+# states one with its date, its bytes, its runs and its observed difference, each
+# named so that a hollow version of it reddens. The controls hollow it out one piece
+# at a time.
+# ---------------------------------------------------------------------------
+
+_REPLACEABILITY_READER: dict[str, Any] = {}
+
+
+def _replaceability_script_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "scripts" / "lgpl_replaceability.py"
+
+
+def _replaceability_reader() -> Any:
+    """`scripts/lgpl_replaceability.py`, loaded the way the tool is run."""
+    if "module" not in _REPLACEABILITY_READER:
+        script = _replaceability_script_path()
+        spec = importlib.util.spec_from_file_location("lgpl_replaceability_for_witness", script)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        _REPLACEABILITY_READER["module"] = module
+    return _REPLACEABILITY_READER["module"]
+
+
+#: What §2.5.1 names for its §6(b) measurement, counted from the record rather than
+#: asserted from the licence: a reader that matched no claim at all would print
+#: `0 modified plug-ins` and, without these figures, agree with itself.
+REPLACEABILITY_VARIANTS: Final[tuple[str, ...]] = (
+    "StdUtils.bytepatched.dll",
+    "StdUtils.flagpatched.dll",
+    "StdUtils.authored.dll",
+)
+REPLACEABILITY_OBSERVATIONS: Final[tuple[str, ...]] = (
+    "observations-orig.txt",
+    "observations-stamp.txt",
+    "observations-flag.txt",
+    "observations-replacement.txt",
+)
+REPLACEABILITY_INSTALLER_ROWS: Final[int] = 4
+
+#: §2.5.1's own words for the limits of its measurement — the part of the record that
+#: keeps a measured claim from reading as a verified one.
+REPLACEABILITY_LIMITS: Final[str] = "**What this evidence does not show.**"
+
+
+def _variant_sha_named_by_the_record(notice_text: str) -> str:
+    """One sha256 §2.5.1 records for a modified plug-in, read out of the record.
+
+    Read rather than written here so that the damaged-hash control always damages a value
+    the record states. A constant copied from the record is a second copy, and it drifts:
+    with one held here the control's own guard trips on a changed record instead of the
+    record being caught, which is a different — and weaker — failure.
+    """
+    watch = _replaceability_reader()
+    claims = watch.variant_claims(notice_text)
+    assert claims, "§2.5.1 names no modified plug-in, so there is no recorded hash to damage"
+    recorded: str | None = next(
+        (claim.recorded_sha256 for claim in claims if claim.recorded_sha256 is not None), None
+    )
+    assert recorded is not None and len(recorded) == 64, (
+        f"no modified plug-in §2.5.1 names carries a 64-character sha256: "
+        f"{[(claim.name, claim.recorded_sha256) for claim in claims]}"
+    )
+    return recorded
+
+
+def _run_replaceability_tool(
+    *extra: str,
+    notice: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """The reader, run as a command, with its exit code read from the process."""
+    command = [sys.executable, str(_replaceability_script_path())]
+    if notice is not None:
+        command += ["--notice", str(notice)]
+    command += list(extra)
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+
+
+def _state_rewritten(notice_text: str, replacement: str) -> str:
+    """§2.5.1's replaceability item with its state replaced."""
+    damaged = notice_text.replace("    MEASURED 2026-11-13.**", f"    {replacement}.**", 1)
+    assert damaged != notice_text, "the control did not change the replaceability state"
+    return damaged
+
+
+def _variant_sha_damaged(notice_text: str) -> str:
+    """One sha256 §2.5.1 records, with its last hex digit removed."""
+    recorded = _variant_sha_named_by_the_record(notice_text)
+    damaged = notice_text.replace(recorded, recorded[:-1], 1)
+    assert damaged != notice_text, "the control did not shorten a sha256 the record states"
+    return damaged
+
+
+def _variant_hashed_to_the_shipped_bytes(notice_text: str) -> str:
+    """One modified plug-in given the shipped file's own sha256.
+
+    The shape a record gets when an entry is filled in from the wrong row: the plug-in is
+    named as modified and hashed to unmodified bytes, and every number still looks
+    well-formed. Only a comparison against §2.5's own entry can see it.
+    """
+    watch = _replaceability_reader()
+    shipped = watch.shipped_plugin_sha256(notice_text)
+    assert shipped is not None, "§2.5 states no sha256 for StdUtils.dll to copy into the control"
+    recorded = _variant_sha_named_by_the_record(notice_text)
+    damaged = notice_text.replace(recorded, shipped, 1)
+    assert damaged != notice_text, "the control did not replace a variant's sha256"
+    return damaged
+
+
+def _observations_dropped(notice_text: str) -> str:
+    """§2.5.1 with its observation entries removed, hashes and all."""
+    damaged = re.sub(
+        r" {6}\* `observations-[a-z]+\.txt` — [\d,]+ bytes, sha256\n {8}`[0-9a-f]{64}`\n",
+        "",
+        notice_text,
+    )
+    assert damaged != notice_text, "the control removed no observation entry"
+    assert all(name not in damaged for name in REPLACEABILITY_OBSERVATIONS), (
+        "the control left an observation entry in the record"
+    )
+    return damaged
+
+
+def _installers_dropped(notice_text: str) -> str:
+    """§2.5.1's installer table with its rows removed and its header left standing."""
+    damaged = re.sub(
+        r"^ +\| (?:control, shipped bytes|with `[a-z]+`) \|.*\|\n",
+        "",
+        notice_text,
+        flags=re.MULTILINE,
+    )
+    assert damaged != notice_text, "the control removed no installer row"
+    assert "124,564,299" not in damaged, "the control left an installer row in the record"
+    return damaged
+
+
+def _exit_made_nonzero(notice_text: str) -> str:
+    """One installer's stated install exit changed from 0 to 1: its run having failed."""
+    damaged = notice_text.replace("| `b72e9013…` | 0 | 91 | 0 |", "| `b72e9013…` | 1 | 91 | 0 |", 1)
+    assert damaged != notice_text, "the control did not change the recorded exit code"
+    return damaged
+
+
+def _limits_reworded(notice_text: str) -> str:
+    """The limits paragraph's heading turned into a claim of coverage."""
+    damaged = notice_text.replace(REPLACEABILITY_LIMITS, "**What this evidence shows.**", 1)
+    assert damaged != notice_text, "the control did not reword the limits paragraph"
+    return damaged
+
+
+def _hashes_the_record_itself_prints(notice_text: str) -> list[str]:
+    """Every sha256 §2.5.1's replaceability item states, table rows included.
+
+    A control that retargets a prefix has to miss all of them, so it is written against the
+    record's own values rather than against a list held here — a list held here would go
+    stale against a record that gained an artefact.
+    """
+    watch = _replaceability_reader()
+    values: list[str] = [
+        claim.recorded_sha256
+        for claim in watch.variant_claims(notice_text) + watch.observation_claims(notice_text)
+        if claim.recorded_sha256 is not None
+    ]
+    values.extend(row.recorded_sha256 for row in watch.installer_rows(notice_text))
+    shipped = watch.shipped_plugin_sha256(notice_text)
+    if shipped is not None:
+        values.append(shipped)
+    assert values, f"§2.5.1 states no sha256 to retarget a prefix away from: {values}"
+    return values
+
+
+def _table_prefix_that_names_no_plug_in(notice_text: str) -> str:
+    """One installer row given a plug-in prefix no plug-in in the record hashes to.
+
+    The table names each plug-in by an eight-character prefix. A prefix that begins with
+    nothing the item names is the shape a row copied from another build leaves: the row
+    still states a plug-in, a byte count and two exit codes, and every field reads
+    well-formed. Only a comparison against the hashes the item itself prints can see that it
+    names none.
+    """
+    watch = _replaceability_reader()
+    rows = watch.installer_rows(notice_text)
+    assert len(rows) == REPLACEABILITY_INSTALLER_ROWS, (
+        f"§2.5.1's table reads as {len(rows)} rows, not {REPLACEABILITY_INSTALLER_ROWS}, so "
+        "there is no whole row to retarget"
+    )
+    hashes = _hashes_the_record_itself_prints(notice_text)
+    candidate = next(
+        (
+            f"{value:08x}"
+            for value in range(0x0100_0000, 0x0200_0000)
+            if not any(hash_value.startswith(f"{value:08x}") for hash_value in hashes)
+        ),
+        None,
+    )
+    assert candidate is not None, "every eight-character prefix in that range is used"
+
+    row = rows[1]
+    line_start = notice_text.index(f"| {row.label} |")
+    old_cell = f"| `{row.plugin_sha_prefix}…` |"
+    cell = notice_text.index(old_cell, line_start)
+    damaged = notice_text[:cell] + f"| `{candidate}…` |" + notice_text[cell + len(old_cell) :]
+    assert damaged != notice_text, "the control did not retarget a table row's plug-in prefix"
+    assert not any(hash_value.startswith(candidate) for hash_value in hashes), (
+        f"the retargeted prefix {candidate} is one the record already uses"
+    )
+    return damaged
+
+
+def _table_hex_value_one_character_short(notice_text: str) -> str:
+    """One installer row's sha256 with its last digit dropped and its backtick lost.
+
+    The shape a transcription error leaves, and the one every other check in the reader is
+    blind to by construction: the row's plug-in prefix, exit codes and file count are
+    untouched, and a field that requires exactly 64 hex digits simply stops matching, so a
+    reader that only looks at fields would report that the table has fewer rows — a different
+    claim — while the misprinted hash went unmentioned. What can report it is a reader that
+    looks at every hex value the section prints and asks whether each is the length it states.
+    """
+    watch = _replaceability_reader()
+    rows = watch.installer_rows(notice_text)
+    assert len(rows) == REPLACEABILITY_INSTALLER_ROWS, (
+        f"§2.5.1's table reads as {len(rows)} rows, not {REPLACEABILITY_INSTALLER_ROWS}, so "
+        "there is no whole hash to shorten"
+    )
+    row = rows[1]
+    line_start = notice_text.index(f"| {row.label} |")
+    old_cell = f"| `{row.recorded_sha256}` |"
+    cell = notice_text.index(old_cell, line_start)
+    damaged = (
+        notice_text[:cell] + f"| {row.recorded_sha256[:-1]}\n" + notice_text[cell + len(old_cell) :]
+    )
+    assert damaged != notice_text, "the control did not shorten a hash the table states"
+    assert row.recorded_sha256 not in damaged, "the control left the full hash in the record"
+    return damaged
+
+
+def _artefacts_at_recorded_sizes(notice_text: str, directory: Path) -> list[str]:
+    """Files named for every artefact §2.5.1 names, each one the recorded byte count.
+
+    The contents are not the recorded contents — no file written here can be, and none
+    pretends to be. Matching the sizes is what isolates the comparison: with the byte
+    counts right, the only disagreement the reader can report is the sha256.
+    """
+    watch = _replaceability_reader()
+    claims = watch.variant_claims(notice_text) + watch.observation_claims(notice_text)
+    names: list[str] = []
+    for index, claim in enumerate(claims):
+        # A distinct fill byte per artefact. Two claims can state the same size — two of
+        # §2.5.1's plug-ins are both 102,400 bytes — and files that are identical have
+        # identical hashes, which would make one claim's replacement look like another's
+        # content already being recorded.
+        (directory / claim.name).write_bytes(bytes([65 + index]) * claim.recorded_bytes)
+        names.append(claim.name)
+    return names
+
+
+def test_the_replaceability_record_states_a_route_or_a_measurement_with_its_evidence(
+    tmp_path: Path,
+) -> None:
+    """§2.5.1's §6(b) item is either unmeasured or a dated measurement that carries proof.
+
+    **The property.** A replaceability item does two different jobs, and which one it is
+    doing changes what a reader may infer from it. `NOT MEASURED` records a route and
+    forbids an inference; `MEASURED <date>` records runs, bytes and an observed
+    difference, and invites one. What is watched is that the item is one or the other, and
+    that the measured shape carries the parts a measured claim is made of: a date, the
+    modified plug-ins with their sha256 values, the installers built with them and the
+    exit codes of their runs, the files the installs wrote to show the modified plug-in was
+    the one used, and a paragraph stating what none of it shows.
+
+    **Why the other shape is run too.** A witness that only reddens a hollow measurement
+    never accepts any record, and so cannot tell a complete record from a refusal — and the
+    refusal is the shape this repository held until 2026-11-13. The alternative is put
+    through the same reader and required to pass.
+
+    **What is not claimed here.** Nothing in this test says the §6(b) route is legally
+    satisfied, that the authored plug-in is interface-compatible in the sense the licence
+    uses, or that a third party can obtain the means to build one. Those are §2.5.1's own
+    limits, stated in the paragraph the reader requires it to find.
+    """
+    watch = _replaceability_reader()
+    notice_text = _notice_text()
+
+    # (a) The reader read the record rather than a constant it was handed.
+    state = watch.replaceability_state(notice_text)
+    assert state.startswith("MEASURED"), f"§2.5.1 states replaceability as {state!r}"
+    assert re.search(r"20\d{2}-\d{2}-\d{2}", state), (
+        f"§2.5.1 states {state!r} with no date inside the state itself"
+    )
+
+    variants = watch.variant_claims(notice_text)
+    observations = watch.observation_claims(notice_text)
+    rows = watch.installer_rows(notice_text)
+    assert len(variants) == len(REPLACEABILITY_VARIANTS), (
+        f"the reader found {len(variants)} modified plug-ins; §2.5.1 names "
+        f"{len(REPLACEABILITY_VARIANTS)}, so the read is not reading the record"
+    )
+    assert {claim.name for claim in variants} == set(REPLACEABILITY_VARIANTS), (
+        f"the reader named {sorted(claim.name for claim in variants)}, not the plug-ins "
+        "§2.5.1 names"
+    )
+    assert all(
+        claim.recorded_sha256 is not None and len(claim.recorded_sha256) == 64 for claim in variants
+    ), "a modified plug-in §2.5.1 names carries no 64-character sha256"
+    assert all(claim.recorded_bytes > 0 for claim in variants), (
+        "a modified plug-in §2.5.1 names carries no byte count"
+    )
+    assert len(rows) == REPLACEABILITY_INSTALLER_ROWS, (
+        f"the reader found {len(rows)} installer rows; §2.5.1's table states "
+        f"{REPLACEABILITY_INSTALLER_ROWS}"
+    )
+    assert all(row.install_exit == "0" and row.uninstall_exit == "0" for row in rows), (
+        "an installer row states a run that did not complete: "
+        f"{[(row.label, row.install_exit, row.uninstall_exit) for row in rows]}"
+    )
+    assert all(row.installed_files > 0 for row in rows), (
+        f"an installer row states no installed files: {[row.label for row in rows]}"
+    )
+    assert all(len(row.plugin_sha_prefix) == 8 for row in rows), (
+        "an installer row states no plug-in identity to match the variant claims against"
+    )
+    assert len(observations) == len(REPLACEABILITY_OBSERVATIONS), (
+        f"the reader found {len(observations)} observation files; §2.5.1 names "
+        f"{len(REPLACEABILITY_OBSERVATIONS)}"
+    )
+    assert {claim.name for claim in observations} == set(REPLACEABILITY_OBSERVATIONS), (
+        f"the reader named {sorted(claim.name for claim in observations)}, not the files "
+        "§2.5.1 says the installs produced"
+    )
+    assert REPLACEABILITY_LIMITS in watch.replaceability_section(notice_text), (
+        "§2.5.1 states a replaceability measurement with no paragraph saying what it does not show"
+    )
+
+    # (b) The reader runs as a command over the real record and prints what it read.
+    completed = _run_replaceability_tool()
+    assert completed.returncode == 0, (
+        f"scripts/lgpl_replaceability.py exited {completed.returncode}:\n{completed.stdout}\n"
+        f"{completed.stderr}"
+    )
+    printed = completed.stdout
+    for name in REPLACEABILITY_VARIANTS + REPLACEABILITY_OBSERVATIONS:
+        assert name in printed, f"the reader printed no {name!r}:\n{printed}"
+    for claim in variants:
+        assert claim.recorded_sha256 is not None
+        assert claim.recorded_sha256 in printed, (
+            f"the reader printed no {claim.recorded_sha256} for {claim.name}:\n{printed}"
+        )
+    assert f"installers built with them: {REPLACEABILITY_INSTALLER_ROWS}" in printed, (
+        f"the reader printed no installer count:\n{printed}"
+    )
+    assert "the record states what the measurement does not show" in printed, (
+        f"the reader printed no finding about the measurement's limits:\n{printed}"
+    )
+
+    # (c) The alternative shape: a record stating no measurement passes, and says so in
+    #     words a reader of NOTICE would recognise.
+    unmeasured = _state_rewritten(notice_text, "NOT MEASURED")
+    unmeasured_notice = tmp_path / "NOTICE-unmeasured"
+    unmeasured_notice.write_text(unmeasured, encoding="utf-8")
+    unmeasured_run = _run_replaceability_tool(notice=unmeasured_notice)
+    assert unmeasured_run.returncode == 0, (
+        f"a §2.5.1 that states no measurement was refused ({unmeasured_run.returncode}):\n"
+        f"{unmeasured_run.stdout}\n{unmeasured_run.stderr}"
+    )
+    assert "NOT MEASURED" in unmeasured_run.stdout, (
+        f"the reader did not print the state it read: {unmeasured_run.stdout}"
+    )
+    assert watch.record_problems(unmeasured) == [], (
+        "a record that claims no measurement produced findings: "
+        f"{watch.record_problems(unmeasured)}"
+    )
+
+    # (d) The state grammar is real: an item stating neither thing is refused rather than
+    #     silently read as one of them.
+    directionless = _state_rewritten(notice_text, "SEE THE PARAGRAPHS BELOW")
+    directionless_notice = tmp_path / "NOTICE-directionless"
+    directionless_notice.write_text(directionless, encoding="utf-8")
+    refused = _run_replaceability_tool(notice=directionless_notice)
+    assert refused.returncode == 1, (
+        f"an item stating no recognised state exited {refused.returncode}; the reader "
+        f"accepted it:\n{refused.stdout}"
+    )
+    assert "no replaceability item" in refused.stderr, (
+        f"the reader refused without saying why: {refused.stderr}"
+    )
+
+
+def test_the_replaceability_measurement_reds_when_any_part_of_its_proof_is_removed(
+    tmp_path: Path,
+) -> None:
+    """Each part of §2.5.1's §6(b) measurement is load-bearing, one control per part.
+
+    **Why per-part controls rather than a summary check.** The record's strength is that
+    every claim points at a measurement: the date at a run, each sha256 at bytes, each exit
+    code at a process, each observation file at a difference an install produced. A witness
+    that only checked "the record mentions sha256 somewhere" survives a record whose hashes
+    were stripped from the plug-ins and left in a neighbouring section. So each piece is
+    removed on its own and the reader has to name the piece that went.
+
+    **The byte comparison is shown able to fail, on bytes this test writes.** The artefacts
+    §2.5.1 hashes are installer outputs and do not live in the checkout, so the arm that
+    runs everywhere hands the reader files with the recorded byte counts and different
+    contents: with the sizes matching, the only disagreement available to report is the
+    hash, and the run has to report exactly that. Where `LABCAIRN_REPLACEABILITY_DIR` names
+    the real artefacts, the same flag is run against them and required to agree.
+    """
+    watch = _replaceability_reader()
+    notice_text = _notice_text()
+
+    controls: dict[str, str] = {
+        "a state with no date": _state_rewritten(notice_text, "MEASURED"),
+        "a variant whose sha256 is damaged": _variant_sha_damaged(notice_text),
+        "a variant hashed to the shipped file": _variant_hashed_to_the_shipped_bytes(notice_text),
+        "no observation entries": _observations_dropped(notice_text),
+        "no installer rows": _installers_dropped(notice_text),
+        "an installer whose install run failed": _exit_made_nonzero(notice_text),
+        "a limits heading reworded into a claim": _limits_reworded(notice_text),
+        "a table row naming a plug-in nothing hashes to": _table_prefix_that_names_no_plug_in(
+            notice_text
+        ),
+        "a table hash one character short": _table_hex_value_one_character_short(notice_text),
+    }
+
+    findings: dict[str, list[str]] = {}
+    for label, damaged in controls.items():
+        assert damaged != notice_text, f"the {label} control changed nothing"
+        problems = watch.record_problems(damaged)
+        assert problems, f"the record with {label} produced no finding"
+        findings[label] = problems
+
+    # Each control has to be caught by a finding about *its* piece, not by some other.
+    assert any("no date" in problem for problem in findings["a state with no date"]), (
+        f"the missing date produced no date finding: {findings['a state with no date']}"
+    )
+    assert any(
+        "StdUtils.bytepatched.dll" in problem and "sha256" in problem
+        for problem in findings["a variant whose sha256 is damaged"]
+    ), (
+        "the damaged sha256 produced no finding naming the plug-in and the hash: "
+        f"{findings['a variant whose sha256 is damaged']}"
+    )
+    assert any(
+        "the sha256 §2.5 records for the shipped file" in problem
+        for problem in findings["a variant hashed to the shipped file"]
+    ), (
+        "a modified plug-in hashed to the shipped file's own sha256 produced no finding: "
+        f"{findings['a variant hashed to the shipped file']}"
+    )
+    assert any(
+        "no observed difference" in problem for problem in findings["no observation entries"]
+    ), (
+        "removing the observations produced no finding about the observed difference: "
+        f"{findings['no observation entries']}"
+    )
+    assert any("no installer built" in problem for problem in findings["no installer rows"]), (
+        f"removing the installer rows produced no finding about the installs: "
+        f"{findings['no installer rows']}"
+    )
+    assert any(
+        "exit 1" in problem and "completed the installation" in problem
+        for problem in findings["an installer whose install run failed"]
+    ), (
+        "the failed install produced no finding naming the exit code: "
+        f"{findings['an installer whose install run failed']}"
+    )
+    assert any(
+        "does not show" in problem for problem in findings["a limits heading reworded into a claim"]
+    ), (
+        f"the reworded limits heading produced no finding naming it: "
+        f"{findings['a limits heading reworded into a claim']}"
+    )
+    assert any(
+        "no plug-in the item names hashes to" in problem
+        for problem in findings["a table row naming a plug-in nothing hashes to"]
+    ), (
+        "a table row whose plug-in prefix nothing hashes to produced no finding naming the "
+        f"prefix: {findings['a table row naming a plug-in nothing hashes to']}"
+    )
+    assert any(
+        "63-character hex value" in problem
+        for problem in findings["a table hash one character short"]
+    ), (
+        "a table hash with one character dropped produced no finding naming the value and its "
+        f"length: {findings['a table hash one character short']}"
+    )
+
+    # The record as it stands produces no finding at all: the controls reddened because of
+    # what was removed, not because the reader reports something of its own.
+    assert watch.record_problems(notice_text) == [], (
+        f"the record as it stands produced findings: {watch.record_problems(notice_text)}"
+    )
+
+    # The byte comparison, on bytes written here: recorded sizes, different contents.
+    artefacts = tmp_path / "artefacts"
+    artefacts.mkdir()
+    names = _artefacts_at_recorded_sizes(notice_text, artefacts)
+    assert len(names) == len(REPLACEABILITY_VARIANTS) + len(REPLACEABILITY_OBSERVATIONS), (
+        f"the byte arm wrote {len(names)} artefacts, not one per claim §2.5.1 states"
+    )
+    mismatched = _run_replaceability_tool("--check-artefacts", str(artefacts))
+    assert mismatched.returncode == 1, (
+        f"the reader hashed {len(names)} files whose contents are not the recorded bytes and "
+        f"exited {mismatched.returncode}; the hash comparison is not comparing:\n"
+        f"{mismatched.stdout}\n{mismatched.stderr}"
+    )
+    reported = mismatched.stderr
+    assert reported.count("records sha256") == len(names), (
+        f"the reader reported {reported.count('records sha256')} hash disagreements for "
+        f"{len(names)} artefacts:\n{reported}"
+    )
+    for name in names:
+        assert name in reported, f"the hash disagreement named no {name!r}:\n{reported}"
+
+    # The same mechanism has to be able to *agree*, on bytes this test controls. A record
+    # whose hashes are rewritten to the files written above is the mirror of the run above:
+    # the sizes already matched, so agreement here and disagreement there can only come from
+    # the hashes. A reader that never reports a match and a reader that never reports a
+    # mismatch both fail this arm.
+    agreeing_text = notice_text
+    rewritten_prefixes: dict[str, str] = {}
+    for claim in watch.variant_claims(notice_text) + watch.observation_claims(notice_text):
+        if claim.recorded_sha256 is None:
+            continue
+        actual = hashlib.sha256((artefacts / claim.name).read_bytes()).hexdigest()
+        assert actual not in agreeing_text, (
+            f"the file written for {claim.name!r} hashes to a value the record already "
+            "states, so the agreement control would change nothing"
+        )
+        agreeing_text = agreeing_text.replace(claim.recorded_sha256, actual, 1)
+        # Only a plug-in's hash is also quoted short, in the installer table; an
+        # observation file's hash appears once. The prefixes are followed where the
+        # record quotes them, and nowhere else.
+        if f"`{claim.recorded_sha256[:8]}…`" in agreeing_text:
+            rewritten_prefixes[claim.recorded_sha256[:8]] = actual[:8]
+    assert agreeing_text != notice_text, "the agreement control rewrote no recorded hash"
+
+    # §2.5.1's table names each plug-in by an eight-character prefix. Rewriting the full
+    # hashes alone would leave those prefixes pointing at nothing, and the run would then
+    # fail for the control's own inconsistency rather than for the thing it tests, so the
+    # prefixes follow the hashes they stand for.
+    for old_prefix, new_prefix in rewritten_prefixes.items():
+        agreeing_text = agreeing_text.replace(f"`{old_prefix}…`", f"`{new_prefix}…`")
+    agreeing_notice = tmp_path / "NOTICE-agreeing"
+    agreeing_notice.write_text(agreeing_text, encoding="utf-8")
+    agreed_synthetic = _run_replaceability_tool(
+        "--check-artefacts", str(artefacts), notice=agreeing_notice
+    )
+    assert agreed_synthetic.returncode == 0, (
+        f"a record whose hashes are the hashes of the files written here was rejected "
+        f"({agreed_synthetic.returncode}):\n"
+        f"{agreed_synthetic.stdout}\n{agreed_synthetic.stderr}"
+    )
+    assert "each hashed to the sha256" in agreed_synthetic.stdout, (
+        "the agreement arm passed without reporting what it hashed:\n" + agreed_synthetic.stdout
+    )
+
+    # The installer rows have the same shape: each states a sha256 for a 124-megabyte
+    # build product. A wrong digit in one of them is invisible to every other check in
+    # this file, so the comparison is shown able to fail on files written here — named the
+    # way the build names them, so the reader finds them and then disagrees with the hash.
+    fake_installer_root = tmp_path / "installers"
+    fake_installer_root.mkdir()
+    for index in range(REPLACEABILITY_INSTALLER_ROWS):
+        build_directory = fake_installer_root / f"dist-{index}"
+        build_directory.mkdir()
+        (build_directory / "LabCairn Setup 0.0.0.exe").write_bytes(
+            bytes([48 + index]) * (1024 * (index + 1))
+        )
+    installer_mismatched = _run_replaceability_tool("--check-installers", str(fake_installer_root))
+    assert installer_mismatched.returncode == 1, (
+        f"four installer files that hash to none of the recorded values produced exit "
+        f"{installer_mismatched.returncode}; the installer comparison is not comparing:\n"
+        f"{installer_mismatched.stdout}\n{installer_mismatched.stderr}"
+    )
+    for row in watch.installer_rows(notice_text):
+        assert row.label in installer_mismatched.stderr, (
+            f"the installer comparison reddened without naming the row {row.label!r}:\n"
+            f"{installer_mismatched.stderr}"
+        )
+
+    # Where the real artefacts are on hand, the same flag has to agree with the record.
+    raw = os.environ.get("LABCAIRN_REPLACEABILITY_DIR", "").strip()
+    directory = Path(raw) if raw else None
+    if directory is None or not directory.is_dir():
+        pytest.skip(
+            "LABCAIRN_REPLACEABILITY_DIR does not name a directory holding the modified "
+            "plug-ins and observation files §2.5.1 hashes, so the recorded sha256 values "
+            "were not measured against the artefacts in this run; the controls above ran "
+            "regardless"
+        )
+    agreed = _run_replaceability_tool("--check-artefacts", str(directory))
+    assert agreed.returncode == 0, (
+        f"the artefacts in {directory} did not hash to what §2.5.1 records:\n"
+        f"{agreed.stdout}\n{agreed.stderr}"
+    )
+    assert "each hashed to the sha256" in agreed.stdout, (
+        f"the byte check passed without reporting what it hashed:\n{agreed.stdout}"
+    )
+
+    # The installers themselves, where the build products are on hand.
+    installer_raw = os.environ.get("LABCAIRN_REPLACEABILITY_INSTALLERS", "").strip()
+    installer_root = Path(installer_raw) if installer_raw else None
+    if installer_root is None or not installer_root.is_dir():
+        pytest.skip(
+            "LABCAIRN_REPLACEABILITY_INSTALLERS does not name a directory holding the "
+            "installer build products \u00a72.5.1's table hashes, so those sha256 values were "
+            "not measured against installers in this run; the controls above ran regardless"
+        )
+    installers_agreed = _run_replaceability_tool("--check-installers", str(installer_root))
+    assert installers_agreed.returncode == 0, (
+        f"the installers under {installer_root} did not hash to what \u00a72.5.1's table "
+        f"records:\n{installers_agreed.stdout}\n{installers_agreed.stderr}"
+    )
+    assert "each hashed to the sha256 its table row states" in installers_agreed.stdout, (
+        f"the installer check passed without reporting what it hashed:\n{installers_agreed.stdout}"
     )
