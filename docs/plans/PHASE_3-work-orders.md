@@ -118,7 +118,7 @@ shell, which is what execution plan §6's first gap-register row requires.
 
 **4.2 Scope.** The wire and the render: `create_app` → a socket → the page the
 participant sees. In-process transports are out of scope *as evidence*:
-`tests/test_workbench_live_service.py:142` — `transport = httpx.ASGITransport(app=app)` drives the service through
+`tests/test_workbench_live_service.py:150` — `transport = httpx.ASGITransport(app=app)` drives the service through
 `httpx.ASGITransport` (measured live 2026-11-08), and
 [`../THREAT-MODEL.md`](../THREAT-MODEL.md) §6.1 records that every web test stops
 at the `fetch` boundary `web/src/test/fakeApi.ts` answers. The nearest precedent
@@ -139,7 +139,7 @@ path works and what it shows, and how well is not a question this ticket answers
 |---|---|
 | `web/package.json` carries `jsdom 30.1.2` and **no** Playwright, Puppeteer, Selenium or Electron package | `web/package.json`, 2026-11-08. `jsdom` is not a browser and does not exercise the wire, so the driver decision (§2 item 1) has an install cost this ticket records rather than assumes away. |
 | The web quality gate runs on `ubuntu-latest` | `.github/workflows/web.yml:48` — `runs-on: ubuntu-latest`, 2026-11-08 |
-| The service is reachable in tests only through an in-process transport | `tests/test_workbench_live_service.py:142` — `transport = httpx.ASGITransport(app=app)`, 2026-11-08 |
+| The service is reachable in tests only through an in-process transport | `tests/test_workbench_live_service.py:150` — `transport = httpx.ASGITransport(app=app)`, 2026-11-08 |
 | The stream is read with the client's own `fetch`, never `EventSource` | [`../THREAT-MODEL.md`](../THREAT-MODEL.md) **§6.2** (line 637), 2026-11-08 — the preparation draft cited §6.1 for this and its own freshness review corrected it; §6.2 is the row in this tree |
 
 **4.5 Areas this window owns.**
